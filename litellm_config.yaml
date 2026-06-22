@@ -1,0 +1,57 @@
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+model_list:
+
+  - model_name: gemini-3-flash
+    litellm_params:
+      model: gemini/gemini-3-flash-preview
+      api_key: os.environ/GOOGLE_API_KEY
+
+  - model_name: gemma-4-31b-it
+    litellm_params:
+      model: gemini/gemma-4-31b-it
+      api_key: os.environ/GOOGLE_API_KEY
+
+  - model_name: gemma-4-26b-a4b-it
+    litellm_params:
+      model: gemini/gemma-4-26b-a4b-it
+      api_key: os.environ/GOOGLE_API_KEY
+
+  - model_name: gemini-3.1-flash-lite
+    litellm_params:
+      model: gemini/gemini-3.1-flash-lite-preview
+      api_key: os.environ/GOOGLE_API_KEY
+
+  - model_name: gemma-3-27b-it
+    litellm_params:
+      model: gemini/gemma-3-27b-it
+      api_key: os.environ/GOOGLE_API_KEY
+
+  - model_name: gemma-3-12b-it
+    litellm_params:
+      model: gemini/gemma-3-12b-it
+      api_key: os.environ/GOOGLE_API_KEY
+
+litellm_settings:
+  drop_params: true
+  fallbacks:
+    - gemini-3-flash:
+        - gemma-4-31b-it
+        - gemini-3.1-flash-lite
+        - gemma-3-27b-it
+        - gemma-3-12b-it
+    - gemma-4-31b-it:
+        - gemma-4-26b-a4b-it
+        - gemini-3.1-flash-lite
+        - gemma-3-27b-it
+        - gemma-3-12b-it
+    - gemma-4-26b-a4b-it:
+        - gemini-3.1-flash-lite
+        - gemma-3-27b-it
+        - gemma-3-12b-it
+    - gemini-3.1-flash-lite:
+        - gemma-3-27b-it
+        - gemma-3-12b-it
+    - gemma-3-27b-it:
+        - gemma-3-12b-it
