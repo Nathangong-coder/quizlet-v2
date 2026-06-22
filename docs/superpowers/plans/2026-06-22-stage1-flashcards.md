@@ -4,9 +4,9 @@
 
 **Goal:** Build a fully functional flashcard app (Next.js App Router) with set CRUD, comma/semicolon import, full-text search, and a timed matching game — all data persisted in Postgres via Prisma, protected behind GitHub OAuth via Auth.js.
 
-**Architecture:** Next.js 15 App Router with server actions for all mutations; Prisma talking to a Postgres database (Neon or Supabase); Auth.js v5 using a database session strategy with PrismaAdapter; pure-function game and parser logic that is independently unit-tested with Vitest.
+**Architecture:** Next.js 16 App Router with server actions for all mutations; Prisma talking to a Postgres database (Neon or Supabase); Auth.js v5 using a database session strategy with PrismaAdapter; pure-function game and parser logic that is independently unit-tested with Vitest.
 
-**Tech Stack:** Next.js 15, React 19, TypeScript 5, Tailwind CSS, shadcn/ui, Auth.js (next-auth@beta), @auth/prisma-adapter, Prisma 5+, PostgreSQL (Neon/Supabase), Zod, Vitest.
+**Tech Stack:** Next.js 16, React 19, TypeScript 5, Tailwind CSS v4, shadcn/ui v4, Auth.js (next-auth@beta), @auth/prisma-adapter, Prisma 7+, PostgreSQL (Neon/Supabase), Zod, Vitest.
 
 ## Global Constraints
 
@@ -18,6 +18,7 @@
 - No `.env` changes — add a `.env.local` for local dev overrides if needed.
 - Matching game state designed for future multiplayer: `sessionId` field present from day one.
 - Tests live in `tests/` directory, mirroring `src/lib/` structure.
+- shadcn v4 uses `@base-ui/react` — `Button asChild` is NOT supported. Use `buttonVariants` from `@/components/ui/button` applied directly to `<Link>` or `<a>` elements instead.
 
 ---
 
