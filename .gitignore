@@ -30,3 +30,5 @@ prisma/*.db-journal
 
 # Local LLM proxy
 litellm.log
+
+/src/generated/prisma
