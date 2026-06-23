@@ -1,6 +1,7 @@
-import { auth } from "@/auth"
+import NextAuth from "next-auth"
+import { authConfig } from "@/auth.config"
 
-export default auth((req) => {
+export default NextAuth(authConfig).auth((req) => {
   const isProtectedRoute =
     req.nextUrl.pathname.startsWith("/sets/new") ||
     req.nextUrl.pathname.includes("/edit") ||
