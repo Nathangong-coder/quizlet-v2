@@ -49,7 +49,7 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
     return { success: true, data: { setId: set.id } }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { success: false, error: error.errors[0].message }
+      return { success: false, error: error.issues[0].message }
     }
     return { success: false, error: (error as Error).message }
   }
@@ -97,7 +97,7 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
     return { success: true, data: { setId: id } }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { success: false, error: error.errors[0].message }
+      return { success: false, error: error.issues[0].message }
     }
     return { success: false, error: (error as Error).message }
   }
