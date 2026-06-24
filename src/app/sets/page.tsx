@@ -8,6 +8,7 @@ import { Plus } from 'lucide-react'
 import { SearchBar } from '@/components/search/SearchBar'
 import { Suspense } from 'react'
 import { cn } from '@/lib/utils'
+import { SignInButton } from '@/components/auth/SignInButton'
 
 export default async function SetsPage({
   searchParams,
@@ -22,9 +23,7 @@ export default async function SetsPage({
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
         <h2 className="text-2xl font-bold">Sign in to see your sets</h2>
         <p className="text-muted-foreground">You need an account to manage your flashcard sets.</p>
-        <Link href="/api/auth/signin" className={cn(buttonVariants())}>
-          Sign In
-        </Link>
+        <SignInButton className={cn(buttonVariants())} />
       </div>
     )
   }
