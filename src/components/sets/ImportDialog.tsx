@@ -40,12 +40,10 @@ export function ImportDialog({ onImport }: ImportDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <Import className="h-4 w-4" />
-          Import cards
-        </Button>
-      </DialogTrigger>
+      <Button variant="outline" className="gap-2" onClick={() => setOpen(true)}>
+        <Import className="h-4 w-4" />
+        Import cards
+      </Button>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Import Cards</DialogTitle>
