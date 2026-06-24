@@ -1,11 +1,12 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { SetCard } from '@/components/sets/SetCard'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { SearchBar } from '@/components/search/SearchBar'
 import { Suspense } from 'react'
+import { cn } from '@/lib/utils'
 
 export default async function SetsPage({
   searchParams,
@@ -20,9 +21,9 @@ export default async function SetsPage({
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
         <h2 className="text-2xl font-bold">Sign in to see your sets</h2>
         <p className="text-muted-foreground">You need an account to manage your flashcard sets.</p>
-        <Button asChild>
-          <Link href="/api/auth/signin">Sign In</Link>
-        </Button>
+        <Link href="/api/auth/signin" className={cn(buttonVariants())}>
+          Sign In
+        </Link>
       </div>
     )
   }
@@ -71,12 +72,10 @@ export default async function SetsPage({
           <Suspense fallback={<div className="h-10 w-full max-w-sm bg-muted animate-pulse rounded-md" />}>
             <SearchBar />
           </Suspense>
-          <Button asChild>
-            <Link href="/sets/new" className="flex items-center gap-2 whitespace-nowrap">
-              <Plus className="w-4 h-4" />
-              New Set
-            </Link>
-          </Button>
+          <Link href="/sets/new" className={cn(buttonVariants(), 'flex items-center gap-2 whitespace-nowrap')}>
+            <Plus className="w-4 h-4" />
+            New Set
+          </Link>
         </div>
       </div>
 
@@ -91,9 +90,9 @@ export default async function SetsPage({
               <p className="text-muted-foreground mb-6 max-w-sm">
                 Try adjusting your search terms or creating a new set.
               </p>
-              <Button asChild>
-                <Link href="/sets/new">Create New Set</Link>
-              </Button>
+              <Link href="/sets/new" className={cn(buttonVariants())}>
+                Create New Set
+              </Link>
             </>
           ) : (
             <>
@@ -104,9 +103,9 @@ export default async function SetsPage({
               <p className="text-muted-foreground mb-6 max-w-sm">
                 Start building your knowledge by creating your first flashcard set.
               </p>
-              <Button asChild>
-                <Link href="/sets/new">Create Your First Set</Link>
-              </Button>
+              <Link href="/sets/new" className={cn(buttonVariants())}>
+                Create Your First Set
+              </Link>
             </>
           )}
         </div>
