@@ -65,7 +65,7 @@ export default async function SetDetailPage({ params }: { params: Promise<{ id: 
               >
                 <Edit className="w-4 h-4" />
                 Edit Set
-              </Link
+              </Link>
               <DeleteSetButton setId={id} />
             </>
           )}
