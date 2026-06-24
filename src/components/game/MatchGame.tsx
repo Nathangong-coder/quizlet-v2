@@ -25,13 +25,6 @@ export function MatchGame({ initialTiles }: MatchGameProps) {
 
   const gameFinished = isComplete(gameState);
 
-  const resetGame = () => {
-    setGameState(initMatchGame([], gameState.sessionId)); // This needs modification as we need cards
-    // Wait, the API for initMatchGame requires cards.
-    // I should probably have passed the cards as a prop or stored them.
-    // Let me rethink initMatchGame usage.
-    // Actually, I can just reload the page or add a way to re-init.
-  };
 
   return (
     <div className="flex flex-col items-center gap-6 p-4">
@@ -56,8 +49,11 @@ export function MatchGame({ initialTiles }: MatchGameProps) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-8 rounded-lg shadow-xl text-center">
             <h3 className="text-3xl font-bold mb-4">Victory!</h3>
-            <p className="mb-6 text-xl">Time: {Math.floor(((gameState.finishedAt! - gameState.startedAt!) / 1000) / 60)}:
-               {Math.floor(((gameState.finishedAt! - gameState.startedAt!) / 1000) % 60).toString().padStart(2, '0')}</p>
+            <p className="mb-6 text-xl">Time: {
+              gameState.finishedAt && gameState.startedAt
+                ? `${Math.floor(((gameState.finishedAt - gameState.startedAt) / 1000) / 60)}:${Math.floor(((gameState.finishedAt - gameState.startedAt) / 1000) % 60).toString().padStart(2, '0')}`
+                : 'Calculating...'
+            }</p>
             <button
               onClick={() => window.location.reload()}
               className="bg-blue-600 text-white px-6 py-2 rounded-lg"

@@ -1,5 +1,6 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
+import { Prisma } from '@prisma/client'
 import { SetCard } from '@/components/sets/SetCard'
 import { Button, buttonVariants } from '@/components/ui/button'
 import Link from 'next/link'
@@ -28,7 +29,7 @@ export default async function SetsPage({
     )
   }
 
-  const whereClause: any = {
+  const whereClause: Prisma.SetWhereInput = {
     userId: session.user.id,
   }
 
