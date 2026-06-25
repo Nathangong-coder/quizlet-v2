@@ -51,29 +51,7 @@ export async function recordReview(
     }),
   ])
 
-export async function recordReview(
-  cardId: string,
-  knew: boolean
-): Promise<{ newConfidence: number }> {
-// ... (rest of recordReview)
   return { newConfidence }
-}
-
-export async function updateConfidence(
-  cardId: string,
-  setId: string,
-  confidence: number
-): Promise<void> {
-  const session = await auth()
-  if (!session?.user?.id) return
-
-  await prisma.cardProgress.upsert({
-    where: { userId_cardId: { userId: session.user.id, cardId } },
-    update: { confidence },
-    create: { userId: session.user.id, cardId, confidence, starred: false },
-  })
-
-  revalidatePath(`/sets/${setId}`)
 }
 
 export async function updateConfidence(
