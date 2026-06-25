@@ -17,6 +17,10 @@ model User {
   sets          Set[]
   cardProgress     CardProgress[]
   confidenceEvents ConfidenceEvent[]
+  aiCredential  AiCredential?
+  quizAttempts  QuizAttempt[]
+  quizAnswers   QuizAnswer[]
+  trainingPlans TrainingPlan[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -28,6 +32,7 @@ model Set {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   cards       Card[]
+  quizAttempts QuizAttempt[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -43,6 +48,8 @@ model Card {
   set        Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
   progress         CardProgress[]
   confidenceEvents ConfidenceEvent[]
+  quizOptionCaches QuizOptionCache[]
+  quizAnswers      QuizAnswer[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -110,4 +117,84 @@ model ConfidenceEvent {
 
   @@index([userId, cardId])
   @@index([userId, createdAt])
+}
+
+model AiCredential {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  provider        String    @default("google")
+  encryptedApiKey String    @db.Text
+  keyHint         String
+  verifiedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model QuizOptionCache {
+  id        String   @id @default(cuid())
+  cardId    String
+  model     String
+  options   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, model])
+  @@index([cardId])
+}
+
+model QuizAttempt {
+  id        String       @id @default(cuid())
+  userId    String
+  setId     String
+  mode      String
+  score     Int?
+  createdAt DateTime     @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  set       Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
+  answers   QuizAnswer[]
+
+  @@index([userId, createdAt])
+  @@index([setId, createdAt])
+}
+
+model QuizAnswer {
+  id            String      @id @default(cuid())
+  attemptId     String
+  userId        String
+  cardId        String
+  mode          String
+  prompt        String      @db.Text
+  answer        String?     @db.Text
+  correctAnswer String      @db.Text
+  selectedOption String?    @db.Text
+  isCorrect     Boolean?
+  grade         Json?
+  score         Int?
+  feedback      String?     @db.Text
+  createdAt     DateTime    @default(now())
+  attempt       QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card          Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([userId, cardId])
+  @@index([userId, createdAt])
+  @@index([attemptId])
+}
+
+model TrainingPlan {
+  id                 String   @id @default(cuid())
+  userId             String
+  sourceSetId         String?
+  title              String
+  summary            String   @db.Text
+  focusAreas          Json
+  recommendedCardIds  Json
+  generatedQuestions  Json
+  createdAt           DateTime @default(now())
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([sourceSetId])
 }
