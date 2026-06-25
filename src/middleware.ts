@@ -6,7 +6,9 @@ export default NextAuth(authConfig).auth((req) => {
     req.nextUrl.pathname.startsWith("/sets/new") ||
     req.nextUrl.pathname.includes("/edit") ||
     req.nextUrl.pathname.includes("/match") ||
-    req.nextUrl.pathname.includes("/review");
+    req.nextUrl.pathname.includes("/review") ||
+    req.nextUrl.pathname.includes("/quiz") ||
+    req.nextUrl.pathname.startsWith("/settings/ai");
 
   if (isProtectedRoute && !req.auth) {
     return Response.redirect(new URL("/api/auth/signin", req.nextUrl))
@@ -14,5 +16,5 @@ export default NextAuth(authConfig).auth((req) => {
 })
 
 export const config = {
-  matcher: ['/sets/new', '/sets/:id*/edit', '/sets/:id*/match', '/sets/:id*/review'],
+  matcher: ['/sets/new', '/sets/:id*/edit', '/sets/:id*/match', '/sets/:id*/review', '/sets/:id*/quiz', '/settings/ai'],
 }
