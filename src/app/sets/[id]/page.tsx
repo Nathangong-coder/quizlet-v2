@@ -1,101 +1,119 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
-import { Button, buttonVariants } from '@/components/ui/button'
 import Link from 'next/link'
-import { DeleteSetButton } from '@/components/sets/DeleteSetButton'
-import { ArrowLeft, Edit, Play } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { cn } from '@/lib/utils'
+import { deleteSet } from '@/actions/sets'
+import StarButton from '@/components/sets/StarButton'
+import FlashcardSection from '@/components/flashcard/FlashcardSection'
 
-export default async function SetDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await auth()
 
-  const set = await prisma.set.findUnique({
-    where: { id },
-    include: {
-      cards: {
-        orderBy: { position: 'asc' },
-      },
-    },
-  })
+  const [set, progressList] = await Promise.all([
+    prisma.set.findUnique({
+      where: { id },
+      include: { cards: { orderBy: { position: 'asc' } } },
+    }),
+    session?.user?.id
+      ? prisma.cardProgress.findMany({
+          where: { userId: session.user.id, card: { setId: id } },
+          select: { cardId: true, confidence: true, starred: true },
+        })
+      : Promise.resolve([]),
+  ])
 
-  if (!set) {
-    notFound()
-  }
+  if (!set) notFound()
 
   const isOwner = session?.user?.id === set.userId
+  const progressByCardId = new Map(progressList.map((p) => [p.cardId, p]))
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-4 mb-6">
-        <Link
-          href="/sets"
-          className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'flex items-center gap-2')}
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Sets
-        </Link>
-      </div>
-
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-        <div className="space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight">{set.title}</h1>
+    <div className="max-w-3xl mx-auto">
+      <div className="flex items-start justify-between mb-2">
+        <div>
+          <h1 className="text-3xl font-bold">{set.title}</h1>
           {set.description && (
-            <p className="text-lg text-muted-foreground max-w-2xl">
-              {set.description}
-            </p>
+            <p className="text-muted-foreground mt-1">{set.description}</p>
           )}
         </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href={`/sets/${id}/match`}
-            className={cn(buttonVariants(), 'flex items-center gap-2')}
-          >
-            <Play className="w-4 h-4" />
-            Matching Game
-          </Link>
-          {isOwner && (
-            <>
-              <Link
-                href={`/sets/${id}/edit`}
-                className={cn(buttonVariants({ variant: 'outline' }), 'flex items-center gap-2')}
-              >
-                <Edit className="w-4 h-4" />
-                Edit Set
-              </Link>
-              <DeleteSetButton setId={id} />
-            </>
-          )}
-        </div>
+        {isOwner && (
+          <div className="flex gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/sets/${id}/edit`}>Edit</Link>
+            </Button>
+            <form action={deleteSet.bind(null, id)}>
+              <Button variant="destructive" size="sm" type="submit">
+                Delete
+              </Button>
+            </form>
+          </div>
+        )}
       </div>
 
-      <Separator className="mb-8" />
+      <p className="text-sm text-muted-foreground mb-6">{set.cards.length} cards</p>
 
-      <div className="space-y-4">
-        <h2 className="text-2xl font-semibold mb-4">Cards ({set.cards.length})</h2>
-        <div className="grid gap-4">
-          {set.cards.map((card, index) => (
-            <div
-              key={card.id}
-              className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-            >
-              <div className="flex gap-4">
-                <span className="text-muted-foreground font-mono text-sm pt-1">
-                  {index + 1}.
-                </span>
-                <div className="font-medium">
-                  {card.term}
+      <div className="flex gap-3 mb-8">
+        <Button asChild>
+          <Link href={`/sets/${id}/match`}>Matching Game</Link>
+        </Button>
+        {session?.user?.id && (
+          <Button asChild variant="outline">
+            <Link href={`/sets/${id}/review`}>Review Mode</Link>
+          </Button>
+        )}
+      </div>
+
+      {set.cards.length > 0 && (
+        <FlashcardSection
+          cards={set.cards.map((c) => ({
+            id: c.id,
+            term: c.term,
+            definition: c.definition,
+          }))}
+        />
+      )}
+
+      <Separator className="mb-6" />
+
+      <div className="space-y-3">
+        {set.cards.map((card) => {
+          const progress = progressByCardId.get(card.id)
+          return (
+            <Card key={card.id}>
+              <CardContent className="pt-4 grid grid-cols-[1fr_1fr_auto] gap-4 items-start">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
+                    Term
+                  </p>
+                  <p className="font-medium">{card.term}</p>
                 </div>
-              </div>
-              <div className="text-muted-foreground md:pl-8">
-                {card.definition}
-              </div>
-            </div>
-          ))}
-        </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
+                    Definition
+                  </p>
+                  <p>{card.definition}</p>
+                </div>
+                {session?.user?.id && (
+                  <div className="flex flex-col items-center gap-2 pt-5">
+                    <StarButton
+                      cardId={card.id}
+                      setId={id}
+                      starred={progress?.starred ?? false}
+                    />
+                    <Badge variant="outline" className="text-xs font-mono px-1.5">
+                      {progress?.confidence ?? 5}/10
+                    </Badge>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
     </div>
   )
