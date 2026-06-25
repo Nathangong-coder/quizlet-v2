@@ -6,9 +6,9 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { deleteSet } from '@/actions/sets'
 import StarButton from '@/components/sets/StarButton'
 import FlashcardSection from '@/components/flashcard/FlashcardSection'
+import DeleteSetForm from '@/components/sets/DeleteSetForm'
 import { cn } from '@/lib/utils'
 
 export default async function SetPage({ params }: { params: Promise<{ id: string }> }) {
@@ -33,10 +33,6 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
   const isOwner = session?.user?.id === set.userId
   const progressByCardId = new Map(progressList.map((p) => [p.cardId, p]))
 
-  async function handleDelete(formData: FormData) {
-    await deleteSet(id)
-  }
-
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-start justify-between mb-2">
@@ -54,11 +50,7 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
             >
               Edit
             </Link>
-            <form action={handleDelete}>
-              <Button variant="destructive" size="sm" type="submit">
-                Delete
-              </Button>
-            </form>
+            <DeleteSetForm setId={id} />
           </div>
         )}
       </div>
