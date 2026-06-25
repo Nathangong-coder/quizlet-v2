@@ -2,13 +2,14 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { deleteSet } from '@/actions/sets'
 import StarButton from '@/components/sets/StarButton'
 import FlashcardSection from '@/components/flashcard/FlashcardSection'
+import { cn } from '@/lib/utils'
 
 export default async function SetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -32,6 +33,10 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
   const isOwner = session?.user?.id === set.userId
   const progressByCardId = new Map(progressList.map((p) => [p.cardId, p]))
 
+  async function handleDelete(formData: FormData) {
+    await deleteSet(id)
+  }
+
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-start justify-between mb-2">
@@ -43,10 +48,13 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
         </div>
         {isOwner && (
           <div className="flex gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/sets/${id}/edit`}>Edit</Link>
-            </Button>
-            <form action={deleteSet.bind(null, id)}>
+            <Link
+              href={`/sets/${id}/edit`}
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+            >
+              Edit
+            </Link>
+            <form action={handleDelete}>
               <Button variant="destructive" size="sm" type="submit">
                 Delete
               </Button>
@@ -58,13 +66,19 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
       <p className="text-sm text-muted-foreground mb-6">{set.cards.length} cards</p>
 
       <div className="flex gap-3 mb-8">
-        <Button asChild>
-          <Link href={`/sets/${id}/match`}>Matching Game</Link>
-        </Button>
+        <Link
+          href={`/sets/${id}/match`}
+          className={cn(buttonVariants())}
+        >
+          Matching Game
+        </Link>
         {session?.user?.id && (
-          <Button asChild variant="outline">
-            <Link href={`/sets/${id}/review`}>Review Mode</Link>
-          </Button>
+          <Link
+            href={`/sets/${id}/review`}
+            className={cn(buttonVariants({ variant: 'outline' }))}
+          >
+            Review Mode
+          </Link>
         )}
       </div>
 

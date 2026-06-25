@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import {
   initReviewSession,
   currentCard,
@@ -12,6 +12,7 @@ import {
 } from '@/lib/review/session'
 import type { ReviewCard, ReviewSession as RS } from '@/lib/review/session'
 import { recordReview } from '@/actions/confidence'
+import { cn } from '@/lib/utils'
 
 interface ReviewSessionProps {
   cards: ReviewCard[]
@@ -51,9 +52,12 @@ export default function ReviewSession({ cards, setId }: ReviewSessionProps) {
           >
             Review again
           </Button>
-          <Button asChild variant="outline">
-            <Link href={`/sets/${setId}`}>Back to set</Link>
-          </Button>
+          <Link
+            href={`/sets/${setId}`}
+            className={cn(buttonVariants({ variant: 'outline' }))}
+          >
+            Back to set
+          </Link>
         </div>
       </div>
     )
