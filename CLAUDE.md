@@ -74,3 +74,9 @@ Build in four stages. Do not start a later stage's work until the prior stage is
 ## Security note
 
 `.env` currently holds **live secrets** (`GOOGLE_API_KEY`, `RESEND_API_KEY`). It is gitignored — keep it that way and never commit real keys. These keys were exposed during setup; rotate them. Use `.env.example` (placeholders only) for documenting required variables.
+
+## Future Considerations
+- **Important Terms:** Starred cards are considered "important terms." Need to define specific behavior:
+  - Should they be tested more frequently in review mode?
+  - Should they appear more often in flashcard carousels?
+  - Should there be an option to "Focus only on important terms" during quizzes?

@@ -71,7 +71,6 @@ export default function ReviewSession({ cards, setId }: ReviewSessionProps) {
         <span>
           {stats.completed} / {stats.total} done
         </span>
-        <span>Confidence: {card.confidence}/10</span>
       </div>
 
       <div

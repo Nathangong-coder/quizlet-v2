@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import StarButton from '@/components/sets/StarButton'
 import FlashcardSection from '@/components/flashcard/FlashcardSection'
 import DeleteSetForm from '@/components/sets/DeleteSetForm'
+import ConfidenceRate from '@/components/sets/ConfidenceRate'
 import { cn } from '@/lib/utils'
 
 export default async function SetPage({ params }: { params: Promise<{ id: string }> }) {
@@ -57,6 +58,16 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
 
       <p className="text-sm text-muted-foreground mb-6">{set.cards.length} cards</p>
 
+      {set.cards.length > 0 && (
+        <FlashcardSection
+          cards={set.cards.map((c) => ({
+            id: c.id,
+            term: c.term,
+            definition: c.definition,
+          }))}
+        />
+      )}
+
       <div className="flex gap-3 mb-8">
         <Link
           href={`/sets/${id}/match`}
@@ -74,17 +85,10 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
         )}
       </div>
 
-      {set.cards.length > 0 && (
-        <FlashcardSection
-          cards={set.cards.map((c) => ({
-            id: c.id,
-            term: c.term,
-            definition: c.definition,
-          }))}
-        />
-      )}
-
-      <Separator className="mb-6" />
+      <div className="flex items-center gap-4 mb-6">
+        <h2 className="text-xl font-semibold">Terms List</h2>
+        <Separator className="flex-1" />
+      </div>
 
       <div className="space-y-3">
         {set.cards.map((card) => {
@@ -105,15 +109,17 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
                   <p>{card.definition}</p>
                 </div>
                 {session?.user?.id && (
-                  <div className="flex flex-col items-center gap-2 pt-5">
+                  <div className="flex flex-col items-center gap-3 pt-5">
                     <StarButton
                       cardId={card.id}
                       setId={id}
                       starred={progress?.starred ?? false}
                     />
-                    <Badge variant="outline" className="text-xs font-mono px-1.5">
-                      {progress?.confidence ?? 5}/10
-                    </Badge>
+                    <ConfidenceRate
+                      cardId={card.id}
+                      setId={id}
+                      initialConfidence={progress?.confidence ?? 5}
+                    />
                   </div>
                 )}
               </CardContent>
