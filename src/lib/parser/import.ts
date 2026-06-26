@@ -57,9 +57,9 @@ export function parseImport(text: string, options?: ParseOptions): ParsedCard[] 
   const cardDelimiter = options?.cardDelimiter ?? ';';
   const fieldDelimiter = options?.fieldDelimiter ?? ',';
 
-  // Split into individual card entries using semicolon or newline
-  const delimiters = [cardDelimiter, '\n', '\r'];
-  const entries = splitRespectingQuotes(text, delimiters);
+  // Split into individual card entries using ONLY the specified card delimiter (default ';')
+  // This allows newlines to be part of the term or definition.
+  const entries = splitRespectingQuotes(text, cardDelimiter);
   const cards: ParsedCard[] = [];
 
   for (const entry of entries) {
