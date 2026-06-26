@@ -15,21 +15,19 @@ export type ParsedCard = z.infer<typeof ParsedCardSchema>;
 /**
  * Splits a string by a delimiter, respecting quoted values.
  */
-function splitRespectingQuotes(text: string, delimiter: string): string[] {
+function splitRespectingQuotes(text: string, delimiters: string | string[]): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
+  const delimiterSet = Array.isArray(delimiters) ? delimiters : [delimiters];
 
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
 
     if (char === '"') {
       inQuotes = !inQuotes;
-      // We keep the quotes for now to handle them in the final trim/cleanup
-      // or we can strip them here. The requirement says "Net income..." -> "Net income..."
-      // Usually, quoted values in CSVs have the quotes stripped.
       current += char;
-    } else if (char === delimiter && !inQuotes) {
+    } else if (!inQuotes && delimiterSet.includes(char)) {
       result.push(current);
       current = '';
     } else {
@@ -59,8 +57,9 @@ export function parseImport(text: string, options?: ParseOptions): ParsedCard[] 
   const cardDelimiter = options?.cardDelimiter ?? ';';
   const fieldDelimiter = options?.fieldDelimiter ?? ',';
 
-  // Split into individual card entries
-  const entries = splitRespectingQuotes(text, cardDelimiter);
+  // Split into individual card entries using semicolon or newline
+  const delimiters = [cardDelimiter, '\n', '\r'];
+  const entries = splitRespectingQuotes(text, delimiters);
   const cards: ParsedCard[] = [];
 
   for (const entry of entries) {

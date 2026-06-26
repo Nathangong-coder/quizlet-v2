@@ -18,6 +18,7 @@ type ActionResult<T> = {
 export async function getOrGenerateMultipleChoiceOptions(
   cardId: string
 ): Promise<ActionResult<{ cardId: string; options: string[]; correctAnswer: string; cacheHit: boolean; model: string }>> {
+  if (!cardId) return { success: false, error: 'Card ID is required' };
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 

@@ -11,6 +11,7 @@ import FlashcardSection from '@/components/flashcard/FlashcardSection'
 import DeleteSetForm from '@/components/sets/DeleteSetForm'
 import ConfidenceRate from '@/components/sets/ConfidenceRate'
 import { cn } from '@/lib/utils'
+import { TermsList } from '@/components/sets/TermsList'
 
 export default async function SetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -102,48 +103,12 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
         )}
       </div>
 
-      <div className="flex items-center gap-4 mb-6">
-        <h2 className="text-xl font-semibold">Terms List</h2>
-        <Separator className="flex-1" />
-      </div>
-
-      <div className="space-y-3">
-        {set.cards.map((card) => {
-          const progress = progressByCardId.get(card.id)
-          return (
-            <Card key={card.id}>
-              <CardContent className="pt-4 grid grid-cols-[1fr_1fr_auto] gap-4 items-start">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-                    Term
-                  </p>
-                  <p className="font-medium">{card.term}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
-                    Definition
-                  </p>
-                  <p>{card.definition}</p>
-                </div>
-                {session?.user?.id && (
-                  <div className="flex flex-col items-center gap-3 pt-5">
-                    <StarButton
-                      cardId={card.id}
-                      setId={id}
-                      starred={progress?.starred ?? false}
-                    />
-                    <ConfidenceRate
-                      cardId={card.id}
-                      setId={id}
-                      initialConfidence={progress?.confidence ?? 5}
-                    />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+      <TermsList
+        cards={set.cards}
+        progressMap={progressByCardId}
+        userId={session?.user?.id}
+        setId={id}
+      />
     </div>
   )
 }
