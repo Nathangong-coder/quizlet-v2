@@ -26,6 +26,10 @@ export function ShortAnswerQuiz({ cards, attemptId, onFinish }: ShortAnswerQuizP
 
   const currentCard = cards[currentIndex];
 
+  if (!currentCard) {
+    return <div className="text-center p-10">No cards available for this quiz.</div>;
+  }
+
   async function handleSubmit() {
     if (!answer.trim()) return;
 
@@ -51,7 +55,7 @@ export function ShortAnswerQuiz({ cards, attemptId, onFinish }: ShortAnswerQuizP
     if (currentIndex < cards.length - 1) {
       setCurrentIndex(i => i + 1);
     } else {
-      const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+      const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
       onFinish(Math.round(avg));
     }
   }

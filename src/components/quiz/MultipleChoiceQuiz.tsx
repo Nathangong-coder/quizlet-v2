@@ -29,6 +29,10 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
 
   const currentCard = cards[currentIndex];
 
+  if (!currentCard) {
+    return <div className="text-center p-10">No cards available for this quiz.</div>;
+  }
+
   useEffect(() => {
     async function loadOptions() {
       setIsLoading(true);

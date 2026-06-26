@@ -13,7 +13,7 @@ export function QuizContainer({ setId, cards: allCards }: { setId: string, cards
   const [mode, setMode] = useState<'multiple-choice' | 'short-answer' | null>(null);
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [selectedCards, setSelectedCards] = useState<Card[]>([]);
-  const [isLoadingCards, setIsLoadingCards] = useState(false);
+  const [isLoadingCards, setIsLoadingCards] = useState(true);
   const [finished, setFinished] = useState(false);
   const [score, setScore] = useState<number | null>(null);
 
