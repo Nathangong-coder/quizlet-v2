@@ -21,7 +21,7 @@ export function QuizContainer({ setId, cards: allCards }: { setId: string, cards
     if (attemptId) {
       async function loadCards() {
         setIsLoadingCards(true);
-        const result = await getQuizAttemptCards(attemptId);
+        const result = await getQuizAttemptCards(attemptId as string);
         if (result.success && result.data) {
           setSelectedCards(result.data.cards);
         }

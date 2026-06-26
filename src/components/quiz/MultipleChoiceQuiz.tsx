@@ -70,7 +70,8 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
           setSelectedOption('');
           setFeedback(null);
         } else {
-          onFinish(score + (result.data.isCorrect ? 1 : 0));
+          const finalScore = score + (result.data?.isCorrect ? 1 : 0);
+          onFinish(finalScore);
         }
       }, 3000);
     } else {
