@@ -3,8 +3,8 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { generateJsonWithGoogle } from '@/lib/ai/google';
-import { buildMultipleChoicePrompt } from '@/lib/ai/prompts';
-import { MultipleChoiceOptionsSchema, MultipleChoiceOptions } from '@/lib/ai/schemas';
+import { buildMultipleChoicePrompt, buildShortAnswerGradePrompt } from '@/lib/ai/prompts';
+import { MultipleChoiceOptionsSchema, MultipleChoiceOptions, ShortAnswerGradeSchema } from '@/lib/ai/schemas';
 import { DEFAULT_AI_MODEL } from '@/lib/ai/model-routing';
 import { overallQuizScore } from '@/lib/quiz/scoring';
 import { revalidatePath } from 'next/cache';
@@ -155,5 +155,69 @@ export async function submitMultipleChoiceAnswer(input: {
     return { success: true, data: { isCorrect, score } };
   } catch (error) {
     return { success: false, error: 'Failed to submit answer' };
+  }
+}
+
+export async function submitShortAnswer(input: {
+  attemptId: string;
+  cardId: string;
+  answer: string;
+}): Promise<ActionResult<{ grade: any; score: number }>> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+
+  try {
+    const card = await prisma.card.findUnique({ where: { id: input.cardId } });
+    if (!card) return { success: false, error: 'Card not found' };
+
+    // Get API key
+    const credential = await prisma.aiCredential.findUnique({
+      where: { userId: session.user.id },
+    });
+    if (!credential) return { success: false, error: 'No Google API key saved. Please add it in settings.' };
+
+    const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
+    const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
+
+    // Grade
+    const prompt = buildShortAnswerGradePrompt(card, input.answer);
+    const grade = await generateJsonWithGoogle({
+      apiKey,
+      prompt,
+      schema: ShortAnswerGradeSchema,
+      model: DEFAULT_AI_MODEL,
+    });
+
+    const score = grade.overall * 10;
+
+    const answer = await prisma.quizAnswer.create({
+      data: {
+        attemptId: input.attemptId,
+        userId: session.user.id,
+        cardId: input.cardId,
+        mode: 'short-answer',
+        prompt: input.answer,
+        answer: input.answer,
+        correctAnswer: card.definition,
+        grade: grade as any,
+        score,
+        feedback: grade.feedback,
+      },
+    });
+
+    // Update attempt score
+    const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
+    const newScore = overallQuizScore(allAnswers);
+    if (newScore !== null) {
+      await prisma.quizAttempt.update({
+        where: { id: input.attemptId },
+        data: { score: Math.round(newScore) },
+      });
+    }
+
+    return { success: true, data: { grade, score } };
+  } catch (error: any) {
+    console.error('Grading error:', error);
+    return { success: false, error: 'Failed to grade answer' };
   }
 }
