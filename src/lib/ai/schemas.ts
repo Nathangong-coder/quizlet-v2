@@ -35,3 +35,9 @@ export const TrainingPlanSchema = z.object({
 });
 
 export type TrainingPlan = z.infer<typeof TrainingPlanSchema>;
+
+export const MultipleChoiceFeedbackSchema = z.object({
+  feedback: z.string().min(1),
+});
+
+export type MultipleChoiceFeedback = z.infer<typeof MultipleChoiceFeedbackSchema>;

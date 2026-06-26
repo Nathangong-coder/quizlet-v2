@@ -1,34 +1,49 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QuizModePicker } from './QuizModePicker';
 import { MultipleChoiceQuiz } from './MultipleChoiceQuiz';
 import { ShortAnswerQuiz } from './ShortAnswerQuiz';
+import { QuizSummary } from './QuizSummary';
 import { Card } from '@prisma/client';
+import { getQuizAttemptCards } from '@/actions/quiz';
+import { Loader2 } from 'lucide-react';
 
-export function QuizContainer({ setId, cards }: { setId: string, cards: Card[] }) {
+export function QuizContainer({ setId, cards: allCards }: { setId: string, cards: Card[] }) {
   const [mode, setMode] = useState<'multiple-choice' | 'short-answer' | null>(null);
   const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [selectedCards, setSelectedCards] = useState<Card[]>([]);
+  const [isLoadingCards, setIsLoadingCards] = useState(false);
   const [finished, setFinished] = useState(false);
   const [score, setScore] = useState<number | null>(null);
 
+  useEffect(() => {
+    if (attemptId) {
+      async function loadCards() {
+        setIsLoadingCards(true);
+        const result = await getQuizAttemptCards(attemptId);
+        if (result.success && result.data) {
+          setSelectedCards(result.data.cards);
+        }
+        setIsLoadingCards(false);
+      }
+      loadCards();
+    }
+  }, [attemptId]);
+
   if (finished) {
-    return (
-      <div className="text-center p-10 border rounded-lg">
-        <h2 className="text-2xl font-bold">Quiz Finished!</h2>
-        <p className="text-xl mt-2">Your score: {score}%</p>
-        <a href={`/sets/${setId}`} className="mt-6 inline-block text-primary hover:underline">Back to Set</a>
-      </div>
-    );
+    return <QuizSummary score={score || 0} setId={setId} attemptId={attemptId!} />;
   }
 
   if (!mode) {
     return <QuizModePicker setId={setId} onModeSelect={(m, id) => { setMode(m); setAttemptId(id); }} />;
   }
 
+  if (isLoadingCards) return <div className="flex justify-center p-10"><Loader2 className="animate-spin w-8 h-8" /></div>;
+
   return mode === 'multiple-choice' ? (
-    <MultipleChoiceQuiz cards={cards} attemptId={attemptId!} onFinish={(s) => { setScore(s); setFinished(true); }} />
+    <MultipleChoiceQuiz cards={selectedCards} attemptId={attemptId!} onFinish={(s) => { setScore(s); setFinished(true); }} />
   ) : (
-    <ShortAnswerQuiz cards={cards} attemptId={attemptId!} onFinish={(s) => { setScore(s); setFinished(true); }} />
+    <ShortAnswerQuiz cards={selectedCards} attemptId={attemptId!} onFinish={(s) => { setScore(s); setFinished(true); }} />
   );
 }

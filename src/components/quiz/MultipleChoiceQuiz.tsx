@@ -9,6 +9,7 @@ import { getOrGenerateMultipleChoiceOptions, submitMultipleChoiceAnswer } from '
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Card } from '@prisma/client';
+import { GradeCard } from './GradeCard';
 
 interface MultipleChoiceQuizProps {
   cards: Card[];
@@ -24,12 +25,14 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [score, setScore] = useState(0);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   const currentCard = cards[currentIndex];
 
   useEffect(() => {
     async function loadOptions() {
       setIsLoading(true);
+      setFeedback(null);
       const result = await getOrGenerateMultipleChoiceOptions(currentCard.id);
       if (result.success && result.data) {
         setOptions(result.data.options);
@@ -55,19 +58,21 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
     setIsSubmitting(false);
 
     if (result.success && result.data) {
+      setFeedback(result.data.feedback || (result.data.isCorrect ? 'Correct!' : 'Incorrect.'));
       if (result.data.isCorrect) {
-        toast.success('Correct!');
         setScore(s => s + 1);
-      } else {
-        toast.error(`Incorrect. The correct answer was: ${correctAnswer}`);
       }
 
-      if (currentIndex < cards.length - 1) {
-        setCurrentIndex(i => i + 1);
-        setSelectedOption('');
-      } else {
-        onFinish(score + (result.data.isCorrect ? 1 : 0));
-      }
+      // Delay moving to next card to let the user read feedback
+      setTimeout(() => {
+        if (currentIndex < cards.length - 1) {
+          setCurrentIndex(i => i + 1);
+          setSelectedOption('');
+          setFeedback(null);
+        } else {
+          onFinish(score + (result.data.isCorrect ? 1 : 0));
+        }
+      }, 3000);
     } else {
       toast.error('Failed to submit answer');
     }
@@ -76,12 +81,17 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
   if (isLoading) return <div className="flex justify-center p-10"><Loader2 className="animate-spin w-8 h-8" /></div>;
 
   return (
-    <CardComponent className="max-w-xl mx-auto">
+    <CardComponent className="max-w-xl mx-auto space-y-4">
       <CardHeader>
         <CardTitle>{currentCard.term}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <RadioGroup value={selectedOption} onValueChange={setSelectedOption}>
+        {feedback && (
+          <div className="p-3 rounded bg-muted text-sm italic border-l-4 border-primary">
+            {feedback}
+          </div>
+        )}
+        <RadioGroup value={selectedOption} onValueChange={setSelectedOption} disabled={!!feedback}>
           {options.map((opt, i) => (
             <div key={i} className="flex items-center space-x-2 border p-3 rounded hover:bg-muted">
               <RadioGroupItem value={opt} id={`opt-${i}`} />
@@ -89,7 +99,7 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
             </div>
           ))}
         </RadioGroup>
-        <Button onClick={handleSubmit} disabled={isSubmitting || !selectedOption}>
+        <Button onClick={handleSubmit} disabled={isSubmitting || !selectedOption || !!feedback}>
           {isSubmitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : 'Submit'}
         </Button>
       </CardContent>

@@ -3,8 +3,8 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { generateJsonWithGoogle } from '@/lib/ai/google';
-import { buildMultipleChoicePrompt, buildShortAnswerGradePrompt } from '@/lib/ai/prompts';
-import { MultipleChoiceOptionsSchema, MultipleChoiceOptions, ShortAnswerGradeSchema } from '@/lib/ai/schemas';
+import { buildMultipleChoicePrompt, buildShortAnswerGradePrompt, buildMultipleChoiceGradePrompt } from '@/lib/ai/prompts';
+import { MultipleChoiceOptionsSchema, MultipleChoiceOptions, ShortAnswerGradeSchema, MultipleChoiceFeedbackSchema } from '@/lib/ai/schemas';
 import { DEFAULT_AI_MODEL } from '@/lib/ai/model-routing';
 import { overallQuizScore } from '@/lib/quiz/scoring';
 import { revalidatePath } from 'next/cache';
@@ -97,20 +97,60 @@ export async function getOrGenerateMultipleChoiceOptions(
 
 export async function startQuizAttempt(
   setId: string,
-  mode: 'multiple-choice' | 'short-answer'
-): Promise<ActionResult<{ attemptId: string }>> {
+  mode: 'multiple-choice' | 'short-answer',
+  questionCount?: number
+): Promise<ActionResult<{ attemptId: string; cardIds: string[] }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
+    const set = await prisma.set.findUnique({
+      where: { id: setId },
+      include: { cards: true },
+    });
+    if (!set) return { success: false, error: 'Set not found' };
+
+    const progress = await prisma.cardProgress.findMany({
+      where: { userId: session.user.id, card: { setId } },
+    });
+    const progressMap = new Map(progress.map(p => [p.cardId, p]));
+
+    // 1. Calculate weights
+    const weightedCards = set.cards.map(card => {
+      const p = progressMap.get(card.id);
+      let weight = 1.0;
+      if (p?.starred) weight += 2.0; // High priority for starred (approx 2/3 weight)
+      if (p && p.confidence <= 5) weight += 1.0; // Extra weight for low confidence
+      return { id: card.id, weight };
+    });
+
+    // 2. Weighted Random Sampling
+    const selectedIds: string[] = [];
+    const pool = [...weightedCards];
+    const targetCount = Math.min(questionCount || set.cards.length, set.cards.length);
+
+    while (selectedIds.length < targetCount && pool.length > 0) {
+      const totalWeight = pool.reduce((sum, c) => sum + c.weight, 0);
+      let r = Math.random() * totalWeight;
+      for (let i = 0; i < pool.length; i++) {
+        r -= pool[i].weight;
+        if (r <= 0) {
+          selectedIds.push(pool[i].id);
+          pool.splice(i, 1);
+          break;
+        }
+      }
+    }
+
     const attempt = await prisma.quizAttempt.create({
       data: {
         userId: session.user.id,
         setId,
         mode,
+        selectedCardIds: selectedIds,
       },
     });
-    return { success: true, data: { attemptId: attempt.id } };
+    return { success: true, data: { attemptId: attempt.id, cardIds: selectedIds } };
   } catch (error) {
     return { success: false, error: 'Failed to start quiz' };
   }
@@ -121,7 +161,7 @@ export async function submitMultipleChoiceAnswer(input: {
   cardId: string;
   selectedOption: string;
   correctAnswer: string;
-}): Promise<ActionResult<{ isCorrect: boolean; score: number }>> {
+}): Promise<ActionResult<{ isCorrect: boolean; score: number; feedback?: string }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
@@ -129,6 +169,25 @@ export async function submitMultipleChoiceAnswer(input: {
   const score = isCorrect ? 100 : 0;
 
   try {
+    // AI Feedback
+    let feedback = isCorrect ? 'Correct!' : 'Incorrect.';
+    const card = await prisma.card.findUnique({ where: { id: input.cardId } });
+    if (card) {
+      const credential = await prisma.aiCredential.findUnique({ where: { userId: session.user.id } });
+      if (credential) {
+        const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
+        const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
+        const prompt = buildMultipleChoiceGradePrompt(card, input.selectedOption, input.correctAnswer);
+        const aiResult = await generateJsonWithGoogle({
+          apiKey,
+          prompt,
+          schema: MultipleChoiceFeedbackSchema,
+          model: DEFAULT_AI_MODEL,
+        });
+        feedback = aiResult.feedback;
+      }
+    }
+
     const answer = await prisma.quizAnswer.create({
       data: {
         attemptId: input.attemptId,
@@ -140,6 +199,7 @@ export async function submitMultipleChoiceAnswer(input: {
         selectedOption: input.selectedOption,
         isCorrect,
         score,
+        feedback,
       },
     });
 
@@ -153,7 +213,7 @@ export async function submitMultipleChoiceAnswer(input: {
       });
     }
 
-    return { success: true, data: { isCorrect, score } };
+    return { success: true, data: { isCorrect, score, feedback } };
   } catch (error) {
     return { success: false, error: 'Failed to submit answer' };
   }
@@ -220,5 +280,28 @@ export async function submitShortAnswer(input: {
   } catch (error: any) {
     console.error('Grading error:', error);
     return { success: false, error: 'Failed to grade answer' };
+  }
+}
+
+export async function getQuizAttemptCards(attemptId: string): Promise<ActionResult<{ cards: any[] }>> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+
+  try {
+    const attempt = await prisma.quizAttempt.findUnique({
+      where: { id: attemptId },
+    });
+    if (!attempt || !attempt.selectedCardIds) return { success: false, error: 'Attempt not found' };
+
+    const cardIds = attempt.selectedCardIds as string[];
+    const cards = await prisma.card.findMany({
+      where: { id: { in: cardIds } },
+    });
+
+    const sortedCards = cardIds.map(id => cards.find(c => c.id === id)).filter(Boolean);
+
+    return { success: true, data: { cards: sortedCards } };
+  } catch (error) {
+    return { success: false, error: 'Failed to fetch quiz cards' };
   }
 }
