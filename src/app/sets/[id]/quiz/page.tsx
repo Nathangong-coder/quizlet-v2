@@ -5,12 +5,13 @@ import { QuizContainer } from '@/components/quiz/QuizContainer';
 import { TrainingPlanPanel } from '@/components/quiz/TrainingPlanPanel';
 import { Separator } from '@/components/ui/separator';
 
-export default async function QuizPage({ params }: { params: { id: string } }) {
+export default async function QuizPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await auth();
   if (!session) return notFound();
 
   const set = await prisma.set.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { cards: true },
   });
   if (!set) return notFound();
