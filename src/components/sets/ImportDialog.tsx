@@ -61,9 +61,9 @@ export function ImportDialog({ onImport }: ImportDialogProps) {
           <DialogTitle>Import Cards</DialogTitle>
           <DialogDescription>
             Paste your cards below or upload a .txt file.
-            Format: term, definition; separated by semicolons.
+            Format: term | definition; separated by semicolons.
             New lines are preserved within cards.
-            Example: <code className="bg-muted px-1 rounded">Net Income,Total revenue minus total expenses;EBITDA,Earnings before...</code>
+            Example: <code className="bg-muted px-1 rounded">Net Income | Total revenue minus total expenses;EBITDA | Earnings before...</code>
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -87,7 +87,7 @@ export function ImportDialog({ onImport }: ImportDialogProps) {
             />
           </div>
           <Textarea
-            placeholder="Term, Definition; Term 2, Definition 2..."
+            placeholder="Term | Definition; Term 2 | Definition 2..."
             value={text}
             onChange={(e) => setText(e.target.value)}
             className="min-h-[200px] max-h-[400px] overflow-y-auto font-mono text-sm"
