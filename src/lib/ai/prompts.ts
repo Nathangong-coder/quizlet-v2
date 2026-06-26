@@ -41,23 +41,25 @@ Term: ${card.term}
 Expected Definition: ${card.definition}
 User Answer: "${answer}"
 
-Grading Rubric:
-- Clarity: ${GRADING_RUBRIC.clarity}
-- Conciseness: ${GRADING_RUBRIC.conciseness}
-- Correctness: ${GRADING_RUBRIC.correctness}
-- Overall: ${GRADING_RUBRIC.overall}
+For each of the following categories, provide a score (1-10), a list of pros, and a list of cons:
+1. Clarity: How easy is the answer to understand?
+2. Conciseness: Does the answer avoid unnecessary filler?
+3. Correctness: How accurate is the answer compared to the definition?
 
-Provide constructive feedback and a specific suggested improvement.
+Additionally, provide:
+- Overall Score: A final weighted grade (1-10).
+- Summary: A concise synthesis of the performance.
+- Suggested Improvement: A specific, actionable tip to make this answer "interview-ready".
 
 Output the result as JSON.
 
 JSON Schema:
 {
-  "clarity": number,
-  "conciseness": number,
-  "correctness": number,
+  "clarity": { "score": number, "pros": string[], "cons": string[] },
+  "conciseness": { "score": number, "pros": string[], "cons": string[] },
+  "correctness": { "score": number, "pros": string[], "cons": string[] },
   "overall": number,
-  "feedback": string,
+  "summary": string,
   "suggestedImprovement": string
 }`;
 }

@@ -8,11 +8,23 @@ export const MultipleChoiceOptionsSchema = z.object({
 export type MultipleChoiceOptions = z.infer<typeof MultipleChoiceOptionsSchema>;
 
 export const ShortAnswerGradeSchema = z.object({
-  clarity: z.number().int().min(1).max(10),
-  conciseness: z.number().int().min(1).max(10),
-  correctness: z.number().int().min(1).max(10),
+  clarity: z.object({
+    score: z.number().int().min(1).max(10),
+    pros: z.array(z.string()),
+    cons: z.array(z.string()),
+  }),
+  conciseness: z.object({
+    score: z.number().int().min(1).max(10),
+    pros: z.array(z.string()),
+    cons: z.array(z.string()),
+  }),
+  correctness: z.object({
+    score: z.number().int().min(1).max(10),
+    pros: z.array(z.string()),
+    cons: z.array(z.string()),
+  }),
   overall: z.number().int().min(1).max(10),
-  feedback: z.string().min(1),
+  summary: z.string().min(1),
   suggestedImprovement: z.string().min(1),
 });
 

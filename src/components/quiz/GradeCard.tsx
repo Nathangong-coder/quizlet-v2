@@ -14,6 +14,29 @@ export function GradeCard({ grade }: GradeCardProps) {
     return 'destructive';
   };
 
+  const CategorySection = ({ title, data }: { title: string, data: { score: number, pros: string[], cons: string[] } }) => (
+    <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
+      <div className="flex justify-between items-center">
+        <span className="font-semibold">{title}</span>
+        <Badge variant={getBadgeVariant(data.score)}>{data.score}/10</Badge>
+      </div>
+      <div className="grid grid-cols-2 gap-4 text-xs">
+        <div className="space-y-1">
+          <span className="text-green-600 font-medium">Pros:</span>
+          <ul className="list-disc pl-4 space-y-1">
+            {data.pros.map((p, i) => <li key={i}>{p}</li>)}
+          </ul>
+        </div>
+        <div className="space-y-1">
+          <span className="text-red-600 font-medium">Cons:</span>
+          <ul className="list-disc pl-4 space-y-1">
+            {data.cons.map((c, i) => <li key={i}>{c}</li>)}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -22,30 +45,21 @@ export function GradeCard({ grade }: GradeCardProps) {
           <Badge variant={getBadgeVariant(grade.overall)}>Overall: {grade.overall}/10</Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-3 gap-2">
-          <div className="text-center p-2 rounded bg-muted/50">
-            <div className="text-sm text-muted-foreground">Clarity</div>
-            <div className="font-bold">{grade.clarity}/10</div>
-          </div>
-          <div className="text-center p-2 rounded bg-muted/50">
-            <div className="text-sm text-muted-foreground">Conciseness</div>
-            <div className="font-bold">{grade.conciseness}/10</div>
-          </div>
-          <div className="text-center p-2 rounded bg-muted/50">
-            <div className="text-sm text-muted-foreground">Correctness</div>
-            <div className="font-bold">{grade.correctness}/10</div>
-          </div>
+      <CardContent className="space-y-6">
+        <div className="space-y-4">
+          <CategorySection title="Clarity" data={grade.clarity} />
+          <CategorySection title="Conciseness" data={grade.conciseness} />
+          <CategorySection title="Correctness" data={grade.correctness} />
         </div>
 
-        <div>
-          <h4 className="font-semibold mb-1">Feedback</h4>
-          <p className="text-sm text-muted-foreground">{grade.feedback}</p>
+        <div className="p-3 rounded-lg border bg-primary/5 space-y-2">
+          <h4 className="font-semibold text-sm">AI Summary</h4>
+          <p className="text-sm text-muted-foreground">{grade.summary}</p>
         </div>
 
-        <div>
-          <h4 className="font-semibold mb-1">Improvement</h4>
-          <p className="text-sm text-primary">{grade.suggestedImprovement}</p>
+        <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/20 space-y-2">
+          <h4 className="font-semibold text-sm text-blue-700 dark:text-blue-300">Targeted Improvement</h4>
+          <p className="text-sm">{grade.suggestedImprovement}</p>
         </div>
       </CardContent>
     </Card>

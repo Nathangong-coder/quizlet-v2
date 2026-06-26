@@ -98,7 +98,8 @@ export async function getOrGenerateMultipleChoiceOptions(
 export async function startQuizAttempt(
   setId: string,
   mode: 'multiple-choice' | 'short-answer',
-  questionCount?: number
+  questionCount?: number,
+  timerSeconds?: number
 ): Promise<ActionResult<{ attemptId: string; cardIds: string[] }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
