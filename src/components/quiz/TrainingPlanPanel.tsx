@@ -20,7 +20,7 @@ export function TrainingPlanPanel({ setId }: { setId: string }) {
       setPlan(result.data.plan);
       toast.success('Training plan generated!');
     } else {
-      toast.error(result.error || 'Failed to generate plan');
+      toast.error((result as any).error || 'Failed to generate plan');
     }
   }
 

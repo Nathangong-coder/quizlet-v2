@@ -79,15 +79,26 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
           Matching Game
         </Link>
         {session?.user?.id && (
-          <Link
-            href={`/sets/${id}/review`}
-            className={cn(
-              buttonVariants({ size: 'lg' }),
-              'bg-white text-black border border-black hover:bg-black hover:text-white px-6 py-3'
-            )}
-          >
-            Review Mode
-          </Link>
+          <>
+            <Link
+              href={`/sets/${id}/review`}
+              className={cn(
+                buttonVariants({ size: 'lg' }),
+                'bg-white text-black border border-black hover:bg-black hover:text-white px-6 py-3'
+              )}
+            >
+              Review Mode
+            </Link>
+            <Link
+              href={`/sets/${id}/quiz`}
+              className={cn(
+                buttonVariants({ size: 'lg' }),
+                'bg-white text-black border border-black hover:bg-black hover:text-white px-6 py-3'
+              )}
+            >
+              Quiz
+            </Link>
+          </>
         )}
       </div>
 

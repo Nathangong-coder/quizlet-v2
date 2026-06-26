@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { encryptGoogleApiKey, decryptGoogleApiKey, maskGoogleApiKey } from '@/lib/security/google-key';
 import { revalidatePath } from 'next/cache';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { DEFAULT_AI_MODEL } from '@/lib/ai/model-routing';
 
 type ActionResult<T> = {
   success: boolean;
@@ -23,9 +24,9 @@ export async function saveGoogleApiKey(apiKey: string): Promise<ActionResult<voi
   }
 
   try {
-    // Test the key first
+    // Test the key first using the project's default model
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: DEFAULT_AI_MODEL });
     await model.generateContent("Hi");
 
     const encrypted = encryptGoogleApiKey(apiKey);
@@ -83,7 +84,7 @@ export async function testGoogleApiKey(apiKey?: string): Promise<ActionResult<vo
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: DEFAULT_AI_MODEL });
     await model.generateContent("Hi");
 
     return { success: true };
