@@ -150,6 +150,7 @@ model QuizAttempt {
   setId     String
   mode      String
   score     Int?
+  selectedCardIds Json?
   createdAt DateTime     @default(now())
   user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   set       Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
