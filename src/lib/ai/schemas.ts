@@ -47,3 +47,21 @@ export const MultipleChoiceFeedbackSchema = z.object({
 });
 
 export type MultipleChoiceFeedback = z.infer<typeof MultipleChoiceFeedbackSchema>;
+
+export const TrainingPlanSchema = z.object({
+  title: z.string().min(1),
+  summary: z.string().min(1),
+  focusAreas: z.array(z.object({
+    label: z.string().min(1),
+    reason: z.string().min(1),
+    priority: z.enum(['low', 'medium', 'high']),
+  })),
+  recommendedCardIds: z.array(z.string()),
+  generatedQuestions: z.array(z.object({
+    cardId: z.string().optional(),
+    question: z.string().min(1),
+    expectedAnswer: z.string().min(1),
+  })),
+});
+
+export type TrainingPlan = z.infer<typeof TrainingPlanSchema>;

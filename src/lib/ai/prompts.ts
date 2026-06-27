@@ -127,3 +127,17 @@ JSON Schema:
   ]
 }`;
 }
+
+export function buildMultipleChoiceGradePrompt(card: Card, selected: string, correct: string) {
+  return `You are a finance interview grader. A user answered a multiple-choice question.
+
+Term: ${card.term}
+Correct Definition: ${correct}
+User's Selected Option: ${selected}
+
+If the answer is correct, provide a brief confirmation and a "pro tip" to deepen their understanding.
+If the answer is incorrect, explain WHY it is wrong and why the correct answer is the right one.
+
+Keep it concise (1-2 sentences).
+Output as JSON: { "feedback": string }`;
+}
