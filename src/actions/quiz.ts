@@ -321,7 +321,7 @@ export async function getQuizAttemptCards(attemptId: string): Promise<ActionResu
   }
 }
 
-export async function getQuizAttemptSummary(attemptId: string): Promise<ActionResult<{ attempt, overallAnalysis: string }>> {
+export async function getQuizAttemptSummary(attemptId: string): Promise<ActionResult<{ attempt: any; overallAnalysis: string }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
