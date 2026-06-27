@@ -3,11 +3,23 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { generateJsonWithGoogle } from '@/lib/ai/google';
-import { buildMultipleChoicePrompt, buildShortAnswerGradePrompt, buildMultipleChoiceGradePrompt } from '@/lib/ai/prompts';
-import { MultipleChoiceOptionsSchema, MultipleChoiceOptions, ShortAnswerGradeSchema, MultipleChoiceFeedbackSchema } from '@/lib/ai/schemas';
+import {
+  buildMultipleChoicePrompt,
+  buildShortAnswerGradePrompt,
+  buildMultipleChoiceGradePrompt,
+  buildAnnotationPrompt
+} from '@/lib/ai/prompts';
+import {
+  MultipleChoiceOptionsSchema,
+  MultipleChoiceOptions,
+  ShortAnswerGradeSchema,
+  MultipleChoiceFeedbackSchema,
+  AnnotationSchema
+} from '@/lib/ai/schemas';
 import { DEFAULT_AI_MODEL } from '@/lib/ai/model-routing';
 import { overallQuizScore } from '@/lib/quiz/scoring';
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 
 type ActionResult<T> = {
   success: boolean;
@@ -23,7 +35,6 @@ export async function getOrGenerateMultipleChoiceOptions(
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
-    // 1. Check cache
     const cached = await prisma.quizOptionCache.findUnique({
       where: { cardId_model: { cardId, model: DEFAULT_AI_MODEL } },
     });
@@ -42,7 +53,6 @@ export async function getOrGenerateMultipleChoiceOptions(
       };
     }
 
-    // 2. Fetch data for generation
     const card = await prisma.card.findUnique({ where: { id: cardId } });
     if (!card) return { success: false, error: 'Card not found' };
 
@@ -52,7 +62,6 @@ export async function getOrGenerateMultipleChoiceOptions(
     });
     if (!set) return { success: false, error: 'Set not found' };
 
-    // 3. Get API key
     const credential = await prisma.aiCredential.findUnique({
       where: { userId: session.user.id },
     });
@@ -61,7 +70,6 @@ export async function getOrGenerateMultipleChoiceOptions(
     const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
     const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
 
-    // 4. Generate
     const prompt = buildMultipleChoicePrompt(card, set.cards);
     const options = await generateJsonWithGoogle({
       apiKey,
@@ -70,7 +78,6 @@ export async function getOrGenerateMultipleChoiceOptions(
       model: DEFAULT_AI_MODEL,
     });
 
-    // 5. Cache
     await prisma.quizOptionCache.create({
       data: {
         cardId,
@@ -116,16 +123,14 @@ export async function startQuizAttempt(
     });
     const progressMap = new Map(progress.map(p => [p.cardId, p]));
 
-    // 1. Calculate weights
     const weightedCards = set.cards.map(card => {
       const p = progressMap.get(card.id);
       let weight = 1.0;
-      if (p?.starred) weight += 2.0; // High priority for starred (approx 2/3 weight)
-      if (p && p.confidence <= 5) weight += 1.0; // Extra weight for low confidence
+      if (p?.starred) weight += 2.0;
+      if (p && p.confidence <= 5) weight += 1.0;
       return { id: card.id, weight };
     });
 
-    // 2. Weighted Random Sampling
     const selectedIds: string[] = [];
     const pool = [...weightedCards];
     const targetCount = Math.min(questionCount || set.cards.length, set.cards.length);
@@ -170,7 +175,6 @@ export async function submitMultipleChoiceAnswer(input: {
   const score = isCorrect ? 100 : 0;
 
   try {
-    // AI Feedback
     let feedback = isCorrect ? 'Correct!' : 'Incorrect.';
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     if (card) {
@@ -204,7 +208,6 @@ export async function submitMultipleChoiceAnswer(input: {
       },
     });
 
-    // Update attempt score
     const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
     const newScore = overallQuizScore(allAnswers);
     if (newScore !== null) {
@@ -232,7 +235,6 @@ export async function submitShortAnswer(input: {
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     if (!card) return { success: false, error: 'Card not found' };
 
-    // Get API key
     const credential = await prisma.aiCredential.findUnique({
       where: { userId: session.user.id },
     });
@@ -241,7 +243,6 @@ export async function submitShortAnswer(input: {
     const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
     const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
 
-    // Grade
     const prompt = buildShortAnswerGradePrompt(card, input.answer);
     const grade = await generateJsonWithGoogle({
       apiKey,
@@ -249,6 +250,20 @@ export async function submitShortAnswer(input: {
       schema: ShortAnswerGradeSchema,
       model: DEFAULT_AI_MODEL,
     });
+
+    let annotations: any[] = [];
+    try {
+      const annPrompt = buildAnnotationPrompt(card, input.answer, card.definition);
+      const annResult = await generateJsonWithGoogle({
+        apiKey,
+        prompt: annPrompt,
+        schema: AnnotationSchema,
+        model: DEFAULT_AI_MODEL,
+      });
+      annotations = annResult.annotations;
+    } catch (e) {
+      console.error('Annotation generation failed:', e);
+    }
 
     const score = grade.overall * 10;
 
@@ -261,13 +276,12 @@ export async function submitShortAnswer(input: {
         prompt: input.answer,
         answer: input.answer,
         correctAnswer: card.definition,
-        grade: grade as any,
+        grade: { ...grade, annotations },
         score,
-        feedback: grade.feedback,
+        feedback: grade.summary,
       },
     });
 
-    // Update attempt score
     const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
     const newScore = overallQuizScore(allAnswers);
     if (newScore !== null) {
@@ -304,5 +318,64 @@ export async function getQuizAttemptCards(attemptId: string): Promise<ActionResu
     return { success: true, data: { cards: sortedCards } };
   } catch (error) {
     return { success: false, error: 'Failed to fetch quiz cards' };
+  }
+}
+
+export async function getQuizAttemptSummary(attemptId: string): Promise<ActionResult<{ attempt, overallAnalysis: string }>> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+
+  try {
+    const attempt = await prisma.quizAttempt.findUnique({
+      where: { id: attemptId },
+      include: {
+        user: true,
+        set: { include: { cards: true } },
+        answers: { include: { card: true } },
+      },
+    });
+    if (!attempt) return { success: false, error: 'Attempt not found' };
+
+    const credential = await prisma.aiCredential.findUnique({ where: { userId: session.user.id } });
+    let overallAnalysis = 'Analysis unavailable.';
+    if (credential) {
+      const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
+      const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
+
+      const prompt = `You are an AI study coach. Analyze this user's quiz attempt.
+
+      Set: ${attempt.set.title}
+      Mode: ${attempt.mode}
+      Score: ${attempt.score}%
+
+      Performance Details:
+      ${attempt.answers.map(a => `- Card: ${a.card.term} | Correct: ${a.isCorrect ? 'Yes' : 'No'} | Score: ${a.score}/100 | Feedback: ${a.feedback}`).join('\n')}
+
+      Provide a holistic breakdown:
+      1. Strengths: What did they do well?
+      2., Weaknesses: Where did they struggle?
+      3. Action Plan: 3 key topics to focus on next.
+
+      Output as JSON: { "analysis": string }`;
+
+      const result = await generateJsonWithGoogle({
+        apiKey,
+        prompt,
+        schema: z.object({ analysis: z.string() }),
+        model: DEFAULT_AI_MODEL,
+      });
+      overallAnalysis = result.analysis;
+    }
+
+    return {
+      success: true,
+      data: {
+        attempt,
+        overallAnalysis,
+      },
+    };
+  } catch (error: any) {
+    console:error('Summary generation error:', error);
+    return { success: false, error: 'Failed to generate summary' };
   }
 }

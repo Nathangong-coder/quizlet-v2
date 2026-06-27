@@ -30,23 +30,17 @@ export const ShortAnswerGradeSchema = z.object({
 
 export type ShortAnswerGrade = z.infer<typeof ShortAnswerGradeSchema>;
 
-export const TrainingPlanSchema = z.object({
-  title: z.string().min(1),
-  summary: z.string().min(1),
-  focusAreas: z.array(z.object({
-    label: z.string().min(1),
-    reason: z.string().min(1),
-    priority: z.enum(['low', 'medium', 'high']),
-  })),
-  recommendedCardIds: z.array(z.string()),
-  generatedQuestions: z.array(z.object({
-    cardId: z.string().optional(),
-    question: z.string().min(1),
-    expectedAnswer: z.string().min(1),
+export const AnnotationSchema = z.object({
+  annotations: z.array(z.object({
+    type: z.enum(['bold', 'underline', 'highlight']),
+    text: z.string(),
+    startIndex: z.number(),
+    endIndex: z.number(),
+    comment: z.string().optional(),
   })),
 });
 
-export type TrainingPlan = z.infer<typeof TrainingPlanSchema>;
+export type Annotation = z.infer<typeof AnnotationSchema>;
 
 export const MultipleChoiceFeedbackSchema = z.object({
   feedback: z.string().min(1),
