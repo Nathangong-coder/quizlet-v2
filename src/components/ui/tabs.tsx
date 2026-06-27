@@ -103,6 +103,10 @@ export function TabsContent({
   value,
   children,
   className,
+}: {
+  value: string;
+  children: React.ReactNode;
+  className?: string;
 }) {
   const { value: activeValue } = React.useContext(TabsContext);
 

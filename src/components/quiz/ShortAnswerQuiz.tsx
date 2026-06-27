@@ -5,7 +5,6 @@ import { Card as CardComponent, CardContent, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { submitShortAnswer } from '@/actions/quiz';
-import { GradeCard } from './GradeCard';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Card } from '@prisma/client';

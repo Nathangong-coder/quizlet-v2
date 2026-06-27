@@ -9,7 +9,6 @@ import { getOrGenerateMultipleChoiceOptions, submitMultipleChoiceAnswer } from '
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Card } from '@prisma/client';
-import { GradeCard } from './GradeCard';
 
 interface MultipleChoiceQuizProps {
   cards: Card[];

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trophy, BookOpen, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { Trophy, CheckCircle2, XCircle } from 'lucide-react';
 import { getQuizAttemptSummary } from '@/actions/quiz';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -29,6 +29,8 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
   }, [attemptId]);
 
   if (loading) return <div className="text-center p-10">Generating AI analysis...</div>;
+
+  if (!summary) return <div className="text-center p-10">Failed to load quiz summary. Please try again.</div>;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
