@@ -62,22 +62,18 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
     setIsSubmitting(false);
 
     if (result.success && result.data) {
-      setFeedback(result.data.feedback || (result.data.isCorrect ? 'Correct!' : 'Incorrect.'));
       if (result.data.isCorrect) {
         setScore(s => s + 1);
       }
 
-      // Delay moving to next card to let the user read feedback
-      setTimeout(() => {
-        if (currentIndex < cards.length - 1) {
-          setCurrentIndex(i => i + 1);
-          setSelectedOption('');
-          setFeedback(null);
-        } else {
-          const finalScore = score + (result.data?.isCorrect ? 1 : 0);
-          onFinish(finalScore);
-        }
-      }, 3000);
+      if (currentIndex < cards.length - 1) {
+        setCurrentIndex(i => i + 1);
+        setSelectedOption('');
+      } else {
+        const finalScore = score + (result.data.isCorrect ? 1 : 0);
+        const percentage = Math.round((finalScore / cards.length) * 100);
+        onFinish(percentage);
+      }
     } else {
       toast.error('Failed to submit answer');
     }
@@ -91,12 +87,7 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
         <CardTitle>{currentCard.term}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {feedback && (
-          <div className="p-3 rounded bg-muted text-sm italic border-l-4 border-primary">
-            {feedback}
-          </div>
-        )}
-        <RadioGroup value={selectedOption} onValueChange={setSelectedOption} disabled={!!feedback}>
+        <RadioGroup value={selectedOption} onValueChange={setSelectedOption}>
           {options.map((opt, i) => (
             <div key={i} className="flex items-center space-x-2 border p-3 rounded hover:bg-muted">
               <RadioGroupItem value={opt} id={`opt-${i}`} />
@@ -104,7 +95,7 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
             </div>
           ))}
         </RadioGroup>
-        <Button onClick={handleSubmit} disabled={isSubmitting || !selectedOption || !!feedback}>
+        <Button onClick={handleSubmit} disabled={isSubmitting || !selectedOption}>
           {isSubmitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : 'Submit'}
         </Button>
       </CardContent>

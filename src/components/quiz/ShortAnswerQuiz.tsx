@@ -42,21 +42,17 @@ export function ShortAnswerQuiz({ cards, attemptId, onFinish }: ShortAnswerQuizP
     setIsSubmitting(false);
 
     if (result.success && result.data) {
-      setGrade(result.data.grade);
       setScores(s => [...s, result.data!.score]);
+      if (currentIndex < cards.length - 1) {
+        setAnswer('');
+        setCurrentIndex(i => i + 1);
+      } else {
+        const scoresToAverage = [...scores, result.data.score];
+        const avg = scoresToAverage.reduce((a, b) => a + b, 0) / scoresToAverage.length;
+        onFinish(Math.round(avg));
+      }
     } else {
       toast.error(result.error || 'Failed to grade');
-    }
-  }
-
-  function handleNext() {
-    setGrade(null);
-    setAnswer('');
-    if (currentIndex < cards.length - 1) {
-      setCurrentIndex(i => i + 1);
-    } else {
-      const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
-      onFinish(Math.round(avg));
     }
   }
 
@@ -66,24 +62,15 @@ export function ShortAnswerQuiz({ cards, attemptId, onFinish }: ShortAnswerQuizP
         <CardTitle>{currentCard.term}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {!grade ? (
-          <>
-            <Textarea
-              placeholder="Type your answer here..."
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              disabled={isSubmitting}
-            />
-            <Button onClick={handleSubmit} disabled={isSubmitting || !answer.trim()}>
-              {isSubmitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : 'Submit Answer'}
-            </Button>
-          </>
-        ) : (
-          <div className="space-y-6">
-            <GradeCard grade={grade} />
-            <Button onClick={handleNext}>Next Card</Button>
-          </div>
-        )}
+        <Textarea
+          placeholder="Type your answer here..."
+          value={answer}
+          onChange={(e) => setAnswer(e.target.value)}
+          disabled={isSubmitting}
+        />
+        <Button onClick={handleSubmit} disabled={isSubmitting || !answer.trim()}>
+          {isSubmitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : 'Submit Answer'}
+        </Button>
       </CardContent>
     </CardComponent>
   );
