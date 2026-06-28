@@ -351,10 +351,16 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
       Performance Details:
       ${attempt.answers.map(a => `- Card: ${a.card.term} | Correct: ${a.isCorrect ? 'Yes' : 'No'} | Score: ${a.score}/100 | Feedback: ${a.feedback}`).join('\n')}
 
-      Provide a holistic breakdown:
-      1. Strengths: What did they do well?
-      2., Weaknesses: Where did they struggle?
-      3. Action Plan: 3 key topics to focus on next.
+      Provide a holistic breakdown. Use clear headers and separate each section with double newlines:
+
+      ### Strengths
+      What did they do well?
+
+      ### Weaknesses
+      Where did they struggle?
+
+      ### Action Plan
+      3 key topics to focus on next.
 
       Output as JSON: { "analysis": string }`;
 
