@@ -41,6 +41,15 @@ export function scoreMultipleChoice(selected: string | null | undefined, correct
 }
 
 /**
+ * Scores a True/False answer.
+ */
+export function scoreTrueFalse(selected: string | null | undefined, correct: boolean): boolean {
+  if (!selected) return false;
+  const normalized = selected.trim().toLowerCase();
+  return (normalized === 'true' && correct) || (normalized === 'false' && !correct);
+}
+
+/**
  * Calculates the overall quiz score as an average of individual scores.
  */
 export function overallQuizScore(results: { score: number | null }[]): number | null {

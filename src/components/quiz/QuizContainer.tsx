@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { QuizModePicker } from './QuizModePicker';
 import { MultipleChoiceQuiz } from './MultipleChoiceQuiz';
 import { ShortAnswerQuiz } from './ShortAnswerQuiz';
+import { TrueFalseQuiz } from './TrueFalseQuiz';
+import { MatchingQuiz } from './MatchingQuiz';
 import { QuizSummary } from './QuizSummary';
 import { Card } from '@prisma/client';
 import { getQuizAttemptCards } from '@/actions/quiz';
@@ -43,7 +45,11 @@ export function QuizContainer({ setId, cards: allCards }: { setId: string, cards
 
   return mode === 'multiple-choice' ? (
     <MultipleChoiceQuiz cards={selectedCards} attemptId={attemptId!} onFinish={(s) => { setScore(s); setFinished(true); }} />
-  ) : (
+  ) : mode === 'short-answer' ? (
     <ShortAnswerQuiz cards={selectedCards} attemptId={attemptId!} onFinish={(s) => { setScore(s); setFinished(true); }} />
+  ) : mode === 'true-false' ? (
+    <TrueFalseQuiz cards={selectedCards} attemptId={attemptId!} onFinish={(s) => { setScore(s); setFinished(true); }} />
+  ) : (
+    <MatchingQuiz cards={selectedCards} attemptId={attemptId!} onFinish={(s) => { setScore(s); setFinished(true); }} />
   );
 }
