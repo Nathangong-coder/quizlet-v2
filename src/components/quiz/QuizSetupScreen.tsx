@@ -1,9 +1,9 @@
+"use client";
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { QuizSetup, QuizSetupSchema } from "@/lib/quiz/setup";
 
 interface QuizSetupScreenProps {
@@ -40,37 +40,29 @@ export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSet
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <Label>Question Mode</Label>
-          <Select
+          <select
+            className="w-full rounded border p-2 text-sm"
             value={setup.questionMode}
-            onValueChange={(v) => setSetup(prev => ({ ...prev, questionMode: v }))}
+            onChange={(e) => setSetup(prev => ({ ...prev, questionMode: e.target.value as any }))}
           >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="multiple-choice">Multiple Choice</SelectItem>
-              <SelectItem value="short-answer">Short Answer</SelectItem>
-              <SelectItem value="matching">Matching</SelectItem>
-              <SelectItem value="true-false">True/False</SelectItem>
-            </SelectContent>
-          </Select>
+            <option value="multiple-choice">Multiple Choice</option>
+            <option value="short-answer">Short Answer</option>
+            <option value="matching">Matching</option>
+            <option value="true-false">True/False</option>
+          </select>
         </div>
 
         <div className="space-y-2">
           <Label>Prompt Side</Label>
-          <Select
+          <select
+            className="w-full rounded border p-2 text-sm"
             value={setup.promptSide}
-            onValueChange={(v) => setSetup(prev => ({ ...prev, promptSide: v }))}
+            onChange={(e) => setSetup(prev => ({ ...prev, promptSide: e.target.value as any }))}
           >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="term">Term</SelectItem>
-              <SelectItem value="definition">Definition</SelectItem>
-              <SelectItem value="mixed">Mixed</SelectItem>
-            </SelectContent>
-          </Select>
+            <option value="term">Term</option>
+            <option value="definition">Definition</option>
+            <option value="mixed">Mixed</option>
+          </select>
         </div>
 
         <div className="space-y-3">
@@ -82,9 +74,11 @@ export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSet
                 className="flex items-center gap-2 rounded-full border px-3 py-1 cursor-pointer hover:bg-gray-50"
                 onClick={() => toggleCategory(cat.id)}
               >
-                <Checkbox
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300"
                   checked={setup.categoryIds.includes(cat.id)}
-                  onCheckedChange={() => {}} // Handle via parent div
+                  readOnly
                 />
                 <span className="text-sm">{cat.name}</span>
               </div>
@@ -94,28 +88,34 @@ export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSet
 
         <div className="grid grid-cols-2 gap-4">
           <div className="flex items-center gap-2">
-            <Checkbox
+            <input
+              type="checkbox"
               id="starredOnly"
+              className="h-4 w-4 rounded border-gray-300"
               checked={setup.starredOnly}
-              onCheckedChange={(v) => setSetup(prev => ({ ...prev, starredOnly: !!v }))}
+              onChange={(e) => setSetup(prev => ({ ...prev, starredOnly: e.target.checked }))}
             />
             <Label htmlFor="starredOnly">Starred Only</Label>
           </div>
           <div className="flex items-center gap-2">
-            <Checkbox
+            <input
+              type="checkbox"
               id="failedOnly"
+              className="h-4 w-4 rounded border-gray-300"
               checked={setup.failedOnly}
-              onCheckedChange={(v) => setSetup(prev => ({ ...prev, failedOnly: !!v }))}
+              onChange={(e) => setSetup(prev => ({ ...prev, failedOnly: e.target.checked }))}
             />
             <Label htmlFor="failedOnly">Previously Failed</Label>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Checkbox
+          <input
+            type="checkbox"
             id="printable"
+            className="h-4 w-4 rounded border-gray-300"
             checked={setup.printable}
-            onCheckedChange={(v) => setSetup(prev => ({ ...prev, printable: !!v }))}
+            onChange={(e) => setSetup(prev => ({ ...prev, printable: e.target.checked }))}
           />
           <Label htmlFor="printable">Printable Test</Label>
         </div>

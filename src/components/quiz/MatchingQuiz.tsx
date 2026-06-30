@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card as CardUI, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { submitMatchingAnswers } from "@/actions/quiz-matching";
-import { Card } from "@prisma/client";
+import { Card as PrismaCard } from "@prisma/client";
 
 interface MatchingQuizProps {
-  cards: Card[];
+  cards: PrismaCard[];
   attemptId: string;
   onFinish: (score: number) => void;
 }
@@ -21,8 +21,6 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
         setSelectedId(null);
         return;
       }
-      // If we are matching a term to a definition (or vice versa), record it
-      // In this simplified UI, we assume the user clicks a term then a definition
       setMatches(prev => ({ ...prev, [selectedId!]: id }));
       setSelectedId(null);
     } else {
@@ -51,7 +49,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
   };
 
   return (
-    <Card className="max-w-4xl mx-auto">
+    <CardUI className="max-w-4xl mx-auto">
       <CardHeader>
         <CardTitle>Match the terms to their definitions</CardTitle>
       </CardHeader>
@@ -86,6 +84,6 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
           </Button>
         </div>
       </CardContent>
-    </Card>
+    </CardUI>
   );
 }

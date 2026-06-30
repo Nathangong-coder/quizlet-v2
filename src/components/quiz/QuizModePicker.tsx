@@ -19,7 +19,14 @@ export function QuizModePicker({ setId, onModeSelect }: QuizModePickerProps) {
 
   async function handleSelect(mode: 'multiple-choice' | 'short-answer') {
     setIsLoading(mode);
-    const result = await startQuizAttempt(setId, mode, parseInt(count));
+    const result = await startQuizAttempt(setId, mode, {
+      questionMode: mode,
+      promptSide: 'term',
+      categoryIds: [],
+      starredOnly: false,
+      failedOnly: false,
+      printable: false,
+    }, parseInt(count));
     setIsLoading(null);
 
     if (result.success && result.data) {

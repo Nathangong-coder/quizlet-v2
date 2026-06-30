@@ -1,11 +1,8 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
-import { QuizContainer } from '@/components/quiz/QuizContainer';
-import { TrainingPlanPanel } from '@/components/quiz/TrainingPlanPanel';
 import { Separator } from '@/components/ui/separator';
-import { QuizSetupScreen } from '@/components/quiz/QuizSetupScreen';
-import { useState } from 'react';
+import { QuizClientWrapper } from '@/components/quiz/QuizClientWrapper';
 
 export default async function QuizPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -42,28 +39,6 @@ export default async function QuizPage({ params }: { params: Promise<{ id: strin
           categories={set.categories}
         />
       )}
-    </div>
-  );
-}
-
-function QuizClientWrapper({ setId, cards, categories }: { setId: string; cards: any[]; categories: any[] }) {
-  const [setup, setSetup] = useState<any>(null);
-
-  if (!setup) {
-    return (
-      <QuizSetupScreen
-        setId={setId}
-        availableCategories={categories.map(c => ({ id: c.id, name: c.name }))}
-        onStart={(s) => setSetup(s)}
-      />
-    );
-  }
-
-  return (
-    <div className="space-y-8">
-        <QuizContainer setId={setId} cards={cards} setup={setup} />
-        <Separator />
-        <TrainingPlanPanel setId={setId} />
     </div>
   );
 }

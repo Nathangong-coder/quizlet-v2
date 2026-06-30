@@ -42,7 +42,7 @@ export async function getCardAutocompleteSuggestions(
       apiKey,
       prompt,
       schema: CardAutocompleteSchema,
-      model: 'gemini-3-flash',
+      model: 'gemini-3.5-flash' as any,
     });
 
     return { success: true, data: result };

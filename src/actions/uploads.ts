@@ -2,8 +2,7 @@
 
 import { uploadAsset } from "@/lib/uploads";
 import { prisma } from "@/lib/db";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { auth } from '@/auth';
 import { z } from "zod";
 
 const UploadSchema = z.object({
@@ -14,7 +13,7 @@ const UploadSchema = z.object({
 });
 
 export async function uploadCardAsset(formData: FormData) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const file = formData.get("file") as File;

@@ -1,3 +1,14 @@
+'use server';
+
+import { auth } from '@/auth';
+import { prisma } from '@/lib/db';
+
+type ActionResult<T> = {
+  success: boolean;
+  data?: T;
+  error?: string;
+};
+
 export async function submitMatchingAnswers(input: {
   attemptId: string;
   matches: { cardId: string; matchedWithId: string }[];
@@ -8,18 +19,17 @@ export async function submitMatchingAnswers(input: {
   try {
     const attempt = await prisma.quizAttempt.findUnique({
       where: { id: input.attemptId },
-      include: { cards: { include: { cards: true } } }, // Wait, this is wrong.
     });
 
-    // Correct way to get cards for the attempt
+    if (!attempt) return { success: false, error: 'Attempt not found' };
+
     const cards = await prisma.card.findMany({
-      where: { id: { in: (attempt?.selectedCardIds as string[]) || [] } }
+      where: { id: { in: (attempt.selectedCardIds as string[]) || [] } }
     });
 
     let correctCount = 0;
     const answers = input.matches.map(match => {
-      const card = cards.find(c => c.id === match.cardId);
-      const isCorrect = match.matchedWithId === match.cardId; // Matching term to its own definition
+      const isCorrect = match.matchedWithId === match.cardId;
       if (isCorrect) correctCount++;
 
       return prisma.quizAnswer.create({

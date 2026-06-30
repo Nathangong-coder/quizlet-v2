@@ -11,8 +11,8 @@ import { Card } from '@prisma/client';
 import { getQuizAttemptCards } from '@/actions/quiz';
 import { Loader2 } from 'lucide-react';
 
-export function QuizContainer({ setId, cards: allCards }: { setId: string, cards: Card[] }) {
-  const [mode, setMode] = useState<'multiple-choice' | 'short-answer' | null>(null);
+export function QuizContainer({ setId, cards: allCards, setup }: { setId: string, cards: Card[], setup?: any }) {
+  const [mode, setMode] = useState<'multiple-choice' | 'short-answer' | 'matching' | 'true-false' | null>(setup?.questionMode || null);
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [selectedCards, setSelectedCards] = useState<Card[]>([]);
   const [isLoadingCards, setIsLoadingCards] = useState(true);

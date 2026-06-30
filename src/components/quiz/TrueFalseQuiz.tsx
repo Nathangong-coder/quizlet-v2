@@ -1,11 +1,14 @@
+"use client";
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card as CardUI, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { submitMultipleChoiceAnswer } from "@/actions/quiz";
-import { Card } from "@prisma/client";
+import { Card as PrismaCard } from "@prisma/client";
+import { cn } from "@/lib/utils";
 
 interface TrueFalseQuizProps {
-  cards: Card[];
+  cards: PrismaCard[];
   attemptId: string;
   onFinish: (score: number) => void;
 }
@@ -30,7 +33,6 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
     if (!selected) return;
     setIsLoading(true);
 
-    // We reuse submitMultipleChoiceAnswer since it's essentially a binary choice
     const result = await submitMultipleChoiceAnswer({
       attemptId,
       cardId: currentCard.id,
@@ -50,13 +52,12 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
     if (currentIndex < cards.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      // Calculate final score (simplified)
-      onFinish(100); // In real impl, fetch attempt score
+      onFinish(100);
     }
   };
 
   return (
-    <Card className="max-w-2xl mx-auto">
+    <CardUI className="max-w-2xl mx-auto">
       <CardHeader>
         <CardTitle>True or False?</CardTitle>
       </CardHeader>
@@ -101,6 +102,6 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
           </div>
         )}
       </CardContent>
-    </Card>
+    </CardUI>
   );
 }
