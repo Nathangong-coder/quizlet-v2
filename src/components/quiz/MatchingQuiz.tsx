@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card as CardUI, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { submitMatchingAnswers } from "@/actions/quiz-matching";
 import { Card as PrismaCard } from "@prisma/client";
+import { cn } from "@/lib/utils";
 
 interface MatchingQuizProps {
   cards: PrismaCard[];
@@ -11,20 +12,39 @@ interface MatchingQuizProps {
 }
 
 export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) {
+  const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
+  const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
   const [matches, setMatches] = useState<{ [key: string]: string }>({});
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSelect = (id: string, isTerm: boolean) => {
-    if (selectedId) {
-      if (selectedId === id) {
-        setSelectedId(null);
-        return;
-      }
-      setMatches(prev => ({ ...prev, [selectedId!]: id }));
-      setSelectedId(null);
+  const handleTermSelect = (id: string) => {
+    if (matches[id]) {
+      // Deselect match
+      const matchedDefId = matches[id];
+      const newMatches = { ...matches };
+      delete newMatches[id];
+      // Also remove the reverse mapping if we had one, but here we only map Term -> Def
+      setMatches(newMatches);
+      setSelectedTermId(null);
     } else {
-      setSelectedId(id);
+      setSelectedTermId(id);
+    }
+  };
+
+  const handleDefSelect = (id: string) => {
+    if (matches[Object.keys(matches).find(tId => matches[tId] === id)!]) {
+       // This definition is already matched. We'll allow re-matching by removing the old one.
+       const oldTermId = Object.keys(matches).find(tId => matches[tId] === id)!;
+       const newMatches = { ...matches };
+       delete newMatches[oldTermId];
+       setMatches(newMatches);
+    }
+
+    if (selectedTermId) {
+      setMatches(prev => ({ ...prev, [selectedTermId!]: id }));
+      setSelectedTermId(null);
+    } else {
+      setSelectedDefId(id);
     }
   };
 
@@ -49,7 +69,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
   };
 
   return (
-    <CardUI className="max-w-4xl mx-auto">
+    <Card className="max-w-4xl mx-auto">
       <CardHeader>
         <CardTitle>Match the terms to their definitions</CardTitle>
       </CardHeader>
@@ -58,9 +78,9 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
           {cards.map(c => (
             <Button
               key={c.id}
-              variant={selectedId === c.id || matches[c.id] ? "default" : "outline"}
-              className="w-full text-left justify-start"
-              onClick={() => handleSelect(c.id, true)}
+              variant={selectedTermId === c.id ? "default" : matches[c.id] ? "secondary" : "outline"}
+              className={cn("w-full text-left justify-start", matches[c.id] && "opacity-50")}
+              onClick={() => handleTermSelect(c.id)}
             >
               {c.term}
             </Button>
@@ -70,9 +90,9 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
           {cards.map(c => (
             <Button
               key={c.id}
-              variant={selectedId === c.id || Object.values(matches).includes(c.id) ? "default" : "outline"}
-              className="w-full text-left justify-start"
-              onClick={() => handleSelect(c.id, false)}
+              variant={selectedDefId === c.id || Object.values(matches).includes(c.id) ? "default" : "outline"}
+              className={cn("w-full text-left justify-start", Object.values(matches).includes(c.id) && "opacity-50")}
+              onClick={() => handleDefSelect(c.id)}
             >
               {c.definition}
             </Button>
@@ -84,6 +104,6 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
           </Button>
         </div>
       </CardContent>
-    </CardUI>
+    </Card>
   );
 }

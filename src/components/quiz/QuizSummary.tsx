@@ -60,9 +60,13 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
     loadSummary();
   }, [attemptId]);
 
-  if (loading) return <div className="text-center p-10">Generating AI analysis...</div>;
+  if (loading) return <div className="text-center p-10">Generating summary...</div>;
 
   if (!summary) return <div className="text-center p-10">Failed to load quiz summary. Please try again.</div>;
+
+  const attempt = summary.attempt;
+  const correctCount = attempt.answers.filter((a: any) => a.isCorrect).length;
+  const totalCount = attempt.answers.length;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -72,38 +76,57 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
             <Trophy className="w-12 h-12 text-yellow-500" />
           </div>
           <CardTitle className="text-3xl font-bold">Quiz Results</CardTitle>
-          <div className="text-6xl font-bold text-primary mt-4">{score}%</div>
+          <div className="text-6xl font-bold text-primary mt-4">{correctCount}/{totalCount}</div>
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="summary">
+      <Tabs defaultValue="review">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="summary">Overall Results</TabsTrigger>
+          <TabsTrigger value="summary">Overall Analysis</TabsTrigger>
           <TabsTrigger value="review">Individual Review</TabsTrigger>
         </TabsList>
 
         <TabsContent value="summary">
-          <Card>
-            <CardHeader>
-              <CardTitle>Overall AI Analysis</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="prose max-w-none text-muted-foreground whitespace-pre-line">
-                {summary.overallAnalysis}
-              </div>
-              <Button
-                className="w-full mt-6"
-                onClick={() => window.location.href = `/sets/${setId}`}
-              >
-                Back to Set
-              </Button>
-            </CardContent>
-          </Card>
+          {attempt.mode === 'short-answer' ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>AI-Powered Analysis</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="prose max-w-none text-muted-foreground whitespace-pre-line">
+                  {summary.overallAnalysis}
+                </div>
+                <Button
+                  className="w-full mt-6"
+                  onClick={() => window.location.href = `/sets/${setId}`}
+                >
+                  Back to Set
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Quiz Complete!</CardTitle>
+              </CardHeader>
+              <CardContent className="text-center space-y-4">
+                <p className="text-muted-foreground">
+                  You got {correctCount} out of {totalCount} questions correct.
+                </p>
+                <Button
+                  className="w-full"
+                  onClick={() => window.location.href = `/sets/${setId}`}
+                >
+                  Back to Set
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="review">
           <div className="space-y-4">
-            {summary.attempt.answers.map((answer: any, index: number) => (
+            {attempt.answers.map((answer: any, index: number) => (
               <Card key={answer.id}>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">

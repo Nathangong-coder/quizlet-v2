@@ -24,8 +24,9 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
     if (setup && !attemptId) {
       async function startAttempt() {
         setIsLoadingCards(true);
-        const mode = setup.questionMode[0] || 'multiple-choice';
-        const result = await startQuizAttempt(setId, mode, setup);
+        const initialMode = setup.questionMode[0] || 'multiple-choice';
+        setMode(initialMode);
+        const result = await startQuizAttempt(setId, initialMode, setup);
         if (result.success && result.data) {
           setAttemptId(result.data.attemptId);
         } else {
