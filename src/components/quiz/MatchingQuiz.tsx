@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { submitMultipleChoiceAnswer } from "@/actions/quiz";
+import { submitMatchingAnswers } from "@/actions/quiz-matching";
 import { Card } from "@prisma/client";
 
 interface MatchingQuizProps {
@@ -17,8 +17,12 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
 
   const handleSelect = (id: string, isTerm: boolean) => {
     if (selectedId) {
-      // Logic to match term and definition
-      // Simplified: just track matches
+      if (selectedId === id) {
+        setSelectedId(null);
+        return;
+      }
+      // If we are matching a term to a definition (or vice versa), record it
+      // In this simplified UI, we assume the user clicks a term then a definition
       setMatches(prev => ({ ...prev, [selectedId!]: id }));
       setSelectedId(null);
     } else {
@@ -28,12 +32,22 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
 
   const submitAll = async () => {
     setIsLoading(true);
-    // In a real implementation, we'd iterate through matches and call a matching submit action
-    // For now, we'll simulate a successful completion
-    setTimeout(() => {
-      setIsLoading(false);
-      onFinish(100);
-    }, 1000);
+    const matchEntries = Object.entries(matches).map(([cardId, matchedWithId]) => ({
+      cardId,
+      matchedWithId,
+    }));
+
+    const result = await submitMatchingAnswers({
+      attemptId,
+      matches: matchEntries,
+    });
+
+    setIsLoading(false);
+    if (result.success && result.data) {
+      onFinish(result.data.score);
+    } else if (result.error) {
+      alert(result.error);
+    }
   };
 
   return (
@@ -46,7 +60,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
           {cards.map(c => (
             <Button
               key={c.id}
-              variant={selectedId === c.id ? "default" : "outline"}
+              variant={selectedId === c.id || matches[c.id] ? "default" : "outline"}
               className="w-full text-left justify-start"
               onClick={() => handleSelect(c.id, true)}
             >
@@ -58,7 +72,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
           {cards.map(c => (
             <Button
               key={c.id}
-              variant={selectedId === c.id ? "default" : "outline"}
+              variant={selectedId === c.id || Object.values(matches).includes(c.id) ? "default" : "outline"}
               className="w-full text-left justify-start"
               onClick={() => handleSelect(c.id, false)}
             >
