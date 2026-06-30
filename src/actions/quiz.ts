@@ -102,9 +102,12 @@ export async function getOrGenerateMultipleChoiceOptions(
   }
 }
 
+import { QuizSetup } from '@/lib/quiz/setup';
+
 export async function startQuizAttempt(
   setId: string,
-  mode: 'multiple-choice' | 'short-answer',
+  mode: 'multiple-choice' | 'short-answer' | 'matching' | 'true-false',
+  setup: QuizSetup,
   questionCount?: number,
   timerSeconds?: number
 ): Promise<ActionResult<{ attemptId: string; cardIds: string[] }>> {
@@ -114,39 +117,39 @@ export async function startQuizAttempt(
   try {
     const set = await prisma.set.findUnique({
       where: { id: setId },
-      include: { cards: true },
+      include: {
+        cards: {
+          include: {
+            categoryAssignments: { include: { category: true } },
+            progress: { where: { userId: session.user.id } }
+          }
+        }
+      },
     });
     if (!set) return { success: false, error: 'Set not found' };
 
-    const progress = await prisma.cardProgress.findMany({
+    const quizAnswers = await prisma.quizAnswer.findMany({
       where: { userId: session.user.id, card: { setId } },
     });
-    const progressMap = new Map(progress.map(p => [p.cardId, p]));
 
-    const weightedCards = set.cards.map(card => {
-      const p = progressMap.get(card.id);
-      let weight = 1.0;
-      if (p?.starred) weight += 2.0;
-      if (p && p.confidence <= 5) weight += 1.0;
-      return { id: card.id, weight };
-    });
+    // Use helper to filter cards based on setup
+    const enrichedCards = set.cards.map(card => ({
+      ...card,
+      starred: card.progress[0]?.starred || false,
+      categoryIds: card.categoryAssignments.map(ca => ca.categoryId),
+    }));
 
-    const selectedIds: string[] = [];
-    const pool = [...weightedCards];
-    const targetCount = Math.min(questionCount || set.cards.length, set.cards.length);
+    const { filterQuizCards } = await import('@/lib/quiz/setup');
+    const filteredCards = filterQuizCards(enrichedCards, setup, quizAnswers);
 
-    while (selectedIds.length < targetCount && pool.length > 0) {
-      const totalWeight = pool.reduce((sum, c) => sum + c.weight, 0);
-      let r = Math.random() * totalWeight;
-      for (let i = 0; i < pool.length; i++) {
-        r -= pool[i].weight;
-        if (r <= 0) {
-          selectedIds.push(pool[i].id);
-          pool.splice(i, 1);
-          break;
-        }
-      }
+    if (filteredCards.length === 0) {
+      return { success: false, error: 'No cards match the selected filters.' };
     }
+
+    const selectedIds = filteredCards
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.min(questionCount || set.cards.length, filteredCards.length))
+      .map(c => c.id);
 
     const attempt = await prisma.quizAttempt.create({
       data: {
@@ -154,6 +157,12 @@ export async function startQuizAttempt(
         setId,
         mode,
         selectedCardIds: selectedIds,
+        questionMode: setup.questionMode,
+        promptSide: setup.promptSide,
+        categoryIds: setup.categoryIds,
+        starredOnly: setup.starredOnly,
+        failedOnly: setup.failedOnly,
+        printable: setup.printable,
       },
     });
     return { success: true, data: { attemptId: attempt.id, cardIds: selectedIds } };
