@@ -271,7 +271,7 @@ export async function submitShortAnswer(input: {
       });
       annotations = annResult.annotations;
     } catch (e) {
-      console:error('Annotation generation failed:', e);
+      console.error('Annotation generation failed:', e);
     }
 
     const score = grade.overall * 10;
@@ -303,7 +303,7 @@ export async function submitShortAnswer(input: {
     return { success: true, data: { grade, score } };
   } catch (error: any) {
     console:error('Grading error:', error);
-    return { success: false, error: 'Failed to grade answer' };
+    return { success: false, error: 'Failed to generate quiz summary' };
   }
 }
 
@@ -314,7 +314,6 @@ export async function getQuizAttemptCards(attemptId: string): Promise<ActionResu
   try {
     const attempt = await prisma.quizAttempt.findUnique({
       where: { id: attemptId },
-      include: { cards: { include: { cards: true } } }, // This was from previous failed attempt to fix.
     });
     if (!attempt || !attempt.selectedCardIds) return { success: false, error: 'Attempt not found' };
 
@@ -327,11 +326,11 @@ export async function getQuizAttemptCards(attemptId: string): Promise<ActionResu
 
     return { success: true, data: { cards: sortedCards } };
   } catch (error) {
-    return { success: false, error: 'Attempt not found' };
+    return { success: false, error: 'Failed to fetch quiz cards' };
   }
 }
 
-export async function getQuizAttemptSummary(attemptId: string): Promise<ActionResult<{ attempt: any; overallAnalysis: string }}> {
+export async function getQuizAttemptSummary(attemptId: string): Promise<ActionResult<{ attempt: any; overallAnalysis: string }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
@@ -354,25 +353,25 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
 
       const prompt = `You are an AI study coach. Analyze this user's quiz attempt.
 
-      Set: ${attempt.set.title}
-      Mode: ${attempt.mode}
-      Score: ${attempt.score}%
+Set: ${attempt.set.title}
+Mode: ${attempt.mode}
+Score: ${attempt.score}%
 
-      Performance Details:
-      ${attempt.answers.map(a => `- Card: ${a.card.term} | Correct: ${a.isCorrect ? 'Yes' : 'No'} | Score: ${a.score}/100 | Feedback: ${a.feedback}`).join('\n')}
+Performance Details:
+${attempt.answers.map(a => `- Card: ${a.card.term} | Correct: ${a.isCorrect ? 'Yes' : 'No'} | Score: ${a.score}/100 | Feedback: ${a.feedback}`).join('\\n')}
 
-      Provide a holistic breakdown. Use clear headers and separate each section with double newlines:
+Provide a holistic breakdown. Use clear headers and separate each section with double newlines:
 
-      ### Strengths
-      ${attempt.set.title}
+### Strengths
+Identify what the user did well.
 
-      ### Weaknesses
-      Where did they struggle?
+### Weaknesses
+Where did they struggle?
 
-      ### Action Plan
-      3 key topics to focus on next.
+### Action Plan
+3 key topics to focus on next.
 
-      Output as JSON: { "analysis": string }`;
+Output as JSON: { "analysis": string }`;
 
       const result = await generateJsonWithGoogle({
         apiKey,
