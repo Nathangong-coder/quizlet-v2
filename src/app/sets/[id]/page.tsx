@@ -12,6 +12,7 @@ import DeleteSetForm from '@/components/sets/DeleteSetForm'
 import ConfidenceRate from '@/components/sets/ConfidenceRate'
 import { cn } from '@/lib/utils'
 import { TermsList } from '@/components/sets/TermsList'
+import { ActivityTiles } from '@/components/sets/ActivityTiles'
 
 export default async function SetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -69,39 +70,7 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
         />
       )}
 
-      <div className="flex gap-3 mb-8">
-        <Link
-          href={`/sets/${id}/match`}
-          className={cn(
-            buttonVariants({ size: 'lg' }),
-            'bg-white text-black border border-black hover:bg-black hover:text-white px-6 py-3'
-          )}
-        >
-          Matching Game
-        </Link>
-        {session?.user?.id && (
-          <>
-            <Link
-              href={`/sets/${id}/review`}
-              className={cn(
-                buttonVariants({ size: 'lg' }),
-                'bg-white text-black border border-black hover:bg-black hover:text-white px-6 py-3'
-              )}
-            >
-              Review Mode
-            </Link>
-            <Link
-              href={`/sets/${id}/quiz`}
-              className={cn(
-                buttonVariants({ size: 'lg' }),
-                'bg-white text-black border border-black hover:bg-black hover:text-white px-6 py-3'
-              )}
-            >
-              Quiz
-            </Link>
-          </>
-        )}
-      </div>
+      <ActivityTiles id={id} userId={session?.user?.id} />
 
       <TermsList
         cards={set.cards}
