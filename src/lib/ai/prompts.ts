@@ -131,13 +131,36 @@ JSON Schema:
 export function buildMultipleChoiceGradePrompt(card: Card, selected: string, correct: string) {
   return `You are a finance interview grader. A user answered a multiple-choice question.
 
-Term: ${card.term}
-Correct Definition: ${correct}
-User's Selected Option: ${selected}
+  Term: ${card.term}
+  Correct Definition: ${correct}
+  User's Selected Option: ${selected}
 
-If the answer is correct, provide a brief confirmation and a "pro tip" to deepen their understanding.
-If the answer is incorrect, explain WHY it is wrong and why the correct answer is the right one.
+  If the answer is correct, provide a brief confirmation and a "pro tip" to deepen their understanding.
+  If the answer is incorrect, explain WHY it is wrong and why the correct answer is the right one.
 
-Keep it concise (1-2 sentences).
-Output as JSON: { "feedback": string }`;
+  Keep it concise (1-2 sentences).
+  Output as JSON: { "feedback": string }`;
+}
+
+export function buildAutocompletePrompt(set: any, currentText: string, side: 'term' | 'definition', categories: string[]) {
+  const cards = set.cards.map((c: any) => `${c.term}: ${c.definition}`).join('\\n');
+  const categoriesList = categories.join(', ');
+
+  return `You are an AI study assistant for a finance interview prep app.
+
+  Set Title: ${set.title}
+  Set Description: ${set.description || 'No description provided'}
+  Categories: ${categoriesList}
+
+  Lexisting cards in this set:
+  ${cards}
+
+  The user is currently typing a ${side === 'term' ? 'term' : 'definition'}:
+  "${currentText}"
+
+  Provide 3-5 plausible autocomplete suggestions that fit the context of this set and categories.
+  If the user is typing a term, suggest common finance terms.
+  If the user is typing a definition, suggest professional, concise interview-style definitions.
+
+  Output as JSON: { "suggestions": string[] }`;
 }

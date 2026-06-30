@@ -46,7 +46,13 @@ export const MultipleChoiceFeedbackSchema = z.object({
   feedback: z.string().min(1),
 });
 
-export type MultipleChoiceFeedback = z.infer<typeof MultipleChoiceFeedbackSchema>;
+export const MultipleChoiceFeedback = z.infer<typeof MultipleChoiceFeedbackSchema>;
+
+export const CardAutocompleteSchema = z.object({
+  suggestions: z.array(z.string().min(1)).min(1).max(5),
+});
+
+export type CardAutocomplete = z.infer<typeof CardAutocompleteSchema>;
 
 export const TrainingPlanSchema = z.object({
   title: z.string().min(1),
