@@ -10,6 +10,7 @@ import { QuizSummary } from './QuizSummary';
 import { Card } from '@prisma/client';
 import { getQuizAttemptCards } from '@/actions/quiz';
 import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function QuizContainer({ setId, cards: allCards, setup }: { setId: string, cards: Card[], setup?: any }) {
   const [mode, setMode] = useState<'multiple-choice' | 'short-answer' | 'matching' | 'true-false' | null>(setup?.questionMode || null);
@@ -18,6 +19,22 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
   const [isLoadingCards, setIsLoadingCards] = useState(true);
   const [finished, setFinished] = useState(false);
   const [score, setScore] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (setup && !attemptId) {
+      async function startAttempt() {
+        setIsLoadingCards(true);
+        const mode = setup.questionMode[0] || 'multiple-choice';
+        const result = await startQuizAttempt(setId, mode, setup);
+        if (result.success && result.data) {
+          setAttemptId(result.data.attemptId);
+        } else {
+          toast.error(result.error || 'Failed to start quiz');
+        }
+      }
+      startAttempt();
+    }
+  }, [setup, setId, attemptId]);
 
   useEffect(() => {
     if (attemptId) {

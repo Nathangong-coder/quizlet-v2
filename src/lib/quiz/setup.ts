@@ -1,12 +1,13 @@
 import { z } from "zod";
 
 export const QuizSetupSchema = z.object({
-  questionMode: z.enum(["multiple-choice", "short-answer", "matching", "true-false"]),
+  questionMode: z.array(z.enum(["multiple-choice", "short-answer", "matching", "true-false"])).min(1),
   promptSide: z.enum(["term", "definition", "mixed"]),
   categoryIds: z.array(z.string()),
   starredOnly: z.boolean(),
   failedOnly: z.boolean(),
   printable: z.boolean(),
+  questionCount: z.number().int().min(1),
 });
 
 export type QuizSetup = z.infer<typeof QuizSetupSchema>;

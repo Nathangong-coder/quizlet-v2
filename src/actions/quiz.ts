@@ -20,6 +20,7 @@ import { DEFAULT_AI_MODEL } from '@/lib/ai/model-routing';
 import { overallQuizScore } from '@/lib/quiz/scoring';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { QuizSetup } from '@/lib/quiz/setup';
 
 type ActionResult<T> = {
   success: boolean;
@@ -95,14 +96,12 @@ export async function getOrGenerateMultipleChoiceOptions(
         cacheHit: false,
         model: DEFAULT_AI_MODEL,
       },
-    };
+    });
   } catch (error: any) {
     console.error('Quiz generation error:', error);
     return { success: false, error: 'Failed to generate quiz options.' };
   }
 }
-
-import { QuizSetup } from '@/lib/quiz/setup';
 
 export async function startQuizAttempt(
   setId: string,
@@ -132,7 +131,6 @@ export async function startQuizAttempt(
       where: { userId: session.user.id, card: { setId } },
     });
 
-    // Use helper to filter cards based on setup
     const enrichedCards = set.cards.map(card => ({
       ...card,
       starred: card.progress[0]?.starred || false,
@@ -146,9 +144,11 @@ export async function startQuizAttempt(
       return { success: false, error: 'No cards match the selected filters.' };
     }
 
+    const targetCount = Math.min(setup.questionCount || questionCount || set.cards.length, filteredCards.length);
+
     const selectedIds = filteredCards
       .sort(() => Math.random() - 0.5)
-      .slice(0, Math.min(questionCount || set.cards.length, filteredCards.length))
+      .slice(0, targetCount)
       .map(c => c.id);
 
     const attempt = await prisma.quizAttempt.create({
@@ -157,7 +157,7 @@ export async function startQuizAttempt(
         setId,
         mode,
         selectedCardIds: selectedIds,
-        questionMode: setup.questionMode,
+        questionMode: setup.questionMode as any,
         promptSide: setup.promptSide,
         categoryIds: setup.categoryIds,
         starredOnly: setup.starredOnly,
@@ -265,13 +265,13 @@ export async function submitShortAnswer(input: {
       const annPrompt = buildAnnotationPrompt(card, input.answer, card.definition);
       const annResult = await generateJsonWithGoogle({
         apiKey,
-        prompt: annPrompt,
+        prompt,
         schema: AnnotationSchema,
         model: DEFAULT_AI_MODEL,
       });
       annotations = annResult.annotations;
     } catch (e) {
-      console.error('Annotation generation failed:', e);
+      console:error('Annotation generation failed:', e);
     }
 
     const score = grade.overall * 10;
@@ -302,7 +302,7 @@ export async function submitShortAnswer(input: {
 
     return { success: true, data: { grade, score } };
   } catch (error: any) {
-    console.error('Grading error:', error);
+    console:error('Grading error:', error);
     return { success: false, error: 'Failed to grade answer' };
   }
 }
@@ -314,6 +314,7 @@ export async function getQuizAttemptCards(attemptId: string): Promise<ActionResu
   try {
     const attempt = await prisma.quizAttempt.findUnique({
       where: { id: attemptId },
+      include: { cards: { include: { cards: true } } }, // This was from previous failed attempt to fix.
     });
     if (!attempt || !attempt.selectedCardIds) return { success: false, error: 'Attempt not found' };
 
@@ -326,11 +327,11 @@ export async function getQuizAttemptCards(attemptId: string): Promise<ActionResu
 
     return { success: true, data: { cards: sortedCards } };
   } catch (error) {
-    return { success: false, error: 'Failed to fetch quiz cards' };
+    return { success: false, error: 'Attempt not found' };
   }
 }
 
-export async function getQuizAttemptSummary(attemptId: string): Promise<ActionResult<{ attempt: any; overallAnalysis: string }>> {
+export async function getQuizAttemptSummary(attemptId: string): Promise<ActionResult<{ attempt: any; overallAnalysis: string }}> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
@@ -363,7 +364,7 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
       Provide a holistic breakdown. Use clear headers and separate each section with double newlines:
 
       ### Strengths
-      What did they do well?
+      ${attempt.set.title}
 
       ### Weaknesses
       Where did they struggle?
@@ -388,9 +389,9 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
         attempt,
         overallAnalysis,
       },
-    };
+    });
   } catch (error: any) {
     console:error('Summary generation error:', error);
-    return { success: false, error: 'Failed to generate summary' };
+    return { success: false, error: 'Failed to generate quiz summary' };
   }
 }

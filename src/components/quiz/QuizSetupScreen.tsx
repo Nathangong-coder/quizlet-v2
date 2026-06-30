@@ -40,16 +40,34 @@ export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSet
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <Label>Question Mode</Label>
-          <select
-            className="w-full rounded border p-2 text-sm"
-            value={setup.questionMode}
-            onChange={(e) => setSetup(prev => ({ ...prev, questionMode: e.target.value as any }))}
-          >
-            <option value="multiple-choice">Multiple Choice</option>
-            <option value="short-answer">Short Answer</option>
-            <option value="matching">Matching</option>
-            <option value="true-false">True/False</option>
-          </select>
+          <div className="grid grid-cols-2 gap-2">
+            {["multiple-choice", "short-answer", "matching", "true-false"].map((mode) => (
+              <div
+                key={mode}
+                className="flex items-center gap-2 rounded border p-2 cursor-pointer hover:bg-gray-50"
+                onClick={() => {
+                  setSetup(prev => ({
+                    ...prev,
+                    questionMode: prev.questionMode.includes(mode)
+                      ? prev.questionMode.filter(m => m !== mode)
+                      : [...prev.questionMode, mode]
+                  }))
+                }}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300"
+                  checked={setup.questionMode.includes(mode)}
+                  readOnly
+                />
+                <Label className="text-sm cursor-pointer">
+                  {mode === "multiple-choice" ? "Multiple Choice" :
+                   mode === "short-answer" ? "Short Answer" :
+                   mode === "matching" ? "Matching" : "True/False"}
+                </Label>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -63,6 +81,17 @@ export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSet
             <option value="definition">Definition</option>
             <option value="mixed">Mixed</option>
           </select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Number of Questions</Label>
+          <input
+            type="number"
+            className="w-full rounded border p-2 text-sm"
+            value={setup.questionCount}
+            onChange={(e) => setSetup(prev => ({ ...prev, questionCount: parseInt(e.target.value) || 1 }))}
+            min={1}
+          />
         </div>
 
         <div className="space-y-3">
