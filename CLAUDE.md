@@ -37,7 +37,7 @@ Always request **structured/JSON output** from grading and MC-generation calls a
 
 ## Staged execution plan
 
-Build in four stages. Do not start a later stage's work until the prior stage is functional, unless explicitly directed.
+Build in four main stages, with Stage 3.5 as an added experience-expansion stage between AI quizzing and voice interviews. Do not start a later stage's work until the prior stage is functional, unless explicitly directed.
 
 ### Stage 1 — Flashcards + import + activities
 - Flashcard data model (sets → cards with term/definition).
@@ -60,6 +60,15 @@ Build in four stages. Do not start a later stage's work until the prior stage is
 - **Short-answer** questions with the AI grading rubric above (clarity/conciseness/correctness + overall).
 - AI produces a **suggested training plan** and **new questions targeting weaknesses** (driven by Stage 2 confidence data + grading history).
 
+### Stage 3.5 — Study experience redesign + richer cards + customizable quizzes
+- **Visual redesign of set activity entry points:** On the set detail page, show large tile-format launch cards for Matching Game, Review Mode, and Quiz. Each tile should have a prominent mode-specific logo/icon above the label, replacing small text-only buttons.
+- **Custom categories per card:** Let users assign one or more custom category labels to each term/definition pair (for example: text, image, talking, accounting, valuation, vocabulary). Categories are user-defined, set-scoped, and should be reusable through autocomplete.
+- **Customizable quiz targeting:** Add a quiz setup/loading screen before questions begin. Users can choose quiz type (multiple choice, short answer, matching, true/false), which side is tested (term-to-definition, definition-to-term, or mixed), and which categories to include.
+- **Focused quiz filters:** Quiz setup must support "starred terms only" and "previously failed terms only" filters, using Stage 2 `CardProgress` and Stage 3 `QuizAnswer` history.
+- **Rich card inputs:** Cards are no longer limited to text-only term/definition fields. Terms and definitions can include uploaded images, videos, and other files saved to the user's account/set. Preserve text support as the default and design the data model so each card side can contain multiple content blocks.
+- **AI-assisted card creation:** While creating or editing flashcards, provide AI autocomplete suggestions for partially typed terms and definitions. Suggestions must be opt-in per field action and use the user's saved Google API key.
+- **Printable quizzes:** Quiz setup/results should support a print-friendly test view with answer key controls and browser-native PDF export via print styles.
+
 ### Stage 4 — Voice interviews
 - AI **narrator asks questions aloud** (TTS); user **responds by voice** (STT).
 - Transcription **preserves filler words** ("um", "ah").
@@ -79,4 +88,3 @@ Build in four stages. Do not start a later stage's work until the prior stage is
 - **Important Terms:** Starred cards are considered "important terms." Need to define specific behavior:
   - Should they be tested more frequently in review mode?
   - Should they appear more often in flashcard carousels?
-  - Should there be an option to "Focus only on important terms" during quizzes?
