@@ -7,52 +7,117 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  sets          Set[]
+  id               String            @id @default(cuid())
+  name             String?
+  email            String            @unique
+  emailVerified    DateTime?
+  image            String?
+  accounts         Account[]
+  sessions         Session[]
+  sets             Set[]
   cardProgress     CardProgress[]
   confidenceEvents ConfidenceEvent[]
-  aiCredential  AiCredential?
-  quizAttempts  QuizAttempt[]
-  quizAnswers   QuizAnswer[]
-  trainingPlans TrainingPlan[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  aiCredential     AiCredential?
+  quizAttempts     QuizAttempt[]
+  quizAnswers      QuizAnswer[]
+  trainingPlans    TrainingPlan[]
+  assets           CardAsset[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 }
 
 model Set {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cards       Card[]
+  id           String         @id @default(cuid())
+  title        String
+  description  String?
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards        Card[]
   quizAttempts QuizAttempt[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  categories   CardCategory[]
+  assets       CardAsset[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   @@index([userId])
 }
 
 model Card {
-  id         String   @id @default(cuid())
-  term       String
-  definition String
-  position   Int
-  setId      String
-  set        Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
-  progress         CardProgress[]
-  confidenceEvents ConfidenceEvent[]
-  quizOptionCaches QuizOptionCache[]
-  quizAnswers      QuizAnswer[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                  String                   @id @default(cuid())
+  term                String
+  definition          String
+  position            Int
+  setId               String
+  set                 Set                      @relation(fields: [setId], references: [id], onDelete: Cascade)
+  progress            CardProgress[]
+  confidenceEvents    ConfidenceEvent[]
+  quizOptionCaches    QuizOptionCache[]
+  quizAnswers         QuizAnswer[]
+  contentBlocks       CardContentBlock[]
+  categoryAssignments CardCategoryAssignment[]
+  assets              CardAsset[]
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
 
+  @@index([setId])
+}
+
+model CardCategory {
+  id             String                   @id @default(cuid())
+  setId          String
+  name           String
+  normalizedName String
+  createdAt      DateTime                 @default(now())
+  set            Set                      @relation(fields: [setId], references: [id], onDelete: Cascade)
+  assignments    CardCategoryAssignment[]
+
+  @@unique([setId, normalizedName])
+  @@index([setId])
+}
+
+model CardCategoryAssignment {
+  id         String       @id @default(cuid())
+  cardId     String
+  categoryId String
+  card       Card         @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  category   CardCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, categoryId])
+  @@index([categoryId])
+}
+
+model CardContentBlock {
+  id          String      @id @default(cuid())
+  cardId      String
+  side        String      // "term" | "definition"
+  type        String      // "text" | "image" | "video" | "file"
+  text        String?     @db.Text
+  assetId     String?
+  position    Int
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  card        Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  asset       CardAsset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
+
+  @@index([cardId, side, position])
+}
+
+model CardAsset {
+  id            String             @id @default(cuid())
+  userId        String
+  setId         String
+  cardId        String?
+  storageKey    String             @unique
+  originalName  String
+  mimeType      String
+  sizeBytes     Int
+  createdAt     DateTime           @default(now())
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  set           Set                @relation(fields: [setId], references: [id], onDelete: Cascade)
+  card          Card?              @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  contentBlocks CardContentBlock[]
+
+  @@index([userId])
   @@index([setId])
 }
 
@@ -145,16 +210,23 @@ model QuizOptionCache {
 }
 
 model QuizAttempt {
-  id        String       @id @default(cuid())
-  userId    String
-  setId     String
-  mode      String
-  score     Int?
+  id              String       @id @default(cuid())
+  userId          String
+  setId           String
+  mode            String
+  score           Int?
   selectedCardIds Json?
-  createdAt DateTime     @default(now())
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  set       Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
-  answers   QuizAnswer[]
+  // Quiz setup options
+  questionMode    String?      // e.g., 'multiple-choice', 'short-answer', etc.
+  promptSide      String?      // 'term', 'definition', 'mixed'
+  categoryIds     Json?        // Array of category IDs
+  starredOnly     Boolean      @default(false)
+  failedOnly      Boolean      @default(false)
+  printable       Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  set             Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
+  answers         QuizAnswer[]
 
   @@index([userId, createdAt])
   @@index([setId, createdAt])
