@@ -169,7 +169,8 @@ export async function startQuizAttempt(
     });
     return { success: true, data: { attemptId: attempt.id, cardIds: selectedIds } };
   } catch (error) {
-    return { success: false, error: 'Failed to start quiz' };
+    console.error('Error in startQuizAttempt:', error);
+    return { success: false, error: `Failed to start quiz: ${error instanceof Error ? error.message : 'Unknown error'}` };
   }
 }
 

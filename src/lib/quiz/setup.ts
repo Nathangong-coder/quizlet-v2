@@ -18,19 +18,18 @@ export function isPreviouslyFailed(cardId: string, quizAnswers: any[]) {
 
 export function filterQuizCards(cards: any[], setup: QuizSetup, quizAnswers: any[] = []) {
   return cards.filter((card) => {
+    if (!card) return false;
+
     if (setup.starredOnly) {
-      // Note: starred status is in CardProgress, this helper assumes we might pass it in or cards are pre-enriched
-      // For now, if cards are just Card models, we can't check starred unless they have progress attached.
-      // We'll assume 'card' objects passed here are enriched with { starred: boolean }
-      if (!(card as any).starred) return false;
+      if (card.starred === false || card.starred === undefined) return false;
     }
 
     if (setup.failedOnly) {
       if (!isPreviouslyFailed(card.id, quizAnswers)) return false;
     }
 
-    if (setup.categoryIds.length > 0) {
-      const cardCategories = (card as any).categoryIds || [];
+    if (setup.categoryIds && setup.categoryIds.length > 0) {
+      const cardCategories = card.categoryIds || [];
       if (!setup.categoryIds.some((id) => cardCategories.includes(id))) return false;
     }
 
