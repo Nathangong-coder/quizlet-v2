@@ -8,7 +8,7 @@ import { TrueFalseQuiz } from './TrueFalseQuiz';
 import { MatchingQuiz } from './MatchingQuiz';
 import { QuizSummary } from './QuizSummary';
 import { Card } from '@prisma/client';
-import { getQuizAttemptCards } from '@/actions/quiz';
+import { getQuizAttemptCards, startQuizAttempt } from '@/actions/quiz';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 

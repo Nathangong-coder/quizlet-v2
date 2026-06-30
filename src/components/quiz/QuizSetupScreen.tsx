@@ -14,12 +14,13 @@ interface QuizSetupScreenProps {
 
 export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSetupScreenProps) {
   const [setup, setSetup] = useState<QuizSetup>({
-    questionMode: "multiple-choice",
+    questionMode: ["multiple-choice"],
     promptSide: "term",
     categoryIds: [],
     starredOnly: false,
     failedOnly: false,
     printable: false,
+    questionCount: 10,
   });
 
   const toggleCategory = (id: string) => {
@@ -28,6 +29,15 @@ export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSet
       categoryIds: prev.categoryIds.includes(id)
         ? prev.categoryIds.filter((c) => c !== id)
         : [...prev.categoryIds, id],
+    }));
+  };
+
+  const toggleMode = (mode: "multiple-choice" | "short-answer" | "matching" | "true-false") => {
+    setSetup((prev) => ({
+      ...prev,
+      questionMode: prev.questionMode.includes(mode)
+        ? prev.questionMode.filter((m) => m !== mode)
+        : [...prev.questionMode, mode],
     }));
   };
 
@@ -45,19 +55,12 @@ export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSet
               <div
                 key={mode}
                 className="flex items-center gap-2 rounded border p-2 cursor-pointer hover:bg-gray-50"
-                onClick={() => {
-                  setSetup(prev => ({
-                    ...prev,
-                    questionMode: prev.questionMode.includes(mode)
-                      ? prev.questionMode.filter(m => m !== mode)
-                      : [...prev.questionMode, mode]
-                  }))
-                }}
+                onClick={() => toggleMode(mode as any)}
               >
                 <input
                   type="checkbox"
                   className="h-4 w-4 rounded border-gray-300"
-                  checked={setup.questionMode.includes(mode)}
+                  checked={setup.questionMode.includes(mode as any)}
                   readOnly
                 />
                 <Label className="text-sm cursor-pointer">

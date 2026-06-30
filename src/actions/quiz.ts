@@ -87,16 +87,18 @@ export async function getOrGenerateMultipleChoiceOptions(
       },
     });
 
+    const responseData = {
+      cardId,
+      options: options.options,
+      correctAnswer: options.correctAnswer,
+      cacheHit: false,
+      model: DEFAULT_AI_MODEL,
+    };
+
     return {
       success: true,
-      data: {
-        cardId,
-        options: options.options,
-        correctAnswer: options.correctAnswer,
-        cacheHit: false,
-        model: DEFAULT_AI_MODEL,
-      },
-    });
+      data: responseData,
+    };
   } catch (error: any) {
     console.error('Quiz generation error:', error);
     return { success: false, error: 'Failed to generate quiz options.' };
@@ -330,7 +332,12 @@ export async function getQuizAttemptCards(attemptId: string): Promise<ActionResu
   }
 }
 
-export async function getQuizAttemptSummary(attemptId: string): Promise<ActionResult<{ attempt: any; overallAnalysis: string }>> {
+type QuizAttemptSummaryResult = {
+  attempt: any;
+  overallAnalysis: string;
+};
+
+export async function getQuizAttemptSummary(attemptId: string): Promise<ActionResult<QuizAttemptSummaryResult>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
@@ -388,7 +395,7 @@ Output as JSON: { "analysis": string }`;
         attempt,
         overallAnalysis,
       },
-    });
+    };
   } catch (error: any) {
     console:error('Summary generation error:', error);
     return { success: false, error: 'Failed to generate quiz summary' };
