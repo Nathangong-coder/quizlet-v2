@@ -146,6 +146,15 @@ export async function startQuizAttempt(
       return { success: false, error: 'No cards match the selected filters.' };
     }
 
+    // Strict validation for Starred/Failed only
+    if (setup.starredOnly && filteredCards.length < (setup.questionCount || 1)) {
+      return { success: false, error: 'Error: not enough starred flashcards' };
+    }
+
+    if (setup.failedOnly && filteredCards.length < (setup.questionCount || 1)) {
+      return { success: false, error: 'Error: not enough previously failed flashcards' };
+    }
+
     const targetCount = Math.min(setup.questionCount || questionCount || set.cards.length, filteredCards.length);
 
     const selectedIds = filteredCards
