@@ -10,6 +10,21 @@ export class AiError extends Error {
   }
 }
 
+function stripMarkdownJson(text: string): string {
+  const jsonRegex = /```(?:json)?\s*([\s\S]*?)\s*```/ ;
+  const match = text.match(jsonRegex);
+  if (match) return match[1];
+
+  // Fallback: find first '{' and last '}'
+  const firstBrace = text.indexOf('{');
+  const lastBrace = text.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return text.substring(firstBrace, lastBrace + 1);
+  }
+
+  return text;
+}
+
 export type AiErrorCode =
   | 'missing_api_key'
   | 'invalid_api_key'
@@ -60,7 +75,8 @@ export async function generateJsonWithGoogle<T>({
         throw new Error('Empty response from AI');
       }
 
-      const json = JSON.parse(text);
+      const cleanedText = stripMarkdownJson(text);
+      const json = JSON.parse(cleanedText);
       return schema.parse(json);
 
     } catch (error: any) {

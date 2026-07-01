@@ -23,7 +23,7 @@ export const ShortAnswerGradeSchema = z.object({
     pros: z.array(z.string()),
     cons: z.array(z.string()),
   }),
-  overall: z.number().int().min(1).max(10),
+  overall: z.number().min(1).max(10),
   summary: z.string().min(1),
   suggestedImprovement: z.string().min(1),
 });

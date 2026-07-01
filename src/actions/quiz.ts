@@ -305,7 +305,7 @@ export async function submitShortAnswer(input: {
 
     return { success: true, data: { grade, score } };
   } catch (error: any) {
-    console:error('Grading error:', error);
+    console.error('Grading error:', error);
     return { success: false, error: 'Failed to generate quiz summary' };
   }
 }
