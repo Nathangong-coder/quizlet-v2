@@ -82,6 +82,10 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
     );
   }
 
+  if (finished) {
+    return <QuizSummary score={score || 0} setId={setId} attemptId={attemptId!} />;
+  }
+
   if (isLoadingCards) return <div className="flex flex-col items-center justify-center p-20 gap-4">
     <Loader2 className="animate-spin w-12 h-12 text-primary" />
     <p className="text-muted-foreground animate-pulse">Building your personalized quiz...</p>

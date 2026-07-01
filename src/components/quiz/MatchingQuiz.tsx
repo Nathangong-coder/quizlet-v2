@@ -16,40 +16,37 @@ interface MatchingQuizProps {
 }
 
 export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) {
-  // matches: { [definitionId: string]: termId }
-  const [matches, setMatches] = useState<{ [defId: string]: string }>({});
-  const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
+  // matches: { [termId: string]: defId }
+  const [matches, setMatches] = useState<{ [termId: string]: string }>({});
+  const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleTermSelect = (id: string) => {
-    setSelectedTermId(id);
+  const handleDefSelect = (id: string) => {
+    setSelectedDefId(id);
   };
 
-  const handleSlotClick = (defId: string) => {
-    const currentMatchedTermId = matches[defId];
+  const handleSlotClick = (termId: string) => {
+    const currentMatchedDefId = matches[termId];
 
-    if (currentMatchedTermId) {
+    if (currentMatchedDefId) {
       // Remove match
       const newMatches = { ...matches };
-      delete newMatches[defId];
+      delete newMatches[termId];
       setMatches(newMatches);
-    } else if (selectedTermId) {
-      // Place selected term into slot
+    } else if (selectedDefId) {
+      // Place selected definition into slot
       const newMatches = { ...matches };
-      newMatches[defId] = selectedTermId;
+      newMatches[termId] = selectedDefId;
       setMatches(newMatches);
-      setSelectedTermId(null); // Clear selection after placing
+      setSelectedDefId(null);
     }
   };
 
   async function handleSubmit() {
     setIsSubmitting(true);
 
-    // Transform matches: { [defId]: termId } -> { cardId: termId, matchedWithId: defId }
-    // Note: In the server action 'submitMatchingAnswers', the expected format is
-    // an array of { cardId: string, matchedWithId: string }.
-    // We will treat the 'cardId' as the term and 'matchedWithId' as the definition.
-    const matchesArray = Object.entries(matches).map(([defId, termId]) => ({
+    // Transform matches: { [termId]: defId } -> { cardId: termId, matchedWithId: defId }
+    const matchesArray = Object.entries(matches).map(([termId, defId]) => ({
       cardId: termId,
       matchedWithId: defId
     }));
@@ -68,72 +65,72 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
   }
 
   const allSlotsFilled = Object.keys(matches).length === cards.length;
-  const matchedTermIds = Object.values(matches);
+  const matchedDefIds = Object.values(matches);
 
   return (
-    <Card className="max-w-5xl mx-auto">
+    <Card className="max-w-6xl mx-auto">
       <CardHeader>
-        <CardTitle className="text-center text-2xl">Match Terms to Definitions</CardTitle>
+        <CardTitle className="text-center text-2xl">Match Definitions to Terms</CardTitle>
         <p className="text-center text-muted-foreground">
-          Select a term from the left, then click a slot next to its definition on the right.
+          Select a definition from the pool, then click the slot next to the correct term.
         </p>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-12 p-8">
-        {/* Terms Column */}
-        <div className="space-y-3">
-          <h3 className="font-semibold text-lg mb-4 text-center">Terms</h3>
-          <div className="grid grid-cols-1 gap-2">
+      <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-12 p-8">
+        {/* Main Matching Area (Left 2/3) */}
+        <div className="lg:col-span-2 space-y-4">
+          <h3 className="font-semibold text-lg mb-4">Terms & Slots</h3>
+          <div className="space-y-3">
             {cards.map(c => {
-              const isMatched = matchedTermIds.includes(c.id);
-              return (
-                <Button
-                  key={c.id}
-                  variant={selectedTermId === c.id ? "default" : isMatched ? "secondary" : "outline"}
-                  className={cn(
-                    "w-full text-left justify-start h-auto py-3 px-4 transition-all",
-                    isMatched && "opacity-50 cursor-not-allowed"
-                  )}
-                  onClick={() => !isMatched && handleTermSelect(c.id)}
-                  disabled={isMatched || isSubmitting}
-                >
-                  {c.term}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Definitions Column */}
-        <div className="space-y-4">
-          <h3 className="font-semibold text-lg mb-4 text-center">Definitions</h3>
-          <div className="space-y-4">
-            {cards.map(c => {
-              const matchedTermId = matches[c.id];
-              const matchedTerm = cards.find(card => card.id === matchedTermId);
+              const matchedDefId = matches[c.id];
+              const matchedDef = cards.find(card => card.id === matchedDefId);
 
               return (
-                <div key={c.id} className="flex items-center gap-4 p-3 border rounded-lg bg-card group">
+                <div key={c.id} className="flex items-center gap-4 p-3 border rounded-lg bg-card group transition-colors hover:bg-muted/50">
                   <div className="flex-1">
-                    <p className="text-sm font-medium leading-relaxed">{c.definition}</p>
+                    <p className="font-medium">{c.term}</p>
                   </div>
-                  <div className="w-40">
+                  <div className="w-64">
                     <Button
-                      variant={matchedTermId ? "secondary" : "outline"}
+                      variant={matchedDefId ? "secondary" : "outline"}
                       className={cn(
                         "w-full justify-center h-10 text-sm transition-all",
-                        matchedTermId ? "bg-secondary text-secondary-foreground" : "hover:bg-muted"
+                        matchedDefId ? "bg-secondary text-secondary-foreground" : "hover:bg-muted"
                       )}
                       onClick={() => handleSlotClick(c.id)}
                       disabled={isSubmitting}
                     >
-                      {matchedTerm ? (
-                        <span className="truncate px-2">{matchedTerm.term}</span>
+                      {matchedDef ? (
+                        <span className="truncate px-2">{matchedDef.definition}</span>
                       ) : (
                         <span className="text-muted-foreground italic">Empty Slot</span>
                       )}
                     </Button>
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Definition Pool (Right 1/3) */}
+        <div className="space-y-4">
+          <h3 className="font-semibold text-lg mb-4">Definition Pool</h3>
+          <div className="grid grid-cols-1 gap-2">
+            {cards.map(c => {
+              const isUsed = matchedDefIds.includes(c.id);
+              return (
+                <Button
+                  key={c.id}
+                  variant={selectedDefId === c.id ? "default" : isUsed ? "secondary" : "outline"}
+                  className={cn(
+                    "w-full text-left justify-start h-auto py-3 px-4 transition-all",
+                    isUsed && "opacity-50 cursor-not-allowed"
+                  )}
+                  onClick={() => !isUsed && handleDefSelect(c.id)}
+                  disabled={isUsed || isSubmitting}
+                >
+                  <span className="line-clamp-3">{c.definition}</span>
+                </Button>
               );
             })}
           </div>
@@ -159,7 +156,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
           )}
           {!allSlotsFilled && (
             <p className="text-muted-foreground text-sm italic">
-              Match all definitions to continue
+              Match all terms to continue
             </p>
           )}
         </div>

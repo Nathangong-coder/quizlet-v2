@@ -27,14 +27,16 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
     return <div className="text-center p-10">No cards available for this quiz.</div>;
   }
 
-  async function handleConfirm() {
-    if (!selectedOption || isSubmitting) return;
+  async function handleAnswer(answer: string) {
+    if (isSubmitting) return;
 
+    setSelectedOption(answer);
     setIsSubmitting(true);
+
     const result = await submitTrueFalseAnswer({
       attemptId,
       cardId: currentCard.id,
-      selectedOption,
+      selectedOption: answer,
     });
 
     if (result.success && result.data) {
@@ -52,6 +54,7 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
       }
     } else {
       setIsSubmitting(false);
+      setSelectedOption(null);
       toast.error(result.error || 'Failed to submit answer');
     }
   }
@@ -77,7 +80,7 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
             <Button
               key={val}
               variant={selectedOption === val ? "default" : "outline"}
-              onClick={() => setSelectedOption(val)}
+              onClick={() => handleAnswer(val)}
               disabled={isSubmitting}
               className={cn(
                 "px-8 capitalize transition-all",
@@ -88,23 +91,6 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
               {val}
             </Button>
           ))}
-        </div>
-
-        <div className="flex justify-center pt-4">
-          <Button
-            onClick={handleConfirm}
-            disabled={!selectedOption || isSubmitting}
-            className="px-12"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="animate-spin w-4 h-4 mr-2" />
-                Submitting...
-              </>
-            ) : (
-              'Confirm Answer'
-            )}
-          </Button>
         </div>
       </CardContent>
     </CardUI>

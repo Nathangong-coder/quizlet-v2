@@ -53,20 +53,24 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
     loadOptions();
   }, [currentCard, optionsState]);
 
-  async function handleConfirm() {
-    if (!selectedOption || isSubmitting) return;
+  async function handleAnswer(option: string) {
+    if (isSubmitting) return;
+
+    setSelectedOption(option);
+    setIsSubmitting(true);
 
     const data = optionsState[currentCard.id];
-    if (!data) return;
+    if (!data) {
+      setIsSubmitting(false);
+      return;
+    }
 
-    setIsSubmitting(true);
     const result = await submitMultipleChoiceAnswer({
       attemptId,
       cardId: currentCard.id,
-      selectedOption,
+      selectedOption: option,
       correctAnswer: data.correctAnswer,
     });
-    setIsSubmitting(false);
 
     if (result.success && result.data) {
       const newScores = [...scores, result.data.score];
@@ -75,11 +79,15 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
       if (currentIndex < cards.length - 1) {
         setCurrentIndex(i => i + 1);
         setSelectedOption(null);
+        setIsSubmitting(false);
       } else {
         const avg = newScores.reduce((a, b) => a + b, 0) / newScores.length;
         onFinish(Math.round(avg));
+        // Keep isSubmitting true to prevent double submissions
       }
     } else {
+      setIsSubmitting(false);
+      setSelectedOption(null);
       toast.error(result.error || 'Failed to submit answer');
     }
   }
@@ -109,17 +117,18 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
       <CardContent className="space-y-6">
         <RadioGroup
           value={selectedOption || ""}
-          onValueChange={(val) => setSelectedOption(val)}
+          onValueChange={handleAnswer}
           disabled={isSubmitting}
         >
           {data.options.map((opt, idx) => (
-            <div key={idx} className="flex items-center space-x-2 border p-3 rounded hover:bg-muted transition-colors">
+            <div key={idx} className="flex items-center space-x-2 border p-3 rounded transition-all">
               <RadioGroupItem value={opt} id={`${currentCard.id}-opt-${idx}`} />
               <Label
                 htmlFor={`${currentCard.id}-opt-${idx}`}
                 className={cn(
                   "flex-1 cursor-pointer",
-                  selectedOption === opt && "font-semibold text-primary"
+                  selectedOption === opt ? "font-semibold text-primary" : "text-muted-foreground",
+                  isSubmitting && "opacity-50"
                 )}
               >
                 {opt}
@@ -127,23 +136,6 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
             </div>
           ))}
         </RadioGroup>
-
-        <div className="flex justify-end">
-          <Button
-            onClick={handleConfirm}
-            disabled={!selectedOption || isSubmitting}
-            className="px-8"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="animate-spin w-4 h-4 mr-2" />
-                Submitting...
-              </>
-            ) : (
-              'Confirm Answer'
-            )}
-          </Button>
-        </div>
       </CardContent>
     </CardComponent>
   );
