@@ -1,20 +1,12 @@
-"use client";
+'use client';
 
-import React from "react";
-import { Card as CardUI, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Card as PrismaCard } from "@prisma/client";
-import { cn } from "@/lib/utils";
-
-"use client";
-
-import React, { useState } from "react";
-import { Card as CardUI, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Card as PrismaCard } from "@prisma/client";
-import { submitTrueFalseAnswer } from "@/actions/quiz";
-import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import React, { useState } from 'react';
+import { Card as CardUI, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Card as PrismaCard } from '@prisma/client';
+import { submitTrueFalseAnswer } from '@/actions/quiz';
+import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 
 interface TrueFalseQuizProps {
   cards: PrismaCard[];

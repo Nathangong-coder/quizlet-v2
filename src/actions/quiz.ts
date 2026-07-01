@@ -189,7 +189,59 @@ export async function submitMultipleChoiceAnswer(input: {
   selectedOption: string;
   correctAnswer: string;
 }): Promise<ActionResult<{ isCorrect: boolean; score: number; feedback?: string }>> {
-  // ... (existing implementation)
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+
+  const isCorrect = input.selectedOption.trim().toLowerCase() === input.correctAnswer.trim().toLowerCase();
+  const score = isCorrect ? 100 : 0;
+
+  try {
+    let feedback = isCorrect ? 'Correct!' : 'Incorrect.';
+    const card = await prisma.card.findUnique({ where: { id: input.cardId } });
+    if (card) {
+      const credential = await prisma.aiCredential.findUnique({ where: { userId: session.user.id } });
+      if (credential) {
+        const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
+        const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
+        const prompt = buildMultipleChoiceGradePrompt(card, input.selectedOption, input.correctAnswer);
+        const aiResult = await generateJsonWithGoogle({
+          apiKey,
+          prompt,
+          schema: MultipleChoiceFeedbackSchema,
+          model: DEFAULT_AI_MODEL,
+        });
+        feedback = aiResult.feedback;
+      }
+    }
+
+    const answer = await prisma.quizAnswer.create({
+      data: {
+        attemptId: input.attemptId,
+        userId: session.user.id,
+        cardId: input.cardId,
+        mode: 'multiple-choice',
+        prompt: 'Multiple choice',
+        correctAnswer: input.correctAnswer,
+        selectedOption: input.selectedOption,
+        isCorrect,
+        score,
+        feedback,
+      },
+    });
+
+    const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
+    const newScore = overallQuizScore(allAnswers);
+    if (newScore !== null) {
+      await prisma.quizAttempt.update({
+        where: { id: input.attemptId },
+        data: { score: Math.round(newScore) },
+      });
+    }
+
+    return { success: true, data: { isCorrect, score, feedback } };
+  } catch (error) {
+    return { success: false, error: 'Failed to submit answer' };
+  }
 }
 
 export async function submitTrueFalseAnswer(input: {
@@ -204,9 +256,6 @@ export async function submitTrueFalseAnswer(input: {
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     if (!card) return { success: false, error: 'Card not found' };
 
-    // In True/False mode, "true" means the definition provided is correct for the term.
-    // Since we are testing if the definition is correct, and the card contains the
-    // CORRECT definition, selecting "true" is always correct.
     const isCorrect = input.selectedOption === 'true';
     const score = isCorrect ? 100 : 0;
     const feedback = isCorrect ? 'Correct!' : 'Incorrect.';
@@ -240,10 +289,6 @@ export async function submitTrueFalseAnswer(input: {
     return { success: false, error: 'Failed to submit answer' };
   }
 }
-
-export async function submitShortAnswer(input: {
-// ...
-
 
 export async function submitShortAnswer(input: {
   attemptId: string;
