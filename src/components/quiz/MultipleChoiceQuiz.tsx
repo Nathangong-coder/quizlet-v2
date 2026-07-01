@@ -9,6 +9,7 @@ import { getOrGenerateMultipleChoiceOptions, submitMultipleChoiceAnswer } from '
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Card } from '@prisma/client';
+import { cn } from '@/lib/utils';
 
 interface MultipleChoiceQuizProps {
   cards: Card[];
@@ -18,6 +19,7 @@ interface MultipleChoiceQuizProps {
 
 export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoiceQuizProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [optionsState, setOptionsState] = useState<{ [cardId: string]: { options: string[], correctAnswer: string } }>({});
   const [loadingCards, setLoadingCards] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,15 +53,17 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
     loadOptions();
   }, [currentCard, optionsState]);
 
-  async function handleAnswer(option: string) {
+  async function handleConfirm() {
+    if (!selectedOption || isSubmitting) return;
+
     const data = optionsState[currentCard.id];
-    if (!data || isSubmitting) return;
+    if (!data) return;
 
     setIsSubmitting(true);
     const result = await submitMultipleChoiceAnswer({
       attemptId,
       cardId: currentCard.id,
-      selectedOption: option,
+      selectedOption,
       correctAnswer: data.correctAnswer,
     });
     setIsSubmitting(false);
@@ -70,6 +74,7 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
 
       if (currentIndex < cards.length - 1) {
         setCurrentIndex(i => i + 1);
+        setSelectedOption(null);
       } else {
         const avg = newScores.reduce((a, b) => a + b, 0) / newScores.length;
         onFinish(Math.round(avg));
@@ -103,17 +108,42 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
       </CardHeader>
       <CardContent className="space-y-6">
         <RadioGroup
-          value=""
-          onValueChange={(val) => handleAnswer(val)}
+          value={selectedOption || ""}
+          onValueChange={(val) => setSelectedOption(val)}
           disabled={isSubmitting}
         >
           {data.options.map((opt, idx) => (
-            <div key={idx} className="flex items-center space-x-2 border p-3 rounded hover:bg-muted">
+            <div key={idx} className="flex items-center space-x-2 border p-3 rounded hover:bg-muted transition-colors">
               <RadioGroupItem value={opt} id={`${currentCard.id}-opt-${idx}`} />
-              <Label htmlFor={`${currentCard.id}-opt-${idx}`}>{opt}</Label>
+              <Label
+                htmlFor={`${currentCard.id}-opt-${idx}`}
+                className={cn(
+                  "flex-1 cursor-pointer",
+                  selectedOption === opt && "font-semibold text-primary"
+                )}
+              >
+                {opt}
+              </Label>
             </div>
           ))}
         </RadioGroup>
+
+        <div className="flex justify-end">
+          <Button
+            onClick={handleConfirm}
+            disabled={!selectedOption || isSubmitting}
+            className="px-8"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="animate-spin w-4 h-4 mr-2" />
+                Submitting...
+              </>
+            ) : (
+              'Confirm Answer'
+            )}
+          </Button>
+        </div>
       </CardContent>
     </CardComponent>
   );

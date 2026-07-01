@@ -17,6 +17,7 @@ interface TrueFalseQuizProps {
 
 export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scores, setScores] = useState<number[]>([]);
 
@@ -26,14 +27,14 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
     return <div className="text-center p-10">No cards available for this quiz.</div>;
   }
 
-  async function handleAnswer(answer: string) {
-    if (isSubmitting) return;
+  async function handleConfirm() {
+    if (!selectedOption || isSubmitting) return;
 
     setIsSubmitting(true);
     const result = await submitTrueFalseAnswer({
       attemptId,
       cardId: currentCard.id,
-      selectedOption: answer,
+      selectedOption,
     });
 
     if (result.success && result.data) {
@@ -42,7 +43,8 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
 
       if (currentIndex < cards.length - 1) {
         setCurrentIndex(i => i + 1);
-        setIsSubmitting(false); // Reset for next question
+        setSelectedOption(null);
+        setIsSubmitting(false);
       } else {
         const avg = newScores.reduce((a, b) => a + b, 0) / newScores.length;
         onFinish(Math.round(avg));
@@ -59,7 +61,7 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
       <CardHeader>
         <CardTitle className="text-lg">Question {currentIndex + 1} of {cards.length}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 text-center">
+      <CardContent className="space-y-6 text-center">
         <div className="p-4 bg-muted rounded-lg space-y-2">
           <p className="font-bold text-sm text-muted-foreground uppercase tracking-wider">Term</p>
           <p className="text-xl font-medium">{currentCard.term}</p>
@@ -74,18 +76,35 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
           {["true", "false"].map((val) => (
             <Button
               key={val}
-              variant="outline"
-              onClick={() => handleAnswer(val)}
+              variant={selectedOption === val ? "default" : "outline"}
+              onClick={() => setSelectedOption(val)}
               disabled={isSubmitting}
               className={cn(
                 "px-8 capitalize transition-all",
+                selectedOption === val && "bg-primary text-primary-foreground",
                 isSubmitting && "opacity-50"
               )}
             >
               {val}
-              {isSubmitting && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
             </Button>
           ))}
+        </div>
+
+        <div className="flex justify-center pt-4">
+          <Button
+            onClick={handleConfirm}
+            disabled={!selectedOption || isSubmitting}
+            className="px-12"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="animate-spin w-4 h-4 mr-2" />
+                Submitting...
+              </>
+            ) : (
+              'Confirm Answer'
+            )}
+          </Button>
         </div>
       </CardContent>
     </CardUI>
