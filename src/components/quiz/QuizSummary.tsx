@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Trophy, CheckCircle2, XCircle } from 'lucide-react';
 import { getQuizAttemptSummary } from '@/actions/quiz';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 
 interface QuizSummaryProps {
   score: number;
