@@ -26,13 +26,14 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
   }
 
   async function handleAnswer(answer: string) {
+    if (isSubmitting) return;
+
     setIsSubmitting(true);
     const result = await submitTrueFalseAnswer({
       attemptId,
       cardId: currentCard.id,
       selectedOption: answer,
     });
-    setIsSubmitting(false);
 
     if (result.success && result.data) {
       const newScores = [...scores, result.data.score];
@@ -40,11 +41,14 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
 
       if (currentIndex < cards.length - 1) {
         setCurrentIndex(i => i + 1);
+        setIsSubmitting(false); // Reset for next question
       } else {
         const avg = newScores.reduce((a, b) => a + b, 0) / newScores.length;
         onFinish(Math.round(avg));
+        // Keep isSubmitting true to prevent double onFinish
       }
     } else {
+      setIsSubmitting(false);
       toast.error(result.error || 'Failed to submit answer');
     }
   }
@@ -72,10 +76,13 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
               variant="outline"
               onClick={() => handleAnswer(val)}
               disabled={isSubmitting}
-              className="px-8 capitalize"
+              className={cn(
+                "px-8 capitalize transition-all",
+                isSubmitting && "opacity-50"
+              )}
             >
               {val}
-              {isSubmitting && val === "true" && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+              {isSubmitting && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
             </Button>
           ))}
         </div>

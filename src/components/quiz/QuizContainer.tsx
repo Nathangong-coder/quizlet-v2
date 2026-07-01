@@ -18,9 +18,10 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
   const [finished, setFinished] = useState(false);
   const [score, setScore] = useState<number | null>(null);
   const [completedModes, setCompletedModes] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (setup && !attemptId) {
+    if (setup && !attemptId && !error) {
       async function startAttempt() {
         setIsLoadingCards(true);
         const modes = setup.questionMode || ['multiple-choice'];
@@ -28,12 +29,14 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
         if (result.success && result.data) {
           setAttemptId(result.data.attemptId);
         } else {
+          setError(result.error || 'Failed to start quiz');
+          setIsLoadingCards(false);
           toast.error(result.error || 'Failed to start quiz');
         }
       }
       startAttempt();
     }
-  }, [setup, setId, attemptId]);
+  }, [setup, setId, attemptId, error]);
 
   useEffect(() => {
     if (attemptId) {
@@ -42,6 +45,8 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
         const result = await getQuizAttemptCards(attemptId as string);
         if (result.success && result.data) {
           setSelectedCards(result.data.cards);
+        } else {
+          setError(result.error || 'Failed to load cards');
         }
         setIsLoadingCards(false);
       }
@@ -50,23 +55,36 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
   }, [attemptId]);
 
   const handleModeFinish = (mode: string, s: number) => {
-    setCompletedModes(prev => [...prev, mode]);
-    // In a real mixed quiz, we'd average the scores.
-    // For now, we'll just set the latest score or a running average.
+    if (completedModes.includes(mode)) return;
+
+    const nextCompleted = [...completedModes, mode];
+    setCompletedModes(nextCompleted);
     setScore(s);
 
-    if (setup?.questionMode?.length === 1) {
-      setFinished(true);
-    } else if (completedModes.length + 1 === setup?.questionMode?.length) {
+    const totalModes = setup?.questionMode?.length || 1;
+    if (nextCompleted.length >= totalModes) {
       setFinished(true);
     }
   };
 
-  if (finished) {
-    return <QuizSummary score={score || 0} setId={setId} attemptId={attemptId!} />;
+  if (error) {
+    return (
+      <div className="max-w-md mx-auto py-20 text-center space-y-6">
+        <div className="bg-destructive/10 p-6 rounded-xl border border-destructive/20">
+          <h2 className="text-xl font-bold text-destructive mb-2">Quiz Error</h2>
+          <p className="text-muted-foreground">{error}</p>
+        </div>
+        <Button onClick={() => window.location.reload()} variant="outline">
+          Try Again / Change Settings
+        </Button>
+      </div>
+    );
   }
 
-  if (isLoadingCards) return <div className="flex justify-center p-10"><Loader2 className="animate-spin w-8 h-8" /></div>;
+  if (isLoadingCards) return <div className="flex flex-col items-center justify-center p-20 gap-4">
+    <Loader2 className="animate-spin w-12 h-12 text-primary" />
+    <p className="text-muted-foreground animate-pulse">Building your personalized quiz...</p>
+  </div>;
 
   const modes = setup?.questionMode || ['multiple-choice'];
 
