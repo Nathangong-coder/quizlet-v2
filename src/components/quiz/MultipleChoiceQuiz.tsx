@@ -12,75 +12,109 @@ import { Card } from '@prisma/client';
 
 interface MultipleChoiceQuizProps {
   cards: Card[];
-  onAnswer: (cardId: string, option: string) => void;
-  answers: { [key: string]: string };
+  attemptId: string;
+  onFinish: (score: number) => void;
 }
 
-export function MultipleChoiceQuiz({ cards, onAnswer, answers }: MultipleChoiceQuizProps) {
+export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoiceQuizProps) {
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [optionsState, setOptionsState] = useState<{ [cardId: string]: { options: string[], correctAnswer: string } }>({});
   const [loadingCards, setLoadingCards] = useState<Set<string>>(new Set());
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [scores, setScores] = useState<number[]>([]);
+
+  const currentCard = cards[currentIndex];
 
   useEffect(() => {
-    cards.forEach(async (card) => {
-      if (optionsState[card.id]) return;
+    if (!currentCard) return;
+    if (optionsState[currentCard.id]) return;
 
-      setLoadingCards(prev => new Set(prev).add(card.id));
-      const result = await getOrGenerateMultipleChoiceOptions(card.id);
+    async function loadOptions() {
+      setLoadingCards(prev => new Set(prev).add(currentCard.id));
+      const result = await getOrGenerateMultipleChoiceOptions(currentCard.id);
 
       if (result.success && result.data) {
         const { options, correctAnswer } = result.data;
         setOptionsState(prev => ({
           ...prev,
-          [card.id]: { options, correctAnswer }
+          [currentCard.id]: { options, correctAnswer }
         }));
       } else {
-        toast.error(`Failed to load options for ${card.term}`);
+        toast.error(`Failed to load options for ${currentCard.term}`);
       }
       setLoadingCards(prev => {
         const next = new Set(prev);
-        next.delete(card.id);
+        next.delete(currentCard.id);
         return next;
       });
+    }
+    loadOptions();
+  }, [currentCard, optionsState]);
+
+  async function handleAnswer(option: string) {
+    const data = optionsState[currentCard.id];
+    if (!data || isSubmitting) return;
+
+    setIsSubmitting(true);
+    const result = await submitMultipleChoiceAnswer({
+      attemptId,
+      cardId: currentCard.id,
+      selectedOption: option,
+      correctAnswer: data.correctAnswer,
     });
-  }, [cards]);
+    setIsSubmitting(false);
+
+    if (result.success && result.data) {
+      const newScores = [...scores, result.data.score];
+      setScores(newScores);
+
+      if (currentIndex < cards.length - 1) {
+        setCurrentIndex(i => i + 1);
+      } else {
+        const avg = newScores.reduce((a, b) => a + b, 0) / newScores.length;
+        onFinish(Math.round(avg));
+      }
+    } else {
+      toast.error(result.error || 'Failed to submit answer');
+    }
+  }
+
+  if (!currentCard) {
+    return <div className="text-center p-10">No cards available for this quiz.</div>;
+  }
+
+  const data = optionsState[currentCard.id];
+
+  if (!data || loadingCards.has(currentCard.id)) {
+    return (
+      <CardComponent className="max-w-xl mx-auto p-6 flex justify-center">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="animate-spin w-4 h-4" />
+          <span>Generating options for {currentCard.term}...</span>
+        </div>
+      </CardComponent>
+    );
+  }
 
   return (
-    <div className="space-y-8">
-      {cards.map((card, i) => {
-        const data = optionsState[card.id];
-
-        if (!data) {
-          return (
-            <CardComponent key={card.id} className="max-w-xl mx-auto p-6 flex justify-center">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="animate-spin w-4 h-4" />
-                <span>Generating options for {card.term}...</span>
-              </div>
-            </CardComponent>
-          );
-        }
-
-        return (
-          <CardComponent key={card.id} className="max-w-xl mx-auto space-y-4">
-            <CardHeader>
-              <CardTitle>Question {i + 1}: {card.term}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <RadioGroup
-                value={answers[card.id]}
-                onValueChange={(val) => onAnswer(card.id, val)}
-              >
-                {data.options.map((opt, idx) => (
-                  <div key={idx} className="flex items-center space-x-2 border p-3 rounded hover:bg-muted">
-                    <RadioGroupItem value={opt} id={`${card.id}-opt-${idx}`} />
-                    <Label htmlFor={`${card.id}-opt-${idx}`}>{opt}</Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </CardContent>
-          </CardComponent>
-        );
-      })}
-    </div>
+    <CardComponent className="max-w-xl mx-auto space-y-4">
+      <CardHeader>
+        <CardTitle>Question {currentIndex + 1} of {cards.length}: {currentCard.term}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <RadioGroup
+          value=""
+          onValueChange={(val) => handleAnswer(val)}
+          disabled={isSubmitting}
+        >
+          {data.options.map((opt, idx) => (
+            <div key={idx} className="flex items-center space-x-2 border p-3 rounded hover:bg-muted">
+              <RadioGroupItem value={opt} id={`${currentCard.id}-opt-${idx}`} />
+              <Label htmlFor={`${currentCard.id}-opt-${idx}`}>{opt}</Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </CardContent>
+    </CardComponent>
   );
 }
