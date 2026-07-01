@@ -19,32 +19,42 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
 
   const handleTermSelect = (id: string) => {
     if (matches[id]) {
-      // Deselect match
-      const matchedDefId = matches[id];
+      // Unmatch the pair
       const newMatches = { ...matches };
       delete newMatches[id];
-      // Also remove the reverse mapping if we had one, but here we only map Term -> Def
       setMatches(newMatches);
       setSelectedTermId(null);
+      setSelectedDefId(null);
     } else {
       setSelectedTermId(id);
     }
   };
 
   const handleDefSelect = (id: string) => {
-    if (matches[Object.keys(matches).find(tId => matches[tId] === id)!]) {
-       // This definition is already matched. We'll allow re-matching by removing the old one.
-       const oldTermId = Object.keys(matches).find(tId => matches[tId] === id)!;
-       const newMatches = { ...matches };
-       delete newMatches[oldTermId];
-       setMatches(newMatches);
-    }
-
-    if (selectedTermId) {
-      setMatches(prev => ({ ...prev, [selectedTermId!]: id }));
+    const matchingTermId = Object.keys(matches).find(tId => matches[tId] === id);
+    if (matchingTermId) {
+      // Unmatch the pair
+      const newMatches = { ...matches };
+      delete newMatches[matchingTermId];
+      setMatches(newMatches);
       setSelectedTermId(null);
+      setSelectedDefId(null);
     } else {
       setSelectedDefId(id);
+    }
+  };
+
+  const confirmMatch = () => {
+    if (selectedTermId && selectedDefId) {
+      // If this definition was already matched to someone else, remove that match first
+      const existingTermId = Object.keys(matches).find(tId => matches[tId] === selectedDefId);
+      const newMatches = { ...matches };
+      if (existingTermId) delete newMatches[existingTermId];
+
+      newMatches[selectedTermId] = selectedDefId;
+      setMatches(newMatches);
+      setSelectedTermId(null);
+      setSelectedDefId(null);
     }
   };
 
@@ -68,6 +78,8 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
     }
   };
 
+  const allMatched = Object.keys(matches).length === cards.length;
+
   return (
     <Card className="max-w-4xl mx-auto">
       <CardHeader>
@@ -90,7 +102,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
           {cards.map(c => (
             <Button
               key={c.id}
-              variant={selectedDefId === c.id || Object.values(matches).includes(c.id) ? "default" : "outline"}
+              variant={selectedDefId === c.id ? "default" : Object.values(matches).includes(c.id) ? "secondary" : "outline"}
               className={cn("w-full text-left justify-start", Object.values(matches).includes(c.id) && "opacity-50")}
               onClick={() => handleDefSelect(c.id)}
             >
@@ -98,9 +110,18 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
             </Button>
           ))}
         </div>
-        <div className="col-span-2 flex justify-center pt-6">
-          <Button onClick={submitAll} disabled={isLoading}>
-            {isLoading ? "Submitting..." : "Submit Matching Quiz"}
+        <div className="col-span-2 flex flex-col items-center justify-center gap-4 pt-6">
+          {selectedTermId && selectedDefId && (
+            <Button onClick={confirmMatch} variant="default" className="px-8">
+              Match Pair
+            </Button>
+          )}
+          <Button
+            onClick={submitAll}
+            disabled={isLoading || !allMatched}
+            variant={allMatched ? "default" : "outline"}
+          >
+            {isLoading ? "Submitting..." : allMatched ? "Submit Matching Quiz" : "Match all pairs to submit"}
           </Button>
         </div>
       </CardContent>
