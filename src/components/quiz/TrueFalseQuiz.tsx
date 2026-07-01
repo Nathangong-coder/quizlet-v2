@@ -7,6 +7,7 @@ import { Card as PrismaCard } from '@prisma/client';
 import { submitTrueFalseAnswer } from '@/actions/quiz';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface TrueFalseQuizProps {
   cards: PrismaCard[];
