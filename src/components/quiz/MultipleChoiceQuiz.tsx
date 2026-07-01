@@ -5,7 +5,7 @@ import { Card as CardComponent, CardContent, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { getOrGenerateMultipleChoiceOptions } from '@/actions/quiz';
+import { getOrGenerateMultipleChoiceOptions, submitMultipleChoiceAnswer } from '@/actions/quiz';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Card } from '@prisma/client';
