@@ -28,9 +28,10 @@ export function MultipleChoiceQuiz({ cards, onAnswer, answers }: MultipleChoiceQ
       const result = await getOrGenerateMultipleChoiceOptions(card.id);
 
       if (result.success && result.data) {
+        const { options, correctAnswer } = result.data;
         setOptionsState(prev => ({
           ...prev,
-          [card.id]: { options: result.data.options, correctAnswer: result.data.correctAnswer }
+          [card.id]: { options, correctAnswer }
         }));
       } else {
         toast.error(`Failed to load options for ${card.term}`);

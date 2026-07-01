@@ -7,9 +7,13 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { ActionResult } from '@/types/action'
 
+import { ContentBlock } from '@/lib/cards/content';
+
 const CardInputSchema = z.object({
   term: z.string().min(1, 'Term is required'),
   definition: z.string().min(1, 'Definition is required'),
+  termBlocks: z.array(z.any()).optional(),
+  definitionBlocks: z.array(z.any()).optional(),
   position: z.number().int().min(0),
 })
 
@@ -40,7 +44,17 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
         description: validated.description,
         userId: session.user.id,
         cards: {
-          create: validated.cards,
+          create: validated.cards.map(card => ({
+            term: card.term,
+            definition: card.definition,
+            position: card.position,
+            contentBlocks: {
+              create: [
+                ...(card.termBlocks || []).map((b, i) => ({ ...b, side: 'term', position: i })),
+                ...(card.definitionBlocks || []).map((b, i) => ({ ...b, side: 'definition', position: i })),
+              ]
+            }
+          })),
         },
       },
     })
@@ -86,7 +100,17 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
           title: validated.title,
           description: validated.description,
           cards: {
-            create: validated.cards,
+            create: validated.cards.map(card => ({
+              term: card.term,
+              definition: card.definition,
+              position: card.position,
+              contentBlocks: {
+                create: [
+                  ...(card.termBlocks || []).map((b, i) => ({ ...b, side: 'term', position: i })),
+                  ...(card.definitionBlocks || []).map((b, i) => ({ ...b, side: 'definition', position: i })),
+                ]
+              }
+            })),
           },
         },
       }),

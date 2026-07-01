@@ -1,35 +1,46 @@
 'use client'
 
 import React from 'react'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Trash2 } from 'lucide-react'
+import { RichCardSideEditor } from './RichCardSideEditor'
+import { ContentBlock } from '@/lib/cards/content'
 
 interface CardRowProps {
   index: number
-  term: string
-  definition: string
-  onChange: (index: number, field: 'term' | 'definition', value: string) => void
+  termBlocks: ContentBlock[]
+  definitionBlocks: ContentBlock[]
+  onChange: (index: number, side: 'term' | 'definition', blocks: ContentBlock[]) => void
   onRemove: (index: number) => void
   canRemove: boolean
+  setId: string
+  categories: string[]
 }
 
-export function CardRow({ index, term, definition, onChange, onRemove, canRemove }: CardRowProps) {
+export function CardRow({ index, termBlocks, definitionBlocks, onChange, onRemove, canRemove, setId, categories }: CardRowProps) {
   return (
-    <div className="flex gap-4 items-start mb-4">
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Input
-          placeholder="Term"
-          value={term}
-          onChange={(e) => onChange(index, 'term', e.target.value)}
-          className="w-full"
-        />
-        <Input
-          placeholder="Definition"
-          value={definition}
-          onChange={(e) => onChange(index, 'definition', e.target.value)}
-          className="w-full"
-        />
+    <div className="flex gap-4 items-start mb-6 p-4 border rounded-lg bg-card">
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-muted-foreground uppercase">Term</label>
+          <RichCardSideEditor
+            blocks={termBlocks}
+            side="term"
+            setId={setId}
+            categories={categories}
+            onChange={(blocks) => onChange(index, 'term', blocks)}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-xs font-semibold text-muted-foreground uppercase">Definition</label>
+          <RichCardSideEditor
+            blocks={definitionBlocks}
+            side="definition"
+            setId={setId}
+            categories={categories}
+            onChange={(blocks) => onChange(index, 'definition', blocks)}
+          />
+        </div>
       </div>
       <Button
         variant="ghost"

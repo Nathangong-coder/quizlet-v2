@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useTransition } from 'react'
+import React, { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -12,6 +12,8 @@ import { ParsedCard } from '@/lib/parser/import'
 import { Plus, Loader2 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
+import { ContentBlock } from '@/lib/cards/content'
+import { contentBlocksToPlainText, legacyCardToContentBlocks } from '@/lib/cards/content'
 
 interface SetFormProps {
   mode: 'create' | 'edit'
@@ -33,27 +35,43 @@ export function SetForm({
 
   const [title, setTitle] = useState(initialTitle)
   const [description, setDescription] = useState(initialDescription)
+  const [categories, setCategories] = useState<string[]>([])
   const [cards, setCards] = useState(
-    initialCards.map((c, i) => ({ term: c.term, definition: c.definition, position: i }))
+    initialCards.map((c, i) => ({
+      ...legacyCardToContentBlocks(c.term, c.definition),
+      position: i,
+    }))
   )
 
+  useEffect(() => {
+    if (mode === 'edit' && setId) {
+      // In a real app, we'd fetch categories for the set here.
+      // For now, we'll use a placeholder or fetch via a server action if available.
+      setCategories([]);
+    }
+  }, [mode, setId]);
+
   const addCard = () => {
-    setCards([...cards, { term: '', definition: '', position: cards.length }])
+    setCards([...cards, {
+      term: [{ type: 'text', text: '', position: 0 }],
+      definition: [{ type: 'text', text: '', position: 0 }],
+      position: cards.length
+    }])
   }
 
   const removeCard = (index: number) => {
     setCards(cards.filter((_, i) => i !== index).map((c, i) => ({ ...c, position: i })))
   }
 
-  const updateCard = (index: number, field: 'term' | 'definition', value: string) => {
+  const updateCard = (index: number, side: 'term' | 'definition', blocks: ContentBlock[]) => {
     const newCards = [...cards]
-    newCards[index] = { ...newCards[index], [field]: value }
+    newCards[index] = { ...newCards[index], [side]: blocks }
     setCards(newCards)
   }
 
   const handleImport = (importedCards: ParsedCard[]) => {
     const formattedImported = importedCards.map((c, i) => ({
-      ...c,
+      ...legacyCardToContentBlocks(c.term, c.definition),
       position: cards.length + i,
     }))
     setCards([...cards, ...formattedImported])
@@ -69,9 +87,17 @@ export function SetForm({
 
     startTransition(async () => {
       try {
+        const cardsForApi = cards.map(c => ({
+          term: contentBlocksToPlainText(c.term),
+          definition: contentBlocksToPlainText(c.definition),
+          termBlocks: c.term,
+          definitionBlocks: c.definition,
+          position: c.position
+        }))
+
         const result = mode === 'create'
-          ? await createSet({ title, description, cards })
-          : await updateSet(setId!, { title, description, cards })
+          ? await createSet({ title, description, cards: cardsForApi })
+          : await updateSet(setId!, { title, description, cards: cardsForApi })
 
         if (result.success) {
           toast.success(mode === 'create' ? 'Set created!' : 'Set updated!')
@@ -143,11 +169,13 @@ export function SetForm({
             <CardRow
               key={index}
               index={index}
-              term={card.term}
-              definition={card.definition}
+              termBlocks={card.term}
+              definitionBlocks={card.definition}
               onChange={updateCard}
               onRemove={removeCard}
               canRemove={cards.length > 1}
+              setId={setId || 'new'}
+              categories={categories}
             />
           ))}
         </div>
