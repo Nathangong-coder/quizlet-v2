@@ -152,9 +152,15 @@ export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSet
           <Label htmlFor="printable">Printable Test</Label>
         </div>
 
-        <Button className="w-full" onClick={() => onStart(setup)}>
-          Start Quiz
-        </Button>
+        <div className="flex gap-3">
+          <Button className="flex-1" onClick={() => onStart(setup)}>
+            Start Quiz
+          </Button>
+          <Button variant="outline" onClick={() => window.open(`/sets/${setId}/print`, '_blank')}>
+            Print Test
+          </Button>
+        </div>
+
       </CardContent>
     </Card>
   );

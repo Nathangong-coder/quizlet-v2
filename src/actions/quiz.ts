@@ -107,7 +107,7 @@ export async function getOrGenerateMultipleChoiceOptions(
 
 export async function startQuizAttempt(
   setId: string,
-  mode: 'multiple-choice' | 'short-answer' | 'matching' | 'true-false',
+  modes: ('multiple-choice' | 'short-answer' | 'matching' | 'true-false')[],
   setup: QuizSetup,
   questionCount?: number,
   timerSeconds?: number
@@ -157,9 +157,9 @@ export async function startQuizAttempt(
       data: {
         userId: session.user.id,
         setId,
-        mode,
+        mode: modes[0] || 'multiple-choice', // Primary mode for legacy support
         selectedCardIds: selectedIds,
-        questionMode: setup.questionMode as any,
+        questionMode: modes as any, // Store the full array
         promptSide: setup.promptSide,
         categoryIds: setup.categoryIds,
         starredOnly: setup.starredOnly,

@@ -158,12 +158,21 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
                 <p className="text-muted-foreground">
                   You got {correctCount} out of {totalCount} questions correct.
                 </p>
-                <Button
-                  className="w-full"
-                  onClick={() => window.location.href = `/sets/${setId}`}
-                >
-                  Back to Set
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    onClick={() => window.location.href = `/sets/${setId}`}
+                  >
+                    Back to Set
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open(`/sets/${setId}/print`, '_blank')}
+                  >
+                    Print PDF
+                  </Button>
+                </div>
+
               </CardContent>
             </Card>
           )}
