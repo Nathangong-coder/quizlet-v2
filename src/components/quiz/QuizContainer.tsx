@@ -10,6 +10,7 @@ import { Card } from '@prisma/client';
 import { getQuizAttemptCards, startQuizAttempt } from '@/actions/quiz';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
 
 export function QuizContainer({ setId, cards: allCards, setup }: { setId: string, cards: Card[], setup?: any }) {
   const [attemptId, setAttemptId] = useState<string | null>(null);
