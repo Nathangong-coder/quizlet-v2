@@ -1,107 +1,51 @@
 "use client";
 
-import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
+import React from "react";
 import { Card as CardUI, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { submitMultipleChoiceAnswer } from "@/actions/quiz";
+import { Button } from "@/components/ui/button";
 import { Card as PrismaCard } from "@prisma/client";
 import { cn } from "@/lib/utils";
 
 interface TrueFalseQuizProps {
   cards: PrismaCard[];
-  attemptId: string;
-  onFinish: (score: number) => void;
+  onAnswer: (cardId: string, answer: string) => void;
+  answers: { [key: string]: string };
 }
 
-export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [feedback, setFeedback] = useState<{ text: string; isCorrect: boolean } | null>(null);
-
-  const currentCard = cards[currentIndex];
-  if (!currentCard) return null;
-
-  const isTruePrompt = Math.random() > 0.5;
-  const prompt = isTruePrompt
-    ? `${currentCard.term} is ${currentCard.definition}`
-    : `${currentCard.term} is ${cards[Math.floor(Math.random() * cards.length)].definition}`;
-
-  const correctValue = isTruePrompt ? "true" : "false";
-
-  const handleSubmit = async () => {
-    if (!selected) return;
-    setIsLoading(true);
-
-    const result = await submitMultipleChoiceAnswer({
-      attemptId,
-      cardId: currentCard.id,
-      selectedOption: selected,
-      correctAnswer: correctValue,
-    });
-
-    setIsLoading(false);
-    if (result.success && result.data) {
-      setFeedback({ text: result.data.feedback || (result.data.isCorrect ? "Correct!" : "Incorrect."), isCorrect: result.data.isCorrect });
-    }
-  };
-
-  const nextQuestion = () => {
-    setFeedback(null);
-    setSelected(null);
-    if (currentIndex < cards.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      onFinish(100);
-    }
-  };
-
+export function TrueFalseQuiz({ cards, onAnswer, answers }: TrueFalseQuizProps) {
   return (
-    <CardUI className="max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>True or False?</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6 text-center">
-        <div className="text-2xl font-medium p-6 bg-gray-50 rounded-lg">
-          {prompt}
-        </div>
-
-        <div className="flex justify-center gap-4">
-          <Button
-            variant={selected === "true" ? "default" : "outline"}
-            onClick={() => setSelected("true")}
-            disabled={isLoading || !!feedback}
-          >
-            True
-          </Button>
-          <Button
-            variant={selected === "false" ? "default" : "outline"}
-            onClick={() => setSelected("false")}
-            disabled={isLoading || !!feedback}
-          >
-            False
-          </Button>
-        </div>
-
-        {!feedback ? (
-          <Button
-            disabled={!selected || isLoading}
-            onClick={handleSubmit}
-            className="w-full"
-          >
-            {isLoading ? "Checking..." : "Submit Answer"}
-          </Button>
-        ) : (
-          <div className="space-y-4">
-            <div className={cn("p-4 rounded-lg", feedback.isCorrect ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800")}>
-              {feedback.text}
+    <div className="space-y-6">
+      {cards.map((card, i) => (
+        <CardUI key={card.id} className="max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle className="text-lg">Question {i + 1}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            <div className="p-4 bg-muted rounded-lg space-y-2">
+              <p className="font-bold text-sm text-muted-foreground uppercase tracking-wider">Term</p>
+              <p className="text-xl font-medium">{card.term}</p>
+              <div className="h-px bg-border my-2" />
+              <p className="font-bold text-sm text-muted-foreground uppercase tracking-wider">Definition</p>
+              <p className="text-lg">{card.definition}</p>
             </div>
-            <Button className="w-full" onClick={nextQuestion}>
-              {currentIndex < cards.length - 1 ? "Next Question" : "Finish Quiz"}
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </CardUI>
+
+            <p className="text-sm text-muted-foreground">Is this the correct definition?</p>
+
+            <div className="flex justify-center gap-4">
+              {["true", "false"].map((val) => (
+                <Button
+                  key={val}
+                  variant={answers[card.id] === val ? "default" : "outline"}
+                  onClick={() => onAnswer(card.id, val)}
+                  className="px-8 capitalize"
+                >
+                  {val}
+                </Button>
+              ))}
+            </div>
+          </CardContent>
+        </CardUI>
+      ))}
+    </div>
   );
 }

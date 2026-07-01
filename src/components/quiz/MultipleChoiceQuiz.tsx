@@ -5,99 +5,81 @@ import { Card as CardComponent, CardContent, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { getOrGenerateMultipleChoiceOptions, submitMultipleChoiceAnswer } from '@/actions/quiz';
+import { getOrGenerateMultipleChoiceOptions } from '@/actions/quiz';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Card } from '@prisma/client';
 
 interface MultipleChoiceQuizProps {
   cards: Card[];
-  attemptId: string;
-  onFinish: (score: number) => void;
+  onAnswer: (cardId: string, option: string) => void;
+  answers: { [key: string]: string };
 }
 
-export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoiceQuizProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [options, setOptions] = useState<string[]>([]);
-  const [correctAnswer, setCorrectAnswer] = useState<string>('');
-  const [selectedOption, setSelectedOption] = useState<string>('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [score, setScore] = useState(0);
-  const [feedback, setFeedback] = useState<string | null>(null);
-
-  const currentCard = cards[currentIndex];
-
-  if (!currentCard) {
-    return <div className="text-center p-10">No cards available for this quiz.</div>;
-  }
+export function MultipleChoiceQuiz({ cards, onAnswer, answers }: MultipleChoiceQuizProps) {
+  const [optionsState, setOptionsState] = useState<{ [cardId: string]: { options: string[], correctAnswer: string } }>({});
+  const [loadingCards, setLoadingCards] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    async function loadOptions() {
-      setIsLoading(true);
-      setFeedback(null);
-      const result = await getOrGenerateMultipleChoiceOptions(currentCard.id);
+    cards.forEach(async (card) => {
+      if (optionsState[card.id]) return;
+
+      setLoadingCards(prev => new Set(prev).add(card.id));
+      const result = await getOrGenerateMultipleChoiceOptions(card.id);
+
       if (result.success && result.data) {
-        setOptions(result.data.options);
-        setCorrectAnswer(result.data.correctAnswer);
+        setOptionsState(prev => ({
+          ...prev,
+          [card.id]: { options: result.data.options, correctAnswer: result.data.correctAnswer }
+        }));
       } else {
-        toast.error(result.error || 'Failed to load options');
+        toast.error(`Failed to load options for ${card.term}`);
       }
-      setIsLoading(false);
-    }
-    loadOptions();
-  }, [currentCard]);
-
-  async function handleSubmit() {
-    if (!selectedOption) return;
-
-    setIsSubmitting(true);
-    const result = await submitMultipleChoiceAnswer({
-      attemptId,
-      cardId: currentCard.id,
-      selectedOption,
-      correctAnswer,
+      setLoadingCards(prev => {
+        const next = new Set(prev);
+        next.delete(card.id);
+        return next;
+      });
     });
-    setIsSubmitting(false);
-
-    if (result.success && result.data) {
-      if (result.data.isCorrect) {
-        setScore(s => s + 1);
-      }
-
-      if (currentIndex < cards.length - 1) {
-        setCurrentIndex(i => i + 1);
-        setSelectedOption('');
-      } else {
-        const finalScore = score + (result.data.isCorrect ? 1 : 0);
-        const percentage = Math.round((finalScore / cards.length) * 100);
-        onFinish(percentage);
-      }
-    } else {
-      toast.error('Failed to submit answer');
-    }
-  }
-
-  if (isLoading) return <div className="flex justify-center p-10"><Loader2 className="animate-spin w-8 h-8" /></div>;
+  }, [cards]);
 
   return (
-    <CardComponent className="max-w-xl mx-auto space-y-4">
-      <CardHeader>
-        <CardTitle>{currentCard.term}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <RadioGroup value={selectedOption} onValueChange={setSelectedOption}>
-          {options.map((opt, i) => (
-            <div key={i} className="flex items-center space-x-2 border p-3 rounded hover:bg-muted">
-              <RadioGroupItem value={opt} id={`opt-${i}`} />
-              <Label htmlFor={`opt-${i}`}>{opt}</Label>
-            </div>
-          ))}
-        </RadioGroup>
-        <Button onClick={handleSubmit} disabled={isSubmitting || !selectedOption}>
-          {isSubmitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : 'Submit'}
-        </Button>
-      </CardContent>
-    </CardComponent>
+    <div className="space-y-8">
+      {cards.map((card, i) => {
+        const data = optionsState[card.id];
+
+        if (!data) {
+          return (
+            <CardComponent key={card.id} className="max-w-xl mx-auto p-6 flex justify-center">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="animate-spin w-4 h-4" />
+                <span>Generating options for {card.term}...</span>
+              </div>
+            </CardComponent>
+          );
+        }
+
+        return (
+          <CardComponent key={card.id} className="max-w-xl mx-auto space-y-4">
+            <CardHeader>
+              <CardTitle>Question {i + 1}: {card.term}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <RadioGroup
+                value={answers[card.id]}
+                onValueChange={(val) => onAnswer(card.id, val)}
+              >
+                {data.options.map((opt, idx) => (
+                  <div key={idx} className="flex items-center space-x-2 border p-3 rounded hover:bg-muted">
+                    <RadioGroupItem value={opt} id={`${card.id}-opt-${idx}`} />
+                    <Label htmlFor={`${card.id}-opt-${idx}`}>{opt}</Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </CardContent>
+          </CardComponent>
+        );
+      })}
+    </div>
   );
 }
