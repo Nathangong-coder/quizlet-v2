@@ -268,7 +268,7 @@ export async function submitShortAnswer(input: {
       const annPrompt = buildAnnotationPrompt(card, input.answer, card.definition);
       const annResult = await generateJsonWithGoogle({
         apiKey,
-        prompt,
+        prompt: annPrompt,
         schema: AnnotationSchema,
         model: DEFAULT_AI_MODEL,
       });
