@@ -175,3 +175,6 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
           </Button>
         </div>
       )}
+    </div>
+  );
+}
