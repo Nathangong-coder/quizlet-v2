@@ -86,7 +86,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
                 variant={selectedDefId === c.id ? "default" : isUsed ? "secondary" : "outline"}
                 className={cn(
                   "w-full text-left justify-start h-auto py-3 px-4 transition-all duration-200",
-                  "border-2",
+                  "border-2 whitespace-normal",
                   selectedDefId === c.id && "ring-2 ring-primary ring-offset-2",
                   isUsed && "opacity-40 cursor-not-allowed bg-muted text-muted-foreground border-muted"
                 )}
