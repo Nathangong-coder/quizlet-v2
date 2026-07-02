@@ -87,44 +87,29 @@ function MultipleChoiceResult({ options, selectedOption, correctAnswer }: { opti
 function MatchingReview({ answers }: { answers: any[] }) {
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Matching Results</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs uppercase bg-muted">
-                <tr>
-                  <th className="px-4 py-2">Term</th>
-                  <th className="px-4 py-2">Your Match</th>
-                  <th className="px-4 py-2">Correct Definition</th>
-                  <th className="px-4 py-2 text-center">Result</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {answers.map((answer, i) => (
-                  <tr key={answer.id} className="hover:bg-muted/50">
-                    <td className="px-4 py-3 font-medium">{answer.card.term}</td>
-                    <td className="px-4 py-3">
-                      <span className={cn(
-                        "p-1 rounded",
-                        answer.isCorrect ? "text-green-600 bg-green-50" : "text-red-600 bg-red-50"
-                      )}>
-                        {answer.selectedOption || "No match"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">{answer.correctAnswer}</td>
-                    <td className="px-4 py-3 text-center">
-                      {answer.isCorrect ? <CheckCircle2 className="w-4 h-4 text-green-500 mx-auto" /> : <XCircle className="w-4 h-4 text-red-500 mx-auto" />}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      {answers.map((answer, i) => (
+        <Card key={answer.id}>
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="flex-1 font-medium">{answer.card.term}</div>
+            <div className="flex-1">
+              <div className={cn(
+                "p-2 rounded-md border text-sm",
+                answer.isCorrect ? "bg-green-50 border-green-500 text-green-900 dark:bg-green-900/20 dark:text-green-100" : "bg-red-50 border-red-500 text-red-900 dark:bg-red-900/20 dark:text-red-100"
+              )}>
+                {answer.selectedOption || "No match"}
+              </div>
+              {!answer.isCorrect && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Correct: <span className="font-medium">{answer.correctAnswer}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex-shrink-0">
+              {answer.isCorrect ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <XCircle className="w-5 h-5 text-red-500" />}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
@@ -259,6 +244,12 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
                               options={answer.options}
                               selectedOption={answer.selectedOption}
                               correctAnswer={answer.correctAnswer}
+                            />
+                          ) : answer.mode === 'true-false' ? (
+                            <MultipleChoiceResult
+                              options={['True', 'False']}
+                              selectedOption={answer.selectedOption === 'true' ? 'True' : answer.selectedOption === 'false' ? 'False' : null}
+                              correctAnswer={answer.correctAnswer === 'true' ? 'True' : 'False'}
                             />
                           ) : (
                             <div className="grid grid-cols-2 gap-4">

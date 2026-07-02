@@ -25,15 +25,14 @@ export function MatchGame({ initialTiles }: MatchGameProps) {
 
   const gameFinished = isComplete(gameState);
 
-
   return (
     <div className="flex flex-col items-center gap-6 p-4">
-      <div className="flex justify-between w-full max-w-2xl">
+      <div className="flex justify-between w-full max-w-6xl">
         <h2 className="text-2xl font-bold">Matching Game</h2>
         <MatchTimer startedAt={gameState.startedAt} finishedAt={gameState.finishedAt} />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-2xl">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-6xl">
         {gameState.tiles.map((tile) => (
           <MatchTileCard
             key={tile.id}

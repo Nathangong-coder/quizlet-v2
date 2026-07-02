@@ -29,6 +29,8 @@ export async function submitMatchingAnswers(input: {
 
     let correctCount = 0;
     const answers = input.matches.map(match => {
+      const card = cards.find(c => c.id === match.cardId);
+      const matchedCard = cards.find(c => c.id === match.matchedWithId);
       const isCorrect = match.matchedWithId === match.cardId;
       if (isCorrect) correctCount++;
 
@@ -38,9 +40,9 @@ export async function submitMatchingAnswers(input: {
           userId: session.user.id,
           cardId: match.cardId,
           mode: 'matching',
-          prompt: 'Matching',
-          correctAnswer: 'Correct',
-          selectedOption: match.matchedWithId,
+          prompt: card?.term || 'Matching',
+          correctAnswer: card?.definition || '',
+          selectedOption: matchedCard?.definition || 'No match',
           isCorrect,
           score: isCorrect ? 100 : 0,
           feedback: isCorrect ? 'Correct match!' : 'Incorrect match.',

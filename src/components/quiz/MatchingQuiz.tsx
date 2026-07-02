@@ -70,7 +70,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
   }, [allSlotsFilled]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 p-8">
+    <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-12 p-8">
       {/* Definition Pool (Left 1/3) */}
       <div className="space-y-4">
         <div className="flex items-center gap-2 mb-4">
@@ -93,7 +93,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
                 onClick={() => !isUsed && handleDefSelect(c.id)}
                 disabled={isUsed || isSubmitting}
               >
-                <span className="line-clamp-3 text-sm">{c.definition}</span>
+                <span className="text-sm">{c.definition}</span>
               </Button>
             );
           })}
@@ -128,7 +128,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
                     )}
                   >
                     {matchedDef ? (
-                      <span className="truncate px-2 font-medium">{matchedDef.definition}</span>
+                      <span className="px-2 font-medium">{matchedDef.definition}</span>
                     ) : (
                       <span className="italic opacity-60">Click to match...</span>
                     )}

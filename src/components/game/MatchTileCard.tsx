@@ -6,7 +6,7 @@ interface MatchTileCardProps {
 }
 
 export function MatchTileCard({ content, isSelected, isMatched, onClick }: MatchTileCardProps) {
-  const baseClasses = "p-4 rounded-lg border-2 transition-all duration-200 text-center cursor-pointer min-h-[100px] flex items-center justify-center";
+  const baseClasses = "p-4 rounded-lg border-2 transition-all duration-200 text-left cursor-pointer min-h-[100px] flex items-start justify-start overflow-y-auto";
 
   const stateClasses = isMatched
     ? "bg-green-100 border-green-500 opacity-50 cursor-default"
