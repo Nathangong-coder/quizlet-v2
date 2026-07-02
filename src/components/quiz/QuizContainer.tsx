@@ -8,7 +8,7 @@ import { MatchingQuiz } from './MatchingQuiz';
 import { QuizSummary } from './QuizSummary';
 import { Card } from '@prisma/client';
 import { getQuizAttemptCards, startQuizAttempt } from '@/actions/quiz';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
@@ -61,11 +61,10 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
     const nextCompleted = [...completedModes, mode];
     setCompletedModes(nextCompleted);
     setScore(s);
+  };
 
-    const totalModes = setup?.questionMode?.length || 1;
-    if (nextCompleted.length >= totalModes) {
-      setFinished(true);
-    }
+  const handleSubmitQuiz = () => {
+    setFinished(true);
   };
 
   if (error) {
@@ -157,6 +156,28 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
           );
         })}
       </div>
+
+      {completedModes.length >= (setup?.questionMode?.length || 1) && (
+        <div className="flex flex-col items-center justify-center py-12 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="p-4 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 mb-2">
+            <CheckCircle2 className="w-8 h-8" />
+          </div>
+          <h3 className="text-2xl font-bold">All sections complete!</h3>
+          <p className="text-muted-foreground text-center max-w-sm">
+            You've finished all the quiz sections. Review your progress and submit to see your final results.
+          </p>
+          <Button
+            onClick={handleSubmitQuiz}
+            size="lg"
+            className="px-12 py-6 text-xl font-bold bg-primary hover:bg-primary/90 transition-all hover:scale-105 active:scale-95 shadow-xl"
+          >
+            Submit Overall Quiz
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
     </div>
   );
 }
