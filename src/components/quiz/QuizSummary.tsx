@@ -158,7 +158,7 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
     if (!acc[mode]) acc[mode] = [];
     acc[mode].push(answer);
     return acc;
-  }, {});
+  }, {} as Record<string, any[]>);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -226,7 +226,7 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
 
         <TabsContent value="review">
           <div className="space-y-8">
-            {Object.entries(groupedAnswers).map(([mode, answers]) => (
+            {(Object.entries(groupedAnswers) as [string, any[]][]).map(([mode, answers]) => (
               <div key={mode} className="space-y-4">
                 <div className="flex items-center gap-2 pb-2 border-b">
                   <h3 className="text-xl font-semibold">
