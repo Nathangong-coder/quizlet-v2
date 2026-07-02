@@ -46,6 +46,37 @@ function GradeFactor({ title, data }: { title: string, data: { score: number, pr
   );
 }
 
+function MultipleChoiceResult({ options, selectedOption, correctAnswer }: { options: string[], selectedOption: string | null, correctAnswer: string }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {options.map((option: string, index: number) => {
+        const isCorrect = option === correctAnswer;
+        const isSelected = option === selectedOption;
+        const isWrongSelection = isSelected && !isCorrect;
+
+        return (
+          <div
+            key={index}
+            className={cn(
+              "p-3 rounded-md border text-sm transition-colors flex items-center justify-between",
+              isCorrect ? "bg-green-50 border-green-500 text-green-900 dark:bg-green-900/20 dark:text-green-100" :
+              isWrongSelection ? "bg-red-50 border-red-500 text-red-900 dark:bg-red-900/20 dark:text-red-100" :
+              "bg-muted/50 border-transparent text-muted-foreground"
+            )}
+          >
+            <span className="truncate">{option}</span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {isCorrect && <Badge className="bg-green-600 hover:bg-green-600">Correct</Badge>}
+              {isWrongSelection && <Badge variant="destructive">Your Answer</Badge>}
+              {isSelected && isCorrect && <Badge variant="secondary">Your Answer</Badge>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function MatchingReview({ answers }: { answers: any[] }) {
   return (
     <div className="space-y-4">
@@ -200,16 +231,24 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 bg-muted rounded-md">
-                        <p className="font-semibold text-sm">Correct Answer</p>
-                        <p>{answer.correctAnswer}</p>
+                    {answer.mode === 'multiple-choice' && answer.options ? (
+                      <MultipleChoiceResult
+                        options={answer.options}
+                        selectedOption={answer.selectedOption}
+                        correctAnswer={answer.correctAnswer}
+                      />
+                    ) : (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-muted rounded-md">
+                          <p className="font-semibold text-sm">Correct Answer</p>
+                          <p>{answer.correctAnswer}</p>
+                        </div>
+                        <div className="p-4 bg-muted rounded-md">
+                          <p className="font-semibold text-sm">Your Answer</p>
+                          <p>{answer.answer || answer.selectedOption}</p>
+                        </div>
                       </div>
-                      <div className="p-4 bg-muted rounded-md">
-                        <p className="font-semibold text-sm">Your Answer</p>
-                        <p>{answer.answer || answer.selectedOption}</p>
-                      </div>
-                    </div>
+                    )}
 
                     {answer.grade ? (
                       <div className="space-y-4 pt-4 border-t">
