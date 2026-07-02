@@ -408,6 +408,33 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
     });
     if (!attempt) return { success: false, error: 'Attempt not found' };
 
+    // Fetch MC options for answers that are multiple-choice
+    const mcAnswers = attempt.answers.filter(a => a.mode === 'multiple-choice');
+    if (mcAnswers.length > 0) {
+      const cardIds = mcAnswers.map(a => a.cardId);
+      const cachedOptions = await prisma.quizOptionCache.findMany({
+        where: {
+          cardId: { in: cardIds },
+          model: DEFAULT_AI_MODEL,
+        },
+      });
+
+      attempt.answers = attempt.answers.map(a => {
+        if (a.mode === 'multiple-choice') {
+          const cache = cachedOptions.find(c => c.cardId === a.cardId);
+          if (cache) {
+            try {
+              const parsed = MultipleChoiceOptionsSchema.parse(cache.options);
+              return { ...a, options: parsed.options };
+            } catch (e) {
+              console.error(`Failed to parse options for card ${a.cardId}:`, e);
+            }
+          }
+        }
+        return a;
+      });
+    }
+
     const credential = await prisma.aiCredential.findUnique({ where: { userId: session.user.id } });
     let overallAnalysis = 'Analysis unavailable.';
     if (credential) {
