@@ -229,7 +229,12 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
                           <CardTitle className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               {answer.isCorrect ? <CheckCircle2 className="text-green-500" /> : <XCircle className="text-red-500" />}
-                              Question {index + 1}: {answer.card.term}
+                              <div className="flex flex-col">
+                                <span className="font-medium">Question {index + 1}: {answer.card.term}</span>
+                                {answer.mode === 'true-false' && (
+                                  <span className="text-xs text-muted-foreground">{answer.card.definition}</span>
+                                )}
+                              </div>
                             </div>
                             {answer.grade && (
                               <Badge variant={answer.grade.overall >= 8 ? 'default' : answer.grade.overall >= 5 ? 'secondary' : 'destructive'}>

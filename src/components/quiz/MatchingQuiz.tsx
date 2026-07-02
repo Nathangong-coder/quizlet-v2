@@ -121,7 +121,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
                     onClick={() => handleSlotClick(c.id)}
                     disabled={isSubmitting}
                     className={cn(
-                      "w-full h-11 px-3 py-2 rounded-lg text-sm transition-all duration-200 border-2 flex items-center justify-center text-center",
+                      "w-full min-h-[44px] h-auto px-3 py-2 rounded-lg text-sm transition-all duration-200 border-2 flex items-start justify-start text-left",
                       matchedDefId
                         ? "bg-primary/10 border-primary text-primary-foreground shadow-inner"
                         : "border-dashed border-muted-foreground/30 text-muted-foreground hover:border-primary/50 hover:bg-muted/50"
