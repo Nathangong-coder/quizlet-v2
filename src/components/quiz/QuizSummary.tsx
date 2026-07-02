@@ -9,6 +9,13 @@ import { getQuizAttemptSummary } from '@/actions/quiz';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
+const MODE_LABELS: Record<string, string> = {
+  'multiple-choice': 'Multiple Choice',
+  'true-false': 'True/False',
+  'short-answer': 'Short Answer',
+  'matching': 'Matching',
+};
+
 interface QuizSummaryProps {
   score: number;
   setId: string;
@@ -145,6 +152,14 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
   const correctCount = attempt.answers.filter((a: any) => a.isCorrect).length;
   const totalCount = attempt.answers.length;
 
+  // Group answers by mode for a structured review
+  const groupedAnswers = attempt.answers.reduce((acc: Record<string, any[]>, answer: any) => {
+    const mode = answer.mode || 'unknown';
+    if (!acc[mode]) acc[mode] = [];
+    acc[mode].push(answer);
+    return acc;
+  }, {});
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <Card>
@@ -204,79 +219,90 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
                     Print PDF
                   </Button>
                 </div>
-
               </CardContent>
             </Card>
           )}
         </TabsContent>
 
         <TabsContent value="review">
-          {attempt.mode === 'matching' ? (
-            <MatchingReview answers={attempt.answers} />
-          ) : (
-            <div className="space-y-4">
-              {attempt.answers.map((answer: any, index: number) => (
-                <Card key={answer.id}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {answer.isCorrect ? <CheckCircle2 className="text-green-500" /> : <XCircle className="text-red-500" />}
-                        Question {index + 1}: {answer.card.term}
-                      </div>
-                      {answer.grade && (
-                        <Badge variant={answer.grade.overall >= 8 ? 'default' : answer.grade.overall >= 5 ? 'secondary' : 'destructive'}>
-                          AI Grade: {answer.grade.overall}/10
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {answer.mode === 'multiple-choice' && answer.options ? (
-                      <MultipleChoiceResult
-                        options={answer.options}
-                        selectedOption={answer.selectedOption}
-                        correctAnswer={answer.correctAnswer}
-                      />
-                    ) : (
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 bg-muted rounded-md">
-                          <p className="font-semibold text-sm">Correct Answer</p>
-                          <p>{answer.correctAnswer}</p>
-                        </div>
-                        <div className="p-4 bg-muted rounded-md">
-                          <p className="font-semibold text-sm">Your Answer</p>
-                          <p>{answer.answer || answer.selectedOption}</p>
-                        </div>
-                      </div>
-                    )}
+          <div className="space-y-8">
+            {Object.entries(groupedAnswers).map(([mode, answers]) => (
+              <div key={mode} className="space-y-4">
+                <div className="flex items-center gap-2 pb-2 border-b">
+                  <h3 className="text-xl font-semibold">
+                    {MODE_LABELS[mode] || mode}
+                  </h3>
+                  <Badge variant="outline">{answers.length}</Badge>
+                </div>
+                <div className="space-y-4">
+                  {mode === 'matching' ? (
+                    <MatchingReview answers={answers} />
+                  ) : (
+                    answers.map((answer: any, index: number) => (
+                      <Card key={answer.id}>
+                        <CardHeader>
+                          <CardTitle className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {answer.isCorrect ? <CheckCircle2 className="text-green-500" /> : <XCircle className="text-red-500" />}
+                              Question {index + 1}: {answer.card.term}
+                            </div>
+                            {answer.grade && (
+                              <Badge variant={answer.grade.overall >= 8 ? 'default' : answer.grade.overall >= 5 ? 'secondary' : 'destructive'}>
+                                AI Grade: {answer.grade.overall}/10
+                              </Badge>
+                            )}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                          {answer.mode === 'multiple-choice' && answer.options ? (
+                            <MultipleChoiceResult
+                              options={answer.options}
+                              selectedOption={answer.selectedOption}
+                              correctAnswer={answer.correctAnswer}
+                            />
+                          ) : (
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="p-4 bg-muted rounded-md">
+                                <p className="font-semibold text-sm">Correct Answer</p>
+                                <p>{answer.correctAnswer}</p>
+                              </div>
+                              <div className="p-4 bg-muted rounded-md">
+                                <p className="font-semibold text-sm">Your Answer</p>
+                                <p>{answer.answer || answer.selectedOption}</p>
+                              </div>
+                            </div>
+                          )}
 
-                    {answer.grade ? (
-                      <div className="space-y-4 pt-4 border-t">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <GradeFactor title="Clarity" data={answer.grade.clarity} />
-                          <GradeFactor title="Conciseness" data={answer.grade.conciseness} />
-                          <GradeFactor title="Correctness" data={answer.grade.correctness} />
-                        </div>
-                        <div className="p-3 rounded-lg border bg-primary/5 space-y-2">
-                          <h4 className="font-semibold text-sm">AI Summary</h4>
-                          <p className="text-sm text-muted-foreground">{answer.grade.summary}</p>
-                        </div>
-                        <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/20 space-y-2">
-                          <h4 className="font-semibold text-sm text-blue-700 dark:text-blue-300">Targeted Improvement</h4>
-                          <p className="text-sm">{answer.grade.suggestedImprovement}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <p className="font-semibold text-sm">AI Feedback</p>
-                        <p className="text-muted-foreground">{answer.feedback}</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                          {answer.grade ? (
+                            <div className="space-y-4 pt-4 border-t">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <GradeFactor title="Clarity" data={answer.grade.clarity} />
+                                <GradeFactor title="Conciseness" data={answer.grade.conciseness} />
+                                <GradeFactor title="Correctness" data={answer.grade.correctness} />
+                              </div>
+                              <div className="p-3 rounded-lg border bg-primary/5 space-y-2">
+                                <h4 className="font-semibold text-sm">AI Summary</h4>
+                                <p className="text-sm text-muted-foreground">{answer.grade.summary}</p>
+                              </div>
+                              <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/20 space-y-2">
+                                <h4 className="font-semibold text-sm text-blue-700 dark:text-blue-300">Targeted Improvement</h4>
+                                <p className="text-sm">{answer.grade.suggestedImprovement}</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="font-semibold text-sm">AI Feedback</p>
+                              <p className="text-muted-foreground">{answer.feedback}</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </TabsContent>
       </Tabs>
     </div>
