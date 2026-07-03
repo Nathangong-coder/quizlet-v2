@@ -196,6 +196,14 @@ export async function submitMultipleChoiceAnswer(input: {
   const score = isCorrect ? 100 : 0;
 
   try {
+    // Delete existing answer for this card in this attempt to prevent duplicates
+    await prisma.quizAnswer.deleteMany({
+      where: {
+        attemptId: input.attemptId,
+        cardId: input.cardId,
+      },
+    });
+
     let feedback = isCorrect ? 'Correct!' : 'Incorrect.';
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     if (card) {
@@ -252,13 +260,35 @@ export async function submitTrueFalseAnswer(input: {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
-  try {
-    const card = await prisma.card.findUnique({ where: { id: input.cardId } });
-    if (!card) return { success: false, error: 'Card not found' };
+  const isCorrect = input.selectedOption === 'true';
+  const score = isCorrect ? 100 : 0;
 
-    const isCorrect = input.selectedOption === 'true';
-    const score = isCorrect ? 100 : 0;
-    const feedback = isCorrect ? 'Correct!' : 'Incorrect.';
+  try {
+    // Delete existing answer for this card in this attempt to prevent duplicates
+    await prisma.quizAnswer.deleteMany({
+      where: {
+        attemptId: input.attemptId,
+        cardId: input.cardId,
+      },
+    });
+
+    let feedback = isCorrect ? 'Correct!' : 'Incorrect.';
+    const card = await prisma.card.findUnique({ where: { id: input.cardId } });
+    if (card) {
+      const credential = await prisma.aiCredential.findUnique({ where: { userId: session.user.id } });
+      if (credential) {
+        const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
+        const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
+        const prompt = buildMultipleChoiceGradePrompt(card, input.selectedOption, 'true');
+        const aiResult = await generateJsonWithGoogle({
+          apiKey,
+          prompt,
+          schema: MultipleChoiceFeedbackSchema,
+          model: DEFAULT_AI_MODEL,
+        });
+        feedback = aiResult.feedback;
+      }
+    }
 
     const answer = await prisma.quizAnswer.create({
       data: {
@@ -333,6 +363,7 @@ export async function submitShortAnswer(input: {
     }
 
     const score = grade.overall * 10;
+    const isCorrect = grade.overall >= 8;
 
     const answer = await prisma.quizAnswer.create({
       data: {
@@ -345,6 +376,7 @@ export async function submitShortAnswer(input: {
         correctAnswer: card.definition,
         grade: { ...grade, annotations },
         score,
+        isCorrect,
         feedback: grade.summary,
       },
     });
