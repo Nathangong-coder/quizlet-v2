@@ -14,12 +14,13 @@ describe("quiz setup helpers", () => {
 
   it("filters starred only", () => {
     const setup = {
-      questionMode: "multiple-choice",
-      promptSide: "term",
+      questionMode: ["multiple-choice"] as const,
+      promptSide: "term" as const,
       categoryIds: [],
       starredOnly: true,
       failedOnly: false,
       printable: false,
+      questionCount: 10,
     };
     const filtered = filterQuizCards(mockCards, setup);
     expect(filtered).toHaveLength(2);
@@ -28,12 +29,13 @@ describe("quiz setup helpers", () => {
 
   it("filters failed only", () => {
     const setup = {
-      questionMode: "multiple-choice",
-      promptSide: "term",
+      questionMode: ["multiple-choice"] as const,
+      promptSide: "term" as const,
       categoryIds: [],
       starredOnly: false,
       failedOnly: true,
       printable: false,
+      questionCount: 10,
     };
     const filtered = filterQuizCards(mockCards, setup, mockAnswers);
     expect(filtered).toHaveLength(1);
@@ -42,12 +44,13 @@ describe("quiz setup helpers", () => {
 
   it("filters categories", () => {
     const setup = {
-      questionMode: "multiple-choice",
-      promptSide: "term",
+      questionMode: ["multiple-choice"] as const,
+      promptSide: "term" as const,
       categoryIds: ["cat1"],
       starredOnly: false,
       failedOnly: false,
       printable: false,
+      questionCount: 10,
     };
     const filtered = filterQuizCards(mockCards, setup);
     expect(filtered).toHaveLength(2);
@@ -56,12 +59,13 @@ describe("quiz setup helpers", () => {
 
   it("builds prompts for term side", () => {
     const setup = {
-      questionMode: "multiple-choice",
+      questionMode: ["multiple-choice"] as const,
       promptSide: "term" as const,
       categoryIds: [],
       starredOnly: false,
       failedOnly: false,
       printable: false,
+      questionCount: 10,
     };
     const prompts = buildQuizPrompts(mockCards, setup);
     expect(prompts[0].prompt).toBe("T1");

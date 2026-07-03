@@ -17,25 +17,6 @@ interface MultipleChoiceQuizProps {
   onFinish: (score: number) => void;
 }
 
-'use client';
-
-import React, { useState, useEffect } from 'react';
-import { Card as CardComponent, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { getOrGenerateMultipleChoiceOptions, submitMultipleChoiceAnswer } from '@/actions/quiz';
-import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
-import { Card } from '@prisma/client';
-import { cn } from '@/lib/utils';
-
-interface MultipleChoiceQuizProps {
-  cards: Card[];
-  attemptId: string;
-  onFinish: (score: number) => void;
-}
-
 export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoiceQuizProps) {
   const [selectedAnswers, setSelectedAnswers] = useState<{ [cardId: string]: string }>({});
   const [optionsState, setOptionsState] = useState<{ [cardId: string]: { options: string[], correctAnswer: string } }>({});
@@ -165,4 +146,3 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
     </div>
   );
 }
-
