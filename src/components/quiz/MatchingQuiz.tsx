@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card as PrismaCard } from "@prisma/client";
 import { cn } from "@/lib/utils";
+import { ExpandableText } from "@/components/ui/expandable-text";
 import { submitMatchingAnswers } from "@/actions/quiz-matching";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -93,7 +94,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
                 onClick={() => !isUsed && handleDefSelect(c.id)}
                 disabled={isUsed || isSubmitting}
               >
-                <span className="text-sm">{c.definition}</span>
+                <ExpandableText text={c.definition} className="text-sm" />
               </Button>
             );
           })}
@@ -128,7 +129,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
                     )}
                   >
                     {matchedDef ? (
-                      <span className="px-2 font-medium">{matchedDef.definition}</span>
+                      <ExpandableText text={matchedDef.definition} className="px-2 font-medium" />
                     ) : (
                       <span className="italic opacity-60">Click to match...</span>
                     )}

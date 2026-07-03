@@ -8,6 +8,7 @@ import { Trophy, CheckCircle2, XCircle } from 'lucide-react';
 import { getQuizAttemptSummary } from '@/actions/quiz';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { ExpandableText } from '@/components/ui/expandable-text';
 
 const MODE_LABELS: Record<string, string> = {
   'multiple-choice': 'Multiple Choice',
@@ -96,11 +97,11 @@ function MatchingReview({ answers }: { answers: any[] }) {
                 "p-2 rounded-md border text-sm",
                 answer.isCorrect ? "bg-green-50 border-green-500 text-green-900 dark:bg-green-900/20 dark:text-green-100" : "bg-red-50 border-red-500 text-red-900 dark:bg-red-900/20 dark:text-red-100"
               )}>
-                {answer.selectedOption || "No match"}
+                <ExpandableText text={answer.selectedOption || "No match"} />
               </div>
               {!answer.isCorrect && (
                 <div className="mt-2 text-xs text-muted-foreground">
-                  Correct: <span className="font-medium">{answer.correctAnswer}</span>
+                  Correct: <ExpandableText text={answer.correctAnswer} className="font-medium" />
                 </div>
               )}
             </div>

@@ -9,7 +9,7 @@ export function MatchTileCard({ content, isSelected, isMatched, onClick }: Match
   const baseClasses = "p-4 rounded-lg border-2 transition-all duration-200 text-left cursor-pointer min-h-[100px] flex items-start justify-start overflow-y-auto";
 
   const stateClasses = isMatched
-    ? "bg-green-100 border-green-500 opacity-50 cursor-default"
+    ? "bg-muted border-muted-foreground/50 text-muted-foreground opacity-100 cursor-default"
     : isSelected
       ? "bg-blue-100 border-blue-500"
       : "bg-white border-gray-300 hover:border-blue-300";

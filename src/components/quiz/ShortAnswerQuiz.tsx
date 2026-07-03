@@ -66,6 +66,7 @@ export function ShortAnswerQuiz({ cards, attemptId, onFinish }: ShortAnswerQuizP
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
           disabled={isSubmitting}
+          className="min-h-[150px] py-4"
         />
         <Button onClick={handleSubmit} disabled={isSubmitting || !answer.trim()}>
           {isSubmitting ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : 'Submit Answer'}
