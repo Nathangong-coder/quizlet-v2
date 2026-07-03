@@ -106,7 +106,7 @@ export default function ProfilePage() {
           <CardContent>
             <div className="text-4xl font-bold text-center">
               {stats.modeStats.length > 0
-                ? Math.round(stats.modeStats.reduce((acc, s: any) => acc + s.averageScore, 0) / stats.modeStats.length) + '%'
+                ? Math.round(stats.modeStats.reduce((acc: number, s: any) => acc + s.averageScore, 0) / stats.modeStats.length) + '%'
                 : '0%'}
             </div>
             <p className="text-xs text-center text-muted-foreground mt-1">Across all modes</p>
