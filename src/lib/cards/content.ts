@@ -7,6 +7,7 @@ export const ContentBlockSchema = z.object({
   text: z.string().optional(),
   assetId: z.string().optional(),
   position: z.number().int(),
+  side: z.enum(["term", "definition"]).optional(),
 });
 
 export type ContentBlock = z.infer<typeof ContentBlockSchema>;

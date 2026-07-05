@@ -71,7 +71,14 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
             id: c.id,
             term: c.term,
             definition: c.definition,
-            contentBlocks: c.contentBlocks,
+            contentBlocks: c.contentBlocks.map(b => ({
+              id: b.id,
+              type: b.type as 'text' | 'image' | 'video' | 'file',
+              position: b.position,
+              side: b.side as 'term' | 'definition',
+              text: b.text,
+              assetId: b.assetId,
+            })),
           }))}
         />
       )}

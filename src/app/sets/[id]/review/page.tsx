@@ -44,7 +44,14 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
     id: card.id,
     term: card.term,
     definition: card.definition,
-    contentBlocks: card.contentBlocks,
+    contentBlocks: card.contentBlocks.map(b => ({
+      id: b.id,
+      type: b.type as 'text' | 'image' | 'video' | 'file',
+      position: b.position,
+      side: b.side as 'term' | 'definition',
+      text: b.text,
+      assetId: b.assetId,
+    })),
     confidence: card.progress[0]?.confidence ?? 5,
   }))
 
