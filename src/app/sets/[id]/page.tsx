@@ -86,7 +86,19 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
       <ActivityTiles id={id} userId={session?.user?.id} />
 
       <TermsList
-        cards={set.cards}
+        cards={set.cards.map((c) => ({
+          id: c.id,
+          term: c.term,
+          definition: c.definition,
+          contentBlocks: c.contentBlocks.map(b => ({
+            id: b.id,
+            type: b.type as 'text' | 'image' | 'video' | 'file',
+            position: b.position,
+            side: b.side as 'term' | 'definition',
+            text: b.text ?? undefined,
+            assetId: b.assetId ?? undefined,
+          })),
+        }))}
         progressMap={progressByCardId}
         userId={session?.user?.id}
         setId={id}
