@@ -46,15 +46,20 @@ export function RichCardSideEditor({
       const formData = new FormData();
       formData.append("file", file);
       formData.append("setId", setId);
-      // cardId is optional here as it's assigned on save, but we could pass it if available
 
       const result = await uploadCardAsset(formData);
-      if (result.assetId) {
-        updateBlock(index, { assetId: result.assetId });
-        toast.success("File uploaded successfully");
+      if (!result?.assetId) {
+        throw new Error("Upload failed: no asset ID returned");
       }
+
+      updateBlock(index, { assetId: result.assetId });
+      toast.success("✓ File uploaded successfully");
     } catch (e: any) {
-      toast.error(e.message || "Upload failed");
+      const errorMsg = e.message?.includes("BLOB_READ_WRITE_TOKEN")
+        ? "Server error: Vercel Blob credentials missing. Contact admin."
+        : e.message || "Upload failed. Please try again.";
+      toast.error(errorMsg, { duration: 5000 });
+      console.error("Upload error:", e);
     } finally {
       setUploadingIndex(null);
     }
