@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createHash } from "crypto";
 
 export const ContentBlockSchema = z.object({
   id: z.string().optional(),
@@ -9,6 +10,19 @@ export const ContentBlockSchema = z.object({
 });
 
 export type ContentBlock = z.infer<typeof ContentBlockSchema>;
+
+/**
+ * Compute a content hash for a list of blocks.
+ * Used for cache invalidation: when block content changes, the hash changes.
+ * @param blocks Content blocks to hash
+ * @returns SHA-256 hex digest
+ */
+export function computeContentHash(blocks: ContentBlock[]): string {
+  const data = blocks
+    .map((b) => `${b.type}:${b.position}:${b.text || ""}:${b.assetId || ""}`)
+    .join("|");
+  return createHash("sha256").update(data).digest("hex");
+}
 
 export function legacyCardToContentBlocks(term: string, definition: string) {
   return {
