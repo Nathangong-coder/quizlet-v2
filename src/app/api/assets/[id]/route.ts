@@ -11,14 +11,14 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const assetId = params.id;
+  const { id: assetId } = await params;
   if (!assetId) {
     return NextResponse.json({ error: 'Asset ID required' }, { status: 400 });
   }
@@ -79,14 +79,14 @@ export async function GET(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const assetId = params.id;
+  const { id: assetId } = await params;
   if (!assetId) {
     return NextResponse.json({ error: 'Asset ID required' }, { status: 400 });
   }

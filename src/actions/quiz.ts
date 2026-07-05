@@ -405,12 +405,11 @@ export async function submitShortAnswer(input: {
 
     // Multimodal path: convert blocks to ContentBlocks and build parts
     const { buildShortAnswerGradePromptParts } = await import('@/lib/ai/prompts');
-    const { ContentBlock } = await import('@/lib/cards/content');
-    const contentBlocks: ContentBlock[] = termBlocks.map(b => ({
+    const contentBlocks = termBlocks.map(b => ({
       type: b.type as any,
       text: b.text,
       position: b.position,
-    }));
+    })) as any;
 
     const { parts } = buildShortAnswerGradePromptParts(card, contentBlocks, input.answer);
 

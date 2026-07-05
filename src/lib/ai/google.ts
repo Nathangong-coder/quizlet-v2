@@ -1,5 +1,5 @@
 import 'server-only';
-import { GoogleGenerativeAI, ContentPart } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 import { DEFAULT_AI_MODEL, MODEL_FALLBACKS, AiModel } from './model-routing';
 
@@ -40,7 +40,7 @@ interface GenerateParams<T> {
 
 interface GenerateMultimodalParams<T> {
   apiKey: string;
-  parts: ContentPart[];
+  parts: any[]; // ContentPart[] from Gemini SDK
   schema: z.ZodSchema<T>;
   model?: AiModel;
 }
@@ -51,7 +51,7 @@ interface GenerateMultimodalParams<T> {
  */
 async function generateJsonCore<T>(
   genAI: GoogleGenerativeAI,
-  content: string | ContentPart[],
+  content: string | any[],
   schema: z.ZodSchema<T>,
   modelsToTry: AiModel[],
 ): Promise<T> {

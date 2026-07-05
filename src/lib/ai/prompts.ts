@@ -1,6 +1,5 @@
 import { Card } from '@prisma/client';
-import { ContentPart } from '@google/generative-ai';
-import { ContentBlock } from './cards/content';
+import { ContentBlock } from '../cards/content';
 
 export const GRADING_RUBRIC = {
   clarity: 'How easy is the answer to understand? (1-10)',
@@ -78,7 +77,7 @@ export function buildMultipleChoicePromptParts(
   card: Card,
   promptBlocks: ContentBlock[],
   siblingCards: Card[],
-): { parts: ContentPart[]; promptText: string } {
+): { parts: any[]; promptText: string } {
   const siblings = siblingCards
     .filter(c => c.id !== card.id)
     .map(c => c.definition)
@@ -116,7 +115,7 @@ export function buildShortAnswerGradePromptParts(
   card: Card,
   promptBlocks: ContentBlock[],
   answer: string,
-): { parts: ContentPart[]; promptText: string } {
+): { parts: any[]; promptText: string } {
   const promptText = `You are a finance interview grader. Grade the following short-answer response.
 
 ${promptBlocks.some(b => b.type !== 'text') ? '[The question material is shown above/below as images, audio, video, etc.]' : ''}

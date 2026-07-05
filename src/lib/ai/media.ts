@@ -1,4 +1,3 @@
-import { ContentPart } from '@google/generative-ai';
 
 /**
  * Size caps for inline media in Gemini calls (in bytes).
@@ -42,7 +41,7 @@ const SUPPORTED_INLINE_MIMES = new Set([
  *
  * NOTE: This is a server-only function that requires auth and database access.
  */
-export async function assetToPart(assetId: string): Promise<ContentPart | null> {
+export async function assetToPart(assetId: string): Promise<any> {
   // Dynamic import of server-only dependencies
   const { prisma } = await import('@/lib/db');
   const { auth } = await import('@/auth');
@@ -108,9 +107,9 @@ export async function assetToPart(assetId: string): Promise<ContentPart | null> 
  * Use in a single request context (e.g., one grading call).
  */
 export class MediaPartCache {
-  private cache = new Map<string, ContentPart | null>();
+  private cache = new Map<string, any | null>();
 
-  async getPart(assetId: string): Promise<ContentPart | null> {
+  async getPart(assetId: string): Promise<any | null> {
     if (this.cache.has(assetId)) {
       return this.cache.get(assetId) || null;
     }
@@ -126,13 +125,13 @@ export class MediaPartCache {
  * Used to gate whether parts should be included.
  */
 export function checkRequestBudget(
-  parts: ContentPart[],
+  parts: any[],
   textSize: number = 0,
 ): { isWithinBudget: boolean; totalSize: number } {
   let totalSize = textSize;
 
   for (const part of parts) {
-    if (part.inlineData) {
+    if (part && part.inlineData && part.inlineData.data) {
       // Estimate: base64 is ~4/3 of original, plus MIME type header
       const estimatedSize = (part.inlineData.data.length * 3) / 4 + 100;
       totalSize += estimatedSize;
