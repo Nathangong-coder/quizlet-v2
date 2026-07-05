@@ -1,22 +1,21 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useRef, useImperativeHandle, forwardRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card as PrismaCard } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { ExpandableText } from "@/components/ui/expandable-text";
 import { submitMatchingAnswers } from "@/actions/quiz-matching";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
 import { ContentBlock } from "@/lib/cards/content";
 import { ContentBlockView } from "@/components/cards/ContentBlockView";
+import { QuizSectionHandle } from "./section";
 
 type MatchCard = PrismaCard & { contentBlocks?: ContentBlock[] };
 
 interface MatchingQuizProps {
   cards: MatchCard[];
   attemptId: string;
-  onFinish: (score: number) => void;
 }
 
 /**
@@ -60,11 +59,13 @@ function SideContent({
   );
 }
 
-export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) {
+export const MatchingQuiz = forwardRef<QuizSectionHandle, MatchingQuizProps>(
+  function MatchingQuiz({ cards, attemptId }, ref) {
   // matches: { [termId: string]: defId }
   const [matches, setMatches] = useState<{ [termId: string]: string }>({});
   const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const committedRef = useRef(false);
 
   const handleDefSelect = (id: string) => {
     setSelectedDefId(id);
@@ -85,35 +86,28 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
     }
   };
 
-  async function submitAndFinish() {
-    setIsSubmitting(true);
-
+  async function commitCurrent() {
+    if (committedRef.current) return;
     const matchesArray = Object.entries(matches).map(([termId, defId]) => ({
       cardId: termId,
-      matchedWithId: defId
+      matchedWithId: defId,
     }));
+    if (matchesArray.length === 0) return; // nothing matched → contributes 0
 
-    const result = await submitMatchingAnswers({
-      attemptId,
-      matches: matchesArray
-    });
+    setIsSubmitting(true);
+    const result = await submitMatchingAnswers({ attemptId, matches: matchesArray });
     setIsSubmitting(false);
 
-    if (result.success && result.data) {
-      onFinish(result.data.score);
+    if (result.success) {
+      committedRef.current = true;
     } else {
       toast.error(result.error || 'Failed to submit matching quiz');
     }
   }
 
-  const allSlotsFilled = Object.keys(matches).length === cards.length;
-  const matchedDefIds = Object.values(matches);
+  useImperativeHandle(ref, () => ({ commitCurrent }), [matches, attemptId]);
 
-  useEffect(() => {
-    if (allSlotsFilled && !isSubmitting) {
-      submitAndFinish();
-    }
-  }, [allSlotsFilled]);
+  const matchedDefIds = Object.values(matches);
 
   return (
     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-12 p-8">
@@ -187,4 +181,4 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
       </div>
     </div>
   );
-}
+});

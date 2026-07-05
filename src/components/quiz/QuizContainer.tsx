@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MultipleChoiceQuiz } from './MultipleChoiceQuiz';
 import { ShortAnswerQuiz } from './ShortAnswerQuiz';
 import { TrueFalseQuiz } from './TrueFalseQuiz';
 import { MatchingQuiz } from './MatchingQuiz';
 import { QuizSummary } from './QuizSummary';
+import { QuizSectionHandle } from './section';
 import { Card } from '@prisma/client';
 import { getQuizAttemptCards, startQuizAttempt } from '@/actions/quiz';
-import { Loader2, CheckCircle2 } from 'lucide-react';
+import { Loader2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
@@ -17,9 +18,12 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
   const [selectedCards, setSelectedCards] = useState<Card[]>([]);
   const [isLoadingCards, setIsLoadingCards] = useState(true);
   const [finished, setFinished] = useState(false);
-  const [score, setScore] = useState<number | null>(null);
-  const [completedModes, setCompletedModes] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // One imperative handle per rendered section, so the single overall-submit
+  // button can flush every section's currently-visible answer at once.
+  const sectionRefs = useRef<(QuizSectionHandle | null)[]>([]);
 
   useEffect(() => {
     if (setup && !attemptId && !error) {
@@ -55,17 +59,21 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
     }
   }, [attemptId]);
 
-  const handleModeFinish = (mode: string, s: number) => {
-    if (completedModes.includes(mode)) return;
-
-    const nextCompleted = [...completedModes, mode];
-    setCompletedModes(nextCompleted);
-    setScore(s);
-  };
-
-  const handleSubmitQuiz = () => {
-    setFinished(true);
-  };
+  async function handleSubmitQuiz() {
+    setIsSubmitting(true);
+    try {
+      // Persist whatever answer is currently on screen in each section.
+      // Earlier questions were already saved as the user navigated.
+      await Promise.all(
+        sectionRefs.current.map((r) => (r ? r.commitCurrent() : Promise.resolve())),
+      );
+    } catch (e) {
+      toast.error('Something went wrong saving your answers');
+    } finally {
+      setIsSubmitting(false);
+      setFinished(true);
+    }
+  }
 
   if (error) {
     return (
@@ -82,7 +90,7 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
   }
 
   if (finished) {
-    return <QuizSummary score={score || 0} setId={setId} attemptId={attemptId!} />;
+    return <QuizSummary score={0} setId={setId} attemptId={attemptId!} />;
   }
 
   if (isLoadingCards) return <div className="flex flex-col items-center justify-center p-20 gap-4">
@@ -90,7 +98,7 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
     <p className="text-muted-foreground animate-pulse">Building your personalized quiz...</p>
   </div>;
 
-  const modes = setup?.questionMode || ['multiple-choice'];
+  const modes: string[] = setup?.questionMode || ['multiple-choice'];
 
   // Distribute cards across the selected modes. If there are at least as many
   // cards as modes, deal them round-robin so every mode gets a fair share and
@@ -107,11 +115,25 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
     }
   }
 
+  const registerRef = (el: QuizSectionHandle | null, index: number) => {
+    sectionRefs.current[index] = el;
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-12 py-8 px-4">
       <div className="text-center space-y-2 mb-8">
         <h1 className="text-3xl font-bold">Your Quiz</h1>
-        <p className="text-muted-foreground">Complete all sections to finish</p>
+        <p className="text-muted-foreground">Answer what you can, then submit whenever you're ready.</p>
+        <div className="flex justify-center pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => window.open(`/sets/${setId}/print`, '_blank')}
+          >
+            <Printer className="w-4 h-4 mr-2" /> Print blank test (PDF)
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-16">
@@ -126,38 +148,35 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
                 <h2 className="text-xl font-semibold capitalize">
                   {mode.replace('-', ' ')} Section
                 </h2>
-                {completedModes.includes(mode) && (
-                  <span className="text-green-500 text-sm font-medium">Completed ✓</span>
-                )}
               </div>
 
               <div className="bg-card rounded-xl p-1">
                 {mode === 'multiple-choice' && (
                   <MultipleChoiceQuiz
+                    ref={(el) => registerRef(el, index)}
                     cards={modeCards}
                     attemptId={attemptId!}
-                    onFinish={(s) => handleModeFinish(mode, s)}
                   />
                 )}
                 {mode === 'short-answer' && (
                   <ShortAnswerQuiz
+                    ref={(el) => registerRef(el, index)}
                     cards={modeCards}
                     attemptId={attemptId!}
-                    onFinish={(s) => handleModeFinish(mode, s)}
                   />
                 )}
                 {mode === 'true-false' && (
                   <TrueFalseQuiz
+                    ref={(el) => registerRef(el, index)}
                     cards={modeCards}
                     attemptId={attemptId!}
-                    onFinish={(s) => handleModeFinish(mode, s)}
                   />
                 )}
                 {mode === 'matching' && (
                   <MatchingQuiz
+                    ref={(el) => registerRef(el, index)}
                     cards={modeCards}
                     attemptId={attemptId!}
-                    onFinish={(s) => handleModeFinish(mode, s)}
                   />
                 )}
               </div>
@@ -166,24 +185,20 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
         })}
       </div>
 
-      {completedModes.length >= (setup?.questionMode?.length || 1) && (
-        <div className="flex flex-col items-center justify-center py-12 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="p-4 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 mb-2">
-            <CheckCircle2 className="w-8 h-8" />
-          </div>
-          <h3 className="text-2xl font-bold">All sections complete!</h3>
-          <p className="text-muted-foreground text-center max-w-sm">
-            You've finished all the quiz sections. Review your progress and submit to see your final results.
-          </p>
-          <Button
-            onClick={handleSubmitQuiz}
-            size="lg"
-            className="px-12 py-6 text-xl font-bold bg-primary hover:bg-primary/90 transition-all hover:scale-105 active:scale-95 shadow-xl"
-          >
-            Submit Overall Quiz
-          </Button>
-        </div>
-      )}
+      <div className="flex flex-col items-center justify-center py-8 space-y-4">
+        <Button
+          onClick={handleSubmitQuiz}
+          disabled={isSubmitting}
+          size="lg"
+          className="px-12 py-6 text-xl font-bold bg-primary hover:bg-primary/90 transition-all hover:scale-105 active:scale-95 shadow-xl"
+        >
+          {isSubmitting && <Loader2 className="animate-spin w-5 h-5 mr-2" />}
+          Submit Overall Quiz
+        </Button>
+        <p className="text-xs text-muted-foreground text-center max-w-sm">
+          You can submit at any time. Unanswered questions simply score zero.
+        </p>
+      </div>
     </div>
   );
 }

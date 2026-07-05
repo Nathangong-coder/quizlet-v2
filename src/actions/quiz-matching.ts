@@ -27,6 +27,12 @@ export async function submitMatchingAnswers(input: {
       where: { id: { in: (attempt.selectedCardIds as string[]) || [] } }
     });
 
+    // Idempotent: clear any prior matching answers for this attempt so a
+    // re-submit replaces rather than duplicates them.
+    await prisma.quizAnswer.deleteMany({
+      where: { attemptId: input.attemptId, mode: 'matching' },
+    });
+
     let correctCount = 0;
     const answers = input.matches.map(match => {
       const card = cards.find(c => c.id === match.cardId);

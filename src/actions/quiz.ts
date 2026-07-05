@@ -511,7 +511,11 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
       include: {
         user: true,
         set: { include: { cards: true } },
-        answers: { include: { card: true } },
+        answers: {
+          include: {
+            card: { include: { contentBlocks: { orderBy: { position: 'asc' } } } },
+          },
+        },
       },
     });
     if (!attempt) return { success: false, error: 'Attempt not found' };
@@ -545,7 +549,9 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
 
     const credential = await prisma.aiCredential.findUnique({ where: { userId: session.user.id } });
     let overallAnalysis = 'Analysis unavailable.';
-    if (credential) {
+    // Only spend an AI call when there's actually something to analyze.
+    // An empty submission just scores 0 — no need to prompt the model.
+    if (credential && attempt.answers.length > 0) {
       const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
       const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
 
@@ -588,7 +594,7 @@ Output as JSON: { "analysis": string }`;
       },
     };
   } catch (error: any) {
-    console:error('Summary generation error:', error);
+    console.error('Summary generation error:', error);
     return { success: false, error: 'Failed to generate quiz summary' };
   }
 }

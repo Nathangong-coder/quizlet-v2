@@ -3,8 +3,8 @@ import { prisma } from '@/lib/db';
 import { PrintableQuiz } from '@/components/quiz/PrintableQuiz';
 import { notFound } from 'next/navigation';
 
-export default async function PrintPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function PrintPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
 
   const set = await prisma.set.findUnique({
     where: { id },

@@ -9,6 +9,7 @@ import { getQuizAttemptSummary } from '@/actions/quiz';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { ExpandableText } from '@/components/ui/expandable-text';
+import { QuizCardPrompt } from './QuizCardPrompt';
 
 const MODE_LABELS: Record<string, string> = {
   'multiple-choice': 'Multiple Choice',
@@ -227,15 +228,10 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
                     answers.map((answer: any, index: number) => (
                       <Card key={answer.id}>
                         <CardHeader>
-                          <CardTitle className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              {answer.isCorrect ? <CheckCircle2 className="text-green-500" /> : <XCircle className="text-red-500" />}
-                              <div className="flex flex-col">
-                                <span className="font-medium">Question {index + 1}: {answer.card.term}</span>
-                                {answer.mode === 'true-false' && (
-                                  <span className="text-xs text-muted-foreground">{answer.card.definition}</span>
-                                )}
-                              </div>
+                          <CardTitle className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {answer.isCorrect ? <CheckCircle2 className="text-green-500 shrink-0" /> : <XCircle className="text-red-500 shrink-0" />}
+                              <span className="font-medium shrink-0">Question {index + 1}</span>
                             </div>
                             {answer.grade && (
                               <Badge variant={answer.grade.overall >= 8 ? 'default' : answer.grade.overall >= 5 ? 'secondary' : 'destructive'}>
@@ -243,6 +239,10 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
                               </Badge>
                             )}
                           </CardTitle>
+                          {/* Render the actual prompt (incl. images) rather than raw term text */}
+                          <div className="pt-2">
+                            <QuizCardPrompt card={answer.card} side="term" />
+                          </div>
                         </CardHeader>
                         <CardContent className="space-y-6">
                           {answer.mode === 'multiple-choice' && answer.options ? (
