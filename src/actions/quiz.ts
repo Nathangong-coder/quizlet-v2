@@ -196,11 +196,13 @@ export async function submitMultipleChoiceAnswer(input: {
   const score = isCorrect ? 100 : 0;
 
   try {
-    // Delete existing answer for this card in this attempt to prevent duplicates
+    // Replace only this card's answer *in this mode* (a card may also be
+    // tested in another mode within the same attempt — keep those intact).
     await prisma.quizAnswer.deleteMany({
       where: {
         attemptId: input.attemptId,
         cardId: input.cardId,
+        mode: 'multiple-choice',
       },
     });
 
@@ -264,11 +266,12 @@ export async function submitTrueFalseAnswer(input: {
   const score = isCorrect ? 100 : 0;
 
   try {
-    // Delete existing answer for this card in this attempt to prevent duplicates
+    // Replace only this card's answer *in this mode* (see MC note above).
     await prisma.quizAnswer.deleteMany({
       where: {
         attemptId: input.attemptId,
         cardId: input.cardId,
+        mode: 'true-false',
       },
     });
 
@@ -329,10 +332,11 @@ export async function submitShortAnswer(input: {
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
-    // Idempotent: a re-submit for the same card replaces the prior answer
-    // instead of creating a second graded row.
+    // Idempotent, but scoped to this mode so a card also tested in another
+    // section keeps that section's answer. A re-submit replaces the prior
+    // short-answer row instead of creating a second graded one.
     await prisma.quizAnswer.deleteMany({
-      where: { attemptId: input.attemptId, cardId: input.cardId },
+      where: { attemptId: input.attemptId, cardId: input.cardId, mode: 'short-answer' },
     });
 
     const card = await prisma.card.findUnique({

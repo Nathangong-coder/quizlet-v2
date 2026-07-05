@@ -58,7 +58,10 @@ export async function submitMatchingAnswers(input: {
 
     await prisma.$transaction(answers);
 
-    const finalScore = Math.round((correctCount / cards.length) * 100);
+    // Score over the matches actually presented in this section (matching may
+    // get only a subset of the attempt's cards), not the whole card pool.
+    const denom = input.matches.length || cards.length || 1;
+    const finalScore = Math.round((correctCount / denom) * 100);
     await prisma.quizAttempt.update({
       where: { id: input.attemptId },
       data: { score: finalScore },

@@ -106,14 +106,32 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
 
   const modes: string[] = setup?.questionMode || ['multiple-choice'];
 
-  // Deal the selected cards round-robin across the modes so that the TOTAL
-  // number of questions equals the number of selected cards (never more).
-  // Each card is tested in exactly one mode. If there are fewer cards than
-  // modes, the trailing modes simply get none (and are dropped below) — this
-  // is what prevents "asked for 9, got 12" when cards < modes.
-  const cardsByMode: Card[][] = modes.map(() => [] as Card[]);
-  selectedCards.forEach((card, i) => {
-    cardsByMode[i % modes.length].push(card);
+  // Build exactly `questionCount` total questions, spread as evenly as possible
+  // across the selected sections. A card may be reused across DIFFERENT modes
+  // (e.g. tested once as MC and once as True/False) so the requested count is
+  // reachable even when the set has few distinct cards — but never repeated
+  // within a single mode. This makes "8 questions, 4 sections" give 2 per
+  // section instead of 3 total, while still never exceeding what was asked for.
+  const pool = selectedCards;
+  const nModes = modes.length;
+  const requested = Math.max(1, setup?.questionCount ?? pool.length);
+  // Ceiling: each mode can hold at most `pool.length` distinct cards.
+  const total = Math.min(requested, nModes * pool.length);
+
+  const perMode = modes.map((_, i) => {
+    const base = Math.floor(total / nModes);
+    return base + (i < total % nModes ? 1 : 0);
+  });
+
+  let offset = 0;
+  const cardsByMode: Card[][] = modes.map((_, i) => {
+    const want = Math.min(perMode[i], pool.length); // no repeats within a mode
+    const arr: Card[] = [];
+    for (let k = 0; k < want && pool.length > 0; k++) {
+      arr.push(pool[(offset + k) % pool.length]);
+    }
+    offset += want; // rotate so different modes tend to draw different cards
+    return arr;
   });
 
   const registerRef = (el: QuizSectionHandle | null, index: number) => {
