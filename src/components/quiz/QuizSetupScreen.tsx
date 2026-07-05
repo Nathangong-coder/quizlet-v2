@@ -156,7 +156,17 @@ export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSet
           <Button className="flex-1" onClick={() => onStart(setup)}>
             Start Quiz
           </Button>
-          <Button variant="outline" onClick={() => window.open(`/sets/${setId}/print`, '_blank')}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const qs = new URLSearchParams({
+                modes: setup.questionMode.join(','),
+                side: setup.promptSide,
+                count: String(setup.questionCount),
+              });
+              window.open(`/sets/${setId}/print?${qs.toString()}`, '_blank');
+            }}
+          >
             Print Test
           </Button>
         </div>

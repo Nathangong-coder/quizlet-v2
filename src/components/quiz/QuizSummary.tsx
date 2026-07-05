@@ -201,7 +201,7 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => window.open(`/sets/${setId}/print`, '_blank')}
+                    onClick={() => window.open(`/sets/${setId}/print?attemptId=${attemptId}`, '_blank')}
                   >
                     Print PDF
                   </Button>

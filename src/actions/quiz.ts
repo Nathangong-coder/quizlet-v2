@@ -329,6 +329,12 @@ export async function submitShortAnswer(input: {
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
+    // Idempotent: a re-submit for the same card replaces the prior answer
+    // instead of creating a second graded row.
+    await prisma.quizAnswer.deleteMany({
+      where: { attemptId: input.attemptId, cardId: input.cardId },
+    });
+
     const card = await prisma.card.findUnique({
       where: { id: input.cardId },
       include: { contentBlocks: true },

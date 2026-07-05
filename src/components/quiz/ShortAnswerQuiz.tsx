@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useImperativeHandle, forwardRef } from 'react';
 import { Card as CardComponent, CardContent, CardHeader } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { submitShortAnswer } from '@/actions/quiz';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
 import { Card } from '@prisma/client';
 import { ContentBlock } from '@/lib/cards/content';
 import { QuizCardPrompt } from './QuizCardPrompt';
@@ -22,38 +21,26 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
   function ShortAnswerQuiz({ cards, attemptId }, ref) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [answers, setAnswers] = useState<{ [cardId: string]: string }>({});
-    const [busy, setBusy] = useState(false);
-    // Last answer text graded per card, so navigating back and forth doesn't
-    // re-run the (expensive) AI grade unless the answer actually changed.
-    const committedRef = useRef<{ [cardId: string]: string }>({});
 
-    async function commitCard(index: number) {
-      const card = cards[index];
-      if (!card) return;
-      const text = (answers[card.id] || '').trim();
-      if (!text) return;
-      if (committedRef.current[card.id] === text) return;
-
-      const res = await submitShortAnswer({ attemptId, cardId: card.id, answer: text });
-      if (res.success) {
-        committedRef.current[card.id] = text;
-      } else {
-        toast.error(res.error || 'Failed to grade answer');
+    async function commitAll() {
+      // Grade every answered card once, on overall submit (sequential to be
+      // gentle on the AI rate limit). Changing an answer before submitting
+      // simply grades the final text once — no double grading.
+      for (const card of cards) {
+        const text = (answers[card.id] || '').trim();
+        if (!text) continue;
+        const res = await submitShortAnswer({ attemptId, cardId: card.id, answer: text });
+        if (!res.success) toast.error(res.error || 'Failed to grade answer');
       }
     }
 
-    useImperativeHandle(ref, () => ({
-      commitCurrent: () => commitCard(currentIndex),
-    }), [currentIndex, answers, attemptId]);
+    useImperativeHandle(ref, () => ({ commitAll }), [cards, answers, attemptId]);
 
-    async function goNext() {
-      setBusy(true);
-      await commitCard(currentIndex);
-      setBusy(false);
+    function goNext() {
       setCurrentIndex(i => Math.min(i + 1, cards.length - 1));
     }
 
-    async function goPrev() {
+    function goPrev() {
       setCurrentIndex(i => Math.max(i - 1, 0));
     }
 
@@ -73,14 +60,8 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
               placeholder="Type your answer here..."
               value={answers[card.id] || ''}
               onChange={(e) => setAnswers(prev => ({ ...prev, [card.id]: e.target.value }))}
-              disabled={busy}
               className="min-h-[150px] py-4"
             />
-            {busy && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="animate-spin w-4 h-4" /> Grading your answer...
-              </div>
-            )}
           </CardContent>
         </CardComponent>
 
@@ -90,7 +71,6 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
           answeredCount={answeredCount}
           onPrev={goPrev}
           onNext={goNext}
-          busy={busy}
         />
       </div>
     );

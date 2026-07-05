@@ -1,32 +1,20 @@
-import { auth } from '@/auth';
-import { prisma } from '@/lib/db';
-import { notFound } from 'next/navigation';
-import { PrintableQuiz } from '@/components/quiz/PrintableQuiz';
-import { assemblePrintableQuiz } from '@/lib/quiz/printable';
+import { redirect } from 'next/navigation';
 
-export default async function PrintPage({ params }: { params: Promise<{ id: string }> }) {
+// The printable test now lives at /sets/[id]/print (it accepts an optional
+// ?attemptId= or setup params). Keep this legacy path working by redirecting.
+export default async function QuizPrintPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { id } = await params;
-  const session = await auth();
-  if (!session) return notFound();
-
-  const set = await prisma.set.findUnique({
-    where: { id },
-    include: { cards: { include: { contentBlocks: { orderBy: { position: 'asc' } } } } },
-  });
-  if (!set) return notFound();
-
-  // In a real app, we would fetch the latest QuizAttempt setup.
-  // For now, we use a default setup.
-  const defaultSetup = {
-    promptSide: "term",
-    categoryIds: [],
-  };
-
-  const printableData = assemblePrintableQuiz(set.cards, defaultSetup);
-
-  return (
-    <div className="py-10">
-      <PrintableQuiz title={set.title} questions={printableData.questions} />
-    </div>
-  );
+  const sp = await searchParams;
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (typeof v === 'string') qs.set(k, v);
+  }
+  const suffix = qs.toString();
+  redirect(`/sets/${id}/print${suffix ? `?${suffix}` : ''}`);
 }

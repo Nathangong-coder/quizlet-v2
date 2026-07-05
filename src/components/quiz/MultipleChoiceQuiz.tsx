@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Card as CardComponent, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
@@ -26,9 +26,6 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
     const [selectedAnswers, setSelectedAnswers] = useState<{ [cardId: string]: string }>({});
     const [optionsState, setOptionsState] = useState<{ [cardId: string]: { options: string[]; correctAnswer: string } }>({});
     const [loadingCards, setLoadingCards] = useState<Set<string>>(new Set());
-    const [busy, setBusy] = useState(false);
-    // Last value persisted per card, so we skip redundant (AI-graded) re-submits.
-    const committedRef = useRef<{ [cardId: string]: string }>({});
 
     useEffect(() => {
       async function loadAllOptions() {
@@ -56,35 +53,26 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
       loadAllOptions();
     }, [cards]);
 
-    async function commitCard(index: number) {
-      const card = cards[index];
-      if (!card) return;
-      const selected = selectedAnswers[card.id];
-      const data = optionsState[card.id];
-      if (!selected || !data) return;
-      if (committedRef.current[card.id] === selected) return; // unchanged since last save
-
-      const res = await submitMultipleChoiceAnswer({
-        attemptId,
-        cardId: card.id,
-        selectedOption: selected,
-        correctAnswer: data.correctAnswer,
-      });
-      if (res.success) {
-        committedRef.current[card.id] = selected;
-      } else {
-        toast.error(res.error || 'Failed to save answer');
+    async function commitAll() {
+      // Graded once, on overall submit. Each card's answer replaces any prior
+      // one server-side (deleteMany+create), so this is safe to call once.
+      for (const card of cards) {
+        const selected = selectedAnswers[card.id];
+        const data = optionsState[card.id];
+        if (!selected || !data) continue;
+        const res = await submitMultipleChoiceAnswer({
+          attemptId,
+          cardId: card.id,
+          selectedOption: selected,
+          correctAnswer: data.correctAnswer,
+        });
+        if (!res.success) toast.error(res.error || 'Failed to save answer');
       }
     }
 
-    useImperativeHandle(ref, () => ({
-      commitCurrent: () => commitCard(currentIndex),
-    }), [currentIndex, selectedAnswers, optionsState, attemptId]);
+    useImperativeHandle(ref, () => ({ commitAll }), [cards, selectedAnswers, optionsState, attemptId]);
 
-    async function goNext() {
-      setBusy(true);
-      await commitCard(currentIndex);
-      setBusy(false);
+    function goNext() {
       setCurrentIndex(i => Math.min(i + 1, cards.length - 1));
     }
 
@@ -118,7 +106,6 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
               <RadioGroup
                 value={selectedAnswers[card.id] || ''}
                 onValueChange={(val) => setSelectedAnswers(prev => ({ ...prev, [card.id]: val }))}
-                disabled={busy}
                 className="space-y-3"
               >
                 {data.options.map((opt, idx) => (
@@ -146,7 +133,6 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
           answeredCount={answeredCount}
           onPrev={goPrev}
           onNext={goNext}
-          busy={busy}
         />
       </div>
     );

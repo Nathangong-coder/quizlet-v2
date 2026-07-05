@@ -62,13 +62,13 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
   async function handleSubmitQuiz() {
     setIsSubmitting(true);
     try {
-      // Persist whatever answer is currently on screen in each section.
-      // Earlier questions were already saved as the user navigated.
+      // Grade every section's answers exactly once, here at submit time.
+      // Sections run in parallel; each grades its answered questions.
       await Promise.all(
-        sectionRefs.current.map((r) => (r ? r.commitCurrent() : Promise.resolve())),
+        sectionRefs.current.map((r) => (r ? r.commitAll() : Promise.resolve())),
       );
     } catch (e) {
-      toast.error('Something went wrong saving your answers');
+      toast.error('Something went wrong grading your answers');
     } finally {
       setIsSubmitting(false);
       setFinished(true);
@@ -93,6 +93,12 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
     return <QuizSummary score={0} setId={setId} attemptId={attemptId!} />;
   }
 
+  if (isSubmitting) return <div className="flex flex-col items-center justify-center p-20 gap-4">
+    <Loader2 className="animate-spin w-12 h-12 text-primary" />
+    <p className="text-lg font-medium">Grading your quiz...</p>
+    <p className="text-muted-foreground animate-pulse text-sm">Scoring answers and generating feedback. This can take a moment.</p>
+  </div>;
+
   if (isLoadingCards) return <div className="flex flex-col items-center justify-center p-20 gap-4">
     <Loader2 className="animate-spin w-12 h-12 text-primary" />
     <p className="text-muted-foreground animate-pulse">Building your personalized quiz...</p>
@@ -100,20 +106,15 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
 
   const modes: string[] = setup?.questionMode || ['multiple-choice'];
 
-  // Distribute cards across the selected modes. If there are at least as many
-  // cards as modes, deal them round-robin so every mode gets a fair share and
-  // no mode is left empty. If there are fewer cards than modes, every mode
-  // tests all cards so each selected section still appears.
+  // Deal the selected cards round-robin across the modes so that the TOTAL
+  // number of questions equals the number of selected cards (never more).
+  // Each card is tested in exactly one mode. If there are fewer cards than
+  // modes, the trailing modes simply get none (and are dropped below) — this
+  // is what prevents "asked for 9, got 12" when cards < modes.
   const cardsByMode: Card[][] = modes.map(() => [] as Card[]);
-  if (selectedCards.length >= modes.length) {
-    selectedCards.forEach((card, i) => {
-      cardsByMode[i % modes.length].push(card);
-    });
-  } else {
-    for (let i = 0; i < modes.length; i++) {
-      cardsByMode[i] = selectedCards;
-    }
-  }
+  selectedCards.forEach((card, i) => {
+    cardsByMode[i % modes.length].push(card);
+  });
 
   const registerRef = (el: QuizSectionHandle | null, index: number) => {
     sectionRefs.current[index] = el;
@@ -129,9 +130,9 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => window.open(`/sets/${setId}/print`, '_blank')}
+            onClick={() => window.open(`/sets/${setId}/print?attemptId=${attemptId}`, '_blank')}
           >
-            <Printer className="w-4 h-4 mr-2" /> Print blank test (PDF)
+            <Printer className="w-4 h-4 mr-2" /> Print this test (PDF)
           </Button>
         </div>
       </div>

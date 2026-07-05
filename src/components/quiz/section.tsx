@@ -6,12 +6,12 @@ import { ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
 
 /**
  * Imperative handle every quiz section exposes to the QuizContainer.
- * The container's single "Submit Overall Quiz" button calls `commitCurrent`
- * on each section to persist whatever answer is currently on screen (answers
- * for earlier questions are already saved as the user navigates).
+ * Nothing is graded while the user navigates — the container's single
+ * "Submit Overall Quiz" button calls `commitAll` on each section, which
+ * persists/grades every answered question exactly once.
  */
 export interface QuizSectionHandle {
-  commitCurrent: () => Promise<void>;
+  commitAll: () => Promise<void>;
 }
 
 /**

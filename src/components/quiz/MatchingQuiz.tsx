@@ -86,7 +86,7 @@ export const MatchingQuiz = forwardRef<QuizSectionHandle, MatchingQuizProps>(
     }
   };
 
-  async function commitCurrent() {
+  async function commitAll() {
     if (committedRef.current) return;
     const matchesArray = Object.entries(matches).map(([termId, defId]) => ({
       cardId: termId,
@@ -105,7 +105,7 @@ export const MatchingQuiz = forwardRef<QuizSectionHandle, MatchingQuizProps>(
     }
   }
 
-  useImperativeHandle(ref, () => ({ commitCurrent }), [matches, attemptId]);
+  useImperativeHandle(ref, () => ({ commitAll }), [matches, attemptId]);
 
   const matchedDefIds = Object.values(matches);
 

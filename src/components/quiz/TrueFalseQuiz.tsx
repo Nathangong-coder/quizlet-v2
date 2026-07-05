@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useImperativeHandle, forwardRef } from 'react';
 import { Card as CardUI, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Card as PrismaCard } from '@prisma/client';
@@ -22,32 +22,19 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
   function TrueFalseQuiz({ cards, attemptId }, ref) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedAnswers, setSelectedAnswers] = useState<{ [cardId: string]: string }>({});
-    const [busy, setBusy] = useState(false);
-    const committedRef = useRef<{ [cardId: string]: string }>({});
 
-    async function commitCard(index: number) {
-      const card = cards[index];
-      if (!card) return;
-      const selected = selectedAnswers[card.id];
-      if (!selected) return;
-      if (committedRef.current[card.id] === selected) return;
-
-      const res = await submitTrueFalseAnswer({ attemptId, cardId: card.id, selectedOption: selected });
-      if (res.success) {
-        committedRef.current[card.id] = selected;
-      } else {
-        toast.error(res.error || 'Failed to save answer');
+    async function commitAll() {
+      for (const card of cards) {
+        const selected = selectedAnswers[card.id];
+        if (!selected) continue;
+        const res = await submitTrueFalseAnswer({ attemptId, cardId: card.id, selectedOption: selected });
+        if (!res.success) toast.error(res.error || 'Failed to save answer');
       }
     }
 
-    useImperativeHandle(ref, () => ({
-      commitCurrent: () => commitCard(currentIndex),
-    }), [currentIndex, selectedAnswers, attemptId]);
+    useImperativeHandle(ref, () => ({ commitAll }), [cards, selectedAnswers, attemptId]);
 
-    async function goNext() {
-      setBusy(true);
-      await commitCard(currentIndex);
-      setBusy(false);
+    function goNext() {
       setCurrentIndex(i => Math.min(i + 1, cards.length - 1));
     }
 
@@ -82,7 +69,6 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
                   type="button"
                   variant={selectedAnswers[card.id] === val ? 'default' : 'outline'}
                   onClick={() => setSelectedAnswers(prev => ({ ...prev, [card.id]: val }))}
-                  disabled={busy}
                   className={cn(
                     'px-8 capitalize transition-all',
                     selectedAnswers[card.id] === val && 'bg-primary text-primary-foreground',
@@ -101,7 +87,6 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
           answeredCount={answeredCount}
           onPrev={goPrev}
           onNext={goNext}
-          busy={busy}
         />
       </div>
     );
