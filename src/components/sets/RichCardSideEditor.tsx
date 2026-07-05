@@ -28,7 +28,12 @@ export function RichCardSideEditor({
   const addBlock = (type: ContentBlock["type"]) => {
     onChange([
       ...blocks,
-      { type, position: blocks.length, text: type === "text" ? "" : undefined },
+      {
+        id: `${Date.now()}-${Math.random()}`, // Unique ID for stable React key
+        type,
+        position: blocks.length,
+        text: type === "text" ? "" : undefined
+      },
     ]);
   };
 
@@ -80,7 +85,7 @@ export function RichCardSideEditor({
   return (
     <div className="flex flex-col gap-2">
       {blocks.map((block, i) => (
-        <div key={i} className="flex items-start gap-2">
+        <div key={block.id || i} className="flex items-start gap-2">
           <div className="flex-grow relative">
             {block.type === "text" ? (
               <div className="relative">
