@@ -1,5 +1,5 @@
 import 'server-only';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, ContentPart } from '@google/generative-ai';
 import { z } from 'zod';
 import { DEFAULT_AI_MODEL, MODEL_FALLBACKS, AiModel } from './model-routing';
 
@@ -38,24 +38,23 @@ interface GenerateParams<T> {
   model?: AiModel;
 }
 
+interface GenerateMultimodalParams<T> {
+  apiKey: string;
+  parts: ContentPart[];
+  schema: z.ZodSchema<T>;
+  model?: AiModel;
+}
+
 /**
- * Generates a validated JSON response using Google Gemini.
- * Tries models in MODEL_FALLBACKS order if the specified model fails.
+ * Core logic for generating JSON from Gemini with model fallback chain.
+ * Shared by both string-prompt and multimodal paths.
  */
-export async function generateJsonWithGoogle<T>({
-  apiKey,
-  prompt,
-  schema,
-  model = DEFAULT_AI_MODEL,
-}: GenerateParams<T>): Promise<T> {
-  const genAI = new GoogleGenerativeAI(apiKey);
-
-  // Determine which models to try
-  const modelsToTry = [
-    model,
-    ...MODEL_FALLBACKS.filter(m => m !== model)
-  ];
-
+async function generateJsonCore<T>(
+  genAI: GoogleGenerativeAI,
+  content: string | ContentPart[],
+  schema: z.ZodSchema<T>,
+  modelsToTry: AiModel[],
+): Promise<T> {
   let lastError: any;
 
   for (const currentModel of modelsToTry) {
@@ -67,7 +66,7 @@ export async function generateJsonWithGoogle<T>({
         }
       });
 
-      const result = await modelInstance.generateContent(prompt);
+      const result = await modelInstance.generateContent(content);
       const response = result.response;
       const text = response.text();
 
@@ -98,4 +97,55 @@ export async function generateJsonWithGoogle<T>({
   }
 
   throw new AiError('ai_generation_failed', `AI generation failed after trying all fallbacks. Last error: ${lastError?.message}`);
+}
+
+/**
+ * Generates a validated JSON response using Google Gemini from a string prompt.
+ * Tries models in MODEL_FALLBACKS order if the specified model fails.
+ */
+export async function generateJsonWithGoogle<T>({
+  apiKey,
+  prompt,
+  schema,
+  model = DEFAULT_AI_MODEL,
+}: GenerateParams<T>): Promise<T> {
+  const genAI = new GoogleGenerativeAI(apiKey);
+
+  // Determine which models to try
+  const modelsToTry = [
+    model,
+    ...MODEL_FALLBACKS.filter(m => m !== model)
+  ];
+
+  return generateJsonCore(genAI, prompt, schema, modelsToTry);
+}
+
+/**
+ * Generates a validated JSON response using Google Gemini from multimodal parts (text + media).
+ * Tries models in MODEL_FALLBACKS order if the specified model fails.
+ *
+ * @param apiKey User's Google API key
+ * @param parts Array of ContentParts (text and/or inlineData)
+ * @param schema Zod schema to validate the response
+ * @param model Optional model override
+ */
+export async function generateJsonMultimodal<T>({
+  apiKey,
+  parts,
+  schema,
+  model = DEFAULT_AI_MODEL,
+}: GenerateMultimodalParams<T>): Promise<T> {
+  if (!parts || parts.length === 0) {
+    throw new AiError('ai_generation_failed', 'No parts provided for multimodal generation');
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+
+  // Determine which models to try
+  const modelsToTry = [
+    model,
+    ...MODEL_FALLBACKS.filter(m => m !== model)
+  ];
+
+  return generateJsonCore(genAI, parts, schema, modelsToTry);
 }
