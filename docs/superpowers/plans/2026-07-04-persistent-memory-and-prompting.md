@@ -1,5 +1,5 @@
 # Persistent Learner Memory & Prompting Overhaul — Implementation Plan
-
+as
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** Make the app *remember the learner* across every session and feed that memory into every Gemini call. Two halves:
