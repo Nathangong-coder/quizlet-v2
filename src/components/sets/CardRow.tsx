@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Trash2 } from 'lucide-react'
 import { RichCardSideEditor } from './RichCardSideEditor'
@@ -12,12 +12,20 @@ interface CardRowProps {
   definitionBlocks: ContentBlock[]
   onChange: (index: number, side: 'term' | 'definition', blocks: ContentBlock[]) => void
   onRemove: (index: number) => void
+  onUploadStatusChange?: (isUploading: boolean) => void
   canRemove: boolean
   setId: string
   categories: string[]
 }
 
-export function CardRow({ index, termBlocks, definitionBlocks, onChange, onRemove, canRemove, setId, categories }: CardRowProps) {
+export function CardRow({ index, termBlocks, definitionBlocks, onChange, onRemove, onUploadStatusChange, canRemove, setId, categories }: CardRowProps) {
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleUploadChange = (uploading: boolean) => {
+    setIsUploading(uploading);
+    onUploadStatusChange?.(uploading);
+  };
+
   return (
     <div className="flex gap-4 items-start mb-6 p-4 border rounded-lg bg-card">
       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -29,6 +37,7 @@ export function CardRow({ index, termBlocks, definitionBlocks, onChange, onRemov
             setId={setId}
             categories={categories}
             onChange={(blocks) => onChange(index, 'term', blocks)}
+            onUploadStatusChange={handleUploadChange}
           />
         </div>
         <div className="space-y-2">
@@ -39,6 +48,7 @@ export function CardRow({ index, termBlocks, definitionBlocks, onChange, onRemov
             setId={setId}
             categories={categories}
             onChange={(blocks) => onChange(index, 'definition', blocks)}
+            onUploadStatusChange={handleUploadChange}
           />
         </div>
       </div>

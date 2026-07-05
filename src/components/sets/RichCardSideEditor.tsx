@@ -8,6 +8,7 @@ import { toast } from "sonner";
 interface RichCardSideEditorProps {
   blocks: ContentBlock[];
   onChange: (blocks: ContentBlock[]) => void;
+  onUploadStatusChange?: (isUploading: boolean) => void;
   setId: string;
   side: "term" | "definition";
   categories: string[];
@@ -16,6 +17,7 @@ interface RichCardSideEditorProps {
 export function RichCardSideEditor({
   blocks,
   onChange,
+  onUploadStatusChange,
   setId,
   side,
   categories,
@@ -42,6 +44,8 @@ export function RichCardSideEditor({
 
   const handleFileUpload = async (index: number, file: File) => {
     setUploadingIndex(index);
+    onUploadStatusChange?.(true);
+
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -62,6 +66,7 @@ export function RichCardSideEditor({
       console.error("Upload error:", e);
     } finally {
       setUploadingIndex(null);
+      onUploadStatusChange?.(false);
     }
   };
 

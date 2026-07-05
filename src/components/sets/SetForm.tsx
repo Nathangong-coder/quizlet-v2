@@ -32,6 +32,7 @@ export function SetForm({
 }: SetFormProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [isUploading, setIsUploading] = useState(false)
 
   const [title, setTitle] = useState(initialTitle)
   const [description, setDescription] = useState(initialDescription)
@@ -173,6 +174,7 @@ export function SetForm({
               definitionBlocks={card.definition}
               onChange={updateCard}
               onRemove={removeCard}
+              onUploadStatusChange={setIsUploading}
               canRemove={cards.length > 1}
               setId={setId || 'new'}
               categories={categories}
@@ -189,9 +191,9 @@ export function SetForm({
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending} className="gap-2">
-          {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-          {mode === 'create' ? 'Create Set' : 'Save Changes'}
+        <Button type="submit" disabled={isPending || isUploading} className="gap-2" title={isUploading ? "Waiting for file uploads to complete..." : ""}>
+          {(isPending || isUploading) && <Loader2 className="h-4 w-4 animate-spin" />}
+          {isUploading ? 'Uploading...' : (mode === 'create' ? 'Create Set' : 'Save Changes')}
         </Button>
       </div>
     </form>
