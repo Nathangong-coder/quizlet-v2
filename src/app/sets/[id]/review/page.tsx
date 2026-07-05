@@ -49,8 +49,8 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
       type: b.type as 'text' | 'image' | 'video' | 'file',
       position: b.position,
       side: b.side as 'term' | 'definition',
-      text: b.text,
-      assetId: b.assetId,
+      text: b.text ?? undefined,
+      assetId: b.assetId ?? undefined,
     })),
     confidence: card.progress[0]?.confidence ?? 5,
   }))
