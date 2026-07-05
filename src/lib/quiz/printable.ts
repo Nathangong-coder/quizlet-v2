@@ -110,19 +110,40 @@ interface BuildArgs {
   cards: any[];
   modes: string[];
   promptSide: 'term' | 'definition' | 'mixed';
+  /** Total number of questions to produce across all sections. */
+  questionCount?: number;
   /** Cached MC options keyed by cardId, if available. */
   mcOptions?: Record<string, { options: string[]; correctAnswer: string }>;
 }
 
 /**
- * Deal the cards across the selected modes round-robin — the SAME distribution
- * QuizContainer uses — so the printed test matches what the quiz would show.
+ * Distribute cards across the selected modes EXACTLY like QuizContainer: build
+ * `questionCount` total questions spread as evenly as possible across the
+ * sections, reusing a card across different modes (never within one) so every
+ * selected section is populated even when the set has few distinct cards.
+ * This keeps the printed test in sync with the on-screen quiz.
  */
-export function buildPrintableTest({ title, cards, modes, promptSide, mcOptions = {} }: BuildArgs): PrintableTest {
+export function buildPrintableTest({ title, cards, modes, promptSide, questionCount, mcOptions = {} }: BuildArgs): PrintableTest {
   const activeModes = modes.length > 0 ? modes : ['multiple-choice'];
-  const cardsByMode: any[][] = activeModes.map(() => []);
-  cards.forEach((card, i) => {
-    cardsByMode[i % activeModes.length].push(card);
+  const pool = cards;
+  const nModes = activeModes.length;
+  const requested = Math.max(1, questionCount ?? pool.length);
+  const total = Math.min(requested, nModes * pool.length);
+
+  const perMode = activeModes.map((_, i) => {
+    const base = Math.floor(total / nModes);
+    return base + (i < total % nModes ? 1 : 0);
+  });
+
+  let offset = 0;
+  const cardsByMode: any[][] = activeModes.map((_, i) => {
+    const want = Math.min(perMode[i], pool.length); // no repeats within a mode
+    const arr: any[] = [];
+    for (let k = 0; k < want && pool.length > 0; k++) {
+      arr.push(pool[(offset + k) % pool.length]);
+    }
+    offset += want;
+    return arr;
   });
 
   const promptFor = (card: any): 'term' | 'definition' =>

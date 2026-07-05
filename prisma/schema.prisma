@@ -220,6 +220,7 @@ model QuizAttempt {
   selectedCardIds Json?
   // Quiz setup options
   questionMode    Json?        // Changed from String? to Json to support arrays
+  questionCount   Int?         // Requested total number of questions (across all sections)
   promptSide      String?      // 'term', 'definition', 'mixed'
   categoryIds     Json?        // Array of category IDs
   starredOnly     Boolean      @default(false)

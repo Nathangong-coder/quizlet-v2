@@ -169,6 +169,7 @@ export async function startQuizAttempt(
         mode: modes[0] || 'multiple-choice', // Primary mode for legacy support
         selectedCardIds: selectedIds,
         questionMode: modes as any, // Store the full array
+        questionCount: setup.questionCount ?? questionCount ?? selectedIds.length,
         promptSide: setup.promptSide,
         categoryIds: setup.categoryIds,
         starredOnly: setup.starredOnly,

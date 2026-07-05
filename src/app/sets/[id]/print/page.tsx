@@ -28,9 +28,10 @@ export default async function PrintPage({
   let cards: any[];
   let modes: string[];
   let promptSide: 'term' | 'definition' | 'mixed' = 'term';
+  let questionCount: number | undefined;
 
   if (sp.attemptId) {
-    // Mirror an actual attempt: same cards, modes, prompt side, and MC options.
+    // Mirror an actual attempt: same cards, modes, prompt side, count, and options.
     const attempt = await prisma.quizAttempt.findUnique({ where: { id: sp.attemptId } });
     if (!attempt || attempt.setId !== id) return notFound();
 
@@ -40,6 +41,7 @@ export default async function PrintPage({
     cards = cardIds.map((cid) => found.find((c) => c.id === cid)).filter(Boolean);
     modes = ((attempt.questionMode as string[]) || [attempt.mode]).filter(Boolean);
     promptSide = (attempt.promptSide as any) || 'term';
+    questionCount = attempt.questionCount ?? cards.length;
   } else {
     const all = await prisma.card.findMany({
       where: { setId: id },
@@ -47,7 +49,8 @@ export default async function PrintPage({
       orderBy: { position: 'asc' },
     });
     const count = sp.count ? parseInt(sp.count, 10) : all.length;
-    cards = all.slice(0, Number.isFinite(count) && count > 0 ? count : all.length);
+    questionCount = Number.isFinite(count) && count > 0 ? count : all.length;
+    cards = all;
     modes = sp.modes ? sp.modes.split(',').filter(Boolean) : ['multiple-choice'];
     promptSide = (sp.side as any) || 'term';
   }
@@ -68,7 +71,7 @@ export default async function PrintPage({
     }
   }
 
-  const test = buildPrintableTest({ title: set.title, cards, modes, promptSide, mcOptions });
+  const test = buildPrintableTest({ title: set.title, cards, modes, promptSide, questionCount, mcOptions });
 
   return (
     <div className="py-6">
