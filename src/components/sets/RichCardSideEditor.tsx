@@ -117,9 +117,23 @@ export function RichCardSideEditor({
                       <div className="text-xs font-semibold text-gray-600">
                         {block.type.toUpperCase()} ASSET
                       </div>
-                      <div className="bg-gray-100 rounded p-2 text-xs text-gray-600">
-                        Asset ID: {block.assetId}
-                      </div>
+                      {block.type === "image" ? (
+                        <img
+                          src={`/api/assets/${block.assetId}`}
+                          alt="uploaded asset preview"
+                          className="max-h-40 w-auto max-w-full rounded border border-gray-200 object-contain"
+                        />
+                      ) : block.type === "video" ? (
+                        <video
+                          src={`/api/assets/${block.assetId}`}
+                          controls
+                          className="max-h-40 w-auto max-w-full rounded border border-gray-200"
+                        />
+                      ) : (
+                        <div className="bg-gray-100 rounded p-2 text-xs text-gray-600">
+                          File attached
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="flex items-center justify-center py-8 gap-2">
@@ -136,6 +150,7 @@ export function RichCardSideEditor({
                     onChange={(e) => onFileChange(i, e)}
                   />
                   <button
+                    type="button"
                     className="mt-2 w-full text-xs text-primary hover:underline rounded bg-blue-50 py-1 font-medium disabled:opacity-50"
                     onClick={() => {
                       if (block.id && fileInputRefs.current[block.id]) {
@@ -150,22 +165,22 @@ export function RichCardSideEditor({
               </div>
             )}
           </div>
-          <button onClick={() => removeBlock(i)} className="mt-1">
+          <button type="button" onClick={() => removeBlock(i)} className="mt-1">
             <Trash2 size={16} className="text-red-500" />
           </button>
         </div>
       ))}
       <div className="flex gap-2 pt-2">
-        <button className="flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200" onClick={() => addBlock("text")}>
+        <button type="button" className="flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200" onClick={() => addBlock("text")}>
           <Plus size={12} /> Text
         </button>
-        <button className="flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200" onClick={() => addBlock("image")}>
+        <button type="button" className="flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200" onClick={() => addBlock("image")}>
           <Plus size={12} /> Image
         </button>
-        <button className="flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200" onClick={() => addBlock("video")}>
+        <button type="button" className="flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200" onClick={() => addBlock("video")}>
           <Plus size={12} /> Video
         </button>
-        <button className="flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200" onClick={() => addBlock("file")}>
+        <button type="button" className="flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200" onClick={() => addBlock("file")}>
           <Plus size={12} /> File
         </button>
       </div>

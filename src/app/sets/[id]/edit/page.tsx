@@ -18,7 +18,14 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
 
   const set = await prisma.set.findUnique({
     where: { id },
-    include: { cards: true },
+    include: {
+      cards: {
+        orderBy: { position: 'asc' },
+        include: {
+          contentBlocks: { orderBy: { position: 'asc' } },
+        },
+      },
+    },
   })
 
   if (!set) {

@@ -15,12 +15,61 @@ import { toast } from 'sonner'
 import { ContentBlock } from '@/lib/cards/content'
 import { contentBlocksToPlainText, legacyCardToContentBlocks } from '@/lib/cards/content'
 
+interface InitialContentBlock {
+  id?: string
+  side?: string | null
+  type?: string | null
+  text?: string | null
+  assetId?: string | null
+  position?: number
+}
+
+interface InitialCard {
+  term: string
+  definition: string
+  position: number
+  contentBlocks?: InitialContentBlock[]
+}
+
 interface SetFormProps {
   mode: 'create' | 'edit'
   initialTitle?: string
   initialDescription?: string
-  initialCards?: { term: string; definition: string; position: number }[]
+  initialCards?: InitialCard[]
   setId?: string
+}
+
+/**
+ * Build the editor's initial per-side blocks for a card. When the card has
+ * stored content blocks (images, files, mixed text+media), we hydrate those so
+ * editing preserves them. Only when a side has no stored blocks do we fall back
+ * to wrapping the legacy plain-text term/definition in a single text block.
+ */
+function cardToEditorBlocks(card: InitialCard) {
+  const stored = card.contentBlocks ?? []
+
+  const forSide = (side: 'term' | 'definition', fallback: string): ContentBlock[] => {
+    const blocks = stored
+      .filter((b) => b.side === side)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      .map((b, i) => ({
+        id: b.id ?? `${Date.now()}-${Math.random()}`,
+        type: (b.type as ContentBlock['type']) ?? 'text',
+        text: b.text ?? undefined,
+        assetId: b.assetId ?? undefined,
+        position: i,
+        side,
+      }))
+
+    if (blocks.length > 0) return blocks
+    return [{ id: `${Date.now()}-${Math.random()}`, type: 'text', text: fallback, position: 0, side }]
+  }
+
+  return {
+    term: forSide('term', card.term),
+    definition: forSide('definition', card.definition),
+    position: card.position,
+  }
 }
 
 export function SetForm({
@@ -39,7 +88,7 @@ export function SetForm({
   const [categories, setCategories] = useState<string[]>([])
   const [cards, setCards] = useState(
     initialCards.map((c, i) => ({
-      ...legacyCardToContentBlocks(c.term, c.definition),
+      ...cardToEditorBlocks(c),
       position: i,
     }))
   )
