@@ -22,7 +22,7 @@ export function RichCardSideEditor({
   side,
   categories,
 }: RichCardSideEditorProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
 
   const addBlock = (type: ContentBlock["type"]) => {
@@ -130,12 +130,18 @@ export function RichCardSideEditor({
                   <input
                     type="file"
                     className="hidden"
-                    ref={fileInputRef}
+                    ref={(el) => {
+                      if (el && block.id) fileInputRefs.current[block.id] = el;
+                    }}
                     onChange={(e) => onFileChange(i, e)}
                   />
                   <button
                     className="mt-2 w-full text-xs text-primary hover:underline rounded bg-blue-50 py-1 font-medium disabled:opacity-50"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      if (block.id && fileInputRefs.current[block.id]) {
+                        fileInputRefs.current[block.id]?.click();
+                      }
+                    }}
                     disabled={uploadingIndex === i}
                   >
                     {block.assetId ? "Change File" : "Upload File"}
