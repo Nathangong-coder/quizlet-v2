@@ -56,6 +56,7 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
                   <ContentBlockView
                     key={i}
                     block={block}
+                    compact
                     assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
                   />
                 ))}
@@ -77,6 +78,7 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
                   <ContentBlockView
                     key={i}
                     block={block}
+                    compact
                     assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
                   />
                 ))}

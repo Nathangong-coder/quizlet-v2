@@ -485,6 +485,7 @@ export async function getQuizAttemptCards(attemptId: string): Promise<ActionResu
     const cardIds = attempt.selectedCardIds as string[];
     const cards = await prisma.card.findMany({
       where: { id: { in: cardIds } },
+      include: { contentBlocks: { orderBy: { position: 'asc' } } },
     });
 
     const sortedCards = cardIds.map(id => cards.find(c => c.id === id)).filter(Boolean);

@@ -14,6 +14,11 @@ interface ContentBlockViewProps {
   textExtract?: string; // Pre-extracted CSV preview for spreadsheets
   className?: string;
   maxWidth?: string;
+  /**
+   * Constrain media height so it fits inside fixed-height containers
+   * (flashcard flip cards, review cards) without causing scroll.
+   */
+  compact?: boolean;
 }
 
 /**
@@ -28,6 +33,7 @@ export function ContentBlockView({
   textExtract,
   className = '',
   maxWidth = 'max-w-2xl',
+  compact = false,
 }: ContentBlockViewProps) {
   const [spreadsheetExpanded, setSpreadsheetExpanded] = useState(true);
   const [imageLoading, setImageLoading] = useState(true);
@@ -56,8 +62,10 @@ export function ContentBlockView({
   switch (blockType) {
     case 'image':
       return (
-        <div className={`${maxWidth} ${className}`}>
-          {imageLoading && <div className="bg-gray-100 h-64 rounded animate-pulse" />}
+        <div className={`${compact ? 'w-auto' : maxWidth} ${className}`}>
+          {imageLoading && (
+            <div className={`bg-gray-100 rounded animate-pulse ${compact ? 'h-40' : 'h-64'}`} />
+          )}
           {imageError ? (
             <div className="bg-gray-100 rounded p-4 text-center text-gray-500">
               Failed to load image
@@ -66,7 +74,11 @@ export function ContentBlockView({
             <img
               src={assetUrl}
               alt="card content"
-              className="rounded border border-gray-200 max-w-full h-auto"
+              className={
+                compact
+                  ? 'rounded border border-gray-200 max-h-40 w-auto max-w-full object-contain mx-auto'
+                  : 'rounded border border-gray-200 max-w-full h-auto'
+              }
               onLoad={() => setImageLoading(false)}
               onError={() => {
                 setImageLoading(false);
@@ -95,10 +107,14 @@ export function ContentBlockView({
 
     case 'video':
       return (
-        <div className={`${maxWidth} ${className}`}>
+        <div className={`${compact ? 'w-auto' : maxWidth} ${className}`}>
           <video
             controls
-            className="rounded border border-gray-200 w-full"
+            className={
+              compact
+                ? 'rounded border border-gray-200 max-h-40 w-auto mx-auto'
+                : 'rounded border border-gray-200 w-full'
+            }
             src={assetUrl}
           >
             Your browser does not support the video element.

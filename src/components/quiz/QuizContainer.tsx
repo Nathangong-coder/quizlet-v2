@@ -92,8 +92,20 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
 
   const modes = setup?.questionMode || ['multiple-choice'];
 
-  // Partition cards among modes
-  const cardsPerMode = Math.ceil(selectedCards.length / modes.length);
+  // Distribute cards across the selected modes. If there are at least as many
+  // cards as modes, deal them round-robin so every mode gets a fair share and
+  // no mode is left empty. If there are fewer cards than modes, every mode
+  // tests all cards so each selected section still appears.
+  const cardsByMode: Card[][] = modes.map(() => [] as Card[]);
+  if (selectedCards.length >= modes.length) {
+    selectedCards.forEach((card, i) => {
+      cardsByMode[i % modes.length].push(card);
+    });
+  } else {
+    for (let i = 0; i < modes.length; i++) {
+      cardsByMode[i] = selectedCards;
+    }
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-12 py-8 px-4">
@@ -104,10 +116,7 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
 
       <div className="space-y-16">
         {modes.map((mode: string, index: number) => {
-          const modeCards = selectedCards.slice(
-            index * cardsPerMode,
-            (index + 1) * cardsPerMode
-          );
+          const modeCards = cardsByMode[index];
 
           if (modeCards.length === 0) return null;
 

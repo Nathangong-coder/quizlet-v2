@@ -8,9 +8,13 @@ import { submitShortAnswer } from '@/actions/quiz';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Card } from '@prisma/client';
+import { ContentBlock } from '@/lib/cards/content';
+import { QuizCardPrompt } from './QuizCardPrompt';
+
+type QuizCard = Card & { contentBlocks?: ContentBlock[] };
 
 interface ShortAnswerQuizProps {
-  cards: Card[];
+  cards: QuizCard[];
   attemptId: string;
   onFinish: (score: number) => void;
 }
@@ -58,7 +62,7 @@ export function ShortAnswerQuiz({ cards, attemptId, onFinish }: ShortAnswerQuizP
   return (
     <CardComponent className="max-w-xl mx-auto">
       <CardHeader>
-        <CardTitle>{currentCard.term}</CardTitle>
+        <QuizCardPrompt card={currentCard} side="term" />
       </CardHeader>
       <CardContent className="space-y-6">
         <Textarea

@@ -10,9 +10,13 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Card } from '@prisma/client';
 import { cn } from '@/lib/utils';
+import { ContentBlock } from '@/lib/cards/content';
+import { QuizCardPrompt } from './QuizCardPrompt';
+
+type QuizCard = Card & { contentBlocks?: ContentBlock[] };
 
 interface MultipleChoiceQuizProps {
-  cards: Card[];
+  cards: QuizCard[];
   attemptId: string;
   onFinish: (score: number) => void;
 }
@@ -106,7 +110,10 @@ export function MultipleChoiceQuiz({ cards, attemptId, onFinish }: MultipleChoic
           return (
             <CardComponent key={card.id} className="space-y-4">
               <CardHeader>
-                <CardTitle>Question {index + 1}: {card.term}</CardTitle>
+                <CardTitle className="flex items-baseline gap-2">
+                  <span className="shrink-0">Question {index + 1}:</span>
+                </CardTitle>
+                <QuizCardPrompt card={card} side="term" />
               </CardHeader>
               <CardContent>
                 {isLoading || !data ? (

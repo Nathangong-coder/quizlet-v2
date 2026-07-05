@@ -8,9 +8,13 @@ import { submitTrueFalseAnswer } from '@/actions/quiz';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ContentBlock } from '@/lib/cards/content';
+import { QuizCardPrompt } from './QuizCardPrompt';
+
+type QuizCard = PrismaCard & { contentBlocks?: ContentBlock[] };
 
 interface TrueFalseQuizProps {
-  cards: PrismaCard[];
+  cards: QuizCard[];
   attemptId: string;
   onFinish: (score: number) => void;
 }
@@ -64,12 +68,13 @@ export function TrueFalseQuiz({ cards, attemptId, onFinish }: TrueFalseQuizProps
         {cards.map((card, index) => (
           <CardUI key={card.id} className="space-y-4">
             <CardHeader>
-              <CardTitle>Question {index + 1}: {card.term}</CardTitle>
+              <CardTitle className="mb-2">Question {index + 1}</CardTitle>
+              <QuizCardPrompt card={card} side="term" />
             </CardHeader>
             <CardContent className="space-y-6 text-center">
               <div className="p-4 bg-muted rounded-lg space-y-2 text-left">
                 <p className="font-bold text-sm text-muted-foreground uppercase tracking-wider">Definition</p>
-                <p className="text-lg">{card.definition}</p>
+                <QuizCardPrompt card={card} side="definition" />
               </div>
 
               <p className="text-sm text-muted-foreground text-center">Is this the correct definition?</p>

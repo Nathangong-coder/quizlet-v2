@@ -100,6 +100,7 @@ export default function ReviewSession({ cards, setId }: ReviewSessionProps) {
                   <ContentBlockView
                     key={i}
                     block={block}
+                    compact
                     assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
                   />
                 ))}
@@ -122,6 +123,7 @@ export default function ReviewSession({ cards, setId }: ReviewSessionProps) {
                   <ContentBlockView
                     key={i}
                     block={block}
+                    compact
                     assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
                   />
                 ))}
