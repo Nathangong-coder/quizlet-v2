@@ -2,11 +2,14 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { ContentBlock } from '@/lib/cards/content'
+import { ContentBlockView } from '@/components/cards/ContentBlockView'
 
 interface FlashcardCarouselCard {
   id: string
   term: string
   definition: string
+  contentBlocks?: ContentBlock[]
 }
 
 export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselCard[] }) {
@@ -14,6 +17,8 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
   const [flipped, setFlipped] = useState(false)
 
   const card = cards[index]
+  const termBlocks = card.contentBlocks?.filter(b => b.side === 'term') ?? []
+  const defBlocks = card.contentBlocks?.filter(b => b.side === 'definition') ?? []
 
   function prev() {
     setFlipped(false)
@@ -28,7 +33,7 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
   return (
     <div className="space-y-4">
       <div
-        className="relative h-48 cursor-pointer select-none"
+        className="relative h-64 cursor-pointer select-none"
         style={{ perspective: '1000px' }}
         onClick={() => setFlipped((f) => !f)}
       >
@@ -39,19 +44,46 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
             transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
           }}
         >
+          {/* Term Side */}
           <div
-            className="absolute inset-0 rounded-xl border-2 bg-card flex flex-col items-center justify-center p-6 text-center gap-2"
+            className="absolute inset-0 rounded-xl border-2 bg-card flex flex-col items-center justify-center p-6 text-center gap-2 overflow-auto"
             style={{ backfaceVisibility: 'hidden' }}
           >
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Term</p>
-            <p className="text-xl font-semibold">{card.term}</p>
+            {termBlocks.length > 0 ? (
+              <div className="w-full space-y-2">
+                {termBlocks.map((block, i) => (
+                  <ContentBlockView
+                    key={i}
+                    block={block}
+                    assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xl font-semibold">{card.term}</p>
+            )}
           </div>
+
+          {/* Definition Side */}
           <div
-            className="absolute inset-0 rounded-xl border-2 border-primary/30 bg-muted flex flex-col items-center justify-center p-6 text-center gap-2"
+            className="absolute inset-0 rounded-xl border-2 border-primary/30 bg-muted flex flex-col items-center justify-center p-6 text-center gap-2 overflow-auto"
             style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
           >
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Definition</p>
-            <p className="text-base">{card.definition}</p>
+            {defBlocks.length > 0 ? (
+              <div className="w-full space-y-2">
+                {defBlocks.map((block, i) => (
+                  <ContentBlockView
+                    key={i}
+                    block={block}
+                    assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-base">{card.definition}</p>
+            )}
           </div>
         </div>
       </div>

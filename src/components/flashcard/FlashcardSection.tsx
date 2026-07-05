@@ -4,8 +4,10 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import FlashcardCarousel from './FlashcardCarousel'
 
+import { ContentBlock } from '@/lib/cards/content'
+
 interface FlashcardSectionProps {
-  cards: { id: string; term: string; definition: string }[]
+  cards: { id: string; term: string; definition: string; contentBlocks?: ContentBlock[] }[]
 }
 
 export default function FlashcardSection({ cards }: FlashcardSectionProps) {

@@ -21,7 +21,12 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
   const [set, progressList] = await Promise.all([
     prisma.set.findUnique({
       where: { id },
-      include: { cards: { orderBy: { position: 'asc' } } },
+      include: {
+        cards: {
+          orderBy: { position: 'asc' },
+          include: { contentBlocks: { orderBy: { position: 'asc' } } }
+        }
+      },
     }),
     session?.user?.id
       ? prisma.cardProgress.findMany({
@@ -66,6 +71,7 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
             id: c.id,
             term: c.term,
             definition: c.definition,
+            contentBlocks: c.contentBlocks,
           }))}
         />
       )}
