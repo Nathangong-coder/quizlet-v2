@@ -78,15 +78,18 @@ export async function assetToPart(assetId: string): Promise<any> {
     return null;
   }
 
-  // Fetch the blob from the storage URL
+  // Read the private blob through the authenticated Vercel Blob client.
+  // A plain fetch(url) fails for private blobs, so use `get()` which
+  // authenticates server-side via BLOB_READ_WRITE_TOKEN.
   try {
-    const response = await fetch(asset.storageKey);
-    if (!response.ok) {
-      console.error(`Failed to fetch asset from blob storage: ${asset.storageKey}`);
+    const { get } = await import('@vercel/blob');
+    const result = await get(asset.storageKey, { access: 'private' });
+    if (!result || result.statusCode !== 200 || !result.stream) {
+      console.error(`Failed to read asset from blob storage: ${assetId}`);
       return null;
     }
 
-    const buffer = await response.arrayBuffer();
+    const buffer = await new Response(result.stream).arrayBuffer();
     const base64 = Buffer.from(buffer).toString('base64');
 
     return {
