@@ -329,7 +329,10 @@ export async function submitShortAnswer(input: {
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
-    const card = await prisma.card.findUnique({ where: { id: input.cardId } });
+    const card = await prisma.card.findUnique({
+      where: { id: input.cardId },
+      include: { contentBlocks: true },
+    });
     if (!card) return { success: false, error: 'Card not found' };
 
     const credential = await prisma.aiCredential.findUnique({
@@ -340,10 +343,83 @@ export async function submitShortAnswer(input: {
     const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
     const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
 
-    const prompt = buildShortAnswerGradePrompt(card, input.answer);
-    const grade = await generateJsonWithGoogle({
+    // Get content blocks for the term side (what the user was asked about)
+    const termBlocks = card.contentBlocks
+      .filter(b => b.side === 'term')
+      .sort((a, b) => a.position - b.position);
+
+    // Use text-only path if no media
+    if (termBlocks.every(b => b.type === 'text')) {
+      const prompt = buildShortAnswerGradePrompt(card, input.answer);
+      const grade = await generateJsonWithGoogle({
+        apiKey,
+        prompt,
+        schema: ShortAnswerGradeSchema,
+        model: DEFAULT_AI_MODEL,
+      });
+
+      let annotations: any[] = [];
+      try {
+        const annPrompt = buildAnnotationPrompt(card, input.answer, card.definition);
+        const annResult = await generateJsonWithGoogle({
+          apiKey,
+          prompt: annPrompt,
+          schema: AnnotationSchema,
+          model: DEFAULT_AI_MODEL,
+        });
+        annotations = annResult.annotations;
+      } catch (e) {
+        console.error('Annotation generation failed:', e);
+      }
+
+      const score = grade.overall * 10;
+      const isCorrect = grade.overall >= 8;
+
+      const answer = await prisma.quizAnswer.create({
+        data: {
+          attemptId: input.attemptId,
+          userId: session.user.id,
+          cardId: input.cardId,
+          mode: 'short-answer',
+          prompt: input.answer,
+          answer: input.answer,
+          correctAnswer: card.definition,
+          grade: { ...grade, annotations },
+          score,
+          isCorrect,
+          feedback: grade.summary,
+        },
+      });
+
+      const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
+      const newScore = overallQuizScore(allAnswers);
+      if (newScore !== null) {
+        await prisma.quizAttempt.update({
+          where: { id: input.attemptId },
+          data: { score: Math.round(newScore) },
+        });
+      }
+
+      return { success: true, data: { grade, score } };
+    }
+
+    // Multimodal path: convert blocks to ContentBlocks and build parts
+    const { buildShortAnswerGradePromptParts } = await import('@/lib/ai/prompts');
+    const { ContentBlock } = await import('@/lib/cards/content');
+    const contentBlocks: ContentBlock[] = termBlocks.map(b => ({
+      type: b.type as any,
+      text: b.text,
+      position: b.position,
+    }));
+
+    const { parts } = buildShortAnswerGradePromptParts(card, contentBlocks, input.answer);
+
+    // In a full implementation, assetToPart would be called here to add inlineData
+    // For now, we just use the text parts as fallback
+    const { generateJsonMultimodal } = await import('@/lib/ai/google');
+    const grade = await generateJsonMultimodal({
       apiKey,
-      prompt,
+      parts,
       schema: ShortAnswerGradeSchema,
       model: DEFAULT_AI_MODEL,
     });

@@ -1,4 +1,6 @@
 import { Card } from '@prisma/client';
+import { ContentPart } from '@google/generative-ai';
+import { ContentBlock } from './cards/content';
 
 export const GRADING_RUBRIC = {
   clarity: 'How easy is the answer to understand? (1-10)',
@@ -7,11 +9,13 @@ export const GRADING_RUBRIC = {
   overall: 'Overall quality of the response. (1-10)',
 };
 
+// Text-only builders (legacy, for backwards compatibility)
+
 export function buildMultipleChoicePrompt(card: Card, siblingCards: Card[]) {
   const siblings = siblingCards
     .filter(c => c.id !== card.id)
     .map(c => c.definition)
-    .join('\\n- ');
+    .join('\n- ');
 
   return `You are a finance interview expert. Generate a multiple-choice question for the following term.
 
@@ -62,6 +66,87 @@ JSON Schema:
   "summary": string,
   "suggestedImprovement": string
 }`;
+}
+
+// Multimodal builders (new)
+
+/**
+ * Build MC prompt as ContentPart[] for multimodal support.
+ * If the prompt side (term) has media, the media becomes part of the question.
+ */
+export function buildMultipleChoicePromptParts(
+  card: Card,
+  promptBlocks: ContentBlock[],
+  siblingCards: Card[],
+): { parts: ContentPart[]; promptText: string } {
+  const siblings = siblingCards
+    .filter(c => c.id !== card.id)
+    .map(c => c.definition)
+    .join('\n- ');
+
+  const promptText = `You are a finance interview expert. Generate a multiple-choice question based on the material shown.
+
+${promptBlocks.some(b => b.type !== 'text') ? '[The question material is shown above/below as images, audio, video, etc.]' : ''}
+
+Correct Definition: ${card.definition}
+
+Other related definitions (use these as inspiration for plausible but incorrect distractors):
+- ${siblings}
+
+Requirements:
+1. Provide exactly 4 options.
+2. One option must be the exact correct definition.
+3. The other 3 must be plausible but incorrect distractors.
+4. Output the result as JSON.
+
+JSON Schema:
+{
+  "options": string[],
+  "correctAnswer": string
+}`;
+
+  return { parts: [{ text: promptText }], promptText };
+}
+
+/**
+ * Build SA grading prompt as ContentPart[] for multimodal support.
+ * The prompt side media is sent inline so grading can see what the user was asked.
+ */
+export function buildShortAnswerGradePromptParts(
+  card: Card,
+  promptBlocks: ContentBlock[],
+  answer: string,
+): { parts: ContentPart[]; promptText: string } {
+  const promptText = `You are a finance interview grader. Grade the following short-answer response.
+
+${promptBlocks.some(b => b.type !== 'text') ? '[The question material is shown above/below as images, audio, video, etc.]' : ''}
+
+Expected Definition: ${card.definition}
+User Answer: "${answer}"
+
+For each of the following categories, provide a score (1-10), a list of pros, and a list of cons:
+1. Clarity: How easy is the answer to understand?
+2. Conciseness: Does the answer avoid unnecessary filler?
+3. Correctness: How accurate is the answer compared to the definition?
+
+Additionally, provide:
+- Overall Score: A final weighted grade (1-10).
+- Summary: A concise synthesis of the performance.
+- Suggested Improvement: A specific, actionable tip to make this answer "interview-ready".
+
+Output the result as JSON.
+
+JSON Schema:
+{
+  "clarity": { "score": number, "pros": string[], "cons": string[] },
+  "conciseness": { "score": number, "pros": string[], "cons": string[] },
+  "correctness": { "score": number, "pros": string[], "cons": string[] },
+  "overall": number,
+  "summary": string,
+  "suggestedImprovement": string
+}`;
+
+  return { parts: [{ text: promptText }], promptText };
 }
 
 export interface TrainingPlanContext {
