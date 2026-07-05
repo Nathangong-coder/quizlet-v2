@@ -72,6 +72,13 @@ export function ContentBlockView({
             </div>
           ) : (
             <img
+              // Cached images (e.g. after navigating back from a quiz) can
+              // finish loading before React attaches onLoad, so the handler
+              // never fires and the pulse placeholder would stay forever.
+              // Detect the already-complete case as soon as the node mounts.
+              ref={(node) => {
+                if (node?.complete) setImageLoading(false);
+              }}
               src={assetUrl}
               alt="card content"
               className={

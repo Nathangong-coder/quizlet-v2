@@ -8,11 +8,56 @@ import { ExpandableText } from "@/components/ui/expandable-text";
 import { submitMatchingAnswers } from "@/actions/quiz-matching";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { ContentBlock } from "@/lib/cards/content";
+import { ContentBlockView } from "@/components/cards/ContentBlockView";
+
+type MatchCard = PrismaCard & { contentBlocks?: ContentBlock[] };
 
 interface MatchingQuizProps {
-  cards: PrismaCard[];
+  cards: MatchCard[];
   attemptId: string;
   onFinish: (score: number) => void;
+}
+
+/**
+ * Renders one side of a matching card. Uses the rich ContentBlockView for
+ * media (images/video/etc.) so image cards are visible in matching, and
+ * falls back to ExpandableText for plain-text cards.
+ */
+function SideContent({
+  card,
+  side,
+  className,
+}: {
+  card: MatchCard;
+  side: "term" | "definition";
+  className?: string;
+}) {
+  const blocks = (card.contentBlocks ?? [])
+    .filter((b) => b.side === side)
+    .sort((a, b) => a.position - b.position);
+
+  if (blocks.length === 0) {
+    const text = side === "term" ? card.term : card.definition;
+    return <ExpandableText text={text} className={className} />;
+  }
+
+  return (
+    <div className="space-y-2 w-full">
+      {blocks.map((block, i) =>
+        block.type === "text" ? (
+          <ExpandableText key={i} text={block.text ?? ""} className={className} />
+        ) : (
+          <ContentBlockView
+            key={i}
+            block={block}
+            compact
+            assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
+          />
+        ),
+      )}
+    </div>
+  );
 }
 
 export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) {
@@ -94,7 +139,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
                 onClick={() => !isUsed && handleDefSelect(c.id)}
                 disabled={isUsed || isSubmitting}
               >
-                <ExpandableText text={c.definition} className="text-sm" />
+                <SideContent card={c} side="definition" className="text-sm" />
               </Button>
             );
           })}
@@ -114,8 +159,8 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
 
             return (
               <div key={c.id} className="flex items-center gap-4 p-4 border rounded-xl bg-card group transition-all hover:border-primary/50 hover:shadow-sm">
-                <div className="flex-1">
-                  <p className="font-medium text-base">{c.term}</p>
+                <div className="flex-1 font-medium text-base">
+                  <SideContent card={c} side="term" />
                 </div>
                 <div className="w-72">
                   <button
@@ -129,7 +174,7 @@ export function MatchingQuiz({ cards, attemptId, onFinish }: MatchingQuizProps) 
                     )}
                   >
                     {matchedDef ? (
-                      <ExpandableText text={matchedDef.definition} className="px-2 font-medium" />
+                      <SideContent card={matchedDef} side="definition" className="px-2 font-medium" />
                     ) : (
                       <span className="italic opacity-60">Click to match...</span>
                     )}
