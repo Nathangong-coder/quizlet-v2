@@ -91,27 +91,41 @@ export function RichCardSideEditor({
               </div>
             ) : (
               <div className="relative group">
-                <div className="flex items-center gap-2 rounded border bg-gray-50 p-2 text-sm block">
+                <div className="rounded border bg-gray-50 p-3">
                   {uploadingIndex === i ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <div className="flex items-center justify-center gap-2 py-4">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm text-gray-500">Uploading...</span>
+                    </div>
+                  ) : block.assetId ? (
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold text-gray-600">
+                        {block.type.toUpperCase()} ASSET
+                      </div>
+                      <div className="bg-gray-100 rounded p-2 text-xs text-gray-600">
+                        Asset ID: {block.assetId}
+                      </div>
+                    </div>
                   ) : (
-                    <Upload className="w-4 h-4" />
+                    <div className="flex items-center justify-center py-8 gap-2">
+                      <Upload className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-500">No file uploaded</span>
+                    </div>
                   )}
-                  <span>{block.type} asset {block.assetId ? `(ID: ${block.assetId})` : "(pending)"}</span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    ref={fileInputRef}
+                    onChange={(e) => onFileChange(i, e)}
+                  />
+                  <button
+                    className="mt-2 w-full text-xs text-primary hover:underline rounded bg-blue-50 py-1 font-medium disabled:opacity-50"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingIndex === i}
+                  >
+                    {block.assetId ? "Change File" : "Upload File"}
+                  </button>
                 </div>
-                <input
-                  type="file"
-                  className="hidden"
-                  ref={fileInputRef}
-                  onChange={(e) => onFileChange(i, e)}
-                />
-                <button
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-primary hover:underline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingIndex === i}
-                >
-                  {block.assetId ? "Change" : "Upload"}
-                </button>
               </div>
             )}
           </div>
