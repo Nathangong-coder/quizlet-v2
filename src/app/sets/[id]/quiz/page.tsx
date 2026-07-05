@@ -12,7 +12,9 @@ export default async function QuizPage({ params }: { params: Promise<{ id: strin
   const set = await prisma.set.findUnique({
     where: { id },
     include: {
-      cards: true,
+      cards: {
+        include: { contentBlocks: { orderBy: { position: 'asc' } } },
+      },
       categories: true,
     },
   });

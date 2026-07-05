@@ -7,11 +7,14 @@ import StarButton from '@/components/sets/StarButton';
 import ConfidenceRate from '@/components/sets/ConfidenceRate';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
+import { ContentBlock } from '@/lib/cards/content';
+import { ContentBlockView } from '@/components/cards/ContentBlockView';
 
 interface Term {
   id: string;
   term: string;
   definition: string;
+  contentBlocks?: ContentBlock[];
 }
 
 interface Progress {
@@ -46,6 +49,9 @@ export function TermsList({ cards, progressMap, userId, setId }: TermsListProps)
 
       {cards.map((card) => {
         const progress = progressMap.get(card.id);
+        const termBlocks = card.contentBlocks?.filter(b => b.side === 'term') ?? [];
+        const defBlocks = card.contentBlocks?.filter(b => b.side === 'definition') ?? [];
+
         return (
           <Card key={card.id}>
             <CardContent className="pt-4 grid grid-cols-[1fr_1fr_auto] gap-4 items-start">
@@ -53,18 +59,42 @@ export function TermsList({ cards, progressMap, userId, setId }: TermsListProps)
                 <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
                   Term
                 </p>
-                <p className="font-medium whitespace-pre-wrap">{card.term}</p>
+                {termBlocks.length > 0 ? (
+                  <div className="space-y-2">
+                    {termBlocks.map((block, i) => (
+                      <ContentBlockView
+                        key={i}
+                        block={block}
+                        assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="font-medium whitespace-pre-wrap">{card.term}</p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">
                   Definition
                 </p>
-                <p className={cn(
-                  "whitespace-pre-wrap",
-                  isCompact && "line-clamp-2"
-                )}>
-                  {card.definition}
-                </p>
+                {defBlocks.length > 0 ? (
+                  <div className="space-y-2">
+                    {defBlocks.map((block, i) => (
+                      <ContentBlockView
+                        key={i}
+                        block={block}
+                        assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className={cn(
+                    "whitespace-pre-wrap",
+                    isCompact && "line-clamp-2"
+                  )}>
+                    {card.definition}
+                  </p>
+                )}
               </div>
               {userId && (
                 <div className="flex flex-col items-center gap-3 pt-5">

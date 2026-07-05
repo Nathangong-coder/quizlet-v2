@@ -13,6 +13,7 @@ import {
 import type { ReviewCard, ReviewSession as RS } from '@/lib/review/session'
 import { recordReview } from '@/actions/confidence'
 import { cn } from '@/lib/utils'
+import { ContentBlockView } from '@/components/cards/ContentBlockView'
 
 interface ReviewSessionProps {
   cards: ReviewCard[]
@@ -65,6 +66,9 @@ export default function ReviewSession({ cards, setId }: ReviewSessionProps) {
 
   if (!card) return null
 
+  const termBlocks = card.contentBlocks?.filter(b => b.side === 'term') ?? []
+  const defBlocks = card.contentBlocks?.filter(b => b.side === 'definition') ?? []
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -74,7 +78,7 @@ export default function ReviewSession({ cards, setId }: ReviewSessionProps) {
       </div>
 
       <div
-        className="relative h-56 cursor-pointer select-none"
+        className="relative h-64 cursor-pointer select-none"
         style={{ perspective: '1000px' }}
         onClick={() => setFlipped((f) => !f)}
       >
@@ -86,19 +90,45 @@ export default function ReviewSession({ cards, setId }: ReviewSessionProps) {
           }}
         >
           <div
-            className="absolute inset-0 rounded-xl border-2 bg-card flex flex-col items-center justify-center p-6 text-center gap-3"
+            className="absolute inset-0 rounded-xl border-2 bg-card flex flex-col items-center justify-center p-6 text-center gap-3 overflow-auto"
             style={{ backfaceVisibility: 'hidden' }}
           >
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Term</p>
-            <p className="text-xl font-semibold">{card.term}</p>
-            <p className="text-xs text-muted-foreground mt-2">Click to reveal definition</p>
+            {termBlocks.length > 0 ? (
+              <div className="space-y-2">
+                {termBlocks.map((block, i) => (
+                  <ContentBlockView
+                    key={i}
+                    block={block}
+                    assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
+                  />
+                ))}
+              </div>
+            ) : (
+              <>
+                <p className="text-xl font-semibold">{card.term}</p>
+                <p className="text-xs text-muted-foreground mt-2">Click to reveal definition</p>
+              </>
+            )}
           </div>
           <div
-            className="absolute inset-0 rounded-xl border-2 border-primary/30 bg-muted flex flex-col items-center justify-center p-6 text-center gap-3"
+            className="absolute inset-0 rounded-xl border-2 border-primary/30 bg-muted flex flex-col items-center justify-center p-6 text-center gap-3 overflow-auto"
             style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
           >
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Definition</p>
-            <p className="text-base">{card.definition}</p>
+            {defBlocks.length > 0 ? (
+              <div className="space-y-2">
+                {defBlocks.map((block, i) => (
+                  <ContentBlockView
+                    key={i}
+                    block={block}
+                    assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-base">{card.definition}</p>
+            )}
           </div>
         </div>
       </div>

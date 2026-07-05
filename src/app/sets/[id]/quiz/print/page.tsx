@@ -11,7 +11,7 @@ export default async function PrintPage({ params }: { params: Promise<{ id: stri
 
   const set = await prisma.set.findUnique({
     where: { id },
-    include: { cards: true },
+    include: { cards: { include: { contentBlocks: { orderBy: { position: 'asc' } } } } },
   });
   if (!set) return notFound();
 

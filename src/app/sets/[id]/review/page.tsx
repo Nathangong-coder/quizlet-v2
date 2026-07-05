@@ -18,6 +18,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
         orderBy: { position: 'asc' },
         include: {
           progress: { where: { userId: session.user.id } },
+          contentBlocks: { orderBy: { position: 'asc' } },
         },
       },
     },
@@ -43,6 +44,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
     id: card.id,
     term: card.term,
     definition: card.definition,
+    contentBlocks: card.contentBlocks,
     confidence: card.progress[0]?.confidence ?? 5,
   }))
 

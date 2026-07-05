@@ -1,8 +1,11 @@
+import { ContentBlock } from '../cards/content'
+
 export interface ReviewCard {
   id: string
   term: string
   definition: string
   confidence: number
+  contentBlocks?: ContentBlock[]
 }
 
 export interface ReviewSession {
