@@ -21,9 +21,23 @@ export function legacyCardToContentBlocks(term: string, definition: string) {
   };
 }
 
+/**
+ * Convert content blocks to plain text, including fallback labels for non-text blocks.
+ * Used for: matching tiles, print, AI when media can't be sent inline, search fallback.
+ */
 export function contentBlocksToPlainText(blocks: ContentBlock[]) {
   return blocks
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
+    .map((b) => {
+      if (b.type === "text") return b.text || "";
+      // Fallback labels for media: [image: filename], [audio: filename], etc.
+      const label = {
+        image: "image",
+        audio: "audio",
+        video: "video",
+        file: "file",
+      }[b.type] || b.type;
+      return `[${label}]`;
+    })
+    .filter((text) => text.length > 0)
     .join("\n");
 }

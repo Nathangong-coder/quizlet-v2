@@ -4,7 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**This is a greenfield project.** As of this writing the repo contains only `README.md`, `litellm_config.yaml`, `.env`, and this file — no application code has been scaffolded yet. The sections below describe the **agreed target architecture and the staged build plan**. Once code exists, keep this file updated to match reality and remove this notice.
+**Active codebase — Stages 1 through 3.5 are built.** The app is a working Next.js App Router project (`src/`), with a Prisma schema covering users, sets, cards, categories, rich content blocks + assets, confidence/progress memory, quiz attempts/answers, and training plans. Stage 4 (voice) is not built. Keep this file in sync with reality as stages land.
+
+**What exists today (verified in code):**
+- Flashcards, set builder, import parser (`src/lib/parser/import.ts`), search, matching game — Stage 1.
+- Star/confidence memory (`CardProgress` + `ConfidenceEvent`), flashcard carousel, Review mode — Stage 2.
+- AI multiple-choice, short-answer grading + annotations, training-plan generation, autocomplete, encrypted per-user Google key — Stage 3.
+- Activity tiles, custom categories, quiz setup/filters (starred/failed/side/mode), rich-card **authoring** scaffolding (`CardContentBlock`/`CardAsset` via Vercel Blob), printable quizzes — Stage 3.5.
+
+**Known gaps being addressed by the plans in `docs/superpowers/plans/` (dated 2026-07-04):**
+- Rich content is authored but **not rendered and never sent to Gemini** — see the Multimodal plan.
+- **Quiz sessions do not update confidence memory** (only Review mode does); prompts use raw-ID data dumps — see the Persistent Memory & Prompting plan.
+- Training plans are static artifacts that don't steer quizzes or produce lessons — see the Personalized Learning Plans plan.
+
+See also: `docs/ai/prompting-strategy.md` (current Gemini approach + improvements) and `docs/vision/beyond-a-gpt-wrapper.md`.
 
 ## What we're building
 
@@ -73,6 +86,30 @@ Build in four main stages, with Stage 3.5 as an added experience-expansion stage
 - AI **narrator asks questions aloud** (TTS); user **responds by voice** (STT).
 - Transcription **preserves filler words** ("um", "ah").
 - Grading extends Stage 3's rubric with **delivery & interview-specific metrics** (filler frequency, pacing, confidence, structure).
+
+### Stage 5 — Multimodal content & testing
+Detailed plan: `docs/superpowers/plans/2026-07-04-multimodal-content-and-testing.md`.
+- Widen ingestion to images, audio, video, spreadsheets (Excel/CSV), PDFs, and general files; render them on the flashcard, in Review/Learn, and in every quiz mode via one shared renderer.
+- **Send media to Gemini natively** (multimodal `inlineData` parts) for MC generation and grading — not OCR/transcription-to-text. Voice *delivery* metrics remain Stage 4.
+- **Excel is dual-path:** bulk-import a `term,definition` sheet into cards, **or** attach a sheet to a card side as a testable artifact (rendered table + fed to Gemini as data).
+- Private assets are owner-checked on every byte fetch (authenticated proxy route). Text-only cards and the legacy importer stay unchanged.
+
+### Stage 6 — Persistent learner memory & prompting overhaul
+Detailed plan: `docs/superpowers/plans/2026-07-04-persistent-memory-and-prompting.md`. Companion: `docs/ai/prompting-strategy.md`. **Foundational — build before Stage 7.**
+- **Single memory write path** so every mode (Review, Quiz MC/SA/TF, matching, lessons) updates per-card confidence + an append-only `StudyEvent` history. Closes the gap where quizzes don't touch confidence today.
+- Pure, tested scoring: confidence deltas, mastery, and spaced-repetition due dates. AI never *computes* mastery, only reads it.
+- Compact, **ID-free, token-capped `LearnerProfile`** injected into every judgment prompt.
+- Consolidate scattered prompts into a **versioned registry**; route grading/plan to a stronger model than autocomplete; prefer Gemini structured-output `responseSchema` over regex JSON cleanup.
+
+### Stage 7 — Personalized learning plans & AI lessons
+Detailed plan: `docs/superpowers/plans/2026-07-04-personalized-learning-plans.md`. **Depends on Stage 6.**
+- Turn the static `TrainingPlan` into a living, closed loop: memory → concrete `PlanItem`s (due/failed/starred/lesson/focus-quiz) → doing them updates memory → reshapes the next plan.
+- **Nudge in-app** with a "Today's Plan" checklist + streaks (email/push deferred but schema-ready).
+- **Plans steer quizzes** — plan items launch targeted focus-quizzes on the weak subset.
+- **AI-generated micro-lessons** (explanation + worked example + check questions), gradable and fed back into memory.
+- Item selection is a **pure function** so a useful plan exists even without an AI key; AI only adds framing + lessons.
+
+**Beyond the roadmap:** `docs/vision/beyond-a-gpt-wrapper.md` argues the moat is the owned longitudinal learner model + concept graph + closed loop (not the prompts), and lists the next bets — error-type diagnosis, concept-graph extraction, source-grounded grading, cohort signal.
 
 ## Conventions
 
