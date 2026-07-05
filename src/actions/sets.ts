@@ -17,6 +17,84 @@ const CardInputSchema = z.object({
   position: z.number().int().min(0),
 })
 
+/**
+ * Sanitize a client-side content block into the shape the database expects.
+ * The client attaches a temporary `id` (e.g. "1751688-0.23") for React keys —
+ * we must NOT write that as the DB primary key, so we strip it and let Prisma
+ * generate a real cuid. Only known columns are passed through.
+ */
+function sanitizeBlock(
+  block: any,
+  side: 'term' | 'definition',
+  position: number,
+) {
+  return {
+    side,
+    type: typeof block?.type === 'string' ? block.type : 'text',
+    text: block?.text ?? null,
+    assetId: block?.assetId ?? null,
+    position,
+  }
+}
+
+function buildContentBlockCreate(card: z.infer<typeof CardInputSchema>) {
+  return [
+    ...(card.termBlocks || []).map((b, i) => sanitizeBlock(b, 'term', i)),
+    ...(card.definitionBlocks || []).map((b, i) => sanitizeBlock(b, 'definition', i)),
+  ]
+}
+
+/**
+ * Collect every assetId referenced by a set's cards so we can backfill the
+ * owning set (and card) onto assets that were uploaded before the set existed.
+ */
+function collectAssetIds(cards: z.infer<typeof CardInputSchema>[]): string[] {
+  const ids = new Set<string>()
+  for (const card of cards) {
+    for (const b of [...(card.termBlocks || []), ...(card.definitionBlocks || [])]) {
+      if (b?.assetId) ids.add(b.assetId as string)
+    }
+  }
+  return Array.from(ids)
+}
+
+/**
+ * Link assets referenced by a set's content blocks back to the set (and card).
+ * Assets uploaded during the "create new set" flow are stored with a null
+ * setId because the set does not exist yet; this connects them once it does.
+ * Owner-guarded so a user can only ever link their own assets.
+ */
+async function backfillAssetLinks(
+  setId: string,
+  userId: string,
+  cards: z.infer<typeof CardInputSchema>[],
+) {
+  const assetIds = collectAssetIds(cards)
+  if (assetIds.length === 0) return
+
+  // Attach the owning set to every referenced asset (one query).
+  await prisma.cardAsset.updateMany({
+    where: { id: { in: assetIds }, userId },
+    data: { setId },
+  })
+
+  // Backfill cardId by reading which card each asset's block ended up on.
+  const blocks = await prisma.cardContentBlock.findMany({
+    where: { card: { setId }, assetId: { in: assetIds } },
+    select: { assetId: true, cardId: true },
+  })
+  await Promise.all(
+    blocks
+      .filter((b) => b.assetId)
+      .map((b) =>
+        prisma.cardAsset.updateMany({
+          where: { id: b.assetId as string, userId },
+          data: { cardId: b.cardId },
+        }),
+      ),
+  )
+}
+
 const SetInputSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
   description: z.string().max(1000, 'Description too long').optional(),
@@ -49,15 +127,16 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
             definition: card.definition,
             position: card.position,
             contentBlocks: {
-              create: [
-                ...(card.termBlocks || []).map((b, i) => ({ ...b, side: 'term', position: i })),
-                ...(card.definitionBlocks || []).map((b, i) => ({ ...b, side: 'definition', position: i })),
-              ]
+              create: buildContentBlockCreate(card),
             }
           })),
         },
       },
     })
+
+    // Backfill the owning set onto any assets uploaded before the set existed
+    // (they were created with a null setId during the "create" flow).
+    await backfillAssetLinks(set.id, session.user.id, validated.cards)
 
     revalidatePath('/sets')
     return { success: true, data: { setId: set.id } }
@@ -105,16 +184,17 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
               definition: card.definition,
               position: card.position,
               contentBlocks: {
-                create: [
-                  ...(card.termBlocks || []).map((b, i) => ({ ...b, side: 'term', position: i })),
-                  ...(card.definitionBlocks || []).map((b, i) => ({ ...b, side: 'definition', position: i })),
-                ]
+                create: buildContentBlockCreate(card),
               }
             })),
           },
         },
       }),
     ])
+
+    // Ensure assets referenced by this set are linked to it (covers assets
+    // uploaded during this edit session that were stored without a setId).
+    await backfillAssetLinks(id, session.user.id, validated.cards)
 
     revalidatePath('/sets')
     revalidatePath(`/sets/${id}`)

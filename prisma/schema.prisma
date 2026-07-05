@@ -105,7 +105,7 @@ model CardContentBlock {
 model CardAsset {
   id            String             @id @default(cuid())
   userId        String
-  setId         String
+  setId         String?
   cardId        String?
   storageKey    String             @unique
   originalName  String
@@ -115,7 +115,7 @@ model CardAsset {
   textExtract   String?            @db.Text          // Preview text: first N CSV rows, or file description
   createdAt     DateTime           @default(now())
   user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  set           Set                @relation(fields: [setId], references: [id], onDelete: Cascade)
+  set           Set?               @relation(fields: [setId], references: [id], onDelete: Cascade)
   card          Card?              @relation(fields: [cardId], references: [id], onDelete: SetNull)
   contentBlocks CardContentBlock[]
 

@@ -26,15 +26,15 @@ export async function GET(
   // Load asset and verify ownership
   const asset = await prisma.cardAsset.findUnique({
     where: { id: assetId },
-    include: { set: { select: { userId: true } } },
   });
 
   if (!asset) {
     return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
   }
 
-  // Verify ownership (only the set owner can access the asset)
-  if (asset.set.userId !== session.user.id) {
+  // Verify ownership. Assets always have an owning user, even before they are
+  // linked to a set, so check the asset owner directly.
+  if (asset.userId !== session.user.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -94,15 +94,14 @@ export async function DELETE(
   // Load asset and verify ownership
   const asset = await prisma.cardAsset.findUnique({
     where: { id: assetId },
-    include: { set: { select: { userId: true } } },
   });
 
   if (!asset) {
     return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
   }
 
-  // Verify ownership
-  if (asset.set.userId !== session.user.id) {
+  // Verify ownership via the asset owner directly.
+  if (asset.userId !== session.user.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

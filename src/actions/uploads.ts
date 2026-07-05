@@ -63,11 +63,30 @@ export async function uploadCardAsset(formData: FormData) {
   if (!session?.user?.id) throw new Error("Unauthorized");
 
   const file = formData.get("file") as File;
-  const setId = formData.get("setId") as string;
+  const rawSetId = formData.get("setId") as string | null;
   const cardId = formData.get("cardId") as string | null;
 
   if (!file) throw new Error("No file uploaded");
-  if (!setId) throw new Error("Set ID is required");
+
+  // Resolve the setId. On the "create new set" flow the client sends "new"
+  // (a placeholder) because the set does not exist yet. In that case we store
+  // the asset with a null setId and backfill it when the set is saved.
+  // If a real setId is provided, verify it exists and the user owns it.
+  let resolvedSetId: string | null = null;
+  if (rawSetId && rawSetId !== "new") {
+    const set = await prisma.set.findUnique({
+      where: { id: rawSetId },
+      select: { userId: true },
+    });
+    if (!set) {
+      // Set doesn't exist yet (unsaved) — store without a set link.
+      resolvedSetId = null;
+    } else if (set.userId !== session.user.id) {
+      throw new Error("You do not have access to this set");
+    } else {
+      resolvedSetId = rawSetId;
+    }
+  }
 
   // Validate MIME type against allowlist
   if (!ALLOWED_MIMES.includes(file.type)) {
@@ -102,7 +121,7 @@ export async function uploadCardAsset(formData: FormData) {
   const asset = await prisma.cardAsset.create({
     data: {
       userId: session.user.id,
-      setId,
+      setId: resolvedSetId,
       cardId: cardId || null,
       storageKey: blob.url,
       originalName: file.name,

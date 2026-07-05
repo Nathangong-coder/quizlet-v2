@@ -51,17 +51,16 @@ export async function assetToPart(assetId: string): Promise<any> {
     throw new Error('Unauthorized: no session');
   }
 
-  // Load asset and verify ownership
+  // Load asset and verify ownership via the asset owner directly.
   const asset = await prisma.cardAsset.findUnique({
     where: { id: assetId },
-    include: { set: { select: { userId: true } } },
   });
 
   if (!asset) {
     throw new Error(`Asset not found: ${assetId}`);
   }
 
-  if (asset.set.userId !== session.user.id) {
+  if (asset.userId !== session.user.id) {
     throw new Error('Forbidden: asset ownership mismatch');
   }
 
