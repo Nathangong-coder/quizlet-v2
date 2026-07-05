@@ -67,17 +67,7 @@ export async function uploadCardAsset(formData: FormData) {
   const cardId = formData.get("cardId") as string | null;
 
   if (!file) throw new Error("No file uploaded");
-
-  // Validate that setId is a real database ID (not placeholder)
-  if (!setId || setId === 'new') {
-    throw new Error("Please save the set first before uploading files");
-  }
-
-  // Verify the set exists and user owns it
-  const set = await prisma.set.findUnique({ where: { id: setId } });
-  if (!set || set.userId !== session.user.id) {
-    throw new Error("Set not found or access denied");
-  }
+  if (!setId) throw new Error("Set ID is required");
 
   // Validate MIME type against allowlist
   if (!ALLOWED_MIMES.includes(file.type)) {
