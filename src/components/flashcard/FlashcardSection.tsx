@@ -6,8 +6,16 @@ import FlashcardCarousel from './FlashcardCarousel'
 
 import { ContentBlock } from '@/lib/cards/content'
 
+interface FlashcardSectionCard {
+  id: string
+  term: string
+  definition: string
+  categories?: { name: string; color?: string | null }[]
+  contentBlocks?: ContentBlock[]
+}
+
 interface FlashcardSectionProps {
-  cards: { id: string; term: string; definition: string; contentBlocks?: ContentBlock[] }[]
+  cards: FlashcardSectionCard[]
 }
 
 export default function FlashcardSection({ cards }: FlashcardSectionProps) {

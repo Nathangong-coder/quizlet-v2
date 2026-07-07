@@ -9,11 +9,13 @@ import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { ContentBlock } from '@/lib/cards/content';
 import { ContentBlockView } from '@/components/cards/ContentBlockView';
+import { CategoryChip } from '@/components/cards/CategoryChip';
 
 interface Term {
   id: string;
   term: string;
   definition: string;
+  categories?: { name: string; color?: string | null }[];
   contentBlocks?: ContentBlock[];
 }
 
@@ -108,6 +110,13 @@ export function TermsList({ cards, progressMap, userId, setId }: TermsListProps)
                     setId={setId}
                     initialConfidence={progress?.confidence ?? 5}
                   />
+                </div>
+              )}
+              {card.categories && card.categories.length > 0 && (
+                <div className="col-span-full flex flex-wrap gap-1 pt-2">
+                  {card.categories.map((c) => (
+                    <CategoryChip key={c.name} name={c.name} color={c.color} />
+                  ))}
                 </div>
               )}
             </CardContent>

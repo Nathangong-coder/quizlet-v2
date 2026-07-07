@@ -4,11 +4,13 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ContentBlock } from '@/lib/cards/content'
 import { ContentBlockView } from '@/components/cards/ContentBlockView'
+import { CategoryChip } from '@/components/cards/CategoryChip'
 
 interface FlashcardCarouselCard {
   id: string
   term: string
   definition: string
+  categories?: { name: string; color?: string | null }[]
   contentBlocks?: ContentBlock[]
 }
 
@@ -89,6 +91,14 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
           </div>
         </div>
       </div>
+
+      {card.categories && card.categories.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-1">
+          {card.categories.map((c) => (
+            <CategoryChip key={c.name} name={c.name} color={c.color} />
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center justify-center gap-4">
         <Button variant="outline" size="sm" onClick={prev} disabled={cards.length <= 1}>
