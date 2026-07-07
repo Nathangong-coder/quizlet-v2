@@ -1,41 +1,47 @@
 import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { MatchGame } from '@/components/game/MatchGame'
 import { initMatchGame } from '@/lib/game/match'
+import { filterCardsByCategories } from '@/lib/cards/categories'
+import { CategoryUrlFilter } from '@/components/sets/CategoryUrlFilter'
 import { cn } from '@/lib/utils'
 
-export default async function MatchGamePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function MatchGamePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ cat?: string }>
+}) {
   const { id } = await params
+  const { cat } = await searchParams
 
   const set = await prisma.set.findUnique({
     where: { id },
     include: {
+      categories: true,
       cards: {
         orderBy: { position: 'asc' },
+        include: { categoryAssignments: true },
       },
     },
   })
 
-  if (!set) {
-    notFound()
-  }
+  if (!set) notFound()
 
-  if (set.cards.length < 2) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8 text-center">
-        <h1 className="text-2xl font-bold mb-4">Set too small</h1>
-        <p className="mb-6">You need at least 2 cards to play the matching game.</p>
-        <Link href={`/sets/${id}`} className={cn(buttonVariants())}>
-          Back to set
-        </Link>
-      </div>
-    )
-  }
+  const selected = cat?.split(',').filter(Boolean) ?? []
+  const cardsWithCats = set.cards.map((c) => ({
+    id: c.id,
+    term: c.term,
+    definition: c.definition,
+    categoryIds: c.categoryAssignments.map((a) => a.categoryId),
+  }))
+  const filtered = filterCardsByCategories(cardsWithCats, selected)
 
-  const gameState = initMatchGame(set.cards, crypto.randomUUID())
+  const categories = set.categories.map((c) => ({ id: c.id, name: c.name, color: c.color }))
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
@@ -49,7 +55,24 @@ export default async function MatchGamePage({ params }: { params: Promise<{ id: 
         </Link>
       </div>
 
-      <MatchGame initialTiles={gameState.tiles} />
+      <CategoryUrlFilter categories={categories} />
+
+      {filtered.length < 2 ? (
+        <div className="text-center py-16">
+          <p className="text-muted-foreground mb-2">
+            {set.cards.length < 2
+              ? 'You need at least 2 cards to play the matching game.'
+              : 'Fewer than 2 cards match the selected categories.'}
+          </p>
+          {selected.length > 0 && (
+            <Link href={`/sets/${id}/match`} className="text-primary underline text-sm">
+              Clear filter
+            </Link>
+          )}
+        </div>
+      ) : (
+        <MatchGame key={cat ?? 'all'} initialTiles={initMatchGame(filtered, crypto.randomUUID()).tiles} />
+      )}
     </div>
   )
 }
