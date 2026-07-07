@@ -47,3 +47,41 @@ export function filterCardsByCategories<T extends { categoryIds?: string[] }>(
     return realIds.some((id) => ids.includes(id));
   });
 }
+
+export interface CategoryMetaInput {
+  name: string;
+  color?: string | null;
+}
+
+export interface CollectedCategory {
+  name: string;
+  normalizedName: string;
+  color: string | null;
+}
+
+export function collectSetCategories(
+  cards: { categoryNames?: string[] }[],
+  meta: CategoryMetaInput[] = [],
+): CollectedCategory[] {
+  const byNormalized = new Map<string, CollectedCategory>();
+
+  const add = (rawName: string, color: string | null) => {
+    const name = rawName.trim();
+    if (!name) return;
+    const normalizedName = normalizeCategoryName(name);
+    if (!normalizedName) return;
+    if (!byNormalized.has(normalizedName)) {
+      byNormalized.set(normalizedName, { name, normalizedName, color });
+    }
+  };
+
+  // Explicit meta wins (display name + chosen color).
+  for (const m of meta) add(m.name, m.color ?? null);
+
+  // Defensive: ensure names referenced by cards exist even if meta missed them.
+  for (const card of cards) {
+    for (const n of card.categoryNames ?? []) add(n, null);
+  }
+
+  return Array.from(byNormalized.values());
+}

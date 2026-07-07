@@ -42,6 +42,38 @@ describe("category colors", () => {
   });
 });
 
+import { collectSetCategories } from "../../src/lib/cards/categories";
+
+describe("collectSetCategories", () => {
+  it("dedupes meta by normalized name, keeping first display name + color", () => {
+    const result = collectSetCategories([], [
+      { name: "Accounting", color: "#ef4444" },
+      { name: "accounting ", color: "#000000" },
+    ]);
+    expect(result).toEqual([
+      { name: "Accounting", normalizedName: "accounting", color: "#ef4444" },
+    ]);
+  });
+
+  it("adds card-referenced names missing from meta with a null color", () => {
+    // normalizeCategoryName only lowercases/trims and replaces whitespace runs
+    // with "-", so "Discount Rate" -> "discount-rate".
+    const result = collectSetCategories(
+      [{ categoryNames: ["Valuation"] }, { categoryNames: ["valuation", "Discount Rate"] }],
+      [{ name: "Accounting", color: "#ef4444" }],
+    );
+    expect(result).toEqual([
+      { name: "Accounting", normalizedName: "accounting", color: "#ef4444" },
+      { name: "Valuation", normalizedName: "valuation", color: null },
+      { name: "Discount Rate", normalizedName: "discount-rate", color: null },
+    ]);
+  });
+
+  it("ignores blank names", () => {
+    expect(collectSetCategories([{ categoryNames: ["", "  "] }], [{ name: " " }])).toEqual([]);
+  });
+});
+
 import { filterCardsByCategories, UNCATEGORIZED_ID } from "../../src/lib/cards/categories";
 
 describe("filterCardsByCategories", () => {
