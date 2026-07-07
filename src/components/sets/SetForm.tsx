@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useTransition, useEffect } from 'react'
+import React, { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,6 +14,8 @@ import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { ContentBlock } from '@/lib/cards/content'
 import { contentBlocksToPlainText, legacyCardToContentBlocks } from '@/lib/cards/content'
+import { CategoryManager } from './CategoryManager'
+import { normalizeCategoryName, pickDefaultColor } from '@/lib/cards/categories'
 
 interface InitialContentBlock {
   id?: string
@@ -29,6 +31,7 @@ interface InitialCard {
   definition: string
   position: number
   contentBlocks?: InitialContentBlock[]
+  categoryNames?: string[]
 }
 
 interface SetFormProps {
@@ -36,6 +39,7 @@ interface SetFormProps {
   initialTitle?: string
   initialDescription?: string
   initialCards?: InitialCard[]
+  initialCategories?: { name: string; color?: string | null }[]
   setId?: string
 }
 
@@ -68,6 +72,7 @@ function cardToEditorBlocks(card: InitialCard) {
   return {
     term: forSide('term', card.term),
     definition: forSide('definition', card.definition),
+    categoryNames: card.categoryNames ?? [],
     position: card.position,
   }
 }
@@ -77,6 +82,7 @@ export function SetForm({
   initialTitle = '',
   initialDescription = '',
   initialCards = [],
+  initialCategories = [],
   setId,
 }: SetFormProps) {
   const router = useRouter()
@@ -85,7 +91,6 @@ export function SetForm({
 
   const [title, setTitle] = useState(initialTitle)
   const [description, setDescription] = useState(initialDescription)
-  const [categories, setCategories] = useState<string[]>([])
   const [cards, setCards] = useState(
     initialCards.map((c, i) => ({
       ...cardToEditorBlocks(c),
@@ -93,18 +98,19 @@ export function SetForm({
     }))
   )
 
-  useEffect(() => {
-    if (mode === 'edit' && setId) {
-      // In a real app, we'd fetch categories for the set here.
-      // For now, we'll use a placeholder or fetch via a server action if available.
-      setCategories([]);
+  const [categoryMeta, setCategoryMeta] = useState<{ name: string; color: string }[]>(() => {
+    const metas: { name: string; color: string }[] = []
+    for (const c of initialCategories) {
+      metas.push({ name: c.name, color: c.color ?? pickDefaultColor(metas.map((m) => m.color)) })
     }
-  }, [mode, setId]);
+    return metas
+  })
 
   const addCard = () => {
     setCards([...cards, {
       term: [{ type: 'text', text: '', position: 0 }],
       definition: [{ type: 'text', text: '', position: 0 }],
+      categoryNames: [],
       position: cards.length
     }])
   }
@@ -119,9 +125,74 @@ export function SetForm({
     setCards(newCards)
   }
 
+  const handleCategoriesChange = (index: number, names: string[]) => {
+    setCards((prev) => prev.map((c, i) => (i === index ? { ...c, categoryNames: names } : c)))
+  }
+
+  const handleCreateCategory = (name: string) => {
+    setCategoryMeta((prev) => {
+      if (prev.some((m) => normalizeCategoryName(m.name) === normalizeCategoryName(name))) return prev
+      return [...prev, { name: name.trim(), color: pickDefaultColor(prev.map((m) => m.color)) }]
+    })
+  }
+
+  const handleRenameCategory = (oldName: string, newNameRaw: string) => {
+    const newName = newNameRaw.trim()
+    if (!newName) return
+    const oldNorm = normalizeCategoryName(oldName)
+    const newNorm = normalizeCategoryName(newName)
+
+    setCards((prev) =>
+      prev.map((c) => {
+        const replaced = c.categoryNames.map((n) =>
+          normalizeCategoryName(n) === oldNorm ? newName : n,
+        )
+        const deduped = Array.from(
+          new Map(replaced.map((n) => [normalizeCategoryName(n), n])).values(),
+        )
+        return { ...c, categoryNames: deduped }
+      }),
+    )
+
+    setCategoryMeta((prev) => {
+      const collides = oldNorm !== newNorm && prev.some((m) => normalizeCategoryName(m.name) === newNorm)
+      if (collides) {
+        // merge: drop the renamed-away entry, keep the existing target
+        return prev.filter((m) => normalizeCategoryName(m.name) !== oldNorm)
+      }
+      return prev.map((m) => (normalizeCategoryName(m.name) === oldNorm ? { ...m, name: newName } : m))
+    })
+  }
+
+  const handleRecolorCategory = (name: string, color: string) => {
+    setCategoryMeta((prev) =>
+      prev.map((m) => (normalizeCategoryName(m.name) === normalizeCategoryName(name) ? { ...m, color } : m)),
+    )
+  }
+
+  const handleDeleteCategory = (name: string) => {
+    const norm = normalizeCategoryName(name)
+    setCategoryMeta((prev) => prev.filter((m) => normalizeCategoryName(m.name) !== norm))
+    setCards((prev) =>
+      prev.map((c) => ({ ...c, categoryNames: c.categoryNames.filter((n) => normalizeCategoryName(n) !== norm) })),
+    )
+  }
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const c of cards) {
+      for (const n of c.categoryNames) {
+        const k = normalizeCategoryName(n)
+        counts[k] = (counts[k] ?? 0) + 1
+      }
+    }
+    return counts
+  }, [cards])
+
   const handleImport = (importedCards: ParsedCard[]) => {
     const formattedImported = importedCards.map((c, i) => ({
       ...legacyCardToContentBlocks(c.term, c.definition),
+      categoryNames: [],
       position: cards.length + i,
     }))
     setCards([...cards, ...formattedImported])
@@ -142,12 +213,20 @@ export function SetForm({
           definition: contentBlocksToPlainText(c.definition),
           termBlocks: c.term,
           definitionBlocks: c.definition,
+          categoryNames: c.categoryNames,
           position: c.position
         }))
 
+        const payload = {
+          title,
+          description,
+          cards: cardsForApi,
+          categories: categoryMeta.map((m) => ({ name: m.name, color: m.color })),
+        }
+
         const result = mode === 'create'
-          ? await createSet({ title, description, cards: cardsForApi })
-          : await updateSet(setId!, { title, description, cards: cardsForApi })
+          ? await createSet(payload)
+          : await updateSet(setId!, payload)
 
         if (result.success) {
           toast.success(mode === 'create' ? 'Set created!' : 'Set updated!')
@@ -214,6 +293,16 @@ export function SetForm({
           </div>
         </div>
 
+        {categoryMeta.length > 0 && (
+          <CategoryManager
+            categories={categoryMeta}
+            counts={categoryCounts}
+            onRename={handleRenameCategory}
+            onRecolor={handleRecolorCategory}
+            onDelete={handleDeleteCategory}
+          />
+        )}
+
         <div className="space-y-4">
           {cards.map((card, index) => (
             <CardRow
@@ -221,12 +310,15 @@ export function SetForm({
               index={index}
               termBlocks={card.term}
               definitionBlocks={card.definition}
+              categoryNames={card.categoryNames}
+              availableCategories={categoryMeta}
               onChange={updateCard}
+              onCategoriesChange={handleCategoriesChange}
+              onCreateCategory={handleCreateCategory}
               onRemove={removeCard}
               onUploadStatusChange={setIsUploading}
               canRemove={cards.length > 1}
               setId={setId || 'new'}
-              categories={categories}
             />
           ))}
         </div>
