@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import FlashcardCarousel from './FlashcardCarousel'
 import { CategoryFilterBar } from '@/components/sets/CategoryFilterBar'
-import { UNCATEGORIZED_ID, normalizeCategoryName } from '@/lib/cards/categories'
+import { normalizeCategoryName, filterCardsByCategories } from '@/lib/cards/categories'
 import { ContentBlock } from '@/lib/cards/content'
 
 interface FlashcardSectionCard {
@@ -33,15 +33,16 @@ export default function FlashcardSection({ cards }: { cards: FlashcardSectionCar
     return Array.from(map.values())
   }, [cards])
 
+  // This view only has category names (not DB ids), so map each card to a
+  // shape with `categoryIds` populated from normalized names before handing
+  // off to the shared predicate.
   const filtered = useMemo(() => {
     if (selected.length === 0) return cards
-    const wantUncat = selected.includes(UNCATEGORIZED_ID)
-    const realIds = selected.filter((s) => s !== UNCATEGORIZED_ID)
-    return cards.filter((c) => {
-      const names = (c.categories ?? []).map((x) => normalizeCategoryName(x.name))
-      if (wantUncat && names.length === 0) return true
-      return realIds.some((id) => names.includes(id))
-    })
+    const withIds = cards.map((c) => ({
+      ...c,
+      categoryIds: (c.categories ?? []).map((x) => normalizeCategoryName(x.name)),
+    }))
+    return filterCardsByCategories(withIds, selected)
   }, [cards, selected])
 
   return (
@@ -69,7 +70,7 @@ export default function FlashcardSection({ cards }: { cards: FlashcardSectionCar
             />
           )}
           {filtered.length > 0 ? (
-            <FlashcardCarousel cards={filtered} />
+            <FlashcardCarousel key={selected.join(',') || 'all'} cards={filtered} />
           ) : (
             <p className="text-center text-sm text-muted-foreground py-8">
               No cards match the selected categories.

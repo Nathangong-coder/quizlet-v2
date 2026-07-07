@@ -18,7 +18,11 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
 
-  const card = cards[index]
+  // Defense-in-depth: clamp in case `cards` ever shrinks without this
+  // component remounting (the parent is expected to pass a `key` that
+  // changes with the filter so `index` normally resets to 0 instead).
+  const safeIndex = Math.min(index, Math.max(cards.length - 1, 0))
+  const card = cards[safeIndex]
   const termBlocks = card.contentBlocks?.filter(b => b.side === 'term') ?? []
   const defBlocks = card.contentBlocks?.filter(b => b.side === 'definition') ?? []
 
@@ -105,7 +109,7 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
           ←
         </Button>
         <span className="text-sm text-muted-foreground tabular-nums">
-          {index + 1} / {cards.length}
+          {safeIndex + 1} / {cards.length}
         </span>
         <Button variant="outline" size="sm" onClick={next} disabled={cards.length <= 1}>
           →

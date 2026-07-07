@@ -15,7 +15,7 @@ const CardInputSchema = z.object({
   definition: z.string().min(1, 'Definition is required'),
   termBlocks: z.array(z.any()).optional(),
   definitionBlocks: z.array(z.any()).optional(),
-  categoryNames: z.array(z.string()).optional(),
+  categoryNames: z.array(z.string().min(1).max(60)).optional(),
   position: z.number().int().min(0),
 })
 
@@ -125,7 +125,7 @@ const SetInputSchema = z.object({
     .array(
       z.object({
         name: z.string().min(1).max(60),
-        color: z.string().max(32).nullable().optional(),
+        color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
       }),
     )
     .optional(),

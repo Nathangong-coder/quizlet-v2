@@ -2,17 +2,6 @@ export function normalizeCategoryName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, "-");
 }
 
-export function parseCategoryInput(input: string): string[] {
-  return Array.from(
-    new Set(
-      input
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0)
-    )
-  );
-}
-
 export const CATEGORY_PALETTE = [
   "#ef4444", // red
   "#f97316", // orange
