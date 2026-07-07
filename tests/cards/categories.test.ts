@@ -41,3 +41,40 @@ describe("category colors", () => {
     expect(CATEGORY_PALETTE).toContain(pickDefaultColor(all));
   });
 });
+
+import { filterCardsByCategories, UNCATEGORIZED_ID } from "../../src/lib/cards/categories";
+
+describe("filterCardsByCategories", () => {
+  const cards = [
+    { id: "a", categoryIds: ["c1"] },
+    { id: "b", categoryIds: ["c2"] },
+    { id: "c", categoryIds: ["c1", "c2"] },
+    { id: "d", categoryIds: [] },
+    { id: "e" }, // no categoryIds field at all
+  ];
+
+  it("returns all cards when nothing is selected", () => {
+    expect(filterCardsByCategories(cards, []).map((c) => c.id)).toEqual([
+      "a", "b", "c", "d", "e",
+    ]);
+  });
+
+  it("ORs across selected categories", () => {
+    expect(filterCardsByCategories(cards, ["c1"]).map((c) => c.id)).toEqual(["a", "c"]);
+    expect(filterCardsByCategories(cards, ["c1", "c2"]).map((c) => c.id)).toEqual([
+      "a", "b", "c",
+    ]);
+  });
+
+  it("matches uncategorized cards via the sentinel", () => {
+    expect(filterCardsByCategories(cards, [UNCATEGORIZED_ID]).map((c) => c.id)).toEqual([
+      "d", "e",
+    ]);
+  });
+
+  it("combines a real category with uncategorized", () => {
+    expect(filterCardsByCategories(cards, ["c1", UNCATEGORIZED_ID]).map((c) => c.id)).toEqual([
+      "a", "c", "d", "e",
+    ]);
+  });
+});

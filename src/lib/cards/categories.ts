@@ -31,3 +31,19 @@ export function pickDefaultColor(existingColors: string[]): string {
   const free = CATEGORY_PALETTE.find((c) => !used.has(c));
   return free ?? CATEGORY_PALETTE[existingColors.length % CATEGORY_PALETTE.length];
 }
+
+export const UNCATEGORIZED_ID = "__uncategorized__";
+
+export function filterCardsByCategories<T extends { categoryIds?: string[] }>(
+  cards: T[],
+  selectedCategoryIds: string[],
+): T[] {
+  if (!selectedCategoryIds || selectedCategoryIds.length === 0) return cards;
+  const wantUncategorized = selectedCategoryIds.includes(UNCATEGORIZED_ID);
+  const realIds = selectedCategoryIds.filter((id) => id !== UNCATEGORIZED_ID);
+  return cards.filter((card) => {
+    const ids = card.categoryIds ?? [];
+    if (wantUncategorized && ids.length === 0) return true;
+    return realIds.some((id) => ids.includes(id));
+  });
+}

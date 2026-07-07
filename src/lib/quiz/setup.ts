@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { filterCardsByCategories } from "@/lib/cards/categories";
 
 export const QuizSetupSchema = z.object({
   questionMode: z.array(z.enum(["multiple-choice", "short-answer", "matching", "true-false"])).min(1),
@@ -17,24 +18,13 @@ export function isPreviouslyFailed(cardId: string, quizAnswers: any[]) {
 }
 
 export function filterQuizCards(cards: any[], setup: QuizSetup, quizAnswers: any[] = []) {
-  return cards.filter((card) => {
+  const base = cards.filter((card) => {
     if (!card) return false;
-
-    if (setup.starredOnly) {
-      if (card.starred === false || card.starred === undefined) return false;
-    }
-
-    if (setup.failedOnly) {
-      if (!isPreviouslyFailed(card.id, quizAnswers)) return false;
-    }
-
-    if (setup.categoryIds && setup.categoryIds.length > 0) {
-      const cardCategories = card.categoryIds || [];
-      if (!setup.categoryIds.some((id) => cardCategories.includes(id))) return false;
-    }
-
+    if (setup.starredOnly && (card.starred === false || card.starred === undefined)) return false;
+    if (setup.failedOnly && !isPreviouslyFailed(card.id, quizAnswers)) return false;
     return true;
   });
+  return filterCardsByCategories(base, setup.categoryIds);
 }
 
 export function buildQuizPrompts(cards: any[], setup: QuizSetup) {
