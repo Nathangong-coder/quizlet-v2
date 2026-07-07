@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Flashcards, set builder, import parser (`src/lib/parser/import.ts`), search, matching game — Stage 1.
 - Star/confidence memory (`CardProgress` + `ConfidenceEvent`), flashcard carousel, Review mode — Stage 2.
 - AI multiple-choice, short-answer grading + annotations, training-plan generation, autocomplete, encrypted per-user Google key — Stage 3.
-- Activity tiles, custom categories, quiz setup/filters (starred/failed/side/mode), rich-card **authoring** scaffolding (`CardContentBlock`/`CardAsset` via Vercel Blob), printable quizzes — Stage 3.5.
+- Activity tiles, quiz setup/filters (starred/failed/side/mode), rich-card **authoring** scaffolding (`CardContentBlock`/`CardAsset` via Vercel Blob), printable quizzes — Stage 3.5. (Custom categories were only a data model + a dead quiz filter in 3.5; the full categorization feature — authoring, display, and games filtering — ships in **Stage 3.6**.)
 
 **Known gaps being addressed by the plans in `docs/superpowers/plans/` (dated 2026-07-04):**
 - Rich content is authored but **not rendered and never sent to Gemini** — see the Multimodal plan.
@@ -81,6 +81,12 @@ Build in four main stages, with Stage 3.5 as an added experience-expansion stage
 - **Rich card inputs:** Cards are no longer limited to text-only term/definition fields. Terms and definitions can include uploaded images, videos, and other files saved to the user's account/set. Preserve text support as the default and design the data model so each card side can contain multiple content blocks.
 - **AI-assisted card creation:** While creating or editing flashcards, provide AI autocomplete suggestions for partially typed terms and definitions. Suggestions must be opt-in per field action and use the user's saved Google API key.
 - **Printable quizzes:** Quiz setup/results should support a print-friendly test view with answer key controls and browser-native PDF export via print styles.
+
+### Stage 3.6 — Categorization system (complete)
+Detailed plan: `docs/superpowers/plans/2026-07-05-stage3-6-categorization-system.md`. Design: `docs/superpowers/specs/2026-07-05-stage3-6-categorization-system-design.md`. **Sits before Stage 6.**
+- Completes the half-built 3.5 categories: users label any card with one or more **custom, colored, set-scoped** categories via an autocomplete tag picker plus a set-level manage panel (rename/merge/recolor/delete). Categories persist transactionally through `createSet`/`updateSet`.
+- **Colored category chips render** on the flashcard carousel and the terms list.
+- **All study activities filter by category** — Quiz (colored chips + "Uncategorized"), Matching game and Review mode (via `?cat=` query param), and the Flashcard carousel (client-side). One shared pure predicate `filterCardsByCategories` (OR semantics + an "Uncategorized" bucket) backs every mode.
 
 ### Stage 4 — Voice interviews
 - AI **narrator asks questions aloud** (TTS); user **responds by voice** (STT).
