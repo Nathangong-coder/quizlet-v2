@@ -19,10 +19,12 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
   const set = await prisma.set.findUnique({
     where: { id },
     include: {
+      categories: true,
       cards: {
         orderBy: { position: 'asc' },
         include: {
           contentBlocks: { orderBy: { position: 'asc' } },
+          categoryAssignments: { include: { category: true } },
         },
       },
     },
@@ -44,7 +46,14 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
         setId={set.id}
         initialTitle={set.title}
         initialDescription={set.description || ''}
-        initialCards={set.cards}
+        initialCategories={set.categories.map((c) => ({ name: c.name, color: c.color }))}
+        initialCards={set.cards.map((c) => ({
+          term: c.term,
+          definition: c.definition,
+          position: c.position,
+          contentBlocks: c.contentBlocks,
+          categoryNames: c.categoryAssignments.map((a) => a.category.name),
+        }))}
       />
     </div>
   )

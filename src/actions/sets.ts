@@ -8,12 +8,14 @@ import { redirect } from 'next/navigation'
 import { ActionResult } from '@/types/action'
 
 import { ContentBlock } from '@/lib/cards/content';
+import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categories'
 
 const CardInputSchema = z.object({
   term: z.string().min(1, 'Term is required'),
   definition: z.string().min(1, 'Definition is required'),
   termBlocks: z.array(z.any()).optional(),
   definitionBlocks: z.array(z.any()).optional(),
+  categoryNames: z.array(z.string().min(1).max(60)).optional(),
   position: z.number().int().min(0),
 })
 
@@ -42,6 +44,26 @@ function buildContentBlockCreate(card: z.infer<typeof CardInputSchema>) {
     ...(card.termBlocks || []).map((b, i) => sanitizeBlock(b, 'term', i)),
     ...(card.definitionBlocks || []).map((b, i) => sanitizeBlock(b, 'definition', i)),
   ]
+}
+
+function buildCardCreate(
+  card: z.infer<typeof CardInputSchema>,
+  categoryIdByNormalized: Record<string, string>,
+) {
+  const categoryIds = Array.from(
+    new Set(
+      (card.categoryNames ?? [])
+        .map((n) => categoryIdByNormalized[normalizeCategoryName(n)])
+        .filter((id): id is string => Boolean(id)),
+    ),
+  )
+  return {
+    term: card.term,
+    definition: card.definition,
+    position: card.position,
+    contentBlocks: { create: buildContentBlockCreate(card) },
+    categoryAssignments: { create: categoryIds.map((categoryId) => ({ categoryId })) },
+  }
 }
 
 /**
@@ -99,6 +121,14 @@ const SetInputSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
   description: z.string().max(1000, 'Description too long').optional(),
   cards: z.array(CardInputSchema).min(1, 'At least one card is required'),
+  categories: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(60),
+        color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+      }),
+    )
+    .optional(),
 })
 
 type SetInput = z.infer<typeof SetInputSchema>
@@ -115,27 +145,33 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
     }
 
     const validated = SetInputSchema.parse(input)
+    const collected = collectSetCategories(validated.cards, validated.categories ?? [])
 
+    // Create the set + its categories first so we can map names -> ids.
     const set = await prisma.set.create({
       data: {
         title: validated.title,
         description: validated.description,
         userId: session.user.id,
-        cards: {
-          create: validated.cards.map(card => ({
-            term: card.term,
-            definition: card.definition,
-            position: card.position,
-            contentBlocks: {
-              create: buildContentBlockCreate(card),
-            }
+        categories: {
+          create: collected.map((c) => ({
+            name: c.name,
+            normalizedName: c.normalizedName,
+            color: c.color,
           })),
         },
       },
+      include: { categories: true },
     })
 
-    // Backfill the owning set onto any assets uploaded before the set existed
-    // (they were created with a null setId during the "create" flow).
+    const map = Object.fromEntries(set.categories.map((c) => [c.normalizedName, c.id]))
+
+    await prisma.$transaction(
+      validated.cards.map((card) =>
+        prisma.card.create({ data: { setId: set.id, ...buildCardCreate(card, map) } }),
+      ),
+    )
+
     await backfillAssetLinks(set.id, session.user.id, validated.cards)
 
     revalidatePath('/sets')
@@ -157,43 +193,43 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
 
     const validated = SetInputSchema.parse(input)
 
-    const set = await prisma.set.findUnique({
-      where: { id },
-    })
+    const existing = await prisma.set.findUnique({ where: { id } })
+    if (!existing) return { success: false, error: 'Set not found' }
+    if (existing.userId !== session.user.id) return { success: false, error: 'Unauthorized' }
 
-    if (!set) {
-      return { success: false, error: 'Set not found' }
-    }
+    const collected = collectSetCategories(validated.cards, validated.categories ?? [])
 
-    if (set.userId !== session.user.id) {
-      return { success: false, error: 'Unauthorized' }
-    }
-
+    // Reconcile the set's categories: drop removed ones (cascades assignments),
+    // upsert the rest so surviving category ids stay stable across edits.
     await prisma.$transaction([
-      prisma.card.deleteMany({
-        where: { setId: id },
+      prisma.cardCategory.deleteMany({
+        where: { setId: id, normalizedName: { notIn: collected.map((c) => c.normalizedName) } },
       }),
+      ...collected.map((c) =>
+        prisma.cardCategory.upsert({
+          where: { setId_normalizedName: { setId: id, normalizedName: c.normalizedName } },
+          create: { setId: id, name: c.name, normalizedName: c.normalizedName, color: c.color },
+          update: { name: c.name, color: c.color },
+        }),
+      ),
+    ])
+
+    const cats = await prisma.cardCategory.findMany({ where: { setId: id } })
+    const map = Object.fromEntries(cats.map((c) => [c.normalizedName, c.id]))
+
+    // Cards are fully replaced (existing behavior); assignments are recreated
+    // against the reconciled categories using the new card ids.
+    await prisma.$transaction([
+      prisma.card.deleteMany({ where: { setId: id } }),
+      ...validated.cards.map((card) =>
+        prisma.card.create({ data: { setId: id, ...buildCardCreate(card, map) } }),
+      ),
       prisma.set.update({
         where: { id },
-        data: {
-          title: validated.title,
-          description: validated.description,
-          cards: {
-            create: validated.cards.map(card => ({
-              term: card.term,
-              definition: card.definition,
-              position: card.position,
-              contentBlocks: {
-                create: buildContentBlockCreate(card),
-              }
-            })),
-          },
-        },
+        data: { title: validated.title, description: validated.description },
       }),
     ])
 
-    // Ensure assets referenced by this set are linked to it (covers assets
-    // uploaded during this edit session that were stored without a setId).
     await backfillAssetLinks(id, session.user.id, validated.cards)
 
     revalidatePath('/sets')

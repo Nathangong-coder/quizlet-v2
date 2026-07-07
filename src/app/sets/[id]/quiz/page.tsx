@@ -38,7 +38,7 @@ export default async function QuizPage({ params }: { params: Promise<{ id: strin
         <QuizClientWrapper
           setId={set.id}
           cards={set.cards}
-          categories={set.categories}
+          categories={set.categories.map((c) => ({ id: c.id, name: c.name, color: c.color }))}
         />
       )}
     </div>

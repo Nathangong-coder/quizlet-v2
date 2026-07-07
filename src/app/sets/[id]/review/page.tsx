@@ -5,20 +5,31 @@ import Link from 'next/link'
 import { Button, buttonVariants } from '@/components/ui/button'
 import ReviewSession from '@/components/review/ReviewSession'
 import { cn } from '@/lib/utils'
+import { filterCardsByCategories } from '@/lib/cards/categories'
+import { CategoryUrlFilter } from '@/components/sets/CategoryUrlFilter'
 
-export default async function ReviewPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ReviewPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ cat?: string }>
+}) {
   const { id } = await params
+  const { cat } = await searchParams
   const session = await auth()
   if (!session?.user?.id) redirect('/api/auth/signin')
 
   const set = await prisma.set.findUnique({
     where: { id },
     include: {
+      categories: true,
       cards: {
         orderBy: { position: 'asc' },
         include: {
           progress: { where: { userId: session.user.id } },
           contentBlocks: { orderBy: { position: 'asc' } },
+          categoryAssignments: true,
         },
       },
     },
@@ -40,7 +51,15 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
     )
   }
 
-  const reviewCards = set.cards.map((card) => ({
+  const selected = cat?.split(',').filter(Boolean) ?? []
+  const filteredCards = filterCardsByCategories(
+    set.cards.map((c) => ({ card: c, categoryIds: c.categoryAssignments.map((a) => a.categoryId) })),
+    selected,
+  ).map((x) => x.card)
+
+  const categories = set.categories.map((c) => ({ id: c.id, name: c.name, color: c.color }))
+
+  const reviewCards = filteredCards.map((card) => ({
     id: card.id,
     term: card.term,
     definition: card.definition,
@@ -67,7 +86,19 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
         <h1 className="text-2xl font-bold">Review Mode</h1>
         <p className="text-sm text-muted-foreground mt-1">{reviewCards.length} cards</p>
       </div>
-      <ReviewSession cards={reviewCards} setId={id} />
+      <CategoryUrlFilter categories={categories} />
+      {reviewCards.length === 0 ? (
+        <div className="text-center py-16">
+          <p className="text-muted-foreground mb-2">No cards match the selected categories.</p>
+          {selected.length > 0 && (
+            <Link href={`/sets/${id}/review`} className="text-primary underline text-sm">
+              Clear filter
+            </Link>
+          )}
+        </div>
+      ) : (
+        <ReviewSession key={cat ?? 'all'} cards={reviewCards} setId={id} />
+      )}
     </div>
   )
 }

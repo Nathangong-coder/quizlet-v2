@@ -24,7 +24,10 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
       include: {
         cards: {
           orderBy: { position: 'asc' },
-          include: { contentBlocks: { orderBy: { position: 'asc' } } }
+          include: {
+            contentBlocks: { orderBy: { position: 'asc' } },
+            categoryAssignments: { include: { category: true } },
+          }
         }
       },
     }),
@@ -71,6 +74,7 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
             id: c.id,
             term: c.term,
             definition: c.definition,
+            categories: c.categoryAssignments.map((a) => ({ name: a.category.name, color: a.category.color })),
             contentBlocks: c.contentBlocks.map(b => ({
               id: b.id,
               type: b.type as 'text' | 'image' | 'video' | 'file',
@@ -90,6 +94,7 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
           id: c.id,
           term: c.term,
           definition: c.definition,
+          categories: c.categoryAssignments.map((a) => ({ name: a.category.name, color: a.category.color })),
           contentBlocks: c.contentBlocks.map(b => ({
             id: b.id,
             type: b.type as 'text' | 'image' | 'video' | 'file',

@@ -67,6 +67,7 @@ model CardCategory {
   setId          String
   name           String
   normalizedName String
+  color          String?
   createdAt      DateTime                 @default(now())
   set            Set                      @relation(fields: [setId], references: [id], onDelete: Cascade)
   assignments    CardCategoryAssignment[]

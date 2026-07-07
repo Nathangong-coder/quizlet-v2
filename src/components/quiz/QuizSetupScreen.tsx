@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { QuizSetup, QuizSetupSchema } from "@/lib/quiz/setup";
+import { UNCATEGORIZED_ID } from "@/lib/cards/categories";
 
 interface QuizSetupScreenProps {
   setId: string;
-  availableCategories: { id: string; name: string }[];
+  availableCategories: { id: string; name: string; color?: string | null }[];
   onStart: (setup: QuizSetup) => void;
 }
 
@@ -100,21 +101,32 @@ export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSet
         <div className="space-y-3">
           <Label>Categories</Label>
           <div className="flex flex-wrap gap-2">
-            {availableCategories.map((cat) => (
-              <div
-                key={cat.id}
-                className="flex items-center gap-2 rounded-full border px-3 py-1 cursor-pointer hover:bg-gray-50"
-                onClick={() => toggleCategory(cat.id)}
-              >
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300"
-                  checked={setup.categoryIds.includes(cat.id)}
-                  readOnly
-                />
-                <span className="text-sm">{cat.name}</span>
-              </div>
-            ))}
+            {[
+              ...availableCategories,
+              { id: UNCATEGORIZED_ID, name: "Uncategorized", color: null },
+            ].map((cat) => {
+              const active = setup.categoryIds.includes(cat.id);
+              return (
+                <div
+                  key={cat.id}
+                  className="flex items-center gap-2 rounded-full border px-3 py-1 cursor-pointer hover:bg-gray-50"
+                  style={
+                    active && cat.color
+                      ? { backgroundColor: `${cat.color}20`, borderColor: cat.color, color: cat.color }
+                      : undefined
+                  }
+                  onClick={() => toggleCategory(cat.id)}
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300"
+                    checked={active}
+                    readOnly
+                  />
+                  <span className="text-sm">{cat.name}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
 

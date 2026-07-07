@@ -4,11 +4,13 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ContentBlock } from '@/lib/cards/content'
 import { ContentBlockView } from '@/components/cards/ContentBlockView'
+import { CategoryChip } from '@/components/cards/CategoryChip'
 
 interface FlashcardCarouselCard {
   id: string
   term: string
   definition: string
+  categories?: { name: string; color?: string | null }[]
   contentBlocks?: ContentBlock[]
 }
 
@@ -16,7 +18,11 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
   const [index, setIndex] = useState(0)
   const [flipped, setFlipped] = useState(false)
 
-  const card = cards[index]
+  // Defense-in-depth: clamp in case `cards` ever shrinks without this
+  // component remounting (the parent is expected to pass a `key` that
+  // changes with the filter so `index` normally resets to 0 instead).
+  const safeIndex = Math.min(index, Math.max(cards.length - 1, 0))
+  const card = cards[safeIndex]
   const termBlocks = card.contentBlocks?.filter(b => b.side === 'term') ?? []
   const defBlocks = card.contentBlocks?.filter(b => b.side === 'definition') ?? []
 
@@ -90,12 +96,20 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
         </div>
       </div>
 
+      {card.categories && card.categories.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-1">
+          {card.categories.map((c) => (
+            <CategoryChip key={c.name} name={c.name} color={c.color} />
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center justify-center gap-4">
         <Button variant="outline" size="sm" onClick={prev} disabled={cards.length <= 1}>
           ←
         </Button>
         <span className="text-sm text-muted-foreground tabular-nums">
-          {index + 1} / {cards.length}
+          {safeIndex + 1} / {cards.length}
         </span>
         <Button variant="outline" size="sm" onClick={next} disabled={cards.length <= 1}>
           →
