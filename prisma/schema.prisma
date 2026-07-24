@@ -17,6 +17,7 @@ model User {
   sets             Set[]
   cardProgress     CardProgress[]
   confidenceEvents ConfidenceEvent[]
+  studyEvents      StudyEvent[]
   aiCredential     AiCredential?
   quizAttempts     QuizAttempt[]
   quizAnswers      QuizAnswer[]
@@ -51,6 +52,7 @@ model Card {
   set                 Set                      @relation(fields: [setId], references: [id], onDelete: Cascade)
   progress            CardProgress[]
   confidenceEvents    ConfidenceEvent[]
+  studyEvents         StudyEvent[]
   quizOptionCaches    QuizOptionCache[]
   quizAnswers         QuizAnswer[]
   contentBlocks       CardContentBlock[]
@@ -159,20 +161,32 @@ model VerificationToken {
 }
 
 model CardProgress {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String
   cardId     String
-  confidence Int      @default(5)
-  starred    Boolean  @default(false)
-  updatedAt  DateTime @updatedAt
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  confidence Int       @default(5)
+  starred    Boolean   @default(false)
+  // Stage 6 (Persistent Memory): recency-weighted mastery (0-100), spaced-
+  // repetition scheduling state. dueAt/reps/lastSeenAt are populated by
+  // src/lib/memory/record.ts; dueAt's real spaced-repetition math lands in
+  // Task 4 (nextDueAt) — for now record.ts only bumps reps/lastSeenAt.
+  mastery    Int?
+  dueAt      DateTime?
+  lastSeenAt DateTime?
+  reps       Int       @default(0)
+  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card       Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@unique([userId, cardId])
   @@index([userId])
 }
 
+/// Legacy Review-mode-only event log. Superseded by StudyEvent, which every
+/// study mode writes to via src/lib/memory/record.ts. Kept for backfill/read
+/// of historical review history; no longer written to once Task 2 rewires
+/// recordReview through recordStudyEvent.
 model ConfidenceEvent {
   id         String   @id @default(cuid())
   userId     String
@@ -185,6 +199,27 @@ model ConfidenceEvent {
 
   @@index([userId, cardId])
   @@index([userId, createdAt])
+}
+
+/// Unified study-memory event log. The single write path (recordStudyEvent
+/// in src/lib/memory/record.ts) is the only writer — every mode (review,
+/// quiz MC/SA/TF, matching, lesson) logs here on every answer.
+model StudyEvent {
+  id              String   @id @default(cuid())
+  userId          String
+  cardId          String
+  source          String   // "review" | "quiz-mc" | "quiz-sa" | "quiz-tf" | "matching" | "lesson"
+  correct         Boolean?
+  score           Int?     // 0-100 scale, for graded outcomes (e.g. short-answer overall * 10)
+  confidenceAfter Int
+  latencyMs       Int?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card            Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([userId, cardId])
+  @@index([userId, createdAt])
+  @@index([userId, cardId, createdAt])
 }
 
 model AiCredential {
