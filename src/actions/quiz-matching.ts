@@ -2,6 +2,7 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
+import { recordStudyEvent } from '@/lib/memory/record';
 
 type ActionResult<T> = {
   success: boolean;
@@ -34,11 +35,13 @@ export async function submitMatchingAnswers(input: {
     });
 
     let correctCount = 0;
+    const matchOutcomes: { cardId: string; isCorrect: boolean }[] = [];
     const answers = input.matches.map(match => {
       const card = cards.find(c => c.id === match.cardId);
       const matchedCard = cards.find(c => c.id === match.matchedWithId);
       const isCorrect = match.matchedWithId === match.cardId;
       if (isCorrect) correctCount++;
+      matchOutcomes.push({ cardId: match.cardId, isCorrect });
 
       return prisma.quizAnswer.create({
         data: {
@@ -57,6 +60,19 @@ export async function submitMatchingAnswers(input: {
     });
 
     await prisma.$transaction(answers);
+
+    for (const outcome of matchOutcomes) {
+      try {
+        await recordStudyEvent({
+          userId: session.user.id,
+          cardId: outcome.cardId,
+          source: 'matching',
+          outcome: { correct: outcome.isCorrect },
+        });
+      } catch (memErr) {
+        console.error('recordStudyEvent failed for matching:', memErr);
+      }
+    }
 
     // Score over the matches actually presented in this section (matching may
     // get only a subset of the attempt's cards), not the whole card pool.

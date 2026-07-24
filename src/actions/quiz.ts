@@ -21,6 +21,7 @@ import { overallQuizScore } from '@/lib/quiz/scoring';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { QuizSetup } from '@/lib/quiz/setup';
+import { recordStudyEvent } from '@/lib/memory/record';
 
 type ActionResult<T> = {
   success: boolean;
@@ -240,6 +241,17 @@ export async function submitMultipleChoiceAnswer(input: {
       },
     });
 
+    try {
+      await recordStudyEvent({
+        userId: session.user.id,
+        cardId: input.cardId,
+        source: 'quiz-mc',
+        outcome: { correct: isCorrect },
+      });
+    } catch (memErr) {
+      console.error('recordStudyEvent failed for quiz-mc:', memErr);
+    }
+
     const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
     const newScore = overallQuizScore(allAnswers);
     if (newScore !== null) {
@@ -308,6 +320,17 @@ export async function submitTrueFalseAnswer(input: {
         feedback,
       },
     });
+
+    try {
+      await recordStudyEvent({
+        userId: session.user.id,
+        cardId: input.cardId,
+        source: 'quiz-tf',
+        outcome: { correct: isCorrect },
+      });
+    } catch (memErr) {
+      console.error('recordStudyEvent failed for quiz-tf:', memErr);
+    }
 
     const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
     const newScore = overallQuizScore(allAnswers);
@@ -402,6 +425,17 @@ export async function submitShortAnswer(input: {
         },
       });
 
+      try {
+        await recordStudyEvent({
+          userId: session.user.id,
+          cardId: input.cardId,
+          source: 'quiz-sa',
+          outcome: { overall: grade.overall },
+        });
+      } catch (memErr) {
+        console.error('recordStudyEvent failed for quiz-sa (text path):', memErr);
+      }
+
       const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
       const newScore = overallQuizScore(allAnswers);
       if (newScore !== null) {
@@ -466,6 +500,17 @@ export async function submitShortAnswer(input: {
         feedback: grade.summary,
       },
     });
+
+    try {
+      await recordStudyEvent({
+        userId: session.user.id,
+        cardId: input.cardId,
+        source: 'quiz-sa',
+        outcome: { overall: grade.overall },
+      });
+    } catch (memErr) {
+      console.error('recordStudyEvent failed for quiz-sa (multimodal path):', memErr);
+    }
 
     const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
     const newScore = overallQuizScore(allAnswers);
