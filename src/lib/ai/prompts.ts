@@ -1,5 +1,27 @@
 import { Card } from '@prisma/client';
 import { ContentBlock } from '../cards/content';
+import {
+  MULTIPLE_CHOICE_PROMPT,
+  GRADE_SHORT_ANSWER_PROMPT,
+  ANNOTATION_PROMPT,
+  MC_FEEDBACK_PROMPT,
+  TRAINING_PLAN_PROMPT,
+  AUTOCOMPLETE_PROMPT,
+  TrainingPlanContext,
+} from './prompts/registry';
+
+/**
+ * THIS FILE IS A SHIM (Stage 6 Task 5).
+ *
+ * The actual prompt text/schemas now live one-per-module under
+ * `src/lib/ai/prompts/*` (see `./prompts/registry.ts`). These functions are
+ * kept only so any import of the old names (`buildMultipleChoicePrompt`,
+ * etc.) that this task missed doesn't break at runtime. All real call sites
+ * (src/actions/quiz.ts, src/actions/training-plan.ts,
+ * src/actions/card-autocomplete.ts) have been updated to import the
+ * registry modules directly instead of going through these shims — new code
+ * should do the same, not add new callers here.
+ */
 
 export const GRADING_RUBRIC = {
   clarity: 'How easy is the answer to understand? (1-10)',
@@ -8,243 +30,53 @@ export const GRADING_RUBRIC = {
   overall: 'Overall quality of the response. (1-10)',
 };
 
-// Text-only builders (legacy, for backwards compatibility)
+// Text-only builders (legacy shims)
 
 export function buildMultipleChoicePrompt(card: Card, siblingCards: Card[]) {
-  const siblings = siblingCards
-    .filter(c => c.id !== card.id)
-    .map(c => c.definition)
-    .join('\n- ');
-
-  return `You are a finance interview expert. Generate a multiple-choice question for the following term.
-
-Term: ${card.term}
-Correct Definition: ${card.definition}
-
-Other related definitions (use these as inspiration for plausible but incorrect distractors):
-- ${siblings}
-
-Requirements:
-1. Provide exactly 4 options.
-2. One option must be the exact correct definition.
-3. The other 3 must be plausible but incorrect distractors.
-4. Output the result as JSON.
-
-JSON Schema:
-{
-  "options": string[],
-  "correctAnswer": string
-}`;
+  return MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards });
 }
 
 export function buildShortAnswerGradePrompt(card: Card, answer: string) {
-  return `You are a finance interview grader. Grade the following short-answer response.
-
-Term: ${card.term}
-Expected Definition: ${card.definition}
-User Answer: "${answer}"
-
-For each of the following categories, provide a score (1-10), a list of pros, and a list of cons:
-1. Clarity: How easy is the answer to understand?
-2. Conciseness: Does the answer avoid unnecessary filler?
-3. Correctness: How accurate is the answer compared to the definition?
-
-Additionally, provide:
-- Overall Score: A final weighted grade (1-10).
-- Summary: A concise synthesis of the performance.
-- Suggested Improvement: A specific, actionable tip to make this answer "interview-ready".
-
-Output the result as JSON.
-
-JSON Schema:
-{
-  "clarity": { "score": number, "pros": string[], "cons": string[] },
-  "conciseness": { "score": number, "pros": string[], "cons": string[] },
-  "correctness": { "score": number, "pros": string[], "cons": string[] },
-  "overall": number,
-  "summary": string,
-  "suggestedImprovement": string
-}`;
+  return GRADE_SHORT_ANSWER_PROMPT.build({ card, answer });
 }
 
-// Multimodal builders (new)
+// Multimodal builders (legacy shims)
 
-/**
- * Build MC prompt as ContentPart[] for multimodal support.
- * If the prompt side (term) has media, the media becomes part of the question.
- */
 export function buildMultipleChoicePromptParts(
   card: Card,
   promptBlocks: ContentBlock[],
   siblingCards: Card[],
 ): { parts: any[]; promptText: string } {
-  const siblings = siblingCards
-    .filter(c => c.id !== card.id)
-    .map(c => c.definition)
-    .join('\n- ');
-
-  const promptText = `You are a finance interview expert. Generate a multiple-choice question based on the material shown.
-
-${promptBlocks.some(b => b.type !== 'text') ? '[The question material is shown above/below as images, audio, video, etc.]' : ''}
-
-Correct Definition: ${card.definition}
-
-Other related definitions (use these as inspiration for plausible but incorrect distractors):
-- ${siblings}
-
-Requirements:
-1. Provide exactly 4 options.
-2. One option must be the exact correct definition.
-3. The other 3 must be plausible but incorrect distractors.
-4. Output the result as JSON.
-
-JSON Schema:
-{
-  "options": string[],
-  "correctAnswer": string
-}`;
-
-  return { parts: [{ text: promptText }], promptText };
+  return MULTIPLE_CHOICE_PROMPT.buildParts({ card, promptBlocks, siblingCards });
 }
 
-/**
- * Build SA grading prompt as ContentPart[] for multimodal support.
- * The prompt side media is sent inline so grading can see what the user was asked.
- */
 export function buildShortAnswerGradePromptParts(
   card: Card,
   promptBlocks: ContentBlock[],
   answer: string,
 ): { parts: any[]; promptText: string } {
-  const promptText = `You are a finance interview grader. Grade the following short-answer response.
-
-${promptBlocks.some(b => b.type !== 'text') ? '[The question material is shown above/below as images, audio, video, etc.]' : ''}
-
-Expected Definition: ${card.definition}
-User Answer: "${answer}"
-
-For each of the following categories, provide a score (1-10), a list of pros, and a list of cons:
-1. Clarity: How easy is the answer to understand?
-2. Conciseness: Does the answer avoid unnecessary filler?
-3. Correctness: How accurate is the answer compared to the definition?
-
-Additionally, provide:
-- Overall Score: A final weighted grade (1-10).
-- Summary: A concise synthesis of the performance.
-- Suggested Improvement: A specific, actionable tip to make this answer "interview-ready".
-
-Output the result as JSON.
-
-JSON Schema:
-{
-  "clarity": { "score": number, "pros": string[], "cons": string[] },
-  "conciseness": { "score": number, "pros": string[], "cons": string[] },
-  "correctness": { "score": number, "pros": string[], "cons": string[] },
-  "overall": number,
-  "summary": string,
-  "suggestedImprovement": string
-}`;
-
-  return { parts: [{ text: promptText }], promptText };
+  return GRADE_SHORT_ANSWER_PROMPT.buildParts({ card, promptBlocks, answer });
 }
 
-export interface TrainingPlanContext {
-  weakCards: Card[];
-  starredCards: Card[];
-  confidenceEventsSummary: string;
-  recentQuizAnswers: any[];
-}
+export type { TrainingPlanContext };
 
 export function buildTrainingPlanPrompt(context: TrainingPlanContext) {
-  const weakTerms = context.weakCards.map(c => c.term).join(', ');
-  const starredTerms = context.starredCards.map(c => c.term).join(', ');
-
-  return `You are an AI study coach. Create a personalized training plan based on the user's performance.
-
-Weak terms (confidence <= 5): ${weakTerms}
-Starred terms: ${starredTerms}
-Confidence history summary: ${context.confidenceEventsSummary}
-Recent quiz performance: ${JSON.stringify(context.recentQuizAnswers)}
-
-Requirements:
-1. Identify key focus areas with priority (low, medium, high).
-2. Recommend specific cards for review.
-3. Generate 3-5 new challenging short-answer questions targeting their weaknesses.
-4. Output as JSON.
-
-JSON Schema:
-{
-  "title": string,
-  "summary": string,
-  "focusAreas": [
-    { "label": string, "reason": string, "priority": "low" | "medium" | "high" }
-  ],
-  "recommendedCardIds": string[],
-  "generatedQuestions": [
-    { "cardId": string | null, "question": string, "expectedAnswer": string }
-  ]
-}`;
+  return TRAINING_PLAN_PROMPT.build(context);
 }
 
 export function buildAnnotationPrompt(card: Card, answer: string, correct: string) {
-  return `You are a linguistic expert. Analyze the following response for a finance interview.
-
-Term: ${card.term}
-Correct Definition: ${correct}
-User Answer: "${answer}"
-
-Your task is to annotate the user's response.
-
-Annotate for:
-1. **Bold**: Key technical terms (either used correctly or missed but should have been used).
-2. **Underline**: Exceptional phrasing or strong terminology.
-3. **Highlight**: Significant errors, omissions, or areas for improvement.
-
-For each annotation, provide the exact text segment, its type, and a brief comment.
-
-Output the result as JSON.
-
-JSON Schema:
-{
-  "annotations": [
-    { "type": "bold" | "underline" | "highlight", "text": string, "startIndex": number, "endIndex": number, "comment": string }
-  ]
-}`;
+  return ANNOTATION_PROMPT.build({ card, answer, correct });
 }
 
 export function buildMultipleChoiceGradePrompt(card: Card, selected: string, correct: string) {
-  return `You are a finance interview grader. A user answered a multiple-choice question.
-
-  Term: ${card.term}
-  Correct Definition: ${correct}
-  User's Selected Option: ${selected}
-
-  If the answer is correct, provide a brief confirmation and a "pro tip" to deepen their understanding.
-  If the answer is incorrect, explain WHY it is wrong and why the correct answer is the right one.
-
-  Keep it concise (1-2 sentences).
-  Output as JSON: { "feedback": string }`;
+  return MC_FEEDBACK_PROMPT.build({ card, selected, correct });
 }
 
-export function buildAutocompletePrompt(set: any, currentText: string, side: 'term' | 'definition', categories: string[]) {
-  const cards = set.cards.map((c: any) => `${c.term}: ${c.definition}`).join('\\n');
-  const categoriesList = categories.join(', ');
-
-  return `You are an AI study assistant for a finance interview prep app.
-
-  Set Title: ${set.title}
-  Set Description: ${set.description || 'No description provided'}
-  Categories: ${categoriesList}
-
-  Lexisting cards in this set:
-  ${cards}
-
-  The user is currently typing a ${side === 'term' ? 'term' : 'definition'}:
-  "${currentText}"
-
-  Provide 3-5 plausible autocomplete suggestions that fit the context of this set and categories.
-  If the user is typing a term, suggest common finance terms.
-  If the user is typing a definition, suggest professional, concise interview-style definitions.
-
-  Output as JSON: { "suggestions": string[] }`;
+export function buildAutocompletePrompt(
+  set: any,
+  currentText: string,
+  side: 'term' | 'definition',
+  categories: string[],
+) {
+  return AUTOCOMPLETE_PROMPT.build({ set, currentText, side, categories });
 }
