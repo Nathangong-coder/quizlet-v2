@@ -77,7 +77,14 @@ const MASTERY_WINDOW = 10
 /** Exponential recency decay applied per step back from the most recent event. */
 const MASTERY_DECAY = 0.8
 
-function eventCorrectness(event: MasteryEvent): number | null {
+/**
+ * Maps a StudyEvent-like row to a 0-1 correctness signal, or `null` if the
+ * event carries no usable signal at all. Exported so other pure modules
+ * (e.g. `lib/memory/profile.ts`'s trend/miss classification) can reuse the
+ * exact same "what counts as right/wrong" rule as `masteryScore` instead of
+ * re-deriving it.
+ */
+export function eventCorrectness(event: MasteryEvent): number | null {
   if (typeof event.correct === 'boolean') return event.correct ? 1 : 0
   if (typeof event.score === 'number') return clamp(event.score, 0, 100) / 100
   return null
