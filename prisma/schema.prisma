@@ -167,9 +167,13 @@ model CardProgress {
   confidence Int       @default(5)
   starred    Boolean   @default(false)
   // Stage 6 (Persistent Memory): recency-weighted mastery (0-100), spaced-
-  // repetition scheduling state. dueAt/reps/lastSeenAt are populated by
-  // src/lib/memory/record.ts; dueAt's real spaced-repetition math lands in
-  // Task 4 (nextDueAt) — for now record.ts only bumps reps/lastSeenAt.
+  // repetition scheduling state. dueAt/reps/lastSeenAt are computed and
+  // written by src/lib/memory/record.ts on every recordStudyEvent call, via
+  // the pure nextDueAt (src/lib/memory/schedule.ts). `reps` is the current
+  // consecutive-correct streak (resets to 0 on a wrong/poor outcome), which
+  // nextDueAt uses to grow (or reset) the interval feeding `dueAt`. Stays
+  // nullable because rows written before Task 4 (or never reviewed) may
+  // still have `dueAt: null` — treated as "due now" by getDueCards.
   mastery    Int?
   dueAt      DateTime?
   lastSeenAt DateTime?

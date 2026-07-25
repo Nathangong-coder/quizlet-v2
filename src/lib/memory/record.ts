@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import { nextConfidence, masteryScore } from './scoring'
+import { nextDueAt } from './schedule'
 import type { MasteryEvent, StudyOutcome, StudySource } from './scoring'
 
 export interface RecordStudyEventInput {
@@ -17,11 +18,11 @@ export interface RecordStudyEventResult {
   confidence: number
   mastery: number | null
   /**
-   * Spaced-repetition due date. Always `null` today — Task 4 (this same
-   * plan) introduces `nextDueAt` and wires it in below. See the extension
-   * point in the transaction.
+   * Spaced-repetition due date, computed by the pure `nextDueAt`
+   * (lib/memory/schedule.ts) from the new confidence and the card's
+   * consecutive-correct streak (`reps`).
    */
-  dueAt: Date | null
+  dueAt: Date
 }
 
 /**
@@ -30,16 +31,15 @@ export interface RecordStudyEventResult {
  * writing to `CardProgress`/event tables directly.
  *
  * Atomically:
- *  1. Reads the card's current confidence (defaulting to 5, same as the
- *     legacy `recordReview`).
+ *  1. Reads the card's current confidence and reps (defaulting to 5/0, same
+ *     as the legacy `recordReview`).
  *  2. Computes the new confidence via the pure `nextConfidence`.
  *  3. Computes a recency-weighted `mastery` via the pure `masteryScore`,
  *     folding in this interaction alongside recent StudyEvent history.
- *  4. Upserts `CardProgress` (confidence, mastery, reps, lastSeenAt).
- *  5. Inserts the new `StudyEvent` row.
- *
- * `dueAt` is a trivial no-op placeholder until Task 4 lands `nextDueAt` —
- * see the extension point marked below.
+ *  4. Computes the new consecutive-correct streak (`reps`) and the next
+ *     `dueAt` via the pure `nextDueAt` (lib/memory/schedule.ts).
+ *  5. Upserts `CardProgress` (confidence, mastery, reps, dueAt, lastSeenAt).
+ *  6. Inserts the new `StudyEvent` row.
  */
 export async function recordStudyEvent(
   input: RecordStudyEventInput
@@ -55,7 +55,7 @@ export async function recordStudyEvent(
   return prisma.$transaction(async (tx) => {
     const current = await tx.cardProgress.findUnique({
       where: { userId_cardId: { userId, cardId } },
-      select: { confidence: true },
+      select: { confidence: true, reps: true },
     })
 
     const oldConfidence = current?.confidence ?? 5
@@ -73,11 +73,19 @@ export async function recordStudyEvent(
     const thisEvent: MasteryEvent = { correct, score, createdAt: new Date() }
     const mastery = masteryScore([thisEvent, ...recentEvents])
 
-    // --- Task 4 extension point -------------------------------------------
-    // Replace with: const dueAt = nextDueAt({ confidence, mastery, reps, ... })
-    // For now, dueAt is left untouched and reps/lastSeenAt get a trivial bump.
-    const dueAt: Date | null = null
+    // --- Spaced-repetition scheduling (Task 4) ------------------------------
+    // `reps` is redefined here (from the pre-Task-4 placeholder's
+    // unconditional +1) to mean the current consecutive-correct streak: it
+    // resets to 0 on a wrong/poorly-graded outcome and grows by 1 on a
+    // correct/good one. This streak, together with the new confidence, is
+    // what `nextDueAt` uses to grow (or reset) the review interval. Compute
+    // it once here (rather than via Prisma's `{ increment: 1 }`) so the same
+    // literal number can be passed to both `nextDueAt` and the `reps:` field
+    // below — `increment` doesn't hand back the resulting value pre-write.
+    const oldReps = current?.reps ?? 0
+    const reps = correct ? oldReps + 1 : 0
     const lastSeenAt = new Date()
+    const dueAt = nextDueAt({ correct, confidence, reps, now: lastSeenAt })
     // ------------------------------------------------------------------------
 
     await tx.cardProgress.upsert({
@@ -86,7 +94,8 @@ export async function recordStudyEvent(
         confidence,
         mastery,
         lastSeenAt,
-        reps: { increment: 1 },
+        reps,
+        dueAt,
       },
       create: {
         userId,
@@ -95,7 +104,8 @@ export async function recordStudyEvent(
         mastery,
         starred: false,
         lastSeenAt,
-        reps: 1,
+        reps,
+        dueAt,
       },
     })
 
