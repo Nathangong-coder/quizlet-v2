@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { PrintableQuiz } from '@/components/quiz/PrintableQuiz';
 import { buildPrintableTest } from '@/lib/quiz/printable';
-import { DEFAULT_AI_MODEL } from '@/lib/ai/model-routing';
+import { modelFor } from '@/lib/ai/model-routing';
 import { MultipleChoiceOptionsSchema } from '@/lib/ai/schemas';
 
 const cardInclude = {
@@ -59,7 +59,7 @@ export default async function PrintPage({
   const mcOptions: Record<string, { options: string[]; correctAnswer: string }> = {};
   if (modes.includes('multiple-choice') && cards.length > 0) {
     const caches = await prisma.quizOptionCache.findMany({
-      where: { cardId: { in: cards.map((c) => c.id) }, model: DEFAULT_AI_MODEL },
+      where: { cardId: { in: cards.map((c) => c.id) }, model: modelFor('distractors') },
     });
     for (const c of caches) {
       try {

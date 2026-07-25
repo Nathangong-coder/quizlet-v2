@@ -3,8 +3,9 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { generateJsonWithGoogle } from '@/lib/ai/google';
-import { buildAutocompletePrompt } from '@/lib/ai/prompts';
+import { AUTOCOMPLETE_PROMPT } from '@/lib/ai/prompts/registry';
 import { CardAutocompleteSchema } from '@/lib/ai/schemas';
+import { modelFor } from '@/lib/ai/model-routing';
 import { z } from 'zod';
 
 type ActionResult<T> = {
@@ -37,12 +38,12 @@ export async function getCardAutocompleteSuggestions(
     const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
     const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
 
-    const prompt = buildAutocompletePrompt(set, currentText, side, categories);
+    const prompt = AUTOCOMPLETE_PROMPT.build({ set, currentText, side, categories });
     const result = await generateJsonWithGoogle({
       apiKey,
       prompt,
       schema: CardAutocompleteSchema,
-      model: 'gemini-3.5-flash' as any,
+      model: modelFor('autocomplete'),
     });
 
     return { success: true, data: result };

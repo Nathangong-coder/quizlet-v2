@@ -2,13 +2,14 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { generateJsonWithGoogle } from '@/lib/ai/google';
+import { generateJsonWithGoogle, generateJsonMultimodal } from '@/lib/ai/google';
 import {
-  buildMultipleChoicePrompt,
-  buildShortAnswerGradePrompt,
-  buildMultipleChoiceGradePrompt,
-  buildAnnotationPrompt
-} from '@/lib/ai/prompts';
+  MULTIPLE_CHOICE_PROMPT,
+  GRADE_SHORT_ANSWER_PROMPT,
+  MC_FEEDBACK_PROMPT,
+  ANNOTATION_PROMPT,
+  QUIZ_SUMMARY_PROMPT,
+} from '@/lib/ai/prompts/registry';
 import {
   MultipleChoiceOptionsSchema,
   MultipleChoiceOptions,
@@ -16,11 +17,28 @@ import {
   MultipleChoiceFeedbackSchema,
   AnnotationSchema
 } from '@/lib/ai/schemas';
-import { DEFAULT_AI_MODEL } from '@/lib/ai/model-routing';
+import { modelFor } from '@/lib/ai/model-routing';
 import { overallQuizScore } from '@/lib/quiz/scoring';
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
 import { QuizSetup } from '@/lib/quiz/setup';
+import { recordStudyEvent } from '@/lib/memory/record';
+import { buildLearnerProfile } from '@/lib/memory/profile';
+import { profileToPromptBlock } from '@/lib/ai/context';
+
+/**
+ * Builds a rendered LearnerProfile block for prompt injection, isolated so a
+ * failure never breaks the AI call it's meant to enrich (same
+ * error-isolation pattern as recordStudyEvent call sites below).
+ */
+async function safeProfileBlock(userId: string, setId: string, label: string): Promise<string | undefined> {
+  try {
+    const profile = await buildLearnerProfile({ userId, setId });
+    return profileToPromptBlock(profile);
+  } catch (err) {
+    console.error(`buildLearnerProfile failed for ${label}:`, err);
+    return undefined;
+  }
+}
 
 type ActionResult<T> = {
   success: boolean;
@@ -35,9 +53,11 @@ export async function getOrGenerateMultipleChoiceOptions(
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
+  const model = modelFor('distractors');
+
   try {
     const cached = await prisma.quizOptionCache.findUnique({
-      where: { cardId_model: { cardId, model: DEFAULT_AI_MODEL } },
+      where: { cardId_model: { cardId, model } },
     });
 
     if (cached) {
@@ -49,7 +69,7 @@ export async function getOrGenerateMultipleChoiceOptions(
           options: options.options,
           correctAnswer: options.correctAnswer,
           cacheHit: true,
-          model: DEFAULT_AI_MODEL,
+          model,
         },
       };
     }
@@ -71,18 +91,20 @@ export async function getOrGenerateMultipleChoiceOptions(
     const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
     const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
 
-    const prompt = buildMultipleChoicePrompt(card, set.cards);
+    const profileBlock = await safeProfileBlock(session.user.id, card.setId, 'MC distractors');
+
+    const prompt = MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: set.cards, profileBlock });
     const options = await generateJsonWithGoogle({
       apiKey,
       prompt,
       schema: MultipleChoiceOptionsSchema,
-      model: DEFAULT_AI_MODEL,
+      model,
     });
 
     await prisma.quizOptionCache.create({
       data: {
         cardId,
-        model: DEFAULT_AI_MODEL,
+        model,
         options: options as any,
       },
     });
@@ -92,7 +114,7 @@ export async function getOrGenerateMultipleChoiceOptions(
       options: options.options,
       correctAnswer: options.correctAnswer,
       cacheHit: false,
-      model: DEFAULT_AI_MODEL,
+      model,
     };
 
     return {
@@ -214,12 +236,12 @@ export async function submitMultipleChoiceAnswer(input: {
       if (credential) {
         const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
         const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
-        const prompt = buildMultipleChoiceGradePrompt(card, input.selectedOption, input.correctAnswer);
+        const prompt = MC_FEEDBACK_PROMPT.build({ card, selected: input.selectedOption, correct: input.correctAnswer });
         const aiResult = await generateJsonWithGoogle({
           apiKey,
           prompt,
           schema: MultipleChoiceFeedbackSchema,
-          model: DEFAULT_AI_MODEL,
+          model: modelFor('distractors'),
         });
         feedback = aiResult.feedback;
       }
@@ -239,6 +261,17 @@ export async function submitMultipleChoiceAnswer(input: {
         feedback,
       },
     });
+
+    try {
+      await recordStudyEvent({
+        userId: session.user.id,
+        cardId: input.cardId,
+        source: 'quiz-mc',
+        outcome: { correct: isCorrect },
+      });
+    } catch (memErr) {
+      console.error('recordStudyEvent failed for quiz-mc:', memErr);
+    }
 
     const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
     const newScore = overallQuizScore(allAnswers);
@@ -283,12 +316,12 @@ export async function submitTrueFalseAnswer(input: {
       if (credential) {
         const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
         const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
-        const prompt = buildMultipleChoiceGradePrompt(card, input.selectedOption, 'true');
+        const prompt = MC_FEEDBACK_PROMPT.build({ card, selected: input.selectedOption, correct: 'true' });
         const aiResult = await generateJsonWithGoogle({
           apiKey,
           prompt,
           schema: MultipleChoiceFeedbackSchema,
-          model: DEFAULT_AI_MODEL,
+          model: modelFor('distractors'),
         });
         feedback = aiResult.feedback;
       }
@@ -308,6 +341,17 @@ export async function submitTrueFalseAnswer(input: {
         feedback,
       },
     });
+
+    try {
+      await recordStudyEvent({
+        userId: session.user.id,
+        cardId: input.cardId,
+        source: 'quiz-tf',
+        outcome: { correct: isCorrect },
+      });
+    } catch (memErr) {
+      console.error('recordStudyEvent failed for quiz-tf:', memErr);
+    }
 
     const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
     const newScore = overallQuizScore(allAnswers);
@@ -354,6 +398,9 @@ export async function submitShortAnswer(input: {
     const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
     const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
 
+    const gradeModel = modelFor('grade');
+    const profileBlock = await safeProfileBlock(session.user.id, card.setId, 'short-answer grading');
+
     // Get content blocks for the term side (what the user was asked about)
     const termBlocks = card.contentBlocks
       .filter(b => b.side === 'term')
@@ -361,22 +408,22 @@ export async function submitShortAnswer(input: {
 
     // Use text-only path if no media
     if (termBlocks.every(b => b.type === 'text')) {
-      const prompt = buildShortAnswerGradePrompt(card, input.answer);
+      const prompt = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: input.answer, profileBlock });
       const grade = await generateJsonWithGoogle({
         apiKey,
         prompt,
         schema: ShortAnswerGradeSchema,
-        model: DEFAULT_AI_MODEL,
+        model: gradeModel,
       });
 
       let annotations: any[] = [];
       try {
-        const annPrompt = buildAnnotationPrompt(card, input.answer, card.definition);
+        const annPrompt = ANNOTATION_PROMPT.build({ card, answer: input.answer, correct: card.definition, profileBlock });
         const annResult = await generateJsonWithGoogle({
           apiKey,
           prompt: annPrompt,
           schema: AnnotationSchema,
-          model: DEFAULT_AI_MODEL,
+          model: gradeModel,
         });
         annotations = annResult.annotations;
       } catch (e) {
@@ -395,12 +442,23 @@ export async function submitShortAnswer(input: {
           prompt: input.answer,
           answer: input.answer,
           correctAnswer: card.definition,
-          grade: { ...grade, annotations },
+          grade: { ...grade, annotations, promptVersion: GRADE_SHORT_ANSWER_PROMPT.version },
           score,
           isCorrect,
           feedback: grade.summary,
         },
       });
+
+      try {
+        await recordStudyEvent({
+          userId: session.user.id,
+          cardId: input.cardId,
+          source: 'quiz-sa',
+          outcome: { overall: grade.overall },
+        });
+      } catch (memErr) {
+        console.error('recordStudyEvent failed for quiz-sa (text path):', memErr);
+      }
 
       const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
       const newScore = overallQuizScore(allAnswers);
@@ -415,33 +473,31 @@ export async function submitShortAnswer(input: {
     }
 
     // Multimodal path: convert blocks to ContentBlocks and build parts
-    const { buildShortAnswerGradePromptParts } = await import('@/lib/ai/prompts');
     const contentBlocks = termBlocks.map(b => ({
       type: b.type as any,
       text: b.text,
       position: b.position,
     })) as any;
 
-    const { parts } = buildShortAnswerGradePromptParts(card, contentBlocks, input.answer);
+    const { parts } = GRADE_SHORT_ANSWER_PROMPT.buildParts({ card, promptBlocks: contentBlocks, answer: input.answer, profileBlock });
 
     // In a full implementation, assetToPart would be called here to add inlineData
     // For now, we just use the text parts as fallback
-    const { generateJsonMultimodal } = await import('@/lib/ai/google');
     const grade = await generateJsonMultimodal({
       apiKey,
       parts,
       schema: ShortAnswerGradeSchema,
-      model: DEFAULT_AI_MODEL,
+      model: gradeModel,
     });
 
     let annotations: any[] = [];
     try {
-      const annPrompt = buildAnnotationPrompt(card, input.answer, card.definition);
+      const annPrompt = ANNOTATION_PROMPT.build({ card, answer: input.answer, correct: card.definition, profileBlock });
       const annResult = await generateJsonWithGoogle({
         apiKey,
         prompt: annPrompt,
         schema: AnnotationSchema,
-        model: DEFAULT_AI_MODEL,
+        model: gradeModel,
       });
       annotations = annResult.annotations;
     } catch (e) {
@@ -460,12 +516,23 @@ export async function submitShortAnswer(input: {
         prompt: input.answer,
         answer: input.answer,
         correctAnswer: card.definition,
-        grade: { ...grade, annotations },
+        grade: { ...grade, annotations, promptVersion: GRADE_SHORT_ANSWER_PROMPT.version },
         score,
         isCorrect,
         feedback: grade.summary,
       },
     });
+
+    try {
+      await recordStudyEvent({
+        userId: session.user.id,
+        cardId: input.cardId,
+        source: 'quiz-sa',
+        outcome: { overall: grade.overall },
+      });
+    } catch (memErr) {
+      console.error('recordStudyEvent failed for quiz-sa (multimodal path):', memErr);
+    }
 
     const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
     const newScore = overallQuizScore(allAnswers);
@@ -538,7 +605,7 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
       const cachedOptions = await prisma.quizOptionCache.findMany({
         where: {
           cardId: { in: cardIds },
-          model: DEFAULT_AI_MODEL,
+          model: modelFor('distractors'),
         },
       });
 
@@ -566,33 +633,26 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
       const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
       const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
 
-      const prompt = `You are an AI study coach. Analyze this user's quiz attempt.
+      const profileBlock = await safeProfileBlock(session.user.id, attempt.setId, 'quiz-summary analysis');
 
-Set: ${attempt.set.title}
-Mode: ${attempt.mode}
-Score: ${attempt.score}%
-
-Performance Details:
-${attempt.answers.map(a => `- Card: ${a.card.term} | Correct: ${a.isCorrect ? 'Yes' : 'No'} | Score: ${a.score}/100 | Feedback: ${a.feedback}`).join('\\n')}
-
-Provide a holistic breakdown. Use clear headers and separate each section with double newlines:
-
-### Strengths
-Identify what the user did well.
-
-### Weaknesses
-Where did they struggle?
-
-### Action Plan
-3 key topics to focus on next.
-
-Output as JSON: { "analysis": string }`;
+      const prompt = QUIZ_SUMMARY_PROMPT.build({
+        setTitle: attempt.set.title,
+        mode: attempt.mode,
+        score: attempt.score,
+        answers: attempt.answers.map(a => ({
+          term: a.card.term,
+          isCorrect: a.isCorrect,
+          score: a.score,
+          feedback: a.feedback,
+        })),
+        profileBlock,
+      });
 
       const result = await generateJsonWithGoogle({
         apiKey,
         prompt,
-        schema: z.object({ analysis: z.string() }),
-        model: DEFAULT_AI_MODEL,
+        schema: QUIZ_SUMMARY_PROMPT.schema,
+        model: modelFor('grade'),
       });
       overallAnalysis = result.analysis;
     }
