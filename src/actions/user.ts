@@ -74,6 +74,7 @@ export async function resetUserMemory(): Promise<ActionResult<void>> {
       prisma.quizAnswer.deleteMany({ where: { userId } }),
       prisma.confidenceEvent.deleteMany({ where: { userId } }),
       prisma.cardProgress.deleteMany({ where: { userId } }),
+      prisma.studyEvent.deleteMany({ where: { userId } }),
     ]);
 
     revalidatePath('/profile');
