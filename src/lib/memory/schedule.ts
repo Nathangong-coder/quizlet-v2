@@ -184,6 +184,13 @@ export async function getDueCards(
       ...cardFilter,
       OR: [{ dueAt: null }, { dueAt: { lte: now } }],
     },
+    // Mirror `selectDueCards`'s own ordering (never-scheduled first, then
+    // oldest-due first) here too: with `take: DUE_CARDS_FETCH_CAP` bounding
+    // the fetch, an unordered query could truncate to an arbitrary subset
+    // before `selectDueCards` ever sees the true most-overdue rows. Ordering
+    // at the DB level ensures the rows kept by the cap are exactly the ones
+    // `selectDueCards` would have picked first anyway.
+    orderBy: [{ dueAt: { sort: 'asc', nulls: 'first' } }],
     take: DUE_CARDS_FETCH_CAP,
     select: {
       cardId: true,
