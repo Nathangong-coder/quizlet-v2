@@ -1,7 +1,9 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
+import { recomputeCardProgress } from '@/lib/memory/recompute';
 import { ActionResult } from '@/types/action';
 
 export interface StudyEventHistoryFilters {
@@ -116,5 +118,107 @@ export async function listMemoryFilterOptions(
   } catch (error) {
     console.error('List memory filter options error:', error);
     return { success: false, error: 'Failed to load filters' };
+  }
+}
+
+export async function deleteStudyEvent(eventId: string): Promise<ActionResult<void>> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+  const userId = session.user.id;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const event = await tx.studyEvent.findUnique({
+        where: { id: eventId },
+        select: { userId: true, cardId: true },
+      });
+
+      if (!event || event.userId !== userId) {
+        throw new Error('Not found');
+      }
+
+      await tx.studyEvent.delete({ where: { id: eventId } });
+
+      const remaining = await tx.studyEvent.findMany({
+        where: { userId, cardId: event.cardId },
+        select: { correct: true, score: true, createdAt: true },
+      });
+
+      const recomputed = recomputeCardProgress(remaining);
+
+      if (recomputed === null) {
+        await tx.cardProgress.deleteMany({ where: { userId, cardId: event.cardId } });
+      } else {
+        await tx.cardProgress.upsert({
+          where: { userId_cardId: { userId, cardId: event.cardId } },
+          update: {
+            confidence: recomputed.confidence,
+            mastery: recomputed.mastery,
+            reps: recomputed.reps,
+            dueAt: recomputed.dueAt,
+            lastSeenAt: recomputed.lastSeenAt,
+          },
+          create: {
+            userId,
+            cardId: event.cardId,
+            confidence: recomputed.confidence,
+            mastery: recomputed.mastery,
+            reps: recomputed.reps,
+            dueAt: recomputed.dueAt,
+            lastSeenAt: recomputed.lastSeenAt,
+            starred: false,
+          },
+        });
+      }
+    });
+
+    revalidatePath('/profile/memory');
+    revalidatePath('/profile');
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error('Delete study event error:', error);
+    return { success: false, error: 'Failed to delete entry' };
+  }
+}
+
+export async function forgetCard(cardId: string): Promise<ActionResult<void>> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+  const userId = session.user.id;
+
+  try {
+    await prisma.$transaction([
+      prisma.confidenceEvent.deleteMany({ where: { userId, cardId } }),
+      prisma.studyEvent.deleteMany({ where: { userId, cardId } }),
+      prisma.cardProgress.deleteMany({ where: { userId, cardId } }),
+    ]);
+
+    revalidatePath('/profile/memory');
+    revalidatePath('/profile');
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error('Forget card error:', error);
+    return { success: false, error: 'Failed to forget card' };
+  }
+}
+
+export async function forgetSet(setId: string): Promise<ActionResult<void>> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+  const userId = session.user.id;
+
+  try {
+    await prisma.$transaction([
+      prisma.confidenceEvent.deleteMany({ where: { userId, card: { setId } } }),
+      prisma.studyEvent.deleteMany({ where: { userId, card: { setId } } }),
+      prisma.cardProgress.deleteMany({ where: { userId, card: { setId } } }),
+    ]);
+
+    revalidatePath('/profile/memory');
+    revalidatePath('/profile');
+    return { success: true, data: undefined };
+  } catch (error) {
+    console.error('Forget set error:', error);
+    return { success: false, error: 'Failed to forget set' };
   }
 }
