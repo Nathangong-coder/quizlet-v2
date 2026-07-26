@@ -65,6 +65,8 @@ export default function MemoryHistoryPage() {
       if (result.success) {
         setSets(result.data.sets);
         setCards(result.data.cards);
+      } else {
+        toast.error(result.error);
       }
     });
   }, [setId]);
