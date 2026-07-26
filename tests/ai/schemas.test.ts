@@ -29,37 +29,43 @@ describe('AI Schemas', () => {
   });
 
   describe('ShortAnswerGradeSchema', () => {
+    const criterion = (score: number) => ({
+      score,
+      pros: ['Correctly identifies the key driver.'],
+      cons: ['Could be more concise.'],
+    });
+
     it('should validate a correct grade', () => {
       const valid = {
-        clarity: 8,
-        conciseness: 7,
-        correctness: 9,
+        clarity: criterion(8),
+        conciseness: criterion(7),
+        correctness: criterion(9),
         overall: 8,
-        feedback: 'Great answer, but could be more concise.',
+        summary: 'Great answer, but could be more concise.',
         suggestedImprovement: 'Try to remove the first sentence.',
       };
       expect(ShortAnswerGradeSchema.parse(valid)).toEqual(valid);
     });
 
-    it('should fail if scores are out of bounds', () => {
+    it('should fail if a criterion score is out of bounds', () => {
       const invalid = {
-        clarity: 11,
-        conciseness: 7,
-        correctness: 9,
+        clarity: criterion(11),
+        conciseness: criterion(7),
+        correctness: criterion(9),
         overall: 8,
-        feedback: '...',
+        summary: '...',
         suggestedImprovement: '...',
       };
       expect(() => ShortAnswerGradeSchema.parse(invalid)).toThrow();
     });
 
-    it('should fail if feedback is missing', () => {
+    it('should fail if summary is missing', () => {
       const invalid = {
-        clarity: 8,
-        conciseness: 7,
-        correctness: 9,
+        clarity: criterion(8),
+        conciseness: criterion(7),
+        correctness: criterion(9),
         overall: 8,
-        feedback: '',
+        summary: '',
         suggestedImprovement: '...',
       };
       expect(() => ShortAnswerGradeSchema.parse(invalid)).toThrow();
