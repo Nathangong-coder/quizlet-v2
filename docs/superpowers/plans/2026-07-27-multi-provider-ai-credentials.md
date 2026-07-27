@@ -143,6 +143,9 @@ export type FailureKind =
 
 /** One credential's attempt within a multi-key generation. */
 export interface AttemptRow {
+  /** Which credential this attempt used, so callers can flag it without
+   *  re-deriving the mapping by array index. */
+  credentialId: string;
   label: string;
   provider: string;
   model: string;
@@ -754,13 +757,34 @@ git commit -m "feat: resolve credentials to AI SDK language models"
 ### Task 5: Unified generation entry point
 
 **Files:**
+- Create: `src/lib/security/api-key.ts` (moved here from Task 6 so this task compiles standalone)
+- Modify: `src/lib/security/google-key.ts` (reduce to re-exports)
 - Create: `src/lib/ai/generate.ts`
 - Create: `src/lib/ai/media-adapter.ts`
 - Test: `tests/ai/generate.test.ts`
 
 **Interfaces:**
 - Consumes: `selectAttemptOrder`/`PoolCredential` (Task 2), `resolveLanguageModel`/`ProviderConfigError` (Task 4), `classifyProviderError`/`describeFailure`/`isRetryable`/`ErrorDetail`/`AttemptRow` (Task 1).
-- Produces: `AiGenerationError` (carries `.detail: ErrorDetail`), `runAttempts<T>(...)` (pure-ish orchestrator, injected executor for testability), `toModelMessages(parts)`.
+- Produces: `encryptApiKey`/`decryptApiKey`/`maskApiKey`; `AiGenerationError` (carries `.detail: ErrorDetail`), `runAttempts<T>(...)` (injected executor for testability), `flagworthyFailures`, `toSdkContent(parts)`.
+
+- [ ] **Step 0: Generalise the key crypto (moved from Task 6)**
+
+Create `src/lib/security/api-key.ts` containing the exact body of the existing `src/lib/security/google-key.ts`, with these changes only:
+- Rename `encryptGoogleApiKey` → `encryptApiKey`, `decryptGoogleApiKey` → `decryptApiKey`, `maskGoogleApiKey` → `maskApiKey`.
+- Keep the env var `GOOGLE_KEY_ENCRYPTION_SECRET` and the `v1:` payload format **unchanged**, so existing ciphertext still decrypts.
+- `maskApiKey` must not assume an `AIza` prefix: return `key.slice(0, 4) + '****' + key.slice(-4)` when `key.length > 8`, else `key.slice(0, 2) + '***' + key.slice(-2)`.
+
+Then reduce `src/lib/security/google-key.ts` to re-exports so existing importers keep working until Task 8 deletes it:
+
+```ts
+export {
+  encryptApiKey as encryptGoogleApiKey,
+  decryptApiKey as decryptGoogleApiKey,
+  maskApiKey as maskGoogleApiKey,
+} from './api-key';
+```
+
+Verify the existing crypto tests still pass: `npx vitest run tests/ai/google-key.test.ts`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -936,15 +960,15 @@ export async function runAttempts<T>(
     } catch (err) {
       const kind = classifyProviderError(err);
       failures.push({
+        credentialId: candidate.id,
         label: candidate.label,
         provider: candidate.provider,
         model: candidate.model,
         kind,
         message: err instanceof Error ? err.message : String(err),
       });
-      // Both retryable and fatal-for-this-credential kinds advance; the
-      // distinction only affects whether the credential gets flagged in the UI.
-      void isRetryable(kind);
+      // Every kind advances to the next credential. The retryable/fatal
+      // distinction is consumed by callers via `flagworthyFailures` below.
     }
   }
 
@@ -955,6 +979,18 @@ export async function runAttempts<T>(
     attempts: failures,
     technical: failures.map((f) => `${f.label} / ${f.model}: ${f.message}`).join('\n\n'),
   });
+}
+
+/**
+ * Failures worth flagging on the credential itself in the settings UI.
+ *
+ * Retryable kinds are excluded deliberately: a transient 429 clears on its own,
+ * and badging a perfectly good key as broken because it was briefly busy would
+ * train the user to ignore the badge. Only kinds needing human action
+ * (invalid_key, unknown_model, quota_exhausted) persist.
+ */
+export function flagworthyFailures(failures: AttemptRow[]): AttemptRow[] {
+  return failures.filter((f) => !isRetryable(f.kind));
 }
 ```
 
@@ -1072,11 +1108,13 @@ export async function generateJson<T>({
     data: { lastUsedAt: new Date() },
   });
 
-  // Flag credentials that failed so the settings UI can surface them.
+  // Flag only failures needing human action; a transient 429 must not badge a
+  // working key as broken. Each row carries its own credentialId, so this never
+  // depends on array positions lining up.
   await Promise.all(
-    result.failures.map((f, i) =>
+    flagworthyFailures(result.failures).map((f) =>
       prisma.aiCredential.updateMany({
-        where: { id: candidates[i]?.id, userId },
+        where: { id: f.credentialId, userId },
         data: { lastErrorAt: new Date(), lastErrorKind: f.kind },
       }),
     ),
@@ -1114,18 +1152,12 @@ git commit -m "feat: unified multi-credential generation entry point"
 - Consumes: `PROVIDER_META`/`ProviderId`/`resolveLanguageModel` (Task 4), `ErrorDetail` (Task 1).
 - Produces: `encryptApiKey`/`decryptApiKey`/`maskApiKey`; `parseModelList(provider, json): string[]`; actions `listCredentials`, `saveCredential`, `deleteCredential`, `testCredential`, `listProviderModels`, `saveTaskRouting`, `listTaskRoutings`.
 
-- [ ] **Step 1: Generalise the key crypto**
+- [ ] **Step 1: (moved) — the key crypto now lands in Task 5 Step 0**
 
-Create `src/lib/security/api-key.ts` containing the exact body of the existing `src/lib/security/google-key.ts`, with these changes only:
-- Rename `encryptGoogleApiKey` → `encryptApiKey`, `decryptGoogleApiKey` → `decryptApiKey`, `maskGoogleApiKey` → `maskApiKey`.
-- Keep `GOOGLE_KEY_ENCRYPTION_SECRET` as the env var name and the `v1:` payload format **unchanged**, so existing rows still decrypt.
-- Change `maskApiKey` to not assume an `AIza` prefix: return `key.slice(0, 4) + '****' + key.slice(-4)` for keys longer than 8 characters, else `key.slice(0,2) + '***' + key.slice(-2)`.
-
-Then replace `src/lib/security/google-key.ts` with re-exports so nothing breaks mid-refactor:
-
-```ts
-export { encryptApiKey as encryptGoogleApiKey, decryptApiKey as decryptGoogleApiKey, maskApiKey as maskGoogleApiKey } from './api-key';
-```
+`src/lib/security/api-key.ts` and the `google-key.ts` re-export shim are created
+in Task 5 Step 0, because Task 5's `generate.ts` imports `decryptApiKey` and
+must compile standalone. Verify both exist before continuing; if they do not,
+implement Task 5 Step 0 first.
 
 - [ ] **Step 2: Extend ActionResult**
 
