@@ -54,7 +54,7 @@ Build in four main stages, with Stage 3.5 as an added experience-expansion stage
 
 ### Stage 1 — Flashcards + import + activities
 - Flashcard data model (sets → cards with term/definition).
-- **Import format:** term and definition separated by a **comma**; each card separated by a **semicolon**. (Make the delimiters configurable later, but this is the default.) Write the parser to be tolerant of whitespace and quoted values containing commas.
+- **Import format:** term and definition separated by a **pipe (`|`)**; each card separated by a **semicolon**. (Changed 2026-06-26 from comma to pipe so definitions can contain raw commas, e.g. "$1,000,000", without needing to be quoted; delimiters remain configurable via `ParseOptions`.) Write the parser to be tolerant of whitespace and quoted values containing the delimiters.
 - In-app set builder (create/edit cards directly, Quizlet-style).
 - Search across questions/cards.
 - Polished, responsive UI.

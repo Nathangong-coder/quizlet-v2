@@ -1,18 +1,18 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, History, Trash2, Activity } from 'lucide-react';
-import { getUserStats, resetUserMemory } from '@/actions/user';
+import { Trophy, History, Activity } from 'lucide-react';
+import { getUserStats } from '@/actions/user';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export default function ProfilePage() {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isResetting, setIsResetting] = useState(false);
 
   async function loadStats() {
     setLoading(true);
@@ -28,23 +28,6 @@ export default function ProfilePage() {
   useEffect(() => {
     loadStats();
   }, []);
-
-  async function handleReset() {
-    if (!confirm('Are you sure you want to reset your entire learning memory? This will delete all quiz history, confidence scores, and progress. This action cannot be undone.')) {
-      return;
-    }
-
-    setIsResetting(true);
-    const result = await resetUserMemory();
-    setIsResetting(false);
-
-    if (result.success) {
-      toast.success('Memory reset successfully');
-      await loadStats();
-    } else {
-      toast.error(result.error || 'Failed to reset memory');
-    }
-  }
 
   if (loading) {
     return (
@@ -68,6 +51,9 @@ export default function ProfilePage() {
         <div>
           <h1 className="text-4xl font-bold tracking-tight">Your Learning Memory</h1>
           <p className="text-muted-foreground mt-2">Track your progress and mastery across all sets.</p>
+          <Link href="/profile/memory" className="text-sm text-primary hover:underline inline-block mt-2">
+            View full memory history &rarr;
+          </Link>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Activity className="w-4 h-4" />
@@ -171,39 +157,6 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </div>
-
-      <Card className="border-destructive/50 bg-destructive/5">
-        <CardHeader>
-          <CardTitle className="text-destructive">Danger Zone</CardTitle>
-          <CardDescription>Reset your learning memory to start fresh.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground max-w-md">
-              This will permanently delete all your quiz history, confidence scores, and progress across all sets.
-              This action cannot be undone.
-            </p>
-            <Button
-              variant="destructive"
-              onClick={handleReset}
-              disabled={isResetting}
-              className="whitespace-nowrap"
-            >
-              {isResetting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                  Resetting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Reset Memory
-                </>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
