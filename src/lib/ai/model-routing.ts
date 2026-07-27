@@ -1,34 +1,39 @@
 /**
  * Task-based model routing (Stage 6 Task 5).
  *
- * `MODEL_FALLBACKS` is the full fallback chain, corrected to match this
- * repo's actual dev-proxy routing in `litellm_config.yaml` (the source of
- * truth per this project's CLAUDE.md):
+ * `MODEL_FALLBACKS` is the full fallback chain. Every id here is a real
+ * model id as accepted by the Generative Language API's `generateContent`
+ * on the v1beta endpoint, verified against `ListModels` *and* a live call —
+ * not a `litellm_config.yaml` alias.
  *
- *   gemini-3-flash -> gemma-4-31b-it -> gemini-3.1-flash-lite
- *     -> gemma-3-27b-it -> gemma-3-12b-it
+ * That distinction is the bug this chain previously had. In
+ * `litellm_config.yaml`, `model_name:` is a local alias and
+ * `litellm_params.model:` is the real upstream id, e.g.
+ * `gemini-3-flash` -> `gemini/gemini-3-flash-preview`. The chain had been
+ * copied from the *alias* column, so `gemini-3-flash` 404'd when sent
+ * straight to Google, as did `gemma-3-27b-it` and `gemma-3-12b-it` (no
+ * gemma-3 tier is offered on this endpoint at all). Three of five entries
+ * were dead, so a failure on the primary burned through the chain and
+ * surfaced as "failed after trying all fallbacks".
  *
- * The previous chain (`['gemini-3.5-flash', 'gemini-3.1-flash-lite',
- * 'gemma-4-31b-it']`) named a model (`gemini-3.5-flash`) that isn't even in
- * `litellm_config.yaml`'s model list, and every call site hardcoded
- * `DEFAULT_AI_MODEL` (or, in one place, a second hardcoded string) instead
- * of choosing a model appropriate to the task.
+ * Do not add an id here without confirming it returns 200 from
+ * `POST /v1beta/models/<id>:generateContent`. Presence in `ListModels` is
+ * NOT sufficient — `gemini-2.5-flash` lists but 404s on generation.
  *
- * `modelFor(task)` replaces that: it returns the *primary* model to try
- * first for a task category. `generateJsonWithGoogle`/`generateJsonMultimodal`
- * (src/lib/ai/google.ts) still handle the actual fallback by appending
- * `MODEL_FALLBACKS.filter(m => m !== model)` after the primary — that
- * mechanism is unchanged by this task.
+ * `modelFor(task)` returns the *primary* model to try first for a task
+ * category. `generateJsonWithGoogle`/`generateJsonMultimodal`
+ * (src/lib/ai/google.ts) handle the actual fallback by appending
+ * `MODEL_FALLBACKS.filter(m => m !== model)` after the primary.
  */
 
 export const DEFAULT_AI_MODEL = 'gemini-3.1-flash-lite';
 
 export const MODEL_FALLBACKS = [
-  'gemini-3-flash',
-  'gemma-4-31b-it',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
   'gemini-3.1-flash-lite',
-  'gemma-3-27b-it',
-  'gemma-3-12b-it',
+  'gemini-3.5-flash-lite',
+  'gemma-4-31b-it',
 ] as const;
 
 export type AiModel = (typeof MODEL_FALLBACKS)[number];
@@ -46,17 +51,17 @@ export type AiTask = 'grade' | 'plan' | 'autocomplete' | 'distractors';
 
 /**
  * Returns the primary model to try first for a given task. `grade`/`plan`
- * start at the strongest model in the chain (`gemini-3-flash`); `
- * autocomplete`/`distractors` start at a cheaper tier
- * (`gemini-3.1-flash-lite` — the same model these call sites already used
- * pre-Task-5 as `DEFAULT_AI_MODEL`, so their QuizOptionCache cache keys stay
- * stable across this refactor).
+ * start at the strongest model in the chain (`gemini-3.6-flash`);
+ * `autocomplete`/`distractors` start at a cheaper tier
+ * (`gemini-3.1-flash-lite` — kept deliberately, since QuizOptionCache is
+ * keyed on the model id and changing it would silently orphan every cached
+ * distractor set).
  */
 export function modelFor(task: AiTask): AiModel {
   switch (task) {
     case 'grade':
     case 'plan':
-      return 'gemini-3-flash';
+      return 'gemini-3.6-flash';
     case 'autocomplete':
     case 'distractors':
       return 'gemini-3.1-flash-lite';

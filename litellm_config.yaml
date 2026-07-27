@@ -1,11 +1,30 @@
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
 
+# NOTE: `model_name` is a LOCAL ALIAS; `litellm_params.model` is the real
+# upstream id. Do not copy the alias column into app code — src/lib/ai/
+# model-routing.ts talks to Google directly and needs real ids. Copying
+# aliases is exactly how `gemini-3-flash` ended up 404ing in production.
 model_list:
 
-  - model_name: gemini-3-flash
+  - model_name: gemini-3.6-flash
     litellm_params:
-      model: gemini/gemini-3-flash-preview
+      model: gemini/gemini-3.6-flash
+      api_key: os.environ/GOOGLE_API_KEY
+
+  - model_name: gemini-3.5-flash
+    litellm_params:
+      model: gemini/gemini-3.5-flash
+      api_key: os.environ/GOOGLE_API_KEY
+
+  - model_name: gemini-3.1-flash-lite
+    litellm_params:
+      model: gemini/gemini-3.1-flash-lite
+      api_key: os.environ/GOOGLE_API_KEY
+
+  - model_name: gemini-3.5-flash-lite
+    litellm_params:
+      model: gemini/gemini-3.5-flash-lite
       api_key: os.environ/GOOGLE_API_KEY
 
   - model_name: gemma-4-31b-it
@@ -18,40 +37,23 @@ model_list:
       model: gemini/gemma-4-26b-a4b-it
       api_key: os.environ/GOOGLE_API_KEY
 
-  - model_name: gemini-3.1-flash-lite
-    litellm_params:
-      model: gemini/gemini-3.1-flash-lite-preview
-      api_key: os.environ/GOOGLE_API_KEY
-
-  - model_name: gemma-3-27b-it
-    litellm_params:
-      model: gemini/gemma-3-27b-it
-      api_key: os.environ/GOOGLE_API_KEY
-
-  - model_name: gemma-3-12b-it
-    litellm_params:
-      model: gemini/gemma-3-12b-it
-      api_key: os.environ/GOOGLE_API_KEY
-
 litellm_settings:
   drop_params: true
+  # Mirrors MODEL_FALLBACKS in src/lib/ai/model-routing.ts.
   fallbacks:
-    - gemini-3-flash:
-        - gemma-4-31b-it
+    - gemini-3.6-flash:
+        - gemini-3.5-flash
         - gemini-3.1-flash-lite
-        - gemma-3-27b-it
-        - gemma-3-12b-it
+        - gemini-3.5-flash-lite
+        - gemma-4-31b-it
+    - gemini-3.5-flash:
+        - gemini-3.1-flash-lite
+        - gemini-3.5-flash-lite
+        - gemma-4-31b-it
+    - gemini-3.1-flash-lite:
+        - gemini-3.5-flash-lite
+        - gemma-4-31b-it
+    - gemini-3.5-flash-lite:
+        - gemma-4-31b-it
     - gemma-4-31b-it:
         - gemma-4-26b-a4b-it
-        - gemini-3.1-flash-lite
-        - gemma-3-27b-it
-        - gemma-3-12b-it
-    - gemma-4-26b-a4b-it:
-        - gemini-3.1-flash-lite
-        - gemma-3-27b-it
-        - gemma-3-12b-it
-    - gemini-3.1-flash-lite:
-        - gemma-3-27b-it
-        - gemma-3-12b-it
-    - gemma-3-27b-it:
-        - gemma-3-12b-it
