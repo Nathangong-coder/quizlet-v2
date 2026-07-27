@@ -106,6 +106,7 @@ Detailed plan: `docs/superpowers/plans/2026-07-04-persistent-memory-and-promptin
 - Pure, tested scoring: confidence deltas, mastery, and spaced-repetition due dates. AI never *computes* mastery, only reads it.
 - Compact, **ID-free, token-capped `LearnerProfile`** injected into every judgment prompt.
 - Consolidate scattered prompts into a **versioned registry**; route grading/plan to a stronger model than autocomplete; prefer Gemini structured-output `responseSchema` over regex JSON cleanup.
+- **Scoped memory history** (`/profile/memory`, design: `docs/superpowers/specs/2026-07-27-scoped-memory-history-design.md`): one `HistoryScope` (`src/lib/memory/scope.ts`) narrows the event feed, the stat tiles, and the filter options together — empty scope is the consolidated view. Categories present **across sets** by grouping per-set `CardCategory` rows on `normalizedName`, so no schema migration was needed; `CardCategory` remains set-scoped. Scope is URL-synced.
 
 ### Stage 7 — Personalized learning plans & AI lessons
 Detailed plan: `docs/superpowers/plans/2026-07-04-personalized-learning-plans.md`. **Depends on Stage 6.**

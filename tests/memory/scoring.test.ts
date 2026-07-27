@@ -134,6 +134,19 @@ describe('masteryScore', () => {
     expect(score).toBeLessThan(80)
   })
 
+  it('prefers the graded score over correct when both are set', () => {
+    // recordStudyEvent writes both fields for graded answers, deriving
+    // `correct` as `overall >= 8`. Mastery must read the precise score, not
+    // the thresholded boolean, or every graded answer collapses to 0 or 100.
+    expect(masteryScore([{ correct: false, score: 70, createdAt: at(0) }])).toBe(70)
+    expect(masteryScore([{ correct: true, score: 90, createdAt: at(0) }])).toBe(90)
+  })
+
+  it('still uses correct for binary modes, where score is null', () => {
+    expect(masteryScore([{ correct: true, score: null, createdAt: at(0) }])).toBe(100)
+    expect(masteryScore([{ correct: false, score: null, createdAt: at(0) }])).toBe(0)
+  })
+
   it('only considers the most recent window of events', () => {
     // A full window (10) of recent perfect scores followed by a long tail of
     // wrong answers far in the past — without windowing, the tail would drag

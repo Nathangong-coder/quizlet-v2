@@ -23,6 +23,9 @@ export default async function Navbar() {
               <Link href="/settings/ai" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
                 AI Settings
               </Link>
+              <Link href="/profile" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+                Profile
+              </Link>
               <Link href="/sets/new" className={cn(buttonVariants({ size: 'sm' }))}>
                 + New Set
               </Link>

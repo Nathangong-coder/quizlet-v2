@@ -14,7 +14,9 @@ describe("quiz setup helpers", () => {
 
   it("filters starred only", () => {
     const setup = {
-      questionMode: ["multiple-choice"] as const,
+      // `["x" as const]` not `["x"] as const` — the latter is a readonly
+      // tuple, which does not satisfy the mutable array the signature takes.
+      questionMode: ["multiple-choice" as const],
       promptSide: "term" as const,
       categoryIds: [],
       starredOnly: true,
@@ -29,7 +31,9 @@ describe("quiz setup helpers", () => {
 
   it("filters failed only", () => {
     const setup = {
-      questionMode: ["multiple-choice"] as const,
+      // `["x" as const]` not `["x"] as const` — the latter is a readonly
+      // tuple, which does not satisfy the mutable array the signature takes.
+      questionMode: ["multiple-choice" as const],
       promptSide: "term" as const,
       categoryIds: [],
       starredOnly: false,
@@ -44,7 +48,9 @@ describe("quiz setup helpers", () => {
 
   it("filters categories", () => {
     const setup = {
-      questionMode: ["multiple-choice"] as const,
+      // `["x" as const]` not `["x"] as const` — the latter is a readonly
+      // tuple, which does not satisfy the mutable array the signature takes.
+      questionMode: ["multiple-choice" as const],
       promptSide: "term" as const,
       categoryIds: ["cat1"],
       starredOnly: false,
@@ -59,7 +65,9 @@ describe("quiz setup helpers", () => {
 
   it("builds prompts for term side", () => {
     const setup = {
-      questionMode: ["multiple-choice"] as const,
+      // `["x" as const]` not `["x"] as const` — the latter is a readonly
+      // tuple, which does not satisfy the mutable array the signature takes.
+      questionMode: ["multiple-choice" as const],
       promptSide: "term" as const,
       categoryIds: [],
       starredOnly: false,
