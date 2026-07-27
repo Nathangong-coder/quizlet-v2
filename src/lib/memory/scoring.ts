@@ -65,7 +65,8 @@ function gradedDelta(overall: number): number {
 
 /** The minimal shape `masteryScore` needs from a StudyEvent-like row. */
 export interface MasteryEvent {
-  /** Set for binary-outcome modes (review/MC/TF/matching). */
+  /** Set on every event: binary right/wrong. For graded rows this is the
+   *  thresholded `overall >= 8`, so `score` (when present) is more precise. */
   correct?: boolean | null
   /** Set for graded modes (short-answer), 0-100 scale. */
   score?: number | null
@@ -83,10 +84,16 @@ const MASTERY_DECAY = 0.8
  * (e.g. `lib/memory/profile.ts`'s trend/miss classification) can reuse the
  * exact same "what counts as right/wrong" rule as `masteryScore` instead of
  * re-deriving it.
+ *
+ * `score` wins over `correct` because `recordStudyEvent` writes *both* for
+ * graded answers, deriving `correct` as `overall >= 8`. Reading `correct`
+ * first would throw the graded nuance away — an answer scoring 79 would count
+ * as an outright miss and 80 as flawless, collapsing the whole short-answer
+ * rubric into a step function.
  */
 export function eventCorrectness(event: MasteryEvent): number | null {
-  if (typeof event.correct === 'boolean') return event.correct ? 1 : 0
   if (typeof event.score === 'number') return clamp(event.score, 0, 100) / 100
+  if (typeof event.correct === 'boolean') return event.correct ? 1 : 0
   return null
 }
 

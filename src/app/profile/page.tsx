@@ -3,30 +3,29 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { Trophy, History, Activity } from 'lucide-react';
-import { getUserStats } from '@/actions/user';
+import { getUserStats, type UserStats } from '@/actions/user';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export default function ProfilePage() {
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function loadStats() {
-    setLoading(true);
-    const result = await getUserStats();
-    if (result.success) {
-      setStats(result.data);
-    } else {
-      toast.error(result.error || 'Failed to load profile stats');
-    }
-    setLoading(false);
-  }
-
   useEffect(() => {
-    loadStats();
+    let cancelled = false;
+    getUserStats().then((result) => {
+      if (cancelled) return;
+      if (result.success && result.data) setStats(result.data);
+      else toast.error(result.error || 'Failed to load profile stats');
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) {
@@ -91,11 +90,9 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-bold text-center">
-              {stats.modeStats.length > 0
-                ? Math.round(stats.modeStats.reduce((acc: number, s: any) => acc + s.averageScore, 0) / stats.modeStats.length) + '%'
-                : '0%'}
+              {stats.overallAverageScore === null ? '—' : `${stats.overallAverageScore}%`}
             </div>
-            <p className="text-xs text-center text-muted-foreground mt-1">Across all modes</p>
+            <p className="text-xs text-center text-muted-foreground mt-1">Across all graded attempts</p>
           </CardContent>
         </Card>
       </div>
@@ -110,14 +107,14 @@ export default function ProfilePage() {
             {stats.modeStats.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">No quiz attempts yet. Start studying!</p>
             ) : (
-              stats.modeStats.map((s: any) => (
+              stats.modeStats.map((s) => (
                 <div key={s.mode} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
                   <div className="flex flex-col">
                     <span className="font-medium capitalize">{s.mode.replace('-', ' ')}</span>
                     <span className="text-xs text-muted-foreground">{s.count} attempts</span>
                   </div>
                   <Badge variant="outline" className="text-lg px-3 py-1">
-                    {s.averageScore}%
+                    {s.averageScore === null ? '—' : `${s.averageScore}%`}
                   </Badge>
                 </div>
               ))
@@ -134,22 +131,24 @@ export default function ProfilePage() {
             {stats.recentAttempts.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">No recent activity.</p>
             ) : (
-              stats.recentAttempts.map((attempt: any) => (
+              stats.recentAttempts.map((attempt) => (
                 <div key={attempt.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
-                  <div className="flex flex-col">
+                  <div className="flex flex-col min-w-0">
                     <span className="font-medium capitalize">{attempt.mode.replace('-', ' ')}</span>
-                    <span className="text-xs text-muted-foreground">{format(new Date(attempt.date), 'MMM d, h:mm a')}</span>
+                    <span className="text-xs text-muted-foreground truncate">
+                      {attempt.setTitle} &middot; {format(new Date(attempt.date), 'MMM d, h:mm a')}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold">{attempt.score}%</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2 text-xs"
-                      onClick={() => window.location.href = `/sets/id/quiz/summary?attemptId=${attempt.id}`}
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-sm font-bold">
+                      {attempt.score === null ? '—' : `${attempt.score}%`}
+                    </span>
+                    <Link
+                      href={`/profile/memory?sets=${attempt.setId}`}
+                      className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'h-8 px-2 text-xs')}
                     >
-                      View
-                    </Button>
+                      History
+                    </Link>
                   </div>
                 </div>
               ))
