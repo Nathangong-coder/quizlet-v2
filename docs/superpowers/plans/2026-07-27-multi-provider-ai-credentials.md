@@ -1563,6 +1563,13 @@ git commit -m "feat: credential CRUD, model catalog, and live key testing"
 - Create: `src/components/settings/TaskRoutingPanel.tsx`
 - Rewrite: `src/app/settings/ai/page.tsx`
 - Create: `src/app/settings/ai/[provider]/page.tsx`
+- Delete: `src/components/settings/GoogleApiKeyForm.tsx`
+
+**Why the delete:** `GoogleApiKeyForm.tsx` is the single-Google-key form, imported
+only by `src/app/settings/ai/page.tsx`. Once that page is rewritten it is
+orphaned, and it still imports the deleted `src/actions/ai-settings.ts`, so
+leaving it in place keeps `npx tsc --noEmit` permanently broken. Its
+functionality is wholly replaced by `CredentialForm.tsx`.
 
 **Interfaces:**
 - Consumes: `ErrorDetail`/`AttemptRow` (Task 1), `PROVIDER_META`/`AI_PROVIDERS` (Task 4), all actions from Task 6.
