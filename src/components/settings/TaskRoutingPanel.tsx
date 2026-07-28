@@ -9,9 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { listCredentials, listTaskRoutings, saveTaskRouting, type CredentialRow } from '@/actions/ai-credentials';
 import { PROVIDER_META, type ProviderId } from '@/lib/ai/providers';
+import { AI_TASKS, type AiTask } from '@/lib/ai/model-routing';
 
-const TASKS = ['grade', 'plan', 'distractors', 'autocomplete'] as const;
-type Task = (typeof TASKS)[number];
+const TASKS = AI_TASKS;
+type Task = AiTask;
 
 const TASK_LABELS: Record<Task, string> = {
   grade: 'Grading (short-answer & spoken)',

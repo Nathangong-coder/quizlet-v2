@@ -2,7 +2,7 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { generateJsonWithGoogle, generateJsonMultimodal } from '@/lib/ai/google';
+import { generateJson, AiGenerationError } from '@/lib/ai/generate';
 import {
   MULTIPLE_CHOICE_PROMPT,
   GRADE_SHORT_ANSWER_PROMPT,
@@ -17,13 +17,26 @@ import {
   MultipleChoiceFeedbackSchema,
   AnnotationSchema
 } from '@/lib/ai/schemas';
-import { modelFor } from '@/lib/ai/model-routing';
 import { overallQuizScore } from '@/lib/quiz/scoring';
 import { revalidatePath } from 'next/cache';
 import { QuizSetup } from '@/lib/quiz/setup';
 import { recordStudyEvent } from '@/lib/memory/record';
 import { buildLearnerProfile } from '@/lib/memory/profile';
 import { profileToPromptBlock } from '@/lib/ai/context';
+import { ActionResult } from '@/types/action';
+
+/**
+ * QuizOptionCache's `model` column used to be the literal Gemini model id
+ * (Stage 6 Task 5), since every user shared one global model per task. Now
+ * that each user picks their own credential/model (Stage 6 Task 8),
+ * `generateJson` doesn't hand the caller back which model id was actually
+ * used, and a per-user model id is meaningless as a cross-user cache key
+ * anyway. This constant is a stable bucket label, not a model id — it keeps
+ * one cache row per card and matches the print page's "most recent row per
+ * card" read (src/app/sets/[id]/print/page.tsx), which no longer filters by
+ * model at all.
+ */
+const DISTRACTOR_CACHE_BUCKET = 'distractors';
 
 /**
  * Builds a rendered LearnerProfile block for prompt injection, isolated so a
@@ -40,12 +53,6 @@ async function safeProfileBlock(userId: string, setId: string, label: string): P
   }
 }
 
-type ActionResult<T> = {
-  success: boolean;
-  data?: T;
-  error?: string;
-};
-
 export async function getOrGenerateMultipleChoiceOptions(
   cardId: string
 ): Promise<ActionResult<{ cardId: string; options: string[]; correctAnswer: string; cacheHit: boolean; model: string }>> {
@@ -53,7 +60,7 @@ export async function getOrGenerateMultipleChoiceOptions(
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
-  const model = modelFor('distractors');
+  const model = DISTRACTOR_CACHE_BUCKET;
 
   try {
     const cached = await prisma.quizOptionCache.findUnique({
@@ -83,22 +90,14 @@ export async function getOrGenerateMultipleChoiceOptions(
     });
     if (!set) return { success: false, error: 'Set not found' };
 
-    const credential = await prisma.aiCredential.findUnique({
-      where: { userId: session.user.id },
-    });
-    if (!credential) return { success: false, error: 'No Google API key saved. Please add it in settings.' };
-
-    const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
-    const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
-
     const profileBlock = await safeProfileBlock(session.user.id, card.setId, 'MC distractors');
 
     const prompt = MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: set.cards, profileBlock });
-    const options = await generateJsonWithGoogle({
-      apiKey,
+    const options = await generateJson({
+      userId: session.user.id,
+      task: 'distractors',
       prompt,
       schema: MultipleChoiceOptionsSchema,
-      model,
     });
 
     await prisma.quizOptionCache.create({
@@ -121,8 +120,11 @@ export async function getOrGenerateMultipleChoiceOptions(
       success: true,
       data: responseData,
     };
-  } catch (error: any) {
-    console.error('Quiz generation error:', error);
+  } catch (err) {
+    if (err instanceof AiGenerationError) {
+      return { success: false, error: err.detail.title, detail: err.detail };
+    }
+    console.error('Quiz generation error:', err);
     return { success: false, error: 'Failed to generate quiz options.' };
   }
 }
@@ -232,18 +234,19 @@ export async function submitMultipleChoiceAnswer(input: {
     let feedback = isCorrect ? 'Correct!' : 'Incorrect.';
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     if (card) {
-      const credential = await prisma.aiCredential.findUnique({ where: { userId: session.user.id } });
-      if (credential) {
-        const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
-        const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
+      try {
         const prompt = MC_FEEDBACK_PROMPT.build({ card, selected: input.selectedOption, correct: input.correctAnswer });
-        const aiResult = await generateJsonWithGoogle({
-          apiKey,
+        const aiResult = await generateJson({
+          userId: session.user.id,
+          task: 'distractors',
           prompt,
           schema: MultipleChoiceFeedbackSchema,
-          model: modelFor('distractors'),
         });
         feedback = aiResult.feedback;
+      } catch (aiErr) {
+        // AI feedback is a nice-to-have here; the default Correct!/Incorrect.
+        // string above already covers the case (e.g. no credential saved).
+        console.error('MC feedback generation failed:', aiErr);
       }
     }
 
@@ -312,18 +315,19 @@ export async function submitTrueFalseAnswer(input: {
     let feedback = isCorrect ? 'Correct!' : 'Incorrect.';
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     if (card) {
-      const credential = await prisma.aiCredential.findUnique({ where: { userId: session.user.id } });
-      if (credential) {
-        const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
-        const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
+      try {
         const prompt = MC_FEEDBACK_PROMPT.build({ card, selected: input.selectedOption, correct: 'true' });
-        const aiResult = await generateJsonWithGoogle({
-          apiKey,
+        const aiResult = await generateJson({
+          userId: session.user.id,
+          task: 'distractors',
           prompt,
           schema: MultipleChoiceFeedbackSchema,
-          model: modelFor('distractors'),
         });
         feedback = aiResult.feedback;
+      } catch (aiErr) {
+        // AI feedback is a nice-to-have here; the default Correct!/Incorrect.
+        // string above already covers the case (e.g. no credential saved).
+        console.error('TF feedback generation failed:', aiErr);
       }
     }
 
@@ -390,15 +394,6 @@ export async function submitShortAnswer(input: {
     });
     if (!card) return { success: false, error: 'Card not found' };
 
-    const credential = await prisma.aiCredential.findUnique({
-      where: { userId: session.user.id },
-    });
-    if (!credential) return { success: false, error: 'No Google API key saved. Please add it in settings.' };
-
-    const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
-    const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
-
-    const gradeModel = modelFor('grade');
     const profileBlock = await safeProfileBlock(session.user.id, card.setId, 'short-answer grading');
 
     // Get content blocks for the term side (what the user was asked about)
@@ -409,21 +404,21 @@ export async function submitShortAnswer(input: {
     // Use text-only path if no media
     if (termBlocks.every(b => b.type === 'text')) {
       const prompt = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: input.answer, profileBlock });
-      const grade = await generateJsonWithGoogle({
-        apiKey,
+      const grade = await generateJson({
+        userId: session.user.id,
+        task: 'grade',
         prompt,
         schema: ShortAnswerGradeSchema,
-        model: gradeModel,
       });
 
       let annotations: any[] = [];
       try {
         const annPrompt = ANNOTATION_PROMPT.build({ card, answer: input.answer, correct: card.definition, profileBlock });
-        const annResult = await generateJsonWithGoogle({
-          apiKey,
+        const annResult = await generateJson({
+          userId: session.user.id,
+          task: 'grade',
           prompt: annPrompt,
           schema: AnnotationSchema,
-          model: gradeModel,
         });
         annotations = annResult.annotations;
       } catch (e) {
@@ -483,21 +478,21 @@ export async function submitShortAnswer(input: {
 
     // In a full implementation, assetToPart would be called here to add inlineData
     // For now, we just use the text parts as fallback
-    const grade = await generateJsonMultimodal({
-      apiKey,
+    const grade = await generateJson({
+      userId: session.user.id,
+      task: 'grade',
       parts,
       schema: ShortAnswerGradeSchema,
-      model: gradeModel,
     });
 
     let annotations: any[] = [];
     try {
       const annPrompt = ANNOTATION_PROMPT.build({ card, answer: input.answer, correct: card.definition, profileBlock });
-      const annResult = await generateJsonWithGoogle({
-        apiKey,
+      const annResult = await generateJson({
+        userId: session.user.id,
+        task: 'grade',
         prompt: annPrompt,
         schema: AnnotationSchema,
-        model: gradeModel,
       });
       annotations = annResult.annotations;
     } catch (e) {
@@ -544,8 +539,11 @@ export async function submitShortAnswer(input: {
     }
 
     return { success: true, data: { grade, score } };
-  } catch (error: any) {
-    console.error('Grading error:', error);
+  } catch (err) {
+    if (err instanceof AiGenerationError) {
+      return { success: false, error: err.detail.title, detail: err.detail };
+    }
+    console.error('Grading error:', err);
     return { success: false, error: 'Failed to generate quiz summary' };
   }
 }
@@ -598,20 +596,26 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
     });
     if (!attempt) return { success: false, error: 'Attempt not found' };
 
-    // Fetch MC options for answers that are multiple-choice
+    // Fetch MC options for answers that are multiple-choice. `model` is no
+    // longer filtered on: each user's generation now runs against whichever
+    // credential/model they have configured, so a fixed value would silently
+    // match nothing (same fix as src/app/sets/[id]/print/page.tsx). Take the
+    // most recent cache row per card instead.
     const mcAnswers = attempt.answers.filter(a => a.mode === 'multiple-choice');
     if (mcAnswers.length > 0) {
       const cardIds = mcAnswers.map(a => a.cardId);
       const cachedOptions = await prisma.quizOptionCache.findMany({
-        where: {
-          cardId: { in: cardIds },
-          model: modelFor('distractors'),
-        },
+        where: { cardId: { in: cardIds } },
+        orderBy: { updatedAt: 'desc' },
       });
+      const latestByCard = new Map<string, (typeof cachedOptions)[number]>();
+      for (const row of cachedOptions) {
+        if (!latestByCard.has(row.cardId)) latestByCard.set(row.cardId, row);
+      }
 
       attempt.answers = attempt.answers.map(a => {
         if (a.mode === 'multiple-choice') {
-          const cache = cachedOptions.find(c => c.cardId === a.cardId);
+          const cache = latestByCard.get(a.cardId);
           if (cache) {
             try {
               const parsed = MultipleChoiceOptionsSchema.parse(cache.options);
@@ -625,36 +629,40 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
       });
     }
 
-    const credential = await prisma.aiCredential.findUnique({ where: { userId: session.user.id } });
     let overallAnalysis = 'Analysis unavailable.';
     // Only spend an AI call when there's actually something to analyze.
     // An empty submission just scores 0 — no need to prompt the model.
-    if (credential && attempt.answers.length > 0) {
-      const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
-      const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
+    // Isolated in try/catch: the analysis is supplementary, so a missing
+    // credential or a generation failure should degrade to the default
+    // string above rather than failing the whole summary (same pattern as
+    // safeProfileBlock).
+    if (attempt.answers.length > 0) {
+      try {
+        const profileBlock = await safeProfileBlock(session.user.id, attempt.setId, 'quiz-summary analysis');
 
-      const profileBlock = await safeProfileBlock(session.user.id, attempt.setId, 'quiz-summary analysis');
+        const prompt = QUIZ_SUMMARY_PROMPT.build({
+          setTitle: attempt.set.title,
+          mode: attempt.mode,
+          score: attempt.score,
+          answers: attempt.answers.map(a => ({
+            term: a.card.term,
+            isCorrect: a.isCorrect,
+            score: a.score,
+            feedback: a.feedback,
+          })),
+          profileBlock,
+        });
 
-      const prompt = QUIZ_SUMMARY_PROMPT.build({
-        setTitle: attempt.set.title,
-        mode: attempt.mode,
-        score: attempt.score,
-        answers: attempt.answers.map(a => ({
-          term: a.card.term,
-          isCorrect: a.isCorrect,
-          score: a.score,
-          feedback: a.feedback,
-        })),
-        profileBlock,
-      });
-
-      const result = await generateJsonWithGoogle({
-        apiKey,
-        prompt,
-        schema: QUIZ_SUMMARY_PROMPT.schema,
-        model: modelFor('grade'),
-      });
-      overallAnalysis = result.analysis;
+        const result = await generateJson({
+          userId: session.user.id,
+          task: 'grade',
+          prompt,
+          schema: QUIZ_SUMMARY_PROMPT.schema,
+        });
+        overallAnalysis = result.analysis;
+      } catch (aiErr) {
+        console.error('Quiz summary analysis generation failed:', aiErr);
+      }
     }
 
     return {

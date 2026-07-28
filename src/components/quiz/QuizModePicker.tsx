@@ -30,7 +30,7 @@ export function QuizModePicker({ setId, onModeSelect }: QuizModePickerProps) {
     });
     setIsLoading(null);
 
-    if (result.success && result.data) {
+    if (result.success) {
       onModeSelect(mode, result.data.attemptId);
     } else {
       toast.error(result.error || 'Failed to start quiz');

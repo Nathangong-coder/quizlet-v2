@@ -31,7 +31,7 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
         setIsLoadingCards(true);
         const modes = setup.questionMode || ['multiple-choice'];
         const result = await startQuizAttempt(setId, modes, setup);
-        if (result.success && result.data) {
+        if (result.success) {
           setAttemptId(result.data.attemptId);
         } else {
           setError(result.error || 'Failed to start quiz');
@@ -48,7 +48,7 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
       async function loadCards() {
         setIsLoadingCards(true);
         const result = await getQuizAttemptCards(attemptId as string);
-        if (result.success && result.data) {
+        if (result.success) {
           setSelectedCards(result.data.cards);
         } else {
           setError(result.error || 'Failed to load cards');

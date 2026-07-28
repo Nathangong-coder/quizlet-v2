@@ -13,8 +13,8 @@ export interface McFeedbackBuildInput {
  * Not part of the memory-injection set in the Task 5 brief (only grading,
  * MC generation, training-plan, and quiz-summary get a profileBlock) — this
  * is a short, per-answer confirmation/explanation, not a judgment that
- * benefits from broader learner context. Routed via modelFor('distractors')
- * (cheap/fast tier), same bucket as MC option generation.
+ * benefits from broader learner context. Routed via task 'distractors' in
+ * generateJson (cheap/fast tier), same bucket as MC option generation.
  */
 export const MC_FEEDBACK_PROMPT = {
   id: 'mc-feedback',

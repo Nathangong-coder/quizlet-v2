@@ -2,10 +2,9 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { generateJsonWithGoogle } from '@/lib/ai/google';
+import { generateJson, AiGenerationError } from '@/lib/ai/generate';
 import { TRAINING_PLAN_PROMPT } from '@/lib/ai/prompts/registry';
 import { TrainingPlanSchema } from '@/lib/ai/schemas';
-import { modelFor } from '@/lib/ai/model-routing';
 import { buildLearnerProfile } from '@/lib/memory/profile';
 import { profileToPromptBlock } from '@/lib/ai/context';
 import { ActionResult } from '@/types/action';
@@ -30,23 +29,16 @@ export async function generateTrainingPlan(setId: string): Promise<ActionResult<
       console.error('buildLearnerProfile failed for training plan:', err);
     }
 
-    // 2. Get API key
-    const credential = await prisma.aiCredential.findUnique({ where: { userId } });
-    if (!credential) return { success: false, error: 'No Google API key saved. Please add it in settings.' };
-
-    const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
-    const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
-
-    // 3. Generate
+    // 2. Generate
     const prompt = TRAINING_PLAN_PROMPT.build({ profileBlock });
-    const plan = await generateJsonWithGoogle({
-      apiKey,
+    const plan = await generateJson({
+      userId,
+      task: 'plan',
       prompt,
       schema: TrainingPlanSchema,
-      model: modelFor('plan'),
     });
 
-    // 4. Persist
+    // 3. Persist
     const savedPlan = await prisma.trainingPlan.create({
       data: {
         userId,
@@ -61,8 +53,11 @@ export async function generateTrainingPlan(setId: string): Promise<ActionResult<
     });
 
     return { success: true, data: { plan: savedPlan } };
-  } catch (error: any) {
-    console.error('Training plan generation error:', error);
+  } catch (err) {
+    if (err instanceof AiGenerationError) {
+      return { success: false, error: err.detail.title, detail: err.detail };
+    }
+    console.error('Training plan generation error:', err);
     return { success: false, error: 'Failed to generate training plan.' };
   }
 }

@@ -26,7 +26,7 @@ export interface TrainingPlanContext {
 
 /**
  * Personalized training-plan generation prompt. Registry entry per Stage 6
- * Task 5 — routed via modelFor('plan') (strongest available flash).
+ * Task 5 — routed via task 'plan' in generateJson (strongest available flash).
  */
 export const TRAINING_PLAN_PROMPT = {
   id: 'training-plan',
