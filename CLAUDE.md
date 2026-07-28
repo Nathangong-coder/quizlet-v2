@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Active codebase — Stages 1 through 3.5 are built.** The app is a working Next.js App Router project (`src/`), with a Prisma schema covering users, sets, cards, categories, rich content blocks + assets, confidence/progress memory, quiz attempts/answers, and training plans. Stage 4 (voice) is not built. Keep this file in sync with reality as stages land.
+**Active codebase — Stages 1 through 3.5 are built.** The app is a working Next.js App Router project (`src/`), with a Prisma schema covering users, sets, cards, categories, rich content blocks + assets, confidence/progress memory, quiz attempts/answers, training plans, and multi-provider AI credentials. Stage 4 (voice) is not built. Keep this file in sync with reality as stages land.
 
 **What exists today (verified in code):**
 - Flashcards, set builder, import parser (`src/lib/parser/import.ts`), search, matching game — Stage 1.
 - Star/confidence memory (`CardProgress` + `ConfidenceEvent`), flashcard carousel, Review mode — Stage 2.
-- AI multiple-choice, short-answer grading + annotations, training-plan generation, autocomplete, encrypted per-user Google key — Stage 3.
+- AI multiple-choice, short-answer grading + annotations, training-plan generation, autocomplete, encrypted per-user AI credentials — Stage 3 (credentials are multi-provider as of Stage 6; see "AI integration" below).
 - Activity tiles, quiz setup/filters (starred/failed/side/mode), rich-card **authoring** scaffolding (`CardContentBlock`/`CardAsset` via Vercel Blob), printable quizzes — Stage 3.5. (Custom categories were only a data model + a dead quiz filter in 3.5; the full categorization feature — authoring, display, and games filtering — ships in **Stage 3.6**.)
 
 **Known gaps being addressed by the plans in `docs/superpowers/plans/` (dated 2026-07-04):**
@@ -21,32 +21,42 @@ See also: `docs/ai/prompting-strategy.md` (current Gemini approach + improvement
 
 ## What we're building
 
-A redesigned Quizlet-style study app with first-class **short-answer** practice aimed at finance interview prep. Beyond flashcards, the app uses AI (Google Gemini/Gemma models) to generate multiple-choice options, grade free-text and **spoken** answers, and produce personalized training plans.
+A redesigned Quizlet-style study app with first-class **short-answer** practice aimed at finance interview prep. Beyond flashcards, the app uses AI (Gemini/Gemma by default; a user may also add Anthropic, OpenAI, OpenRouter, or custom-endpoint credentials) to generate multiple-choice options, grade free-text and **spoken** answers, and produce personalized training plans.
 
 ## Decided stack
 
 - **Framework:** Next.js (App Router) + React + TypeScript, Tailwind CSS. API routes / server actions for the backend. Target deploy: Vercel.
 - **Database / ORM:** Postgres (Neon or Supabase) via Prisma.
 - **Auth:** Auth.js (NextAuth). Accounts are required for starring/confidence memory, saved quiz history, and (later) multiplayer.
-- **AI access:** Each user pastes **their own Google API key** in settings; it is used for all AI calls on their behalf. See "AI integration" below.
+- **AI access:** Each user stores their own AI provider credentials (`AiCredential`, many per user) in settings; all AI calls on their behalf run against those credentials. See "AI integration" below.
 - **Multiplayer:** Single-player first; live vs-friends matching is a later add-on (Supabase Realtime or WebSockets when built).
 
 ## AI integration (important — read before touching AI code)
 
 Two paths exist and must not be conflated:
 
-1. **Production:** user-supplied Google API key, entered in the UI, stored encrypted per-user, used directly against Google's API (via the Vercel AI SDK or `@google/genai`).
-2. **Local dev:** the `litellm_config.yaml` proxy. It exposes an **Anthropic-compatible** endpoint at `http://localhost:4000` that routes to Gemini/Gemma models with a fallback chain. The `.env` points the Anthropic SDK vars (`ANTHROPIC_BASE_URL`, `ANTHROPIC_MODEL=gemini-3-flash`, etc.) at this proxy. This lets Claude Code / Anthropic-shaped clients run against Google models locally without a separate Google integration.
-
-Model routing & fallbacks are defined in `litellm_config.yaml`: primary `gemini-3-flash` falling back through `gemma-4-31b-it` → `gemini-3.1-flash-lite` → `gemma-3-27b-it` → `gemma-3-12b-it`. Reuse this fallback ordering when choosing default models in app code so behavior matches dev.
+1. **Production:** each user stores their own provider credentials in `AiCredential` — many per user, not one. Fields: `provider` (`google | anthropic | openai | openrouter | custom`), `label`, `defaultModel`, `role` (`primary | backup`), `enabled`, `lastUsedAt`, `lastErrorKind`. An optional `AiTaskRouting` row pins a task (`grade | plan | distractors | autocomplete` — see `AI_TASKS` in `src/lib/ai/model-routing.ts`) to one specific credential + model; without a pin, every enabled credential is eligible. Credential CRUD, model listing, and credential testing live in `src/actions/ai-credentials.ts`.
+2. **Local dev:** the `litellm_config.yaml` proxy — a separate concern from `AiCredential`, used to run Claude Code / Anthropic-shaped clients against Google models locally. It exposes an **Anthropic-compatible** endpoint at `http://localhost:4000`; `.env` points the Anthropic SDK vars (`ANTHROPIC_BASE_URL`, `ANTHROPIC_MODEL`, etc.) at it. The fallback chain lives only in the yaml: primary `gemini-3.6-flash` falling back through `gemini-3.5-flash` → `gemini-3.1-flash-lite` → `gemini-3.5-flash-lite` → `gemma-4-31b-it` → `gemma-4-26b-a4b-it`.
 
 To run the proxy locally: `litellm --config litellm_config.yaml` (requires `LITELLM_MASTER_KEY` and `GOOGLE_API_KEY` in env).
+
+**Generation and rotation.** All generation funnels through `generateJson()` in `src/lib/ai/generate.ts`, built on Vercel AI SDK v7. For a given user/task it resolves the eligible credentials and orders them with the pure function `selectAttemptOrder` (`src/lib/ai/key-pool.ts`) — least-recently-used on `lastUsedAt`, primaries before backups, disabled credentials excluded — then attempts each in order until one succeeds. LRU (not a counter) was chosen because a counter can't be shared across serverless instances.
+
+Two Vercel AI SDK v7 facts that are easy to get wrong:
+- **`generateObject` does not exist in v7.** Structured output is `generateText({ model, output: Output.object({ schema }) })`.
+- **The Google provider factory is `createGoogle`** (`@ai-sdk/google`), renamed from `createGoogleGenerativeAI`.
+
+`src/lib/ai/google.ts` and its `stripMarkdownJson` regex JSON cleanup are deleted — the SDK's native structured output replaced them.
+
+**Model ids must be verified by a real generation call, never a listing call.** Google's `ListModels` has returned ids (e.g. `gemini-2.5-flash`) that 404 from `generateContent` — a hardcoded, nonexistent model id caused a real production outage here. `testCredential`/`testRawCredential` (`src/actions/ai-credentials.ts`) always issue a real `generateText` call to verify a model; never trust the model-listing call alone.
+
+**Failure classification.** `src/lib/errors/classify.ts` maps any provider error to a `FailureKind` (`no_credentials`, `invalid_key`, `quota_exhausted`, `rate_limited`, `unknown_model`, `provider_down`, `schema_invalid`, `config_invalid`, `internal`) carrying a `user`/`system` attribution, so the UI can say whose problem it is. On total failure, the thrown error aggregates **every** attempt, not just the last — surfacing only the last error is what made an earlier multi-credential outage here unreadable.
 
 **AI grading is a core domain concept, not a feature bolt-on.** Grading must return structured output (not prose) so the UI can render scores and the system can track weaknesses over time. The grading rubric differs by mode:
 - **Short-answer (text):** clarity, conciseness, correctness, plus an overall grade. Note that a wrong answer can still score well on clarity (e.g. clearly admitting "I don't know").
 - **Spoken answer (Stage 4):** the above **plus** delivery metrics specific to live/interview settings — filler words (transcribe the "ums"/"ahs", don't strip them), pacing, confidence, structure. Transcription must preserve disfluencies for the delivery grade.
 
-Always request **structured/JSON output** from grading and MC-generation calls and validate it (e.g. Zod) before persisting.
+Every `generateJson` call passes a Zod `schema`; it is the structured-output contract and must be validated before persisting.
 
 ## Staged execution plan
 
@@ -105,7 +115,8 @@ Detailed plan: `docs/superpowers/plans/2026-07-04-persistent-memory-and-promptin
 - **Single memory write path** so every mode (Review, Quiz MC/SA/TF, matching, lessons) updates per-card confidence + an append-only `StudyEvent` history. Closes the gap where quizzes don't touch confidence today.
 - Pure, tested scoring: confidence deltas, mastery, and spaced-repetition due dates. AI never *computes* mastery, only reads it.
 - Compact, **ID-free, token-capped `LearnerProfile`** injected into every judgment prompt.
-- Consolidate scattered prompts into a **versioned registry**; route grading/plan to a stronger model than autocomplete; prefer Gemini structured-output `responseSchema` over regex JSON cleanup.
+- Prompts are consolidated into a **versioned registry** (`src/lib/ai/prompts/registry.ts`); route grading/plan to a stronger model than autocomplete. Structured output goes through the AI SDK's native `Output.object({ schema })`, not regex JSON cleanup — see "AI integration" above.
+- **Multi-provider AI credentials**: `AiCredential` (many per user; `provider`, `label`, `defaultModel`, `role`, `enabled`, `lastUsedAt`, `lastErrorKind`) replaced the single per-user Google key. `AiTaskRouting` optionally pins a task to one credential + model. Rotation, generation, and failure classification are detailed in "AI integration" above.
 - **Scoped memory history** (`/profile/memory`, design: `docs/superpowers/specs/2026-07-27-scoped-memory-history-design.md`): one `HistoryScope` (`src/lib/memory/scope.ts`) narrows the event feed, the stat tiles, and the filter options together — empty scope is the consolidated view. Categories present **across sets** by grouping per-set `CardCategory` rows on `normalizedName`, so no schema migration was needed; `CardCategory` remains set-scoped. Scope is URL-synced.
 
 ### Stage 7 — Personalized learning plans & AI lessons
@@ -127,6 +138,8 @@ Detailed plan: `docs/superpowers/plans/2026-07-04-personalized-learning-plans.md
 ## Security note
 
 `.env` currently holds **live secrets** (`GOOGLE_API_KEY`, `RESEND_API_KEY`). It is gitignored — keep it that way and never commit real keys. These keys were exposed during setup; rotate them. Use `.env.example` (placeholders only) for documenting required variables.
+
+`GOOGLE_KEY_ENCRYPTION_SECRET` now encrypts `AiCredential` rows for **every** provider, not just Google — the name is kept deliberately. Renaming it, or changing the `v1:<iv>:<tag>:<ciphertext>` payload format, makes every already-stored credential permanently undecryptable. A golden-vector test (`tests/security/api-key.test.ts`) pins the current format against a fixed plaintext/secret/output; if it fails, either revert or ship a re-encryption migration before deploying.
 
 ## Future Considerations
 - **Important Terms:** Starred cards are considered "important terms." Need to define specific behavior:
