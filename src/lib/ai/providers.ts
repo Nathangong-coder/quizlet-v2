@@ -46,11 +46,11 @@ export const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
   custom: {
     label: 'Custom (OpenAI-compatible)',
     requiresBaseUrl: true,
-    // The brief's own PROVIDER_META unit test requires every provider's
-    // defaultModel to be non-empty, so this can't be '' even though the
-    // endpoint is fully user-defined. Pick a widely-supported placeholder
-    // the user can override.
-    defaultModel: 'gpt-4o-mini',
+    // Intentionally empty: no model id is valid across arbitrary
+    // OpenAI-compatible backends (Ollama, vLLM, LM Studio, self-hosted
+    // gateways, ...), so the user must explicitly choose one rather than
+    // silently receiving a guessed default that may not exist on their host.
+    defaultModel: '',
     keyPlaceholder: 'your API key',
   },
 };

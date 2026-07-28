@@ -12,8 +12,20 @@ describe('PROVIDER_META', () => {
       const meta = PROVIDER_META[id];
       expect(meta.label.length).toBeGreaterThan(0);
       expect(typeof meta.requiresBaseUrl).toBe('boolean');
-      expect(meta.defaultModel.length).toBeGreaterThan(0);
     }
+  });
+
+  it('gives every hosted provider a default model', () => {
+    for (const id of AI_PROVIDERS) {
+      if (id === 'custom') continue;
+      expect(PROVIDER_META[id].defaultModel.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('leaves the custom provider without a default model', () => {
+    // No model id is valid across arbitrary OpenAI-compatible backends
+    // (Ollama, vLLM, LM Studio, ...), so the user must choose one.
+    expect(PROVIDER_META.custom.defaultModel).toBe('');
   });
 
   it('requires a base URL only for the openai-compatible providers', () => {
