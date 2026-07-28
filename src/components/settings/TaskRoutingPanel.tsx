@@ -107,6 +107,7 @@ export default function TaskRoutingPanel() {
                     {credentials.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.label} ({PROVIDER_META[c.provider as ProviderId]?.label ?? c.provider})
+                        {c.enabled ? '' : ' — disabled'}
                       </option>
                     ))}
                   </select>

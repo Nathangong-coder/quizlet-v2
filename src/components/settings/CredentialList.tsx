@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Loader2, Trash2, Pencil, AlertTriangle, Plus } from 'lucide-react';
@@ -11,24 +11,43 @@ import { listCredentials, deleteCredential, testCredential, type CredentialRow }
 import { AI_PROVIDERS, PROVIDER_META } from '@/lib/ai/providers';
 import { useErrorToast } from '@/components/errors/useErrorToast';
 
+/** Tagged with the reload generation it answers, so a stale response never overwrites a newer one. */
+interface ListState {
+  key: number;
+  credentials: CredentialRow[];
+}
+
 export default function CredentialList() {
-  const [credentials, setCredentials] = useState<CredentialRow[] | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [state, setState] = useState<ListState | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const { show: showError, dialog: errorDialog } = useErrorToast();
 
-  const refresh = useCallback(async () => {
-    const result = await listCredentials();
-    if (result.success) {
-      setCredentials(result.data);
-    } else {
-      toast.error(result.error);
-      setCredentials([]);
-    }
-  }, []);
+  const loading = state?.key !== reloadKey;
+  const credentials = state?.credentials ?? [];
 
+  // Only ever sets state inside the `.then()` callback (never synchronously
+  // in the effect body), and a `cancelled` flag stops an in-flight response
+  // from an earlier generation overwriting a newer one — same shape as
+  // `profile/memory/page.tsx`. `refresh` below only bumps `reloadKey`, so
+  // rapid successive Test/Delete calls each properly supersede the last.
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let cancelled = false;
+    listCredentials().then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setState({ key: reloadKey, credentials: result.data });
+      } else {
+        toast.error(result.error);
+        setState({ key: reloadKey, credentials: [] });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  const refresh = () => setReloadKey((k) => k + 1);
 
   async function handleTest(cred: CredentialRow) {
     setBusyId(cred.id);
@@ -36,11 +55,10 @@ export default function CredentialList() {
     setBusyId(null);
     if (result.success) {
       toast.success(`${cred.label} works`);
-      void refresh();
     } else {
       showError(result.error, result.detail);
-      void refresh();
     }
+    refresh();
   }
 
   async function handleDelete(cred: CredentialRow) {
@@ -50,13 +68,13 @@ export default function CredentialList() {
     setBusyId(null);
     if (result.success) {
       toast.success('Credential deleted');
-      void refresh();
+      refresh();
     } else {
       toast.error(result.error);
     }
   }
 
-  if (credentials === null) {
+  if (loading) {
     return <p className="text-sm text-muted-foreground py-8 text-center">Loading credentials…</p>;
   }
 

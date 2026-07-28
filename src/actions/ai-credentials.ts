@@ -22,6 +22,21 @@ const CredentialInput = z.object({
   enabled: z.boolean(),
 });
 
+/**
+ * Raw (not-yet-persisted) credential material. Lets a brand-new credential be
+ * tested and have its models listed BEFORE it is saved — Save should never be
+ * required just to find out whether a key/model works. `baseUrl` intentionally
+ * skips `.url()` here (unlike CredentialInput) so a malformed value fails via
+ * the same classified-error path as a real provider call, rather than a raw
+ * Zod message the user can't act on.
+ */
+const RawCredentialInput = z.object({
+  provider: z.enum(AI_PROVIDERS),
+  apiKey: z.string().trim().min(8),
+  baseUrl: z.string().trim().optional(),
+  model: z.string().trim().min(1),
+});
+
 export interface CredentialRow {
   id: string; provider: string; label: string; keyHint: string;
   baseUrl: string | null; defaultModel: string; role: string; enabled: boolean;
@@ -192,6 +207,67 @@ export async function testCredential(id: string, model?: string): Promise<Action
       error: described.title,
       detail: { ...described, technical: err instanceof Error ? err.message : String(err) },
     };
+  }
+}
+
+/**
+ * Same real-call verification as `testCredential`, but against raw key
+ * material that has not been saved yet — so a brand-new credential can be
+ * checked before Save, not only after.
+ */
+export async function testRawCredential(
+  input: z.infer<typeof RawCredentialInput>,
+): Promise<ActionResult<void>> {
+  const userId = await requireUserId();
+  if (!userId) return { success: false, error: 'Unauthorized' };
+
+  const parsed = RawCredentialInput.safeParse(input);
+  if (!parsed.success) return { success: false, error: 'Invalid credential details' };
+  const v = parsed.data;
+
+  if (PROVIDER_META[v.provider].requiresBaseUrl && !v.baseUrl?.trim()) {
+    return { success: false, error: `${PROVIDER_META[v.provider].label} requires a base URL.` };
+  }
+
+  try {
+    await generateText({
+      model: resolveLanguageModel({
+        provider: v.provider,
+        apiKey: v.apiKey,
+        baseUrl: v.baseUrl || null,
+        model: v.model,
+      }),
+      prompt: 'Reply with the single word: ok',
+    });
+    return { success: true, data: undefined };
+  } catch (err) {
+    const kind = classifyProviderError(err);
+    const described = describeFailure(kind);
+    return {
+      success: false,
+      error: described.title,
+      detail: { ...described, technical: err instanceof Error ? err.message : String(err) },
+    };
+  }
+}
+
+/** Lists models for raw (not-yet-persisted) key material — see `testRawCredential`. */
+export async function listRawProviderModels(
+  input: Omit<z.infer<typeof RawCredentialInput>, 'model'>,
+): Promise<ActionResult<string[]>> {
+  const userId = await requireUserId();
+  if (!userId) return { success: false, error: 'Unauthorized' };
+
+  const parsed = RawCredentialInput.omit({ model: true }).safeParse(input);
+  if (!parsed.success) return { success: false, error: 'Invalid credential details' };
+  const v = parsed.data;
+
+  try {
+    const models = await fetchModelList(v.provider, v.apiKey, v.baseUrl || null);
+    return { success: true, data: models };
+  } catch (error) {
+    console.error('List raw provider models error:', error);
+    return { success: false, error: 'Failed to list models' };
   }
 }
 

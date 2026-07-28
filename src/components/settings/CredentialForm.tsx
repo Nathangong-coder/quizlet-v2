@@ -13,7 +13,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import {
   saveCredential,
   testCredential,
+  testRawCredential,
   listProviderModels,
+  listRawProviderModels,
   type CredentialRow,
 } from '@/actions/ai-credentials';
 import { PROVIDER_META, type ProviderId } from '@/lib/ai/providers';
@@ -23,6 +25,12 @@ interface CredentialFormProps {
   provider: ProviderId;
   /** Existing row when editing; null when adding a new credential. */
   credential: CredentialRow | null;
+}
+
+/** Tagged model-list result so a stale in-flight fetch can never overwrite a newer one. */
+interface ModelsState {
+  key: string;
+  options: string[];
 }
 
 export default function CredentialForm({ provider, credential }: CredentialFormProps) {
@@ -38,31 +46,77 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
   const [role, setRole] = useState<'primary' | 'backup'>((credential?.role as 'primary' | 'backup') ?? 'primary');
   const [enabled, setEnabled] = useState(credential?.enabled ?? true);
 
-  const [modelOptions, setModelOptions] = useState<string[]>([]);
-  const [loadingModels, setLoadingModels] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
 
   const isEditing = Boolean(credential);
 
-  // Editing an existing credential already has a usable key on file, so the
-  // model list can be fetched right away. A brand-new credential has no
-  // saved key yet, so this only becomes possible after the first Save.
-  useEffect(() => {
-    if (credentialId) {
-      void loadModels(credentialId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // --- Model listing for a SAVED credential (editing, or right after Save
+  // creates one). Fetched reactively: when `credentialId` first appears, or
+  // when the user bumps `modelsReloadKey` via "Refresh list". Every state
+  // update happens inside the `.then()` callback, never synchronously in the
+  // effect body, and a request tag + `cancelled` flag stop a stale response
+  // from clobbering a newer one — same shape as `profile/memory/page.tsx`.
+  const [modelsReloadKey, setModelsReloadKey] = useState(0);
+  const [savedModelsState, setSavedModelsState] = useState<ModelsState | null>(null);
+  const savedModelsRequestKey = credentialId ? `${credentialId}::${modelsReloadKey}` : null;
+  const loadingSavedModels = savedModelsRequestKey !== null && savedModelsState?.key !== savedModelsRequestKey;
 
-  async function loadModels(id: string) {
-    setLoadingModels(true);
-    const result = await listProviderModels(id);
-    setLoadingModels(false);
+  useEffect(() => {
+    if (!credentialId || !savedModelsRequestKey) return;
+    let cancelled = false;
+    listProviderModels(credentialId).then((result) => {
+      if (cancelled) return;
+      if (result.success) {
+        setSavedModelsState({ key: savedModelsRequestKey, options: result.data });
+      } else {
+        toast.error(result.error);
+        setSavedModelsState({ key: savedModelsRequestKey, options: [] });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [credentialId, savedModelsRequestKey]);
+
+  // --- Model listing for a brand-new, unsaved credential. This is a plain
+  // click handler (not an effect) because it depends on freshly-typed key
+  // material we deliberately do not want to fire automatically on keystroke.
+  const [rawModelOptions, setRawModelOptions] = useState<string[]>([]);
+  const [loadingRawModels, setLoadingRawModels] = useState(false);
+
+  async function loadRawModels() {
+    if (apiKey.trim().length < 8) {
+      toast.error('Enter an API key first.');
+      return;
+    }
+    if (meta.requiresBaseUrl && !baseUrl.trim()) {
+      toast.error(`${meta.label} requires a base URL.`);
+      return;
+    }
+    setLoadingRawModels(true);
+    const result = await listRawProviderModels({
+      provider,
+      apiKey: apiKey.trim(),
+      baseUrl: baseUrl.trim() || undefined,
+    });
+    setLoadingRawModels(false);
     if (result.success) {
-      setModelOptions(result.data);
+      setRawModelOptions(result.data);
     } else {
       toast.error(result.error);
+    }
+  }
+
+  const usingSavedCredential = Boolean(credentialId);
+  const modelOptions = usingSavedCredential ? (savedModelsState?.options ?? []) : rawModelOptions;
+  const loadingModels = usingSavedCredential ? loadingSavedModels : loadingRawModels;
+
+  function handleRefreshModels() {
+    if (usingSavedCredential) {
+      setModelsReloadKey((k) => k + 1);
+    } else {
+      void loadRawModels();
     }
   }
 
@@ -96,10 +150,7 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
     if (result.success) {
       toast.success('Credential saved');
       setApiKey('');
-      if (!credentialId) {
-        setCredentialId(result.data.id);
-        void loadModels(result.data.id);
-      }
+      if (!credentialId) setCredentialId(result.data.id);
       router.refresh();
     } else {
       showError(result.error, result.detail);
@@ -107,13 +158,30 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
   }
 
   async function handleTest() {
-    if (!credentialId) {
-      toast.error('Save this credential first, then Test.');
+    if (!model.trim()) {
+      toast.error('Enter a model id first.');
       return;
     }
+    if (!usingSavedCredential && apiKey.trim().length < 8) {
+      toast.error('Enter an API key first.');
+      return;
+    }
+    if (meta.requiresBaseUrl && !baseUrl.trim()) {
+      toast.error(`${meta.label} requires a base URL.`);
+      return;
+    }
+
     setTesting(true);
-    const result = await testCredential(credentialId, model.trim() || undefined);
+    const result = credentialId
+      ? await testCredential(credentialId, model.trim())
+      : await testRawCredential({
+          provider,
+          apiKey: apiKey.trim(),
+          baseUrl: baseUrl.trim() || undefined,
+          model: model.trim(),
+        });
     setTesting(false);
+
     if (result.success) {
       toast.success('It works — the provider accepted this key and model.');
     } else {
@@ -214,19 +282,10 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
               <p className="text-xs text-muted-foreground">
                 Listed models are not guaranteed to work with your key. Press Test to confirm.
               </p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={() => credentialId && loadModels(credentialId)}
-                disabled={loadingModels || !credentialId}
-              >
-                {loadingModels ? 'Loading…' : 'Refresh list'}
+              <Button type="button" variant="ghost" size="xs" onClick={handleRefreshModels} disabled={loadingModels}>
+                {loadingModels ? 'Loading…' : modelOptions.length > 0 ? 'Refresh list' : 'List models'}
               </Button>
             </div>
-            {!credentialId && (
-              <p className="text-xs text-muted-foreground">Save this credential to list available models and enable Test.</p>
-            )}
           </div>
 
           <div className="space-y-2">

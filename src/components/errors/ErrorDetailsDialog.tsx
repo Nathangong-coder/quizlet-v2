@@ -30,13 +30,25 @@ interface ErrorDetailsDialogProps {
  */
 export default function ErrorDetailsDialog({ detail, open, onOpenChange }: ErrorDetailsDialogProps) {
   const [copied, setCopied] = useState(false);
+  // Keeps rendering the last non-null detail while the dialog is closing, so
+  // the base-ui exit transition (`data-closed:animate-out`) has content to
+  // animate. If we unmounted on `detail === null` immediately, the portal
+  // would disappear before the animation could run.
+  const [displayDetail, setDisplayDetail] = useState<ErrorDetail | null>(null);
+  // Render-time state adjustment (React's documented alternative to an Effect
+  // for "derive state from a prop that changes"), guarded so it only fires
+  // when `detail` actually differs — never inside a useEffect, so there is no
+  // synchronous setState-in-effect cascade.
+  if (detail && detail !== displayDetail) {
+    setDisplayDetail(detail);
+  }
 
-  if (!detail) return null;
+  if (!displayDetail) return null;
 
   async function handleCopy() {
-    if (!detail?.technical) return;
+    if (!displayDetail?.technical) return;
     try {
-      await navigator.clipboard.writeText(detail.technical);
+      await navigator.clipboard.writeText(displayDetail.technical);
       setCopied(true);
       toast.success('Copied technical details');
       setTimeout(() => setCopied(false), 2000);
@@ -47,32 +59,32 @@ export default function ErrorDetailsDialog({ detail, open, onOpenChange }: Error
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl w-full h-dvh sm:h-auto sm:max-h-[85vh] flex flex-col">
+      <DialogContent className="sm:max-w-2xl w-full h-dvh sm:h-auto sm:max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <div className="flex items-center gap-2">
-            <DialogTitle>{detail.title}</DialogTitle>
-            <Badge variant={detail.attribution === 'user' ? 'outline' : 'secondary'}>
-              {detail.attribution === 'user' ? 'You can fix this' : 'Problem on our end'}
+          <div className="flex items-center gap-2 flex-wrap pr-8">
+            <DialogTitle>{displayDetail.title}</DialogTitle>
+            <Badge variant={displayDetail.attribution === 'user' ? 'outline' : 'secondary'}>
+              {displayDetail.attribution === 'user' ? 'You can fix this' : 'Problem on our end'}
             </Badge>
           </div>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          <p className="text-sm text-muted-foreground">{detail.why}</p>
+          <p className="text-sm text-muted-foreground">{displayDetail.why}</p>
 
-          {detail.fix && (
+          {displayDetail.fix && (
             <div>
-              {detail.fix.href ? (
-                <Button size="sm" render={<Link href={detail.fix.href} />}>
-                  {detail.fix.label}
+              {displayDetail.fix.href ? (
+                <Button size="sm" render={<Link href={displayDetail.fix.href} />}>
+                  {displayDetail.fix.label}
                 </Button>
               ) : (
-                <p className="text-sm font-medium">{detail.fix.label}</p>
+                <p className="text-sm font-medium">{displayDetail.fix.label}</p>
               )}
             </div>
           )}
 
-          {detail.attempts && detail.attempts.length > 0 && (
+          {displayDetail.attempts && displayDetail.attempts.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium">Attempts</p>
               <div className="overflow-x-auto rounded-lg border">
@@ -86,7 +98,7 @@ export default function ErrorDetailsDialog({ detail, open, onOpenChange }: Error
                     </tr>
                   </thead>
                   <tbody>
-                    {detail.attempts.map((a, i) => (
+                    {displayDetail.attempts.map((a, i) => (
                       <tr key={`${a.credentialId}-${i}`} className="border-t">
                         <td className="px-2 py-1.5 break-words">{a.label}</td>
                         <td className="px-2 py-1.5 break-words">{a.provider}</td>
@@ -100,7 +112,7 @@ export default function ErrorDetailsDialog({ detail, open, onOpenChange }: Error
             </div>
           )}
 
-          {detail.technical && (
+          {displayDetail.technical && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">Technical details</p>
@@ -110,7 +122,7 @@ export default function ErrorDetailsDialog({ detail, open, onOpenChange }: Error
                 </Button>
               </div>
               <pre className="whitespace-pre-wrap break-words rounded-lg border bg-muted/50 p-3 text-xs">
-                {detail.technical}
+                {displayDetail.technical}
               </pre>
             </div>
           )}
