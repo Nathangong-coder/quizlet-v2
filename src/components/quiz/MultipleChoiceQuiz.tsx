@@ -5,13 +5,13 @@ import { Card as CardComponent, CardContent, CardHeader, CardTitle } from '@/com
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { getOrGenerateMultipleChoiceOptions, submitMultipleChoiceAnswer } from '@/actions/quiz';
-import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Card } from '@prisma/client';
 import { cn } from '@/lib/utils';
 import { ContentBlock } from '@/lib/cards/content';
 import { QuizCardPrompt } from './QuizCardPrompt';
 import { QuizSectionHandle, SectionNav } from './section';
+import { useErrorToast } from '@/components/errors/useErrorToast';
 
 type QuizCard = Card & { contentBlocks?: ContentBlock[] };
 
@@ -26,6 +26,7 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
     const [selectedAnswers, setSelectedAnswers] = useState<{ [cardId: string]: string }>({});
     const [optionsState, setOptionsState] = useState<{ [cardId: string]: { options: string[]; correctAnswer: string } }>({});
     const [loadingCards, setLoadingCards] = useState<Set<string>>(new Set());
+    const { show: showError, dialog: errorDialog } = useErrorToast();
 
     useEffect(() => {
       async function loadAllOptions() {
@@ -35,11 +36,11 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
           setLoadingCards(prev => new Set(prev).add(card.id));
           const result = await getOrGenerateMultipleChoiceOptions(card.id);
 
-          if (result.success && result.data) {
+          if (result.success) {
             const { options, correctAnswer } = result.data;
             setOptionsState(prev => ({ ...prev, [card.id]: { options, correctAnswer } }));
           } else {
-            toast.error(`Failed to load options for ${card.term}`);
+            showError(result.error || `Failed to load options for ${card.term}`, result.detail);
           }
           setLoadingCards(prev => {
             const next = new Set(prev);
@@ -66,7 +67,7 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
           selectedOption: selected,
           correctAnswer: data.correctAnswer,
         });
-        if (!res.success) toast.error(res.error || 'Failed to save answer');
+        if (!res.success) showError(res.error || 'Failed to save answer', res.detail);
       }
     }
 
@@ -134,6 +135,7 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
           onPrev={goPrev}
           onNext={goNext}
         />
+        {errorDialog}
       </div>
     );
   }

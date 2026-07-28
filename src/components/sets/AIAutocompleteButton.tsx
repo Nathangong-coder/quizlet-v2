@@ -3,6 +3,7 @@ import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getCardAutocompleteSuggestions } from "@/actions/card-autocomplete";
 import { cn } from "@/lib/utils";
+import { useErrorToast } from "@/components/errors/useErrorToast";
 
 interface AIAutocompleteButtonProps {
   setId: string;
@@ -22,12 +23,15 @@ export function AIAutocompleteButton({
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const { show: showError, dialog: errorDialog } = useErrorToast();
 
   const fetchSuggestions = async () => {
     setIsLoading(true);
     const result = await getCardAutocompleteSuggestions(setId, currentText, side, categories);
-    if (result.success && result.data) {
+    if (result.success) {
       setSuggestions(result.data.suggestions);
+    } else {
+      showError(result.error, result.detail);
     }
     setIsLoading(false);
     setIsOpen(true);
@@ -70,6 +74,7 @@ export function AIAutocompleteButton({
           </div>
         </>
       )}
+      {errorDialog}
     </div>
   );
 }

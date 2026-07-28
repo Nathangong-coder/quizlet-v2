@@ -38,4 +38,27 @@ describe('API key encryption', () => {
     expect(maskApiKey('short')).toBe('sh***rt');
     expect(maskApiKey('')).toBe('');
   });
+
+  /**
+   * Golden vector (Fix round 1, reviewer finding #4): every test above is a
+   * round-trip, which passes just as happily after someone swaps AES-256-GCM
+   * for a different AEAD or bumps the payload prefix to `v2:` — while every
+   * real user's already-stored credential silently becomes undecryptable.
+   * This pins the exact wire format against a fixed plaintext/secret/output
+   * generated once with the current implementation and hardcoded here.
+   *
+   * IF THIS TEST FAILS: the encrypted-payload format has changed in a way
+   * that is NOT backwards compatible. Every credential already stored in
+   * production under the old format can no longer be decrypted. Either
+   * revert the change, or ship a migration that re-encrypts existing rows
+   * under the new format before deploying it.
+   */
+  it('decrypts a golden vector produced by the current v1 AES-256-GCM format', () => {
+    const goldenSecret = 'SGVsbG8gV29ybGQhIDEyMzQ1Njc4OTBhYmNkZWZnaGk=';
+    const goldenPayload = 'v1:AAECAwQFBgcICQoL:L03ggsAnwQnpkg3Rn6r0Zw==:u9+YDWZB3/VIKiuukaJ55p0aQ7NcrbjH9yfdk8h+';
+    const goldenPlaintext = 'AIzaSyGoldenVectorPlaintext123';
+
+    process.env.GOOGLE_KEY_ENCRYPTION_SECRET = goldenSecret;
+    expect(decryptApiKey(goldenPayload)).toBe(goldenPlaintext);
+  });
 });

@@ -6,21 +6,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { generateTrainingPlan } from '@/actions/training-plan';
 import { toast } from 'sonner';
 import { Loader2, Sparkles } from 'lucide-react';
+import { useErrorToast } from '@/components/errors/useErrorToast';
 
 export function TrainingPlanPanel({ setId }: { setId: string }) {
   const [plan, setPlan] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const { show: showError, dialog: errorDialog } = useErrorToast();
 
   async function handleGenerate() {
     setIsLoading(true);
     const result = await generateTrainingPlan(setId);
     setIsLoading(false);
 
-    if (result.success && result.data) {
+    if (result.success) {
       setPlan(result.data.plan);
       toast.success('Training plan generated!');
     } else {
-      toast.error((result as any).error || 'Failed to generate plan');
+      showError(result.error || 'Failed to generate plan', result.detail);
     }
   }
 
@@ -53,6 +55,7 @@ export function TrainingPlanPanel({ setId }: { setId: string }) {
           </div>
         )}
       </CardContent>
+      {errorDialog}
     </Card>
   );
 }

@@ -9,6 +9,7 @@ import { encryptApiKey, decryptApiKey, maskApiKey } from '@/lib/security/api-key
 import { AI_PROVIDERS, PROVIDER_META, resolveLanguageModel, type ProviderId } from '@/lib/ai/providers';
 import { fetchModelList } from '@/lib/ai/model-catalog';
 import { classifyProviderError, describeFailure } from '@/lib/errors/classify';
+import { AI_TASKS } from '@/lib/ai/model-routing';
 import type { ActionResult } from '@/types/action';
 
 const CredentialInput = z.object({
@@ -294,7 +295,7 @@ export async function saveTaskRouting(
   const userId = await requireUserId();
   if (!userId) return { success: false, error: 'Unauthorized' };
 
-  const TaskName = z.enum(['grade', 'plan', 'distractors', 'autocomplete']);
+  const TaskName = z.enum(AI_TASKS);
   const parsedTask = TaskName.safeParse(task);
   if (!parsedTask.success) return { success: false, error: 'Unknown task' };
 

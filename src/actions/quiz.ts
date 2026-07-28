@@ -2,7 +2,7 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { generateJson, AiGenerationError } from '@/lib/ai/generate';
+import { generateJson, resolveTaskModel, AiGenerationError } from '@/lib/ai/generate';
 import {
   MULTIPLE_CHOICE_PROMPT,
   GRADE_SHORT_ANSWER_PROMPT,
@@ -26,19 +26,6 @@ import { profileToPromptBlock } from '@/lib/ai/context';
 import { ActionResult } from '@/types/action';
 
 /**
- * QuizOptionCache's `model` column used to be the literal Gemini model id
- * (Stage 6 Task 5), since every user shared one global model per task. Now
- * that each user picks their own credential/model (Stage 6 Task 8),
- * `generateJson` doesn't hand the caller back which model id was actually
- * used, and a per-user model id is meaningless as a cross-user cache key
- * anyway. This constant is a stable bucket label, not a model id — it keeps
- * one cache row per card and matches the print page's "most recent row per
- * card" read (src/app/sets/[id]/print/page.tsx), which no longer filters by
- * model at all.
- */
-const DISTRACTOR_CACHE_BUCKET = 'distractors';
-
-/**
  * Builds a rendered LearnerProfile block for prompt injection, isolated so a
  * failure never breaks the AI call it's meant to enrich (same
  * error-isolation pattern as recordStudyEvent call sites below).
@@ -60,25 +47,34 @@ export async function getOrGenerateMultipleChoiceOptions(
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
-  const model = DISTRACTOR_CACHE_BUCKET;
-
   try {
-    const cached = await prisma.quizOptionCache.findUnique({
-      where: { cardId_model: { cardId, model } },
-    });
+    // Resolved BEFORE generation: which credential/model will actually serve
+    // is unknowable up front (the pool rotates LRU-first and fails over on
+    // error), but the user's configured intent — their primary credential's
+    // model, right now — is, and that's a deterministic, honest cache key.
+    // `null` means no usable credential; `generateJson` below will fail with
+    // the same `no_credentials` error, so we skip the cache read/write and
+    // let that happen rather than caching under a null key.
+    const model = await resolveTaskModel(session.user.id, 'distractors');
 
-    if (cached) {
-      const options = MultipleChoiceOptionsSchema.parse(cached.options);
-      return {
-        success: true,
-        data: {
-          cardId,
-          options: options.options,
-          correctAnswer: options.correctAnswer,
-          cacheHit: true,
-          model,
-        },
-      };
+    if (model) {
+      const cached = await prisma.quizOptionCache.findUnique({
+        where: { cardId_model: { cardId, model } },
+      });
+
+      if (cached) {
+        const options = MultipleChoiceOptionsSchema.parse(cached.options);
+        return {
+          success: true,
+          data: {
+            cardId,
+            options: options.options,
+            correctAnswer: options.correctAnswer,
+            cacheHit: true,
+            model,
+          },
+        };
+      }
     }
 
     const card = await prisma.card.findUnique({ where: { id: cardId } });
@@ -100,12 +96,23 @@ export async function getOrGenerateMultipleChoiceOptions(
       schema: MultipleChoiceOptionsSchema,
     });
 
-    await prisma.quizOptionCache.create({
-      data: {
-        cardId,
-        model,
-        options: options as any,
-      },
+    // `generateJson` above resolves against the exact same candidate pool as
+    // `resolveTaskModel` did; if that pool were empty, it would have thrown
+    // AiGenerationError before this point. So `model` is guaranteed non-null
+    // here even though its static type is still `string | null` — the guard
+    // below is defensive documentation, not an expected runtime path.
+    if (!model) {
+      throw new Error('unreachable: generation succeeded with no resolvable model');
+    }
+
+    // `upsert`, not `create`: two concurrent generations for the same card
+    // would otherwise race on the `cardId_model` unique constraint and the
+    // loser would surface as "Failed to generate quiz options."
+    const optionsJson = options as any;
+    await prisma.quizOptionCache.upsert({
+      where: { cardId_model: { cardId, model } },
+      create: { cardId, model, options: optionsJson },
+      update: { options: optionsJson },
     });
 
     const responseData = {
@@ -608,22 +615,25 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
         where: { cardId: { in: cardIds } },
         orderBy: { updatedAt: 'desc' },
       });
-      const latestByCard = new Map<string, (typeof cachedOptions)[number]>();
+      // First row per cardId that parses successfully wins (list is
+      // newest-first), so a corrupt newest cache entry falls through to an
+      // older valid one instead of blanking the question — matches
+      // src/app/sets/[id]/print/page.tsx's more tolerant read.
+      const parsedByCard = new Map<string, { options: string[]; correctAnswer: string }>();
       for (const row of cachedOptions) {
-        if (!latestByCard.has(row.cardId)) latestByCard.set(row.cardId, row);
+        if (parsedByCard.has(row.cardId)) continue;
+        try {
+          const parsed = MultipleChoiceOptionsSchema.parse(row.options);
+          parsedByCard.set(row.cardId, { options: parsed.options, correctAnswer: parsed.correctAnswer });
+        } catch (e) {
+          console.error(`Failed to parse options for card ${row.cardId}:`, e);
+        }
       }
 
       attempt.answers = attempt.answers.map(a => {
         if (a.mode === 'multiple-choice') {
-          const cache = latestByCard.get(a.cardId);
-          if (cache) {
-            try {
-              const parsed = MultipleChoiceOptionsSchema.parse(cache.options);
-              return { ...a, options: parsed.options };
-            } catch (e) {
-              console.error(`Failed to parse options for card ${a.cardId}:`, e);
-            }
-          }
+          const cache = parsedByCard.get(a.cardId);
+          if (cache) return { ...a, options: cache.options };
         }
         return a;
       });

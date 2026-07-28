@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { AI_TASKS, type AiTask } from '@/lib/ai/model-routing'
+import { AI_TASKS } from '@/lib/ai/model-routing'
 
 /**
  * `modelFor`/`MODEL_FALLBACKS`/`DEFAULT_AI_MODEL`/`AiModel` were removed in
@@ -9,18 +9,15 @@ import { AI_TASKS, type AiTask } from '@/lib/ai/model-routing'
  * unreachable dead code. All that remains worth pinning is the task
  * vocabulary itself, since several modules (generateJson, the AiTaskRouting
  * actions, TaskRoutingPanel) must agree on exactly these four strings.
+ *
+ * `AiTask` is a `(typeof AI_TASKS)[number]` derived type, not a separately
+ * declared one — there is no independent type to drift out of sync with the
+ * runtime array, so there is nothing to assert about it beyond "this file
+ * compiles" (Fix round 1, reviewer finding #5: a prior version of this test
+ * asserted exactly that and could never fail).
  */
 describe('AI_TASKS', () => {
   it('contains exactly the four expected task names', () => {
     expect(AI_TASKS).toEqual(['grade', 'plan', 'distractors', 'autocomplete'])
-  })
-
-  it('matches the AiTask type', () => {
-    // Compile-time check: every AI_TASKS member must be assignable to AiTask
-    // and vice versa. If this file still compiles, the type and the runtime
-    // array haven't drifted apart.
-    const fromType: AiTask[] = [...AI_TASKS]
-    const backToTasks: (typeof AI_TASKS)[number][] = fromType
-    expect(backToTasks).toEqual(AI_TASKS)
   })
 })

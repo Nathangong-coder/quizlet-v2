@@ -5,11 +5,11 @@ import { Card as CardUI, CardContent, CardHeader, CardTitle } from '@/components
 import { Button } from '@/components/ui/button';
 import { Card as PrismaCard } from '@prisma/client';
 import { submitTrueFalseAnswer } from '@/actions/quiz';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ContentBlock } from '@/lib/cards/content';
 import { QuizCardPrompt } from './QuizCardPrompt';
 import { QuizSectionHandle, SectionNav } from './section';
+import { useErrorToast } from '@/components/errors/useErrorToast';
 
 type QuizCard = PrismaCard & { contentBlocks?: ContentBlock[] };
 
@@ -22,13 +22,14 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
   function TrueFalseQuiz({ cards, attemptId }, ref) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedAnswers, setSelectedAnswers] = useState<{ [cardId: string]: string }>({});
+    const { show: showError, dialog: errorDialog } = useErrorToast();
 
     async function commitAll() {
       for (const card of cards) {
         const selected = selectedAnswers[card.id];
         if (!selected) continue;
         const res = await submitTrueFalseAnswer({ attemptId, cardId: card.id, selectedOption: selected });
-        if (!res.success) toast.error(res.error || 'Failed to save answer');
+        if (!res.success) showError(res.error || 'Failed to save answer', res.detail);
       }
     }
 
@@ -88,6 +89,7 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
           onPrev={goPrev}
           onNext={goNext}
         />
+        {errorDialog}
       </div>
     );
   }

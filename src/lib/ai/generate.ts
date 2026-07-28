@@ -155,14 +155,21 @@ async function flagFailures(
 }
 
 /**
- * The single generation entry point. Call sites name a task; credential
- * selection, decryption, rotation, and failure aggregation happen here.
+ * Resolves the ordered candidate pool for a user/task: which credentials are
+ * eligible (narrowed to one if `AiTaskRouting` pins the task to a specific
+ * credential), in LRU-first/primary-before-backup order, each carrying the
+ * model it would be attempted with (`routing.model ?? credential.defaultModel`).
+ *
+ * Shared by `generateJson` (which attempts every candidate in order, with
+ * failover) and `resolveTaskModel` (which only needs the first one) so the
+ * two can never drift apart into disagreeing about what "the model for this
+ * task" means.
  */
-export async function generateJson<T>({
-  userId, task, schema, prompt, parts,
-}: GenerateJsonInput<T>): Promise<T> {
-  const { prisma } = await import('@/lib/db');
-
+async function resolveCandidates(
+  prisma: PrismaClient,
+  userId: string,
+  task: AiTask,
+): Promise<{ candidates: AttemptCandidate[]; byId: Map<string, Awaited<ReturnType<PrismaClient['aiCredential']['findMany']>>[number]> }> {
   const [credentials, routing] = await Promise.all([
     prisma.aiCredential.findMany({ where: { userId } }),
     prisma.aiTaskRouting.findUnique({ where: { userId_task: { userId, task } } }),
@@ -194,6 +201,37 @@ export async function generateJson<T>({
       model: routing?.model ?? cred.defaultModel,
     };
   });
+
+  return { candidates, byId };
+}
+
+/**
+ * The model a task will be attempted with first, resolved the same way
+ * `generateJson` resolves it (see `resolveCandidates`). Exposed so callers
+ * that cache per-model (e.g. `QuizOptionCache`) can compute a cache key
+ * BEFORE the generation call — the pool rotates LRU-first and fails over on
+ * error, so the model that ultimately serves a request is not knowable in
+ * advance, but the user's configured intent (their primary credential's
+ * model, right now) is. Returns `null` when the user has no usable
+ * credential for this task, in which case `generateJson` would fail with
+ * `no_credentials` anyway.
+ */
+export async function resolveTaskModel(userId: string, task: AiTask): Promise<string | null> {
+  const { prisma } = await import('@/lib/db');
+  const { candidates } = await resolveCandidates(prisma, userId, task);
+  return candidates[0]?.model ?? null;
+}
+
+/**
+ * The single generation entry point. Call sites name a task; credential
+ * selection, decryption, rotation, and failure aggregation happen here.
+ */
+export async function generateJson<T>({
+  userId, task, schema, prompt, parts,
+}: GenerateJsonInput<T>): Promise<T> {
+  const { prisma } = await import('@/lib/db');
+
+  const { candidates, byId } = await resolveCandidates(prisma, userId, task);
 
   let result: AttemptSuccess<T>;
   try {
