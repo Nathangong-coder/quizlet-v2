@@ -5,6 +5,12 @@ export interface PoolCredential {
   id: string;
   role: 'primary' | 'backup';
   enabled: boolean;
+  /**
+   * Least recently *tried*, not least recently succeeded: `generateJson`
+   * stamps this before it attempts a credential (see src/lib/ai/generate.ts).
+   * Stamping only on success would leave every member of a concurrent burst
+   * reading the same value and picking the same key.
+   */
   lastUsedAt: Date | null;
 }
 
@@ -13,8 +19,9 @@ export interface PoolCredential {
  *
  * Rotation is least-recently-used rather than a counter: a counter cannot be
  * shared across serverless instances, whereas `lastUsedAt` already lives in the
- * database. Stamping a credential after use naturally sends the next request to
- * its sibling, which is what "run both keys together" means in practice.
+ * database. Stamping a credential as it is picked up naturally sends the next
+ * request to its sibling, which is what "run both keys together" means in
+ * practice.
  *
  * Pure: same input, same output, no mutation of the argument.
  */

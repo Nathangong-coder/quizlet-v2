@@ -154,11 +154,22 @@ async function flagFailures(
   );
 }
 
+type CredentialRow = Awaited<ReturnType<PrismaClient['aiCredential']['findMany']>>[number];
+
+interface ResolvedPool {
+  candidates: AttemptCandidate[];
+  byId: Map<string, CredentialRow>;
+  /** Every credential on the account, before eligibility or enabled filtering. */
+  allCredentials: CredentialRow[];
+  /** The credential `AiTaskRouting` pins this task to, when it pins one. */
+  pinned: CredentialRow | null;
+}
+
 /**
  * Resolves the ordered candidate pool for a user/task: which credentials are
  * eligible (narrowed to one if `AiTaskRouting` pins the task to a specific
  * credential), in LRU-first/primary-before-backup order, each carrying the
- * model it would be attempted with (`routing.model ?? credential.defaultModel`).
+ * model it would be attempted with.
  *
  * Shared by `generateJson` (which attempts every candidate in order, with
  * failover) and `resolveTaskModel` (which only needs the first one) so the
@@ -169,7 +180,7 @@ async function resolveCandidates(
   prisma: PrismaClient,
   userId: string,
   task: AiTask,
-): Promise<{ candidates: AttemptCandidate[]; byId: Map<string, Awaited<ReturnType<PrismaClient['aiCredential']['findMany']>>[number]> }> {
+): Promise<ResolvedPool> {
   const [credentials, routing] = await Promise.all([
     prisma.aiCredential.findMany({ where: { userId } }),
     prisma.aiTaskRouting.findUnique({ where: { userId_task: { userId, task } } }),
@@ -178,9 +189,10 @@ async function resolveCandidates(
   // A routing row pinned to one credential narrows the pool to it; otherwise
   // every credential is eligible. A dangling credentialId is impossible —
   // the FK is ON DELETE SET NULL.
-  const eligible = routing?.credentialId
-    ? credentials.filter((c) => c.id === routing.credentialId)
-    : credentials;
+  const pinned = routing?.credentialId
+    ? credentials.find((c) => c.id === routing.credentialId) ?? null
+    : null;
+  const eligible = routing?.credentialId ? credentials.filter((c) => c.id === routing.credentialId) : credentials;
 
   const ordered = selectAttemptOrder(
     eligible.map((c) => ({
@@ -191,6 +203,19 @@ async function resolveCandidates(
     })),
   );
 
+  // A model id is provider-specific and meaningless across a heterogeneous
+  // pool: `gemini-3-pro` is not a name Anthropic serves, and
+  // `claude-sonnet-4-5` is not one Google serves. So the routing model
+  // override applies ONLY to the credential it was chosen alongside — i.e.
+  // only when `routing.credentialId` narrowed the pool to exactly that one.
+  // With no pinned credential the override is dropped and every candidate
+  // uses its own `defaultModel`; applying it pool-wide would 404 on every
+  // provider that does not serve the id, and `unknown_model` is
+  // user-attributed and non-retryable, so it would badge healthy credentials
+  // as broken in settings — the exact false-badge `flagworthyFailures` exists
+  // to prevent.
+  const overrideModel = routing?.credentialId ? routing.model : null;
+
   const byId = new Map(credentials.map((c) => [c.id, c]));
   const candidates = ordered.map((o) => {
     const cred = byId.get(o.id)!;
@@ -198,11 +223,34 @@ async function resolveCandidates(
       id: cred.id,
       label: cred.label,
       provider: cred.provider,
-      model: routing?.model ?? cred.defaultModel,
+      model: overrideModel ?? cred.defaultModel,
     };
   });
 
-  return { candidates, byId };
+  return { candidates, byId, allCredentials: credentials, pinned };
+}
+
+/**
+ * Why an empty candidate pool happened, phrased so the user can act on it.
+ *
+ * `no_credentials` ("none is saved on your account yet") is only true when the
+ * account genuinely has zero keys. Reaching it with four working keys saved —
+ * which happens the moment task routing pins a disabled credential — sends the
+ * user off to add another key instead of to the switch that is actually off,
+ * three screens away. Pure and exported so the two reachable non-empty cases
+ * are testable without a database.
+ */
+export function describeEmptyPool(pool: Pick<ResolvedPool, 'allCredentials' | 'pinned'>): ErrorDetail {
+  if (pool.allCredentials.length === 0) {
+    return { ...describeFailure('no_credentials'), attempts: [] };
+  }
+
+  const base = describeFailure('credentials_unavailable');
+  const why = pool.pinned
+    ? `Task routing sends this feature to the credential "${pool.pinned.label}", but that credential is turned off. The pin overrides the normal fallback order, so your other keys are not tried.`
+    : 'Every AI key saved on your account is currently turned off, so there is nothing left to try.';
+
+  return { ...base, why, attempts: [] };
 }
 
 /**
@@ -231,12 +279,34 @@ export async function generateJson<T>({
 }: GenerateJsonInput<T>): Promise<T> {
   const { prisma } = await import('@/lib/db');
 
-  const { candidates, byId } = await resolveCandidates(prisma, userId, task);
+  const pool = await resolveCandidates(prisma, userId, task);
+  const { candidates, byId } = pool;
+
+  // An empty pool has three causes and only one of them is "you have no keys".
+  // `runAttempts` cannot tell them apart (it only sees the candidate array),
+  // so the distinction is drawn here, where the credential rows are in hand.
+  if (candidates.length === 0) {
+    throw new AiGenerationError(describeEmptyPool(pool));
+  }
 
   let result: AttemptSuccess<T>;
   try {
     result = await runAttempts(candidates, async (candidate) => {
       const cred = byId.get(candidate.id)!;
+
+      // Stamped BEFORE the attempt, not after it. The field is therefore
+      // "least recently *tried*", which is the only basis that spreads load
+      // under concurrency: the app's main burst path (MultipleChoiceQuiz fans
+      // one action out per card via Promise.all) fires N requests that all
+      // read `lastUsedAt` before any of them finishes, so stamping on success
+      // sent every one of them to the SAME primary credential and then failed
+      // them all over on the resulting 429s. Failure flagging is unaffected —
+      // that still keys off the attempt outcome below.
+      await prisma.aiCredential.update({
+        where: { id: candidate.id },
+        data: { lastUsedAt: new Date() },
+      });
+
       const model = resolveLanguageModel({
         provider: cred.provider as ProviderId,
         apiKey: decryptApiKey(cred.encryptedApiKey),
@@ -260,11 +330,6 @@ export async function generateJson<T>({
     }
     throw err;
   }
-
-  await prisma.aiCredential.update({
-    where: { id: result.usedId },
-    data: { lastUsedAt: new Date() },
-  });
 
   // Flag only failures needing human action; a transient 429 must not badge a
   // working key as broken. Each row carries its own credentialId, so this never

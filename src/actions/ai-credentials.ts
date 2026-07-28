@@ -26,15 +26,17 @@ const CredentialInput = z.object({
 /**
  * Raw (not-yet-persisted) credential material. Lets a brand-new credential be
  * tested and have its models listed BEFORE it is saved — Save should never be
- * required just to find out whether a key/model works. `baseUrl` intentionally
- * skips `.url()` here (unlike CredentialInput) so a malformed value fails via
- * the same classified-error path as a real provider call, rather than a raw
- * Zod message the user can't act on.
+ * required just to find out whether a key/model works.
  */
 const RawCredentialInput = z.object({
   provider: z.enum(AI_PROVIDERS),
   apiKey: z.string().trim().min(8),
-  baseUrl: z.string().trim().optional(),
+  // Validated exactly as in CredentialInput. Letting a malformed value through
+  // does NOT reach a classified provider error: `fetch` throws a bare
+  // `TypeError: Failed to parse URL`, which matches no needle and lands on
+  // `internal` — "not caused by your configuration", with no fix link, for a
+  // two-second typo.
+  baseUrl: z.string().trim().url().optional().or(z.literal('')),
   model: z.string().trim().min(1),
 });
 
@@ -299,6 +301,16 @@ export async function saveTaskRouting(
   const parsedTask = TaskName.safeParse(task);
   if (!parsedTask.success) return { success: false, error: 'Unknown task' };
 
+  // A model override with no credential is not a meaningful configuration: a
+  // model id is provider-specific, so with no pin `generateJson` would have to
+  // either ignore it or send e.g. `gemini-3-pro` to an Anthropic key, 404 it,
+  // and badge a healthy credential as broken. Rejected here so the state
+  // cannot even be stored.
+  const trimmedModel = model?.trim() || null;
+  if (trimmedModel && !credentialId) {
+    return { success: false, error: 'Choose a credential before overriding its model.' };
+  }
+
   try {
     // Guard cross-user assignment: the credential must belong to this user.
     if (credentialId) {
@@ -310,8 +322,8 @@ export async function saveTaskRouting(
 
     await prisma.aiTaskRouting.upsert({
       where: { userId_task: { userId, task: parsedTask.data } },
-      update: { credentialId, model: model?.trim() || null },
-      create: { userId, task: parsedTask.data, credentialId, model: model?.trim() || null },
+      update: { credentialId, model: trimmedModel },
+      create: { userId, task: parsedTask.data, credentialId, model: trimmedModel },
     });
     revalidatePath('/settings/ai');
     return { success: true, data: undefined };

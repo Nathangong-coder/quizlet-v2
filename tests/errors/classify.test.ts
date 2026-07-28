@@ -37,6 +37,57 @@ describe('classifyProviderError', () => {
     expect(classifyProviderError(new Error('fetch failed: ECONNREFUSED'))).toBe('provider_down');
   });
 
+  it('does not let a digit inside a 5xx body masquerade as an auth failure', () => {
+    // The poisoning case. `'401'` used to be matched as a bare substring, and
+    // invalid_key was tested before provider_down, so a genuine outage whose
+    // body carried a trace id containing 401 badged a healthy credential as
+    // having a rejected key.
+    expect(
+      classifyProviderError(
+        new Error('[503 Service Unavailable] upstream error, trace id 7f401ab2, retry later'),
+      ),
+    ).toBe('provider_down');
+    expect(
+      classifyProviderError(new Error('[500 Internal Server Error] request 404123 failed')),
+    ).toBe('provider_down');
+  });
+
+  it('prefers a structured statusCode over message wording', () => {
+    // The AI SDK's APICallError carries the real status. Trusting it means a
+    // 5xx status page that merely mentions billing is not reported to the user
+    // as "top up your credits".
+    const apiError = Object.assign(new Error('service temporarily unavailable — check billing portal'), {
+      statusCode: 503,
+    });
+    expect(classifyProviderError(apiError)).toBe('provider_down');
+
+    const notFound = Object.assign(new Error('the request could not be completed'), { statusCode: 404 });
+    expect(classifyProviderError(notFound)).toBe('unknown_model');
+
+    const quota = Object.assign(new Error('Your prepayment credits are depleted'), { statusCode: 429 });
+    expect(classifyProviderError(quota)).toBe('quota_exhausted');
+
+    const busy = Object.assign(new Error('slow down'), { statusCode: 429 });
+    expect(classifyProviderError(busy)).toBe('rate_limited');
+  });
+
+  it('classifies an AI SDK structured-output failure as schema_invalid', () => {
+    // What `generateText({ output: Output.object({ schema }) })` throws when
+    // the reply cannot be parsed or fails validation. Matched by the SDK's
+    // stable error name, the same way ProviderConfigError is.
+    const noObject = new Error('No object generated: response did not match schema.');
+    noObject.name = 'AI_NoObjectGeneratedError';
+    expect(classifyProviderError(noObject)).toBe('schema_invalid');
+
+    const typeError = new Error('Type validation failed');
+    typeError.name = 'AI_TypeValidationError';
+    expect(classifyProviderError(typeError)).toBe('schema_invalid');
+
+    const parseError = new Error('JSON parsing failed');
+    parseError.name = 'AI_JSONParseError';
+    expect(classifyProviderError(parseError)).toBe('schema_invalid');
+  });
+
   it('falls back to internal for anything unrecognised', () => {
     expect(classifyProviderError(new Error('something bizarre'))).toBe('internal');
     expect(classifyProviderError(null)).toBe('internal');
@@ -57,7 +108,8 @@ describe('classifyProviderError', () => {
 describe('describeFailure', () => {
   it('attributes user-fixable kinds to the user and gives each a fix', () => {
     const userKinds: FailureKind[] = [
-      'no_credentials', 'invalid_key', 'quota_exhausted', 'rate_limited', 'unknown_model',
+      'no_credentials', 'credentials_unavailable', 'invalid_key', 'quota_exhausted',
+      'rate_limited', 'unknown_model',
     ];
     for (const kind of userKinds) {
       const d = describeFailure(kind);
@@ -80,6 +132,15 @@ describe('describeFailure', () => {
     expect(describeFailure('invalid_key').fix?.href).toBe('/settings/ai');
   });
 
+  it('separates "no keys at all" from "keys exist but none is usable"', () => {
+    // Telling a user with four working keys that none is saved sent them off
+    // to add a fifth instead of to the routing pin that was the real cause.
+    expect(describeFailure('no_credentials').why).toContain('none is saved on your account yet');
+    const unusable = describeFailure('credentials_unavailable');
+    expect(unusable.why).not.toContain('none is saved on your account yet');
+    expect(unusable.fix?.href).toBe('/settings/ai');
+  });
+
   it('attributes a misconfigured credential to the user, with a fix', () => {
     const d = describeFailure('config_invalid');
     expect(d.attribution).toBe('user');
@@ -100,5 +161,9 @@ describe('isRetryable', () => {
 
   it('does not retry a misconfigured credential', () => {
     expect(isRetryable('config_invalid')).toBe(false);
+  });
+
+  it('does not retry an unusable credential pool — nothing changes on its own', () => {
+    expect(isRetryable('credentials_unavailable')).toBe(false);
   });
 });

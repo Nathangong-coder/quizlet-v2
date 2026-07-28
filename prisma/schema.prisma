@@ -238,7 +238,7 @@ model AiCredential {
   defaultModel    String          @default("gemini-3.6-flash")
   role            String          @default("primary") // primary|backup
   enabled         Boolean         @default(true)
-  lastUsedAt      DateTime?       // drives LRU rotation in lib/ai/key-pool.ts
+  lastUsedAt      DateTime?       // last ATTEMPT (stamped before the call, not after success); drives LRU rotation in lib/ai/key-pool.ts
   lastErrorAt     DateTime?
   lastErrorKind   String?
   verifiedAt      DateTime?

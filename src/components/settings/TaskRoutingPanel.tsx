@@ -50,9 +50,12 @@ export default function TaskRoutingPanel() {
           const next = { ...prev };
           for (const row of routingResult.data) {
             if (TASKS.includes(row.task as Task)) {
+              // A stored model with no credential is legacy invalid state (it
+              // is rejected on save now). Drop it rather than surfacing an
+              // override the user cannot edit or re-save.
               next[row.task as Task] = {
                 credentialId: row.credentialId ?? '',
-                model: row.model ?? '',
+                model: row.credentialId ? row.model ?? '' : '',
               };
             }
           }
@@ -67,6 +70,17 @@ export default function TaskRoutingPanel() {
 
   function updateRow(task: Task, patch: Partial<RowState>) {
     setRouting((prev) => ({ ...prev, [task]: { ...prev[task], ...patch } }));
+  }
+
+  /**
+   * A model override only means something alongside a pinned credential —
+   * model ids are provider-specific, so there is no such thing as one that is
+   * valid for a whole heterogeneous pool. Clearing the override when the user
+   * returns to "Use provider default" keeps the UI from producing the
+   * combination `saveTaskRouting` rejects.
+   */
+  function selectCredential(task: Task, credentialId: string) {
+    updateRow(task, credentialId ? { credentialId } : { credentialId: '', model: '' });
   }
 
   async function handleSave(task: Task) {
@@ -102,7 +116,7 @@ export default function TaskRoutingPanel() {
                   <select
                     className="h-8 flex-1 rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground dark:bg-input/30"
                     value={row.credentialId}
-                    onChange={(e) => updateRow(task, { credentialId: e.target.value })}
+                    onChange={(e) => selectCredential(task, e.target.value)}
                   >
                     <option value="">Use provider default</option>
                     {credentials.map((c) => (
@@ -115,7 +129,15 @@ export default function TaskRoutingPanel() {
                   <Input
                     value={row.model}
                     onChange={(e) => updateRow(task, { model: e.target.value })}
-                    placeholder="Model override (optional)"
+                    disabled={!row.credentialId}
+                    placeholder={
+                      row.credentialId ? 'Model override (optional)' : 'Pick a credential to override its model'
+                    }
+                    title={
+                      row.credentialId
+                        ? undefined
+                        : 'A model id only applies to one provider, so an override needs a specific credential.'
+                    }
                     className="sm:max-w-xs"
                   />
                   <Button variant="outline" onClick={() => handleSave(task)} disabled={savingTask === task}>
