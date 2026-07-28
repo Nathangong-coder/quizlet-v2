@@ -41,6 +41,17 @@ describe('classifyProviderError', () => {
     expect(classifyProviderError(new Error('something bizarre'))).toBe('internal');
     expect(classifyProviderError(null)).toBe('internal');
   });
+
+  it('classifies a ProviderConfigError as config_invalid, by name not message', () => {
+    class ProviderConfigError extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = 'ProviderConfigError';
+      }
+    }
+    expect(classifyProviderError(new ProviderConfigError('OpenRouter needs a base URL. Add one in AI settings.')))
+      .toBe('config_invalid');
+  });
 });
 
 describe('describeFailure', () => {
@@ -68,6 +79,14 @@ describe('describeFailure', () => {
     expect(describeFailure('no_credentials').fix?.href).toBe('/settings/ai');
     expect(describeFailure('invalid_key').fix?.href).toBe('/settings/ai');
   });
+
+  it('attributes a misconfigured credential to the user, with a fix', () => {
+    const d = describeFailure('config_invalid');
+    expect(d.attribution).toBe('user');
+    expect(d.fix).toBeDefined();
+    expect(d.fix?.href).toBe('/settings/ai');
+    expect(d.why.length).toBeGreaterThan(0);
+  });
 });
 
 describe('isRetryable', () => {
@@ -77,5 +96,9 @@ describe('isRetryable', () => {
     expect(isRetryable('invalid_key')).toBe(false);
     expect(isRetryable('unknown_model')).toBe(false);
     expect(isRetryable('quota_exhausted')).toBe(false);
+  });
+
+  it('does not retry a misconfigured credential', () => {
+    expect(isRetryable('config_invalid')).toBe(false);
   });
 });

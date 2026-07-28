@@ -1,11 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { runAttempts, AiGenerationError, type AttemptCandidate } from '@/lib/ai/generate';
+import { runAttempts, flagworthyFailures, AiGenerationError, type AttemptCandidate } from '@/lib/ai/generate';
+import type { AttemptRow, FailureKind } from '@/lib/errors/classify';
 
 const candidate = (over: Partial<AttemptCandidate> & { id: string }): AttemptCandidate => ({
   label: over.id,
   provider: 'google',
   model: 'gemini-3.6-flash',
   ...over,
+});
+
+const row = (id: string, kind: FailureKind): AttemptRow => ({
+  credentialId: id,
+  label: id,
+  provider: 'google',
+  model: 'gemini-3.6-flash',
+  kind,
+  message: `simulated ${kind}`,
 });
 
 describe('runAttempts', () => {
@@ -88,5 +98,52 @@ describe('runAttempts', () => {
       },
     ).then(() => null, (e) => e);
     expect((err as AiGenerationError).detail.attribution).toBe('user');
+  });
+
+  it('still surfaces flagworthy rows via the thrown detail when every candidate fails', async () => {
+    // generateJson has no `runAttempts` return value to flag from in the
+    // all-fail case (it throws), so the caller must derive flagworthy rows
+    // from `err.detail.attempts` instead. This is what that path exercises,
+    // without needing a database.
+    const err = await runAttempts(
+      [candidate({ id: 'a' }), candidate({ id: 'b' })],
+      async (c) => {
+        if (c.id === 'a') throw new Error('[401] API key not valid');
+        throw new Error('[429 Too Many Requests] rate limit exceeded');
+      },
+    ).then(() => null, (e) => e);
+
+    expect(err).toBeInstanceOf(AiGenerationError);
+    const attempts = (err as AiGenerationError).detail.attempts!;
+    expect(attempts).toHaveLength(2);
+    const flagworthy = flagworthyFailures(attempts);
+    expect(flagworthy.map((f) => f.credentialId)).toEqual(['a']);
+    expect(flagworthy[0].kind).toBe('invalid_key');
+  });
+});
+
+describe('flagworthyFailures', () => {
+  it('keeps user-fixable, non-retryable kinds', () => {
+    const rows = [row('a', 'invalid_key'), row('b', 'unknown_model'), row('c', 'quota_exhausted')];
+    expect(flagworthyFailures(rows).map((f) => f.credentialId)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('drops retryable kinds even though they are user-attributed', () => {
+    const rows = [row('a', 'rate_limited'), row('b', 'provider_down')];
+    expect(flagworthyFailures(rows)).toEqual([]);
+  });
+
+  it('drops system-attributed kinds even though they are non-retryable', () => {
+    // The regression this guards: `internal`/`schema_invalid` are app bugs,
+    // not credential problems. Badging a healthy key for one of these is
+    // exactly the "train the user to ignore the badge" outcome the function
+    // exists to prevent, just from the opposite direction.
+    const rows = [row('a', 'internal'), row('b', 'schema_invalid')];
+    expect(flagworthyFailures(rows)).toEqual([]);
+  });
+
+  it('attributes by credentialId, not array position', () => {
+    const rows = [row('x', 'rate_limited'), row('y', 'invalid_key'), row('z', 'internal')];
+    expect(flagworthyFailures(rows).map((f) => f.credentialId)).toEqual(['y']);
   });
 });

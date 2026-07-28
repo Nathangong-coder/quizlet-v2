@@ -8,6 +8,7 @@ export type FailureKind =
   | 'unknown_model'
   | 'provider_down'
   | 'schema_invalid'
+  | 'config_invalid'
   | 'internal';
 
 /** One credential's attempt within a multi-key generation. */
@@ -45,6 +46,12 @@ function messageOf(err: unknown): string {
  * or every depleted-credits failure would be misreported as "try again soon".
  */
 export function classifyProviderError(err: unknown): FailureKind {
+  // Checked by error name, before any message-needle check, so this file
+  // doesn't need to import `ProviderConfigError` from providers.ts — a
+  // structural check on `.name` is enough and keeps the dependency direction
+  // one-way (providers.ts has no reason to import from here).
+  if (err instanceof Error && err.name === 'ProviderConfigError') return 'config_invalid';
+
   const msg = messageOf(err).toLowerCase();
   if (!msg) return 'internal';
 
@@ -106,6 +113,12 @@ const DESCRIPTIONS: Record<FailureKind, Pick<ErrorDetail, 'title' | 'why' | 'fix
     title: 'Unexpected response shape',
     why: 'The model replied with data that did not match what this feature expects. This is a problem with the app, not your setup.',
     attribution: 'system',
+  },
+  config_invalid: {
+    title: 'Credential not fully configured',
+    why: 'This credential is missing a field it needs to make requests, such as a base URL for a provider that requires one.',
+    fix: { label: 'Complete this credential', href: '/settings/ai' },
+    attribution: 'user',
   },
   internal: {
     title: 'Something went wrong',

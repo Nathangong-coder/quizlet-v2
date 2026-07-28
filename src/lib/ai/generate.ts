@@ -1,13 +1,5 @@
-// NOTE: deliberately no `import 'server-only'` here (unlike src/lib/ai/google.ts).
-// The `server-only` package throws unconditionally unless resolved under Next's
-// `react-server` export condition; Vitest resolves plain Node conditions, so a
-// top-level `import 'server-only'` makes this file's module graph unloadable in
-// `tests/ai/generate.test.ts` (which imports this file directly for its pure
-// `runAttempts`/`flagworthyFailures` logic). This module is only ever reached via
-// server actions ('use server') and other server-only modules, so the guard is
-// belt-and-suspenders here, not load-bearing — see task-5-report.md for the
-// full tradeoff.
-//
+import 'server-only';
+
 // `@/lib/db` is imported lazily (dynamic import) inside `generateJson` rather
 // than at module scope, for the same reason and matching the existing pattern
 // in src/lib/ai/media.ts (`const { prisma } = await import('@/lib/db')`):
@@ -17,6 +9,7 @@
 // unloadable without a live database configured.
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
+import type { PrismaClient } from '@prisma/client';
 import {
   classifyProviderError,
   describeFailure,
@@ -115,13 +108,21 @@ export async function runAttempts<T>(
 /**
  * Failures worth flagging on the credential itself in the settings UI.
  *
- * Retryable kinds are excluded deliberately: a transient 429 clears on its own,
- * and badging a perfectly good key as broken because it was briefly busy would
- * train the user to ignore the badge. Only kinds needing human action
- * (invalid_key, unknown_model, quota_exhausted) persist.
+ * A row is flagworthy only if it is BOTH user-attributed AND non-retryable.
+ * Retryable kinds are excluded because a transient 429 clears on its own, and
+ * badging a perfectly good key as broken because it was briefly busy would
+ * train the user to ignore the badge. System-attributed kinds (`internal`,
+ * `schema_invalid`, `provider_down`) are excluded too — those are app or
+ * provider bugs, not something wrong with the credential, so stamping them
+ * onto a healthy key would be the exact same "ignore the badge" outcome from
+ * the other direction. Only kinds needing human action on the credential
+ * itself (invalid_key, unknown_model, quota_exhausted, config_invalid)
+ * persist.
  */
 export function flagworthyFailures(failures: AttemptRow[]): AttemptRow[] {
-  return failures.filter((f) => !isRetryable(f.kind));
+  return failures.filter(
+    (f) => describeFailure(f.kind).attribution === 'user' && !isRetryable(f.kind),
+  );
 }
 
 export interface GenerateJsonInput<T> {
@@ -130,6 +131,27 @@ export interface GenerateJsonInput<T> {
   schema: z.ZodSchema<T>;
   prompt?: string;
   parts?: GeminiPart[];
+}
+
+/**
+ * Stamps flagworthy failures onto their credentials. Shared by the
+ * some-succeeded and all-failed paths in `generateJson` so there is one
+ * implementation of "how a failure gets written to a credential", not two
+ * copies that can drift.
+ */
+async function flagFailures(
+  prisma: PrismaClient,
+  userId: string,
+  rows: AttemptRow[],
+): Promise<void> {
+  await Promise.all(
+    rows.map((f) =>
+      prisma.aiCredential.updateMany({
+        where: { id: f.credentialId, userId },
+        data: { lastErrorAt: new Date(), lastErrorKind: f.kind },
+      }),
+    ),
+  );
 }
 
 /**
@@ -173,22 +195,33 @@ export async function generateJson<T>({
     };
   });
 
-  const result = await runAttempts(candidates, async (candidate) => {
-    const cred = byId.get(candidate.id)!;
-    const model = resolveLanguageModel({
-      provider: cred.provider as ProviderId,
-      apiKey: decryptApiKey(cred.encryptedApiKey),
-      baseUrl: cred.baseUrl,
-      model: candidate.model,
-    });
+  let result: AttemptSuccess<T>;
+  try {
+    result = await runAttempts(candidates, async (candidate) => {
+      const cred = byId.get(candidate.id)!;
+      const model = resolveLanguageModel({
+        provider: cred.provider as ProviderId,
+        apiKey: decryptApiKey(cred.encryptedApiKey),
+        baseUrl: cred.baseUrl,
+        model: candidate.model,
+      });
 
-    const { output } = await generateText({
-      model,
-      output: Output.object({ schema }),
-      ...(parts ? { messages: [{ role: 'user' as const, content: toSdkContent(parts) }] } : { prompt: prompt ?? '' }),
+      const { output } = await generateText({
+        model,
+        output: Output.object({ schema }),
+        ...(parts ? { messages: [{ role: 'user' as const, content: toSdkContent(parts) }] } : { prompt: prompt ?? '' }),
+      });
+      return output as T;
     });
-    return output as T;
-  });
+  } catch (err) {
+    // Every credential failed, so `runAttempts` threw instead of returning —
+    // this is exactly the scenario the settings badge exists for, so it must
+    // be flagged here too, not just on the some-succeeded path below.
+    if (err instanceof AiGenerationError && err.detail.attempts?.length) {
+      await flagFailures(prisma, userId, flagworthyFailures(err.detail.attempts));
+    }
+    throw err;
+  }
 
   await prisma.aiCredential.update({
     where: { id: result.usedId },
@@ -198,14 +231,7 @@ export async function generateJson<T>({
   // Flag only failures needing human action; a transient 429 must not badge a
   // working key as broken. Each row carries its own credentialId, so this never
   // depends on array positions lining up.
-  await Promise.all(
-    flagworthyFailures(result.failures).map((f) =>
-      prisma.aiCredential.updateMany({
-        where: { id: f.credentialId, userId },
-        data: { lastErrorAt: new Date(), lastErrorKind: f.kind },
-      }),
-    ),
-  );
+  await flagFailures(prisma, userId, flagworthyFailures(result.failures));
 
   return result.value;
 }
