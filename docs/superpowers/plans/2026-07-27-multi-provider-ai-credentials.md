@@ -1704,29 +1704,39 @@ Wherever an action catches a generation failure, return the detail:
 
 - [ ] **Step 3: Reduce model-routing.ts to task defaults**
 
-`MODEL_FALLBACKS` and `modelFor` are superseded by credentials and `AiTaskRouting`. Keep only the per-task default model used when a provider has no explicit routing:
+`MODEL_FALLBACKS`, `DEFAULT_AI_MODEL`, `AiModel`, and `modelFor` are all
+superseded: the model now comes from `AiTaskRouting.model` or the credential's
+`defaultModel`, resolved in `generateJson`.
+
+Do NOT keep a `TASK_DEFAULT_MODEL` map. `generateJson` resolves the model as
+`routing?.model ?? cred.defaultModel`, and `defaultModel` is non-nullable with a
+database default, so any further fallback is unreachable — it would be dead code
+on arrival.
+
+Reduce the file to the task vocabulary, which several modules genuinely share:
 
 ```ts
 // src/lib/ai/model-routing.ts
-export type AiTask = 'grade' | 'plan' | 'autocomplete' | 'distractors';
 
 /**
- * Fallback model per task when no AiTaskRouting row exists. Credential
- * `defaultModel` takes precedence; this is the last resort.
- *
- * distractors/autocomplete stay on gemini-3.1-flash-lite because
- * QuizOptionCache is keyed on model id — changing it orphans every cached
- * distractor set.
+ * The task categories a generation call can belong to. Used by
+ * `generateJson` (src/lib/ai/generate.ts), the `AiTaskRouting` actions, and the
+ * settings routing panel. Single source of truth — the UI must import
+ * `AI_TASKS` rather than re-listing these.
  */
-export const TASK_DEFAULT_MODEL: Record<AiTask, string> = {
-  grade: 'gemini-3.6-flash',
-  plan: 'gemini-3.6-flash',
-  distractors: 'gemini-3.1-flash-lite',
-  autocomplete: 'gemini-3.1-flash-lite',
-};
+export const AI_TASKS = ['grade', 'plan', 'distractors', 'autocomplete'] as const;
+
+export type AiTask = (typeof AI_TASKS)[number];
 ```
 
-Delete `tests/ai/model-routing.test.ts` and replace it with a test asserting `TASK_DEFAULT_MODEL.distractors === 'gemini-3.1-flash-lite'` (the cache-key invariant) and that every `AiTask` has an entry.
+Then update `src/components/settings/TaskRoutingPanel.tsx:13`, which currently
+declares its own `const TASKS = ['grade', 'plan', 'distractors', 'autocomplete']`,
+to import `AI_TASKS` instead. Two hardcoded copies of this list will drift.
+
+Delete `tests/ai/model-routing.test.ts` and replace it with a test asserting that
+`AI_TASKS` contains exactly the four expected task names and that its type
+matches `AiTask` — enough to pin the vocabulary without testing a constant's
+literal contents twice.
 
 - [ ] **Step 2b: Fix the quiz page's credential gate**
 
