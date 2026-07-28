@@ -24,10 +24,9 @@ export function selectAttemptOrder<T extends PoolCredential>(credentials: T[]): 
 
   return credentials
     .filter((c) => c.enabled)
-    .slice()
     .sort((a, b) => {
       if (rank(a) !== rank(b)) return rank(a) - rank(b);
       if (used(a) !== used(b)) return used(a) - used(b);
-      return a.id.localeCompare(b.id);
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
     });
 }
