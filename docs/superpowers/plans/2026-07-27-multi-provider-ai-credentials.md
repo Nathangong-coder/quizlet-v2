@@ -1649,6 +1649,7 @@ git commit -m "feat: multi-provider AI settings UI and full-screen error dialog"
 - Modify: `src/actions/quiz.ts` (6 generation call sites, incl. multimodal at ~line 486)
 - Modify: `src/actions/training-plan.ts:46`, `src/actions/card-autocomplete.ts:46`
 - Modify: `src/app/sets/[id]/print/page.tsx:62`
+- Modify: `src/app/sets/[id]/quiz/page.tsx:24`
 - Delete: `src/lib/ai/google.ts`, `src/lib/security/google-key.ts`
 - Modify: `src/lib/ai/model-routing.ts`
 
@@ -1719,6 +1720,33 @@ export const TASK_DEFAULT_MODEL: Record<AiTask, string> = {
 ```
 
 Delete `tests/ai/model-routing.test.ts` and replace it with a test asserting `TASK_DEFAULT_MODEL.distractors === 'gemini-3.1-flash-lite'` (the cache-key invariant) and that every `AiTask` has an entry.
+
+- [ ] **Step 2b: Fix the quiz page's credential gate**
+
+`src/app/sets/[id]/quiz/page.tsx:24` gates the quiz UI on whether the user has
+a credential, using `findUnique({ where: { userId } })`. That no longer
+compiles once `userId` stops being unique, and its copy names Google
+specifically, which is wrong now that four providers are supported.
+
+Replace the lookup with a presence check for any *usable* credential:
+
+```ts
+// Any enabled credential is enough to offer AI quizzing; which provider it
+// is gets decided per-task at generation time.
+const credential = await prisma.aiCredential.findFirst({
+  where: { userId: session.user.id, enabled: true },
+  select: { id: true },
+});
+```
+
+And make the empty-state copy provider-neutral:
+
+```tsx
+<p>You need an AI provider API key to access AI quizzing.</p>
+```
+
+Note the `enabled: true` filter: a user who has disabled every credential has
+none available, and should see the same prompt as a user with none saved.
 
 - [ ] **Step 3b: Fix the print page's cache lookup**
 
