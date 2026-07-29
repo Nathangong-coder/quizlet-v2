@@ -40,7 +40,7 @@ JSON Schema:
 
 /**
  * Short-answer grading prompt. Registry entry per Stage 6 Task 5 — routed
- * via modelFor('grade') (strongest available flash). The rubric/schema is
+ * via task 'grade' in generateJson (strongest available flash). The rubric/schema is
  * unchanged from the pre-registry version: still 1-10
  * clarity/conciseness/correctness/overall. `profileBlock` only adds learner
  * context; it does not change what's being graded.

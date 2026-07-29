@@ -3,7 +3,6 @@ import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { PrintableQuiz } from '@/components/quiz/PrintableQuiz';
 import { buildPrintableTest } from '@/lib/quiz/printable';
-import { modelFor } from '@/lib/ai/model-routing';
 import { MultipleChoiceOptionsSchema } from '@/lib/ai/schemas';
 
 const cardInclude = {
@@ -56,15 +55,23 @@ export default async function PrintPage({
   }
 
   // Cached MC options (only present after the MC section has run at least once).
+  // No `model` filter: each user now generates against whichever
+  // credential/model they have configured, so a fixed model id would
+  // silently match nothing. Take the most recent cache row per card instead.
   const mcOptions: Record<string, { options: string[]; correctAnswer: string }> = {};
   if (modes.includes('multiple-choice') && cards.length > 0) {
     const caches = await prisma.quizOptionCache.findMany({
-      where: { cardId: { in: cards.map((c) => c.id) }, model: modelFor('distractors') },
+      where: { cardId: { in: cards.map((c) => c.id) } },
+      orderBy: { updatedAt: 'desc' },
     });
+    // First row per cardId wins, since the list is newest-first.
+    const seen = new Set<string>();
     for (const c of caches) {
+      if (seen.has(c.cardId)) continue;
       try {
         const parsed = MultipleChoiceOptionsSchema.parse(c.options);
         mcOptions[c.cardId] = { options: parsed.options, correctAnswer: parsed.correctAnswer };
+        seen.add(c.cardId);
       } catch {
         // ignore malformed cache entries; distractors are built offline instead
       }

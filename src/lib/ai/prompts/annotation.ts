@@ -14,7 +14,7 @@ export interface AnnotationBuildInput {
  * grading UI. Grouped with grade-short-answer.ts conceptually (both fire as
  * part of SA grading in src/actions/quiz.ts submitShortAnswer) but kept in
  * its own module since it has a distinct schema/output shape and is called
- * as a second, separate AI request. Routed via modelFor('grade').
+ * as a second, separate AI request. Routed via task 'grade' in generateJson.
  */
 export const ANNOTATION_PROMPT = {
   id: 'annotation',

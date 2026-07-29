@@ -192,13 +192,21 @@ export async function getScopedMemoryStats(
     const categoryIds = await resolveCategoryIds(userId, scope.categoryKeys);
     const where = buildStudyEventWhere(userId, scope, categoryIds);
 
-    // CardProgress carries no `source`, so mastery is measured over the same
-    // cards the scope selects, ignoring which mode produced the events.
-    const progressWhere: Record<string, unknown> = { userId };
-    if (where.cardId) progressWhere.cardId = where.cardId;
-    if (where.card) progressWhere.card = where.card;
+    // CardProgress carries no `source`, so mastery cannot be filtered by the
+    // scope's `where` directly — copying only its card predicates would leave
+    // a source-only scope (e.g. "Matching Game") counting mastery across the
+    // whole account while every other tile was scoped. Instead the card set is
+    // derived from the scoped events themselves, which honours EVERY scope
+    // dimension: mastery is measured over exactly the cards the scope selects,
+    // ignoring only which mode produced each event.
+    const distinctCards = await prisma.studyEvent.findMany({
+      where,
+      select: { cardId: true },
+      distinct: ['cardId'],
+    });
+    const scopedCardIds = distinctCards.map((row) => row.cardId);
 
-    const [totals, correctness, scored, bySource, distinctCards, masteredCards] =
+    const [totals, correctness, scored, bySource, masteredCards] =
       await Promise.all([
         prisma.studyEvent.aggregate({
           where,
@@ -219,14 +227,11 @@ export async function getScopedMemoryStats(
           where,
           _count: { _all: true },
         }),
-        prisma.studyEvent.findMany({
-          where,
-          select: { cardId: true },
-          distinct: ['cardId'],
-        }),
-        prisma.cardProgress.count({
-          where: { ...progressWhere, confidence: { gte: 8 } },
-        }),
+        scopedCardIds.length === 0
+          ? Promise.resolve(0)
+          : prisma.cardProgress.count({
+              where: { userId, cardId: { in: scopedCardIds }, confidence: { gte: 8 } },
+            }),
       ]);
 
     const gradedTotal = correctness.reduce((sum, row) => sum + row._count._all, 0);

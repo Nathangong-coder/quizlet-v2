@@ -1,31 +1,23 @@
 import { describe, it, expect } from 'vitest'
-import { modelFor, MODEL_FALLBACKS } from '@/lib/ai/model-routing'
+import { AI_TASKS } from '@/lib/ai/model-routing'
 
-describe('modelFor', () => {
-  it('routes grade and plan tasks to the strongest model in the chain', () => {
-    expect(modelFor('grade')).toBe('gemini-3-flash')
-    expect(modelFor('plan')).toBe('gemini-3-flash')
-  })
-
-  it('routes autocomplete and distractors tasks to a cheaper tier', () => {
-    expect(modelFor('autocomplete')).toBe('gemini-3.1-flash-lite')
-    expect(modelFor('distractors')).toBe('gemini-3.1-flash-lite')
-  })
-
-  it('every primary model returned is a real member of MODEL_FALLBACKS', () => {
-    const tasks = ['grade', 'plan', 'autocomplete', 'distractors'] as const
-    for (const task of tasks) {
-      expect(MODEL_FALLBACKS).toContain(modelFor(task))
-    }
-  })
-
-  it('MODEL_FALLBACKS matches the litellm_config.yaml fallback chain order', () => {
-    expect(MODEL_FALLBACKS).toEqual([
-      'gemini-3-flash',
-      'gemma-4-31b-it',
-      'gemini-3.1-flash-lite',
-      'gemma-3-27b-it',
-      'gemma-3-12b-it',
-    ])
+/**
+ * `modelFor`/`MODEL_FALLBACKS`/`DEFAULT_AI_MODEL`/`AiModel` were removed in
+ * Stage 6 Task 8: the model now comes from `AiTaskRouting.model ??
+ * credential.defaultModel`, resolved per-credential inside `generateJson`
+ * (src/lib/ai/generate.ts). A hardcoded fallback chain here would be
+ * unreachable dead code. All that remains worth pinning is the task
+ * vocabulary itself, since several modules (generateJson, the AiTaskRouting
+ * actions, TaskRoutingPanel) must agree on exactly these four strings.
+ *
+ * `AiTask` is a `(typeof AI_TASKS)[number]` derived type, not a separately
+ * declared one — there is no independent type to drift out of sync with the
+ * runtime array, so there is nothing to assert about it beyond "this file
+ * compiles" (Fix round 1, reviewer finding #5: a prior version of this test
+ * asserted exactly that and could never fail).
+ */
+describe('AI_TASKS', () => {
+  it('contains exactly the four expected task names', () => {
+    expect(AI_TASKS).toEqual(['grade', 'plan', 'distractors', 'autocomplete'])
   })
 })

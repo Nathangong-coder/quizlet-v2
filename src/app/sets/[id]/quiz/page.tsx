@@ -20,9 +20,11 @@ export default async function QuizPage({ params }: { params: Promise<{ id: strin
   });
   if (!set) return notFound();
 
-  // Check if user has an AI credential
-  const credential = await prisma.aiCredential.findUnique({
-    where: { userId: session.user.id },
+  // Any enabled credential is enough to offer AI quizzing; which provider it
+  // is gets decided per-task at generation time.
+  const credential = await prisma.aiCredential.findFirst({
+    where: { userId: session.user.id, enabled: true },
+    select: { id: true },
   });
 
   return (
@@ -31,7 +33,7 @@ export default async function QuizPage({ params }: { params: Promise<{ id: strin
 
       {!credential ? (
         <div className="p-6 border rounded-lg bg-yellow-50 text-center space-y-4">
-          <p>You need a Google API key to access AI quizzing.</p>
+          <p>You need an AI provider API key to access AI quizzing.</p>
           <a href="/settings/ai" className="text-primary font-medium hover:underline">Go to AI Settings</a>
         </div>
       ) : (

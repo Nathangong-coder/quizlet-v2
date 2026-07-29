@@ -5,10 +5,10 @@ const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 
 /**
- * Encrypts a Google API key using AES-256-GCM.
+ * Encrypts an AI provider API key using AES-256-GCM.
  * Payload format: v1:<iv>:<tag>:<ciphertext> (all base64)
  */
-export function encryptGoogleApiKey(apiKey: string): string {
+export function encryptApiKey(apiKey: string): string {
   const secretBase64 = process.env.GOOGLE_KEY_ENCRYPTION_SECRET;
   if (!secretBase64) {
     throw new Error('GOOGLE_KEY_ENCRYPTION_SECRET is not defined');
@@ -31,10 +31,10 @@ export function encryptGoogleApiKey(apiKey: string): string {
 }
 
 /**
- * Decrypts a Google API key.
+ * Decrypts an AI provider API key.
  * Expects payload format: v1:<iv>:<tag>:<ciphertext>
  */
-export function decryptGoogleApiKey(payload: string): string {
+export function decryptApiKey(payload: string): string {
   const secretBase64 = process.env.GOOGLE_KEY_ENCRYPTION_SECRET;
   if (!secretBase64) {
     throw new Error('GOOGLE_KEY_ENCRYPTION_SECRET is not defined');
@@ -71,7 +71,7 @@ export function decryptGoogleApiKey(payload: string): string {
  * Masks an API key for display.
  * e.g. AIzaSyExample123456 -> AIza****3456
  */
-export function maskGoogleApiKey(apiKey: string): string {
+export function maskApiKey(apiKey: string): string {
   if (!apiKey) return '';
   if (apiKey.length <= 8) {
     return apiKey.slice(0, 2) + '***' + apiKey.slice(-2);

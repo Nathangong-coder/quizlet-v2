@@ -18,7 +18,8 @@ model User {
   cardProgress     CardProgress[]
   confidenceEvents ConfidenceEvent[]
   studyEvents      StudyEvent[]
-  aiCredential     AiCredential?
+  aiCredentials    AiCredential[]
+  aiTaskRoutings   AiTaskRouting[]
   quizAttempts     QuizAttempt[]
   quizAnswers      QuizAnswer[]
   trainingPlans    TrainingPlan[]
@@ -227,15 +228,42 @@ model StudyEvent {
 }
 
 model AiCredential {
-  id              String    @id @default(cuid())
-  userId          String    @unique
-  provider        String    @default("google")
-  encryptedApiKey String    @db.Text
+  id              String          @id @default(cuid())
+  userId          String
+  provider        String          @default("google") // google|anthropic|openai|openrouter|custom
+  label           String          @default("Default")
+  encryptedApiKey String          @db.Text
   keyHint         String
+  baseUrl         String?         // required for openrouter + custom
+  defaultModel    String          @default("gemini-3.6-flash")
+  role            String          @default("primary") // primary|backup
+  enabled         Boolean         @default(true)
+  lastUsedAt      DateTime?       // last ATTEMPT (stamped before the call, not after success); drives LRU rotation in lib/ai/key-pool.ts
+  lastErrorAt     DateTime?
+  lastErrorKind   String?
   verifiedAt      DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskRoutings    AiTaskRouting[]
+
+  @@index([userId])
+  @@index([userId, provider])
+}
+
+model AiTaskRouting {
+  id           String        @id @default(cuid())
+  userId       String
+  task         String        // grade|plan|distractors|autocomplete
+  credentialId String?
+  model        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credential   AiCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, task])
+  @@index([userId])
 }
 
 model QuizOptionCache {

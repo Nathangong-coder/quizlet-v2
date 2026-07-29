@@ -2,17 +2,10 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { generateJsonWithGoogle } from '@/lib/ai/google';
+import { generateJson, AiGenerationError } from '@/lib/ai/generate';
 import { AUTOCOMPLETE_PROMPT } from '@/lib/ai/prompts/registry';
 import { CardAutocompleteSchema } from '@/lib/ai/schemas';
-import { modelFor } from '@/lib/ai/model-routing';
-import { z } from 'zod';
-
-type ActionResult<T> = {
-  success: boolean;
-  data?: T;
-  error?: string;
-};
+import { ActionResult } from '@/types/action';
 
 export async function getCardAutocompleteSuggestions(
   setId: string,
@@ -30,25 +23,20 @@ export async function getCardAutocompleteSuggestions(
     });
     if (!set) return { success: false, error: 'Set not found' };
 
-    const credential = await prisma.aiCredential.findUnique({
-      where: { userId: session.user.id },
-    });
-    if (!credential) return { success: false, error: 'No Google API key saved. Please add it in settings.' };
-
-    const { decryptGoogleApiKey } = await import('@/lib/security/google-key');
-    const apiKey = decryptGoogleApiKey(credential.encryptedApiKey);
-
     const prompt = AUTOCOMPLETE_PROMPT.build({ set, currentText, side, categories });
-    const result = await generateJsonWithGoogle({
-      apiKey,
+    const result = await generateJson({
+      userId: session.user.id,
+      task: 'autocomplete',
       prompt,
       schema: CardAutocompleteSchema,
-      model: modelFor('autocomplete'),
     });
 
     return { success: true, data: result };
-  } catch (error: any) {
-    console.error('Autocomplete error:', error);
+  } catch (err) {
+    if (err instanceof AiGenerationError) {
+      return { success: false, error: err.detail.title, detail: err.detail };
+    }
+    console.error('Autocomplete error:', err);
     return { success: false, error: 'Failed to get suggestions.' };
   }
 }

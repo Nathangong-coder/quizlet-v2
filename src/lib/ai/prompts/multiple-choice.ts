@@ -26,7 +26,7 @@ function siblingDefinitions(card: Card, siblingCards: Card[]): string {
 
 /**
  * Multiple-choice distractor-generation prompt. Registry entry per Stage 6
- * Task 5 — routed via modelFor('distractors') (cheap/fast tier), cached in
+ * Task 5 — routed via task 'distractors' in generateJson (cheap/fast tier), cached in
  * QuizOptionCache keyed by {cardId, model}.
  */
 export const MULTIPLE_CHOICE_PROMPT = {

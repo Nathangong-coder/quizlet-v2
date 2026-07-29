@@ -4,11 +4,11 @@ import React, { useState, useImperativeHandle, forwardRef } from 'react';
 import { Card as CardComponent, CardContent, CardHeader } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { submitShortAnswer } from '@/actions/quiz';
-import { toast } from 'sonner';
 import { Card } from '@prisma/client';
 import { ContentBlock } from '@/lib/cards/content';
 import { QuizCardPrompt } from './QuizCardPrompt';
 import { QuizSectionHandle, SectionNav } from './section';
+import { useErrorToast } from '@/components/errors/useErrorToast';
 
 type QuizCard = Card & { contentBlocks?: ContentBlock[] };
 
@@ -21,6 +21,7 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
   function ShortAnswerQuiz({ cards, attemptId }, ref) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [answers, setAnswers] = useState<{ [cardId: string]: string }>({});
+    const { show: showError, dialog: errorDialog } = useErrorToast();
 
     async function commitAll() {
       // Grade every answered card once, on overall submit (sequential to be
@@ -30,7 +31,7 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
         const text = (answers[card.id] || '').trim();
         if (!text) continue;
         const res = await submitShortAnswer({ attemptId, cardId: card.id, answer: text });
-        if (!res.success) toast.error(res.error || 'Failed to grade answer');
+        if (!res.success) showError(res.error || 'Failed to grade answer', res.detail);
       }
     }
 
@@ -72,6 +73,7 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
           onPrev={goPrev}
           onNext={goNext}
         />
+        {errorDialog}
       </div>
     );
   }

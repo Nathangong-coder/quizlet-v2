@@ -22,7 +22,7 @@ export interface QuizSummaryBuildInput {
  * Post-quiz holistic analysis prompt. De-inlined from
  * `getQuizAttemptSummary` in src/actions/quiz.ts (Stage 6 Task 5, step 3) —
  * previously a template literal built directly in the action body. Routed
- * via modelFor('grade') (strongest available flash).
+ * via task 'grade' in generateJson (strongest available flash).
  */
 export const QUIZ_SUMMARY_PROMPT = {
   id: 'quiz-summary',

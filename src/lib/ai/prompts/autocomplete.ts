@@ -10,8 +10,8 @@ export interface AutocompleteBuildInput {
 /**
  * Card term/definition autocomplete suggestions while authoring a set.
  * Not part of the memory-injection set (no learner-performance context is
- * relevant while writing new cards). Routed via modelFor('autocomplete')
- * (cheap/fast tier).
+ * relevant while writing new cards). Routed via task 'autocomplete' in
+ * generateJson (cheap/fast tier).
  */
 export const AUTOCOMPLETE_PROMPT = {
   id: 'autocomplete',
