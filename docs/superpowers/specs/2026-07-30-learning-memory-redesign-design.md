@@ -88,6 +88,13 @@ query blocks index use and breaks for still-open sessions.
 - `StudyEvent.sessionId String?` + `@@index([sessionId])` — groups loose
   per-card events under a session. Nullable forever: events written before
   this change, and any future write path without a session, stay valid.
+- `StudyEvent.confidenceBefore Int?` — the value confidence held *before* the
+  interaction. §3's `confidence.avgDelta` needs a before-value, and the table
+  stores only `confidenceAfter`; `recordStudyEvent` already reads
+  `oldConfidence` (`src/lib/memory/record.ts:61`), so persisting it makes
+  deltas exact rather than reconstructed from adjacent rows. Nullable, because
+  events written before this change never captured it — and a null must be
+  skipped when averaging, not read as a zero delta.
 - `QuizAnswer.latencyMs Int?` — per-question time. The **same number** is
   passed into `recordStudyEvent`'s existing `meta.latencyMs`, so cross-mode
   pacing analytics read `StudyEvent` while the result page reads `QuizAnswer`.
