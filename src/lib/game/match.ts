@@ -15,6 +15,8 @@ export interface MatchGameState {
   sessionId: string;
   tiles: MatchTile[];
   matched: string[];
+  /** Wrong-pairing count per cardId. A card matched on the first try has none. */
+  misses: Record<string, number>;
   selectedTileId: string | null;
   startedAt: number | null;
   finishedAt: number | null;
@@ -53,6 +55,7 @@ export function initMatchGame(cards: GameCard[], sessionId?: string): MatchGameS
     sessionId: sessionId ?? crypto.randomUUID(),
     tiles,
     matched: [],
+    misses: {},
     selectedTileId: null,
     startedAt: null,
     finishedAt: null,
@@ -108,9 +111,16 @@ export function selectTile(state: MatchGameState, tileId: string): MatchGameStat
     return newState;
   }
 
-  // 5. No match - reset selection to the new tile
+  // 5. No match - record a miss against both cards and reset selection to the new tile
+  const misses = {
+    ...state.misses,
+    [firstTile.cardId]: (state.misses[firstTile.cardId] ?? 0) + 1,
+    [tile.cardId]: (state.misses[tile.cardId] ?? 0) + 1,
+  };
+
   return {
     ...state,
+    misses,
     selectedTileId: tileId,
   };
 }
@@ -120,4 +130,17 @@ export function selectTile(state: MatchGameState, tileId: string): MatchGameStat
  */
 export function isComplete(state: MatchGameState): boolean {
   return state.matched.length === state.tiles.length;
+}
+
+/**
+ * One result per distinct card. Correct means "matched on the first try":
+ * recovering after a wrong guess still means the pairing wasn't known, which
+ * is the signal study memory should record.
+ */
+export function matchResults(state: MatchGameState): { cardId: string; correct: boolean }[] {
+  const cardIds = Array.from(new Set(state.tiles.map((t) => t.cardId)));
+  return cardIds.map((cardId) => ({
+    cardId,
+    correct: (state.misses[cardId] ?? 0) === 0,
+  }));
 }

@@ -14,6 +14,7 @@ export function MatchGame({ initialTiles }: MatchGameProps) {
     sessionId: crypto.randomUUID(),
     tiles: initialTiles,
     matched: [],
+    misses: {},
     selectedTileId: null,
     startedAt: null,
     finishedAt: null,
