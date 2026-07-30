@@ -3,6 +3,7 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
+import { masteryBucket } from '@/lib/memory/scoring';
 
 type ActionResult<T> = {
   success: boolean;
@@ -61,7 +62,7 @@ export async function getUserStats(): Promise<ActionResult<UserStats>> {
       success: true,
       data: {
         totalAttempts: attempts.length,
-        masteredCards: progress.filter((p) => p.confidence >= 8).length,
+        masteredCards: progress.filter((p) => masteryBucket(p) === 'mastered').length,
         // Averaged over attempts, not over per-mode averages: a mean of means
         // lets a single attempt in one mode outweigh fifty in another.
         overallAverageScore:

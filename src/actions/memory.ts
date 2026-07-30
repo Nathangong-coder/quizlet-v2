@@ -13,6 +13,7 @@ import {
 } from '@/lib/memory/scope';
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories';
 import { ActionResult } from '@/types/action';
+import { masteryBucket } from '@/lib/memory/scoring';
 
 export interface StudyEventHistoryFilters extends HistoryScope {
   cursor?: string;
@@ -206,7 +207,7 @@ export async function getScopedMemoryStats(
     });
     const scopedCardIds = distinctCards.map((row) => row.cardId);
 
-    const [totals, correctness, scored, bySource, masteredCards] =
+    const [totals, correctness, scored, bySource, masteryRows] =
       await Promise.all([
         prisma.studyEvent.aggregate({
           where,
@@ -227,10 +228,14 @@ export async function getScopedMemoryStats(
           where,
           _count: { _all: true },
         }),
+        // Bucketed in JS rather than counted in SQL: `masteryBucket` reads both
+        // confidence AND mastery (with null-mastery fall-through), which a
+        // single `count` predicate cannot express. Bounded by scopedCardIds.
         scopedCardIds.length === 0
-          ? Promise.resolve(0)
-          : prisma.cardProgress.count({
-              where: { userId, cardId: { in: scopedCardIds }, confidence: { gte: 8 } },
+          ? Promise.resolve([])
+          : prisma.cardProgress.findMany({
+              where: { userId, cardId: { in: scopedCardIds } },
+              select: { confidence: true, mastery: true },
             }),
       ]);
 
@@ -249,7 +254,7 @@ export async function getScopedMemoryStats(
             ? Math.round(totals._avg.confidenceAfter * 10) / 10
             : null,
         cardsSeen: distinctCards.length,
-        masteredCards,
+        masteredCards: masteryRows.filter((p) => masteryBucket(p) === 'mastered').length,
         bySource: bySource
           .map((row) => ({ source: row.source, count: row._count._all }))
           .sort((a, b) => b.count - a.count),
