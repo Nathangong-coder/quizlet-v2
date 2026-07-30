@@ -1,12 +1,16 @@
 import { prisma } from '@/lib/db'
 import { nextConfidence, masteryScore } from './scoring'
 import { nextDueAt } from './schedule'
+import { normalizeLatency } from './latency'
 import type { MasteryEvent, StudyOutcome, StudySource } from './scoring'
 
 export interface RecordStudyEventInput {
   userId: string
   cardId: string
   source: StudySource
+  /** Groups this event under a StudySession. Absent for write paths with no
+   *  session envelope (e.g. a one-off action outside any activity). */
+  sessionId?: string
   outcome: StudyOutcome
   /** Optional per-interaction metadata, persisted onto the StudyEvent row. */
   meta?: {
@@ -44,7 +48,7 @@ export interface RecordStudyEventResult {
 export async function recordStudyEvent(
   input: RecordStudyEventInput
 ): Promise<RecordStudyEventResult> {
-  const { userId, cardId, source, outcome, meta } = input
+  const { userId, cardId, source, sessionId, outcome, meta } = input
 
   // Derive the fields StudyEvent/CardProgress actually store from the
   // outcome shape, using the same conventions already established in
@@ -113,11 +117,13 @@ export async function recordStudyEvent(
       data: {
         userId,
         cardId,
+        sessionId,
         source,
         correct,
         score,
+        confidenceBefore: oldConfidence,
         confidenceAfter: confidence,
-        latencyMs: meta?.latencyMs,
+        latencyMs: normalizeLatency(meta?.latencyMs),
       },
     })
 
