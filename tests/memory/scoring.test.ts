@@ -189,4 +189,17 @@ describe('masteryBucket', () => {
   it('promotes on mastery alone at the solid threshold', () => {
     expect(masteryBucket({ confidence: 3, mastery: 65 })).toBe('solid')
   })
+
+  it('treats the mastered thresholds as inclusive, one point below as not', () => {
+    expect(masteryBucket({ confidence: 8, mastery: 80 })).toBe('mastered')
+    expect(masteryBucket({ confidence: 7, mastery: 80 })).toBe('solid')
+    expect(masteryBucket({ confidence: 8, mastery: 79 })).toBe('solid')
+  })
+
+  it('treats the solid mastery threshold as inclusive, one point below as not', () => {
+    // Confidence is held below every confidence-driven threshold so these
+    // assertions can only be satisfied by the mastery rule.
+    expect(masteryBucket({ confidence: 3, mastery: 60 })).toBe('solid')
+    expect(masteryBucket({ confidence: 3, mastery: 59 })).toBe('struggling')
+  })
 })
