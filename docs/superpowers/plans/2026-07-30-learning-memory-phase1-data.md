@@ -2480,11 +2480,16 @@ latencyMs: normalizeLatency(input.latencyMs),
 
 - [ ] **Step 3: Time each question client-side**
 
-Add a shared hook `src/components/quiz/useQuestionTimer.ts` so all four section
-components measure the same way:
+The timing logic is a **plain factory**, not a hook, so it tests in the repo's
+node-only Vitest environment with no DOM and no new devDependency.
+
+Create `src/lib/quiz/question-timer.ts`:
 
 ```ts
-import { useRef } from 'react';
+export interface QuestionTimer {
+  start(cardId: string): void;
+  elapsed(cardId: string): number | undefined;
+}
 
 /**
  * Per-question wall-clock timing, keyed by cardId.
@@ -2497,21 +2502,37 @@ import { useRef } from 'react';
  * `start` is first-write-wins so revisiting a question does not reset its
  * clock, and `elapsed` is non-destructive so a re-submit reports the same
  * figure rather than zero.
+ *
+ * A plain factory rather than a hook: the logic is what needs testing, and
+ * this keeps it out of the repo's node-only test environment's way. The hook
+ * below is a two-line ref wrapper with nothing to test.
  */
-export function useQuestionTimer() {
-  const startedAt = useRef<Record<string, number>>({});
+export function createQuestionTimer(now: () => number = Date.now): QuestionTimer {
+  const startedAt: Record<string, number> = {};
 
   return {
     start(cardId: string) {
-      if (startedAt.current[cardId] === undefined) {
-        startedAt.current[cardId] = Date.now();
-      }
+      if (startedAt[cardId] === undefined) startedAt[cardId] = now();
     },
     elapsed(cardId: string): number | undefined {
-      const started = startedAt.current[cardId];
-      return started === undefined ? undefined : Date.now() - started;
+      const started = startedAt[cardId];
+      return started === undefined ? undefined : now() - started;
     },
   };
+}
+```
+
+Create the thin wrapper `src/components/quiz/useQuestionTimer.ts`:
+
+```ts
+import { useRef } from 'react';
+import { createQuestionTimer, type QuestionTimer } from '@/lib/quiz/question-timer';
+
+/** Stable per-mount QuestionTimer. All logic lives in createQuestionTimer. */
+export function useQuestionTimer(): QuestionTimer {
+  const ref = useRef<QuestionTimer | null>(null);
+  if (ref.current === null) ref.current = createQuestionTimer();
+  return ref.current;
 }
 ```
 
@@ -2531,56 +2552,58 @@ latencyMs: timer.elapsed(card.id),
 
 - [ ] **Step 4: Verify the timer in isolation**
 
-Create `tests/quiz/question-timer.test.ts`:
+Create `tests/quiz/question-timer.test.ts`. The injectable clock keeps these
+tests deterministic without fake timers or a DOM:
 
 ```ts
-import { describe, it, expect, vi } from 'vitest'
-import { renderHook } from '@testing-library/react'
-import { useQuestionTimer } from '@/components/quiz/useQuestionTimer'
+import { describe, it, expect } from 'vitest'
+import { createQuestionTimer } from '../../src/lib/quiz/question-timer'
 
-describe('useQuestionTimer', () => {
+/** Controllable clock, so elapsed times are exact rather than approximate. */
+function fakeClock(start = 1000) {
+  let now = start
+  return { now: () => now, advance: (ms: number) => { now += ms } }
+}
+
+describe('createQuestionTimer', () => {
   it('does not reset a question clock when it is revisited', () => {
-    vi.useFakeTimers()
-    const { result } = renderHook(() => useQuestionTimer())
+    const clock = fakeClock()
+    const timer = createQuestionTimer(clock.now)
 
-    result.current.start('c1')
-    vi.advanceTimersByTime(5000)
-    result.current.start('c1') // revisit — must not restart
-    expect(result.current.elapsed('c1')).toBe(5000)
-
-    vi.useRealTimers()
+    timer.start('c1')
+    clock.advance(5000)
+    timer.start('c1') // revisit — must not restart
+    expect(timer.elapsed('c1')).toBe(5000)
   })
 
   it('times each question independently', () => {
-    vi.useFakeTimers()
-    const { result } = renderHook(() => useQuestionTimer())
+    const clock = fakeClock()
+    const timer = createQuestionTimer(clock.now)
 
-    result.current.start('c1')
-    vi.advanceTimersByTime(3000)
-    result.current.start('c2')
-    vi.advanceTimersByTime(1000)
+    timer.start('c1')
+    clock.advance(3000)
+    timer.start('c2')
+    clock.advance(1000)
 
-    expect(result.current.elapsed('c1')).toBe(4000)
-    expect(result.current.elapsed('c2')).toBe(1000)
-
-    vi.useRealTimers()
+    expect(timer.elapsed('c1')).toBe(4000)
+    expect(timer.elapsed('c2')).toBe(1000)
   })
 
   it('reports undefined for a question that was never started', () => {
-    const { result } = renderHook(() => useQuestionTimer())
-    expect(result.current.elapsed('never')).toBeUndefined()
+    expect(createQuestionTimer().elapsed('never')).toBeUndefined()
+  })
+
+  it('is non-destructive: reading elapsed twice reports the same figure', () => {
+    const clock = fakeClock()
+    const timer = createQuestionTimer(clock.now)
+
+    timer.start('c1')
+    clock.advance(2000)
+    expect(timer.elapsed('c1')).toBe(2000)
+    expect(timer.elapsed('c1')).toBe(2000)
   })
 })
 ```
-
-If `@testing-library/react` is not already a devDependency, install it
-(`npm i -D @testing-library/react`) and add `environment: 'jsdom'` for this
-file via a `// @vitest-environment jsdom` docblock at the top — the repo's
-default environment is `node`. If that pulls in more setup than it is worth,
-extract the same logic into a plain `createQuestionTimer()` factory in
-`src/lib/quiz/question-timer.ts`, test that directly with no DOM, and have the
-hook wrap it in a ref. Prefer the factory: it keeps the repo's node-only test
-environment intact.
 
 Run: `npx vitest run tests/quiz/question-timer.test.ts`
 Expected: PASS.
@@ -2790,6 +2813,21 @@ render (line 176) with:
 />
 ```
 
+Also make the `score` prop optional in `QuizSummaryProps`:
+
+```tsx
+interface QuizSummaryProps {
+  /** Live score handed down by QuizContainer. Absent on the permalink, where
+   *  the saved attempt is the source of truth. */
+  score?: number;
+  setId: string;
+  attemptId: string;
+}
+```
+
+Task 16 mounts this component without a live score, and passing a meaningless
+`0` would render as "you scored 0".
+
 Keep `QuizSummary` presentational — it must render identically whether mounted
 by `QuizContainer` or by the permalink page in Task 16.
 
@@ -2944,11 +2982,7 @@ export default async function ActivityDetailPage({
         // The identical component the live end-of-quiz screen renders, so the
         // permalink IS "the page I saw when I finished" rather than a copy of
         // it that can drift.
-        <QuizSummary
-          setId={activity.setId}
-          attemptId={activity.attemptId}
-          score={0}
-        />
+        <QuizSummary setId={activity.setId} attemptId={activity.attemptId} />
       ) : (
         <SessionInsightView
           insight={activity.insight}
@@ -2962,8 +2996,8 @@ export default async function ActivityDetailPage({
 }
 ```
 
-If `QuizSummary`'s `score` prop is only used for a header it now duplicates,
-make it optional in Task 15 Step 3 rather than passing a meaningless `0` here.
+`QuizSummary`'s `score` prop was made optional in Task 15 Step 3 — the saved
+attempt is the source of truth here, and a live score does not exist.
 
 - [ ] **Step 4: Verify manually**
 
