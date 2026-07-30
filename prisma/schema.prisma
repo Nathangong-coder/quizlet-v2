@@ -24,6 +24,7 @@ model User {
   quizAnswers      QuizAnswer[]
   trainingPlans    TrainingPlan[]
   assets           CardAsset[]
+  studySessions    StudySession[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 }
@@ -38,6 +39,7 @@ model Set {
   quizAttempts QuizAttempt[]
   categories   CardCategory[]
   assets       CardAsset[]
+  studySessions StudySession[]
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -222,9 +224,41 @@ model StudyEvent {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   card            Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
+  sessionId       String?
+  confidenceBefore Int?
+  session         StudySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
   @@index([userId, cardId])
   @@index([userId, createdAt])
   @@index([userId, cardId, createdAt])
+  @@index([sessionId])
+}
+
+/// Stage 6 follow-on: the envelope for one study activity. Every mode (quiz,
+/// standalone matching game, review/confidence ranking) opens one of these so
+/// the history feed can present them as comparable, timed activities.
+model StudySession {
+  id          String       @id @default(cuid())
+  userId      String
+  setId       String
+  kind        String       // "quiz" | "matching" | "confidence"
+  startedAt   DateTime     @default(now())
+  endedAt     DateTime?
+  // Denormalized rather than derived from endedAt - startedAt: the activity
+  // feed sorts and aggregates on duration, and computing it per row blocks
+  // index use and is undefined for a session that was never closed.
+  durationMs  Int?
+  itemCount   Int          @default(0)
+  categoryIds Json?        // what the session was scoped to at launch
+  insight     Json?        // persisted SessionInsight (src/lib/memory/insight.ts)
+  insightAt   DateTime?
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  set         Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
+  attempt     QuizAttempt?
+  events      StudyEvent[]
+
+  @@index([userId, startedAt])
+  @@index([userId, kind, startedAt])
 }
 
 model AiCredential {
@@ -295,6 +329,8 @@ model QuizAttempt {
   failedOnly      Boolean      @default(false)
   printable       Boolean      @default(false)
   createdAt       DateTime     @default(now())
+  sessionId       String?      @unique
+  session         StudySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   set             Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
   answers         QuizAnswer[]
@@ -316,6 +352,7 @@ model QuizAnswer {
   isCorrect     Boolean?
   grade         Json?
   score         Int?
+  latencyMs     Int?
   feedback      String?     @db.Text
   annotations   Annotation[]
   createdAt     DateTime    @default(now())
