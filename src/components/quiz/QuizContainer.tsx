@@ -9,12 +9,14 @@ import { QuizSummary } from './QuizSummary';
 import { QuizSectionHandle } from './section';
 import { Card } from '@prisma/client';
 import { getQuizAttemptCards, startQuizAttempt } from '@/actions/quiz';
+import { finishStudySession, generateSessionInsight } from '@/actions/study-session';
 import { Loader2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
 export function QuizContainer({ setId, cards: allCards, setup }: { setId: string, cards: Card[], setup?: any }) {
   const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedCards, setSelectedCards] = useState<Card[]>([]);
   const [isLoadingCards, setIsLoadingCards] = useState(true);
   const [finished, setFinished] = useState(false);
@@ -33,6 +35,7 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
         const result = await startQuizAttempt(setId, modes, setup);
         if (result.success) {
           setAttemptId(result.data.attemptId);
+          setSessionId(result.data.sessionId);
         } else {
           setError(result.error || 'Failed to start quiz');
           setIsLoadingCards(false);
@@ -67,6 +70,17 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
       await Promise.all(
         sectionRefs.current.map((r) => (r ? r.commitAll() : Promise.resolve())),
       );
+
+      if (sessionId) {
+        const finishResult = await finishStudySession({ sessionId });
+        if (!finishResult.success) {
+          toast.error(finishResult.error || 'Failed to close study session');
+        }
+        // Fire-and-forget: the summary renders from the computed block
+        // immediately, and the AI narrative appears on refresh if it lands.
+        // A failed generation must never block the results screen.
+        generateSessionInsight({ sessionId }).catch(() => {});
+      }
     } catch (e) {
       toast.error('Something went wrong grading your answers');
     } finally {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Card as CardUI, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Card as PrismaCard } from '@prisma/client';
@@ -10,6 +10,7 @@ import { ContentBlock } from '@/lib/cards/content';
 import { QuizCardPrompt } from './QuizCardPrompt';
 import { QuizSectionHandle, SectionNav } from './section';
 import { useErrorToast } from '@/components/errors/useErrorToast';
+import { useQuestionTimer } from './useQuestionTimer';
 
 type QuizCard = PrismaCard & { contentBlocks?: ContentBlock[] };
 
@@ -23,12 +24,26 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedAnswers, setSelectedAnswers] = useState<{ [cardId: string]: string }>({});
     const { show: showError, dialog: errorDialog } = useErrorToast();
+    const timer = useQuestionTimer();
+
+    // Starts (or confirms) this question's clock whenever it becomes the
+    // visible one. `timer.start` is first-write-wins, so navigating back to
+    // an already-seen question does not reset its elapsed time.
+    useEffect(() => {
+      const activeId = cards[currentIndex]?.id;
+      if (activeId) timer.start(activeId);
+    }, [cards, currentIndex, timer]);
 
     async function commitAll() {
       for (const card of cards) {
         const selected = selectedAnswers[card.id];
         if (!selected) continue;
-        const res = await submitTrueFalseAnswer({ attemptId, cardId: card.id, selectedOption: selected });
+        const res = await submitTrueFalseAnswer({
+          attemptId,
+          cardId: card.id,
+          selectedOption: selected,
+          latencyMs: timer.elapsed(card.id),
+        });
         if (!res.success) showError(res.error || 'Failed to save answer', res.detail);
       }
     }
