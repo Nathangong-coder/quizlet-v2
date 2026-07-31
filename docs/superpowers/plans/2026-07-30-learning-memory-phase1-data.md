@@ -1406,7 +1406,11 @@ export const SessionComputedSchema = z.object({
   ),
   byMode: z.array(
     z.object({
-      mode: z.string(),
+      // The StudySource values from src/lib/memory/scoring.ts. Kept as an enum
+      // rather than z.string() so the inferred type matches SessionComputed
+      // exactly — a widened string forces an unchecked cast at the very JSON
+      // boundary this schema exists to guard.
+      mode: z.enum(['review', 'quiz-mc', 'quiz-sa', 'quiz-tf', 'matching', 'lesson']),
       correct: z.number(),
       total: z.number(),
       avgScore: z.number().nullable(),
