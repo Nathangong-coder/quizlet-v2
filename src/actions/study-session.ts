@@ -5,12 +5,7 @@ import { prisma } from '@/lib/db';
 import { summarizeSession, type SessionItem } from '@/lib/memory/summarize';
 import { SESSION_INSIGHT_VERSION, type SessionInsight } from '@/lib/memory/insight';
 import type { StudySource } from '@/lib/memory/scoring';
-
-type ActionResult<T> = {
-  success: boolean;
-  data?: T;
-  error?: string;
-};
+import type { ActionResult } from '@/types/action';
 
 export const STUDY_SESSION_KINDS = ['quiz', 'matching', 'confidence'] as const;
 export type StudySessionKind = (typeof STUDY_SESSION_KINDS)[number];

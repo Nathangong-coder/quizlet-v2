@@ -59,6 +59,8 @@ describe('startStudySession', () => {
       categoryIds: ['cat1'],
     })
 
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error(result.error)
     expect(result.data).toEqual({ sessionId: 'sess1' })
     expect(h.sessionCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -99,6 +101,8 @@ describe('finishStudySession', () => {
 
     const result = await finishStudySession({ sessionId: 'sess1' })
 
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error(result.error)
     expect(result.data).toEqual({ durationMs: 300000 })
     expect(h.sessionUpdate).not.toHaveBeenCalled()
   })
@@ -130,11 +134,17 @@ describe('finishStudySession', () => {
     const result = await finishStudySession({ sessionId: 'sess1' })
 
     expect(result.success).toBe(true)
-    expect(result.data!.durationMs).toBeGreaterThan(0)
+    if (!result.success) throw new Error(result.error)
+    expect(result.data.durationMs).toBeGreaterThan(0)
 
     const payload = h.sessionUpdate.mock.calls[0][0].data
     expect(payload.insight.version).toBe(1)
     expect(payload.insight.computed.itemCount).toBe(1)
+    // Proves a real summarizeSession result, not just any object with an
+    // itemCount: the single matching event rolls up into byMode.
+    expect(payload.insight.computed.byMode).toContainEqual(
+      expect.objectContaining({ mode: 'matching', total: 1 }),
+    )
     // Matching sessions get no AI narrative, by design.
     expect(payload.insight.ai).toBeNull()
   })
