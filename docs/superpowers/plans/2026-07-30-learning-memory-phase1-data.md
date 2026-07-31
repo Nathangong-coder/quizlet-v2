@@ -1203,10 +1203,40 @@ In `summarizeSession`, before the `return`:
     .map((i) => i.confidenceAfter - (i.confidenceBefore as number))
 
   const sessionMedian = median(latencies)
-  const wrongTimed = allTimed.filter((t) =>
-    items.some((i) => i.cardId === t.cardId && i.correct === false),
-  )
+
+  // Built from `items` in one pass rather than by re-matching `allTimed` on
+  // cardId: a card can be attempted more than once in a session (Review
+  // re-queues anything marked "Don't Know"), and a cardId lookup lets a wrong
+  // attempt tar a correct one — flagging a fast, correct retry as "rushed",
+  // which the outlier rule explicitly forbids.
+  const wrongTimed: TimedItem[] = items
+    .filter(
+      (i): i is SessionItem & { latencyMs: number } =>
+        i.latencyMs !== null && i.correct === false,
+    )
+    .map((i) => ({ cardId: i.cardId, term: i.term, latencyMs: i.latencyMs }))
 ```
+
+Add this helper alongside the other module-private helpers — a card attempted
+several times in one session must be named once, not once per attempt:
+
+```ts
+/** First occurrence per card. */
+function uniqueByCard(refs: CardRef[]): CardRef[] {
+  const seen = new Set<string>()
+  const out: CardRef[] = []
+  for (const ref of refs) {
+    if (seen.has(ref.cardId)) continue
+    seen.add(ref.cardId)
+    out.push(ref)
+  }
+  return out
+}
+```
+
+`newlyMastered` and `dropped` below are each wrapped in `uniqueByCard(...)`.
+`byCategory` and `byMode` are **not** deduped — counting each attempt as its
+own data point is correct there.
 
 and add to the returned object:
 
@@ -1216,17 +1246,21 @@ and add to the returned object:
         deltas.length > 0
           ? Math.round((deltas.reduce((a, b) => a + b, 0) / deltas.length) * 10) / 10
           : null,
-      newlyMastered: items
-        .filter(
-          (i) =>
-            i.confidenceBefore !== null &&
-            i.confidenceBefore < MASTERY_CONFIDENCE &&
-            i.confidenceAfter >= MASTERY_CONFIDENCE,
-        )
-        .map((i) => ({ cardId: i.cardId, term: i.term })),
-      dropped: items
-        .filter((i) => i.confidenceBefore !== null && i.confidenceAfter < i.confidenceBefore)
-        .map((i) => ({ cardId: i.cardId, term: i.term })),
+      newlyMastered: uniqueByCard(
+        items
+          .filter(
+            (i) =>
+              i.confidenceBefore !== null &&
+              i.confidenceBefore < MASTERY_CONFIDENCE &&
+              i.confidenceAfter >= MASTERY_CONFIDENCE,
+          )
+          .map((i) => ({ cardId: i.cardId, term: i.term })),
+      ),
+      dropped: uniqueByCard(
+        items
+          .filter((i) => i.confidenceBefore !== null && i.confidenceAfter < i.confidenceBefore)
+          .map((i) => ({ cardId: i.cardId, term: i.term })),
+      ),
     },
     outliers: {
       // Outliers are only meaningful relative to a median, and only a WRONG
