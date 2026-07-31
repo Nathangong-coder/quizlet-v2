@@ -24,7 +24,8 @@ export async function starCard(
 
 export async function recordReview(
   cardId: string,
-  knew: boolean
+  knew: boolean,
+  opts?: { sessionId?: string; latencyMs?: number }
 ): Promise<{ newConfidence: number }> {
   const session = await auth()
   if (!session?.user?.id) throw new Error('Not authenticated')
@@ -34,6 +35,8 @@ export async function recordReview(
     cardId,
     source: 'review',
     outcome: { correct: knew },
+    sessionId: opts?.sessionId,
+    meta: { latencyMs: opts?.latencyMs },
   })
 
   return { newConfidence: result.confidence }
