@@ -3,6 +3,13 @@ import type { StudySource } from './scoring'
 /** Bucket name for cards carrying no category, kept explicit in the output. */
 export const UNCATEGORIZED_LABEL = 'Uncategorized'
 
+/** Confidence at or above this counts as mastered, matching masteryBucket. */
+const MASTERY_CONFIDENCE = 8
+/** Wrong answers faster than this fraction of the median are "rushed". */
+const RUSHED_FRACTION = 0.5
+/** Wrong answers slower than this multiple of the median are "laboured". */
+const LABOURED_MULTIPLE = 2
+
 /**
  * One recorded interaction, flattened for summarization. The caller joins the
  * StudyEvent rows to card terms and category names; this module stays pure so
@@ -43,6 +50,11 @@ export interface TimedItem {
   latencyMs: number
 }
 
+export interface CardRef {
+  cardId: string
+  term: string
+}
+
 export interface SessionComputed {
   itemCount: number
   byCategory: CategoryStat[]
@@ -52,6 +64,16 @@ export interface SessionComputed {
     fastest: TimedItem | null
     slowest: TimedItem | null
     byMode: { mode: StudySource; medianLatencyMs: number | null }[]
+  }
+  confidence: {
+    /** Mean of (after - before), one decimal. Null when nothing is measurable. */
+    avgDelta: number | null
+    newlyMastered: CardRef[]
+    dropped: CardRef[]
+  }
+  outliers: {
+    rushed: TimedItem[]
+    laboured: TimedItem[]
   }
 }
 
@@ -116,6 +138,15 @@ export function summarizeSession(items: SessionItem[]): SessionComputed {
     })
     .sort((a, b) => a.mode.localeCompare(b.mode))
 
+  const deltas = items
+    .filter((i) => i.confidenceBefore !== null)
+    .map((i) => i.confidenceAfter - (i.confidenceBefore as number))
+
+  const sessionMedian = median(latencies)
+  const wrongTimed = allTimed.filter((t) =>
+    items.some((i) => i.cardId === t.cardId && i.correct === false),
+  )
+
   return {
     itemCount: items.length,
     byCategory: Array.from(byCategory.entries())
@@ -138,6 +169,35 @@ export function summarizeSession(items: SessionItem[]): SessionComputed {
           ? allTimed.reduce((max, t) => (t.latencyMs > max.latencyMs ? t : max))
           : null,
       byMode: modeStats.map((m) => ({ mode: m.mode, medianLatencyMs: m.medianLatencyMs })),
+    },
+    confidence: {
+      avgDelta:
+        deltas.length > 0
+          ? Math.round((deltas.reduce((a, b) => a + b, 0) / deltas.length) * 10) / 10
+          : null,
+      newlyMastered: items
+        .filter(
+          (i) =>
+            i.confidenceBefore !== null &&
+            i.confidenceBefore < MASTERY_CONFIDENCE &&
+            i.confidenceAfter >= MASTERY_CONFIDENCE,
+        )
+        .map((i) => ({ cardId: i.cardId, term: i.term })),
+      dropped: items
+        .filter((i) => i.confidenceBefore !== null && i.confidenceAfter < i.confidenceBefore)
+        .map((i) => ({ cardId: i.cardId, term: i.term })),
+    },
+    outliers: {
+      // Outliers are only meaningful relative to a median, and only a WRONG
+      // answer is diagnostic — a fast correct answer is just fluency.
+      rushed:
+        sessionMedian === null
+          ? []
+          : wrongTimed.filter((t) => t.latencyMs < sessionMedian * RUSHED_FRACTION),
+      laboured:
+        sessionMedian === null
+          ? []
+          : wrongTimed.filter((t) => t.latencyMs > sessionMedian * LABOURED_MULTIPLE),
     },
   }
 }
