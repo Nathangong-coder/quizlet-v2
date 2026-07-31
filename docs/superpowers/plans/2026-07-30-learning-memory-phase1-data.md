@@ -1637,6 +1637,13 @@ Return up to ${MAX_FOCUS_AREAS} focus areas, ranked most important first. Each m
 - give one concrete action the learner can take next
 - list the cardIds it relates to, drawn only from the session
 
+Set \`severity\` from the strength of the evidence, not from how bad it sounds:
+- "high"   — repeated or unambiguous failure: wrong several times in the same
+             category or mode, or confidence dropped on multiple cards.
+- "medium" — a real but narrower gap: a single clear miss, or a pacing pattern
+             (rushing, labouring) that has not yet cost accuracy.
+- "low"    — a soft signal worth noting but not worth reordering study around.
+
 Also write a short "strengths" note on what genuinely went well. If nothing did,
 say so plainly rather than inventing praise.`;
   },
