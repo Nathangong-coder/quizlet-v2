@@ -10,6 +10,7 @@ import { AUTOCOMPLETE_PROMPT } from '@/lib/ai/prompts/autocomplete'
 import { SESSION_INSIGHT_PROMPT } from '@/lib/ai/prompts/session-insight'
 import { PROMPT_REGISTRY } from '@/lib/ai/prompts/registry'
 import { summarizeSession } from '@/lib/memory/summarize'
+import { MAX_FOCUS_AREAS } from '@/lib/memory/insight'
 
 function makeCard(overrides: Partial<Card> = {}): Card {
   return {
@@ -177,6 +178,20 @@ describe('SESSION_INSIGHT_PROMPT', () => {
     const withBlock = SESSION_INSIGHT_PROMPT.build({ ...input, profileBlock: PROFILE_BLOCK })
     expect(withBlock.length).toBeGreaterThan(without.length)
     expect(withBlock).toContain(PROFILE_BLOCK)
+  })
+
+  it('interpolates the focus-area cap rather than hardcoding it', () => {
+    expect(SESSION_INSIGHT_PROMPT.build(input)).toContain(
+      `Return up to ${MAX_FOCUS_AREAS} focus areas`,
+    )
+  })
+
+  it('tells the model how to choose a severity', () => {
+    const prompt = SESSION_INSIGHT_PROMPT.build(input)
+    expect(prompt).toContain('severity')
+    for (const level of ['high', 'medium', 'low']) {
+      expect(prompt).toContain(`"${level}"`)
+    }
   })
 })
 
