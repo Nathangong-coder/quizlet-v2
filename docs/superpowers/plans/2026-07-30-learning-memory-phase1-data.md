@@ -1422,7 +1422,10 @@ export const SessionComputedSchema = z.object({
     fastest: TimedItemSchema.nullable(),
     slowest: TimedItemSchema.nullable(),
     byMode: z.array(
-      z.object({ mode: z.string(), medianLatencyMs: z.number().nullable() }),
+      z.object({
+        mode: z.enum(['review', 'quiz-mc', 'quiz-sa', 'quiz-tf', 'matching', 'lesson']),
+        medianLatencyMs: z.number().nullable(),
+      }),
     ),
   }),
   confidence: z.object({
