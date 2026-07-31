@@ -7,7 +7,7 @@
  * memory-and-prompting.md's "Compact, ID-free AI context" global constraint.
  */
 
-import type { LearnerProfile, Trend } from '@/lib/memory/profile'
+import { buildLearnerProfile, type LearnerProfile, type Trend } from '@/lib/memory/profile'
 
 /**
  * Hard cap on the rendered block's length, enforced regardless of how the
@@ -86,4 +86,25 @@ export function profileToPromptBlock(profile: LearnerProfile): string {
   const block = lines.join('\n')
   if (block.length <= MAX_PROMPT_BLOCK_CHARS) return block
   return `${block.slice(0, MAX_PROMPT_BLOCK_CHARS - 1)}…`
+}
+
+/**
+ * Builds a rendered LearnerProfile block for prompt injection, isolated so a
+ * failure never breaks the AI call it's meant to enrich. Shared by every
+ * call site that injects learner context into a prompt (quiz generation,
+ * grading, session insights) — moved here from a private per-file helper so
+ * it has one definition instead of one per caller.
+ */
+export async function safeProfileBlock(
+  userId: string,
+  setId: string,
+  label: string,
+): Promise<string | undefined> {
+  try {
+    const profile = await buildLearnerProfile({ userId, setId })
+    return profileToPromptBlock(profile)
+  } catch (err) {
+    console.error(`buildLearnerProfile failed for ${label}:`, err)
+    return undefined
+  }
 }

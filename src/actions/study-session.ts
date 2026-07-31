@@ -2,10 +2,13 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { summarizeSession, type SessionItem } from '@/lib/memory/summarize';
-import { SESSION_INSIGHT_VERSION, type SessionInsight } from '@/lib/memory/insight';
+import { summarizeSession, type SessionItem, type SessionComputed } from '@/lib/memory/summarize';
+import { SESSION_INSIGHT_VERSION, SessionInsightSchema, type SessionInsight } from '@/lib/memory/insight';
 import type { StudySource } from '@/lib/memory/scoring';
 import type { ActionResult } from '@/types/action';
+import { generateJson } from '@/lib/ai/generate';
+import { safeProfileBlock } from '@/lib/ai/context';
+import { SESSION_INSIGHT_PROMPT } from '@/lib/ai/prompts/registry';
 
 export const STUDY_SESSION_KINDS = ['quiz', 'matching', 'confidence'] as const;
 export type StudySessionKind = (typeof STUDY_SESSION_KINDS)[number];
@@ -113,5 +116,73 @@ export async function finishStudySession(input: {
   } catch (error) {
     console.error('finishStudySession error:', error);
     return { success: false, error: 'Failed to finish study session' };
+  }
+}
+
+/**
+ * Adds the AI narrative to a session that already has a computed insight.
+ *
+ * Split from `finishStudySession` deliberately: closing a session must never
+ * depend on an AI call succeeding. This is invoked after the finish resolves,
+ * and by the "Generate insights" button on sessions that never got one.
+ */
+export async function generateSessionInsight(input: {
+  sessionId: string;
+}): Promise<ActionResult<{ generated: boolean }>> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+
+  try {
+    // Scoped by userId: the id comes from the client and must never be
+    // trusted on its own — matches finishStudySession above.
+    const studySession = await prisma.studySession.findFirst({
+      where: { id: input.sessionId, userId: session.user.id },
+      include: { set: { select: { title: true } } },
+    });
+    if (!studySession) return { success: false, error: 'Session not found' };
+
+    // Parsed rather than cast: a blob written by an older version must not be
+    // half-read into a new-shaped prompt.
+    const parsed = SessionInsightSchema.safeParse(studySession.insight);
+    if (!parsed.success) {
+      return { success: false, error: 'Session has no computed insight yet' };
+    }
+
+    const profileBlock = await safeProfileBlock(
+      session.user.id,
+      studySession.setId,
+      'session-insight',
+    );
+
+    const ai = await generateJson({
+      userId: session.user.id,
+      task: 'grade',
+      prompt: SESSION_INSIGHT_PROMPT.build({
+        setTitle: studySession.set.title,
+        kind: studySession.kind,
+        // SessionComputedSchema mirrors SessionComputed's shape but widens
+        // `mode` to `string` for parsing tolerance; the value was written by
+        // summarizeSession, which only ever emits StudySource literals, so
+        // narrowing back is sound.
+        computed: parsed.data.computed as SessionComputed,
+        profileBlock,
+      }),
+      schema: SESSION_INSIGHT_PROMPT.schema,
+    });
+
+    // The computed block is carried through by spread, never re-derived —
+    // the AI writes prose onto `ai`, it does not touch `computed`.
+    await prisma.studySession.update({
+      where: { id: studySession.id },
+      data: {
+        insight: { ...parsed.data, ai },
+        insightAt: new Date(),
+      },
+    });
+
+    return { success: true, data: { generated: true } };
+  } catch (error) {
+    console.error('generateSessionInsight error:', error);
+    return { success: false, error: 'Failed to generate insights' };
   }
 }

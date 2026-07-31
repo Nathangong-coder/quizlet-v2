@@ -6,6 +6,8 @@ const h = vi.hoisted(() => ({
   sessionFindFirst: vi.fn(),
   sessionUpdate: vi.fn(),
   eventFindMany: vi.fn(),
+  generateJson: vi.fn(),
+  safeProfileBlock: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -20,8 +22,10 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('@/lib/ai/generate', () => ({ generateJson: h.generateJson }))
+vi.mock('@/lib/ai/context', () => ({ safeProfileBlock: h.safeProfileBlock }))
 
-import { startStudySession, finishStudySession } from '@/actions/study-session'
+import { startStudySession, finishStudySession, generateSessionInsight } from '@/actions/study-session'
 
 const OWNER = 'user-owner'
 
@@ -147,5 +151,87 @@ describe('finishStudySession', () => {
     )
     // Matching sessions get no AI narrative, by design.
     expect(payload.insight.ai).toBeNull()
+  })
+})
+
+describe('generateSessionInsight', () => {
+  const openSession = {
+    id: 'sess1',
+    userId: OWNER,
+    setId: 's1',
+    kind: 'quiz',
+    startedAt: new Date(),
+    endedAt: new Date(),
+    durationMs: 1000,
+    insight: {
+      version: 1,
+      // Filled in with a schema-valid shape (not the bare `{}` sub-objects
+      // used as shorthand in the plan) so SessionInsightSchema.safeParse
+      // actually succeeds — the nested pacing/confidence/outliers fields are
+      // required, not optional.
+      computed: {
+        itemCount: 1,
+        byCategory: [],
+        byMode: [],
+        pacing: { medianLatencyMs: null, fastest: null, slowest: null, byMode: [] },
+        confidence: { avgDelta: null, newlyMastered: [], dropped: [] },
+        outliers: { rushed: [], laboured: [] },
+      },
+      ai: null,
+    },
+    set: { title: 'Finance 101' },
+  }
+
+  it('writes the validated AI block onto the existing insight', async () => {
+    h.sessionFindFirst.mockResolvedValue(openSession)
+    h.safeProfileBlock.mockResolvedValue('')
+    h.generateJson.mockResolvedValue({
+      focusAreas: [
+        {
+          title: 'DCF terminal value',
+          severity: 'high',
+          evidence: 'Missed 3 of 3.',
+          action: 'Re-read the terminal-value cards.',
+          cardIds: ['c1'],
+        },
+      ],
+      strengths: 'Accounting was solid.',
+    })
+    h.sessionUpdate.mockResolvedValue({})
+
+    const result = await generateSessionInsight({ sessionId: 'sess1' })
+
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error(result.error)
+    expect(result.data).toEqual({ generated: true })
+    const payload = h.sessionUpdate.mock.calls[0][0].data
+    expect(payload.insight.ai.focusAreas).toHaveLength(1)
+    // The computed block must survive untouched — the AI never rewrites numbers.
+    expect(payload.insight.computed.itemCount).toBe(1)
+  })
+
+  it('reports failure without throwing when generation fails', async () => {
+    h.sessionFindFirst.mockResolvedValue(openSession)
+    h.safeProfileBlock.mockResolvedValue('')
+    h.generateJson.mockRejectedValue(new Error('no credentials'))
+
+    const result = await generateSessionInsight({ sessionId: 'sess1' })
+
+    expect(result.success).toBe(false)
+    expect(h.sessionUpdate).not.toHaveBeenCalled()
+  })
+
+  it('refuses a session owned by someone else', async () => {
+    h.sessionFindFirst.mockResolvedValue(null)
+    const result = await generateSessionInsight({ sessionId: 'sess-other' })
+    expect(result.success).toBe(false)
+    expect(h.generateJson).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when the session has no computed insight to build on', async () => {
+    h.sessionFindFirst.mockResolvedValue({ ...openSession, insight: null })
+    const result = await generateSessionInsight({ sessionId: 'sess1' })
+    expect(result.success).toBe(false)
+    expect(h.generateJson).not.toHaveBeenCalled()
   })
 })

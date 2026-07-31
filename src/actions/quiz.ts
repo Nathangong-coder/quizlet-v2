@@ -21,24 +21,8 @@ import { overallQuizScore } from '@/lib/quiz/scoring';
 import { revalidatePath } from 'next/cache';
 import { QuizSetup } from '@/lib/quiz/setup';
 import { recordStudyEvent } from '@/lib/memory/record';
-import { buildLearnerProfile } from '@/lib/memory/profile';
-import { profileToPromptBlock } from '@/lib/ai/context';
+import { safeProfileBlock } from '@/lib/ai/context';
 import { ActionResult } from '@/types/action';
-
-/**
- * Builds a rendered LearnerProfile block for prompt injection, isolated so a
- * failure never breaks the AI call it's meant to enrich (same
- * error-isolation pattern as recordStudyEvent call sites below).
- */
-async function safeProfileBlock(userId: string, setId: string, label: string): Promise<string | undefined> {
-  try {
-    const profile = await buildLearnerProfile({ userId, setId });
-    return profileToPromptBlock(profile);
-  } catch (err) {
-    console.error(`buildLearnerProfile failed for ${label}:`, err);
-    return undefined;
-  }
-}
 
 export async function getOrGenerateMultipleChoiceOptions(
   cardId: string
