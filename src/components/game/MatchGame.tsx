@@ -15,6 +15,9 @@ interface MatchGameProps {
 
 export function MatchGame({ setId, initialTiles }: MatchGameProps) {
   const [gameState, setGameState] = useState<MatchGameState>({
+    // NOT the database StudySession id below — this is a client-local
+    // identifier only, used as a React key/identity for the in-progress
+    // game, and is never sent anywhere. See `persistedSessionIdRef`.
     sessionId: crypto.randomUUID(),
     tiles: initialTiles,
     matched: [],
@@ -24,37 +27,47 @@ export function MatchGame({ setId, initialTiles }: MatchGameProps) {
     finishedAt: null,
   });
 
-  // The database StudySession id, distinct from `gameState.sessionId` (which
-  // is a client-only crypto.randomUUID() used purely as a React key/identity
-  // for the in-progress game and is not written anywhere).
-  const dbSessionIdRef = useRef<string | null>(null);
-  const openingRef = useRef(false);
+  // The real, persisted `StudySession.id` from the database — distinct from
+  // (and unrelated to) `gameState.sessionId` above.
+  const persistedSessionIdRef = useRef<string | null>(null);
+  // The in-flight (or settled) `ensureSession()` call, so the completion
+  // handler can await a still-opening session instead of racing it: on a
+  // small deck the game can finish before `startStudySession`'s round trip
+  // resolves, and reading `persistedSessionIdRef.current` at that instant
+  // would silently see null and drop the results.
+  const openSessionPromiseRef = useRef<Promise<void> | null>(null);
+  // Set when ensureSession already toasted a failure, so the completion
+  // handler below doesn't repeat the same warning a second time.
+  const openFailureToastedRef = useRef(false);
   const submittedRef = useRef(false);
 
-  async function ensureSession() {
-    if (dbSessionIdRef.current || openingRef.current) return;
-    openingRef.current = true;
-    try {
-      const result = await startStudySession({
-        setId,
-        kind: 'matching',
-        itemCount: gameState.tiles.length / 2,
-      });
-      if (result.success) {
-        dbSessionIdRef.current = result.data.sessionId;
-      } else {
-        console.error('startStudySession failed:', result.error);
+  function ensureSession() {
+    if (persistedSessionIdRef.current || openSessionPromiseRef.current) return;
+    openSessionPromiseRef.current = (async () => {
+      try {
+        const result = await startStudySession({
+          setId,
+          kind: 'matching',
+          itemCount: gameState.tiles.length / 2,
+        });
+        if (result.success) {
+          persistedSessionIdRef.current = result.data.sessionId;
+        } else {
+          console.error('startStudySession failed:', result.error);
+          openFailureToastedRef.current = true;
+          toast.error('This game will not be saved to your study history.');
+        }
+      } catch (error) {
+        console.error('startStudySession threw:', error);
+        openFailureToastedRef.current = true;
+        toast.error('This game will not be saved to your study history.');
       }
-    } catch (error) {
-      console.error('startStudySession threw:', error);
-    } finally {
-      openingRef.current = false;
-    }
+    })();
   }
 
   const handleTileClick = (tileId: string) => {
     if (gameState.startedAt === null) {
-      void ensureSession();
+      ensureSession();
     }
     setGameState((prev) => selectTile(prev, tileId));
   };
@@ -69,10 +82,24 @@ export function MatchGame({ setId, initialTiles }: MatchGameProps) {
     if (!gameFinished || submittedRef.current) return;
     submittedRef.current = true;
 
-    const sessionId = dbSessionIdRef.current;
-    if (!sessionId) return; // Session never opened (e.g. not authenticated) — nothing to record.
-
     (async () => {
+      // Wait out a still-opening session (see openSessionPromiseRef above)
+      // rather than reading persistedSessionIdRef too early.
+      if (openSessionPromiseRef.current) {
+        await openSessionPromiseRef.current;
+      }
+
+      const sessionId = persistedSessionIdRef.current;
+      if (!sessionId) {
+        // Session was never opened. If ensureSession already toasted why
+        // (auth/network failure), don't repeat it — otherwise this is the
+        // only feedback the user gets, so it must not stay silent.
+        if (!openFailureToastedRef.current) {
+          toast.error('This game was not saved to your study history.');
+        }
+        return;
+      }
+
       try {
         const result = await submitMatchSession({ sessionId, results: matchResults(gameState) });
         if (!result.success) {

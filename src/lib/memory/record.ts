@@ -3,6 +3,7 @@ import { nextConfidence, masteryScore } from './scoring'
 import { nextDueAt } from './schedule'
 import { normalizeLatency } from './latency'
 import type { MasteryEvent, StudyOutcome, StudySource } from './scoring'
+import type { Prisma } from '@prisma/client'
 
 export interface RecordStudyEventInput {
   userId: string
@@ -44,9 +45,17 @@ export interface RecordStudyEventResult {
  *     `dueAt` via the pure `nextDueAt` (lib/memory/schedule.ts).
  *  5. Upserts `CardProgress` (confidence, mastery, reps, dueAt, lastSeenAt).
  *  6. Inserts the new `StudyEvent` row.
+ *
+ * Accepts an optional `tx` (a `Prisma.TransactionClient`) so a caller that
+ * needs to compose several `recordStudyEvent` calls with its own guard —
+ * e.g. a batch submit that takes a row lock and must roll every card back
+ * together on a mid-loop failure — can pass its own transaction in instead
+ * of each call opening (and committing) its own. When omitted, this opens
+ * its own transaction exactly as before.
  */
 export async function recordStudyEvent(
-  input: RecordStudyEventInput
+  input: RecordStudyEventInput,
+  tx?: Prisma.TransactionClient,
 ): Promise<RecordStudyEventResult> {
   const { userId, cardId, source, sessionId, outcome, meta } = input
 
@@ -56,7 +65,11 @@ export async function recordStudyEvent(
   const correct = 'correct' in outcome ? outcome.correct : outcome.overall >= 8
   const score = 'overall' in outcome ? Math.round(outcome.overall * 10) : null
 
-  return prisma.$transaction(async (tx) => {
+  // Extracted so the body can run either standalone (opening its own
+  // transaction below) or inside a caller-supplied one — which is what lets
+  // a batch writer hold one transaction across many cards instead of one per
+  // card.
+  const run = async (tx: Prisma.TransactionClient) => {
     const current = await tx.cardProgress.findUnique({
       where: { userId_cardId: { userId, cardId } },
       select: { confidence: true, reps: true },
@@ -128,5 +141,7 @@ export async function recordStudyEvent(
     })
 
     return { confidence, mastery, dueAt }
-  })
+  }
+
+  return tx ? run(tx) : prisma.$transaction(run)
 }

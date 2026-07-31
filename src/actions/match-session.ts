@@ -31,13 +31,6 @@ export async function submitMatchSession(input: {
     });
     if (!studySession) return { success: false, error: 'Session not found' };
 
-    // Idempotent: a re-submit (double click, retry, remount) must not
-    // double-count against confidence. Same guard as submitMatchingAnswers.
-    const existing = await prisma.studyEvent.count({
-      where: { userId, sessionId: studySession.id },
-    });
-    if (existing > 0) return { success: true, data: { recorded: 0 } };
-
     // Only cards actually belonging to this session's set are recorded — the
     // cardIds arrive from the client.
     const validIds = new Set(
@@ -49,20 +42,46 @@ export async function submitMatchSession(input: {
       ).map((c) => c.id),
     );
 
-    let recorded = 0;
-    for (const result of input.results) {
-      if (!validIds.has(result.cardId)) continue;
-      await recordStudyEvent({
-        userId,
-        cardId: result.cardId,
-        source: 'matching',
-        outcome: { correct: result.correct },
-        sessionId: studySession.id,
-      });
-      recorded += 1;
-    }
+    // Idempotent AND atomic: a re-submit (double click, retry, remount, or a
+    // duplicate network POST) must not double-count against confidence. The
+    // count-then-write below only holds that guarantee inside a single
+    // transaction with a row lock on the session — two concurrent calls
+    // racing a bare count()-then-insert could both observe `existing === 0`
+    // and both write. `FOR UPDATE` makes a second concurrent submit block
+    // until this transaction commits, then see `existing > 0` and return
+    // `recorded: 0`. The same transaction means a mid-loop failure (one
+    // `recordStudyEvent` throws) rolls every card back together, so a retry
+    // starts clean instead of permanently short-circuiting on a partial write.
+    // Explicit `await` (not a bare `return prisma.$transaction(...)`) is
+    // required here: a returned-but-unawaited promise that later rejects
+    // propagates past this function's boundary rather than into the `catch`
+    // below, since control has already left the try block by then.
+    return await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "StudySession" WHERE id = ${studySession.id} FOR UPDATE`;
 
-    return { success: true, data: { recorded } };
+      const existing = await tx.studyEvent.count({
+        where: { userId, sessionId: studySession.id },
+      });
+      if (existing > 0) return { success: true, data: { recorded: 0 } };
+
+      let recorded = 0;
+      for (const result of input.results) {
+        if (!validIds.has(result.cardId)) continue;
+        await recordStudyEvent(
+          {
+            userId,
+            cardId: result.cardId,
+            source: 'matching',
+            outcome: { correct: result.correct },
+            sessionId: studySession.id,
+          },
+          tx,
+        );
+        recorded += 1;
+      }
+
+      return { success: true, data: { recorded } };
+    });
   } catch (error) {
     console.error('submitMatchSession error:', error);
     return { success: false, error: 'Failed to record matching game' };
