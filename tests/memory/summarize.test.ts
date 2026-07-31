@@ -185,4 +185,34 @@ describe('summarizeSession confidence and outliers', () => {
     expect(result.outliers.rushed).toEqual([])
     expect(result.outliers.laboured).toEqual([])
   })
+
+  it('judges each attempt on its own correctness when a card is retried', () => {
+    // Review re-queues a card marked "Don't Know", so one card legitimately
+    // appears twice with different outcomes. The three correct fillers hold
+    // the median at 1000ms: the retry at 100ms is under the 500ms rushed
+    // threshold and WOULD be flagged if correctness were looked up by cardId
+    // rather than per attempt, and the 5000ms miss clears the 2000ms
+    // laboured threshold on its own merits.
+    const result = summarizeSession([
+      item({ cardId: 'x', term: 'WACC', correct: false, latencyMs: 5000 }),
+      item({ cardId: 'x', term: 'WACC', correct: true, latencyMs: 100 }),
+      item({ cardId: 'a', correct: true, latencyMs: 1000 }),
+      item({ cardId: 'b', correct: true, latencyMs: 1000 }),
+      item({ cardId: 'c', correct: true, latencyMs: 1000 }),
+    ])
+
+    expect(result.outliers.rushed).toEqual([])
+    expect(result.outliers.laboured).toEqual([
+      { cardId: 'x', term: 'WACC', latencyMs: 5000 },
+    ])
+  })
+
+  it('names a card once in the confidence lists however often it was attempted', () => {
+    const result = summarizeSession([
+      item({ cardId: 'x', term: 'WACC', confidenceBefore: 5, confidenceAfter: 4 }),
+      item({ cardId: 'x', term: 'WACC', confidenceBefore: 4, confidenceAfter: 3 }),
+    ])
+
+    expect(result.confidence.dropped).toEqual([{ cardId: 'x', term: 'WACC' }])
+  })
 })
