@@ -230,8 +230,8 @@ export async function submitMultipleChoiceAnswer(input: {
   const score = isCorrect ? 100 : 0;
 
   try {
-    const attempt = await prisma.quizAttempt.findUnique({
-      where: { id: input.attemptId },
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: input.attemptId, userId: session.user.id },
       select: { sessionId: true },
     });
 
@@ -321,8 +321,8 @@ export async function submitTrueFalseAnswer(input: {
   const score = isCorrect ? 100 : 0;
 
   try {
-    const attempt = await prisma.quizAttempt.findUnique({
-      where: { id: input.attemptId },
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: input.attemptId, userId: session.user.id },
       select: { sessionId: true },
     });
 
@@ -408,8 +408,8 @@ export async function submitShortAnswer(input: {
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
-    const attempt = await prisma.quizAttempt.findUnique({
-      where: { id: input.attemptId },
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: input.attemptId, userId: session.user.id },
       select: { sessionId: true },
     });
 

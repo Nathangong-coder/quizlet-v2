@@ -27,8 +27,10 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
     const timer = useQuestionTimer();
 
     // Starts (or confirms) this question's clock whenever it becomes the
-    // visible one. `timer.start` is first-write-wins, so navigating back to
-    // an already-seen question does not reset its elapsed time.
+    // visible one in this one-question-at-a-time carousel. `timer.start` is
+    // first-write-wins, so navigating back to an already-seen question does
+    // not restart its clock — it keeps running from its first visit until
+    // the batched commitAll() below reads it at final submit.
     useEffect(() => {
       const activeId = cards[currentIndex]?.id;
       if (activeId) timer.start(activeId);

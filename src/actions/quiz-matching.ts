@@ -61,16 +61,28 @@ export async function submitMatchingAnswers(input: {
 
     await prisma.$transaction(answers);
 
-    for (const outcome of matchOutcomes) {
-      try {
-        await recordStudyEvent({
-          userId: session.user.id,
-          cardId: outcome.cardId,
-          source: 'matching',
-          outcome: { correct: outcome.isCorrect },
-        });
-      } catch (memErr) {
-        console.error('recordStudyEvent failed for matching:', memErr);
+    // Idempotent like the QuizAnswer deleteMany above: a re-submit must not
+    // write a second set of confidence deltas. Scoped to source 'matching'
+    // because the same session legitimately carries MC/SA/TF events.
+    const alreadyRecorded = attempt.sessionId
+      ? await prisma.studyEvent.count({
+          where: { userId: session.user.id, sessionId: attempt.sessionId, source: 'matching' },
+        })
+      : 0;
+
+    if (alreadyRecorded === 0) {
+      for (const outcome of matchOutcomes) {
+        try {
+          await recordStudyEvent({
+            userId: session.user.id,
+            cardId: outcome.cardId,
+            source: 'matching',
+            sessionId: attempt.sessionId ?? undefined,
+            outcome: { correct: outcome.isCorrect },
+          });
+        } catch (memErr) {
+          console.error('recordStudyEvent failed for matching:', memErr);
+        }
       }
     }
 

@@ -27,8 +27,21 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
   // button can flush every section's currently-visible answer at once.
   const sectionRefs = useRef<(QuizSectionHandle | null)[]>([]);
 
+  // Guards startQuizAttempt against firing twice (e.g. React Strict Mode's
+  // dev-only double-invoke of effects) before the first setAttemptId commits.
+  // A ref, not state, so the check-and-set is synchronous — set before the
+  // first await inside startAttempt, exactly like Tasks 12/13's session-open
+  // guards. Each duplicate call would otherwise mint its own StudySession as
+  // well as its own QuizAttempt, and the former is visible in the activity
+  // feed. There is no in-place "start a new quiz" path in this component
+  // (both "Back to Set" and "Try Again" fully remount via navigation/reload),
+  // so this guard never needs to be reset.
+  const startingRef = useRef(false);
+
   useEffect(() => {
     if (setup && !attemptId && !error) {
+      if (startingRef.current) return;
+      startingRef.current = true;
       async function startAttempt() {
         setIsLoadingCards(true);
         const modes = setup.questionMode || ['multiple-choice'];

@@ -6,10 +6,13 @@ export interface QuestionTimer {
 /**
  * Per-question wall-clock timing, keyed by cardId.
  *
- * Keyed rather than a single "current question started at" value because quiz
- * sections render every question at once and the user can move between them
- * freely — a single timestamp would bill the whole section's time to whichever
- * question happened to be submitted last.
+ * Keyed rather than a single "current question started at" value because
+ * quiz sections are a one-question-at-a-time carousel (see section.tsx) but
+ * answers accumulate client-side across questions and are only flushed in
+ * one batched `commitAll()` call at final submit — a single timestamp would
+ * get overwritten as the user navigates, and by submit time would only
+ * reflect whichever question was visited last, billing the whole section's
+ * elapsed time to it.
  *
  * `start` is first-write-wins so revisiting a question does not reset its
  * clock, and `elapsed` is non-destructive so a re-submit reports the same
