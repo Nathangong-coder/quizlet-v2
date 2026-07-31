@@ -15,8 +15,8 @@ function ms(value: number | null): string {
 }
 
 /**
- * Whole-session coaching. Replaces QUIZ_SUMMARY_PROMPT, which asked for one
- * free-text paragraph and was regenerated on every render.
+ * Whole-session coaching. Replaces the old per-render quiz-summary prompt,
+ * which asked for one free-text paragraph and was regenerated on every render.
  *
  * The model receives ONLY the deterministic `computed` block and returns ranked
  * focus areas plus a strengths narrative. It never computes a statistic — that

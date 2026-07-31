@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { QuizCardPrompt } from './QuizCardPrompt';
+import { SessionInsightView } from '@/components/memory/SessionInsightView';
 
 const MODE_LABELS: Record<string, string> = {
   'multiple-choice': 'Multiple Choice',
@@ -19,7 +20,9 @@ const MODE_LABELS: Record<string, string> = {
 };
 
 interface QuizSummaryProps {
-  score: number;
+  /** Live score handed down by QuizContainer. Absent on the permalink, where
+   *  the saved attempt is the source of truth. */
+  score?: number;
   setId: string;
   attemptId: string;
 }
@@ -172,9 +175,11 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
                 <CardTitle>AI-Powered Analysis</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="prose max-w-none text-muted-foreground whitespace-pre-line">
-                  {summary.overallAnalysis}
-                </div>
+                <SessionInsightView
+                  insight={summary.insight}
+                  sessionId={summary.attempt.sessionId ?? null}
+                  canGenerate
+                />
                 <Button
                   className="w-full mt-6"
                   onClick={() => window.location.href = `/sets/${setId}`}

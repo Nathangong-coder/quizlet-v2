@@ -4,7 +4,6 @@ import { MULTIPLE_CHOICE_PROMPT } from '@/lib/ai/prompts/multiple-choice'
 import { GRADE_SHORT_ANSWER_PROMPT } from '@/lib/ai/prompts/grade-short-answer'
 import { ANNOTATION_PROMPT } from '@/lib/ai/prompts/annotation'
 import { TRAINING_PLAN_PROMPT } from '@/lib/ai/prompts/training-plan'
-import { QUIZ_SUMMARY_PROMPT } from '@/lib/ai/prompts/quiz-summary'
 import { MC_FEEDBACK_PROMPT } from '@/lib/ai/prompts/mc-feedback'
 import { AUTOCOMPLETE_PROMPT } from '@/lib/ai/prompts/autocomplete'
 import { SESSION_INSIGHT_PROMPT } from '@/lib/ai/prompts/session-insight'
@@ -107,23 +106,6 @@ describe('TRAINING_PLAN_PROMPT', () => {
   it('build() injects the profileBlock as learner context', () => {
     const prompt = TRAINING_PLAN_PROMPT.build({ profileBlock: PROFILE_BLOCK })
     expect(prompt).toContain(`Learner context: ${PROFILE_BLOCK}`)
-  })
-})
-
-describe('QUIZ_SUMMARY_PROMPT', () => {
-  it('build() renders answers and score, with and without profileBlock', () => {
-    const input = {
-      setTitle: 'M&A Basics',
-      mode: 'multiple-choice',
-      score: 80,
-      answers: [{ term: 'EBITDA', isCorrect: true, score: 100, feedback: 'Nice.' }],
-    }
-    const withoutBlock = QUIZ_SUMMARY_PROMPT.build(input)
-    const withBlock = QUIZ_SUMMARY_PROMPT.build({ ...input, profileBlock: PROFILE_BLOCK })
-
-    expect(withoutBlock).toContain('M&A Basics')
-    expect(withoutBlock).toContain('EBITDA')
-    expect(withBlock).toContain(`Learner context: ${PROFILE_BLOCK}`)
   })
 })
 

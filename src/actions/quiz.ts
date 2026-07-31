@@ -8,7 +8,6 @@ import {
   GRADE_SHORT_ANSWER_PROMPT,
   MC_FEEDBACK_PROMPT,
   ANNOTATION_PROMPT,
-  QUIZ_SUMMARY_PROMPT,
 } from '@/lib/ai/prompts/registry';
 import {
   MultipleChoiceOptionsSchema,
@@ -24,6 +23,7 @@ import { recordStudyEvent } from '@/lib/memory/record';
 import { normalizeLatency } from '@/lib/memory/latency';
 import { safeProfileBlock } from '@/lib/ai/context';
 import { ActionResult } from '@/types/action';
+import { SessionInsightSchema, type SessionInsight } from '@/lib/memory/insight';
 
 export async function getOrGenerateMultipleChoiceOptions(
   cardId: string
@@ -612,7 +612,7 @@ export async function getQuizAttemptCards(attemptId: string): Promise<ActionResu
 
 type QuizAttemptSummaryResult = {
   attempt: any;
-  overallAnalysis: string;
+  insight: SessionInsight | null;
 };
 
 export async function getQuizAttemptSummary(attemptId: string): Promise<ActionResult<QuizAttemptSummaryResult>> {
@@ -625,6 +625,7 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
       include: {
         user: true,
         set: { include: { cards: true } },
+        session: true,
         answers: {
           include: {
             card: { include: { contentBlocks: { orderBy: { position: 'asc' } } } },
@@ -670,47 +671,16 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
       });
     }
 
-    let overallAnalysis = 'Analysis unavailable.';
-    // Only spend an AI call when there's actually something to analyze.
-    // An empty submission just scores 0 — no need to prompt the model.
-    // Isolated in try/catch: the analysis is supplementary, so a missing
-    // credential or a generation failure should degrade to the default
-    // string above rather than failing the whole summary (same pattern as
-    // safeProfileBlock).
-    if (attempt.answers.length > 0) {
-      try {
-        const profileBlock = await safeProfileBlock(session.user.id, attempt.setId, 'quiz-summary analysis');
-
-        const prompt = QUIZ_SUMMARY_PROMPT.build({
-          setTitle: attempt.set.title,
-          mode: attempt.mode,
-          score: attempt.score,
-          answers: attempt.answers.map(a => ({
-            term: a.card.term,
-            isCorrect: a.isCorrect,
-            score: a.score,
-            feedback: a.feedback,
-          })),
-          profileBlock,
-        });
-
-        const result = await generateJson({
-          userId: session.user.id,
-          task: 'grade',
-          prompt,
-          schema: QUIZ_SUMMARY_PROMPT.schema,
-        });
-        overallAnalysis = result.analysis;
-      } catch (aiErr) {
-        console.error('Quiz summary analysis generation failed:', aiErr);
-      }
-    }
+    // Read, never generate. Regenerating here is what made every render of a
+    // results page cost an AI call. A blob that fails to parse (older version,
+    // partial write) degrades to null and the UI offers to regenerate.
+    const parsedInsight = SessionInsightSchema.safeParse(attempt.session?.insight);
 
     return {
       success: true,
       data: {
         attempt,
-        overallAnalysis,
+        insight: parsedInsight.success ? parsedInsight.data : null,
       },
     };
   } catch (error: any) {
