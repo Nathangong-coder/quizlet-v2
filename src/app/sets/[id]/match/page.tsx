@@ -71,7 +71,7 @@ export default async function MatchGamePage({
           )}
         </div>
       ) : (
-        <MatchGame key={cat ?? 'all'} initialTiles={initMatchGame(filtered, crypto.randomUUID()).tiles} />
+        <MatchGame key={cat ?? 'all'} setId={id} initialTiles={initMatchGame(filtered, crypto.randomUUID()).tiles} />
       )}
     </div>
   )
