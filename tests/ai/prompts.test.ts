@@ -7,7 +7,9 @@ import { TRAINING_PLAN_PROMPT } from '@/lib/ai/prompts/training-plan'
 import { QUIZ_SUMMARY_PROMPT } from '@/lib/ai/prompts/quiz-summary'
 import { MC_FEEDBACK_PROMPT } from '@/lib/ai/prompts/mc-feedback'
 import { AUTOCOMPLETE_PROMPT } from '@/lib/ai/prompts/autocomplete'
+import { SESSION_INSIGHT_PROMPT } from '@/lib/ai/prompts/session-insight'
 import { PROMPT_REGISTRY } from '@/lib/ai/prompts/registry'
+import { summarizeSession } from '@/lib/memory/summarize'
 
 function makeCard(overrides: Partial<Card> = {}): Card {
   return {
@@ -140,6 +142,41 @@ describe('MC_FEEDBACK_PROMPT and AUTOCOMPLETE_PROMPT (no memory injection)', () 
     })
     expect(prompt).toContain('M&A Basics')
     expect(prompt).toContain('valuation')
+  })
+})
+
+describe('SESSION_INSIGHT_PROMPT', () => {
+  const computed = summarizeSession([
+    {
+      cardId: 'c1',
+      term: 'WACC',
+      source: 'quiz-mc',
+      correct: false,
+      score: null,
+      confidenceBefore: 5,
+      confidenceAfter: 4,
+      latencyMs: 900,
+      categoryNames: ['Valuation'],
+    },
+  ])
+  const input = { setTitle: 'Finance 101', kind: 'quiz', computed }
+
+  it('includes the computed figures the model must reason from', () => {
+    const prompt = SESSION_INSIGHT_PROMPT.build(input)
+    expect(prompt).toContain('Finance 101')
+    expect(prompt).toContain('Valuation')
+    expect(prompt).toContain('WACC')
+  })
+
+  it('instructs the model not to invent numbers', () => {
+    expect(SESSION_INSIGHT_PROMPT.build(input).toLowerCase()).toContain('do not calculate')
+  })
+
+  it('includes the learner profile block only when one is supplied', () => {
+    const without = SESSION_INSIGHT_PROMPT.build(input)
+    const withBlock = SESSION_INSIGHT_PROMPT.build({ ...input, profileBlock: PROFILE_BLOCK })
+    expect(withBlock.length).toBeGreaterThan(without.length)
+    expect(withBlock).toContain(PROFILE_BLOCK)
   })
 })
 
