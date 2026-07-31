@@ -2,7 +2,7 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { summarizeSession, type SessionItem, type SessionComputed } from '@/lib/memory/summarize';
+import { summarizeSession, type SessionItem } from '@/lib/memory/summarize';
 import { SESSION_INSIGHT_VERSION, SessionInsightSchema, type SessionInsight } from '@/lib/memory/insight';
 import type { StudySource } from '@/lib/memory/scoring';
 import type { ActionResult } from '@/types/action';
@@ -160,11 +160,7 @@ export async function generateSessionInsight(input: {
       prompt: SESSION_INSIGHT_PROMPT.build({
         setTitle: studySession.set.title,
         kind: studySession.kind,
-        // SessionComputedSchema mirrors SessionComputed's shape but widens
-        // `mode` to `string` for parsing tolerance; the value was written by
-        // summarizeSession, which only ever emits StudySource literals, so
-        // narrowing back is sound.
-        computed: parsed.data.computed as SessionComputed,
+        computed: parsed.data.computed,
         profileBlock,
       }),
       schema: SESSION_INSIGHT_PROMPT.schema,

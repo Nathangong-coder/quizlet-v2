@@ -206,8 +206,11 @@ describe('generateSessionInsight', () => {
     expect(result.data).toEqual({ generated: true })
     const payload = h.sessionUpdate.mock.calls[0][0].data
     expect(payload.insight.ai.focusAreas).toHaveLength(1)
-    // The computed block must survive untouched — the AI never rewrites numbers.
-    expect(payload.insight.computed.itemCount).toBe(1)
+    // The computed block must survive untouched — the AI never rewrites
+    // numbers. Whole-object equality so a future refactor that rebuilds
+    // `computed` field-by-field cannot slip a mangled sub-object through
+    // while still getting itemCount right.
+    expect(payload.insight.computed).toEqual(openSession.insight.computed)
   })
 
   it('reports failure without throwing when generation fails', async () => {
@@ -226,11 +229,29 @@ describe('generateSessionInsight', () => {
     const result = await generateSessionInsight({ sessionId: 'sess-other' })
     expect(result.success).toBe(false)
     expect(h.generateJson).not.toHaveBeenCalled()
+    // The id comes from the client, so the lookup must be scoped by userId —
+    // otherwise this test would keep passing even if a future edit dropped
+    // that scoping, since the mock returns null unconditionally.
+    expect(h.sessionFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'sess-other', userId: OWNER } }),
+    )
   })
 
   it('does nothing when the session has no computed insight to build on', async () => {
     h.sessionFindFirst.mockResolvedValue({ ...openSession, insight: null })
     const result = await generateSessionInsight({ sessionId: 'sess1' })
+    expect(result.success).toBe(false)
+    expect(h.generateJson).not.toHaveBeenCalled()
+  })
+
+  it('refuses a blob written by an older schema version', async () => {
+    h.sessionFindFirst.mockResolvedValue({
+      ...openSession,
+      insight: { ...openSession.insight, version: 0 },
+    })
+
+    const result = await generateSessionInsight({ sessionId: 'sess1' })
+
     expect(result.success).toBe(false)
     expect(h.generateJson).not.toHaveBeenCalled()
   })

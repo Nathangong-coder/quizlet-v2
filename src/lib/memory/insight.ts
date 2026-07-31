@@ -31,7 +31,9 @@ export const SessionComputedSchema = z.object({
   ),
   byMode: z.array(
     z.object({
-      mode: z.string(),
+      // The StudySource values from src/lib/memory/scoring.ts — must stay
+      // in step with that union.
+      mode: z.enum(['review', 'quiz-mc', 'quiz-sa', 'quiz-tf', 'matching', 'lesson']),
       correct: z.number(),
       total: z.number(),
       avgScore: z.number().nullable(),
@@ -43,7 +45,11 @@ export const SessionComputedSchema = z.object({
     fastest: TimedItemSchema.nullable(),
     slowest: TimedItemSchema.nullable(),
     byMode: z.array(
-      z.object({ mode: z.string(), medianLatencyMs: z.number().nullable() }),
+      z.object({
+        // Same StudySource union as byMode above.
+        mode: z.enum(['review', 'quiz-mc', 'quiz-sa', 'quiz-tf', 'matching', 'lesson']),
+        medianLatencyMs: z.number().nullable(),
+      }),
     ),
   }),
   confidence: z.object({
