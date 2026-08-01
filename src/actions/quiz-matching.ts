@@ -18,8 +18,11 @@ export async function submitMatchingAnswers(input: {
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
-    const attempt = await prisma.quizAttempt.findUnique({
-      where: { id: input.attemptId },
+    // The id comes from the client, so the lookup must be scoped by userId —
+    // otherwise a caller could submit against another user's attempt and,
+    // since sessionId is read off it below, contaminate that user's session.
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: input.attemptId, userId: session.user.id },
     });
 
     if (!attempt) return { success: false, error: 'Attempt not found' };
@@ -61,16 +64,52 @@ export async function submitMatchingAnswers(input: {
 
     await prisma.$transaction(answers);
 
-    for (const outcome of matchOutcomes) {
+    if (attempt.sessionId) {
+      // Atomic for the same reasons as submitMatchSession: a bare count()-then-
+      // insert lets two concurrent re-submits both observe zero and double-write
+      // confidence, and a mid-loop failure would otherwise leave a nonzero count
+      // that permanently blocks the retry. Scoped to source 'matching' because
+      // this session legitimately carries MC/SA/TF events too.
       try {
-        await recordStudyEvent({
-          userId: session.user.id,
-          cardId: outcome.cardId,
-          source: 'matching',
-          outcome: { correct: outcome.isCorrect },
+        await prisma.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT id FROM "StudySession" WHERE id = ${attempt.sessionId} FOR UPDATE`;
+
+          const alreadyRecorded = await tx.studyEvent.count({
+            where: { userId: session.user.id, sessionId: attempt.sessionId, source: 'matching' },
+          });
+          if (alreadyRecorded > 0) return;
+
+          for (const outcome of matchOutcomes) {
+            await recordStudyEvent({
+              userId: session.user.id,
+              cardId: outcome.cardId,
+              source: 'matching',
+              outcome: { correct: outcome.isCorrect },
+              sessionId: attempt.sessionId ?? undefined,
+            }, tx);
+          }
         });
       } catch (memErr) {
-        console.error('recordStudyEvent failed for matching:', memErr);
+        // Memory writes are supplementary — the user still gets their score.
+        // Rolled back as a unit, so a retry starts clean rather than half-written.
+        console.error('Matching memory write failed, rolled back:', memErr);
+      }
+    } else {
+      // Legacy attempts created before the StudySession envelope existed have
+      // no sessionId to lock or scope a guard on. Record as this action always
+      // did before this task — unguarded, per-card — rather than silently
+      // dropping these writes.
+      for (const outcome of matchOutcomes) {
+        try {
+          await recordStudyEvent({
+            userId: session.user.id,
+            cardId: outcome.cardId,
+            source: 'matching',
+            outcome: { correct: outcome.isCorrect },
+          });
+        } catch (memErr) {
+          console.error('recordStudyEvent failed for matching (legacy, no session):', memErr);
+        }
       }
     }
 

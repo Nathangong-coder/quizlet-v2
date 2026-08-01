@@ -12,6 +12,7 @@ import { ContentBlock } from '@/lib/cards/content';
 import { QuizCardPrompt } from './QuizCardPrompt';
 import { QuizSectionHandle, SectionNav } from './section';
 import { useErrorToast } from '@/components/errors/useErrorToast';
+import { useQuestionTimer } from './useQuestionTimer';
 
 type QuizCard = Card & { contentBlocks?: ContentBlock[] };
 
@@ -27,6 +28,7 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
     const [optionsState, setOptionsState] = useState<{ [cardId: string]: { options: string[]; correctAnswer: string } }>({});
     const [loadingCards, setLoadingCards] = useState<Set<string>>(new Set());
     const { show: showError, dialog: errorDialog } = useErrorToast();
+    const timer = useQuestionTimer();
 
     useEffect(() => {
       async function loadAllOptions() {
@@ -54,6 +56,16 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
       loadAllOptions();
     }, [cards]);
 
+    // Starts (or confirms) this question's clock whenever it becomes the
+    // visible one in this one-question-at-a-time carousel. `timer.start` is
+    // first-write-wins, so navigating back to an already-seen question does
+    // not restart its clock — it keeps running from its first visit until
+    // the batched commitAll() below reads it at final submit.
+    useEffect(() => {
+      const activeId = cards[currentIndex]?.id;
+      if (activeId) timer.start(activeId);
+    }, [cards, currentIndex, timer]);
+
     async function commitAll() {
       // Graded once, on overall submit. Each card's answer replaces any prior
       // one server-side (deleteMany+create), so this is safe to call once.
@@ -66,6 +78,7 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
           cardId: card.id,
           selectedOption: selected,
           correctAnswer: data.correctAnswer,
+          latencyMs: timer.elapsed(card.id),
         });
         if (!res.success) showError(res.error || 'Failed to save answer', res.detail);
       }

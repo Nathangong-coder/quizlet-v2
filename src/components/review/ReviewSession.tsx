@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
   initReviewSession,
@@ -12,6 +13,7 @@ import {
 } from '@/lib/review/session'
 import type { ReviewCard, ReviewSession as RS } from '@/lib/review/session'
 import { recordReview } from '@/actions/confidence'
+import { startStudySession, finishStudySession } from '@/actions/study-session'
 import { cn } from '@/lib/utils'
 import { ContentBlockView } from '@/components/cards/ContentBlockView'
 
@@ -25,16 +27,98 @@ export default function ReviewSession({ cards, setId }: ReviewSessionProps) {
   const [flipped, setFlipped] = useState(false)
   const [isPending, startTransition] = useTransition()
 
+  // The real, persisted `StudySession.id`. Opened lazily on the first answer
+  // (not on mount) so a review page that's opened and abandoned doesn't leave
+  // an empty session in the activity feed.
+  const sessionIdRef = useRef<string | null>(null)
+  // The in-flight (or settled) ensureSession() call, so the finish path can
+  // await a still-opening session instead of racing it.
+  const openingRef = useRef<Promise<void> | null>(null)
+  const finishedRef = useRef(false)
+  // Reset whenever a new card is presented (including on re-queue), so
+  // latency measures thinking time on THIS card rather than time since the
+  // session began.
+  const shownAtRef = useRef<number>(Date.now())
+
+  function resetSessionState() {
+    sessionIdRef.current = null
+    openingRef.current = null
+    finishedRef.current = false
+    shownAtRef.current = Date.now()
+  }
+
+  // Guarded synchronously (before the first await) so two fast clicks can't
+  // both pass the "not yet opened" check and open two sessions.
+  function ensureSession(deckSize: number) {
+    if (sessionIdRef.current || openingRef.current) return
+    openingRef.current = (async () => {
+      try {
+        const result = await startStudySession({ setId, kind: 'confidence', itemCount: deckSize })
+        if (result.success) {
+          sessionIdRef.current = result.data.sessionId
+        } else {
+          console.error('startStudySession failed:', result.error)
+          toast.error('This review session will not be saved to your study history.')
+        }
+      } catch (error) {
+        console.error('startStudySession threw:', error)
+        toast.error('This review session will not be saved to your study history.')
+      }
+    })()
+  }
+
   const card = currentCard(session)
   const done = isReviewComplete(session)
   const stats = progressStats(session)
 
+  // Close the session on the render where the deck first empties.
+  // Ref-guarded (set before the first await) so a re-render cannot close
+  // twice. Awaits a still-opening session so a short deck that completes
+  // before startStudySession resolves doesn't orphan it.
+  useEffect(() => {
+    if (!done || finishedRef.current) return
+    finishedRef.current = true
+    ;(async () => {
+      if (openingRef.current) await openingRef.current
+      const sessionId = sessionIdRef.current
+      // No session to close: either nothing was ever answered, or opening it
+      // failed — in which case ensureSession already toasted why.
+      if (!sessionId) return
+      try {
+        const result = await finishStudySession({ sessionId })
+        if (!result.success) {
+          console.error('finishStudySession failed:', result.error)
+          toast.error('This review session was not fully saved to your study history.')
+        }
+      } catch (error) {
+        console.error('finishStudySession threw:', error)
+        toast.error('This review session was not fully saved to your study history.')
+      }
+    })()
+  }, [done])
+
   function handleAnswer(knew: boolean) {
     if (!card) return
+    const cardId = card.id
+    const deckSize = cards.length
     startTransition(async () => {
-      await recordReview(card.id, knew)
-      setSession((prev) => answerCard(prev, card.id, knew))
+      ensureSession(deckSize)
+      if (openingRef.current) await openingRef.current
+      const latencyMs = Date.now() - shownAtRef.current
+      try {
+        await recordReview(cardId, knew, {
+          sessionId: sessionIdRef.current ?? undefined,
+          latencyMs,
+        })
+      } catch (error) {
+        console.error('recordReview threw:', error)
+        toast.error('This answer was not saved to your study history.')
+      }
+      setSession((prev) => answerCard(prev, cardId, knew))
       setFlipped(false)
+      // Reset for the next card presented (including a re-queued card), so
+      // its latency is measured from this appearance onward.
+      shownAtRef.current = Date.now()
     })
   }
 
@@ -49,6 +133,7 @@ export default function ReviewSession({ cards, setId }: ReviewSessionProps) {
             onClick={() => {
               setSession(initReviewSession(cards))
               setFlipped(false)
+              resetSessionState()
             }}
           >
             Review again

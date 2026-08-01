@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { Card as CardComponent, CardContent, CardHeader } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { submitShortAnswer } from '@/actions/quiz';
@@ -9,6 +9,7 @@ import { ContentBlock } from '@/lib/cards/content';
 import { QuizCardPrompt } from './QuizCardPrompt';
 import { QuizSectionHandle, SectionNav } from './section';
 import { useErrorToast } from '@/components/errors/useErrorToast';
+import { useQuestionTimer } from './useQuestionTimer';
 
 type QuizCard = Card & { contentBlocks?: ContentBlock[] };
 
@@ -22,6 +23,17 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
     const [currentIndex, setCurrentIndex] = useState(0);
     const [answers, setAnswers] = useState<{ [cardId: string]: string }>({});
     const { show: showError, dialog: errorDialog } = useErrorToast();
+    const timer = useQuestionTimer();
+
+    // Starts (or confirms) this question's clock whenever it becomes the
+    // visible one in this one-question-at-a-time carousel. `timer.start` is
+    // first-write-wins, so navigating back to an already-seen question does
+    // not restart its clock — it keeps running from its first visit until
+    // the batched commitAll() below reads it at final submit.
+    useEffect(() => {
+      const activeId = cards[currentIndex]?.id;
+      if (activeId) timer.start(activeId);
+    }, [cards, currentIndex, timer]);
 
     async function commitAll() {
       // Grade every answered card once, on overall submit (sequential to be
@@ -30,7 +42,12 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
       for (const card of cards) {
         const text = (answers[card.id] || '').trim();
         if (!text) continue;
-        const res = await submitShortAnswer({ attemptId, cardId: card.id, answer: text });
+        const res = await submitShortAnswer({
+          attemptId,
+          cardId: card.id,
+          answer: text,
+          latencyMs: timer.elapsed(card.id),
+        });
         if (!res.success) showError(res.error || 'Failed to grade answer', res.detail);
       }
     }

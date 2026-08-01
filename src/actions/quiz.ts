@@ -8,7 +8,6 @@ import {
   GRADE_SHORT_ANSWER_PROMPT,
   MC_FEEDBACK_PROMPT,
   ANNOTATION_PROMPT,
-  QUIZ_SUMMARY_PROMPT,
 } from '@/lib/ai/prompts/registry';
 import {
   MultipleChoiceOptionsSchema,
@@ -21,24 +20,10 @@ import { overallQuizScore } from '@/lib/quiz/scoring';
 import { revalidatePath } from 'next/cache';
 import { QuizSetup } from '@/lib/quiz/setup';
 import { recordStudyEvent } from '@/lib/memory/record';
-import { buildLearnerProfile } from '@/lib/memory/profile';
-import { profileToPromptBlock } from '@/lib/ai/context';
+import { normalizeLatency } from '@/lib/memory/latency';
+import { safeProfileBlock } from '@/lib/ai/context';
 import { ActionResult } from '@/types/action';
-
-/**
- * Builds a rendered LearnerProfile block for prompt injection, isolated so a
- * failure never breaks the AI call it's meant to enrich (same
- * error-isolation pattern as recordStudyEvent call sites below).
- */
-async function safeProfileBlock(userId: string, setId: string, label: string): Promise<string | undefined> {
-  try {
-    const profile = await buildLearnerProfile({ userId, setId });
-    return profileToPromptBlock(profile);
-  } catch (err) {
-    console.error(`buildLearnerProfile failed for ${label}:`, err);
-    return undefined;
-  }
-}
+import { SessionInsightSchema, type SessionInsight } from '@/lib/memory/insight';
 
 export async function getOrGenerateMultipleChoiceOptions(
   cardId: string
@@ -142,7 +127,7 @@ export async function startQuizAttempt(
   setup: QuizSetup,
   questionCount?: number,
   timerSeconds?: number
-): Promise<ActionResult<{ attemptId: string; cardIds: string[] }>> {
+): Promise<ActionResult<{ attemptId: string; cardIds: string[]; sessionId: string }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
@@ -193,22 +178,38 @@ export async function startQuizAttempt(
       .slice(0, targetCount)
       .map(c => c.id);
 
-    const attempt = await prisma.quizAttempt.create({
-      data: {
-        userId: session.user.id,
-        setId,
-        mode: modes[0] || 'multiple-choice', // Primary mode for legacy support
-        selectedCardIds: selectedIds,
-        questionMode: modes as any, // Store the full array
-        questionCount: setup.questionCount ?? questionCount ?? selectedIds.length,
-        promptSide: setup.promptSide,
-        categoryIds: setup.categoryIds,
-        starredOnly: setup.starredOnly,
-        failedOnly: setup.failedOnly,
-        printable: setup.printable,
-      },
+    // A StudySession envelope and the QuizAttempt are created together so an
+    // attempt can never exist without one — the activity feed reads sessions,
+    // so an orphaned attempt would be invisible there.
+    const { attempt, sessionId } = await prisma.$transaction(async (tx) => {
+      const createdSession = await tx.studySession.create({
+        data: {
+          userId: session.user.id,
+          setId,
+          kind: 'quiz',
+          itemCount: selectedIds.length,
+          categoryIds: setup.categoryIds ?? undefined,
+        },
+      });
+      const createdAttempt = await tx.quizAttempt.create({
+        data: {
+          userId: session.user.id,
+          setId,
+          sessionId: createdSession.id,
+          mode: modes[0] || 'multiple-choice', // Primary mode for legacy support
+          selectedCardIds: selectedIds,
+          questionMode: modes as any, // Store the full array
+          questionCount: setup.questionCount ?? questionCount ?? selectedIds.length,
+          promptSide: setup.promptSide,
+          categoryIds: setup.categoryIds,
+          starredOnly: setup.starredOnly,
+          failedOnly: setup.failedOnly,
+          printable: setup.printable,
+        },
+      });
+      return { attempt: createdAttempt, sessionId: createdSession.id };
     });
-    return { success: true, data: { attemptId: attempt.id, cardIds: selectedIds } };
+    return { success: true, data: { attemptId: attempt.id, cardIds: selectedIds, sessionId } };
   } catch (error) {
     console.error('Error in startQuizAttempt:', error);
     return { success: false, error: `Failed to start quiz: ${error instanceof Error ? error.message : 'Unknown error'}` };
@@ -220,6 +221,7 @@ export async function submitMultipleChoiceAnswer(input: {
   cardId: string;
   selectedOption: string;
   correctAnswer: string;
+  latencyMs?: number;
 }): Promise<ActionResult<{ isCorrect: boolean; score: number; feedback?: string }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
@@ -228,6 +230,11 @@ export async function submitMultipleChoiceAnswer(input: {
   const score = isCorrect ? 100 : 0;
 
   try {
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: input.attemptId, userId: session.user.id },
+      select: { sessionId: true },
+    });
+
     // Replace only this card's answer *in this mode* (a card may also be
     // tested in another mode within the same attempt — keep those intact).
     await prisma.quizAnswer.deleteMany({
@@ -268,6 +275,7 @@ export async function submitMultipleChoiceAnswer(input: {
         selectedOption: input.selectedOption,
         isCorrect,
         score,
+        latencyMs: normalizeLatency(input.latencyMs),
         feedback,
       },
     });
@@ -277,7 +285,9 @@ export async function submitMultipleChoiceAnswer(input: {
         userId: session.user.id,
         cardId: input.cardId,
         source: 'quiz-mc',
+        sessionId: attempt?.sessionId ?? undefined,
         outcome: { correct: isCorrect },
+        meta: { latencyMs: input.latencyMs },
       });
     } catch (memErr) {
       console.error('recordStudyEvent failed for quiz-mc:', memErr);
@@ -302,6 +312,7 @@ export async function submitTrueFalseAnswer(input: {
   attemptId: string;
   cardId: string;
   selectedOption: string;
+  latencyMs?: number;
 }): Promise<ActionResult<{ isCorrect: boolean; score: number; feedback?: string }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
@@ -310,6 +321,11 @@ export async function submitTrueFalseAnswer(input: {
   const score = isCorrect ? 100 : 0;
 
   try {
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: input.attemptId, userId: session.user.id },
+      select: { sessionId: true },
+    });
+
     // Replace only this card's answer *in this mode* (see MC note above).
     await prisma.quizAnswer.deleteMany({
       where: {
@@ -349,6 +365,7 @@ export async function submitTrueFalseAnswer(input: {
         selectedOption: input.selectedOption,
         isCorrect,
         score,
+        latencyMs: normalizeLatency(input.latencyMs),
         feedback,
       },
     });
@@ -358,7 +375,9 @@ export async function submitTrueFalseAnswer(input: {
         userId: session.user.id,
         cardId: input.cardId,
         source: 'quiz-tf',
+        sessionId: attempt?.sessionId ?? undefined,
         outcome: { correct: isCorrect },
+        meta: { latencyMs: input.latencyMs },
       });
     } catch (memErr) {
       console.error('recordStudyEvent failed for quiz-tf:', memErr);
@@ -383,11 +402,17 @@ export async function submitShortAnswer(input: {
   attemptId: string;
   cardId: string;
   answer: string;
+  latencyMs?: number;
 }): Promise<ActionResult<{ grade: any; score: number }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: input.attemptId, userId: session.user.id },
+      select: { sessionId: true },
+    });
+
     // Idempotent, but scoped to this mode so a card also tested in another
     // section keeps that section's answer. A re-submit replaces the prior
     // short-answer row instead of creating a second graded one.
@@ -447,6 +472,7 @@ export async function submitShortAnswer(input: {
           grade: { ...grade, annotations, promptVersion: GRADE_SHORT_ANSWER_PROMPT.version },
           score,
           isCorrect,
+          latencyMs: normalizeLatency(input.latencyMs),
           feedback: grade.summary,
         },
       });
@@ -456,7 +482,9 @@ export async function submitShortAnswer(input: {
           userId: session.user.id,
           cardId: input.cardId,
           source: 'quiz-sa',
+          sessionId: attempt?.sessionId ?? undefined,
           outcome: { overall: grade.overall },
+          meta: { latencyMs: input.latencyMs },
         });
       } catch (memErr) {
         console.error('recordStudyEvent failed for quiz-sa (text path):', memErr);
@@ -521,6 +549,7 @@ export async function submitShortAnswer(input: {
         grade: { ...grade, annotations, promptVersion: GRADE_SHORT_ANSWER_PROMPT.version },
         score,
         isCorrect,
+        latencyMs: normalizeLatency(input.latencyMs),
         feedback: grade.summary,
       },
     });
@@ -530,7 +559,9 @@ export async function submitShortAnswer(input: {
         userId: session.user.id,
         cardId: input.cardId,
         source: 'quiz-sa',
+        sessionId: attempt?.sessionId ?? undefined,
         outcome: { overall: grade.overall },
+        meta: { latencyMs: input.latencyMs },
       });
     } catch (memErr) {
       console.error('recordStudyEvent failed for quiz-sa (multimodal path):', memErr);
@@ -581,7 +612,7 @@ export async function getQuizAttemptCards(attemptId: string): Promise<ActionResu
 
 type QuizAttemptSummaryResult = {
   attempt: any;
-  overallAnalysis: string;
+  insight: SessionInsight | null;
 };
 
 export async function getQuizAttemptSummary(attemptId: string): Promise<ActionResult<QuizAttemptSummaryResult>> {
@@ -594,6 +625,7 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
       include: {
         user: true,
         set: { include: { cards: true } },
+        session: true,
         answers: {
           include: {
             card: { include: { contentBlocks: { orderBy: { position: 'asc' } } } },
@@ -639,47 +671,16 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
       });
     }
 
-    let overallAnalysis = 'Analysis unavailable.';
-    // Only spend an AI call when there's actually something to analyze.
-    // An empty submission just scores 0 — no need to prompt the model.
-    // Isolated in try/catch: the analysis is supplementary, so a missing
-    // credential or a generation failure should degrade to the default
-    // string above rather than failing the whole summary (same pattern as
-    // safeProfileBlock).
-    if (attempt.answers.length > 0) {
-      try {
-        const profileBlock = await safeProfileBlock(session.user.id, attempt.setId, 'quiz-summary analysis');
-
-        const prompt = QUIZ_SUMMARY_PROMPT.build({
-          setTitle: attempt.set.title,
-          mode: attempt.mode,
-          score: attempt.score,
-          answers: attempt.answers.map(a => ({
-            term: a.card.term,
-            isCorrect: a.isCorrect,
-            score: a.score,
-            feedback: a.feedback,
-          })),
-          profileBlock,
-        });
-
-        const result = await generateJson({
-          userId: session.user.id,
-          task: 'grade',
-          prompt,
-          schema: QUIZ_SUMMARY_PROMPT.schema,
-        });
-        overallAnalysis = result.analysis;
-      } catch (aiErr) {
-        console.error('Quiz summary analysis generation failed:', aiErr);
-      }
-    }
+    // Read, never generate. Regenerating here is what made every render of a
+    // results page cost an AI call. A blob that fails to parse (older version,
+    // partial write) degrades to null and the UI offers to regenerate.
+    const parsedInsight = SessionInsightSchema.safeParse(attempt.session?.insight);
 
     return {
       success: true,
       data: {
         attempt,
-        overallAnalysis,
+        insight: parsedInsight.success ? parsedInsight.data : null,
       },
     };
   } catch (error: any) {

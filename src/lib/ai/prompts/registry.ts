@@ -32,11 +32,11 @@ export type { McFeedbackBuildInput } from './mc-feedback';
 export { TRAINING_PLAN_PROMPT } from './training-plan';
 export type { TrainingPlanContext } from './training-plan';
 
-export { QUIZ_SUMMARY_PROMPT, QuizSummarySchema } from './quiz-summary';
-export type { QuizSummaryBuildInput, QuizSummaryAnswer } from './quiz-summary';
-
 export { AUTOCOMPLETE_PROMPT } from './autocomplete';
 export type { AutocompleteBuildInput } from './autocomplete';
+
+export { SESSION_INSIGHT_PROMPT } from './session-insight';
+export type { SessionInsightBuildInput } from './session-insight';
 
 export { learnerContextBlock, distractorMemoryHint } from './shared';
 
@@ -45,8 +45,8 @@ import { GRADE_SHORT_ANSWER_PROMPT } from './grade-short-answer';
 import { ANNOTATION_PROMPT } from './annotation';
 import { MC_FEEDBACK_PROMPT } from './mc-feedback';
 import { TRAINING_PLAN_PROMPT } from './training-plan';
-import { QUIZ_SUMMARY_PROMPT } from './quiz-summary';
 import { AUTOCOMPLETE_PROMPT } from './autocomplete';
+import { SESSION_INSIGHT_PROMPT } from './session-insight';
 
 /** All registry entries keyed by `id`, for introspection/tooling. */
 export const PROMPT_REGISTRY = {
@@ -55,6 +55,6 @@ export const PROMPT_REGISTRY = {
   [ANNOTATION_PROMPT.id]: ANNOTATION_PROMPT,
   [MC_FEEDBACK_PROMPT.id]: MC_FEEDBACK_PROMPT,
   [TRAINING_PLAN_PROMPT.id]: TRAINING_PLAN_PROMPT,
-  [QUIZ_SUMMARY_PROMPT.id]: QUIZ_SUMMARY_PROMPT,
   [AUTOCOMPLETE_PROMPT.id]: AUTOCOMPLETE_PROMPT,
+  [SESSION_INSIGHT_PROMPT.id]: SESSION_INSIGHT_PROMPT,
 } as const;

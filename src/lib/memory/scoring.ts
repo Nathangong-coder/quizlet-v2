@@ -127,3 +127,40 @@ export function masteryScore(events: MasteryEvent[]): number | null {
   if (weightTotal === 0) return null
   return Math.round((weightedSum / weightTotal) * 100)
 }
+
+/** The four buckets the Cards ledger and the Breakdown counts share. */
+export type MasteryBucket = 'mastered' | 'solid' | 'shaky' | 'struggling'
+
+export const MASTERED_MIN_MASTERY = 80
+export const MASTERED_MIN_CONFIDENCE = 8
+const SOLID_MIN_MASTERY = 60
+const SOLID_MIN_CONFIDENCE = 7
+const SHAKY_MIN_CONFIDENCE = 4
+
+/**
+ * Buckets a card's progress. One definition backs the distribution bar, the
+ * bucket lists, and every "mastered" count in the app — previously each caller
+ * inlined its own `confidence >= 8` rule.
+ *
+ * `mastery` is nullable (rows written before Stage 6 Task 4, or never scored)
+ * and each rule must fall through on null rather than coercing it to 0: a card
+ * with confidence 9 and no mastery score is Solid, not Struggling.
+ */
+export function masteryBucket({
+  confidence,
+  mastery,
+}: {
+  confidence: number
+  mastery?: number | null
+}): MasteryBucket {
+  const scored = typeof mastery === 'number' ? mastery : null
+
+  if (scored !== null && scored >= MASTERED_MIN_MASTERY && confidence >= MASTERED_MIN_CONFIDENCE) {
+    return 'mastered'
+  }
+  if ((scored !== null && scored >= SOLID_MIN_MASTERY) || confidence >= SOLID_MIN_CONFIDENCE) {
+    return 'solid'
+  }
+  if (confidence >= SHAKY_MIN_CONFIDENCE) return 'shaky'
+  return 'struggling'
+}

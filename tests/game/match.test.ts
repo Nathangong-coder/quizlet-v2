@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { initMatchGame, selectTile, isComplete, type GameCard, type MatchGameState } from '../../src/lib/game/match';
+import { initMatchGame, selectTile, isComplete, matchResults, type GameCard, type MatchGameState } from '../../src/lib/game/match';
 
 describe('Matching Game Logic', () => {
   const mockCards: GameCard[] = [
@@ -187,5 +187,80 @@ describe('Matching Game Logic', () => {
       expect(s.finishedAt).not.toBeNull();
       expect(typeof s.finishedAt).toBe('number');
     });
+  });
+});
+
+describe('miss tracking', () => {
+  const mockCards: GameCard[] = [
+    { id: '1', term: 'Apple', definition: 'A red fruit' },
+    { id: '2', term: 'Banana', definition: 'A yellow fruit' },
+  ];
+
+  // Tile ids are random, so find them by content rather than by index.
+  const tileFor = (state: MatchGameState, cardId: string, side: 'term' | 'definition') =>
+    state.tiles.find(t => t.cardId === cardId && t.side === side)!.id;
+
+  it('starts with no misses', () => {
+    expect(initMatchGame(mockCards).misses).toEqual({});
+  });
+
+  it('records a miss against both cards in a wrong pairing', () => {
+    let state = initMatchGame(mockCards);
+    state = selectTile(state, tileFor(state, '1', 'term'));
+    state = selectTile(state, tileFor(state, '2', 'definition'));
+
+    expect(state.misses).toEqual({ '1': 1, '2': 1 });
+  });
+
+  it('does not record a miss on a correct pairing', () => {
+    let state = initMatchGame(mockCards);
+    state = selectTile(state, tileFor(state, '1', 'term'));
+    state = selectTile(state, tileFor(state, '1', 'definition'));
+
+    expect(state.misses).toEqual({});
+  });
+});
+
+describe('matchResults', () => {
+  const mockCards: GameCard[] = [
+    { id: '1', term: 'Apple', definition: 'A red fruit' },
+    { id: '2', term: 'Banana', definition: 'A yellow fruit' },
+  ];
+
+  const tileFor = (state: MatchGameState, cardId: string, side: 'term' | 'definition') =>
+    state.tiles.find(t => t.cardId === cardId && t.side === side)!.id;
+
+  it('marks a first-try match correct and a recovered one wrong', () => {
+    let state = initMatchGame(mockCards);
+    // Card 1 is matched only after a wrong guess against card 2.
+    state = selectTile(state, tileFor(state, '1', 'term'));
+    state = selectTile(state, tileFor(state, '2', 'definition'));
+    state = selectTile(state, tileFor(state, '1', 'term'));
+    state = selectTile(state, tileFor(state, '1', 'definition'));
+    // Card 2 is then matched cleanly — but it already carries a miss.
+    state = selectTile(state, tileFor(state, '2', 'term'));
+    state = selectTile(state, tileFor(state, '2', 'definition'));
+
+    expect(matchResults(state)).toEqual(
+      expect.arrayContaining([
+        { cardId: '1', correct: false },
+        { cardId: '2', correct: false },
+      ]),
+    );
+  });
+
+  it('returns one row per distinct card, not one per tile', () => {
+    const state = initMatchGame(mockCards);
+    expect(matchResults(state)).toHaveLength(2);
+  });
+
+  it('marks every card correct in a flawless game', () => {
+    let state = initMatchGame(mockCards);
+    state = selectTile(state, tileFor(state, '1', 'term'));
+    state = selectTile(state, tileFor(state, '1', 'definition'));
+    state = selectTile(state, tileFor(state, '2', 'term'));
+    state = selectTile(state, tileFor(state, '2', 'definition'));
+
+    expect(matchResults(state).every(r => r.correct)).toBe(true);
   });
 });

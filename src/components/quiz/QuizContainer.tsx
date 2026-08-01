@@ -9,12 +9,14 @@ import { QuizSummary } from './QuizSummary';
 import { QuizSectionHandle } from './section';
 import { Card } from '@prisma/client';
 import { getQuizAttemptCards, startQuizAttempt } from '@/actions/quiz';
+import { finishStudySession, generateSessionInsight } from '@/actions/study-session';
 import { Loader2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
 export function QuizContainer({ setId, cards: allCards, setup }: { setId: string, cards: Card[], setup?: any }) {
   const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedCards, setSelectedCards] = useState<Card[]>([]);
   const [isLoadingCards, setIsLoadingCards] = useState(true);
   const [finished, setFinished] = useState(false);
@@ -25,14 +27,28 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
   // button can flush every section's currently-visible answer at once.
   const sectionRefs = useRef<(QuizSectionHandle | null)[]>([]);
 
+  // Guards startQuizAttempt against firing twice (e.g. React Strict Mode's
+  // dev-only double-invoke of effects) before the first setAttemptId commits.
+  // A ref, not state, so the check-and-set is synchronous — set before the
+  // first await inside startAttempt, exactly like Tasks 12/13's session-open
+  // guards. Each duplicate call would otherwise mint its own StudySession as
+  // well as its own QuizAttempt, and the former is visible in the activity
+  // feed. There is no in-place "start a new quiz" path in this component
+  // (both "Back to Set" and "Try Again" fully remount via navigation/reload),
+  // so this guard never needs to be reset.
+  const startingRef = useRef(false);
+
   useEffect(() => {
     if (setup && !attemptId && !error) {
+      if (startingRef.current) return;
+      startingRef.current = true;
       async function startAttempt() {
         setIsLoadingCards(true);
         const modes = setup.questionMode || ['multiple-choice'];
         const result = await startQuizAttempt(setId, modes, setup);
         if (result.success) {
           setAttemptId(result.data.attemptId);
+          setSessionId(result.data.sessionId);
         } else {
           setError(result.error || 'Failed to start quiz');
           setIsLoadingCards(false);
@@ -67,6 +83,17 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
       await Promise.all(
         sectionRefs.current.map((r) => (r ? r.commitAll() : Promise.resolve())),
       );
+
+      if (sessionId) {
+        const finishResult = await finishStudySession({ sessionId });
+        if (!finishResult.success) {
+          toast.error(finishResult.error || 'Failed to close study session');
+        }
+        // Fire-and-forget: the summary renders from the computed block
+        // immediately, and the AI narrative appears on refresh if it lands.
+        // A failed generation must never block the results screen.
+        generateSessionInsight({ sessionId }).catch(() => {});
+      }
     } catch (e) {
       toast.error('Something went wrong grading your answers');
     } finally {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nextConfidence, masteryScore } from '@/lib/memory/scoring'
+import { nextConfidence, masteryScore, masteryBucket } from '@/lib/memory/scoring'
 import type { MasteryEvent } from '@/lib/memory/scoring'
 
 describe('nextConfidence — binary outcomes (review, quiz-mc, quiz-tf, matching)', () => {
@@ -161,5 +161,45 @@ describe('masteryScore', () => {
     }))
 
     expect(masteryScore([...recentPerfect, ...oldWrongTail])).toBe(100)
+  })
+})
+
+describe('masteryBucket', () => {
+  it('requires both high mastery and high confidence for mastered', () => {
+    expect(masteryBucket({ confidence: 9, mastery: 85 })).toBe('mastered')
+    expect(masteryBucket({ confidence: 7, mastery: 85 })).toBe('solid')
+    expect(masteryBucket({ confidence: 9, mastery: 50 })).toBe('solid')
+  })
+
+  it('treats a null mastery as unknown, never as zero', () => {
+    // Cards last touched before Stage 6 Task 4 have mastery === null. Reading
+    // that as 0 would file a well-known card under Struggling.
+    expect(masteryBucket({ confidence: 9, mastery: null })).toBe('solid')
+    expect(masteryBucket({ confidence: 5, mastery: null })).toBe('shaky')
+    expect(masteryBucket({ confidence: 2, mastery: null })).toBe('struggling')
+  })
+
+  it('falls through solid -> shaky -> struggling on confidence', () => {
+    expect(masteryBucket({ confidence: 7, mastery: 10 })).toBe('solid')
+    expect(masteryBucket({ confidence: 6, mastery: 10 })).toBe('shaky')
+    expect(masteryBucket({ confidence: 4, mastery: 10 })).toBe('shaky')
+    expect(masteryBucket({ confidence: 3, mastery: 10 })).toBe('struggling')
+  })
+
+  it('promotes on mastery alone at the solid threshold', () => {
+    expect(masteryBucket({ confidence: 3, mastery: 65 })).toBe('solid')
+  })
+
+  it('treats the mastered thresholds as inclusive, one point below as not', () => {
+    expect(masteryBucket({ confidence: 8, mastery: 80 })).toBe('mastered')
+    expect(masteryBucket({ confidence: 7, mastery: 80 })).toBe('solid')
+    expect(masteryBucket({ confidence: 8, mastery: 79 })).toBe('solid')
+  })
+
+  it('treats the solid mastery threshold as inclusive, one point below as not', () => {
+    // Confidence is held below every confidence-driven threshold so these
+    // assertions can only be satisfied by the mastery rule.
+    expect(masteryBucket({ confidence: 3, mastery: 60 })).toBe('solid')
+    expect(masteryBucket({ confidence: 3, mastery: 59 })).toBe('struggling')
   })
 })
