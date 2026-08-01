@@ -182,3 +182,56 @@ export async function generateSessionInsight(input: {
     return { success: false, error: 'Failed to generate insights' };
   }
 }
+
+/**
+ * Reads a single session for the activity permalink.
+ *
+ * Scoped by userId, matching finishStudySession/generateSessionInsight above
+ * — the id comes from the URL and must never be trusted on its own.
+ */
+export async function getStudySession(sessionId: string): Promise<
+  ActionResult<{
+    id: string;
+    kind: string;
+    setId: string;
+    setTitle: string;
+    startedAt: Date;
+    durationMs: number | null;
+    itemCount: number;
+    attemptId: string | null;
+    insight: SessionInsight | null;
+  }>
+> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+
+  try {
+    const found = await prisma.studySession.findFirst({
+      where: { id: sessionId, userId: session.user.id },
+      include: { set: { select: { title: true } }, attempt: { select: { id: true } } },
+    });
+    if (!found) return { success: false, error: 'Activity not found' };
+
+    // Parsed rather than cast: an older-shaped blob degrades to null instead
+    // of being half-read into a UI that assumes the current shape.
+    const parsed = SessionInsightSchema.safeParse(found.insight);
+
+    return {
+      success: true,
+      data: {
+        id: found.id,
+        kind: found.kind,
+        setId: found.setId,
+        setTitle: found.set.title,
+        startedAt: found.startedAt,
+        durationMs: found.durationMs,
+        itemCount: found.itemCount,
+        attemptId: found.attempt?.id ?? null,
+        insight: parsed.success ? parsed.data : null,
+      },
+    };
+  } catch (error) {
+    console.error('getStudySession error:', error);
+    return { success: false, error: 'Failed to load activity' };
+  }
+}
