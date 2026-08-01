@@ -27,11 +27,34 @@ export function SessionInsightView({
     else toast.error(result.error || 'Could not generate insights');
   }
 
+  const generateButton = (
+    <Button onClick={handleGenerate} disabled={generating} variant="outline">
+      {generating ? 'Generating…' : 'Generate insights'}
+    </Button>
+  );
+
   if (!insight) {
+    // A null insight means the stored blob failed to parse — typically an
+    // older schema version. Regeneration is exactly the remedy, so offer it
+    // here rather than leaving the user on a dead end. Matching/confidence
+    // sessions (canGenerate === false) get no AI narrative by design, so a
+    // button there would just be a different kind of dead end.
+    if (canGenerate && sessionId) {
+      return (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">No breakdown saved for this activity.</p>
+          {generateButton}
+        </div>
+      );
+    }
     return <p className="text-sm text-muted-foreground">No breakdown saved for this activity.</p>;
   }
 
   const { computed, ai } = insight;
+  const hasCategory = computed.byCategory.length > 0;
+  const hasMode = computed.byMode.length > 0;
+  const hasPacing = computed.pacing.medianLatencyMs !== null;
+  const hasAnyComputed = hasCategory || hasMode || hasPacing;
 
   return (
     <div className="space-y-6">
@@ -52,44 +75,50 @@ export function SessionInsightView({
           {ai.strengths && <p className="text-sm text-muted-foreground">{ai.strengths}</p>}
         </section>
       ) : canGenerate && sessionId ? (
-        <Button onClick={handleGenerate} disabled={generating} variant="outline">
-          {generating ? 'Generating…' : 'Generate insights'}
-        </Button>
+        generateButton
       ) : null}
 
-      <section className="grid gap-6 sm:grid-cols-3">
-        <div>
-          <h4 className="text-sm font-semibold mb-2">By category</h4>
-          {computed.byCategory.map((c) => (
-            <div key={c.name} className="flex justify-between text-sm">
-              <span>{c.name}</span>
-              <span className="text-muted-foreground">{c.accuracyPct}%</span>
+      {hasAnyComputed ? (
+        <section className="grid gap-6 sm:grid-cols-3">
+          {hasCategory && (
+            <div>
+              <h4 className="text-sm font-semibold mb-2">By category</h4>
+              {computed.byCategory.map((c) => (
+                <div key={c.name} className="flex justify-between text-sm">
+                  <span>{c.name}</span>
+                  <span className="text-muted-foreground">{c.accuracyPct}%</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <div>
-          <h4 className="text-sm font-semibold mb-2">By mode</h4>
-          {computed.byMode.map((m) => (
-            <div key={m.mode} className="flex justify-between text-sm">
-              <span>{m.mode}</span>
-              <span className="text-muted-foreground">
-                {m.correct}/{m.total}
-              </span>
+          )}
+          {hasMode && (
+            <div>
+              <h4 className="text-sm font-semibold mb-2">By mode</h4>
+              {computed.byMode.map((m) => (
+                <div key={m.mode} className="flex justify-between text-sm">
+                  <span>{m.mode}</span>
+                  <span className="text-muted-foreground">
+                    {m.correct}/{m.total}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-        <div>
-          <h4 className="text-sm font-semibold mb-2">Pacing</h4>
-          <p className="text-sm text-muted-foreground">
-            {/* Null means "not measured" — legacy activities render an em dash
-                rather than a fabricated zero. */}
-            median{' '}
-            {computed.pacing.medianLatencyMs === null
-              ? '—'
-              : `${Math.round(computed.pacing.medianLatencyMs / 100) / 10}s`}
-          </p>
-        </div>
-      </section>
+          )}
+          <div>
+            <h4 className="text-sm font-semibold mb-2">Pacing</h4>
+            <p className="text-sm text-muted-foreground">
+              {/* Null means "not measured" — legacy activities render an em dash
+                  rather than a fabricated zero. */}
+              median{' '}
+              {computed.pacing.medianLatencyMs === null
+                ? '—'
+                : `${Math.round(computed.pacing.medianLatencyMs / 100) / 10}s`}
+            </p>
+          </div>
+        </section>
+      ) : (
+        <p className="text-sm text-muted-foreground">No breakdown recorded for this activity.</p>
+      )}
     </div>
   );
 }
