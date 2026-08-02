@@ -5,11 +5,14 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { after } from 'next/server'
 import { ActionResult } from '@/types/action'
 
 import { ContentBlock } from '@/lib/cards/content';
 import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categories'
 import { reconcileCards } from '@/lib/cards/reconcile'
+import { extractKlpsForCards } from '@/actions/klp'
+import { klpSourceHash } from '@/lib/cards/klp-hash'
 
 const CardInputSchema = z.object({
   // Present when the editor is round-tripping an existing card. Absent for
@@ -207,6 +210,22 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
 
     await backfillAssetLinks(set.id, session.user.id, validated.cards)
 
+    // Post-response so the user is never blocked on extraction. Every failure
+    // is recorded on the card by extractKlpsForCards, which never throws.
+    // The findMany itself CAN throw (e.g. a DB blip) — guarded so that alone
+    // can't turn an already-successful set creation into an error response;
+    // any cards missed here stay klpStatus: 'pending' and are picked up by
+    // ensureKlpsReady's self-healing extraction on first use.
+    try {
+      const created = await prisma.card.findMany({
+        where: { setId: set.id },
+        select: { id: true },
+      })
+      after(() => extractKlpsForCards(session.user.id, created.map((c) => c.id)))
+    } catch {
+      // Nothing more to do — see comment above.
+    }
+
     revalidatePath('/sets')
     return { success: true, data: { setId: set.id } }
   } catch (error) {
@@ -282,6 +301,29 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
     ])
 
     await backfillAssetLinks(id, session.user.id, validated.cards)
+
+    // Only cards whose meaning actually changed get re-extracted. Re-running
+    // the whole set on every save would burn a batch of AI calls and supersede
+    // perfectly good KLPs each time a title is corrected. Guarded like
+    // createSet's equivalent block: a failure here must not turn an
+    // already-successful update into an error response.
+    try {
+      const saved = await prisma.card.findMany({
+        where: { setId: id },
+        include: { contentBlocks: true },
+      })
+      const stale = saved
+        .filter(
+          (c) =>
+            c.klpSourceHash !==
+            klpSourceHash({ term: c.term, definition: c.definition, blocks: c.contentBlocks }),
+        )
+        .map((c) => c.id)
+
+      after(() => extractKlpsForCards(session.user.id, stale))
+    } catch {
+      // Nothing more to do — see comment above.
+    }
 
     revalidatePath('/sets')
     revalidatePath(`/sets/${id}`)
