@@ -17,19 +17,9 @@ import { eventCorrectness } from './scoring'
 import type { StudySource } from './scoring'
 
 // ---------------------------------------------------------------------------
-// Caps & thresholds (documented, tunable constants — see task report for
-// rationale). All bucket sizes are capped so the profile stays bounded
-// regardless of how much history a user accumulates.
+// Thresholds. Bucket sizes are intentionally uncapped — every qualifying
+// card is surfaced, not just the top few.
 // ---------------------------------------------------------------------------
-
-/** Max weak (confidence <= 4) terms surfaced. */
-export const WEAK_CAP = 5
-/** Max strong (confidence >= 8) terms surfaced. */
-export const STRONG_CAP = 3
-/** Max starred terms surfaced. */
-export const STARRED_CAP = 5
-/** Max "fading" (due + declining) terms surfaced. */
-export const FADING_CAP = 3
 
 /** Confidence threshold at/below which a card is "weak". */
 const WEAK_THRESHOLD = 4
@@ -60,12 +50,12 @@ const RECENT_WINDOW_DAYS = 30
 
 /**
  * Bound on how many StudyEvent rows `buildLearnerProfile` fetches from the
- * DB per user (optionally per set). This is a defensive cap on the raw
- * fetch — deep enough to cover per-card trend windows and 30-day recent
- * stats for an active user, shallow enough to keep the query bounded
- * regardless of total lifetime history.
+ * DB per user (optionally per set). This is the query's only cap — deep
+ * enough to cover per-card trend windows and 30-day recent stats even for a
+ * very active user, while still keeping the query bounded rather than
+ * scanning a user's entire lifetime history on every call.
  */
-export const RECENT_EVENTS_FETCH_CAP = 500
+export const RECENT_EVENTS_FETCH_CAP = 5000
 
 export type Trend = 'improving' | 'flat' | 'declining'
 
@@ -249,7 +239,6 @@ export function shapeLearnerProfile(input: ShapeLearnerProfileInput): LearnerPro
   const weak: WeakTerm[] = input.progress
     .filter((p) => p.confidence <= WEAK_THRESHOLD)
     .sort((a, b) => a.confidence - b.confidence)
-    .slice(0, WEAK_CAP)
     .map((p) => ({
       term: p.term,
       confidence: p.confidence,
@@ -260,13 +249,11 @@ export function shapeLearnerProfile(input: ShapeLearnerProfileInput): LearnerPro
   const strong: StrongTerm[] = input.progress
     .filter((p) => p.confidence >= STRONG_THRESHOLD)
     .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, STRONG_CAP)
     .map((p) => ({ term: p.term, confidence: p.confidence }))
 
   const starred: StarredTerm[] = input.progress
     .filter((p) => p.starred)
     .sort((a, b) => a.confidence - b.confidence)
-    .slice(0, STARRED_CAP)
     .map((p) => ({ term: p.term, confidence: p.confidence }))
 
   const fading: FadingTerm[] = input.progress
@@ -290,7 +277,6 @@ export function shapeLearnerProfile(input: ShapeLearnerProfileInput): LearnerPro
 
       return { term: p.term, wasConfidence, missCount }
     })
-    .slice(0, FADING_CAP)
 
   // --- Recent accuracy / volume stats (last RECENT_WINDOW_DAYS days) -------
   const recentWindowStart = now.getTime() - RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000

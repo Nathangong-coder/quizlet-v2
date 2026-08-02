@@ -1,12 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  shapeLearnerProfile,
-  classifyTrend,
-  WEAK_CAP,
-  STRONG_CAP,
-  STARRED_CAP,
-  FADING_CAP,
-} from '@/lib/memory/profile'
+import { shapeLearnerProfile, classifyTrend } from '@/lib/memory/profile'
 import type { ProgressRow, EventRow } from '@/lib/memory/profile'
 
 const NOW = new Date('2026-07-24T12:00:00.000Z')
@@ -138,26 +131,26 @@ describe('weak bucket', () => {
     ])
   })
 
-  it('caps the weak list at WEAK_CAP regardless of how many qualify', () => {
+  it('surfaces every qualifying card, uncapped', () => {
     const p: ProgressRow[] = Array.from({ length: 100 }, (_, i) =>
       progress({ cardId: `c${i}`, term: `term-${i}`, confidence: 1 }),
     )
 
     const result = shapeLearnerProfile({ progress: p, events: [], now: NOW })
 
-    expect(result.weak).toHaveLength(WEAK_CAP)
+    expect(result.weak).toHaveLength(100)
   })
 })
 
 describe('strong bucket', () => {
-  it('selects cards with confidence >= 8, sorted strongest-first, capped at STRONG_CAP', () => {
+  it('selects cards with confidence >= 8, sorted strongest-first, uncapped', () => {
     const p: ProgressRow[] = Array.from({ length: 20 }, (_, i) =>
       progress({ cardId: `c${i}`, term: `term-${i}`, confidence: 8 + (i % 3) }),
     )
 
     const result = shapeLearnerProfile({ progress: p, events: [], now: NOW })
 
-    expect(result.strong).toHaveLength(STRONG_CAP)
+    expect(result.strong).toHaveLength(20)
     // strongest-first
     for (let i = 1; i < result.strong.length; i++) {
       expect(result.strong[i - 1].confidence).toBeGreaterThanOrEqual(result.strong[i].confidence)
@@ -166,14 +159,14 @@ describe('strong bucket', () => {
 })
 
 describe('starred bucket', () => {
-  it('selects starred cards, capped at STARRED_CAP', () => {
+  it('selects starred cards, uncapped', () => {
     const p: ProgressRow[] = Array.from({ length: 20 }, (_, i) =>
       progress({ cardId: `c${i}`, term: `term-${i}`, confidence: 5, starred: true }),
     )
 
     const result = shapeLearnerProfile({ progress: p, events: [], now: NOW })
 
-    expect(result.starred).toHaveLength(STARRED_CAP)
+    expect(result.starred).toHaveLength(20)
   })
 
   it('excludes non-starred cards', () => {
@@ -243,7 +236,7 @@ describe('fading bucket (due + slipping) — synthetic dueAt fixtures', () => {
     expect(result.fading).toEqual([])
   })
 
-  it('caps the fading list at FADING_CAP', () => {
+  it('surfaces every fading card, uncapped', () => {
     const p: ProgressRow[] = Array.from({ length: 20 }, (_, i) =>
       progress({ cardId: `c${i}`, term: `term-${i}`, confidence: 5, dueAt: daysAgo(1) }),
     )
@@ -255,7 +248,7 @@ describe('fading bucket (due + slipping) — synthetic dueAt fixtures', () => {
     ])
 
     const result = shapeLearnerProfile({ progress: p, events: e, now: NOW })
-    expect(result.fading).toHaveLength(FADING_CAP)
+    expect(result.fading).toHaveLength(20)
   })
 })
 
@@ -326,8 +319,8 @@ describe('streak calculation', () => {
   })
 })
 
-describe('bounded size regardless of history length', () => {
-  it('stays capped when fed 100 synthetic events across many cards', () => {
+describe('scales with history length (no bucket caps)', () => {
+  it('surfaces every qualifying card when fed 100 synthetic events across many cards', () => {
     const p: ProgressRow[] = Array.from({ length: 100 }, (_, i) =>
       progress({ cardId: `c${i}`, term: `term-${i}`, confidence: (i % 10) + 1 }),
     )
@@ -343,10 +336,13 @@ describe('bounded size regardless of history length', () => {
 
     const result = shapeLearnerProfile({ progress: p, events: e, now: NOW })
 
-    expect(result.weak.length).toBeLessThanOrEqual(WEAK_CAP)
-    expect(result.strong.length).toBeLessThanOrEqual(STRONG_CAP)
-    expect(result.starred.length).toBeLessThanOrEqual(STARRED_CAP)
-    expect(result.fading.length).toBeLessThanOrEqual(FADING_CAP)
+    // i % 10 + 1 cycles confidence 1..10 across the 100 cards: values <= 4
+    // (1,2,3,4) are weak (40 of 100), values >= 8 (8,9,10) are strong (30 of 100).
+    expect(result.weak.length).toBe(40)
+    expect(result.strong.length).toBe(30)
+    // `recent.byMode`/`recent.graded` are bucketed by mode, not by card, so
+    // their size is bounded by the number of distinct modes regardless of
+    // event volume — that's a real, unrelated bound, not a truncation cap.
     expect(result.recent.byMode.length).toBeLessThanOrEqual(4)
     expect(result.recent.graded.length).toBeLessThanOrEqual(1)
   })
