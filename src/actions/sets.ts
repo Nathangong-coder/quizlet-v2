@@ -9,8 +9,12 @@ import { ActionResult } from '@/types/action'
 
 import { ContentBlock } from '@/lib/cards/content';
 import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categories'
+import { reconcileCards } from '@/lib/cards/reconcile'
 
 const CardInputSchema = z.object({
+  // Present when the editor is round-tripping an existing card. Absent for
+  // newly added cards. Ownership is re-checked server-side in updateSet.
+  id: z.string().optional(),
   term: z.string().min(1, 'Term is required'),
   definition: z.string().min(1, 'Definition is required'),
   termBlocks: z.array(z.any()).optional(),
@@ -63,6 +67,35 @@ function buildCardCreate(
     position: card.position,
     contentBlocks: { create: buildContentBlockCreate(card) },
     categoryAssignments: { create: categoryIds.map((categoryId) => ({ categoryId })) },
+  }
+}
+
+/**
+ * Update payload for an existing card. Content blocks and category
+ * assignments are replaced wholesale (they have no independent identity worth
+ * preserving), but the CARD ROW SURVIVES — which is the entire point: its id
+ * is what CardProgress, StudyEvent and QuizAnswer hang off.
+ */
+function buildCardUpdate(
+  card: z.infer<typeof CardInputSchema>,
+  categoryIdByNormalized: Record<string, string>,
+) {
+  const categoryIds = Array.from(
+    new Set(
+      (card.categoryNames ?? [])
+        .map((n) => categoryIdByNormalized[normalizeCategoryName(n)])
+        .filter((id): id is string => Boolean(id)),
+    ),
+  )
+  return {
+    term: card.term,
+    definition: card.definition,
+    position: card.position,
+    contentBlocks: { deleteMany: {}, create: buildContentBlockCreate(card) },
+    categoryAssignments: {
+      deleteMany: {},
+      create: categoryIds.map((categoryId) => ({ categoryId })),
+    },
   }
 }
 
@@ -217,11 +250,29 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
     const cats = await prisma.cardCategory.findMany({ where: { setId: id } })
     const map = Object.fromEntries(cats.map((c) => [c.normalizedName, c.id]))
 
-    // Cards are fully replaced (existing behavior); assignments are recreated
-    // against the reconciled categories using the new card ids.
+    // Cards are reconciled by identity, never replaced. Deleting and
+    // recreating them cascades away CardProgress, StudyEvent,
+    // ConfidenceEvent, QuizAnswer and QuizOptionCache — i.e. the set's whole
+    // learning history — which is exactly what used to happen on every save.
+    // Named `existingCards`, not `existing` — `updateSet` already has a local
+    // `existing` holding the Set row (line 196).
+    const existingCards = await prisma.card.findMany({
+      where: { setId: id },
+      select: { id: true },
+    })
+    const plan = reconcileCards(
+      existingCards.map((c) => c.id),
+      validated.cards,
+    )
+
     await prisma.$transaction([
-      prisma.card.deleteMany({ where: { setId: id } }),
-      ...validated.cards.map((card) =>
+      ...(plan.toDeleteIds.length > 0
+        ? [prisma.card.deleteMany({ where: { setId: id, id: { in: plan.toDeleteIds } } })]
+        : []),
+      ...plan.toUpdate.map(({ id: cardId, card }) =>
+        prisma.card.update({ where: { id: cardId }, data: buildCardUpdate(card, map) }),
+      ),
+      ...plan.toCreate.map((card) =>
         prisma.card.create({ data: { setId: id, ...buildCardCreate(card, map) } }),
       ),
       prisma.set.update({

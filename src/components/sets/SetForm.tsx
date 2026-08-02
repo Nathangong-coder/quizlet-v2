@@ -27,6 +27,7 @@ interface InitialContentBlock {
 }
 
 interface InitialCard {
+  id?: string
   term: string
   definition: string
   position: number
@@ -70,6 +71,7 @@ function cardToEditorBlocks(card: InitialCard) {
   }
 
   return {
+    id: card.id,
     term: forSide('term', card.term),
     definition: forSide('definition', card.definition),
     categoryNames: card.categoryNames ?? [],
@@ -108,6 +110,7 @@ export function SetForm({
 
   const addCard = () => {
     setCards([...cards, {
+      id: undefined as string | undefined,
       term: [{ type: 'text', text: '', position: 0 }],
       definition: [{ type: 'text', text: '', position: 0 }],
       categoryNames: [],
@@ -191,6 +194,7 @@ export function SetForm({
 
   const handleImport = (importedCards: ParsedCard[]) => {
     const formattedImported = importedCards.map((c, i) => ({
+      id: undefined as string | undefined,
       ...legacyCardToContentBlocks(c.term, c.definition),
       categoryNames: [],
       position: cards.length + i,
@@ -209,6 +213,7 @@ export function SetForm({
     startTransition(async () => {
       try {
         const cardsForApi = cards.map(c => ({
+          id: c.id,
           term: contentBlocksToPlainText(c.term),
           definition: contentBlocksToPlainText(c.definition),
           termBlocks: c.term,

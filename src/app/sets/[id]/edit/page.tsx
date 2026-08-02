@@ -48,6 +48,7 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
         initialDescription={set.description || ''}
         initialCategories={set.categories.map((c) => ({ name: c.name, color: c.color }))}
         initialCards={set.cards.map((c) => ({
+          id: c.id,
           term: c.term,
           definition: c.definition,
           position: c.position,
