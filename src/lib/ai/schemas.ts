@@ -110,3 +110,28 @@ export const KlpExtractionSchema = z.object({
 });
 
 export type KlpExtraction = z.infer<typeof KlpExtractionSchema>;
+
+/**
+ * KLP-aware MC generation. Distractors reference the KLP they corrupt by its
+ * `ref` (index in the prompt), never by cuid; the action maps refs back to ids.
+ */
+export const MultipleChoiceKlpSchema = z.object({
+  correctAnswer: z.string().min(1),
+  distractors: z
+    .array(
+      z.object({
+        text: z.string().min(1),
+        klpRef: z.number().int().min(0),
+        corruption: z.enum([
+          'inversion',
+          'conflation',
+          'misapplication',
+          'overgeneralization',
+          'factual_error',
+        ]),
+      }),
+    )
+    .length(3),
+});
+
+export type MultipleChoiceKlp = z.infer<typeof MultipleChoiceKlpSchema>;

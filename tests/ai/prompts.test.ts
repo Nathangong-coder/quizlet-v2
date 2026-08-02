@@ -179,6 +179,39 @@ describe('SESSION_INSIGHT_PROMPT', () => {
   })
 })
 
+describe('MULTIPLE_CHOICE_PROMPT v2 (KLP-driven)', () => {
+  const card = makeCard()
+  const klps = [
+    { ref: 0, text: 'EBITDA excludes interest expense', kind: 'definition' },
+    { ref: 1, text: 'D&A is added back because it is non-cash', kind: 'causal' },
+  ]
+
+  it('is version 2', () => {
+    expect(MULTIPLE_CHOICE_PROMPT.version).toBe(2)
+  })
+
+  it('lists each KLP by ref and asks for one corruption per distractor', () => {
+    const prompt = MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: [], klps })
+    expect(prompt).toContain('[0]')
+    expect(prompt).toContain('EBITDA excludes interest expense')
+    expect(prompt).toContain('klpRef')
+    expect(prompt).toContain('inversion')
+  })
+
+  it('falls back to the legacy prompt when the card has no KLPs', () => {
+    // A user with no AI key, or a card whose extraction failed, must still get
+    // a working quiz.
+    const prompt = MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: [] })
+    expect(prompt).toContain('plausible but incorrect distractors')
+    expect(prompt).not.toContain('klpRef')
+  })
+
+  it('never leaks a cuid into the prompt', () => {
+    const prompt = MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: [], klps })
+    expect(prompt).not.toContain(card.id)
+  })
+})
+
 describe('PROMPT_REGISTRY', () => {
   it('every entry has a stable id/version and a build function', () => {
     for (const [id, entry] of Object.entries(PROMPT_REGISTRY)) {
