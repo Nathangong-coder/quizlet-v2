@@ -12,7 +12,7 @@ import { ContentBlock } from '@/lib/cards/content';
 import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categories'
 import { reconcileCards } from '@/lib/cards/reconcile'
 import { extractKlpsForCards } from '@/actions/klp'
-import { klpSourceHash } from '@/lib/cards/klp-hash'
+import { selectStaleCardIds } from '@/lib/cards/stale'
 
 const CardInputSchema = z.object({
   // Present when the editor is round-tripping an existing card. Absent for
@@ -222,8 +222,10 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
         select: { id: true },
       })
       after(() => extractKlpsForCards(session.user.id, created.map((c) => c.id)))
-    } catch {
-      // Nothing more to do — see comment above.
+    } catch (klpErr) {
+      // Nothing more to do — see comment above — but log so an operator can
+      // see extraction was never even scheduled for this set.
+      console.error('KLP extraction scheduling failed for createSet:', klpErr)
     }
 
     revalidatePath('/sets')
@@ -304,26 +306,23 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
 
     // Only cards whose meaning actually changed get re-extracted. Re-running
     // the whole set on every save would burn a batch of AI calls and supersede
-    // perfectly good KLPs each time a title is corrected. Guarded like
-    // createSet's equivalent block: a failure here must not turn an
-    // already-successful update into an error response.
-    try {
-      const saved = await prisma.card.findMany({
-        where: { setId: id },
-        include: { contentBlocks: true },
-      })
-      const stale = saved
-        .filter(
-          (c) =>
-            c.klpSourceHash !==
-            klpSourceHash({ term: c.term, definition: c.definition, blocks: c.contentBlocks }),
-        )
-        .map((c) => c.id)
+    // perfectly good KLPs each time a title is corrected.
+    //
+    // Deliberately NOT wrapped in a try/catch like createSet's equivalent
+    // block: an edited card already has klpStatus: 'ready' and live,
+    // un-superseded CardKlp rows from its prior extraction, so there is no
+    // self-healing path if this findMany silently fails to run — the card
+    // would be graded against stale, pre-edit KLPs indefinitely (see
+    // klpSourceHash's doc comment in ./klp-hash on this exact failure mode).
+    // Letting the error propagate to the outer catch surfaces it to the user
+    // and makes the failure retryable instead of silent.
+    const saved = await prisma.card.findMany({
+      where: { setId: id },
+      include: { contentBlocks: true },
+    })
+    const stale = selectStaleCardIds(saved)
 
-      after(() => extractKlpsForCards(session.user.id, stale))
-    } catch {
-      // Nothing more to do — see comment above.
-    }
+    after(() => extractKlpsForCards(session.user.id, stale))
 
     revalidatePath('/sets')
     revalidatePath(`/sets/${id}`)
