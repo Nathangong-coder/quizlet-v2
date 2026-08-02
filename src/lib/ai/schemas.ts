@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CORRUPTIONS } from '@/lib/quiz/options';
 
 export const MultipleChoiceOptionsSchema = z.object({
   options: z.array(z.string().min(1)).length(4),
@@ -122,13 +123,7 @@ export const MultipleChoiceKlpSchema = z.object({
       z.object({
         text: z.string().min(1),
         klpRef: z.number().int().min(0),
-        corruption: z.enum([
-          'inversion',
-          'conflation',
-          'misapplication',
-          'overgeneralization',
-          'factual_error',
-        ]),
+        corruption: z.enum(CORRUPTIONS),
       }),
     )
     .length(3),

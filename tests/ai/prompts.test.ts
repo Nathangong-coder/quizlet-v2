@@ -206,6 +206,14 @@ describe('MULTIPLE_CHOICE_PROMPT v2 (KLP-driven)', () => {
     expect(prompt).not.toContain('klpRef')
   })
 
+  it('falls back to the legacy prompt when klps is an empty array', () => {
+    // A card whose extraction ran but returned zero KLPs must still fall
+    // back cleanly rather than asking the model to corrupt an empty list.
+    const prompt = MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: [], klps: [] })
+    expect(prompt).toContain('plausible but incorrect distractors')
+    expect(prompt).not.toContain('klpRef')
+  })
+
   it('never leaks a cuid into the prompt', () => {
     const prompt = MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: [], klps })
     expect(prompt).not.toContain(card.id)
