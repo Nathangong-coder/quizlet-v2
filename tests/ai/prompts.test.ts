@@ -7,9 +7,11 @@ import { TRAINING_PLAN_PROMPT } from '@/lib/ai/prompts/training-plan'
 import { MC_FEEDBACK_PROMPT } from '@/lib/ai/prompts/mc-feedback'
 import { AUTOCOMPLETE_PROMPT } from '@/lib/ai/prompts/autocomplete'
 import { SESSION_INSIGHT_PROMPT } from '@/lib/ai/prompts/session-insight'
+import { EXTRACT_KLPS_PROMPT } from '@/lib/ai/prompts/extract-klps'
 import { PROMPT_REGISTRY } from '@/lib/ai/prompts/registry'
 import { summarizeSession } from '@/lib/memory/summarize'
 import { MAX_FOCUS_AREAS } from '@/lib/memory/insight'
+import { KLP_KINDS } from '@/lib/ai/schemas'
 
 function makeCard(overrides: Partial<Card> = {}): Card {
   return {
@@ -185,5 +187,43 @@ describe('PROMPT_REGISTRY', () => {
       expect(typeof entry.build).toBe('function')
       expect(entry.schema).toBeDefined()
     }
+  })
+})
+
+describe('EXTRACT_KLPS_PROMPT', () => {
+  const input = {
+    setTitle: 'M&A Basics',
+    cards: [
+      { ref: 0, term: 'WACC', definition: 'Weighted average cost of capital.' },
+      { ref: 1, term: 'EBITDA', definition: 'Earnings before interest, taxes, D&A.' },
+    ],
+  }
+
+  it('addresses cards by ref, never by id', () => {
+    const prompt = EXTRACT_KLPS_PROMPT.build(input)
+    expect(prompt).toContain('[0]')
+    expect(prompt).toContain('[1]')
+    expect(prompt).toContain('WACC')
+  })
+
+  it('demands propositions rather than topics', () => {
+    // The single highest-leverage instruction in the prompt: topic-shaped KLPs
+    // produce useless distractors and unmatchable error targets.
+    expect(EXTRACT_KLPS_PROMPT.build(input).toLowerCase()).toContain('proposition')
+  })
+
+  it('states the atomic-card rule so short cards are not padded to 3 KLPs', () => {
+    expect(EXTRACT_KLPS_PROMPT.build(input)).toContain('atomic')
+  })
+
+  it('lists every allowed kind', () => {
+    const prompt = EXTRACT_KLPS_PROMPT.build(input)
+    for (const kind of KLP_KINDS) expect(prompt).toContain(kind)
+  })
+
+  it('is registered with a stable id and version', () => {
+    expect(EXTRACT_KLPS_PROMPT.id).toBe('extract-klps')
+    expect(EXTRACT_KLPS_PROMPT.version).toBe(1)
+    expect(PROMPT_REGISTRY['extract-klps']).toBe(EXTRACT_KLPS_PROMPT)
   })
 })
