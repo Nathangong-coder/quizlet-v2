@@ -57,14 +57,17 @@ export async function extractKlpsForCards(userId: string, cardIds: string[]): Pr
 
   for (let i = 0; i < cards.length; i += KLP_BATCH_SIZE) {
     const batch = cards.slice(i, i + KLP_BATCH_SIZE);
+    // Owned by the caller so it survives the throw: extractOneBatch commits
+    // one card at a time, and a later entry failing must not clobber the
+    // klpStatus: 'ready' rows earlier entries already committed.
+    const succeeded: string[] = [];
     try {
-      await extractOneBatch(userId, batch);
+      await extractOneBatch(userId, batch, succeeded);
     } catch (err) {
-      await markFailed(
-        batch.map((c) => c.id),
-        err,
-        isNoUsableCredential(err) ? 'skipped' : 'failed',
-      );
+      const failedIds = batch.map((c) => c.id).filter((id) => !succeeded.includes(id));
+      if (failedIds.length > 0) {
+        await markFailed(failedIds, err, isNoUsableCredential(err) ? 'skipped' : 'failed');
+      }
     }
   }
 }
@@ -96,7 +99,11 @@ interface BatchCard {
   set: { title: string };
 }
 
-async function extractOneBatch(userId: string, batch: BatchCard[]): Promise<void> {
+async function extractOneBatch(
+  userId: string,
+  batch: BatchCard[],
+  succeeded: string[],
+): Promise<void> {
   const prompt = EXTRACT_KLPS_PROMPT.build({
     setTitle: batch[0].set.title,
     cards: batch.map((c, ref) => ({ ref, term: c.term, definition: c.definition })),
@@ -120,19 +127,55 @@ async function extractOneBatch(userId: string, batch: BatchCard[]): Promise<void
       blocks: card.contentBlocks,
     });
 
-    const { _max } = await prisma.cardKlp.aggregate({
-      where: { cardId: card.id },
-      _max: { version: true },
-    });
-    const version = (_max.version ?? 0) + 1;
+    await writeKlpVersion(card, entry.klps, hash);
+    succeeded.push(card.id);
+  }
+}
 
-    await prisma.$transaction([
-      prisma.cardKlp.updateMany({
+/** Prisma's unique-constraint violation code. */
+const UNIQUE_CONSTRAINT_ERROR_CODE = 'P2002';
+
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: unknown }).code === UNIQUE_CONSTRAINT_ERROR_CODE
+  );
+}
+
+/**
+ * Reads the next version and commits the new KLP rows for one card,
+ * atomically.
+ *
+ * The version read and the write MUST be in the same transaction: `after()`
+ * extraction on set save and `ensureKlpsReady`'s on-demand extraction (Task
+ * 6) can both reach the same card concurrently. Reading `_max.version`
+ * outside the transaction lets two callers compute the same next version and
+ * have the loser die on `@@unique([cardId, version, index])`. On that race,
+ * retry once — the retry's read sees the winner's committed version and
+ * lands on the next one after it.
+ */
+async function writeKlpVersion(
+  card: BatchCard,
+  klps: { text: string; weight: number; kind: string }[],
+  hash: string,
+  retried = false,
+): Promise<void> {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const { _max } = await tx.cardKlp.aggregate({
+        where: { cardId: card.id },
+        _max: { version: true },
+      });
+      const version = (_max.version ?? 0) + 1;
+
+      await tx.cardKlp.updateMany({
         where: { cardId: card.id, supersededAt: null },
         data: { supersededAt: new Date() },
-      }),
-      prisma.cardKlp.createMany({
-        data: entry.klps.map((k, index) => ({
+      });
+      await tx.cardKlp.createMany({
+        data: klps.map((k, index) => ({
           cardId: card.id,
           version,
           index,
@@ -143,8 +186,8 @@ async function extractOneBatch(userId: string, batch: BatchCard[]): Promise<void
           promptVersion: EXTRACT_KLPS_PROMPT.version,
           source: 'ai',
         })),
-      }),
-      prisma.card.update({
+      });
+      await tx.card.update({
         where: { id: card.id },
         data: {
           klpStatus: 'ready',
@@ -152,8 +195,13 @@ async function extractOneBatch(userId: string, batch: BatchCard[]): Promise<void
           klpSourceHash: hash,
           klpError: null,
         },
-      }),
-    ]);
+      });
+    });
+  } catch (err) {
+    if (!retried && isUniqueConstraintError(err)) {
+      return writeKlpVersion(card, klps, hash, true);
+    }
+    throw err;
   }
 }
 

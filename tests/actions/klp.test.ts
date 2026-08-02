@@ -9,7 +9,33 @@ const h = vi.hoisted(() => ({
   klpUpdateMany: vi.fn(),
   klpFindMany: vi.fn(),
   generateJson: vi.fn(),
+  transaction: vi.fn(),
 }))
+
+/**
+ * Default `$transaction` behavior: supports both the array form (unused by
+ * the current implementation, kept for safety) and the interactive
+ * `(tx) => ...` form the version-write path uses. The `tx` handed to the
+ * callback delegates to the SAME mocks as the top-level `prisma` client, so
+ * assertions against `h.aggregate` / `h.createMany` / etc. work whether the
+ * code called `prisma.x` or `tx.x`. Individual tests override
+ * `h.transaction.mockImplementation` to inject a mid-transaction failure.
+ */
+function defaultTransactionImpl(arg: unknown) {
+  if (typeof arg === 'function') {
+    const tx = {
+      cardKlp: {
+        aggregate: h.aggregate,
+        createMany: h.createMany,
+        updateMany: h.klpUpdateMany,
+        findMany: h.klpFindMany,
+      },
+      card: { update: h.update, updateMany: h.updateMany, findMany: h.findMany },
+    }
+    return (arg as (tx: unknown) => Promise<unknown>)(tx)
+  }
+  return Promise.all(arg as Promise<unknown>[])
+}
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -20,7 +46,7 @@ vi.mock('@/lib/db', () => ({
       updateMany: h.klpUpdateMany,
       findMany: h.klpFindMany,
     },
-    $transaction: (ops: unknown[]) => Promise.all(ops as Promise<unknown>[]),
+    $transaction: h.transaction,
   },
 }))
 
@@ -51,6 +77,7 @@ beforeEach(() => {
   h.klpUpdateMany.mockResolvedValue({})
   h.update.mockResolvedValue({})
   h.updateMany.mockResolvedValue({})
+  h.transaction.mockImplementation(defaultTransactionImpl)
 })
 
 describe('extractKlpsForCards', () => {
@@ -151,6 +178,89 @@ describe('extractKlpsForCards', () => {
       expect.objectContaining({
         data: expect.objectContaining({ klpStatus: 'skipped' }),
       }),
+    )
+  })
+
+  it('does not clobber a card that already committed when a later entry in the batch fails', async () => {
+    // c1's write commits fine; c2's write blows up mid-transaction. Only c2
+    // may end up marked 'failed' — c1 must keep its committed 'ready' status.
+    h.findMany.mockResolvedValue([card('c1'), card('c2')])
+    h.generateJson.mockResolvedValue({
+      cards: [
+        { ref: 0, cardType: 'atomic', klps: [{ text: 'ok', weight: 3, kind: 'definition' }] },
+        { ref: 1, cardType: 'atomic', klps: [{ text: 'boom', weight: 3, kind: 'definition' }] },
+      ],
+    })
+
+    let call = 0
+    h.transaction.mockImplementation((arg: unknown) => {
+      if (typeof arg !== 'function') return Promise.all(arg as Promise<unknown>[])
+      call += 1
+      if (call === 2) return Promise.reject(new Error('write failed for c2'))
+      return defaultTransactionImpl(arg)
+    })
+
+    await extractKlpsForCards('u1', ['c1', 'c2'])
+
+    // c1 committed successfully.
+    expect(h.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'c1' },
+        data: expect.objectContaining({ klpStatus: 'ready' }),
+      }),
+    )
+
+    // Only c2 is written as failed.
+    const failedCalls = h.updateMany.mock.calls.filter(
+      ([arg]) => arg?.data?.klpStatus === 'failed',
+    )
+    expect(failedCalls).toHaveLength(1)
+    expect(failedCalls[0][0].where).toEqual({ id: { in: ['c2'] } })
+  })
+
+  it('retries once on a concurrent version-write race then succeeds', async () => {
+    h.findMany.mockResolvedValue([card('c1')])
+    h.generateJson.mockResolvedValue({
+      cards: [{ ref: 0, cardType: 'atomic', klps: [{ text: 'x', weight: 5, kind: 'definition' }] }],
+    })
+
+    let call = 0
+    h.transaction.mockImplementation((arg: unknown) => {
+      if (typeof arg !== 'function') return Promise.all(arg as Promise<unknown>[])
+      call += 1
+      if (call === 1) {
+        const raceErr = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' })
+        return Promise.reject(raceErr)
+      }
+      return defaultTransactionImpl(arg)
+    })
+
+    await extractKlpsForCards('u1', ['c1'])
+
+    expect(h.transaction).toHaveBeenCalledTimes(2)
+    expect(h.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'c1' },
+        data: expect.objectContaining({ klpStatus: 'ready' }),
+      }),
+    )
+    // The race must not surface as a batch failure.
+    expect(h.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ klpStatus: 'failed' }) }),
+    )
+  })
+
+  it('ignores a hallucinated ref instead of writing to the wrong card', async () => {
+    h.findMany.mockResolvedValue([card('c1'), card('c2'), card('c3')])
+    h.generateJson.mockResolvedValue({
+      cards: [{ ref: 7, cardType: 'atomic', klps: [{ text: 'x', weight: 3, kind: 'definition' }] }],
+    })
+
+    await expect(extractKlpsForCards('u1', ['c1', 'c2', 'c3'])).resolves.toBeUndefined()
+
+    expect(h.createMany).not.toHaveBeenCalled()
+    expect(h.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ klpStatus: 'failed' }) }),
     )
   })
 
