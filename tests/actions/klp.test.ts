@@ -541,6 +541,31 @@ describe('saveCardKlp', () => {
     expect(h.createMany).not.toHaveBeenCalled()
   })
 
+  it('rejects a stale id held from before an earlier save, writing nothing', async () => {
+    // Server half of the KlpEditor regression: a save supersedes EVERY live
+    // row and writes new ids, so an id captured before that save no longer
+    // satisfies `supersededAt: null`. A caller holding one must be rejected
+    // outright rather than silently reviving a superseded row into version
+    // n+1 — that would resurrect text a past QuizQuestion was not built from.
+    h.klpFindFirst.mockResolvedValue(editableKlp)
+    h.klpFindMany.mockResolvedValue(liveRows)
+
+    await saveCardKlp('klp-1', { text: 'first fix', weight: 5, kind: 'causal' })
+
+    // Second save re-uses the now-superseded id: the owner+live lookup misses.
+    h.klpFindFirst.mockResolvedValue(null)
+    h.createMany.mockClear()
+    h.klpUpdateMany.mockClear()
+    h.update.mockClear()
+
+    const res = await saveCardKlp('klp-1', { text: 'second fix', weight: 4, kind: 'causal' })
+
+    expect(res).toEqual({ success: false, error: 'Not found' })
+    expect(h.createMany).not.toHaveBeenCalled()
+    expect(h.klpUpdateMany).not.toHaveBeenCalled()
+    expect(h.update).not.toHaveBeenCalled()
+  })
+
   it('supersedes the current version and writes n+1 instead of updating in place', async () => {
     h.klpFindFirst.mockResolvedValue(editableKlp)
     h.klpFindMany.mockResolvedValue(liveRows)

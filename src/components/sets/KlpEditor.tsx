@@ -53,8 +53,22 @@ export function KlpEditor({ cardId }: { cardId: string }) {
       weight: klp.weight,
       kind: klp.kind,
     })
-    if (res.success) toast.success('Learning point saved')
-    else toast.error(res.error || 'Failed to save')
+    // Early return, not `if (res.success && ...)`: ActionResult is a
+    // discriminated union, so `res.error` only narrows inside the failure arm.
+    if (!res.success) {
+      toast.error(res.error || 'Failed to save')
+      return
+    }
+    toast.success('Learning point saved')
+    // MUST reload. A save supersedes every live CardKlp row for this card and
+    // writes version n+1 with NEW ids, and saveCardKlp only accepts a row with
+    // `supersededAt: null`. Without this the component's state still holds the
+    // pre-save ids, so saving a second point — or re-saving this one after
+    // another typo fix — fails with 'Not found' until a full page reload.
+    // `revalidatePath` cannot fix that: it does not reset a client component's
+    // useState, and `toggle()` only calls `load()` while `status === null`.
+    // `load()` owns its own busy flag and clears it on both arms.
+    await load()
   }
 
   async function retry() {
