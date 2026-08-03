@@ -844,10 +844,20 @@ export async function getTrueFalseQuestion(
           }),
           schema: TrueFalseStatementSchema,
         });
-        statement = generated.statement;
-        isTrue = false;
+        // An unresolvable klpRef is treated as a generation failure, not a
+        // partial success: writing isTrue=false with the default (all-KLPs)
+        // targetKlpIds would be indistinguishable from a genuine true-variant
+        // row, and a statement we can't attribute to a KLP isn't
+        // diagnostically useful. statement/isTrue/targetKlpIds stay in
+        // lockstep at their true-variant defaults below.
         const target = klps[generated.klpRef]?.id;
-        targetKlpIds = target ? [target] : targetKlpIds;
+        if (target) {
+          statement = generated.statement;
+          isTrue = false;
+          targetKlpIds = [target];
+        } else {
+          console.error('TF statement generation returned an out-of-range klpRef:', generated.klpRef);
+        }
       } catch (err) {
         // Generation failed: fall back to the true variant rather than
         // failing the question. Still diagnosable — just not this time.
@@ -855,16 +865,16 @@ export async function getTrueFalseQuestion(
       }
     }
 
-    await prisma.quizQuestion.create({
-      data: {
-        attemptId,
-        cardId,
-        mode: 'true-false',
-        statement,
-        isTrue,
-        targetKlpIds,
-        klpVersion: card.klpVersion,
-      },
+    // `upsert`, not `create`: two concurrent requests for the same question
+    // (StrictMode double-mount, a retry, a double navigation) would otherwise
+    // both pass the findUnique check above, then race on the
+    // `attemptId_cardId_mode` unique constraint — the loser's create() would
+    // throw even though a perfectly valid row now exists. Matches the
+    // recordQuizQuestion precedent above.
+    await prisma.quizQuestion.upsert({
+      where: { attemptId_cardId_mode: { attemptId, cardId, mode: 'true-false' } },
+      create: { attemptId, cardId, mode: 'true-false', statement, isTrue, targetKlpIds, klpVersion: card.klpVersion },
+      update: { statement, isTrue, targetKlpIds, klpVersion: card.klpVersion },
     });
 
     return { success: true, data: { statement } };
