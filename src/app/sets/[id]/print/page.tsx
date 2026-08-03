@@ -3,7 +3,7 @@ import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { PrintableQuiz } from '@/components/quiz/PrintableQuiz';
 import { buildPrintableTest } from '@/lib/quiz/printable';
-import { MultipleChoiceOptionsSchema } from '@/lib/ai/schemas';
+import { parseOptionCache } from '@/lib/quiz/options';
 
 const cardInclude = {
   contentBlocks: { include: { asset: true }, orderBy: { position: 'asc' as const } },
@@ -68,13 +68,13 @@ export default async function PrintPage({
     const seen = new Set<string>();
     for (const c of caches) {
       if (seen.has(c.cardId)) continue;
-      try {
-        const parsed = MultipleChoiceOptionsSchema.parse(c.options);
-        mcOptions[c.cardId] = { options: parsed.options, correctAnswer: parsed.correctAnswer };
-        seen.add(c.cardId);
-      } catch {
-        // ignore malformed cache entries; distractors are built offline instead
-      }
+      const parsed = parseOptionCache(c.options);
+      if (!parsed) continue; // ignore malformed cache entries; distractors are built offline instead
+      mcOptions[c.cardId] = {
+        options: parsed.options.map((o) => o.text),
+        correctAnswer: parsed.correctAnswer,
+      };
+      seen.add(c.cardId);
     }
   }
 

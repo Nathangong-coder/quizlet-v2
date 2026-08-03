@@ -14,7 +14,8 @@ import {
   MultipleChoiceOptions,
   ShortAnswerGradeSchema,
   MultipleChoiceFeedbackSchema,
-  AnnotationSchema
+  AnnotationSchema,
+  MultipleChoiceKlpSchema,
 } from '@/lib/ai/schemas';
 import { overallQuizScore } from '@/lib/quiz/scoring';
 import { revalidatePath } from 'next/cache';
@@ -24,9 +25,63 @@ import { normalizeLatency } from '@/lib/memory/latency';
 import { safeProfileBlock } from '@/lib/ai/context';
 import { ActionResult } from '@/types/action';
 import { SessionInsightSchema, type SessionInsight } from '@/lib/memory/insight';
+import { ensureKlpsReady } from '@/actions/klp';
+import { parseOptionCache, type ParsedOptions } from '@/lib/quiz/options';
+
+/**
+ * Fisher-Yates. The correct answer must not sit in a predictable slot — the
+ * v2 prompt asks the model to name distractors, not place them, so shuffling
+ * is on us. Not applied to the legacy v1 path: those options already come
+ * back in the model's chosen order and existing tests assert on that order.
+ */
+function shuffle<T>(items: T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/**
+ * Freezes the question as asked, with its KLP provenance. Spec 2 reads this to
+ * diagnose a wrong pick with no grading call. Upsert because a user may
+ * navigate back to a question before submitting. No-op without an attemptId
+ * (e.g. the printable-quiz path, which has no attempt).
+ *
+ * Bookkeeping only: a failure here must never fail option generation, so
+ * callers wrap this in try/catch and swallow.
+ */
+async function recordQuizQuestion(
+  attemptId: string | undefined,
+  cardId: string,
+  parsed: ParsedOptions,
+): Promise<void> {
+  if (!attemptId) return;
+  const targetKlpIds = Array.from(
+    new Set(parsed.options.map((o) => o.sourceKlpId).filter((id): id is string => Boolean(id))),
+  );
+  const card = await prisma.card.findUnique({
+    where: { id: cardId },
+    select: { klpVersion: true },
+  });
+  const data = {
+    options: parsed.options as unknown as object,
+    targetKlpIds,
+    // Pinned: a question already asked keeps the version it was asked under,
+    // even if the card is edited mid-attempt.
+    klpVersion: card?.klpVersion ?? 0,
+  };
+  await prisma.quizQuestion.upsert({
+    where: { attemptId_cardId_mode: { attemptId, cardId, mode: 'multiple-choice' } },
+    create: { attemptId, cardId, mode: 'multiple-choice', ...data },
+    update: data,
+  });
+}
 
 export async function getOrGenerateMultipleChoiceOptions(
-  cardId: string
+  cardId: string,
+  attemptId?: string,
 ): Promise<ActionResult<{ cardId: string; options: string[]; correctAnswer: string; cacheHit: boolean; model: string }>> {
   if (!cardId) return { success: false, error: 'Card ID is required' };
   const session = await auth();
@@ -47,14 +102,19 @@ export async function getOrGenerateMultipleChoiceOptions(
         where: { cardId_model: { cardId, model } },
       });
 
-      if (cached) {
-        const options = MultipleChoiceOptionsSchema.parse(cached.options);
+      const parsedCache = cached ? parseOptionCache(cached.options) : null;
+      if (parsedCache) {
+        try {
+          await recordQuizQuestion(attemptId, cardId, parsedCache);
+        } catch (recordErr) {
+          console.error('recordQuizQuestion failed (cache hit):', recordErr);
+        }
         return {
           success: true,
           data: {
             cardId,
-            options: options.options,
-            correctAnswer: options.correctAnswer,
+            options: parsedCache.options.map((o) => o.text),
+            correctAnswer: parsedCache.correctAnswer,
             cacheHit: true,
             model,
           },
@@ -73,13 +133,48 @@ export async function getOrGenerateMultipleChoiceOptions(
 
     const profileBlock = await safeProfileBlock(session.user.id, card.setId, 'MC distractors');
 
-    const prompt = MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: set.cards, profileBlock });
-    const options = await generateJson({
-      userId: session.user.id,
-      task: 'distractors',
-      prompt,
-      schema: MultipleChoiceOptionsSchema,
-    });
+    const klps = await ensureKlpsReady(session.user.id, cardId);
+
+    let optionsJson: unknown;
+
+    if (klps.length > 0) {
+      const generated = await generateJson({
+        userId: session.user.id,
+        task: 'distractors',
+        prompt: MULTIPLE_CHOICE_PROMPT.build({
+          card,
+          siblingCards: set.cards,
+          profileBlock,
+          klps: klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind })),
+        }),
+        schema: MultipleChoiceKlpSchema,
+      });
+
+      optionsJson = {
+        v: 2,
+        correctAnswer: generated.correctAnswer,
+        options: shuffle([
+          { text: generated.correctAnswer, correct: true },
+          ...generated.distractors.map((d) => ({
+            text: d.text,
+            correct: false,
+            // Map ref -> real id here. The model never saw the cuid.
+            sourceKlpId: klps[d.klpRef]?.id,
+            corruption: d.corruption,
+          })),
+        ]),
+      };
+    } else {
+      // No KLPs (no credential, or extraction failed): legacy prompt, legacy
+      // v1 shape. The quiz still works; it just isn't diagnosable.
+      const legacy = await generateJson({
+        userId: session.user.id,
+        task: 'distractors',
+        prompt: MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: set.cards, profileBlock }),
+        schema: MultipleChoiceOptionsSchema,
+      });
+      optionsJson = legacy;
+    }
 
     // `generateJson` above resolves against the exact same candidate pool as
     // `resolveTaskModel` did; if that pool were empty, it would have thrown
@@ -93,24 +188,28 @@ export async function getOrGenerateMultipleChoiceOptions(
     // `upsert`, not `create`: two concurrent generations for the same card
     // would otherwise race on the `cardId_model` unique constraint and the
     // loser would surface as "Failed to generate quiz options."
-    const optionsJson = options as any;
     await prisma.quizOptionCache.upsert({
       where: { cardId_model: { cardId, model } },
-      create: { cardId, model, options: optionsJson },
-      update: { options: optionsJson },
+      create: { cardId, model, options: optionsJson as any },
+      update: { options: optionsJson as any },
     });
 
-    const responseData = {
-      cardId,
-      options: options.options,
-      correctAnswer: options.correctAnswer,
-      cacheHit: false,
-      model,
-    };
+    const parsed = parseOptionCache(optionsJson)!;
+    try {
+      await recordQuizQuestion(attemptId, cardId, parsed);
+    } catch (recordErr) {
+      console.error('recordQuizQuestion failed (fresh generation):', recordErr);
+    }
 
     return {
       success: true,
-      data: responseData,
+      data: {
+        cardId,
+        options: parsed.options.map((o) => o.text),
+        correctAnswer: parsed.correctAnswer,
+        cacheHit: false,
+        model,
+      },
     };
   } catch (err) {
     if (err instanceof AiGenerationError) {
@@ -654,12 +753,15 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
       const parsedByCard = new Map<string, { options: string[]; correctAnswer: string }>();
       for (const row of cachedOptions) {
         if (parsedByCard.has(row.cardId)) continue;
-        try {
-          const parsed = MultipleChoiceOptionsSchema.parse(row.options);
-          parsedByCard.set(row.cardId, { options: parsed.options, correctAnswer: parsed.correctAnswer });
-        } catch (e) {
-          console.error(`Failed to parse options for card ${row.cardId}:`, e);
+        const parsed = parseOptionCache(row.options);
+        if (!parsed) {
+          console.error(`Failed to parse options for card ${row.cardId}`);
+          continue;
         }
+        parsedByCard.set(row.cardId, {
+          options: parsed.options.map((o) => o.text),
+          correctAnswer: parsed.correctAnswer,
+        });
       }
 
       attempt.answers = attempt.answers.map(a => {
