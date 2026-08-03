@@ -43,12 +43,19 @@ its analysis.
 
 ```prisma
 /// Stage 8 Spec 2a: per-KLP outcome for one answer. Short answer writes one row
-/// per KLP on the card; MC/TF write at most one (see §4).
+/// per KLP on the card; MC/TF write one per targeted KLP (see §4).
+///
+/// `status` is the AI's categorical judgment; `credit` is the continuous value
+/// computed from it in TypeScript, weighted by how much the mode's evidence is
+/// actually worth (§3.1). Both are stored: the categorical drives display, the
+/// float drives Spec 3's math.
 model AnswerKlpResult {
   id           String     @id @default(cuid())
   quizAnswerId String
   klpId        String
   status       String     // passed | partial | failed
+  credit       Float      // 0.0-1.0, computed; status credit x evidence strength
+  mode         String     // quiz-mc | quiz-tf | quiz-sa — the evidence's source
   evidence     String?    @db.Text  // verbatim learner quote, never regenerated
   createdAt    DateTime   @default(now())
   quizAnswer   QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
@@ -56,6 +63,7 @@ model AnswerKlpResult {
 
   @@unique([quizAnswerId, klpId])
   @@index([klpId, status])
+  @@index([klpId, createdAt])
 }
 
 /// Stage 8 Spec 2a: one tagged error on one answer. The (dimension, type,
@@ -183,6 +191,41 @@ starred then) and must be frozen. `dimWeight` and the formula are constants
 *today* — persisting them means tuning the weights later can recompute history
 instead of leaving two incompatible scales in one dataset.
 
+### §3.1 — KLP credit, on the same principle
+
+`src/lib/errors/klp-credit.ts`, pure:
+
+```ts
+export const STATUS_CREDIT = { passed: 1.0, partial: 0.5, failed: 0.0 }
+
+/** 1 - guessRate. How much a correct answer in this mode actually proves. */
+export const EVIDENCE_STRENGTH: Record<StudySource, number> = {
+  'quiz-sa': 0.95,   // guess rate 0.05
+  'quiz-mc': 0.75,   // guess rate 0.25 (4 options)
+  'quiz-tf': 0.5,    // guess rate 0.5  (coin flip)
+}
+
+klpCredit(status, mode): number   // STATUS_CREDIT[status] * EVIDENCE_STRENGTH[mode]
+```
+
+**The AI never emits the float.** It returns `passed | partial | failed`, which
+is what a model is actually reliable at; asking for a 0-100 score yields values
+bunched on round numbers, precision that reads as real and isn't. The mapping and
+the mode weighting happen in TypeScript — the same split significance uses, and
+the same standing rule: the AI supplies a judgment, code supplies the number.
+
+This removes the special case that an earlier draft of this spec carried. A
+correct multiple-choice pick is not "no evidence"; it is **weak positive
+evidence**, and now records as `0.75`. A correct true/false records as `0.50`,
+because a coin flip is right half the time. A failed KLP is `0.0` regardless of
+mode — getting it wrong is unambiguous no matter how easy guessing would have
+been.
+
+Spec 3's BKT is natively probabilistic and wants graded evidence rather than
+booleans, so this is the shape it needs anyway. Storing `mode` on the row means
+the weighting can be recomputed if the guess rates are ever revised — the same
+reasoning as persisting significance's components.
+
 ---
 
 ## §4 — Writing tags
@@ -245,20 +288,31 @@ the type, and half the taxonomy triple would be unrecoverable.
 question generated before Spec 1 records correctness only. Never a fabricated
 default — a wrong tag pollutes the aggregate more than a missing one.
 
-### The correct-answer asymmetry
+### What a correct answer records
 
-- **Short answer, correct**: KLP results are still written (the grader evaluated
-  each one), `errorTags` is `[]`.
-- **MC/TF, correct**: **no `AnswerKlpResult` rows at all.**
+Every mode writes KLP results on a correct answer — the difference is what the
+evidence is *worth*, which §3.1's `credit` now expresses directly rather than
+through a special case.
+
+| Mode | Correct answer writes | Credit |
+| --- | --- | --- |
+| Short answer | one row per KLP on the card (the grader evaluated each) | per-KLP status × 0.95 |
+| Multiple choice | one row per KLP the question targeted | 0.75 |
+| True/false | one row per KLP the question targeted | 0.50 |
 
 A correct MC pick proves the learner did not fall for three specific
-corruptions. It does not prove they hold every KLP on the card, and at a 0.25
-guess rate it is weak evidence of anything. Recording it as "all KLPs passed"
-would inflate Spec 3's mastery estimates on the cheapest evidence in the system.
+corruptions. That is real but weak evidence, and `0.75` says so honestly.
+A correct true/false is weaker still at `0.50`, because a coin flip gets it
+right half the time. Neither is discarded, and neither is treated as proof of
+mastery — which is what recording it as a flat "passed" would have done.
 
-An answered question with zero tags is meaningful and distinct from an
-unanalyzed one: `errorTags: []` means "analyzed, nothing wrong"; no rows at all
-means "not analyzed". Any rate calculation in Spec 3 depends on that distinction.
+MC and TF write results only for the KLPs the question actually targeted
+(`QuizQuestion.targetKlpIds`), never for every KLP on the card. A question that
+tested one proposition says nothing about the other four.
+
+**Zero tags is meaningful and distinct from no rows.** `errorTags: []` means
+"analyzed, nothing wrong"; no rows at all means "not analyzed". Every rate
+calculation in Spec 3 depends on telling those apart.
 
 ---
 
@@ -285,9 +339,14 @@ Pure and unit-testable without a database:
 | Module | Responsibility |
 | --- | --- |
 | `computeSignificance` | The formula, clamping, and component passthrough |
+| `klpCredit` | `STATUS_CREDIT × EVIDENCE_STRENGTH`; every status/mode pair |
 | `severityFromCorruption` | Corruption rank + mode guess-rate adjustment |
 | `validateTagType` | `(dimension, type)` pairing against the vocabularies |
 | `capTagsPerDimension` | Keeps highest-severity tags within the per-dimension cap |
+
+`klpCredit` needs an explicit case asserting a `failed` status is `0.0` in
+**every** mode — the one place the mode weighting must *not* apply, since a wrong
+answer is unambiguous however easy guessing would have been.
 
 Plus the subset-invariant test (§2), prompt-shape tests extending
 `tests/ai/prompts.test.ts`, and action tests following the established
