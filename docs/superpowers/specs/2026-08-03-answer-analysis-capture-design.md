@@ -77,8 +77,7 @@ model AnswerErrorTag {
   secondaryKlpId String?    // conflation only: the concept confused WITH
   relevance      Int        // CardKlp.weight AS OF THIS ANSWER
   severity       Int        // 1-5, the AI's only numeric contribution
-  dimWeight      Float
-  starBoost      Float
+  starred        Boolean    // was the card starred AT ANSWER TIME
   significance   Int        // computed; excludes repeatBonus (§3)
   quote          String?    @db.Text
   createdAt      DateTime   @default(now())
@@ -96,9 +95,15 @@ model AnswerErrorTag {
 and:
 
 ```prisma
-  /// Why this answer has the tags it has — or has none. Nullable for rows
-  /// written before this spec.
-  analysisStatus String?  // analyzed | no_provenance | no_klps | failed
+  /// Why this answer has the tags it has — or has none. Nullable ONLY for rows
+  /// written before this spec; every answer written after it sets a value.
+  analysisStatus  String?  // analyzed | no_provenance | no_klps | failed
+  /// Which analysis contract produced these rows: the tag schema, the
+  /// significance constants, and the credit constants, versioned together.
+  analysisVersion Int?
+  /// Non-fatal losses during analysis, e.g. a tag dropped for an unknown type.
+  /// Developer telemetry, not read by Spec 3's metrics.
+  analysisWarnings Json?   // [{ reason, value }]
 ```
 
 `CardKlp` gains the three matching back-references.
@@ -122,6 +127,18 @@ makes fewer mistakes than they do, with no signal that anything was skipped.
 This is also the retrofit path: every `no_klps` row can be found later and
 re-analyzed once that card has been extracted. A dropped tag with no marker is
 unrecoverable because nothing records that it was ever missing.
+
+**`analysisWarnings` is a separate axis, deliberately.** "Did we analyze?" and
+"was the analysis lossy?" are independent questions — an answer can be
+`no_klps` *and* have had two tags rejected. Folding a `partial` value into
+`analysisStatus` would make those inexpressible. Warnings are also for prompt
+debugging ("how often does the model emit an unknown type across the corpus"),
+not for Spec 3, which reads `analysisStatus` only.
+
+**Migration:** both new columns are nullable so existing `QuizAnswer` rows are
+untouched and remain distinguishable as pre-spec. Every answer written after the
+migration must set `analysisStatus` and `analysisVersion`; a null on a new row
+is a bug, not a state.
 
 ### Why the indexes are what they are
 
@@ -266,11 +283,23 @@ not exist when the tag is written. Spec 3 applies it at read time. Storing a
 frozen `repeatBonus` would mean a tag's significance depends on when it happened
 to be computed, and would cost a lookback query on every tag write.
 
-**Every component is persisted alongside the result.** `relevance` and
-`starBoost` are point-in-time facts (the KLP's weight then, whether the card was
-starred then) and must be frozen. `dimWeight` and the formula are constants
-*today* — persisting them means tuning the weights later can recompute history
-instead of leaving two incompatible scales in one dataset.
+**Persist the inputs, not the derived constants.** `relevance`, `severity`, and
+`starred` are point-in-time facts — the KLP's weight then, the AI's judgment
+then, whether the card was starred then — and must be frozen. `dimWeight` and
+`starBoost` are **not** stored: they are constants derivable from `dimension`
+and `starred`, and storing them is actively unhelpful for the goal. Knowing a
+row was computed with `dimWeight = 1.0` does not let you recompute it at `0.9`;
+knowing the dimension was `accuracy` does.
+
+`significance` itself is stored as computed, so the historical number survives
+a formula change, and `QuizAnswer.analysisVersion` records which constants
+produced it. Together those give both readings: what the score *was* under the
+contract of the day, and what it *would be* under today's.
+
+**`starred` reads `CardProgress.starred` at answer time.** A learner with no
+`CardProgress` row for that card has never interacted with it, so the value is
+`false` — the absence of a row is not missing data, it is a definite "not
+starred".
 
 ### §3.1 — KLP credit, on the same principle
 
@@ -357,9 +386,36 @@ On a wrong answer:
 | True/false | `QuizQuestion.corruption` + `QuizQuestion.targetKlpIds` |
 
 `corruption` becomes `type`, `sourceKlpId` becomes `klpId`, `dimension` is
-always `accuracy`. `relevance` reads the KLP's stored `weight`. `severity`
-derives from a corruption-severity rank adjusted by the mode's guess rate
-(MC 0.25, TF 0.5) — a wrong answer under a higher guess rate is weaker evidence.
+always `accuracy`. `relevance` reads the KLP's stored `weight`.
+
+#### Severity for MC/TF, concretely
+
+`src/lib/errors/severity.ts`, pure:
+
+```ts
+/** How deep a misunderstanding each corruption implies. */
+export const CORRUPTION_SEVERITY: Record<Corruption, number> = {
+  conflation:         5,  // wrong mental model — the whole concept is misfiled
+  inversion:          5,  // direction/causality backwards — structurally wrong
+  misapplication:     4,  // knows the rule, not its conditions
+  overgeneralization: 3,  // missing nuance on an otherwise-held idea
+  factual_error:      2,  // a retrieval slip, not a conceptual failure
+}
+
+severityFromCorruption(corruption, mode): number  // clamped 1-5
+```
+
+MC uses the rank as-is. **TF subtracts 1** (clamped to 1): selecting one of four
+specific texts is a deliberate choice among named alternatives, while true/false
+flips a single bit. The same corruption evidenced by an MC pick is a stronger
+signal about *this* learner's model than the same corruption evidenced by one
+binary answer.
+
+Note this is **not** a guess-rate adjustment, despite an earlier draft saying so.
+Guess rate discounts *correct* answers, because luck can produce them — that is
+what `EVIDENCE_STRENGTH` does in §3.1. A wrong answer is not luck; the learner
+actively chose it. The MC/TF difference here is about how much the *choice*
+narrows down what they believe, which is a different thing.
 
 The TF path exists only because `QuizQuestion.corruption` was added during
 Spec 1's final review. Without that column TF would record the target but not
@@ -368,6 +424,32 @@ the type, and half the taxonomy triple would be unrecoverable.
 **No provenance means no tag.** A v1 cache row, a card with no KLPs, or a
 question generated before Spec 1 records correctness only. Never a fabricated
 default — a wrong tag pollutes the aggregate more than a missing one.
+
+### What a *wrong* MC/TF answer records
+
+A wrong answer writes a tag (above) **and** a `failed` KLP result — but only for
+the KLP the wrong answer actually implicates, never for every targeted KLP.
+
+| Case | `AnswerKlpResult` written |
+| --- | --- |
+| MC, picked a provenanced distractor | one `failed` for that distractor's `sourceKlpId` |
+| MC, picked a distractor with no provenance | none (`analysisStatus = 'no_provenance'`) |
+| TF, shown the corrupted statement, answered "true" | one `failed` for the corrupted KLP |
+| TF, shown the real definition, answered "false" | **none** |
+
+**Why a wrong MC writes only one row.** The question targeted three KLPs, one
+per distractor. Picking the `klpX` distractor is direct evidence about `klpX`.
+It says nothing about `klpY` and `klpZ`: the learner rejected those distractors,
+but they also rejected the correct answer, so the rejection carries no positive
+information.
+
+**Why "answered false to the real definition" writes nothing.** The learner
+rejected a *true* statement. That is not evidence they lack the proposition — it
+is evidence they are second-guessing one they may well hold. `docs/ai/error-taxonomy.md`
+§4 draws this distinction explicitly ("a confidence problem, not a knowledge
+problem"), and recording it as `failed` would teach Spec 3 that the learner
+lacks a proposition they actually have. The answer is still scored wrong; it
+just produces no KLP-level claim.
 
 ### What a correct answer records
 
@@ -398,6 +480,30 @@ rows. `analysisStatus = 'analyzed'` with no tags is a clean answer;
 rate calculation in Spec 3 filters on `analyzed` for its denominator.
 
 ---
+
+## §4.1 — Write semantics: one transaction, replacement-safe
+
+**Analysis is written in the same transaction as the answer it describes.** Not
+in an `after()`, not in a follow-up write. A `QuizAnswer` that exists without its
+`analysisStatus` is a row Spec 3 cannot classify — neither analyzed nor
+explicitly unanalyzable — and there is no way to tell it apart later from a row
+whose analysis genuinely failed.
+
+**Resubmission replaces analysis, and must not orphan it.** The submit paths do
+not agree on semantics today, which is fine, but each has to be handled:
+
+| Mode | Resubmit behaviour | Consequence for analysis |
+| --- | --- | --- |
+| Short answer | `deleteMany` then `create` | Old `QuizAnswer` row is deleted, so both analysis tables cascade. New analysis is written with the new row. Correct by construction. |
+| Multiple choice | `deleteMany` then `create` (per mode) | Same. |
+| True/false | rejected outright (Spec 1, finding I4) | No second analysis is possible. |
+
+The cascade is what makes this safe: `AnswerKlpResult` and `AnswerErrorTag` both
+declare `onDelete: Cascade` from `QuizAnswer`. **A test must pin that** —
+resubmitting a short answer leaves exactly one set of analysis rows, not two.
+If either relation were ever changed to `SetNull`, resubmission would silently
+accumulate duplicate diagnostic rows and every Spec 3 rate would inflate with
+each retry.
 
 ## §5 — Degradation
 
@@ -434,10 +540,10 @@ Pure and unit-testable without a database:
 
 | Module | Responsibility |
 | --- | --- |
-| `computeSignificance` | The formula, clamping, and component passthrough |
+| `computeSignificance` | The formula, clamping, and input passthrough |
 | `toStudySource` | Totality of the quiz→memory mode mapping (§2.1) |
 | `klpCredit` | `STATUS_CREDIT × EVIDENCE_STRENGTH`; every status/mode pair |
-| `severityFromCorruption` | Corruption rank + mode guess-rate adjustment |
+| `severityFromCorruption` | Rank table; MC as-is, TF minus one, clamped |
 | `validateTagType` | `(dimension, type)` pairing against the vocabularies |
 | `capTagsPerDimension` | Keeps highest-severity tags within the per-dimension cap |
 
@@ -445,11 +551,47 @@ Pure and unit-testable without a database:
 **every** mode — the one place the mode weighting must *not* apply, since a wrong
 answer is unambiguous however easy guessing would have been.
 
+Four integration cases carry the edge semantics this spec exists to pin down,
+and each would silently corrupt the corpus if it regressed:
+
+1. **A wrong MC writes exactly one `failed` result** — for the picked
+   distractor's KLP, not for every targeted KLP.
+2. **TF "answered false to the real definition" writes no KLP result** — the
+   answer is scored wrong, but no proposition is claimed failed.
+3. **An invalid tag is dropped AND recorded** — `analysisStatus` stays
+   `analyzed`, `analysisWarnings` names what was rejected, so a lossy analysis
+   is distinguishable from a clean one.
+4. **Resubmitting a short answer leaves one set of analysis rows, not two** —
+   pinning the `onDelete: Cascade` that makes replacement safe.
+
 Plus the subset-invariant test (§2), prompt-shape tests extending
 `tests/ai/prompts.test.ts`, and action tests following the established
 `vi.hoisted()` + `vi.mock()` pattern in `tests/actions/`.
 
 ---
+
+## §7 — Verbatim learner text
+
+`AnswerKlpResult.evidence` and `AnswerErrorTag.quote` store the learner's own
+words. Three things make this proportionate rather than a new exposure:
+
+1. **No new data class.** Both are excerpts of `QuizAnswer.answer`, which already
+   stores the complete typed answer. Nothing is retained that is not retained
+   today.
+2. **They cascade.** Deleting an answer or an attempt removes them, with no
+   orphan rows holding quotes whose context is gone.
+3. **They are never regenerated.** A quote is captured once, at analysis time,
+   and read thereafter — so it always reflects what the learner actually wrote,
+   not a model's later paraphrase of it.
+
+**One gap worth stating rather than assuming.** The existing selective memory
+reset (`src/actions/memory.ts`) deletes `ConfidenceEvent`, `StudyEvent`, and
+`CardProgress` — it does **not** touch `QuizAnswer`. So analysis rows survive a
+memory reset today, because the answers they hang off do. That is consistent
+with current behaviour (quiz history already survives a memory reset), but a
+user who resets their memory may reasonably expect their error tags gone too.
+Whether reset should extend to quiz history is a **2b/Spec 3 decision** — this
+spec neither changes nor assumes it, and flags it so the choice is deliberate.
 
 ## Known drift risks, deliberately out of scope
 
