@@ -8,6 +8,7 @@ import { MC_FEEDBACK_PROMPT } from '@/lib/ai/prompts/mc-feedback'
 import { AUTOCOMPLETE_PROMPT } from '@/lib/ai/prompts/autocomplete'
 import { SESSION_INSIGHT_PROMPT } from '@/lib/ai/prompts/session-insight'
 import { EXTRACT_KLPS_PROMPT } from '@/lib/ai/prompts/extract-klps'
+import { TRUE_FALSE_PROMPT } from '@/lib/ai/prompts/true-false'
 import { PROMPT_REGISTRY } from '@/lib/ai/prompts/registry'
 import { summarizeSession } from '@/lib/memory/summarize'
 import { MAX_FOCUS_AREAS } from '@/lib/memory/insight'
@@ -266,5 +267,27 @@ describe('EXTRACT_KLPS_PROMPT', () => {
     expect(EXTRACT_KLPS_PROMPT.id).toBe('extract-klps')
     expect(EXTRACT_KLPS_PROMPT.version).toBe(1)
     expect(PROMPT_REGISTRY['extract-klps']).toBe(EXTRACT_KLPS_PROMPT)
+  })
+})
+
+describe('TRUE_FALSE_PROMPT', () => {
+  const card = makeCard()
+  const klps = [{ ref: 0, text: 'EBITDA excludes interest expense', kind: 'definition' }]
+
+  it('asks for a statement that is wrong in exactly one way', () => {
+    const prompt = TRUE_FALSE_PROMPT.build({ card, klps })
+    expect(prompt).toContain('exactly one')
+    expect(prompt).toContain('klpRef')
+  })
+
+  it('requires the statement to stay plausible', () => {
+    // An obviously absurd statement tests nothing — the candidate rejects it
+    // without engaging the KLP at all.
+    expect(TRUE_FALSE_PROMPT.build({ card, klps }).toLowerCase()).toContain('plausible')
+  })
+
+  it('is registered', () => {
+    expect(TRUE_FALSE_PROMPT.id).toBe('true-false')
+    expect(PROMPT_REGISTRY['true-false']).toBe(TRUE_FALSE_PROMPT)
   })
 })

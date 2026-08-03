@@ -130,3 +130,17 @@ export const MultipleChoiceKlpSchema = z.object({
 });
 
 export type MultipleChoiceKlp = z.infer<typeof MultipleChoiceKlpSchema>;
+
+export const TrueFalseStatementSchema = z.object({
+  statement: z.string().min(1),
+  klpRef: z.number().int().min(0),
+  corruption: z.enum([
+    'inversion',
+    'conflation',
+    'misapplication',
+    'overgeneralization',
+    'factual_error',
+  ]),
+});
+
+export type TrueFalseStatement = z.infer<typeof TrueFalseStatementSchema>;

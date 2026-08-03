@@ -8,6 +8,7 @@ import {
   GRADE_SHORT_ANSWER_PROMPT,
   MC_FEEDBACK_PROMPT,
   ANNOTATION_PROMPT,
+  TRUE_FALSE_PROMPT,
 } from '@/lib/ai/prompts/registry';
 import {
   MultipleChoiceOptionsSchema,
@@ -16,6 +17,7 @@ import {
   MultipleChoiceFeedbackSchema,
   AnnotationSchema,
   MultipleChoiceKlpSchema,
+  TrueFalseStatementSchema,
 } from '@/lib/ai/schemas';
 import { overallQuizScore } from '@/lib/quiz/scoring';
 import { revalidatePath } from 'next/cache';
@@ -27,6 +29,7 @@ import { ActionResult } from '@/types/action';
 import { SessionInsightSchema, type SessionInsight } from '@/lib/memory/insight';
 import { ensureKlpsReady } from '@/actions/klp';
 import { parseOptionCache, type ParsedOptions } from '@/lib/quiz/options';
+import { pickTfVariant } from '@/lib/quiz/coin-flip';
 
 /**
  * Fisher-Yates. The correct answer must not sit in a predictable slot — the
@@ -788,5 +791,85 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
   } catch (error: any) {
     console.error('Summary generation error:', error);
     return { success: false, error: 'Failed to generate quiz summary' };
+  }
+}
+
+/**
+ * Resolves this attempt's true/false question for a card, generating it on
+ * first request and returning ONLY the statement.
+ *
+ * The answer key lives in QuizQuestion.isTrue and never crosses the wire.
+ * Before this existed the client rendered the real definition and
+ * submitTrueFalseAnswer hardcoded `correctAnswer: 'true'`, so every true/false
+ * answer was correct and the mode fed free correctness into study memory.
+ */
+export async function getTrueFalseQuestion(
+  attemptId: string,
+  cardId: string,
+): Promise<ActionResult<{ statement: string }>> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+
+  try {
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: attemptId, userId: session.user.id },
+      select: { id: true },
+    });
+    if (!attempt) return { success: false, error: 'Attempt not found' };
+
+    // Already generated: return the same statement. Re-flipping on a revisit
+    // would change the question under the user mid-attempt.
+    const existing = await prisma.quizQuestion.findUnique({
+      where: { attemptId_cardId_mode: { attemptId, cardId, mode: 'true-false' } },
+    });
+    if (existing?.statement) return { success: true, data: { statement: existing.statement } };
+
+    const card = await prisma.card.findUnique({ where: { id: cardId } });
+    if (!card) return { success: false, error: 'Card not found' };
+
+    const klps = await ensureKlpsReady(session.user.id, cardId);
+
+    let statement = card.definition;
+    let isTrue = true;
+    let targetKlpIds: string[] = klps.map((k) => k.id);
+
+    if (klps.length > 0 && pickTfVariant() === 'false') {
+      try {
+        const generated = await generateJson({
+          userId: session.user.id,
+          task: 'distractors',
+          prompt: TRUE_FALSE_PROMPT.build({
+            card,
+            klps: klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind })),
+          }),
+          schema: TrueFalseStatementSchema,
+        });
+        statement = generated.statement;
+        isTrue = false;
+        const target = klps[generated.klpRef]?.id;
+        targetKlpIds = target ? [target] : targetKlpIds;
+      } catch (err) {
+        // Generation failed: fall back to the true variant rather than
+        // failing the question. Still diagnosable — just not this time.
+        console.error('TF statement generation failed:', err);
+      }
+    }
+
+    await prisma.quizQuestion.create({
+      data: {
+        attemptId,
+        cardId,
+        mode: 'true-false',
+        statement,
+        isTrue,
+        targetKlpIds,
+        klpVersion: card.klpVersion,
+      },
+    });
+
+    return { success: true, data: { statement } };
+  } catch (err) {
+    console.error('getTrueFalseQuestion failed:', err);
+    return { success: false, error: 'Failed to load question' };
   }
 }
