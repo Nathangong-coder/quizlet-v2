@@ -92,8 +92,36 @@ model AnswerErrorTag {
 }
 ```
 
-`QuizAnswer` gains `klpResults AnswerKlpResult[]` and `errorTags AnswerErrorTag[]`;
+`QuizAnswer` gains `klpResults AnswerKlpResult[]`, `errorTags AnswerErrorTag[]`,
+and:
+
+```prisma
+  /// Why this answer has the tags it has — or has none. Nullable for rows
+  /// written before this spec.
+  analysisStatus String?  // analyzed | no_provenance | no_klps | failed
+```
+
 `CardKlp` gains the three matching back-references.
+
+### Why `analysisStatus` exists
+
+In a relational table, "analyzed and clean" and "could not be analyzed" both
+look like **zero tag rows**. They are not the same fact, and Spec 3's rate
+calculations depend on separating them: "you make a conflation error 12% of the
+time" needs a denominator of *analyzed* answers, not all answers. Without this
+column a corpus containing legacy questions silently reads as a learner who
+makes fewer mistakes than they do, with no signal that anything was skipped.
+
+| Value | Meaning |
+| --- | --- |
+| `analyzed` | Tags are complete. Zero tags means a genuinely clean answer. |
+| `no_provenance` | A v1 option-cache row; the wrong pick cannot be attributed to a KLP. |
+| `no_klps` | The card had no live KLPs at answer time. |
+| `failed` | Grading or tag extraction errored. |
+
+This is also the retrofit path: every `no_klps` row can be found later and
+re-analyzed once that card has been extracted. A dropped tag with no marker is
+unrecoverable because nothing records that it was ever missing.
 
 ### Why the indexes are what they are
 
@@ -156,9 +184,28 @@ If the two lists drift, every MC-derived tag lands on a type the taxonomy does
 not recognize, and Spec 3 aggregates silently corrupt data with nothing
 throwing.
 
-This gets a dedicated test asserting every `CORRUPTIONS` value appears in
-`ACCURACY_TYPES`. It is cheap and it is the only thing standing between a
-one-word edit and a poisoned corpus.
+This gets a dedicated test:
+
+```ts
+it('every corruption is a valid accuracy error type', () => {
+  for (const c of CORRUPTIONS) expect(ACCURACY_TYPES).toContain(c)
+})
+```
+
+The test prevents nothing on its own — it converts a **silent data-corruption
+bug into a loud build failure**. Rename a value in either list and `npm test`
+fails immediately, rather than the drift surfacing months later as a learner's
+worst weakness split across two type names that mean the same thing.
+
+**Why a rename is not free.** These strings are *persisted*, not just internal
+constants: `'inversion'` is written into `AnswerErrorTag.type` and
+`QuizQuestion.options[].corruption` as a literal. Renaming the constant changes
+what future rows say and cannot reach the rows already written.
+
+When the test does fire, the remedy is a deliberate choice, not a revert: rename
+both lists together, add an alias map (`{ wrong_fact: 'factual_error' }`) applied
+on read, or migrate the existing rows. All three are fine. The point is that the
+decision gets made consciously instead of by accident.
 
 ---
 
@@ -310,25 +357,40 @@ MC and TF write results only for the KLPs the question actually targeted
 (`QuizQuestion.targetKlpIds`), never for every KLP on the card. A question that
 tested one proposition says nothing about the other four.
 
-**Zero tags is meaningful and distinct from no rows.** `errorTags: []` means
-"analyzed, nothing wrong"; no rows at all means "not analyzed". Every rate
-calculation in Spec 3 depends on telling those apart.
+**Zero tags is meaningful, but only alongside `analysisStatus`.** The tag table
+alone cannot distinguish a clean answer from an unanalyzable one — both are zero
+rows. `analysisStatus = 'analyzed'` with no tags is a clean answer;
+`analysisStatus = 'no_provenance'` with no tags is a row we could not read. Every
+rate calculation in Spec 3 filters on `analyzed` for its denominator.
 
 ---
 
 ## §5 — Degradation
 
-| Condition | Behaviour |
-| --- | --- |
-| Card has no KLPs | Grading returns today's three-dimension rubric; `klpResults`/`errorTags` empty. Nothing breaks. |
-| No AI credential | Unchanged from today — grading fails as it already does. |
-| v1 option cache (no provenance) | Correctness recorded, no tag written. |
-| TF question with no `corruption` | Target recorded from `targetKlpIds`, no type. |
-| Model returns an unknown `type` | That tag is dropped; the rest of the answer persists. |
-| Model returns an out-of-range `klpRef` | That tag is dropped rather than targeting nothing. |
+| Condition | Behaviour | `analysisStatus` |
+| --- | --- | --- |
+| Card has no KLPs | Today's three-dimension rubric; no KLP results or tags | `no_klps` |
+| No AI credential | Unchanged from today — grading fails as it already does | `failed` |
+| v1 option cache (no provenance) | Correctness recorded, no tag written | `no_provenance` |
+| TF question with no `corruption` | Target recorded from `targetKlpIds`, no type | `analyzed` |
+| Model returns an unknown `type` | That tag dropped; the rest of the answer persists | `analyzed` |
+| Model returns an out-of-range `klpRef` | That tag dropped rather than targeting nothing | `analyzed` |
 
-Every degradation drops data rather than inventing it. The corpus is the
-product here; a plausible-looking wrong tag is worse than an absent one.
+**Nothing observable is ever discarded.** The raw record — `selectedOption`,
+`answer`, `correctAnswer`, `isCorrect` — is written on every path exactly as it
+is today. What degradation drops is only the *interpretation*: the claim about
+which proposition a wrong answer implicates.
+
+The reason is asymmetric cost. A fabricated tag is indistinguishable from a real
+observation — same table, same columns — so Spec 3 counts it, and two invented
+`conflation` rows on the same KLP pair promote an "active misconception",
+putting a confident and entirely fictional diagnosis on the learner's dashboard.
+Nothing marks which rows were guesses, so it cannot be undone later.
+
+Missing data makes a conclusion weaker; wrong data makes it wrong. Weak is
+recoverable by answering more questions. Wrong is not, because you cannot tell
+which rows to distrust. `analysisStatus` is what keeps "weak" visible rather
+than silent.
 
 ---
 
