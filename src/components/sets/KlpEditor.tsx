@@ -59,7 +59,14 @@ export function KlpEditor({ cardId }: { cardId: string }) {
 
   async function retry() {
     setBusy(true)
-    await retryKlpExtraction(cardId)
+    const res = await retryKlpExtraction(cardId)
+    // Early return, not `if (res.success && ...)`: ActionResult is a
+    // discriminated union, so `res.error` only narrows inside the failure arm.
+    if (!res.success) {
+      setBusy(false)
+      toast.error(res.error || 'Failed to re-analyze this card')
+      return
+    }
     await load()
   }
 

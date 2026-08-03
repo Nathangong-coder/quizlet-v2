@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { selectStaleCardIds, StaleCandidate } from '@/lib/cards/stale'
+import {
+  selectStaleCardIds,
+  selectRefreshableStaleCardIds,
+  StaleCandidate,
+} from '@/lib/cards/stale'
 import { klpSourceHash } from '@/lib/cards/klp-hash'
 
 const term = 'WACC'
@@ -83,5 +87,31 @@ describe('selectStaleCardIds', () => {
     const result = selectStaleCardIds([fresh, staleTerm, staleNull, staleDefinition])
 
     expect(result).toEqual(['stale-term', 'stale-null', 'stale-def'])
+  })
+})
+
+describe('selectRefreshableStaleCardIds (the updateSet variant)', () => {
+  it('does not queue a legacy card whose stored hash is null', () => {
+    // Every card predating the KLP feature has klpSourceHash: null. Treating
+    // those as stale made the first one-word edit to a legacy set queue
+    // extraction for EVERY card in it. ensureKlpsReady covers them on demand.
+    const legacy = makeCard({ id: 'legacy', klpSourceHash: null })
+    expect(selectRefreshableStaleCardIds([legacy])).toEqual([])
+  })
+
+  it('still queues a card whose stored hash no longer matches its content', () => {
+    const edited = makeCard({ id: 'edited', term: 'CAPM' })
+    expect(selectRefreshableStaleCardIds([edited])).toEqual(['edited'])
+  })
+
+  it('returns only genuinely-stale ids from a mixed legacy/edited/fresh set', () => {
+    const fresh = makeCard({ id: 'fresh' })
+    const legacy = makeCard({ id: 'legacy', klpSourceHash: null })
+    const edited = makeCard({ id: 'edited', definition: 'Different.' })
+
+    expect(selectRefreshableStaleCardIds([fresh, legacy, edited])).toEqual(['edited'])
+    // selectStaleCardIds keeps its own null-is-stale semantics, unchanged:
+    // createSet relies on it, where every card genuinely is new.
+    expect(selectStaleCardIds([fresh, legacy, edited])).toEqual(['legacy', 'edited'])
   })
 })

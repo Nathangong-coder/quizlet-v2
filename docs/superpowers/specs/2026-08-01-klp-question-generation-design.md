@@ -251,10 +251,21 @@ unreliable under load.
 
 ### Editing
 
-KLPs are user-editable in the set builder, writing `source: 'user'` rows within
-the current version. A user edit sets `klpSourceHash` to the current hash so the
-next save does not clobber the correction. Without this, one bad extraction is
-permanent.
+KLPs are user-editable in the set builder. An edit **writes a new version**, it
+does not update a row in place: the whole live set is superseded and re-written
+at version n+1, where the edited point carries `source: 'user'` and every
+untouched point is copied forward unchanged, keeping its original `source`.
+This is the same versioned write path AI extraction uses — there is exactly one
+mutation path for `CardKlp`.
+
+In-place editing would break the append-only invariant stated above:
+`QuizQuestion.targetKlpIds` rows already in the database name specific
+`CardKlp` ids as the provenance of questions already asked, so rewriting one of
+those rows' text retroactively changes what a past question is recorded as
+having tested. Superseded rows are also not editable through the public action.
+
+A user edit sets `klpSourceHash` to the current hash so the next save does not
+clobber the correction. Without this, one bad extraction is permanent.
 
 ---
 

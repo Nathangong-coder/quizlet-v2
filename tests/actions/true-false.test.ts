@@ -115,12 +115,38 @@ describe('getTrueFalseQuestion', () => {
     expect(payload.create.isTrue).toBe(false)
     expect(payload.create.statement).toBe('D&A is subtracted because it is a cash expense.')
     expect(payload.create.targetKlpIds).toEqual(['klp-real-1'])
+    // The corruption is persisted in its own column; without it a wrong TF
+    // answer records only WHICH proposition was targeted, not HOW.
+    expect(payload.create.corruption).toBe('inversion')
     expect(payload.update).toEqual({
       statement: payload.create.statement,
       isTrue: payload.create.isTrue,
+      corruption: payload.create.corruption,
       targetKlpIds: payload.create.targetKlpIds,
       klpVersion: payload.create.klpVersion,
     })
+  })
+
+  it('the true variant persists a null corruption', async () => {
+    h.pickTfVariant.mockReturnValue('true')
+
+    const result = await getTrueFalseQuestion(ATTEMPT_ID, CARD_ID)
+
+    expect(result.success).toBe(true)
+    const payload = h.questionUpsert.mock.calls[0][0]
+    expect(payload.create.isTrue).toBe(true)
+    expect(payload.create.corruption).toBeNull()
+  })
+
+  it('a generation failure persists a null corruption, not a stale one', async () => {
+    h.pickTfVariant.mockReturnValue('false')
+    h.generateJson.mockRejectedValue(new Error('provider down'))
+
+    await getTrueFalseQuestion(ATTEMPT_ID, CARD_ID)
+
+    const payload = h.questionUpsert.mock.calls[0][0]
+    expect(payload.create.isTrue).toBe(true)
+    expect(payload.create.corruption).toBeNull()
   })
 
   it('an out-of-range klpRef falls back to the true variant coherently', async () => {

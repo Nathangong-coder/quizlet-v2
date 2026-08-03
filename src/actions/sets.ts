@@ -12,7 +12,7 @@ import { ContentBlock } from '@/lib/cards/content';
 import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categories'
 import { reconcileCards } from '@/lib/cards/reconcile'
 import { extractKlpsForCards } from '@/actions/klp'
-import { selectStaleCardIds } from '@/lib/cards/stale'
+import { selectRefreshableStaleCardIds } from '@/lib/cards/stale'
 
 const CardInputSchema = z.object({
   // Present when the editor is round-tripping an existing card. Absent for
@@ -320,7 +320,24 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
       where: { setId: id },
       include: { contentBlocks: true },
     })
-    const stale = selectStaleCardIds(saved)
+    // `selectRefreshableStaleCardIds`, not `selectStaleCardIds`: on the EDIT
+    // path a null stored hash means never-extracted (every card predating the
+    // KLP feature), not stale. Treating those as stale made the first
+    // one-word edit to a legacy set queue extraction for the whole set.
+    // ensureKlpsReady picks them up on demand instead.
+    const stale = selectRefreshableStaleCardIds(saved)
+
+    // Mark the genuinely-stale cards 'pending' before the response goes out,
+    // so the stored state is honest the moment the edit commits: their live
+    // CardKlp rows now describe pre-edit content. Without this, a dropped or
+    // failed `after()` callback left the card sitting at 'ready' with stale
+    // KLPs and nothing to signal otherwise.
+    if (stale.length > 0) {
+      await prisma.card.updateMany({
+        where: { setId: id, id: { in: stale } },
+        data: { klpStatus: 'pending' },
+      })
+    }
 
     after(() => extractKlpsForCards(session.user.id, stale))
 

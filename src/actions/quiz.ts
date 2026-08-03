@@ -916,6 +916,11 @@ export async function getTrueFalseQuestion(
     let statement = card.definition;
     let isTrue = true;
     let targetKlpIds: string[] = klps.map((k) => k.id);
+    // Which corruption was applied to the target KLP. Persisted alongside
+    // isTrue so a wrong TF answer is diagnosable with no grading call — MC
+    // keeps the same fact per-option inside its `options` blob. Stays null for
+    // the true variant and for the generation-failure fallback.
+    let corruption: string | null = null;
 
     if (klps.length > 0 && pickTfVariant() === 'false') {
       try {
@@ -939,6 +944,7 @@ export async function getTrueFalseQuestion(
           statement = generated.statement;
           isTrue = false;
           targetKlpIds = [target];
+          corruption = generated.corruption;
         } else {
           console.error('TF statement generation returned an out-of-range klpRef:', generated.klpRef);
         }
@@ -957,8 +963,8 @@ export async function getTrueFalseQuestion(
     // recordQuizQuestion precedent above.
     await prisma.quizQuestion.upsert({
       where: { attemptId_cardId_mode: { attemptId, cardId, mode: 'true-false' } },
-      create: { attemptId, cardId, mode: 'true-false', statement, isTrue, targetKlpIds, klpVersion: card.klpVersion },
-      update: { statement, isTrue, targetKlpIds, klpVersion: card.klpVersion },
+      create: { attemptId, cardId, mode: 'true-false', statement, isTrue, corruption, targetKlpIds, klpVersion: card.klpVersion },
+      update: { statement, isTrue, corruption, targetKlpIds, klpVersion: card.klpVersion },
     });
 
     return { success: true, data: { statement } };

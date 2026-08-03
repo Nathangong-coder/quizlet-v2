@@ -413,6 +413,9 @@ model QuizQuestion {
   mode         String      // multiple-choice | true-false
   statement    String?     @db.Text // TF: the (possibly corrupted) statement shown
   isTrue       Boolean?    // TF answer key. NEVER serialized to the client
+  corruption   String?     // TF: how the target KLP was corrupted. null for the
+                           // true variant and the generation-failure fallback.
+                           // MC keeps its per-option corruption inside `options`.
   options      Json?       // MC: [{text, correct, sourceKlpId?, corruption?}]
   targetKlpIds Json
   klpVersion   Int

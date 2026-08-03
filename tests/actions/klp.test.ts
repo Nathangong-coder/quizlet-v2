@@ -71,10 +71,12 @@ vi.mock('next/cache', () => ({ revalidatePath: h.revalidatePath }))
 
 import {
   extractKlpsForCards,
+  ensureKlpsReady,
   KLP_BATCH_SIZE,
   getCardKlps,
   saveCardKlp,
 } from '@/actions/klp'
+import { klpSourceHash } from '@/lib/cards/klp-hash'
 
 const card = (id: string) => ({
   id,
@@ -306,6 +308,139 @@ describe('extractKlpsForCards', () => {
   })
 })
 
+describe('extractOneBatch write isolation', () => {
+  it('commits entries 1 and 3 when entry 2 write throws, marking only entry 2 failed', async () => {
+    // The AI already returned valid KLPs for all three in one response.
+    // Abandoning 2 and 3 because 2's write failed re-bills the user for
+    // generation they already paid for.
+    h.findMany.mockResolvedValue([card('c1'), card('c2'), card('c3')])
+    h.generateJson.mockResolvedValue({
+      cards: [0, 1, 2].map((ref) => ({
+        ref,
+        cardType: 'atomic' as const,
+        klps: [{ text: `point ${ref}`, weight: 3, kind: 'definition' as const }],
+      })),
+    })
+
+    let call = 0
+    h.transaction.mockImplementation((arg: unknown) => {
+      if (typeof arg !== 'function') return Promise.all(arg as Promise<unknown>[])
+      call += 1
+      if (call === 2) return Promise.reject(new Error('write failed for c2'))
+      return defaultTransactionImpl(arg)
+    })
+
+    await extractKlpsForCards('u1', ['c1', 'c2', 'c3'])
+
+    const readyIds = h.update.mock.calls
+      .filter(([arg]) => arg?.data?.klpStatus === 'ready')
+      .map(([arg]) => arg.where.id)
+    expect(readyIds).toEqual(['c1', 'c3'])
+
+    const failedCalls = h.updateMany.mock.calls.filter(
+      ([arg]) => arg?.data?.klpStatus === 'failed',
+    )
+    expect(failedCalls).toHaveLength(1)
+    expect(failedCalls[0][0].where).toEqual({ id: { in: ['c2'] } })
+  })
+})
+
+describe('ensureKlpsReady', () => {
+  const TERM = 'EBITDA'
+  const DEFINITION = 'Earnings before interest, taxes, depreciation, and amortization'
+  const currentHash = klpSourceHash({ term: TERM, definition: DEFINITION, blocks: [] })
+
+  const liveKlp = { id: 'k1', index: 0, text: 'a point', weight: 3, kind: 'definition' }
+
+  function mockCard(overrides: Record<string, unknown> = {}) {
+    h.findFirst.mockResolvedValue({
+      id: 'c1',
+      term: TERM,
+      definition: DEFINITION,
+      klpStatus: 'ready',
+      klpSourceHash: currentHash,
+      contentBlocks: [],
+      ...overrides,
+    })
+  }
+
+  beforeEach(() => {
+    h.klpFindMany.mockResolvedValue([liveKlp])
+    h.findMany.mockResolvedValue([
+      { id: 'c1', term: TERM, definition: DEFINITION, contentBlocks: [], set: { title: 'S' } },
+    ])
+    h.generateJson.mockResolvedValue({
+      cards: [{ ref: 0, cardType: 'atomic', klps: [{ text: 'fresh', weight: 3, kind: 'definition' }] }],
+    })
+  })
+
+  it('returns the live KLPs without extracting when the stored hash still matches', async () => {
+    mockCard()
+
+    const res = await ensureKlpsReady(OWNER, 'c1')
+
+    expect(res).toEqual([liveKlp])
+    expect(h.generateJson).not.toHaveBeenCalled()
+  })
+
+  it('re-extracts when the card content no longer matches its stored hash', async () => {
+    // The card was edited but its `after()` extraction was dropped or failed,
+    // so its live KLPs describe pre-edit content. Serving them means
+    // distractors corrupt propositions the card no longer teaches.
+    mockCard({ definition: 'A completely different definition now.' })
+
+    await ensureKlpsReady(OWNER, 'c1')
+
+    expect(h.generateJson).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not retry for a 'skipped' card, and still serves what exists", async () => {
+    mockCard({ klpStatus: 'skipped', definition: 'edited, so stale' })
+
+    const res = await ensureKlpsReady(OWNER, 'c1')
+
+    expect(res).toEqual([liveKlp])
+    expect(h.generateJson).not.toHaveBeenCalled()
+  })
+
+  it('returns [] for a card the user does not own and extracts nothing', async () => {
+    h.findFirst.mockResolvedValue(null)
+
+    const res = await ensureKlpsReady(OWNER, 'not-mine')
+
+    expect(res).toEqual([])
+    expect(h.generateJson).not.toHaveBeenCalled()
+    expect(h.createMany).not.toHaveBeenCalled()
+  })
+
+  it('dedupes concurrent extraction for the same card into one call', async () => {
+    // MultipleChoiceQuiz fans one request out per card with Promise.all; each
+    // now calls ensureKlpsReady, so an unextracted set could fire 2N AI calls
+    // from one click. Deduped per server instance only — see extractOnce.
+    h.klpFindMany.mockResolvedValue([])
+    mockCard({ klpStatus: 'pending', klpSourceHash: null })
+
+    let resolveGen: (v: unknown) => void = () => {}
+    h.generateJson.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveGen = resolve
+        }),
+    )
+
+    const a = ensureKlpsReady(OWNER, 'c1')
+    const b = ensureKlpsReady(OWNER, 'c1')
+    // Let both reach the extraction call before releasing the generation.
+    await new Promise((r) => setTimeout(r, 0))
+    resolveGen({
+      cards: [{ ref: 0, cardType: 'atomic', klps: [{ text: 'x', weight: 3, kind: 'definition' }] }],
+    })
+    await Promise.all([a, b])
+
+    expect(h.generateJson).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('getCardKlps', () => {
   it('rejects a card the user does not own', async () => {
     // findFirst is owner-scoped in the action's `where`; simulate the DB
@@ -342,6 +477,38 @@ describe('getCardKlps', () => {
 })
 
 describe('saveCardKlp', () => {
+  const editableKlp = {
+    id: 'klp-1',
+    cardId: 'card-1',
+    card: {
+      setId: 'set-1',
+      term: 'EBITDA',
+      definition: 'Earnings before interest, taxes, depreciation, and amortization',
+      contentBlocks: [],
+    },
+  }
+
+  const liveRows = [
+    {
+      id: 'klp-1',
+      index: 0,
+      text: 'original one',
+      weight: 3,
+      kind: 'definition',
+      source: 'ai',
+      promptVersion: 1,
+    },
+    {
+      id: 'klp-2',
+      index: 1,
+      text: 'original two',
+      weight: 4,
+      kind: 'mechanism',
+      source: 'user',
+      promptVersion: 1,
+    },
+  ]
+
   it("rejects a KLP whose card the user does not own", async () => {
     // findFirst is owner-scoped through card.set.userId; simulate not found.
     h.klpFindFirst.mockResolvedValue(null)
@@ -351,45 +518,108 @@ describe('saveCardKlp', () => {
     expect(res).toEqual({ success: false, error: 'Not found' })
     expect(h.klpFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'klp-not-mine', card: { set: { userId: OWNER } } },
+        where: {
+          id: 'klp-not-mine',
+          supersededAt: null,
+          card: { set: { userId: OWNER } },
+        },
       }),
     )
-    expect(h.klpUpdate).not.toHaveBeenCalled()
+    expect(h.createMany).not.toHaveBeenCalled()
     expect(h.update).not.toHaveBeenCalled()
   })
 
-  it("writes source: 'user' and re-stamps the card's klpSourceHash", async () => {
-    h.klpFindFirst.mockResolvedValue({
-      id: 'klp-1',
-      cardId: 'card-1',
-      card: {
-        setId: 'set-1',
-        term: 'EBITDA',
-        definition: 'Earnings before interest, taxes, depreciation, and amortization',
-        contentBlocks: [],
-      },
-    })
+  it('rejects an already-superseded row: the lookup filters supersededAt: null', async () => {
+    // A superseded row is history. The action's `where` excludes it, so the
+    // DB finds nothing even though the id exists.
+    h.klpFindFirst.mockResolvedValue(null)
+
+    const res = await saveCardKlp('klp-superseded', { text: 'x', weight: 3, kind: 'definition' })
+
+    expect(res).toEqual({ success: false, error: 'Not found' })
+    expect(h.klpFindFirst.mock.calls[0][0].where.supersededAt).toBeNull()
+    expect(h.createMany).not.toHaveBeenCalled()
+  })
+
+  it('supersedes the current version and writes n+1 instead of updating in place', async () => {
+    h.klpFindFirst.mockResolvedValue(editableKlp)
+    h.klpFindMany.mockResolvedValue(liveRows)
+    h.aggregate.mockResolvedValue({ _max: { version: 4 } })
 
     const res = await saveCardKlp('klp-1', { text: 'corrected text', weight: 5, kind: 'causal' })
 
     expect(res).toEqual({ success: true, data: undefined })
-    expect(h.klpUpdate).toHaveBeenCalledWith(
+    // Never an in-place update — QuizQuestion.targetKlpIds rows point at the
+    // old ids and their text must stay what the question was built from.
+    expect(h.klpUpdate).not.toHaveBeenCalled()
+    expect(h.klpUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'klp-1' },
-        data: expect.objectContaining({
-          text: 'corrected text',
-          weight: 5,
-          kind: 'causal',
-          source: 'user',
-        }),
+        where: { cardId: 'card-1', supersededAt: null },
+        data: { supersededAt: expect.any(Date) },
       }),
     )
+    const written = h.createMany.mock.calls[0][0].data
+    expect(written).toHaveLength(2)
+    expect(written.every((r: { version: number }) => r.version === 5)).toBe(true)
+  })
+
+  it("marks only the edited point source: 'user' and copies the rest forward unchanged", async () => {
+    h.klpFindFirst.mockResolvedValue(editableKlp)
+    h.klpFindMany.mockResolvedValue(liveRows)
+
+    await saveCardKlp('klp-1', { text: 'corrected text', weight: 5, kind: 'causal' })
+
+    const written = h.createMany.mock.calls[0][0].data
+    expect(written[0]).toEqual(
+      expect.objectContaining({
+        index: 0,
+        text: 'corrected text',
+        weight: 5,
+        kind: 'causal',
+        source: 'user',
+      }),
+    )
+    // Copied forward verbatim, keeping its ORIGINAL source: a point merely
+    // carried along by someone else's edit was not authored by this edit.
+    expect(written[1]).toEqual(
+      expect.objectContaining({
+        index: 1,
+        text: 'original two',
+        weight: 4,
+        kind: 'mechanism',
+        source: 'user',
+      }),
+    )
+  })
+
+  it('an AI-extracted point carried forward keeps source: ai', async () => {
+    h.klpFindFirst.mockResolvedValue({ ...editableKlp, id: 'klp-2', cardId: 'card-1' })
+    h.klpFindMany.mockResolvedValue(liveRows)
+
+    await saveCardKlp('klp-2', { text: 'fixed two', weight: 2, kind: 'contrast' })
+
+    const written = h.createMany.mock.calls[0][0].data
+    expect(written[0]).toEqual(
+      expect.objectContaining({ text: 'original one', source: 'ai' }),
+    )
+    expect(written[1]).toEqual(
+      expect.objectContaining({ text: 'fixed two', source: 'user' }),
+    )
+  })
+
+  it("re-stamps the card's klpSourceHash so the next save does not re-extract over the fix", async () => {
+    h.klpFindFirst.mockResolvedValue(editableKlp)
+    h.klpFindMany.mockResolvedValue(liveRows)
+
+    await saveCardKlp('klp-1', { text: 'corrected text', weight: 5, kind: 'causal' })
+
     expect(h.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'card-1' },
         data: expect.objectContaining({
           klpSourceHash: expect.stringMatching(/^[0-9a-f]{64}$/),
           klpStatus: 'ready',
+          klpVersion: 1,
         }),
       }),
     )
