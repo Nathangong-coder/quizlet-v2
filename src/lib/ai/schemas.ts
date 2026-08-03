@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CORRUPTIONS } from '@/lib/quiz/options';
 
 export const MultipleChoiceOptionsSchema = z.object({
   options: z.array(z.string().min(1)).length(4),
@@ -71,3 +72,69 @@ export const TrainingPlanSchema = z.object({
 });
 
 export type TrainingPlan = z.infer<typeof TrainingPlanSchema>;
+
+/**
+ * KLP kinds. `kind` is what makes "memorizes terms, fails on why" a groupBy
+ * rather than an AI judgment — see docs/ai/error-taxonomy.md §6.
+ */
+export const KLP_KINDS = [
+  'definition',
+  'mechanism',
+  'causal',
+  'condition',
+  'quantitative',
+  'contrast',
+  'example',
+] as const;
+
+export const MAX_KLPS_PER_CARD = 5;
+
+export const KlpExtractionSchema = z.object({
+  cards: z.array(
+    z.object({
+      // Index into the batch the prompt was built from. Cards are addressed by
+      // position, never by cuid — the model must never see raw ids.
+      ref: z.number().int().min(0),
+      cardType: z.enum(['atomic', 'compound']),
+      klps: z
+        .array(
+          z.object({
+            text: z.string().min(1),
+            weight: z.number().int().min(1).max(5),
+            kind: z.enum(KLP_KINDS),
+          }),
+        )
+        .min(1)
+        .max(MAX_KLPS_PER_CARD),
+    }),
+  ),
+});
+
+export type KlpExtraction = z.infer<typeof KlpExtractionSchema>;
+
+/**
+ * KLP-aware MC generation. Distractors reference the KLP they corrupt by its
+ * `ref` (index in the prompt), never by cuid; the action maps refs back to ids.
+ */
+export const MultipleChoiceKlpSchema = z.object({
+  correctAnswer: z.string().min(1),
+  distractors: z
+    .array(
+      z.object({
+        text: z.string().min(1),
+        klpRef: z.number().int().min(0),
+        corruption: z.enum(CORRUPTIONS),
+      }),
+    )
+    .length(3),
+});
+
+export type MultipleChoiceKlp = z.infer<typeof MultipleChoiceKlpSchema>;
+
+export const TrueFalseStatementSchema = z.object({
+  statement: z.string().min(1),
+  klpRef: z.number().int().min(0),
+  corruption: z.enum(CORRUPTIONS),
+});
+
+export type TrueFalseStatement = z.infer<typeof TrueFalseStatementSchema>;

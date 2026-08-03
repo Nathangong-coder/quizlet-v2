@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Trash2 } from 'lucide-react'
 import { RichCardSideEditor } from './RichCardSideEditor'
 import { CategoryPicker } from './CategoryPicker'
+import { KlpEditor } from './KlpEditor'
 import { ContentBlock } from '@/lib/cards/content'
 
 interface CardRowProps {
   index: number
+  cardId?: string
   termBlocks: ContentBlock[]
   definitionBlocks: ContentBlock[]
   categoryNames: string[]
@@ -24,6 +26,7 @@ interface CardRowProps {
 
 export function CardRow({
   index,
+  cardId,
   termBlocks,
   definitionBlocks,
   categoryNames,
@@ -79,6 +82,7 @@ export function CardRow({
             onCreateCategory={onCreateCategory}
           />
         </div>
+        {cardId && <KlpEditor cardId={cardId} />}
       </div>
       <Button
         variant="ghost"

@@ -63,8 +63,40 @@ model Card {
   assets              CardAsset[]
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
+  klpStatus           String                   @default("pending") // pending|ready|failed|skipped
+  klpVersion          Int                      @default(0)
+  klpSourceHash       String?
+  klpError            String?                  @db.Text
+  klps                CardKlp[]
+  quizQuestions       QuizQuestion[]
 
   @@index([setId])
+}
+
+/// Stage 8: the testable propositions a card teaches. Distractor generation,
+/// error targeting, and the KLP mastery graph all key off these.
+///
+/// VERSIONED, never overwritten. Editing a card's text extracts version n+1
+/// and stamps version n with `supersededAt`. Historical error tags keep
+/// pointing at the version that was actually asked, so a July session summary
+/// renders July's KLPs. Live reads filter `supersededAt: null`.
+model CardKlp {
+  id            String    @id @default(cuid())
+  cardId        String
+  version       Int
+  index         Int
+  text          String    @db.Text
+  weight        Int       // 1-5 centrality -> significance.relevance
+  kind          String    // definition|mechanism|causal|condition|quantitative|contrast|example
+  sourceHash    String
+  promptVersion Int
+  source        String    @default("ai") // ai | user
+  supersededAt  DateTime?
+  createdAt     DateTime  @default(now())
+  card          Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, version, index])
+  @@index([cardId, supersededAt])
 }
 
 model CardCategory {
@@ -334,6 +366,7 @@ model QuizAttempt {
   user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   set             Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
   answers         QuizAnswer[]
+  questions       QuizQuestion[]
 
   @@index([userId, createdAt])
   @@index([setId, createdAt])
@@ -362,6 +395,35 @@ model QuizAnswer {
 
   @@index([userId, cardId])
   @@index([userId, createdAt])
+  @@index([attemptId])
+}
+
+/// Stage 8: one asked question, frozen at the moment it was asked.
+///
+/// Exists for two reasons. (1) True/false is otherwise unanswerable
+/// server-side: the client used to render the definition and the action
+/// hardcoded `correctAnswer: 'true'`, so there was nowhere to record "this
+/// statement is the corrupted variant". (2) It anchors MC distractor
+/// provenance, which is what lets a wrong pick diagnose itself with no
+/// grading call.
+model QuizQuestion {
+  id           String      @id @default(cuid())
+  attemptId    String
+  cardId       String
+  mode         String      // multiple-choice | true-false
+  statement    String?     @db.Text // TF: the (possibly corrupted) statement shown
+  isTrue       Boolean?    // TF answer key. NEVER serialized to the client
+  corruption   String?     // TF: how the target KLP was corrupted. null for the
+                           // true variant and the generation-failure fallback.
+                           // MC keeps its per-option corruption inside `options`.
+  options      Json?       // MC: [{text, correct, sourceKlpId?, corruption?}]
+  targetKlpIds Json
+  klpVersion   Int
+  createdAt    DateTime    @default(now())
+  attempt      QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  card         Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, cardId, mode])
   @@index([attemptId])
 }
 

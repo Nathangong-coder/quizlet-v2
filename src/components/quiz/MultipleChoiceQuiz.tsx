@@ -36,7 +36,7 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
           if (optionsState[card.id]) return;
 
           setLoadingCards(prev => new Set(prev).add(card.id));
-          const result = await getOrGenerateMultipleChoiceOptions(card.id);
+          const result = await getOrGenerateMultipleChoiceOptions(card.id, attemptId);
 
           if (result.success) {
             const { options, correctAnswer } = result.data;

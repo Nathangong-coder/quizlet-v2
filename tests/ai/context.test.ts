@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { profileToPromptBlock, MAX_PROMPT_BLOCK_CHARS } from '@/lib/ai/context'
+import { profileToPromptBlock } from '@/lib/ai/context'
 import type { LearnerProfile } from '@/lib/memory/profile'
 
 function emptyProfile(overrides: Partial<LearnerProfile> = {}): LearnerProfile {
@@ -126,8 +126,8 @@ describe('never leaks raw IDs', () => {
   })
 })
 
-describe('token budget is enforced regardless of input shape', () => {
-  it('hard-caps output length even for a pathologically large profile bypassing normal caps', () => {
+describe('renders a large profile without truncation', () => {
+  it('includes every weak term for a profile with a very large weak bucket', () => {
     const hugeProfile = emptyProfile({
       weak: Array.from({ length: 500 }, (_, i) => ({
         term: `some-very-long-finance-term-name-number-${i}`,
@@ -138,6 +138,7 @@ describe('token budget is enforced regardless of input shape', () => {
     })
 
     const block = profileToPromptBlock(hugeProfile)
-    expect(block.length).toBeLessThanOrEqual(MAX_PROMPT_BLOCK_CHARS)
+    expect(block).toContain('some-very-long-finance-term-name-number-0')
+    expect(block).toContain('some-very-long-finance-term-name-number-499')
   })
 })

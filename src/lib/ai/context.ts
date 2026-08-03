@@ -1,6 +1,7 @@
 /**
- * Renders a `LearnerProfile` (src/lib/memory/profile.ts) into a compact,
- * ID-free, token-capped text block for injection into AI prompts.
+ * Renders a `LearnerProfile` (src/lib/memory/profile.ts) into an ID-free
+ * text block for injection into AI prompts. Uncapped — every qualifying
+ * card is included, not truncated to a fixed length.
  *
  * Never includes cardIds/userId/setId cuids — only human-readable term text
  * and aggregate stats. See docs/superpowers/plans/2026-07-04-persistent-
@@ -8,18 +9,6 @@
  */
 
 import { buildLearnerProfile, type LearnerProfile, type Trend } from '@/lib/memory/profile'
-
-/**
- * Hard cap on the rendered block's length, enforced regardless of how the
- * `LearnerProfile` was constructed. `shapeLearnerProfile` already caps each
- * bucket (WEAK_CAP, STRONG_CAP, etc.) so in normal operation the block is
- * far smaller than this — this is a defensive backstop for any caller that
- * hands `profileToPromptBlock` a profile assembled by hand (e.g. tests, or
- * a future caller that skips the shaper), so the "fixed and enforced" token
- * budget holds even then. ~1200 chars is roughly 300 tokens, comfortably
- * bounded for a per-call context injection.
- */
-export const MAX_PROMPT_BLOCK_CHARS = 1200
 
 const MODE_LABELS: Partial<Record<string, string>> = {
   'quiz-mc': 'MC',
@@ -83,9 +72,7 @@ export function profileToPromptBlock(profile: LearnerProfile): string {
   recentParts.push(`${profile.recent.streakDays}-day streak`)
   lines.push(`Recent: ${recentParts.join(' · ')}`)
 
-  const block = lines.join('\n')
-  if (block.length <= MAX_PROMPT_BLOCK_CHARS) return block
-  return `${block.slice(0, MAX_PROMPT_BLOCK_CHARS - 1)}…`
+  return lines.join('\n')
 }
 
 /**

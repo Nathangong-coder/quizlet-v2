@@ -5,12 +5,19 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { after } from 'next/server'
 import { ActionResult } from '@/types/action'
 
 import { ContentBlock } from '@/lib/cards/content';
 import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categories'
+import { reconcileCards } from '@/lib/cards/reconcile'
+import { extractKlpsForCards } from '@/actions/klp'
+import { selectRefreshableStaleCardIds } from '@/lib/cards/stale'
 
 const CardInputSchema = z.object({
+  // Present when the editor is round-tripping an existing card. Absent for
+  // newly added cards. Ownership is re-checked server-side in updateSet.
+  id: z.string().optional(),
   term: z.string().min(1, 'Term is required'),
   definition: z.string().min(1, 'Definition is required'),
   termBlocks: z.array(z.any()).optional(),
@@ -63,6 +70,35 @@ function buildCardCreate(
     position: card.position,
     contentBlocks: { create: buildContentBlockCreate(card) },
     categoryAssignments: { create: categoryIds.map((categoryId) => ({ categoryId })) },
+  }
+}
+
+/**
+ * Update payload for an existing card. Content blocks and category
+ * assignments are replaced wholesale (they have no independent identity worth
+ * preserving), but the CARD ROW SURVIVES — which is the entire point: its id
+ * is what CardProgress, StudyEvent and QuizAnswer hang off.
+ */
+function buildCardUpdate(
+  card: z.infer<typeof CardInputSchema>,
+  categoryIdByNormalized: Record<string, string>,
+) {
+  const categoryIds = Array.from(
+    new Set(
+      (card.categoryNames ?? [])
+        .map((n) => categoryIdByNormalized[normalizeCategoryName(n)])
+        .filter((id): id is string => Boolean(id)),
+    ),
+  )
+  return {
+    term: card.term,
+    definition: card.definition,
+    position: card.position,
+    contentBlocks: { deleteMany: {}, create: buildContentBlockCreate(card) },
+    categoryAssignments: {
+      deleteMany: {},
+      create: categoryIds.map((categoryId) => ({ categoryId })),
+    },
   }
 }
 
@@ -174,6 +210,24 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
 
     await backfillAssetLinks(set.id, session.user.id, validated.cards)
 
+    // Post-response so the user is never blocked on extraction. Every failure
+    // is recorded on the card by extractKlpsForCards, which never throws.
+    // The findMany itself CAN throw (e.g. a DB blip) — guarded so that alone
+    // can't turn an already-successful set creation into an error response;
+    // any cards missed here stay klpStatus: 'pending' and are picked up by
+    // ensureKlpsReady's self-healing extraction on first use.
+    try {
+      const created = await prisma.card.findMany({
+        where: { setId: set.id },
+        select: { id: true },
+      })
+      after(() => extractKlpsForCards(session.user.id, created.map((c) => c.id)))
+    } catch (klpErr) {
+      // Nothing more to do — see comment above — but log so an operator can
+      // see extraction was never even scheduled for this set.
+      console.error('KLP extraction scheduling failed for createSet:', klpErr)
+    }
+
     revalidatePath('/sets')
     return { success: true, data: { setId: set.id } }
   } catch (error) {
@@ -217,11 +271,29 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
     const cats = await prisma.cardCategory.findMany({ where: { setId: id } })
     const map = Object.fromEntries(cats.map((c) => [c.normalizedName, c.id]))
 
-    // Cards are fully replaced (existing behavior); assignments are recreated
-    // against the reconciled categories using the new card ids.
+    // Cards are reconciled by identity, never replaced. Deleting and
+    // recreating them cascades away CardProgress, StudyEvent,
+    // ConfidenceEvent, QuizAnswer and QuizOptionCache — i.e. the set's whole
+    // learning history — which is exactly what used to happen on every save.
+    // Named `existingCards`, not `existing` — `updateSet` already has a local
+    // `existing` holding the Set row (line 196).
+    const existingCards = await prisma.card.findMany({
+      where: { setId: id },
+      select: { id: true },
+    })
+    const plan = reconcileCards(
+      existingCards.map((c) => c.id),
+      validated.cards,
+    )
+
     await prisma.$transaction([
-      prisma.card.deleteMany({ where: { setId: id } }),
-      ...validated.cards.map((card) =>
+      ...(plan.toDeleteIds.length > 0
+        ? [prisma.card.deleteMany({ where: { setId: id, id: { in: plan.toDeleteIds } } })]
+        : []),
+      ...plan.toUpdate.map(({ id: cardId, card }) =>
+        prisma.card.update({ where: { id: cardId }, data: buildCardUpdate(card, map) }),
+      ),
+      ...plan.toCreate.map((card) =>
         prisma.card.create({ data: { setId: id, ...buildCardCreate(card, map) } }),
       ),
       prisma.set.update({
@@ -231,6 +303,43 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
     ])
 
     await backfillAssetLinks(id, session.user.id, validated.cards)
+
+    // Only cards whose meaning actually changed get re-extracted. Re-running
+    // the whole set on every save would burn a batch of AI calls and supersede
+    // perfectly good KLPs each time a title is corrected.
+    //
+    // Deliberately NOT wrapped in a try/catch like createSet's equivalent
+    // block: an edited card already has klpStatus: 'ready' and live,
+    // un-superseded CardKlp rows from its prior extraction, so there is no
+    // self-healing path if this findMany silently fails to run — the card
+    // would be graded against stale, pre-edit KLPs indefinitely (see
+    // klpSourceHash's doc comment in ./klp-hash on this exact failure mode).
+    // Letting the error propagate to the outer catch surfaces it to the user
+    // and makes the failure retryable instead of silent.
+    const saved = await prisma.card.findMany({
+      where: { setId: id },
+      include: { contentBlocks: true },
+    })
+    // `selectRefreshableStaleCardIds`, not `selectStaleCardIds`: on the EDIT
+    // path a null stored hash means never-extracted (every card predating the
+    // KLP feature), not stale. Treating those as stale made the first
+    // one-word edit to a legacy set queue extraction for the whole set.
+    // ensureKlpsReady picks them up on demand instead.
+    const stale = selectRefreshableStaleCardIds(saved)
+
+    // Mark the genuinely-stale cards 'pending' before the response goes out,
+    // so the stored state is honest the moment the edit commits: their live
+    // CardKlp rows now describe pre-edit content. Without this, a dropped or
+    // failed `after()` callback left the card sitting at 'ready' with stale
+    // KLPs and nothing to signal otherwise.
+    if (stale.length > 0) {
+      await prisma.card.updateMany({
+        where: { setId: id, id: { in: stale } },
+        data: { klpStatus: 'pending' },
+      })
+    }
+
+    after(() => extractKlpsForCards(session.user.id, stale))
 
     revalidatePath('/sets')
     revalidatePath(`/sets/${id}`)

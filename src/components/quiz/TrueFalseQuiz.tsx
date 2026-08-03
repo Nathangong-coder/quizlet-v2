@@ -4,7 +4,7 @@ import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'rea
 import { Card as CardUI, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Card as PrismaCard } from '@prisma/client';
-import { submitTrueFalseAnswer } from '@/actions/quiz';
+import { submitTrueFalseAnswer, getTrueFalseQuestion } from '@/actions/quiz';
 import { cn } from '@/lib/utils';
 import { ContentBlock } from '@/lib/cards/content';
 import { QuizCardPrompt } from './QuizCardPrompt';
@@ -25,6 +25,8 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
     const [selectedAnswers, setSelectedAnswers] = useState<{ [cardId: string]: string }>({});
     const { show: showError, dialog: errorDialog } = useErrorToast();
     const timer = useQuestionTimer();
+    const [statements, setStatements] = useState<{ [cardId: string]: string }>({});
+    const [loadingId, setLoadingId] = useState<string | null>(null);
 
     // Starts (or confirms) this question's clock whenever it becomes the
     // visible one in this one-question-at-a-time carousel. `timer.start` is
@@ -35,6 +37,28 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
       const activeId = cards[currentIndex]?.id;
       if (activeId) timer.start(activeId);
     }, [cards, currentIndex, timer]);
+
+    // The statement is generated server-side and may be a KLP-corrupted
+    // variant, so it CANNOT be derived from the card on the client.
+    useEffect(() => {
+      const activeId = cards[currentIndex]?.id;
+      if (!activeId || statements[activeId]) return;
+
+      let cancelled = false;
+      setLoadingId(activeId);
+      getTrueFalseQuestion(attemptId, activeId).then((res) => {
+        if (cancelled) return;
+        setLoadingId(null);
+        if (!res.success) {
+          showError(res.error || 'Failed to load question');
+          return;
+        }
+        setStatements((prev) => ({ ...prev, [activeId]: res.data.statement }));
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [cards, currentIndex, attemptId, statements, showError]);
 
     async function commitAll() {
       for (const card of cards) {
@@ -64,6 +88,7 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
     if (!card) return <div className="text-center p-10">No cards available for this quiz.</div>;
 
     const answeredCount = cards.filter(c => selectedAnswers[c.id]).length;
+    const statementReady = Boolean(statements[card.id]) && loadingId !== card.id;
 
     return (
       <div className="max-w-2xl mx-auto space-y-4 p-4">
@@ -74,17 +99,26 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
           </CardHeader>
           <CardContent className="space-y-6 text-center">
             <div className="p-4 bg-muted rounded-lg space-y-2 text-left">
-              <p className="font-bold text-sm text-muted-foreground uppercase tracking-wider">Definition</p>
-              <QuizCardPrompt card={card} side="definition" />
+              <p className="font-bold text-sm text-muted-foreground uppercase tracking-wider">
+                Statement
+              </p>
+              {loadingId === card.id ? (
+                <p className="text-muted-foreground">Loading…</p>
+              ) : (
+                <p>{statements[card.id] ?? ''}</p>
+              )}
             </div>
 
-            <p className="text-sm text-muted-foreground text-center">Is this the correct definition?</p>
+            <p className="text-sm text-muted-foreground text-center">
+              Is this statement correct?
+            </p>
 
             <div className="flex justify-center gap-4">
               {['true', 'false'].map((val) => (
                 <Button
                   key={val}
                   type="button"
+                  disabled={!statementReady}
                   variant={selectedAnswers[card.id] === val ? 'default' : 'outline'}
                   onClick={() => setSelectedAnswers(prev => ({ ...prev, [card.id]: val }))}
                   className={cn(
