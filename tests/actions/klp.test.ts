@@ -2,14 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const h = vi.hoisted(() => ({
   findMany: vi.fn(),
+  findFirst: vi.fn(),
   aggregate: vi.fn(),
   updateMany: vi.fn(),
   update: vi.fn(),
   createMany: vi.fn(),
   klpUpdateMany: vi.fn(),
   klpFindMany: vi.fn(),
+  klpFindFirst: vi.fn(),
+  klpUpdate: vi.fn(),
   generateJson: vi.fn(),
   transaction: vi.fn(),
+  auth: vi.fn(),
+  revalidatePath: vi.fn(),
 }))
 
 /**
@@ -39,12 +44,14 @@ function defaultTransactionImpl(arg: unknown) {
 
 vi.mock('@/lib/db', () => ({
   prisma: {
-    card: { findMany: h.findMany, update: h.update, updateMany: h.updateMany },
+    card: { findMany: h.findMany, findFirst: h.findFirst, update: h.update, updateMany: h.updateMany },
     cardKlp: {
       aggregate: h.aggregate,
       createMany: h.createMany,
       updateMany: h.klpUpdateMany,
       findMany: h.klpFindMany,
+      findFirst: h.klpFindFirst,
+      update: h.klpUpdate,
     },
     $transaction: h.transaction,
   },
@@ -59,7 +66,15 @@ vi.mock('@/lib/ai/generate', () => ({
   },
 }))
 
-import { extractKlpsForCards, KLP_BATCH_SIZE } from '@/actions/klp'
+vi.mock('@/auth', () => ({ auth: h.auth }))
+vi.mock('next/cache', () => ({ revalidatePath: h.revalidatePath }))
+
+import {
+  extractKlpsForCards,
+  KLP_BATCH_SIZE,
+  getCardKlps,
+  saveCardKlp,
+} from '@/actions/klp'
 
 const card = (id: string) => ({
   id,
@@ -70,6 +85,8 @@ const card = (id: string) => ({
   set: { title: 'M&A Basics' },
 })
 
+const OWNER = 'user-owner'
+
 beforeEach(() => {
   vi.clearAllMocks()
   h.aggregate.mockResolvedValue({ _max: { version: 0 } })
@@ -78,6 +95,7 @@ beforeEach(() => {
   h.update.mockResolvedValue({})
   h.updateMany.mockResolvedValue({})
   h.transaction.mockImplementation(defaultTransactionImpl)
+  h.auth.mockResolvedValue({ user: { id: OWNER } })
 })
 
 describe('extractKlpsForCards', () => {
@@ -267,5 +285,95 @@ describe('extractKlpsForCards', () => {
   it('does nothing when given no card ids', async () => {
     await extractKlpsForCards('u1', [])
     expect(h.generateJson).not.toHaveBeenCalled()
+  })
+})
+
+describe('getCardKlps', () => {
+  it('rejects a card the user does not own', async () => {
+    // findFirst is owner-scoped in the action's `where`; simulate the DB
+    // finding nothing because the card belongs to a different user.
+    h.findFirst.mockResolvedValue(null)
+
+    const res = await getCardKlps('card-not-mine')
+
+    expect(res).toEqual({ success: false, error: 'Card not found' })
+    expect(h.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'card-not-mine', set: { userId: OWNER } },
+      }),
+    )
+    expect(h.klpFindMany).not.toHaveBeenCalled()
+  })
+
+  it('returns the live klps and status for a card the user owns', async () => {
+    h.findFirst.mockResolvedValue({ klpStatus: 'ready' })
+    h.klpFindMany.mockResolvedValue([
+      { id: 'k1', index: 0, text: 'a point', weight: 3, kind: 'definition' },
+    ])
+
+    const res = await getCardKlps('card-1')
+
+    expect(res.success).toBe(true)
+    if (!res.success) throw new Error('expected success')
+    expect(res.data.status).toBe('ready')
+    expect(res.data.klps).toHaveLength(1)
+    expect(h.klpFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { cardId: 'card-1', supersededAt: null } }),
+    )
+  })
+})
+
+describe('saveCardKlp', () => {
+  it("rejects a KLP whose card the user does not own", async () => {
+    // findFirst is owner-scoped through card.set.userId; simulate not found.
+    h.klpFindFirst.mockResolvedValue(null)
+
+    const res = await saveCardKlp('klp-not-mine', { text: 'x', weight: 3, kind: 'definition' })
+
+    expect(res).toEqual({ success: false, error: 'Not found' })
+    expect(h.klpFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'klp-not-mine', card: { set: { userId: OWNER } } },
+      }),
+    )
+    expect(h.klpUpdate).not.toHaveBeenCalled()
+    expect(h.update).not.toHaveBeenCalled()
+  })
+
+  it("writes source: 'user' and re-stamps the card's klpSourceHash", async () => {
+    h.klpFindFirst.mockResolvedValue({
+      id: 'klp-1',
+      cardId: 'card-1',
+      card: {
+        setId: 'set-1',
+        term: 'EBITDA',
+        definition: 'Earnings before interest, taxes, depreciation, and amortization',
+        contentBlocks: [],
+      },
+    })
+
+    const res = await saveCardKlp('klp-1', { text: 'corrected text', weight: 5, kind: 'causal' })
+
+    expect(res).toEqual({ success: true, data: undefined })
+    expect(h.klpUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'klp-1' },
+        data: expect.objectContaining({
+          text: 'corrected text',
+          weight: 5,
+          kind: 'causal',
+          source: 'user',
+        }),
+      }),
+    )
+    expect(h.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'card-1' },
+        data: expect.objectContaining({
+          klpSourceHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+          klpStatus: 'ready',
+        }),
+      }),
+    )
   })
 })

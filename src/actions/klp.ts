@@ -1,10 +1,13 @@
 'use server';
 
+import { auth } from '@/auth';
+import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
 import { generateJson, AiGenerationError } from '@/lib/ai/generate';
 import { EXTRACT_KLPS_PROMPT } from '@/lib/ai/prompts/extract-klps';
 import { KlpExtractionSchema } from '@/lib/ai/schemas';
 import { klpSourceHash } from '@/lib/cards/klp-hash';
+import type { ActionResult } from '@/types/action';
 
 /**
  * Cards per extraction call. The pipe/semicolon importer creates 100+ cards in
@@ -234,4 +237,85 @@ export async function ensureKlpsReady(userId: string, cardId: string): Promise<R
 
   await extractKlpsForCards(userId, [cardId]);
   return live();
+}
+
+/**
+ * KLPs for one card, for the set builder. Owner-checked: KLP text is derived
+ * from card content, so it must not leak across accounts.
+ */
+export async function getCardKlps(
+  cardId: string,
+): Promise<ActionResult<{ status: string; klps: ReadyKlp[] }>> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+
+  const card = await prisma.card.findFirst({
+    where: { id: cardId, set: { userId: session.user.id } },
+    select: { klpStatus: true },
+  });
+  if (!card) return { success: false, error: 'Card not found' };
+
+  const klps = await prisma.cardKlp.findMany({
+    where: { cardId, supersededAt: null },
+    orderBy: { index: 'asc' },
+    select: { id: true, index: true, text: true, weight: true, kind: true },
+  });
+
+  return { success: true, data: { status: card.klpStatus, klps } };
+}
+
+/**
+ * Corrects one KLP in place, marking it user-authored.
+ *
+ * Also stamps the card's current content hash so the next save does not treat
+ * the card as stale and re-extract over the correction.
+ */
+export async function saveCardKlp(
+  klpId: string,
+  patch: { text: string; weight: number; kind: string },
+): Promise<ActionResult<void>> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+
+  const klp = await prisma.cardKlp.findFirst({
+    where: { id: klpId, card: { set: { userId: session.user.id } } },
+    include: { card: { include: { contentBlocks: true } } },
+  });
+  if (!klp) return { success: false, error: 'Not found' };
+
+  await prisma.$transaction([
+    prisma.cardKlp.update({
+      where: { id: klpId },
+      data: { text: patch.text, weight: patch.weight, kind: patch.kind, source: 'user' },
+    }),
+    prisma.card.update({
+      where: { id: klp.cardId },
+      data: {
+        klpSourceHash: klpSourceHash({
+          term: klp.card.term,
+          definition: klp.card.definition,
+          blocks: klp.card.contentBlocks,
+        }),
+        klpStatus: 'ready',
+      },
+    }),
+  ]);
+
+  revalidatePath(`/sets/${klp.card.setId}/edit`);
+  return { success: true, data: undefined };
+}
+
+/** Re-runs extraction for one card after a failure. */
+export async function retryKlpExtraction(cardId: string): Promise<ActionResult<void>> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+
+  const card = await prisma.card.findFirst({
+    where: { id: cardId, set: { userId: session.user.id } },
+    select: { id: true },
+  });
+  if (!card) return { success: false, error: 'Card not found' };
+
+  await extractKlpsForCards(session.user.id, [cardId]);
+  return { success: true, data: undefined };
 }

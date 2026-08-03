@@ -313,6 +313,7 @@ export function SetForm({
             <CardRow
               key={index}
               index={index}
+              cardId={card.id}
               termBlocks={card.term}
               definitionBlocks={card.definition}
               categoryNames={card.categoryNames}
