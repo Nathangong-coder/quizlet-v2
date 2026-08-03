@@ -176,6 +176,40 @@ export const MAX_TAGS_PER_ANSWER = 4
 export const MAX_TAGS_PER_DIMENSION = 2
 ```
 
+### §2.1 — The mode vocabulary bridge
+
+Two vocabularies for quiz mode already exist, and **both are persisted**:
+
+| Layer | Column | Values |
+| --- | --- | --- |
+| Memory | `StudyEvent.source` | `quiz-mc`, `quiz-sa`, `quiz-tf`, `matching`, `review`, `lesson` |
+| Quiz | `QuizAnswer.mode`, `QuizQuestion.mode` | `multiple-choice`, `short-answer`, `true-false`, `matching` |
+
+This spec cannot avoid the conversion: `EVIDENCE_STRENGTH` (§3.1) is keyed by
+`StudySource`, while the answer row it reads from carries the quiz vocabulary.
+Today that translation happens inline at each call site, which is precisely the
+pattern that drifts — a fourth site converting slightly differently produces
+`EVIDENCE_STRENGTH[undefined]` and a `NaN` credit, silently.
+
+`src/lib/quiz/mode.ts`, pure:
+
+```ts
+export const QUIZ_MODES = ['multiple-choice', 'short-answer', 'true-false', 'matching'] as const
+export type QuizMode = (typeof QUIZ_MODES)[number]
+
+/** The memory layer's name for a quiz mode. */
+export function toStudySource(mode: QuizMode): StudySource
+```
+
+**Test:** the mapping is total — every `QUIZ_MODES` value resolves to a real
+`StudySource`, and no value maps to `undefined`. Same reasoning as the subset
+test below: a `String` column means the type system cannot catch a missing case,
+so a test has to.
+
+`AnswerKlpResult.mode` stores the **`StudySource`** form, matching
+`StudyEvent.source`, so Spec 3 can join analysis rows against study history
+without a translation layer.
+
 ### The subset invariant
 
 **`CORRUPTIONS` must remain a strict subset of `ACCURACY_TYPES`.** MC and TF
@@ -401,6 +435,7 @@ Pure and unit-testable without a database:
 | Module | Responsibility |
 | --- | --- |
 | `computeSignificance` | The formula, clamping, and component passthrough |
+| `toStudySource` | Totality of the quiz→memory mode mapping (§2.1) |
 | `klpCredit` | `STATUS_CREDIT × EVIDENCE_STRENGTH`; every status/mode pair |
 | `severityFromCorruption` | Corruption rank + mode guess-rate adjustment |
 | `validateTagType` | `(dimension, type)` pairing against the vocabularies |
@@ -415,6 +450,28 @@ Plus the subset-invariant test (§2), prompt-shape tests extending
 `vi.hoisted()` + `vi.mock()` pattern in `tests/actions/`.
 
 ---
+
+## Known drift risks, deliberately out of scope
+
+The same shape as §2's subset invariant — **a string that means something,
+persisted in the database, defined in more than one place**. Type checking
+cannot catch any of them, because every one is a `String` column. Recorded here
+rather than fixed, because neither is on this spec's path:
+
+- **`src/lib/memory/insight.ts:36` and `:50`** duplicate the `StudySource` list
+  inline as two literal `z.enum([...])` arrays instead of deriving from
+  `StudySource`. Adding a study mode makes both silently reject it, and
+  `SessionInsight` parsing fails at runtime on a shape the type system accepted.
+  Fix: derive from a shared `STUDY_SOURCES` const.
+- **`Card.klpStatus`** (`pending | ready | failed | skipped`) has no shared
+  constant; the literals are scattered across `src/actions/klp.ts`,
+  `src/actions/sets.ts`, `src/components/sets/KlpEditor.tsx`, and a Prisma
+  comment. A typo compiles cleanly and silently never matches.
+
+Two existing patterns are the model to copy when these are addressed:
+`AI_TASKS` (`src/lib/ai/model-routing.ts`) is a single `as const` with a derived
+type, and the credential encryption format is pinned by a golden-vector test
+(`tests/security/api-key.test.ts`).
 
 ## Open for 2b
 
