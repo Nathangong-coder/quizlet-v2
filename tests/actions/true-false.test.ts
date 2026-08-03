@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({
   attemptFindFirst: vi.fn(),
   questionFindUnique: vi.fn(),
   questionUpsert: vi.fn(),
-  cardFindUnique: vi.fn(),
+  cardFindFirst: vi.fn(),
   pickTfVariant: vi.fn(),
 }))
 
@@ -19,7 +19,7 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     quizAttempt: { findFirst: h.attemptFindFirst },
     quizQuestion: { findUnique: h.questionFindUnique, upsert: h.questionUpsert },
-    card: { findUnique: h.cardFindUnique },
+    card: { findFirst: h.cardFindFirst },
   },
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
@@ -59,10 +59,10 @@ const klps = [
 beforeEach(() => {
   vi.clearAllMocks()
   h.auth.mockResolvedValue({ user: { id: OWNER } })
-  h.attemptFindFirst.mockResolvedValue({ id: ATTEMPT_ID })
+  h.attemptFindFirst.mockResolvedValue({ id: ATTEMPT_ID, selectedCardIds: [CARD_ID] })
   h.questionFindUnique.mockResolvedValue(null)
   h.questionUpsert.mockResolvedValue({})
-  h.cardFindUnique.mockResolvedValue(card)
+  h.cardFindFirst.mockResolvedValue(card)
   h.ensureKlpsReady.mockResolvedValue(klps)
   h.pickTfVariant.mockReturnValue('true')
 })
@@ -157,6 +157,34 @@ describe('getTrueFalseQuestion', () => {
     const payload = h.questionUpsert.mock.calls[0][0]
     expect(payload.create.isTrue).toBe(true)
     expect(payload.create.statement).toBe(DEFINITION)
+  })
+
+  it("rejects a card the user does not own and triggers no KLP extraction", async () => {
+    h.cardFindFirst.mockResolvedValue(null)
+
+    const result = await getTrueFalseQuestion(ATTEMPT_ID, CARD_ID)
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('expected failure')
+    expect(result.error).toBe('Card not found')
+    expect(h.cardFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: CARD_ID, set: { userId: OWNER } } }),
+    )
+    expect(h.ensureKlpsReady).not.toHaveBeenCalled()
+    expect(h.questionUpsert).not.toHaveBeenCalled()
+  })
+
+  it('rejects a card that is not part of this attempt', async () => {
+    h.attemptFindFirst.mockResolvedValue({ id: ATTEMPT_ID, selectedCardIds: ['some-other-card'] })
+
+    const result = await getTrueFalseQuestion(ATTEMPT_ID, CARD_ID)
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('expected failure')
+    expect(result.error).toBe('Card not found')
+    expect(h.cardFindFirst).not.toHaveBeenCalled()
+    expect(h.ensureKlpsReady).not.toHaveBeenCalled()
+    expect(h.questionUpsert).not.toHaveBeenCalled()
   })
 
   it("rejects another user's attempt and writes no question row", async () => {

@@ -38,6 +38,14 @@ export interface ReadyKlp {
 /**
  * Extracts KLPs for the given cards, in batches.
  *
+ * OWNER-SCOPED. `userId` is not just the credential pool to bill — it is the
+ * authorization boundary. Callers reach this with a client-supplied cardId
+ * (`ensureKlpsReady` from the quiz actions), so an unscoped `findMany` here
+ * let an authenticated user read another account's card content AND write to
+ * their data: `writeKlpVersion` supersedes the victim's live CardKlp rows and
+ * mutates Card.klpStatus/klpVersion/klpSourceHash. Cards that don't belong to
+ * `userId` are simply not returned by the query, so they are never extracted.
+ *
  * NEVER THROWS. It runs inside `after()` on the set-save path, where an
  * exception would surface as an unhandled rejection long after the user's
  * response went out. Every failure is recorded on the card instead.
@@ -48,13 +56,14 @@ export async function extractKlpsForCards(userId: string, cardIds: string[]): Pr
   let cards: BatchCard[];
   try {
     cards = await prisma.card.findMany({
-      where: { id: { in: cardIds } },
+      where: { id: { in: cardIds }, set: { userId } },
       include: { contentBlocks: true, set: { select: { title: true } } },
     });
   } catch (err) {
     // Can't even load the cards (e.g. DB unreachable) — nothing to batch, but
-    // still must not throw. Best-effort mark the requested ids failed.
-    await markFailed(cardIds, err);
+    // still must not throw. Best-effort mark the requested ids failed, owner-
+    // scoped: `cardIds` is caller-supplied and unverified on this path.
+    await markFailed(cardIds, err, 'failed', userId);
     return;
   }
 
@@ -80,10 +89,15 @@ export async function extractKlpsForCards(userId: string, cardIds: string[]): Pr
  * even this fails (e.g. the DB just went down), there is nothing further
  * this function can do, and it must still not throw.
  */
-async function markFailed(ids: string[], err: unknown, status: 'failed' | 'skipped' = 'failed') {
+async function markFailed(
+  ids: string[],
+  err: unknown,
+  status: 'failed' | 'skipped' = 'failed',
+  userId?: string,
+) {
   try {
     await prisma.card.updateMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, ...(userId ? { set: { userId } } : {}) },
       data: {
         klpStatus: status,
         klpError: err instanceof Error ? err.message.slice(0, 500) : 'Unknown error',

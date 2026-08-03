@@ -98,6 +98,16 @@ export async function getOrGenerateMultipleChoiceOptions(
     // `null` means no usable credential; `generateJson` below will fail with
     // the same `no_credentials` error, so we skip the cache read/write and
     // let that happen rather than caching under a null key.
+    // Owner check FIRST, before the cache read. `cardId` is client-supplied;
+    // an unscoped load let any authenticated user read another account's card
+    // and — via ensureKlpsReady -> extractKlpsForCards — write to their KLP
+    // rows. The check must precede the cache short-circuit, or a foreign card
+    // with a warm cache still leaks its options.
+    const card = await prisma.card.findFirst({
+      where: { id: cardId, set: { userId: session.user.id } },
+    });
+    if (!card) return { success: false, error: 'Card not found' };
+
     const model = await resolveTaskModel(session.user.id, 'distractors');
 
     if (model) {
@@ -124,9 +134,6 @@ export async function getOrGenerateMultipleChoiceOptions(
         };
       }
     }
-
-    const card = await prisma.card.findUnique({ where: { id: cardId } });
-    if (!card) return { success: false, error: 'Card not found' };
 
     const set = await prisma.set.findUnique({
       where: { id: card.setId },
@@ -336,12 +343,16 @@ export async function submitMultipleChoiceAnswer(input: {
       where: { id: input.attemptId, userId: session.user.id },
       select: { sessionId: true },
     });
+    // The owner-scoped lookup above was previously never checked: a foreign
+    // attemptId still fell through and deleted/inserted rows on that attempt.
+    if (!attempt) return { success: false, error: 'Attempt not found' };
 
     // Replace only this card's answer *in this mode* (a card may also be
     // tested in another mode within the same attempt — keep those intact).
     await prisma.quizAnswer.deleteMany({
       where: {
         attemptId: input.attemptId,
+        userId: session.user.id,
         cardId: input.cardId,
         mode: 'multiple-choice',
       },
@@ -424,6 +435,27 @@ export async function submitTrueFalseAnswer(input: {
       where: { id: input.attemptId, userId: session.user.id },
       select: { sessionId: true },
     });
+    // See submitMultipleChoiceAnswer: the result of this owner-scoped lookup
+    // was previously discarded, so a foreign attemptId could delete another
+    // user's answers, insert into their attempt, and overwrite their score.
+    if (!attempt) return { success: false, error: 'Attempt not found' };
+
+    // One-shot: true/false returns `isCorrect`, so allowing a re-submit turned
+    // any wrong answer into a right one on the next round-trip (delete + create
+    // + score recompute). `commitAll` in TrueFalseQuiz.tsx submits once, so
+    // rejecting a second submission matches the UI's real semantics.
+    const alreadyAnswered = await prisma.quizAnswer.findFirst({
+      where: {
+        attemptId: input.attemptId,
+        userId: session.user.id,
+        cardId: input.cardId,
+        mode: 'true-false',
+      },
+      select: { id: true },
+    });
+    if (alreadyAnswered) {
+      return { success: false, error: 'This question has already been answered.' };
+    }
 
     const question = await prisma.quizQuestion.findUnique({
       where: {
@@ -445,10 +477,12 @@ export async function submitTrueFalseAnswer(input: {
         : null;
     const score = isCorrect === null ? null : isCorrect ? 100 : 0;
 
-    // Replace only this card's answer *in this mode* (see MC note above).
+    // Unreachable given the one-shot guard above, but kept (and owner-scoped)
+    // as a belt-and-braces idempotency guard against a partial prior write.
     await prisma.quizAnswer.deleteMany({
       where: {
         attemptId: input.attemptId,
+        userId: session.user.id,
         cardId: input.cardId,
         mode: 'true-false',
       },
@@ -511,8 +545,11 @@ export async function submitTrueFalseAnswer(input: {
     const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
     const newScore = overallQuizScore(allAnswers);
     if (newScore !== null) {
-      await prisma.quizAttempt.update({
-        where: { id: input.attemptId },
+      // `updateMany` scoped by userId, not `update` by id: the score write can
+      // then never touch a foreign attempt row even if the guard above is
+      // later removed or refactored away.
+      await prisma.quizAttempt.updateMany({
+        where: { id: input.attemptId, userId: session.user.id },
         data: { score: Math.round(newScore) },
       });
     }
@@ -537,12 +574,20 @@ export async function submitShortAnswer(input: {
       where: { id: input.attemptId, userId: session.user.id },
       select: { sessionId: true },
     });
+    // See submitMultipleChoiceAnswer: this owner-scoped lookup's result was
+    // previously discarded, leaving a foreign attemptId fully writable.
+    if (!attempt) return { success: false, error: 'Attempt not found' };
 
     // Idempotent, but scoped to this mode so a card also tested in another
     // section keeps that section's answer. A re-submit replaces the prior
     // short-answer row instead of creating a second graded one.
     await prisma.quizAnswer.deleteMany({
-      where: { attemptId: input.attemptId, cardId: input.cardId, mode: 'short-answer' },
+      where: {
+        attemptId: input.attemptId,
+        userId: session.user.id,
+        cardId: input.cardId,
+        mode: 'short-answer',
+      },
     });
 
     const card = await prisma.card.findUnique({
@@ -836,9 +881,21 @@ export async function getTrueFalseQuestion(
   try {
     const attempt = await prisma.quizAttempt.findFirst({
       where: { id: attemptId, userId: session.user.id },
-      select: { id: true },
+      select: { id: true, selectedCardIds: true },
     });
     if (!attempt) return { success: false, error: 'Attempt not found' };
+
+    // Defence in depth: the card must be one this attempt actually selected,
+    // so a foreign-but-owned card cannot be injected into an attempt and get a
+    // QuizQuestion row written against it. A non-array `selectedCardIds`
+    // (legacy attempts predating the column) imposes no restriction — the
+    // owner check below is still the hard boundary.
+    if (
+      Array.isArray(attempt.selectedCardIds) &&
+      !(attempt.selectedCardIds as unknown[]).includes(cardId)
+    ) {
+      return { success: false, error: 'Card not found' };
+    }
 
     // Already generated: return the same statement. Re-flipping on a revisit
     // would change the question under the user mid-attempt.
@@ -847,7 +904,11 @@ export async function getTrueFalseQuestion(
     });
     if (existing?.statement) return { success: true, data: { statement: existing.statement } };
 
-    const card = await prisma.card.findUnique({ where: { id: cardId } });
+    // Owner-scoped: `cardId` is client-supplied and this path writes (via
+    // ensureKlpsReady -> extractKlpsForCards) to the card's KLP rows.
+    const card = await prisma.card.findFirst({
+      where: { id: cardId, set: { userId: session.user.id } },
+    });
     if (!card) return { success: false, error: 'Card not found' };
 
     const klps = await ensureKlpsReady(session.user.id, cardId);

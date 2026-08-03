@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   cacheFindUnique: vi.fn(),
   cacheUpsert: vi.fn(),
   cardFindUnique: vi.fn(),
+  cardFindFirst: vi.fn(),
   setFindUnique: vi.fn(),
   questionUpsert: vi.fn(),
 }))
@@ -19,9 +20,9 @@ vi.mock('@/auth', () => ({ auth: h.auth }))
 vi.mock('@/lib/db', () => ({
   prisma: {
     quizOptionCache: { findUnique: h.cacheFindUnique, upsert: h.cacheUpsert },
-    // Backs both the main card lookup and recordQuizQuestion's klpVersion
-    // read — same mock, since both go through prisma.card.findUnique.
-    card: { findUnique: h.cardFindUnique },
+    // `findFirst` is the owner-scoped main card lookup; `findUnique` backs
+    // recordQuizQuestion's klpVersion read.
+    card: { findUnique: h.cardFindUnique, findFirst: h.cardFindFirst },
     set: { findUnique: h.setFindUnique },
     quizQuestion: { upsert: h.questionUpsert },
   },
@@ -65,6 +66,7 @@ beforeEach(() => {
   h.resolveTaskModel.mockResolvedValue(MODEL)
   h.safeProfileBlock.mockResolvedValue(undefined)
   h.cardFindUnique.mockResolvedValue(card)
+  h.cardFindFirst.mockResolvedValue(card)
   h.setFindUnique.mockResolvedValue(set)
   h.cacheFindUnique.mockResolvedValue(null)
   h.cacheUpsert.mockResolvedValue({})
@@ -204,6 +206,31 @@ describe('getOrGenerateMultipleChoiceOptions', () => {
 
     if (!result.success) throw new Error(result.error)
     expect(result.data.options).toEqual([CORRECT, 'Wrong A', 'Wrong B', 'Wrong C'])
+  })
+
+  it("rejects a card the user does not own, before the cache read and any KLP write", async () => {
+    // The owner-scoped findFirst finds nothing. Even a warm cache must not
+    // short-circuit past this: the check runs first.
+    h.cardFindFirst.mockResolvedValue(null)
+    h.cacheFindUnique.mockResolvedValue({
+      options: { options: ['a', 'b', 'c', 'd'], correctAnswer: 'a' },
+    })
+
+    const result = await getOrGenerateMultipleChoiceOptions('card-not-mine', 'attempt1')
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('expected failure')
+    expect(result.error).toBe('Card not found')
+    expect(h.cardFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'card-not-mine', set: { userId: OWNER } },
+      }),
+    )
+    // No KLP extraction, no generation, no cache write, no question row.
+    expect(h.ensureKlpsReady).not.toHaveBeenCalled()
+    expect(h.generateJson).not.toHaveBeenCalled()
+    expect(h.cacheUpsert).not.toHaveBeenCalled()
+    expect(h.questionUpsert).not.toHaveBeenCalled()
   })
 
   it('recordQuizQuestion failing does not fail the question', async () => {

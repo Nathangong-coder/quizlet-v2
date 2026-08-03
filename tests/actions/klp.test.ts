@@ -282,6 +282,24 @@ describe('extractKlpsForCards', () => {
     )
   })
 
+  it("scopes the card load by owner, so a foreign card id extracts nothing", async () => {
+    // The owner-scoped findMany returns nothing for a card belonging to
+    // someone else, so no generation and no CardKlp write happens.
+    h.findMany.mockResolvedValue([])
+
+    await extractKlpsForCards('u1', ['card-not-mine'])
+
+    expect(h.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ['card-not-mine'] }, set: { userId: 'u1' } },
+      }),
+    )
+    expect(h.generateJson).not.toHaveBeenCalled()
+    expect(h.createMany).not.toHaveBeenCalled()
+    expect(h.klpUpdateMany).not.toHaveBeenCalled()
+    expect(h.update).not.toHaveBeenCalled()
+  })
+
   it('does nothing when given no card ids', async () => {
     await extractKlpsForCards('u1', [])
     expect(h.generateJson).not.toHaveBeenCalled()

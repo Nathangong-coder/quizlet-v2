@@ -8,20 +8,26 @@ const h = vi.hoisted(() => ({
   generateJson: vi.fn(),
   recordStudyEvent: vi.fn(),
   attemptFindFirst: vi.fn(),
-  attemptUpdate: vi.fn(),
+  attemptUpdateMany: vi.fn(),
   questionFindUnique: vi.fn(),
   answerDeleteMany: vi.fn(),
   answerCreate: vi.fn(),
   answerFindMany: vi.fn(),
+  answerFindFirst: vi.fn(),
   cardFindUnique: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
 vi.mock('@/lib/db', () => ({
   prisma: {
-    quizAttempt: { findFirst: h.attemptFindFirst, update: h.attemptUpdate },
+    quizAttempt: { findFirst: h.attemptFindFirst, updateMany: h.attemptUpdateMany },
     quizQuestion: { findUnique: h.questionFindUnique },
-    quizAnswer: { deleteMany: h.answerDeleteMany, create: h.answerCreate, findMany: h.answerFindMany },
+    quizAnswer: {
+      deleteMany: h.answerDeleteMany,
+      create: h.answerCreate,
+      findMany: h.answerFindMany,
+      findFirst: h.answerFindFirst,
+    },
     card: { findUnique: h.cardFindUnique },
   },
 }))
@@ -66,7 +72,8 @@ beforeEach(() => {
   h.generateJson.mockRejectedValue(new Error('no credentials'))
   h.answerCreate.mockImplementation(async ({ data }: any) => ({ id: 'answer1', ...data }))
   h.answerFindMany.mockResolvedValue([])
-  h.attemptUpdate.mockResolvedValue({})
+  h.answerFindFirst.mockResolvedValue(null)
+  h.attemptUpdateMany.mockResolvedValue({})
   h.recordStudyEvent.mockResolvedValue({ confidence: 6, mastery: 0.5, dueAt: new Date() })
 })
 
@@ -187,6 +194,60 @@ describe('submitTrueFalseAnswer', () => {
     expect(payload.correctAnswer).toBe('true')
 
     expect(h.recordStudyEvent).not.toHaveBeenCalled()
+  })
+
+  it("rejects another user's attempt without touching any answer row", async () => {
+    h.attemptFindFirst.mockResolvedValue(null)
+
+    const result = await submitTrueFalseAnswer({
+      attemptId: 'attempt-not-mine',
+      cardId: CARD_ID,
+      selectedOption: 'true',
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('expected failure')
+    expect(result.error).toBe('Attempt not found')
+    expect(h.answerDeleteMany).not.toHaveBeenCalled()
+    expect(h.answerCreate).not.toHaveBeenCalled()
+    expect(h.attemptUpdateMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects a second submission for the same card and leaves the stored answer alone', async () => {
+    h.questionFindUnique.mockResolvedValue({
+      statement: 'EBITDA includes interest expense.',
+      isTrue: false,
+    })
+    h.answerFindFirst.mockResolvedValue({ id: 'existing-answer' })
+
+    const result = await submitTrueFalseAnswer({
+      attemptId: ATTEMPT_ID,
+      cardId: CARD_ID,
+      selectedOption: 'false',
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('expected failure')
+    expect(result.error).toBe('This question has already been answered.')
+    expect(h.answerDeleteMany).not.toHaveBeenCalled()
+    expect(h.answerCreate).not.toHaveBeenCalled()
+    expect(h.attemptUpdateMany).not.toHaveBeenCalled()
+    expect(h.recordStudyEvent).not.toHaveBeenCalled()
+  })
+
+  it('scopes the score write to this user with updateMany', async () => {
+    h.questionFindUnique.mockResolvedValue({ statement: 'x', isTrue: true })
+    h.answerFindMany.mockResolvedValue([{ score: 100, mode: 'true-false', isCorrect: true }])
+
+    await submitTrueFalseAnswer({
+      attemptId: ATTEMPT_ID,
+      cardId: CARD_ID,
+      selectedOption: 'true',
+    })
+
+    expect(h.attemptUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: ATTEMPT_ID, userId: OWNER } }),
+    )
   })
 
   it('with a question row present, recordStudyEvent is called with the correct outcome', async () => {
