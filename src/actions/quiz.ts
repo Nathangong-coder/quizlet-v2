@@ -415,18 +415,35 @@ export async function submitTrueFalseAnswer(input: {
   cardId: string;
   selectedOption: string;
   latencyMs?: number;
-}): Promise<ActionResult<{ isCorrect: boolean; score: number; feedback?: string }>> {
+}): Promise<ActionResult<{ isCorrect: boolean | null; score: number | null; feedback?: string }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
-
-  const isCorrect = input.selectedOption === 'true';
-  const score = isCorrect ? 100 : 0;
 
   try {
     const attempt = await prisma.quizAttempt.findFirst({
       where: { id: input.attemptId, userId: session.user.id },
       select: { sessionId: true },
     });
+
+    const question = await prisma.quizQuestion.findUnique({
+      where: {
+        attemptId_cardId_mode: {
+          attemptId: input.attemptId,
+          cardId: input.cardId,
+          mode: 'true-false',
+        },
+      },
+    });
+
+    // No question row means this answer predates Task 10, or generation never
+    // ran. There is no answer key, so the answer is recorded UNSCORED rather
+    // than graded against an assumption. The old code assumed "true" and marked
+    // every such answer correct, feeding free correctness into study memory.
+    const isCorrect =
+      question && question.isTrue !== null
+        ? (input.selectedOption === 'true') === question.isTrue
+        : null;
+    const score = isCorrect === null ? null : isCorrect ? 100 : 0;
 
     // Replace only this card's answer *in this mode* (see MC note above).
     await prisma.quizAnswer.deleteMany({
@@ -437,11 +454,15 @@ export async function submitTrueFalseAnswer(input: {
       },
     });
 
-    let feedback = isCorrect ? 'Correct!' : 'Incorrect.';
+    let feedback = isCorrect === null ? 'Unscored.' : isCorrect ? 'Correct!' : 'Incorrect.';
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     if (card) {
       try {
-        const prompt = MC_FEEDBACK_PROMPT.build({ card, selected: input.selectedOption, correct: 'true' });
+        const prompt = MC_FEEDBACK_PROMPT.build({
+          card,
+          selected: input.selectedOption,
+          correct: question?.isTrue === false ? 'false' : 'true',
+        });
         const aiResult = await generateJson({
           userId: session.user.id,
           task: 'distractors',
@@ -462,8 +483,8 @@ export async function submitTrueFalseAnswer(input: {
         userId: session.user.id,
         cardId: input.cardId,
         mode: 'true-false',
-        prompt: 'True/False',
-        correctAnswer: 'true',
+        prompt: question?.statement ?? 'True/False',
+        correctAnswer: question?.isTrue === false ? 'false' : 'true',
         selectedOption: input.selectedOption,
         isCorrect,
         score,
@@ -472,17 +493,19 @@ export async function submitTrueFalseAnswer(input: {
       },
     });
 
-    try {
-      await recordStudyEvent({
-        userId: session.user.id,
-        cardId: input.cardId,
-        source: 'quiz-tf',
-        sessionId: attempt?.sessionId ?? undefined,
-        outcome: { correct: isCorrect },
-        meta: { latencyMs: input.latencyMs },
-      });
-    } catch (memErr) {
-      console.error('recordStudyEvent failed for quiz-tf:', memErr);
+    if (isCorrect !== null) {
+      try {
+        await recordStudyEvent({
+          userId: session.user.id,
+          cardId: input.cardId,
+          source: 'quiz-tf',
+          sessionId: attempt?.sessionId ?? undefined,
+          outcome: { correct: isCorrect },
+          meta: { latencyMs: input.latencyMs },
+        });
+      } catch (memErr) {
+        console.error('recordStudyEvent failed for quiz-tf:', memErr);
+      }
     }
 
     const allAnswers = await prisma.quizAnswer.findMany({ where: { attemptId: input.attemptId } });
