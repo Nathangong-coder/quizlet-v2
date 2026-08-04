@@ -54,7 +54,7 @@
 
 **Why a pure function:** every decision — what counts toward `analyzedCount`, how ties break, how many `struggledKlps` to keep — is arithmetic over already-fetched data. Isolating it means the aggregation is tested without touching Prisma or React, matching the precedent `buildAnalysisWrites` set in Spec 2a.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/analysis/rollup.test.ts`:
 
@@ -75,14 +75,14 @@ function answer(overrides: Partial<Parameters<typeof rollupSessionAnalysis>[0][n
 }
 
 describe('rollupSessionAnalysis', () => {
-  it('counts every answer toward totalCount, only analyzed ones toward analyzedCount', () => {
+  it('counts every non-legacy answer toward totalCount, only analyzed ones toward analyzedCount', () => {
     const r = rollupSessionAnalysis([
       answer({ analysisStatus: 'analyzed' }),
       answer({ analysisStatus: 'no_provenance' }),
       answer({ analysisStatus: 'no_klps' }),
-      answer({ analysisStatus: null as any }), // legacy, pre-Spec-2a
+      answer({ analysisStatus: null as any }), // legacy, pre-Spec-2a — excluded, see next test
     ])
-    expect(r.totalCount).toBe(4)
+    expect(r.totalCount).toBe(3)
     expect(r.analyzedCount).toBe(1)
   })
 
@@ -165,12 +165,12 @@ describe('rollupSessionAnalysis', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/analysis/rollup.test.ts`
 Expected: FAIL — cannot resolve `@/lib/analysis/rollup`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `src/lib/analysis/rollup.ts`:
 
@@ -276,12 +276,12 @@ export function rollupSessionAnalysis(answers: RollupAnswer[]): SessionRollup {
 
 Note: `struggledKlps` in the test fixtures above omits `text` — the pure function only knows ids. §Task 4 below joins `text` back in the component from the same `klpResults`/`errorTags` the caller already has, since the rollup function has no reason to carry display strings.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/analysis/rollup.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/analysis/rollup.ts tests/analysis/rollup.test.ts
