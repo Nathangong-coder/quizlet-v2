@@ -406,7 +406,7 @@ git commit -m "feat(errors): add human-readable labels for error types and KLP s
 - Consumes: nothing new
 - Produces: `attempt.answers[].klpResults`, `attempt.answers[].errorTags`, each with their `klp`/`secondaryKlp` text joined in
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/actions/quiz-summary-analysis.test.ts` following the `vi.hoisted()` + `vi.mock()` pattern in `tests/actions/analysis-mc-tf.test.ts` (mock `@/auth`, `@/lib/db`):
 
@@ -479,12 +479,12 @@ describe('getQuizAttemptSummary — analysis include', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/actions/quiz-summary-analysis.test.ts`
 Expected: FAIL — `includeArg` has no `klpResults`/`errorTags` keys.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `src/actions/quiz.ts`, extend `getQuizAttemptSummary`'s `answers.include`:
 
@@ -507,17 +507,17 @@ answers: {
 
 No other change to the function — the rest of `getQuizAttemptSummary` (MC option cache resolution, insight parsing) is untouched.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/actions/quiz-summary-analysis.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Verify no regression**
+- [x] **Step 5: Verify no regression**
 
 Run: `npm test && npx tsc --noEmit`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/actions/quiz.ts tests/actions/quiz-summary-analysis.test.ts

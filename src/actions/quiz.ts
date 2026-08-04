@@ -1076,6 +1076,15 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
         answers: {
           include: {
             card: { include: { contentBlocks: { orderBy: { position: 'asc' } } } },
+            klpResults: {
+              include: { klp: { select: { text: true, kind: true } } },
+            },
+            errorTags: {
+              include: {
+                klp: { select: { text: true, kind: true } },
+                secondaryKlp: { select: { text: true, kind: true } },
+              },
+            },
           },
         },
       },
