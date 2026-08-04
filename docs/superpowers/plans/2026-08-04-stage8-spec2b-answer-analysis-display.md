@@ -302,7 +302,7 @@ git commit -m "feat(analysis): add the pure same-session analysis rollup"
 
 **Why:** `factual_error` and `unsupported_leap` are good persisted identifiers and bad UI copy. One lookup table avoids the humanization logic (or worse, ad-hoc string replaces) getting duplicated per call site — same reasoning as `taxonomy.ts` itself.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/errors/labels.test.ts`:
 
@@ -338,12 +338,12 @@ describe('labelForKlpStatus', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/errors/labels.test.ts`
 Expected: FAIL — cannot resolve `@/lib/errors/labels`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `src/lib/errors/labels.ts`:
 
@@ -382,12 +382,12 @@ export function labelForKlpStatus(status: KlpStatus): string {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/errors/labels.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/errors/labels.ts tests/errors/labels.test.ts
