@@ -120,9 +120,15 @@ makes fewer mistakes than they do, with no signal that anything was skipped.
 | Value | Meaning |
 | --- | --- |
 | `analyzed` | Tags are complete. Zero tags means a genuinely clean answer. |
-| `no_provenance` | A v1 option-cache row; the wrong pick cannot be attributed to a KLP. |
+| `no_provenance` | The pick (or credit, for a correct answer) cannot be attributed to a KLP — a v1 option-cache row, a stale klp id after a mid-attempt card edit, or a TF answer with no `QuizQuestion` row (no answer key at all) to check against. |
 | `no_klps` | The card had no live KLPs at answer time. |
 | `failed` | Grading or tag extraction errored. |
+
+**`no_provenance` is a missing-data verdict, not a "nothing happened" verdict.**
+It must never be confused with a deliberate zero-row answer (§5) — an
+unscored TF answer counted as `analyzed` would silently inflate Spec 3's
+"analyzed and clean" denominator with an answer that was never actually
+evaluated.
 
 This is also the retrofit path: every `no_klps` row can be found later and
 re-analyzed once that card has been extracted. A dropped tag with no marker is
@@ -512,6 +518,9 @@ each retry.
 | Card has no KLPs | Today's three-dimension rubric; no KLP results or tags | `no_klps` |
 | No AI credential | Unchanged from today — grading fails as it already does | `failed` |
 | v1 option cache (no provenance) | Correctness recorded, no tag written | `no_provenance` |
+| TF/MC, no `QuizQuestion` row (predates generation, or generation never ran) | Correctness recorded (or left unscored for TF), no claim written | `no_provenance` |
+| Correct answer whose `targetKlpIds` no longer resolve against the live KLP set (mid-attempt card edit superseded them) | Correctness recorded, nothing credited | `no_provenance` |
+| TF, learner rejected the real (uncorrupted) statement | No KLP result written — second-guessing, not a knowledge gap (§3, "Why 'answered false to the real definition' writes nothing") | `analyzed` |
 | TF question with no `corruption` | Target recorded from `targetKlpIds`, no type | `analyzed` |
 | Model returns an unknown `type` | That tag dropped; the rest of the answer persists | `analyzed` |
 | Model returns an out-of-range `klpRef` | That tag dropped rather than targeting nothing | `analyzed` |

@@ -65,6 +65,18 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 /**
+ * Why a binary-mode answer's drafts came up empty (or, for a correct answer,
+ * whether crediting actually resolved anything). Distinguishes two different
+ * reasons for zero rows that must NOT be conflated into one `analyzed`
+ * bucket: an answer that legitimately has nothing to attribute BY DESIGN
+ * (`deliberate_none`) versus one where attribution was attempted and failed
+ * for a data reason (`unattributable`) — a legacy v1 cache row, a v2
+ * distractor missing provenance, or a `sourceKlpId`/target that no longer
+ * resolves after a mid-attempt card edit superseded the live KLP set.
+ */
+type Attribution = 'attributed' | 'deliberate_none' | 'unattributable';
+
+/**
  * Analysis drafts for a binary-mode answer, with NO AI call.
  *
  * Everything needed is already on the QuizQuestion row: the generator recorded
@@ -83,28 +95,49 @@ function binaryModeDrafts(input: {
   /** The KLP the chosen wrong answer corrupts, when known. */
   failedKlpId: string | null;
   corruption: Corruption | null;
-}): { klpResults: KlpResultDraft[]; errorTags: ErrorTagDraft[] } {
+  /**
+   * True when the caller already knows there is nothing to attribute BY
+   * DESIGN, not because attribution failed — TF where the learner rejected
+   * the real (uncorrupted) statement. Rejecting a true statement is
+   * second-guessing, not a knowledge gap, so it is a clean `deliberate_none`
+   * (zero rows, but nothing went wrong — maps to `analysisStatus: 'analyzed'`).
+   * Do NOT set this for an unscored answer (no `QuizQuestion` row / no answer
+   * key) — that IS a missing-data case and must fall through to
+   * `unattributable` (-> `no_provenance`), the same as a v1 MC cache row, or
+   * Spec 3's denominator would count an unevaluated answer as "analyzed and
+   * clean". Ignored when `isCorrect` is true.
+   */
+  deliberateEmpty?: boolean;
+}): { klpResults: KlpResultDraft[]; errorTags: ErrorTagDraft[]; attribution: Attribution } {
   const refOf = (id: string) => input.klps.findIndex((k) => k.id === id);
 
   if (input.isCorrect) {
-    return {
-      klpResults: input.targetKlpIds
-        .map(refOf)
-        .filter((ref) => ref >= 0)
-        .map((klpRef) => ({ klpRef, status: 'passed' as const })),
-      errorTags: [],
-    };
+    const klpResults = input.targetKlpIds
+      .map(refOf)
+      .filter((ref) => ref >= 0)
+      .map((klpRef) => ({ klpRef, status: 'passed' as const }));
+    // A correct answer whose targets resolve to nothing is the SAME failure
+    // as a wrong pick with no provenance, just wearing a different hat — most
+    // often the mid-attempt-edit case, where every id the question was
+    // generated against has since been superseded.
+    return { klpResults, errorTags: [], attribution: klpResults.length > 0 ? 'attributed' : 'unattributable' };
   }
 
-  // Wrong, but nothing tells us WHICH proposition failed: a v1 cache row, or
-  // a TF question where the learner rejected a true statement. Record no
+  if (input.deliberateEmpty) {
+    return { klpResults: [], errorTags: [], attribution: 'deliberate_none' };
+  }
+
+  // Wrong, and nothing tells us WHICH proposition failed: no QuizQuestion
+  // row, a v1 cache row, or a v2 distractor missing provenance. Record no
   // claim rather than an invented one.
   if (!input.failedKlpId || !input.corruption) {
-    return { klpResults: [], errorTags: [] };
+    return { klpResults: [], errorTags: [], attribution: 'unattributable' };
   }
 
   const klpRef = refOf(input.failedKlpId);
-  if (klpRef < 0) return { klpResults: [], errorTags: [] };
+  // The id was real at generation time but no longer resolves against the
+  // CURRENT live KLP set — a mid-attempt card edit superseded it.
+  if (klpRef < 0) return { klpResults: [], errorTags: [], attribution: 'unattributable' };
 
   return {
     klpResults: [{ klpRef, status: 'failed' }],
@@ -116,6 +149,7 @@ function binaryModeDrafts(input: {
         severity: severityFromCorruption(input.corruption, input.mode),
       },
     ],
+    attribution: 'attributed',
   };
 }
 
@@ -478,15 +512,18 @@ export async function submitMultipleChoiceAnswer(input: {
       corruption: provenance?.corruption ?? null,
     });
 
-    // A wrong pick we cannot attribute is `no_provenance`, NOT a clean answer.
+    // A pick we could not attribute (no provenance, or a stale klp id) is
+    // `no_provenance`, NOT a clean answer — `binaryModeDrafts` already tells
+    // us which case we're in via `attribution`.
     const forcedStatus =
-      !isCorrect && !provenance && parsed?.version === 1 ? ('no_provenance' as const) : undefined;
+      drafts.attribution === 'unattributable' ? ('no_provenance' as const) : undefined;
 
     const writes = buildAnalysisWrites({
       mode,
       klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
       starred: progress?.starred ?? false,
-      ...drafts,
+      klpResults: drafts.klpResults,
+      errorTags: drafts.errorTags,
       forcedStatus,
     });
 
@@ -650,13 +687,26 @@ export async function submitTrueFalseAnswer(input: {
       targetKlpIds: (question?.targetKlpIds as string[] | null) ?? [],
       failedKlpId,
       corruption: (question?.corruption as Corruption | null) ?? null,
+      // Only the "rejected the true statement" case is deliberate. An
+      // unscored answer (isCorrect === null, no question row) is missing
+      // data, not a by-design non-finding — it must fall through to
+      // `unattributable` on its own via the null failedKlpId/corruption
+      // below, not be forced here.
+      deliberateEmpty: rejectedTruth,
     });
+
+    // A wrong pick we could not attribute (no question row, or a stale klp
+    // id) is `no_provenance`, NOT a clean `analyzed` answer.
+    const forcedStatus =
+      drafts.attribution === 'unattributable' ? ('no_provenance' as const) : undefined;
 
     const writes = buildAnalysisWrites({
       mode,
       klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
       starred: progress?.starred ?? false,
-      ...drafts,
+      klpResults: drafts.klpResults,
+      errorTags: drafts.errorTags,
+      forcedStatus,
     });
 
     const answer = await createAnswerWithAnalysis(

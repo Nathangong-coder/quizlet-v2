@@ -294,6 +294,11 @@ describe('submitTrueFalseAnswer analysis capture', () => {
 
     expect(h.klpResultCreateMany).not.toHaveBeenCalled()
     expect(h.errorTagCreateMany).not.toHaveBeenCalled()
+
+    // Rejecting a true statement is second-guessing, not a knowledge gap —
+    // a clean, fully-analyzed row with nothing to blame, NOT `no_provenance`
+    // (which means the row couldn't be read at all).
+    expect(h.answerCreate.mock.calls[0][0].data.analysisStatus).toBe('analyzed')
   })
 
   it('an unscored TF answer (no QuizQuestion row) writes no analysis', async () => {
@@ -312,5 +317,10 @@ describe('submitTrueFalseAnswer analysis capture', () => {
     expect(h.klpResultCreateMany).not.toHaveBeenCalled()
     expect(h.errorTagCreateMany).not.toHaveBeenCalled()
     expect(h.generateJson).not.toHaveBeenCalled()
+
+    // Missing data (no answer key at all), not a by-design non-finding — must
+    // NOT be recorded as a clean `analyzed` row, or Spec 3's rate
+    // calculations would silently count an unevaluated answer as evaluated.
+    expect(h.answerCreate.mock.calls[0][0].data.analysisStatus).toBe('no_provenance')
   })
 })
