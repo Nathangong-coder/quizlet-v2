@@ -13,6 +13,7 @@ import { PROMPT_REGISTRY } from '@/lib/ai/prompts/registry'
 import { summarizeSession } from '@/lib/memory/summarize'
 import { MAX_FOCUS_AREAS } from '@/lib/memory/insight'
 import { KLP_KINDS } from '@/lib/ai/schemas'
+import { ACCURACY_TYPES, CLARITY_TYPES, CONCISENESS_TYPES } from '@/lib/errors/taxonomy'
 
 function makeCard(overrides: Partial<Card> = {}): Card {
   return {
@@ -86,6 +87,51 @@ describe('GRADE_SHORT_ANSWER_PROMPT', () => {
       expect(p).toContain('"correctness"')
       expect(p).toContain('"overall"')
     }
+  })
+})
+
+describe('GRADE_SHORT_ANSWER_PROMPT v2 (KLP-aware)', () => {
+  const card = makeCard()
+  const klps = [
+    { ref: 0, text: 'EBITDA excludes interest expense', kind: 'definition' },
+    { ref: 1, text: 'D&A is added back because it is non-cash', kind: 'causal' },
+  ]
+
+  it('is version 2', () => {
+    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(2)
+  })
+
+  it('lists each KLP by ref and asks for a per-KLP status', () => {
+    const p = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x', klps })
+    expect(p).toContain('[0]')
+    expect(p).toContain('EBITDA excludes interest expense')
+    expect(p).toContain('klpResults')
+    expect(p).toContain('passed')
+  })
+
+  it('names every allowed error type so the model cannot invent one', () => {
+    const p = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x', klps })
+    for (const t of [...ACCURACY_TYPES, ...CLARITY_TYPES, ...CONCISENESS_TYPES]) {
+      expect(p).toContain(t)
+    }
+  })
+
+  it('asks for severity but NEVER for significance', () => {
+    // The AI supplies one ordinal; every score is computed in TypeScript.
+    const p = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x', klps })
+    expect(p).toContain('severity')
+    expect(p.toLowerCase()).not.toContain('significance')
+  })
+
+  it('falls back to the rubric-only prompt with no KLPs', () => {
+    const p = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x' })
+    expect(p).toContain('For each of the following categories')
+    expect(p).not.toContain('klpResults')
+  })
+
+  it('never leaks a cuid', () => {
+    const p = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x', klps })
+    expect(p).not.toContain(card.id)
   })
 })
 
