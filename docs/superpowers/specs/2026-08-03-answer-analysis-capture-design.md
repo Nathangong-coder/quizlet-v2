@@ -146,6 +146,15 @@ untouched and remain distinguishable as pre-spec. Every answer written after the
 migration must set `analysisStatus` and `analysisVersion`; a null on a new row
 is a bug, not a state.
 
+**Exception: matching-mode rows.** `submitMatchingAnswers`
+(`src/actions/quiz-matching.ts`) writes `QuizAnswer` rows directly and does not
+set `analysisStatus`/`analysisVersion` — matching is outside this spec's `In`
+scope (§ Scope only lists MC/TF/SA). The "every answer" wording above is
+imprecise: it should read "every MC/TF/SA answer". Worth a real carve-out
+because a future backfill script filtering `WHERE analysisStatus IS NULL` to
+find pre-spec legacy rows would otherwise also sweep up every matching-mode
+row forever, not just the ones written before this migration.
+
 ### Why the indexes are what they are
 
 - `@@index([klpId, status])` — Spec 3's per-KLP mastery is
@@ -507,6 +516,12 @@ not agree on semantics today, which is fine, but each has to be handled:
 The cascade is what makes this safe: `AnswerKlpResult` and `AnswerErrorTag` both
 declare `onDelete: Cascade` from `QuizAnswer`. **A test must pin that** —
 resubmitting a short answer leaves exactly one set of analysis rows, not two.
+Pinned by `tests/schema/answer-analysis-cascade.test.ts` (a golden-vector read
+of the `onDelete: Cascade` declarations — this repo has no real-database
+integration tests to exercise the cascade directly) plus
+`tests/actions/analysis-short-answer.test.ts`'s "resubmitting leaves exactly
+one set of analysis rows, not two" (a stateful in-memory fake that simulates
+the cascade and proves the delete-then-create flow doesn't accumulate rows).
 If either relation were ever changed to `SetNull`, resubmission would silently
 accumulate duplicate diagnostic rows and every Spec 3 rate would inflate with
 each retry.
@@ -554,7 +569,7 @@ Pure and unit-testable without a database:
 | `klpCredit` | `STATUS_CREDIT × EVIDENCE_STRENGTH`; every status/mode pair |
 | `severityFromCorruption` | Rank table; MC as-is, TF minus one, clamped |
 | `validateTagType` | `(dimension, type)` pairing against the vocabularies |
-| `capTagsPerDimension` | Keeps highest-severity tags within the per-dimension cap |
+| per-dimension cap | Keeps highest-severity tags within `MAX_TAGS_PER_DIMENSION`. Implemented inline in `buildAnalysisWrites` rather than as a standalone `capTagsPerDimension` function; covered by `tests/analysis/persist.test.ts` ("caps tags per dimension" / "does NOT warn when a dimension reaches the cap without exceeding it") instead of a unit test in isolation. |
 
 `klpCredit` needs an explicit case asserting a `failed` status is `0.0` in
 **every** mode — the one place the mode weighting must *not* apply, since a wrong
@@ -641,6 +656,15 @@ type, and the credential encryption format is pinned by a golden-vector test
   a card that has live KLPs is indistinguishable from a genuinely clean grade
   — both read as `analyzed`. Whether that's the right call, or whether a
   malformed/incomplete grader response deserves its own status, is undecided.
+- **`src/lib/errors/klp-credit.ts`'s `EVIDENCE_STRENGTH` carries entries this
+  spec never asked for** — `matching: 0.75`, `review: 0.8`, `lesson: 0.8`,
+  plus a `DEFAULT_STRENGTH = 0.75` fallback and a loosened
+  `Record<string, number>` type (the spec's snippet in §3.1 types it as
+  `Record<StudySource, number>` with exactly three entries). Nothing in the
+  codebase currently calls `klpCredit` with those three modes, and none of
+  them are covered by `tests/errors/klp-credit.test.ts`. Not a bug — just
+  unrequested surface area with no test pinning the numbers, if it's ever
+  called.
 
 ## Open for 2b
 

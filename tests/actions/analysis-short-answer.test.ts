@@ -216,4 +216,67 @@ describe('submitShortAnswer analysis capture', () => {
 
     expect(h.transaction).toHaveBeenCalledTimes(1)
   })
+
+  it('resubmitting leaves exactly one set of analysis rows, not two', async () => {
+    // Spec 2a §4.1: "A test must pin that" resubmission doesn't orphan or
+    // duplicate analysis rows. tests/schema/answer-analysis-cascade.test.ts
+    // pins that AnswerKlpResult/AnswerErrorTag declare `onDelete: Cascade`
+    // from QuizAnswer; this test simulates that cascade with a tiny in-memory
+    // store (this repo has no real-database integration tests to exercise it
+    // for real) and proves the delete-then-create flow that config depends on
+    // doesn't accumulate rows across a resubmit.
+    let nextId = 0
+    let answers: { id: string }[] = []
+    let klpResults: { quizAnswerId: string }[] = []
+    let errorTags: { quizAnswerId: string }[] = []
+
+    h.answerDeleteMany.mockImplementation(async () => {
+      // Scoped by attemptId/cardId/mode in the real query; every row in this
+      // test matches, so delete-all mirrors the production WHERE clause.
+      const deletedIds = answers.map((a) => a.id)
+      answers = []
+      // The cascade under test: removing the QuizAnswer removes its children.
+      klpResults = klpResults.filter((r) => !deletedIds.includes(r.quizAnswerId))
+      errorTags = errorTags.filter((t) => !deletedIds.includes(t.quizAnswerId))
+      return { count: deletedIds.length }
+    })
+    h.answerCreate.mockImplementation(async ({ data }: any) => {
+      const answer = { id: `answer-${nextId++}`, ...data }
+      answers.push(answer)
+      return answer
+    })
+    h.klpResultCreateMany.mockImplementation(async ({ data }: any) => {
+      klpResults.push(...data)
+      return { count: data.length }
+    })
+    h.errorTagCreateMany.mockImplementation(async ({ data }: any) => {
+      errorTags.push(...data)
+      return { count: data.length }
+    })
+
+    h.generateJson.mockResolvedValue({
+      ...gradeShape,
+      klpResults: [{ klpRef: 0, status: 'passed' }],
+      errorTags: [{ dimension: 'accuracy', type: 'inversion', klpRef: 0, severity: 3 }],
+    })
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'first try' })
+    expect(answers).toHaveLength(1)
+    expect(klpResults).toHaveLength(1)
+    expect(errorTags).toHaveLength(1)
+
+    // Resubmit with a DIFFERENT grade — if the old rows weren't cascaded away,
+    // the counts below would be 2, not 1, and a stale row from the first
+    // attempt would sit alongside the new one.
+    h.generateJson.mockResolvedValue({
+      ...gradeShape,
+      klpResults: [{ klpRef: 0, status: 'failed' }],
+      errorTags: [],
+    })
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'second try' })
+
+    expect(answers).toHaveLength(1)
+    expect(klpResults).toHaveLength(1)
+    expect(klpResults[0]).toMatchObject({ status: 'failed' }) // the SECOND grade, not the first
+    expect(errorTags).toHaveLength(0) // the stale tag from the first attempt is gone
+  })
 })
