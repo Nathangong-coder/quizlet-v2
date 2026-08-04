@@ -624,6 +624,24 @@ Two existing patterns are the model to copy when these are addressed:
 type, and the credential encryption format is pinned by a golden-vector test
 (`tests/security/api-key.test.ts`).
 
+- **`analysisStatus: 'failed'` is never actually written.** §5's degradation
+  table lists "No AI credential → `failed`", but `submitShortAnswer`
+  (`src/actions/quiz.ts`) doesn't wrap its `generateJson` grading call in
+  try/catch — a grading failure throws out of the action before any
+  `QuizAnswer` row is created, so there's no row left to mark `'failed'` on.
+  The table entry describes intended, not current, behaviour. Fix would mean
+  catching the grading failure and writing a `QuizAnswer` with
+  `analysisStatus: 'failed'` (still no fabricated tags) instead of just
+  returning `{ success: false }`. Left out of scope: it changes
+  `submitShortAnswer`'s error contract with the client, which is a bigger
+  decision than a status-mapping fix.
+- **`submitShortAnswer`'s two `buildAnalysisWrites` calls (text and
+  multimodal paths) never pass `forcedStatus`.** Unlike MC/TF there's no
+  legacy-cache equivalent for short answer, so an empty `grade.klpResults` on
+  a card that has live KLPs is indistinguishable from a genuinely clean grade
+  — both read as `analyzed`. Whether that's the right call, or whether a
+  malformed/incomplete grader response deserves its own status, is undecided.
+
 ## Open for 2b
 
 How tags render per answer; whether KLP pass/fail shows as a checklist; how the
