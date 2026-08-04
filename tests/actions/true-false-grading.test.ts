@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   auth: vi.fn(),
   generateJson: vi.fn(),
   recordStudyEvent: vi.fn(),
+  ensureKlpsReady: vi.fn(),
   attemptFindFirst: vi.fn(),
   attemptUpdateMany: vi.fn(),
   questionFindUnique: vi.fn(),
@@ -15,6 +16,10 @@ const h = vi.hoisted(() => ({
   answerFindMany: vi.fn(),
   answerFindFirst: vi.fn(),
   cardFindUnique: vi.fn(),
+  progressFindUnique: vi.fn(),
+  transaction: vi.fn(),
+  klpResultCreateMany: vi.fn(),
+  errorTagCreateMany: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -24,11 +29,15 @@ vi.mock('@/lib/db', () => ({
     quizQuestion: { findUnique: h.questionFindUnique },
     quizAnswer: {
       deleteMany: h.answerDeleteMany,
-      create: h.answerCreate,
       findMany: h.answerFindMany,
       findFirst: h.answerFindFirst,
     },
     card: { findUnique: h.cardFindUnique },
+    cardProgress: { findUnique: h.progressFindUnique },
+    // The transaction callback receives a tx object exposing just the three
+    // models createAnswerWithAnalysis writes through (Task 10 wired
+    // submitTrueFalseAnswer through the same helper submitShortAnswer uses).
+    $transaction: h.transaction,
   },
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
@@ -41,7 +50,7 @@ vi.mock('@/lib/ai/generate', () => ({
     }
   },
 }))
-vi.mock('@/actions/klp', () => ({ ensureKlpsReady: vi.fn() }))
+vi.mock('@/actions/klp', () => ({ ensureKlpsReady: h.ensureKlpsReady }))
 vi.mock('@/lib/ai/context', () => ({ safeProfileBlock: vi.fn() }))
 vi.mock('@/lib/quiz/coin-flip', () => ({ pickTfVariant: vi.fn() }))
 vi.mock('@/lib/memory/record', () => ({ recordStudyEvent: h.recordStudyEvent }))
@@ -75,6 +84,22 @@ beforeEach(() => {
   h.answerFindFirst.mockResolvedValue(null)
   h.attemptUpdateMany.mockResolvedValue({})
   h.recordStudyEvent.mockResolvedValue({ confidence: 6, mastery: 0.5, dueAt: new Date() })
+  // Task 10: submitTrueFalseAnswer now derives analysis from KLPs/progress and
+  // persists through createAnswerWithAnalysis's transaction. None of this
+  // file's assertions are about analysis, so KLPs default empty (no rows) and
+  // the transaction is a thin passthrough to the same answerCreate mock the
+  // existing assertions read from.
+  h.ensureKlpsReady.mockResolvedValue([])
+  h.progressFindUnique.mockResolvedValue(null)
+  h.klpResultCreateMany.mockResolvedValue({ count: 0 })
+  h.errorTagCreateMany.mockResolvedValue({ count: 0 })
+  h.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+    fn({
+      quizAnswer: { create: h.answerCreate },
+      answerKlpResult: { createMany: h.klpResultCreateMany },
+      answerErrorTag: { createMany: h.errorTagCreateMany },
+    }),
+  )
 })
 
 describe('submitTrueFalseAnswer', () => {

@@ -29,10 +29,17 @@ import { safeProfileBlock } from '@/lib/ai/context';
 import { ActionResult } from '@/types/action';
 import { SessionInsightSchema, type SessionInsight } from '@/lib/memory/insight';
 import { ensureKlpsReady } from '@/actions/klp';
-import { parseOptionCache, type ParsedOptions } from '@/lib/quiz/options';
+import { parseOptionCache, resolveDistractorProvenance, type ParsedOptions, type Corruption } from '@/lib/quiz/options';
 import { pickTfVariant } from '@/lib/quiz/coin-flip';
-import { buildAnalysisWrites, type AnalysisWrites, type ErrorTagDraft } from '@/lib/analysis/persist';
+import {
+  buildAnalysisWrites,
+  type AnalysisWrites,
+  type ErrorTagDraft,
+  type KlpResultDraft,
+} from '@/lib/analysis/persist';
 import { toStudySource } from '@/lib/quiz/mode';
+import type { StudySource } from '@/lib/memory/scoring';
+import { severityFromCorruption } from '@/lib/errors/severity';
 
 /**
  * Version of the whole analysis-capture contract: the error-tag vocabulary,
@@ -55,6 +62,61 @@ function shuffle<T>(items: T[]): T[] {
     [out[i], out[j]] = [out[j], out[i]];
   }
   return out;
+}
+
+/**
+ * Analysis drafts for a binary-mode answer, with NO AI call.
+ *
+ * Everything needed is already on the QuizQuestion row: the generator recorded
+ * which KLP each distractor corrupts and how, so a wrong pick diagnoses itself.
+ *
+ * `targetKlpIds` are the KLPs the QUESTION tested — a correct answer credits
+ * all of them, but a wrong answer implicates ONLY the one the learner actually
+ * chose. Rejecting the other distractors carries no information, because the
+ * correct answer was rejected too.
+ */
+function binaryModeDrafts(input: {
+  mode: StudySource;
+  isCorrect: boolean;
+  klps: { id: string; weight: number }[];
+  targetKlpIds: string[];
+  /** The KLP the chosen wrong answer corrupts, when known. */
+  failedKlpId: string | null;
+  corruption: Corruption | null;
+}): { klpResults: KlpResultDraft[]; errorTags: ErrorTagDraft[] } {
+  const refOf = (id: string) => input.klps.findIndex((k) => k.id === id);
+
+  if (input.isCorrect) {
+    return {
+      klpResults: input.targetKlpIds
+        .map(refOf)
+        .filter((ref) => ref >= 0)
+        .map((klpRef) => ({ klpRef, status: 'passed' as const })),
+      errorTags: [],
+    };
+  }
+
+  // Wrong, but nothing tells us WHICH proposition failed: a v1 cache row, or
+  // a TF question where the learner rejected a true statement. Record no
+  // claim rather than an invented one.
+  if (!input.failedKlpId || !input.corruption) {
+    return { klpResults: [], errorTags: [] };
+  }
+
+  const klpRef = refOf(input.failedKlpId);
+  if (klpRef < 0) return { klpResults: [], errorTags: [] };
+
+  return {
+    klpResults: [{ klpRef, status: 'failed' }],
+    errorTags: [
+      {
+        dimension: 'accuracy',
+        type: input.corruption,
+        klpRef,
+        severity: severityFromCorruption(input.corruption, input.mode),
+      },
+    ],
+  };
 }
 
 /**
@@ -388,8 +450,48 @@ export async function submitMultipleChoiceAnswer(input: {
       }
     }
 
-    const answer = await prisma.quizAnswer.create({
-      data: {
+    // Diagnose the wrong pick with NO AI call: the generator already recorded
+    // which KLP each distractor corrupts and how, on the QuizQuestion row.
+    const question = await prisma.quizQuestion.findUnique({
+      where: { attemptId_cardId_mode: { attemptId: input.attemptId, cardId: input.cardId, mode: 'multiple-choice' } },
+    });
+    const parsed = question?.options
+      ? parseOptionCache({ v: 2, correctAnswer: input.correctAnswer, options: question.options })
+      : null;
+    const provenance = parsed && !isCorrect
+      ? resolveDistractorProvenance(parsed, input.selectedOption)
+      : null;
+
+    const klps = await ensureKlpsReady(session.user.id, input.cardId);
+    const progress = await prisma.cardProgress.findUnique({
+      where: { userId_cardId: { userId: session.user.id, cardId: input.cardId } },
+      select: { starred: true },
+    });
+
+    const mode = toStudySource('multiple-choice');
+    const drafts = binaryModeDrafts({
+      mode,
+      isCorrect,
+      klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+      targetKlpIds: (question?.targetKlpIds as string[] | null) ?? [],
+      failedKlpId: provenance?.sourceKlpId ?? null,
+      corruption: provenance?.corruption ?? null,
+    });
+
+    // A wrong pick we cannot attribute is `no_provenance`, NOT a clean answer.
+    const forcedStatus =
+      !isCorrect && !provenance && parsed?.version === 1 ? ('no_provenance' as const) : undefined;
+
+    const writes = buildAnalysisWrites({
+      mode,
+      klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+      starred: progress?.starred ?? false,
+      ...drafts,
+      forcedStatus,
+    });
+
+    const answer = await createAnswerWithAnalysis(
+      {
         attemptId: input.attemptId,
         userId: session.user.id,
         cardId: input.cardId,
@@ -402,7 +504,8 @@ export async function submitMultipleChoiceAnswer(input: {
         latencyMs: normalizeLatency(input.latencyMs),
         feedback,
       },
-    });
+      writes,
+    );
 
     try {
       await recordStudyEvent({
@@ -522,8 +625,42 @@ export async function submitTrueFalseAnswer(input: {
       }
     }
 
-    const answer = await prisma.quizAnswer.create({
-      data: {
+    const klps = await ensureKlpsReady(session.user.id, input.cardId);
+    const progress = await prisma.cardProgress.findUnique({
+      where: { userId_cardId: { userId: session.user.id, cardId: input.cardId } },
+      select: { starred: true },
+    });
+
+    // Only a wrong answer to a CORRUPTED statement implicates a KLP. Answering
+    // "false" to the real definition means the learner rejected something true —
+    // second-guessing, not a knowledge gap (docs/ai/error-taxonomy.md §4).
+    // Recording `failed` there would teach Spec 3 they lack a proposition they
+    // may well hold.
+    const rejectedTruth = question?.isTrue === true;
+    const failedKlpId =
+      isCorrect === false && !rejectedTruth
+        ? ((question?.targetKlpIds as string[] | null) ?? [])[0] ?? null
+        : null;
+
+    const mode = toStudySource('true-false');
+    const drafts = binaryModeDrafts({
+      mode,
+      isCorrect: isCorrect === true,
+      klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+      targetKlpIds: (question?.targetKlpIds as string[] | null) ?? [],
+      failedKlpId,
+      corruption: (question?.corruption as Corruption | null) ?? null,
+    });
+
+    const writes = buildAnalysisWrites({
+      mode,
+      klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+      starred: progress?.starred ?? false,
+      ...drafts,
+    });
+
+    const answer = await createAnswerWithAnalysis(
+      {
         attemptId: input.attemptId,
         userId: session.user.id,
         cardId: input.cardId,
@@ -536,7 +673,8 @@ export async function submitTrueFalseAnswer(input: {
         latencyMs: normalizeLatency(input.latencyMs),
         feedback,
       },
-    });
+      writes,
+    );
 
     if (isCorrect !== null) {
       try {
