@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react'
 import { QuizSummary } from '@/components/quiz/QuizSummary'
 
 // RTL's auto-cleanup between tests relies on a global `afterEach`, which
@@ -115,5 +115,81 @@ describe('QuizSummary — analysis display', () => {
     render(<QuizSummary setId="s1" attemptId="a1" />)
     await waitFor(() => screen.getAllByText('Q').length > 0) // the card renders
     expect(screen.queryByText(/wasn't available/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('QuizSummary — session rollup', () => {
+  // TabsContent in this repo's ui/tabs.tsx renders null while inactive (not
+  // just CSS-hidden), and the default tab is "review" — the rollup card
+  // lives under "summary", so every test here must switch tabs first.
+  async function switchToOverallAnalysis() {
+    await waitFor(() => screen.getByText('Overall Analysis'))
+    fireEvent.click(screen.getByText('Overall Analysis'))
+  }
+
+  it('shows the rollup for a NON-short-answer attempt (unlike SessionInsightView, not gated to short-answer)', async () => {
+    (getQuizAttemptSummary as any).mockResolvedValue({
+      success: true,
+      data: {
+        attempt: {
+          mode: 'multiple-choice',
+          answers: [
+            baseAnswer({
+              errorTags: [
+                { dimension: 'accuracy', type: 'inversion', klpId: 'klp-a', significance: 5, klp: { text: 'X' } },
+              ],
+            }),
+            baseAnswer({ id: 'ans2', analysisStatus: 'no_provenance' }),
+          ],
+        },
+        insight: null,
+      },
+    })
+
+    render(<QuizSummary setId="s1" attemptId="a1" />)
+    await switchToOverallAnalysis()
+    await waitFor(() => screen.getByText(/1 of 2 questions analyzed/i))
+  })
+
+  it('does not render an empty breakdown when analyzedCount is 0', async () => {
+    (getQuizAttemptSummary as any).mockResolvedValue({
+      success: true,
+      data: {
+        attempt: {
+          mode: 'multiple-choice',
+          answers: [baseAnswer({ analysisStatus: 'no_klps' })],
+        },
+        insight: null,
+      },
+    })
+
+    render(<QuizSummary setId="s1" attemptId="a1" />)
+    await switchToOverallAnalysis()
+    await waitFor(() => screen.getByText(/0 of 1 questions analyzed/i))
+    expect(screen.queryByText(/Accuracy/)).not.toBeInTheDocument()
+  })
+
+  it('shows the top struggled KLP by its text, not its id', async () => {
+    (getQuizAttemptSummary as any).mockResolvedValue({
+      success: true,
+      data: {
+        attempt: {
+          mode: 'multiple-choice',
+          answers: [
+            baseAnswer({
+              klpResults: [{ klpId: 'klp-a', status: 'failed', klp: { text: 'D&A is added back' } }],
+              errorTags: [
+                { dimension: 'accuracy', type: 'inversion', klpId: 'klp-a', significance: 5, klp: { text: 'D&A is added back' } },
+              ],
+            }),
+          ],
+        },
+        insight: null,
+      },
+    })
+
+    render(<QuizSummary setId="s1" attemptId="a1" />)
+    await switchToOverallAnalysis()
+    await waitFor(() => screen.getByText(/D&A is added back/))
   })
 })

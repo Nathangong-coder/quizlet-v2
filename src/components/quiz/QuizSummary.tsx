@@ -12,6 +12,7 @@ import { ExpandableText } from '@/components/ui/expandable-text';
 import { QuizCardPrompt } from './QuizCardPrompt';
 import { SessionInsightView } from '@/components/memory/SessionInsightView';
 import { labelForErrorType, labelForKlpStatus } from '@/lib/errors/labels';
+import { rollupSessionAnalysis } from '@/lib/analysis/rollup';
 
 const MODE_LABELS: Record<string, string> = {
   'multiple-choice': 'Multiple Choice',
@@ -192,6 +193,73 @@ function MatchingReview({ answers }: { answers: any[] }) {
   );
 }
 
+const DIMENSION_LABELS: Record<string, string> = {
+  accuracy: 'Accuracy',
+  clarity: 'Clarity',
+  conciseness: 'Conciseness',
+};
+
+/**
+ * Same-session rollup, shown for EVERY mode — unlike SessionInsightView,
+ * which stays gated to short-answer. The analyzedCount/totalCount line is
+ * always shown, even at N === M, so its absence is never itself a signal.
+ */
+function SessionRollupCard({
+  rollup,
+  klpTextById,
+}: {
+  rollup: ReturnType<typeof rollupSessionAnalysis>;
+  klpTextById: Map<string, string>;
+}) {
+  const dimensionEntries = Object.entries(rollup.errorsByDimension).filter(([, count]) => count > 0);
+  // The rollup only carries ids — text comes from the same klpResults/
+  // errorTags the caller already fetched. An id somehow missing from that
+  // map is omitted rather than shown as a raw id.
+  const struggles = rollup.struggledKlps
+    .map((s) => ({ ...s, text: klpTextById.get(s.klpId) }))
+    .filter((s): s is typeof s & { text: string } => Boolean(s.text));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Analysis Breakdown</CardTitle>
+        <CardDescription>
+          {rollup.analyzedCount} of {rollup.totalCount} questions analyzed
+        </CardDescription>
+      </CardHeader>
+      {rollup.analyzedCount > 0 && (dimensionEntries.length > 0 || struggles.length > 0) && (
+        <CardContent className="space-y-4">
+          {dimensionEntries.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Errors by dimension</p>
+              <div className="flex flex-wrap gap-2">
+                {dimensionEntries.map(([dim, count]) => (
+                  <Badge key={dim} variant="outline">
+                    {DIMENSION_LABELS[dim] ?? dim}: {count}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          {struggles.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Struggled with</p>
+              <ul className="space-y-1">
+                {struggles.map((s) => (
+                  <li key={s.klpId} className="text-sm flex items-start gap-2">
+                    <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                    <span>{s.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -222,6 +290,21 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
     acc[mode].push(answer);
     return acc;
   }, {} as Record<string, any[]>);
+
+  const rollup = rollupSessionAnalysis(
+    attempt.answers.map((a: any) => ({
+      analysisStatus: a.analysisStatus ?? null,
+      klpResults: a.klpResults ?? [],
+      errorTags: a.errorTags ?? [],
+    })),
+  );
+  // The pure rollup only carries ids — join display text back in from the
+  // same klpResults/errorTags already fetched for the per-answer cards.
+  const klpTextById = new Map<string, string>();
+  for (const a of attempt.answers) {
+    for (const r of a.klpResults ?? []) if (r.klp?.text) klpTextById.set(r.klpId, r.klp.text);
+    for (const t of a.errorTags ?? []) if (t.klp?.text && t.klpId) klpTextById.set(t.klpId, t.klp.text);
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -287,6 +370,9 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
               </CardContent>
             </Card>
           )}
+          <div className="mt-6">
+            <SessionRollupCard rollup={rollup} klpTextById={klpTextById} />
+          </div>
         </TabsContent>
 
         <TabsContent value="review">

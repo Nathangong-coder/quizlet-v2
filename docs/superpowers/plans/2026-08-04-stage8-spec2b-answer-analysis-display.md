@@ -706,11 +706,16 @@ git commit -m "feat(quiz): render per-answer KLP checklist and error tags on res
 - Top struggled KLPs (join `text` back in from the answers' own `klpResults`/`errorTags` — the rollup only returns ids)
 - If `analyzedCount === 0`: render nothing beyond the "N of M" line — an empty breakdown with headers and no content reads as broken, not clean.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
-Extend `tests/components/QuizSummary.test.tsx`:
+Extend `tests/components/QuizSummary.test.tsx`. **`TabsContent` in this repo's `src/components/ui/tabs.tsx` returns `null` while inactive** — a custom implementation, not Radix, so there's no CSS-hidden fallback to query against — and the default tab is `"review"`. Every rollup test must click "Overall Analysis" first:
 
 ```tsx
+async function switchToOverallAnalysis() {
+  await waitFor(() => screen.getByText('Overall Analysis'))
+  fireEvent.click(screen.getByText('Overall Analysis'))
+}
+
 it('shows the session rollup for a NON-short-answer attempt (unlike SessionInsightView, not gated to short-answer)', async () => {
   (getQuizAttemptSummary as any).mockResolvedValue({
     success: true,
@@ -727,6 +732,7 @@ it('shows the session rollup for a NON-short-answer attempt (unlike SessionInsig
   })
 
   render(<QuizSummary setId="s1" attemptId="a1" />)
+  await switchToOverallAnalysis()
   await waitFor(() => screen.getByText(/1 of 2 questions analyzed/i))
 })
 
@@ -743,17 +749,18 @@ it('does not render an empty breakdown when analyzedCount is 0', async () => {
   })
 
   render(<QuizSummary setId="s1" attemptId="a1" />)
+  await switchToOverallAnalysis()
   await waitFor(() => screen.getByText(/0 of 1 questions analyzed/i))
   expect(screen.queryByText(/Accuracy/)).not.toBeInTheDocument()
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/components/QuizSummary.test.tsx -t "rollup"`
 Expected: FAIL — no rollup card exists yet.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `src/components/quiz/QuizSummary.tsx`, near the existing `groupedAnswers` computation:
 
@@ -777,17 +784,17 @@ Add a `SessionRollupCard({ rollup, klpTextById }: {...})` component rendered ins
 - If `analyzedCount > 0`: a row per dimension in `errorsByDimension` with `count > 0` (skip zero-count dimensions rather than listing all three every time); a short list of `struggledKlps` using `klpTextById.get(klpId)` for display text (fall back to omitting the entry if the id somehow isn't in the map rather than rendering a raw id).
 - If `analyzedCount === 0`: nothing further.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/components/QuizSummary.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Verify no regression**
+- [x] **Step 5: Verify no regression**
 
 Run: `npm test && npx tsc --noEmit`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/quiz/QuizSummary.tsx tests/components/QuizSummary.test.tsx
