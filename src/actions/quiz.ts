@@ -2,6 +2,7 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { generateJson, resolveTaskModel, AiGenerationError } from '@/lib/ai/generate';
 import {
   MULTIPLE_CHOICE_PROMPT,
@@ -30,6 +31,16 @@ import { SessionInsightSchema, type SessionInsight } from '@/lib/memory/insight'
 import { ensureKlpsReady } from '@/actions/klp';
 import { parseOptionCache, type ParsedOptions } from '@/lib/quiz/options';
 import { pickTfVariant } from '@/lib/quiz/coin-flip';
+import { buildAnalysisWrites, type AnalysisWrites, type ErrorTagDraft } from '@/lib/analysis/persist';
+import { toStudySource } from '@/lib/quiz/mode';
+
+/**
+ * Version of the whole analysis-capture contract: the error-tag vocabulary,
+ * the significance constants, and the klp-credit constants, versioned
+ * together. Bump this if any of those three change in a way that makes an
+ * old row's numbers not comparable to a new one's.
+ */
+export const ANALYSIS_VERSION = 1;
 
 /**
  * Fisher-Yates. The correct answer must not sit in a predictable slot — the
@@ -560,6 +571,41 @@ export async function submitTrueFalseAnswer(input: {
   }
 }
 
+/**
+ * Persists an answer together with its analysis, atomically.
+ *
+ * One transaction, not an after(): a QuizAnswer without an analysisStatus is a
+ * row Spec 3 cannot classify — neither analyzed nor explicitly unanalyzable —
+ * and nothing later can tell it apart from an analysis that genuinely failed.
+ */
+async function createAnswerWithAnalysis(
+  answerData: Prisma.QuizAnswerUncheckedCreateInput,
+  writes: AnalysisWrites,
+) {
+  return prisma.$transaction(async (tx) => {
+    const answer = await tx.quizAnswer.create({
+      data: {
+        ...answerData,
+        analysisStatus: writes.status,
+        analysisVersion: ANALYSIS_VERSION,
+        analysisWarnings:
+          writes.warnings.length > 0 ? (writes.warnings as unknown as object) : undefined,
+      },
+    });
+    if (writes.klpResults.length > 0) {
+      await tx.answerKlpResult.createMany({
+        data: writes.klpResults.map((r) => ({ ...r, quizAnswerId: answer.id })),
+      });
+    }
+    if (writes.errorTags.length > 0) {
+      await tx.answerErrorTag.createMany({
+        data: writes.errorTags.map((t) => ({ ...t, quizAnswerId: answer.id })),
+      });
+    }
+    return answer;
+  });
+}
+
 export async function submitShortAnswer(input: {
   attemptId: string;
   cardId: string;
@@ -598,6 +644,20 @@ export async function submitShortAnswer(input: {
 
     const profileBlock = await safeProfileBlock(session.user.id, card.setId, 'short-answer grading');
 
+    // Live KLPs (empty when extraction is impossible) and starred state,
+    // resolved once and shared by both branches below: both the prompt (so
+    // the model can return per-KLP outcomes) and the post-grade analysis
+    // write need the same KLPs and the same starred flag.
+    const klps = await ensureKlpsReady(session.user.id, input.cardId);
+    const progress = await prisma.cardProgress.findUnique({
+      where: { userId_cardId: { userId: session.user.id, cardId: input.cardId } },
+      select: { starred: true },
+    });
+    // No progress row means the learner has never interacted with this card —
+    // a definite "not starred", not missing data.
+    const starred = progress?.starred ?? false;
+    const promptKlps = klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind }));
+
     // Get content blocks for the term side (what the user was asked about)
     const termBlocks = card.contentBlocks
       .filter(b => b.side === 'term')
@@ -605,7 +665,12 @@ export async function submitShortAnswer(input: {
 
     // Use text-only path if no media
     if (termBlocks.every(b => b.type === 'text')) {
-      const prompt = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: input.answer, profileBlock });
+      const prompt = GRADE_SHORT_ANSWER_PROMPT.build({
+        card,
+        answer: input.answer,
+        profileBlock,
+        klps: promptKlps.length > 0 ? promptKlps : undefined,
+      });
       const grade = await generateJson({
         userId: session.user.id,
         task: 'grade',
@@ -630,8 +695,16 @@ export async function submitShortAnswer(input: {
       const score = grade.overall * 10;
       const isCorrect = grade.overall >= 8;
 
-      const answer = await prisma.quizAnswer.create({
-        data: {
+      const writes = buildAnalysisWrites({
+        mode: toStudySource('short-answer'),
+        klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+        starred,
+        klpResults: grade.klpResults ?? [],
+        errorTags: (grade.errorTags ?? []) as ErrorTagDraft[],
+      });
+
+      const answer = await createAnswerWithAnalysis(
+        {
           attemptId: input.attemptId,
           userId: session.user.id,
           cardId: input.cardId,
@@ -645,7 +718,8 @@ export async function submitShortAnswer(input: {
           latencyMs: normalizeLatency(input.latencyMs),
           feedback: grade.summary,
         },
-      });
+        writes,
+      );
 
       try {
         await recordStudyEvent({
@@ -707,8 +781,16 @@ export async function submitShortAnswer(input: {
     const score = grade.overall * 10;
     const isCorrect = grade.overall >= 8;
 
-    const answer = await prisma.quizAnswer.create({
-      data: {
+    const writes = buildAnalysisWrites({
+      mode: toStudySource('short-answer'),
+      klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+      starred,
+      klpResults: grade.klpResults ?? [],
+      errorTags: (grade.errorTags ?? []) as ErrorTagDraft[],
+    });
+
+    const answer = await createAnswerWithAnalysis(
+      {
         attemptId: input.attemptId,
         userId: session.user.id,
         cardId: input.cardId,
@@ -722,7 +804,8 @@ export async function submitShortAnswer(input: {
         latencyMs: normalizeLatency(input.latencyMs),
         feedback: grade.summary,
       },
-    });
+      writes,
+    );
 
     try {
       await recordStudyEvent({
