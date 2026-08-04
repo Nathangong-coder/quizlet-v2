@@ -155,6 +155,27 @@ describe('submitShortAnswer analysis capture', () => {
     expect(h.klpResultCreateMany).not.toHaveBeenCalled()
   })
 
+  it('analyzes the multimodal path too, rather than recording it as clean', async () => {
+    // The gap this test exists for: buildParts previously never asked for
+    // klpResults/errorTags, so a multimodal answer on a card WITH KLPs recorded
+    // analysisStatus 'analyzed' with zero tags — an unanalyzed answer counted as
+    // a clean one, which is the exact confusion analysisStatus prevents.
+    // Drive the multimodal branch by giving the card a non-text term block.
+    h.cardFindUnique.mockResolvedValue({
+      ...card,
+      contentBlocks: [{ side: 'term', type: 'image', text: null, assetId: 'asset1', position: 0 }],
+    })
+    h.generateJson.mockResolvedValue({
+      ...gradeShape,
+      klpResults: [{ klpRef: 0, status: 'passed' }],
+      errorTags: [],
+    })
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
+
+    expect(h.klpResultCreateMany).toHaveBeenCalled()
+  })
+
   it('writes the answer and its analysis in one transaction', async () => {
     // A QuizAnswer without an analysisStatus is a row Spec 3 cannot classify,
     // and nothing later can distinguish it from an analysis that failed.

@@ -133,6 +133,23 @@ describe('GRADE_SHORT_ANSWER_PROMPT v2 (KLP-aware)', () => {
     const p = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x', klps })
     expect(p).not.toContain(card.id)
   })
+
+  it('buildParts asks for per-KLP analysis when KLPs are supplied', () => {
+    const { promptText } = GRADE_SHORT_ANSWER_PROMPT.buildParts({
+      card, promptBlocks: [], answer: 'x', klps,
+    })
+    expect(promptText).toContain('klpResults')
+    expect(promptText).toContain('[0]')
+  })
+
+  it('buildParts falls back to the rubric-only prompt with no KLPs', () => {
+    // Byte-identity matters here for the same reason it does on build(): a
+    // learner whose cards have no extracted propositions depends on this path.
+    const { promptText } = GRADE_SHORT_ANSWER_PROMPT.buildParts({
+      card, promptBlocks: [], answer: 'x',
+    })
+    expect(promptText).not.toContain('klpResults')
+  })
 })
 
 describe('ANNOTATION_PROMPT', () => {

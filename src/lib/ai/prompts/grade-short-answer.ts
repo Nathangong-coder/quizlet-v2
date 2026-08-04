@@ -18,6 +18,8 @@ export interface GradeShortAnswerBuildPartsInput {
   promptBlocks: ContentBlock[];
   answer: string;
   profileBlock?: string;
+  /** Live KLPs. Absent or empty falls back to the rubric-only prompt. */
+  klps?: PromptKlp[];
 }
 
 const RUBRIC_BODY = `For each of the following categories, provide a score (1-10), a list of pros, and a list of cons:
@@ -108,6 +110,8 @@ ${RUBRIC_BODY}${analysis}`;
   },
 
   buildParts(input: GradeShortAnswerBuildPartsInput): { parts: any[]; promptText: string } {
+    const analysis = input.klps && input.klps.length > 0 ? ANALYSIS_BODY(input.klps) : '';
+
     const promptText = `${learnerContextBlock(input.profileBlock)}You are a finance interview grader. Grade the following short-answer response.
 
 ${input.promptBlocks.some((b) => b.type !== 'text') ? '[The question material is shown above/below as images, audio, video, etc.]' : ''}
@@ -115,7 +119,7 @@ ${input.promptBlocks.some((b) => b.type !== 'text') ? '[The question material is
 Expected Definition: ${input.card.definition}
 User Answer: "${input.answer}"
 
-${RUBRIC_BODY}`;
+${RUBRIC_BODY}${analysis}`;
 
     return { parts: [{ text: promptText }], promptText };
   },

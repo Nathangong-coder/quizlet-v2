@@ -753,7 +753,13 @@ export async function submitShortAnswer(input: {
       position: b.position,
     })) as any;
 
-    const { parts } = GRADE_SHORT_ANSWER_PROMPT.buildParts({ card, promptBlocks: contentBlocks, answer: input.answer, profileBlock });
+    const { parts } = GRADE_SHORT_ANSWER_PROMPT.buildParts({
+      card,
+      promptBlocks: contentBlocks,
+      answer: input.answer,
+      profileBlock,
+      klps: promptKlps.length > 0 ? promptKlps : undefined,
+    });
 
     // In a full implementation, assetToPart would be called here to add inlineData
     // For now, we just use the text parts as fallback
