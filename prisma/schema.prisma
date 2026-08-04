@@ -94,6 +94,9 @@ model CardKlp {
   supersededAt  DateTime?
   createdAt     DateTime  @default(now())
   card          Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  answerResults      AnswerKlpResult[]
+  errorTags          AnswerErrorTag[] @relation("ErrorTagKlp")
+  secondaryErrorTags AnswerErrorTag[] @relation("ErrorTagSecondaryKlp")
 
   @@unique([cardId, version, index])
   @@index([cardId, supersededAt])
@@ -393,9 +396,71 @@ model QuizAnswer {
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   card          Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
+  // Why this answer has the tags it has — or has none. A relational tag table
+  // cannot distinguish "analyzed and clean" from "could not analyze": both are
+  // zero rows. Spec 3's rate denominators filter on 'analyzed'.
+  analysisStatus   String?  // analyzed | no_provenance | no_klps | failed
+  analysisVersion  Int?     // which analysis contract produced these rows
+  analysisWarnings Json?    // [{ reason, value }] — non-fatal losses
+  klpResults       AnswerKlpResult[]
+  errorTags        AnswerErrorTag[]
+
   @@index([userId, cardId])
   @@index([userId, createdAt])
   @@index([attemptId])
+}
+
+/// Stage 8 Spec 2a: per-KLP outcome for one answer. Short answer writes one row
+/// per KLP on the card; MC/TF write one per KLP the question targeted.
+///
+/// `status` is the AI's categorical judgment; `credit` is the continuous value
+/// computed from it in TypeScript, weighted by what the mode's evidence is
+/// worth. Both are stored: the categorical drives display, the float drives
+/// Spec 3's math.
+model AnswerKlpResult {
+  id           String     @id @default(cuid())
+  quizAnswerId String
+  klpId        String
+  status       String     // passed | partial | failed
+  credit       Float      // 0-1, computed: status credit x evidence strength
+  mode         String     // StudySource form: quiz-mc | quiz-sa | quiz-tf
+  evidence     String?    @db.Text
+  createdAt    DateTime   @default(now())
+  quizAnswer   QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
+  klp          CardKlp    @relation(fields: [klpId], references: [id], onDelete: Cascade)
+
+  @@unique([quizAnswerId, klpId])
+  @@index([klpId, status])
+  @@index([klpId, createdAt])
+}
+
+/// Stage 8 Spec 2a: one tagged error on one answer — the (dimension, type,
+/// target) triple from docs/ai/error-taxonomy.md, plus the inputs that
+/// produced its significance.
+///
+/// The inputs are stored, not the derived constants: knowing a row used
+/// dimWeight 1.0 does not let you recompute it at 0.9, but knowing the
+/// dimension does.
+model AnswerErrorTag {
+  id             String     @id @default(cuid())
+  quizAnswerId   String
+  dimension      String     // accuracy | clarity | conciseness
+  type           String     // closed vocabulary per dimension
+  klpId          String?    // null means the target is the whole answer
+  secondaryKlpId String?    // conflation only: the concept confused WITH
+  relevance      Int        // CardKlp.weight AS OF THIS ANSWER
+  severity       Int        // 1-5, the AI's only numeric contribution
+  starred        Boolean    // CardProgress.starred AT ANSWER TIME
+  significance   Int        // computed; excludes repeatBonus
+  quote          String?    @db.Text
+  createdAt      DateTime   @default(now())
+  quizAnswer     QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
+  klp            CardKlp?   @relation("ErrorTagKlp", fields: [klpId], references: [id], onDelete: SetNull)
+  secondaryKlp   CardKlp?   @relation("ErrorTagSecondaryKlp", fields: [secondaryKlpId], references: [id], onDelete: SetNull)
+
+  @@index([quizAnswerId])
+  @@index([klpId, type])
+  @@index([klpId, secondaryKlpId, type])
 }
 
 /// Stage 8: one asked question, frozen at the moment it was asked.
