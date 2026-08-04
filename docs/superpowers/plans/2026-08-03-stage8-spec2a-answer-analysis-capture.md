@@ -2,6 +2,14 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status (2026-08-04): Done.** All 11 tasks were implemented and committed (see
+`git log` for commit messages matching each task's suggested message
+verbatim), but the checkboxes below were never checked off as work landed —
+this was noticed and corrected retroactively, after independently verifying
+every task's code and tests exist and match this plan, and after separately
+arriving at Task 11's cascade-pinning test (§4.1 of the design doc) before
+realizing it was already specified here. Nothing in this plan is outstanding.
+
 **Goal:** Every quiz answer records which Key Learning Points it hit or missed, and what kind of error it made, as queryable relational rows — so Spec 3 can aggregate a real diagnostic profile instead of re-deriving one from prose.
 
 **Architecture:** Two new tables (`AnswerKlpResult`, `AnswerErrorTag`) hang off `QuizAnswer` and cascade with it. Short answer gets its KLP results and error tags from the *existing* grading call — same prompt module, same transaction, no new AI cost. Multiple choice and true/false derive theirs with **zero AI calls**, by reading the distractor provenance Spec 1 already persists on `QuizQuestion`. Every number (significance, KLP credit, severity) is computed in TypeScript from pure functions; the AI supplies only categorical judgments and a 1-5 severity ordinal.
@@ -67,7 +75,7 @@ This plan does **not** refactor that duplication away. It adds the analysis writ
 - Consumes: `CORRUPTIONS` from `@/lib/quiz/options`
 - Produces: `ACCURACY_TYPES`, `CLARITY_TYPES`, `CONCISENESS_TYPES`, `DIMENSIONS`, `DIM_WEIGHTS`, `MAX_TAGS_PER_ANSWER`, `MAX_TAGS_PER_DIMENSION`; types `Dimension`, `ErrorType`; `typesForDimension(d)`; `validateTagType(dimension, type)`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/errors/taxonomy.test.ts`:
 
@@ -145,12 +153,12 @@ describe('validateTagType', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/errors/taxonomy.test.ts`
 Expected: FAIL — cannot resolve `@/lib/errors/taxonomy`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `src/lib/errors/taxonomy.ts`:
 
@@ -233,12 +241,12 @@ export function validateTagType(dimension: Dimension, type: string): boolean {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/errors/taxonomy.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/errors/taxonomy.ts tests/errors/taxonomy.test.ts
@@ -259,7 +267,7 @@ git commit -m "feat(errors): add closed error vocabularies with the CORRUPTIONS 
 
 **Why:** two vocabularies for the same concept are already persisted — `StudyEvent.source` uses `quiz-mc`, `QuizAnswer.mode` uses `multiple-choice`. Task 5's `klpCredit` is keyed by `StudySource` while the answer row carries the quiz form, so the conversion has to exist. Today it is inlined per call site; a fourth site converting differently yields `EVIDENCE_STRENGTH[undefined]` and a `NaN` credit, silently.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/quiz/mode.test.ts`:
 
@@ -294,12 +302,12 @@ describe('toStudySource', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/quiz/mode.test.ts`
 Expected: FAIL — cannot resolve `@/lib/quiz/mode`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `src/lib/quiz/mode.ts`:
 
@@ -333,12 +341,12 @@ export function toStudySource(mode: QuizMode): StudySource {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/quiz/mode.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/quiz/mode.ts tests/quiz/mode.test.ts
@@ -365,7 +373,7 @@ significance = clamp(round((0.55·relevance + 0.45·severity) × 2 × dimWeight 
 
 `repeatBonus` is **excluded** — it depends on later attempts that do not exist at write time. Spec 3 applies it at read.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/errors/significance.test.ts`:
 
@@ -447,12 +455,12 @@ describe('computeSignificance', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/errors/significance.test.ts`
 Expected: FAIL — cannot resolve `@/lib/errors/significance`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `src/lib/errors/significance.ts`:
 
@@ -503,12 +511,12 @@ export function computeSignificance(input: SignificanceInput): SignificanceResul
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/errors/significance.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/errors/significance.ts tests/errors/significance.test.ts
@@ -527,7 +535,7 @@ git commit -m "feat(errors): compute significance in TS from stored inputs"
 - Consumes: `Corruption` from `@/lib/quiz/options`; `StudySource` from `@/lib/memory/scoring`
 - Produces: `CORRUPTION_SEVERITY`, `severityFromCorruption(corruption, mode): number`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/errors/severity.test.ts`:
 
@@ -581,12 +589,12 @@ describe('severityFromCorruption', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/errors/severity.test.ts`
 Expected: FAIL — cannot resolve `@/lib/errors/severity`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `src/lib/errors/severity.ts`:
 
@@ -631,12 +639,12 @@ export function severityFromCorruption(
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/errors/severity.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/errors/severity.ts tests/errors/severity.test.ts
@@ -655,7 +663,7 @@ git commit -m "feat(errors): rank corruption severity, docking true/false one po
 - Consumes: `StudySource` from `@/lib/memory/scoring`
 - Produces: `KLP_STATUSES`, type `KlpStatus`, `STATUS_CREDIT`, `EVIDENCE_STRENGTH`, `klpCredit(status, mode): number`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/errors/klp-credit.test.ts`:
 
@@ -704,12 +712,12 @@ describe('klpCredit', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/errors/klp-credit.test.ts`
 Expected: FAIL — cannot resolve `@/lib/errors/klp-credit`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `src/lib/errors/klp-credit.ts`:
 
@@ -760,12 +768,12 @@ export function klpCredit(status: KlpStatus, mode: StudySource): number {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/errors/klp-credit.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/errors/klp-credit.ts tests/errors/klp-credit.test.ts
@@ -784,7 +792,7 @@ git commit -m "feat(errors): grade KLP credit by mode evidence strength"
 - Consumes: nothing
 - Produces: models `AnswerKlpResult`, `AnswerErrorTag`; `QuizAnswer.analysisStatus`, `.analysisVersion`, `.analysisWarnings`
 
-- [ ] **Step 1: Add the two models**
+- [x] **Step 1: Add the two models**
 
 Add to `prisma/schema.prisma` after `QuizAnswer`:
 
@@ -843,7 +851,7 @@ model AnswerErrorTag {
 }
 ```
 
-- [ ] **Step 2: Add the columns and back-references**
+- [x] **Step 2: Add the columns and back-references**
 
 In `model QuizAnswer`, add before `@@index`:
 
@@ -866,7 +874,7 @@ In `model CardKlp`, add:
   secondaryErrorTags AnswerErrorTag[] @relation("ErrorTagSecondaryKlp")
 ```
 
-- [ ] **Step 3: Generate and apply the migration**
+- [x] **Step 3: Generate and apply the migration**
 
 Run: `npx prisma migrate dev --name answer_analysis`
 Expected: applies cleanly, `prisma generate` runs.
@@ -875,16 +883,16 @@ Expected: applies cleanly, `prisma generate` runs.
 `npx prisma migrate diff --from-schema-datamodel prisma/schema.prisma --to-schema-datasource prisma/schema.prisma --script`
 and STOP — report that the migration is generated but unapplied. Do not improvise.
 
-- [ ] **Step 4: Verify the migration is purely additive**
+- [x] **Step 4: Verify the migration is purely additive**
 
 Read the generated `migration.sql`. Expected: two `CREATE TABLE`, three `ALTER TABLE ... ADD COLUMN` on `QuizAnswer`, plus indexes and FKs. **Any `DROP` or `ALTER COLUMN ... TYPE` means something is wrong — stop and report.**
 
-- [ ] **Step 5: Confirm the suite still passes**
+- [x] **Step 5: Confirm the suite still passes**
 
 Run: `npm test && npx tsc --noEmit`
 Expected: PASS — no test touches these columns yet.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add prisma/schema.prisma prisma/migrations
@@ -905,7 +913,7 @@ git commit -m "feat(db): add AnswerKlpResult, AnswerErrorTag, and analysis colum
 
 **Why a pure builder:** the decisions — which tags survive validation, what warnings to record, what each row's computed values are — are all pure. Isolating them means the branchy logic is tested without a database, and the action only performs the writes.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/analysis/persist.test.ts`:
 
@@ -1038,12 +1046,12 @@ describe('buildAnalysisWrites — status', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/analysis/persist.test.ts`
 Expected: FAIL — cannot resolve `@/lib/analysis/persist`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Create `src/lib/analysis/persist.ts`:
 
@@ -1213,12 +1221,12 @@ export function buildAnalysisWrites(input: {
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/analysis/persist.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/analysis/persist.ts tests/analysis/persist.test.ts
@@ -1239,7 +1247,7 @@ git commit -m "feat(analysis): add the pure analysis-write builder"
 
 **Behaviour:** with KLPs, the prompt asks for per-KLP outcomes and error tags. Without them, it emits today's rubric-only prompt **unchanged** — existing tests assert on that text and a keyless user depends on it.
 
-- [ ] **Step 1: Extend the schema**
+- [x] **Step 1: Extend the schema**
 
 In `src/lib/ai/schemas.ts`, add the import and extend:
 
@@ -1275,7 +1283,7 @@ Add to the `ShortAnswerGradeSchema` object, after `suggestedImprovement`:
   })).max(MAX_TAGS_PER_ANSWER).optional(),
 ```
 
-- [ ] **Step 2: Write the failing prompt test**
+- [x] **Step 2: Write the failing prompt test**
 
 Append to `tests/ai/prompts.test.ts`:
 
@@ -1328,12 +1336,12 @@ describe('GRADE_SHORT_ANSWER_PROMPT v2 (KLP-aware)', () => {
 
 Add `ACCURACY_TYPES, CLARITY_TYPES, CONCISENESS_TYPES` to the imports.
 
-- [ ] **Step 3: Run the test to verify it fails**
+- [x] **Step 3: Run the test to verify it fails**
 
 Run: `npx vitest run tests/ai/prompts.test.ts -t "KLP-aware"`
 Expected: FAIL — version is 1 and `klps` is not accepted.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 In `src/lib/ai/prompts/grade-short-answer.ts`, add `klps?: PromptKlp[]` to `GradeShortAnswerBuildInput` (import `PromptKlp` from `./multiple-choice`), set `version: 2`, and make `build` append a KLP block when `klps` is non-empty. Keep the existing `RUBRIC_BODY` and the no-KLP output **byte-identical**.
 
@@ -1373,12 +1381,12 @@ Rank by what matters most. Do not pad to the cap.`
 
 Import the vocabularies and `MAX_TAGS_PER_ANSWER` from `@/lib/errors/taxonomy`.
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `npx vitest run tests/ai/prompts.test.ts`
 Expected: PASS, **including the pre-existing v1 assertions** via the fallback path.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/lib/ai/schemas.ts src/lib/ai/prompts/grade-short-answer.ts tests/ai/prompts.test.ts
@@ -1399,7 +1407,7 @@ git commit -m "feat(ai): grade per-KLP outcomes and error tags in the existing c
 
 **Critical:** this function has **two** near-duplicate paths — text-only (`:608`) and multimodal (`:673`) — each with its own `quizAnswer.create`. Both must write analysis. Add one module-private helper and call it from both; do **not** refactor the duplication itself.
 
-- [ ] **Step 1: Add the shared write helper**
+- [x] **Step 1: Add the shared write helper**
 
 Add to `src/actions/quiz.ts`:
 
@@ -1441,7 +1449,7 @@ async function createAnswerWithAnalysis(
 
 Add `export const ANALYSIS_VERSION = 1` near the top, with a comment that it covers the tag schema, the significance constants, and the credit constants together.
 
-- [ ] **Step 2: Resolve KLPs and starred state before grading**
+- [x] **Step 2: Resolve KLPs and starred state before grading**
 
 In `submitShortAnswer`, after the card is loaded and before the branch at `:608`:
 
@@ -1459,7 +1467,7 @@ In `submitShortAnswer`, after the card is loaded and before the branch at `:608`
 
 Pass `klps: promptKlps.length > 0 ? promptKlps : undefined` into both `GRADE_SHORT_ANSWER_PROMPT.build` calls.
 
-- [ ] **Step 3: Replace both `quizAnswer.create` calls**
+- [x] **Step 3: Replace both `quizAnswer.create` calls**
 
 In **both** paths, replace `await prisma.quizAnswer.create({ data: {...} })` with:
 
@@ -1496,7 +1504,7 @@ The multimodal path's object differs only in `prompt`; keep each path's own.
 
 Add the imports: `buildAnalysisWrites`, `type ErrorTagDraft`, `type AnalysisWrites` from `@/lib/analysis/persist`; `toStudySource` from `@/lib/quiz/mode`; `ensureKlpsReady` from `@/actions/klp`; `Prisma` from `@prisma/client`.
 
-- [ ] **Step 4: Write the test**
+- [x] **Step 4: Write the test**
 
 Create `tests/actions/analysis-short-answer.test.ts` following the `vi.hoisted()` + `vi.mock()` pattern in `tests/actions/quiz-options.test.ts` (mock `@/auth`, `@/lib/db`, `@/lib/ai/generate`, `@/actions/klp`). Mock `ensureKlpsReady` to return `[{ id: 'klp-a', index: 0, text: 'x', weight: 5, kind: 'definition' }]`.
 
@@ -1577,12 +1585,12 @@ Define `gradeShape` once at the top as a valid `ShortAnswerGradeSchema` object
 (clarity/conciseness/correctness each `{score, pros, cons}`, plus `overall`,
 `summary`, `suggestedImprovement`) so each test overrides only what it exercises.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run: `npx vitest run tests/actions/analysis-short-answer.test.ts && npm test && npx tsc --noEmit`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/actions/quiz.ts tests/actions/analysis-short-answer.test.ts
@@ -1612,7 +1620,7 @@ git commit -m "feat(quiz): persist short-answer analysis in the answer's transac
 | TF wrong, shown corrupted, answered "true" | one `failed` for the corrupted KLP | one, type = `QuizQuestion.corruption` |
 | TF wrong, shown real, answered "false" | **none** | none |
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/actions/analysis-mc-tf.test.ts` following `tests/actions/true-false.test.ts`'s mocking pattern. One test per row above, plus:
 
@@ -1642,12 +1650,12 @@ it('writes NO KLP result when "false" was answered to the real definition', asyn
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/actions/analysis-mc-tf.test.ts`
 Expected: FAIL — no analysis rows are written.
 
-- [ ] **Step 3: Add the shared draft builder**
+- [x] **Step 3: Add the shared draft builder**
 
 Add to `src/actions/quiz.ts`. This is the whole MC/TF analysis decision, in one
 place, so the two actions cannot drift:
@@ -1707,7 +1715,7 @@ function binaryModeDrafts(input: {
 }
 ```
 
-- [ ] **Step 4: Wire it into `submitMultipleChoiceAnswer`**
+- [x] **Step 4: Wire it into `submitMultipleChoiceAnswer`**
 
 After the existing `isCorrect` computation, before the answer write:
 
@@ -1752,7 +1760,7 @@ After the existing `isCorrect` computation, before the answer write:
 Then replace `prisma.quizAnswer.create({ data })` with
 `createAnswerWithAnalysis(data, writes)`.
 
-- [ ] **Step 5: Wire it into `submitTrueFalseAnswer`**
+- [x] **Step 5: Wire it into `submitTrueFalseAnswer`**
 
 The `question` row is already loaded there (Spec 1, Task 11). After `isCorrect`:
 
@@ -1796,12 +1804,12 @@ The `question` row is already loaded there (Spec 1, Task 11). After `isCorrect`:
 unscored answer writes no analysis: pass `isCorrect: false` with a null
 `failedKlpId`, which yields empty drafts.
 
-- [ ] **Step 6: Verify**
+- [x] **Step 6: Verify**
 
 Run: `npx vitest run tests/actions/analysis-mc-tf.test.ts && npm test && npx tsc --noEmit`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/actions/quiz.ts tests/actions/analysis-mc-tf.test.ts
@@ -1821,7 +1829,7 @@ git commit -m "feat(quiz): derive MC/TF analysis from distractor provenance, no 
 
 **Why:** short answer and MC replace on resubmit (`deleteMany` then `create`). Analysis rows survive only because both relations declare `onDelete: Cascade`. If either were ever changed to `SetNull`, resubmission would accumulate duplicate diagnostic rows and every Spec 3 rate would inflate with each retry — silently, since nothing errors.
 
-- [ ] **Step 1: Add the schema assertion test**
+- [x] **Step 1: Add the schema assertion test**
 
 ```ts
 import { readFileSync } from 'node:fs'
@@ -1840,7 +1848,7 @@ it('analysis tables cascade from QuizAnswer, so resubmission cannot duplicate th
 })
 ```
 
-- [ ] **Step 2: Add the behavioural test**
+- [x] **Step 2: Add the behavioural test**
 
 Assert that resubmitting a short answer calls `quizAnswer.deleteMany` **before** the create, so the old row (and its cascade) is gone first:
 
@@ -1853,12 +1861,12 @@ it('deletes the prior answer before writing the replacement', async () => {
 })
 ```
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run: `npx vitest run tests/actions/analysis-short-answer.test.ts && npm test`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add tests/actions/analysis-short-answer.test.ts
