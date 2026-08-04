@@ -32,11 +32,14 @@
 - `src/lib/errors/labels.ts` — human-readable labels for dimension/type strings (pure)
 - `tests/analysis/rollup.test.ts`, `tests/errors/labels.test.ts`
 - `tests/actions/quiz-summary-analysis.test.ts` — `getQuizAttemptSummary`'s new include
+- `tests/setup/jest-dom.ts` — `@testing-library/jest-dom/vitest` matchers, wired via `setupFiles`
+- `tests/components/QuizSummary.test.tsx` — this repo's first component test; establishes the RTL/jsdom pattern
 
 **Modified:**
 - `src/actions/quiz.ts` — `getQuizAttemptSummary`'s `answers` include gains `klpResults` and `errorTags`
 - `src/components/quiz/QuizSummary.tsx` — per-answer KLP checklist + error-tag badges + degradation note; new rollup card in the Overall Analysis tab
-- `tests/components/QuizSummary.test.tsx` (created if it doesn't exist, extended if it does)
+- `vitest.config.ts` — adds `setupFiles` for jest-dom matchers (DOM environment itself is opted into per-file, see Task 4)
+- `package.json` — new dev dependencies: `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`
 
 **Not built:** anything that writes (no new tags, no re-scoring), anything cross-attempt (Spec 3), anything actionable on a tag (Spec 4).
 
@@ -544,14 +547,19 @@ git commit -m "feat(quiz): fetch klpResults and errorTags in the attempt summary
 - `no_provenance` / `no_klps` / `failed` → one muted line per spec §4's table. Use a shared small component, e.g. `AnalysisDegradedNote({ status })`, so the three cases can't drift into three different copy styles.
 - `analysisStatus: null` (legacy) → render nothing extra, identical to today.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
-Create or extend `tests/components/QuizSummary.test.tsx` (check for an existing file first — if `tests/components/` doesn't exist yet, follow whatever RTL setup pattern the nearest existing component test in this repo uses; if none exists, this is the first, and should establish the pattern minimally rather than inventing new test infrastructure).
+Create or extend `tests/components/QuizSummary.test.tsx`. **This repo had no RTL/jsdom setup at all before this task** — resolved by installing `@testing-library/react`, `@testing-library/jest-dom`, and `jsdom` as dev dependencies, adding `setupFiles: ['./tests/setup/jest-dom.ts']` to `vitest.config.ts`, and opting each `.test.tsx` file into a DOM environment individually via a `// @vitest-environment jsdom` docblock as its **first line** — Vitest 4 does not honor `environmentMatchGlobs` the way prior majors did (confirmed empirically: config-level `environmentMatchGlobs` still threw `document is not defined`), so the per-file docblock is the only mechanism that actually works here.
+
+**Also:** this repo's `vitest.config.ts` has no `test.globals: true`, which is what RTL's automatic `afterEach(cleanup)` normally hooks into. Without an explicit `afterEach(cleanup)` in the test file, one test's rendered DOM bleeds into the next test's queries — a real failure this plan's authoring run hit (a stale "no_provenance" note from a prior test showed up in a later test asserting nothing should render). Every component test file needs its own explicit `afterEach(cleanup)`.
 
 ```tsx
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+// @vitest-environment jsdom
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, waitFor, cleanup } from '@testing-library/react'
 import { QuizSummary } from '@/components/quiz/QuizSummary'
+
+afterEach(cleanup)
 
 vi.mock('@/actions/quiz', () => ({
   getQuizAttemptSummary: vi.fn(),
@@ -642,12 +650,12 @@ describe('QuizSummary — analysis display', () => {
 })
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npx vitest run tests/components/QuizSummary.test.tsx`
 Expected: FAIL — no KLP checklist or tag badges render yet.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `src/components/quiz/QuizSummary.tsx`:
 
@@ -663,17 +671,17 @@ In `src/components/quiz/QuizSummary.tsx`:
    ```
    All three already no-op (render `null`) on empty/absent data, so this is safe for legacy answers without touching the existing conditional tree around them.
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run tests/components/QuizSummary.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Verify no regression**
+- [x] **Step 5: Verify no regression**
 
 Run: `npm test && npx tsc --noEmit`
 Expected: PASS — existing `QuizSummary` behavior (MC option grid, SA grade factors, matching review) is unchanged; this task is additive.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/quiz/QuizSummary.tsx tests/components/QuizSummary.test.tsx

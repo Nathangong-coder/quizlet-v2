@@ -4,13 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, CheckCircle2, XCircle } from 'lucide-react';
+import { Trophy, CheckCircle2, XCircle, MinusCircle } from 'lucide-react';
 import { getQuizAttemptSummary } from '@/actions/quiz';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { ExpandableText } from '@/components/ui/expandable-text';
 import { QuizCardPrompt } from './QuizCardPrompt';
 import { SessionInsightView } from '@/components/memory/SessionInsightView';
+import { labelForErrorType, labelForKlpStatus } from '@/lib/errors/labels';
 
 const MODE_LABELS: Record<string, string> = {
   'multiple-choice': 'Multiple Choice',
@@ -85,6 +86,78 @@ function MultipleChoiceResult({ options, selectedOption, correctAnswer }: { opti
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * "No tags" must never read as "nothing wrong" for a degraded analysisStatus
+ * — that's the one invariant this whole component exists to preserve on the
+ * display side. `null` (a legacy, pre-Spec-2a answer) and `'analyzed'`
+ * (a genuinely clean answer) both render nothing, on purpose.
+ */
+const DEGRADED_ANALYSIS_COPY: Record<string, string> = {
+  no_provenance: "Detailed analysis wasn't available for this question.",
+  no_klps: "This card's key points haven't been generated yet.",
+  failed: 'Analysis failed for this answer.',
+};
+
+function AnalysisDegradedNote({ status }: { status: string | null }) {
+  const text = status ? DEGRADED_ANALYSIS_COPY[status] : undefined;
+  if (!text) return null;
+  return <p className="text-xs text-muted-foreground italic">{text}</p>;
+}
+
+function KlpChecklist({ results }: { results: any[] }) {
+  if (!results || results.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Key points tested</p>
+      <ul className="space-y-1">
+        {results.map((r, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm">
+            {r.status === 'passed' ? (
+              <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
+            ) : r.status === 'partial' ? (
+              <MinusCircle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
+            ) : (
+              <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+            )}
+            <span>
+              <span className="text-muted-foreground">{labelForKlpStatus(r.status)}:</span>{' '}
+              {r.klp?.text ?? 'this point'}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+const DIMENSION_BADGE_VARIANT: Record<string, 'destructive' | 'secondary' | 'outline'> = {
+  accuracy: 'destructive',
+  clarity: 'secondary',
+  conciseness: 'outline',
+};
+
+function ErrorTagBadges({ tags }: { tags: any[] }) {
+  if (!tags || tags.length === 0) return null;
+  // Order only — significance is never shown as a raw number on the
+  // per-answer card, to avoid over-interpreting a single data point.
+  const sorted = [...tags].sort((a, b) => (b.significance ?? 0) - (a.significance ?? 0));
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">What went wrong</p>
+      <div className="flex flex-wrap gap-3">
+        {sorted.map((t, i) => (
+          <div key={i} className="space-y-1 max-w-full">
+            <Badge variant={DIMENSION_BADGE_VARIANT[t.dimension] ?? 'outline'}>
+              {t.dimension}: {labelForErrorType(t.type)}
+            </Badge>
+            {t.quote && <ExpandableText text={t.quote} className="text-xs text-muted-foreground pl-1" />}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -274,6 +347,10 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
                               </div>
                             </div>
                           )}
+
+                          <AnalysisDegradedNote status={answer.analysisStatus} />
+                          <KlpChecklist results={answer.klpResults ?? []} />
+                          <ErrorTagBadges tags={answer.errorTags ?? []} />
 
                           {answer.grade ? (
                             <div className="space-y-4 pt-4 border-t">
