@@ -155,11 +155,13 @@ describe('submitShortAnswer analysis capture', () => {
     expect(h.klpResultCreateMany).not.toHaveBeenCalled()
   })
 
-  it('analyzes the multimodal path too, rather than recording it as clean', async () => {
-    // The gap this test exists for: buildParts previously never asked for
-    // klpResults/errorTags, so a multimodal answer on a card WITH KLPs recorded
-    // analysisStatus 'analyzed' with zero tags — an unanalyzed answer counted as
-    // a clean one, which is the exact confusion analysisStatus prevents.
+  it('routes the multimodal branch through the shared analysis-write helper', async () => {
+    // Confirms the multimodal branch calls createAnswerWithAnalysis at all
+    // (would catch a copy-paste omission of the write-path wiring on this
+    // branch). It does NOT prove the grader was actually asked for analysis —
+    // generateJson is mocked unconditionally below and returns klpResults
+    // regardless of the prompt text, so this alone would have passed against
+    // the pre-fix buildParts too. See the next test for that half.
     // Drive the multimodal branch by giving the card a non-text term block.
     h.cardFindUnique.mockResolvedValue({
       ...card,
@@ -174,6 +176,31 @@ describe('submitShortAnswer analysis capture', () => {
     await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
 
     expect(h.klpResultCreateMany).toHaveBeenCalled()
+  })
+
+  it('asks the grader for analysis on the multimodal path, not just the text path', async () => {
+    // The regression this guards: buildParts once had no `klps` parameter, so
+    // a multimodal answer recorded analysisStatus 'analyzed' with zero tags —
+    // an unanalyzed answer counted as clean. The test above cannot catch that
+    // (generateJson is mocked unconditionally and returns klpResults
+    // regardless of what the prompt asked for), so assert on the prompt text
+    // actually handed to the grader instead.
+    h.cardFindUnique.mockResolvedValue({
+      ...card,
+      contentBlocks: [{ side: 'term', type: 'image', text: null, assetId: 'asset1', position: 0 }],
+    })
+    h.generateJson.mockResolvedValue({
+      ...gradeShape,
+      klpResults: [{ klpRef: 0, status: 'passed' }],
+      errorTags: [],
+    })
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
+
+    // The multimodal path calls generateJson with `parts` (not `prompt`) as
+    // its first call (grading, before the annotation call).
+    const sentParts = h.generateJson.mock.calls[0][0].parts
+    expect(JSON.stringify(sentParts)).toContain('klpResults')
   })
 
   it('writes the answer and its analysis in one transaction', async () => {
