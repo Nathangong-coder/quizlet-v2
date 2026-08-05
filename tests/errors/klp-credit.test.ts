@@ -39,4 +39,21 @@ describe('klpCredit', () => {
     expect(EVIDENCE_STRENGTH['quiz-mc']).toBeGreaterThan(EVIDENCE_STRENGTH['quiz-tf'])
     expect(STATUS_CREDIT.passed).toBe(1)
   })
+
+  it('only carries entries for the three modes Spec 2a actually grades', () => {
+    // review/matching/lesson intentionally have no entry — nothing calls
+    // klpCredit with them today, and a guessed number for a mode nobody has
+    // reasoned about is worse than the documented DEFAULT_STRENGTH fallback.
+    expect(Object.keys(EVIDENCE_STRENGTH).sort()).toEqual(['quiz-mc', 'quiz-sa', 'quiz-tf'])
+  })
+
+  it('falls back to a default strength for a StudySource with no explicit entry', () => {
+    // klpCredit's `mode` param is typed as the full StudySource (matching the
+    // callers it flows through), so it must not throw or return NaN for a
+    // mode outside the three explicit entries.
+    expect(klpCredit('passed', 'review')).toBeGreaterThan(0)
+    expect(klpCredit('passed', 'matching')).toBeGreaterThan(0)
+    expect(klpCredit('passed', 'lesson')).toBeGreaterThan(0)
+    expect(klpCredit('failed', 'review')).toBe(0)
+  })
 })

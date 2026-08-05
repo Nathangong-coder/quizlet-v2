@@ -640,15 +640,12 @@ Two existing patterns are the model to copy when these are addressed:
 type, and the credential encryption format is pinned by a golden-vector test
 (`tests/security/api-key.test.ts`).
 
-- **`src/lib/errors/klp-credit.ts`'s `EVIDENCE_STRENGTH` carries entries this
-  spec never asked for** — `matching: 0.75`, `review: 0.8`, `lesson: 0.8`,
-  plus a `DEFAULT_STRENGTH = 0.75` fallback and a loosened
-  `Record<string, number>` type (the spec's snippet in §3.1 types it as
-  `Record<StudySource, number>` with exactly three entries). Nothing in the
-  codebase currently calls `klpCredit` with those three modes, and none of
-  them are covered by `tests/errors/klp-credit.test.ts`. Not a bug — just
-  unrequested surface area with no test pinning the numbers, if it's ever
-  called.
+**Resolved (2026-08-04):** `EVIDENCE_STRENGTH` no longer carries the three
+unrequested `matching`/`review`/`lesson` entries — removed down to exactly the
+three modes Spec 2a actually grades, with `DEFAULT_STRENGTH` (now documented
+in place, not just present) as the explicit fallback for the rest of
+`StudySource`, and a test pinning that fallback behaves sanely rather than
+silently returning `NaN`.
 
 ## Open for 2b
 
