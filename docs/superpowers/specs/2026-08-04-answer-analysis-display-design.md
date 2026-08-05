@@ -185,3 +185,42 @@ bug class) in `submitMultipleChoiceAnswer`/`submitTrueFalseAnswer`/
 `submitShortAnswer`. Pinned by a new test in
 `tests/actions/quiz-submit-ownership.test.ts`, alongside the equivalent tests
 for the three submit actions.
+
+**A follow-up review pass (same day) found the same bug class twice more in
+`src/actions/quiz.ts`**, unrelated to Spec 2b's own code but surfaced by
+auditing every `attemptId`-scoped query in the file once the pattern was
+known to exist:
+
+- **`getQuizAttemptCards`** — identical shape to `getQuizAttemptSummary`:
+  `findUnique({ where: { id: attemptId } })`, no owner check, leaking another
+  user's full deck of cards (term, definition, content blocks) for an
+  in-progress or completed attempt. Same fix, same test file.
+- **`recordQuizQuestion`** (private, called from
+  `getOrGenerateMultipleChoiceOptions`) — upserts a `QuizQuestion` row keyed
+  by `(attemptId, cardId, mode)` with no verification that `attemptId`
+  belongs to the caller. `cardId` ownership was already checked by the
+  caller, but a foreign `attemptId` still reached the write, letting a
+  caller plant an orphan `QuizQuestion` row keyed to someone else's attempt.
+  Lower severity than the two reads above — no data disclosure, and the
+  planted row is keyed to the *attacker's own* card, so it can't collide with
+  anything the victim's own attempt would naturally look up — but the same
+  missing-check pattern. Fixed by adding an owner-scoped `findFirst` inside
+  `recordQuizQuestion` itself (now takes a `userId` parameter) that silently
+  no-ops on a mismatch, consistent with the function's existing "bookkeeping
+  only, must never fail option generation" contract.
+
+**Explicitly NOT fixed, and out of scope for this spec: `startQuizAttempt`
+has the identical missing-ownership shape on `setId`** —
+`prisma.set.findUnique({ where: { id: setId } })`, no `userId` filter. This
+is *not* treated as the same bug, because `src/app/sets/[id]/page.tsx` (the
+main set detail page) has the exact same shape and is consistent across the
+app: it fetches `prisma.set.findUnique({ where: { id } })` with no owner
+check, and uses `isOwner` only to gate the Edit/Delete buttons, not
+visibility. Sets, cards, and set content appear to be "viewable by anyone
+with the id" by consistent (if perhaps never deliberately decided) design
+throughout the app — not a per-quiz-action oversight. Patching
+`startQuizAttempt` alone would be inconsistent (the set page itself would
+still be openly viewable) and doesn't address the real question, which is a
+product decision — *should sets be private, or intentionally link-shareable*
+— spanning far more of the app than this spec touches. Flagged in
+`CLAUDE.md`'s Future Considerations for a dedicated pass.

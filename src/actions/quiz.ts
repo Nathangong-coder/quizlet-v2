@@ -157,17 +157,28 @@ function binaryModeDrafts(input: {
  * Freezes the question as asked, with its KLP provenance. Spec 2 reads this to
  * diagnose a wrong pick with no grading call. Upsert because a user may
  * navigate back to a question before submitting. No-op without an attemptId
- * (e.g. the printable-quiz path, which has no attempt).
+ * (e.g. the printable-quiz path, which has no attempt) OR when attemptId
+ * doesn't belong to this user — `cardId` ownership is checked by the caller,
+ * but `attemptId` is client-supplied too, and previously reached the upsert
+ * unchecked, letting a caller plant a QuizQuestion row keyed to someone
+ * else's attempt.
  *
  * Bookkeeping only: a failure here must never fail option generation, so
- * callers wrap this in try/catch and swallow.
+ * callers wrap this in try/catch and swallow — the ownership no-op follows
+ * the same contract, silently skipping rather than throwing.
  */
 async function recordQuizQuestion(
   attemptId: string | undefined,
   cardId: string,
   parsed: ParsedOptions,
+  userId: string,
 ): Promise<void> {
   if (!attemptId) return;
+  const attempt = await prisma.quizAttempt.findFirst({
+    where: { id: attemptId, userId },
+    select: { id: true },
+  });
+  if (!attempt) return;
   const targetKlpIds = Array.from(
     new Set(parsed.options.map((o) => o.sourceKlpId).filter((id): id is string => Boolean(id))),
   );
@@ -225,7 +236,7 @@ export async function getOrGenerateMultipleChoiceOptions(
       const parsedCache = cached ? parseOptionCache(cached.options) : null;
       if (parsedCache) {
         try {
-          await recordQuizQuestion(attemptId, cardId, parsedCache);
+          await recordQuizQuestion(attemptId, cardId, parsedCache, session.user.id);
         } catch (recordErr) {
           console.error('recordQuizQuestion failed (cache hit):', recordErr);
         }
@@ -313,7 +324,7 @@ export async function getOrGenerateMultipleChoiceOptions(
 
     const parsed = parseOptionCache(optionsJson)!;
     try {
-      await recordQuizQuestion(attemptId, cardId, parsed);
+      await recordQuizQuestion(attemptId, cardId, parsed, session.user.id);
     } catch (recordErr) {
       console.error('recordQuizQuestion failed (fresh generation):', recordErr);
     }
@@ -1135,8 +1146,12 @@ export async function getQuizAttemptCards(attemptId: string): Promise<ActionResu
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
-    const attempt = await prisma.quizAttempt.findUnique({
-      where: { id: attemptId },
+    // Owner-scoped: previously findUnique({ where: { id: attemptId } }) had no
+    // ownership check, letting any authenticated user fetch another user's
+    // full deck of cards (term, definition, content blocks) for an
+    // in-progress or completed attempt. Same fix as getQuizAttemptSummary.
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: attemptId, userId: session.user.id },
     });
     if (!attempt || !attempt.selectedCardIds) return { success: false, error: 'Attempt not found' };
 
