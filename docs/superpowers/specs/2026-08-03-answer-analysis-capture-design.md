@@ -120,9 +120,9 @@ makes fewer mistakes than they do, with no signal that anything was skipped.
 | Value | Meaning |
 | --- | --- |
 | `analyzed` | Tags are complete. Zero tags means a genuinely clean answer. |
-| `no_provenance` | The pick (or credit, for a correct answer) cannot be attributed to a KLP — a v1 option-cache row, a stale klp id after a mid-attempt card edit, or a TF answer with no `QuizQuestion` row (no answer key at all) to check against. |
+| `no_provenance` | The pick (or credit, for a correct answer) cannot be attributed to a KLP — a v1 option-cache row, a stale klp id after a mid-attempt card edit, a TF answer with no `QuizQuestion` row (no answer key at all) to check against, or a short-answer grade that returned no per-KLP results despite the card having live KLPs (the grader didn't do the per-KLP judgment it was asked for). |
 | `no_klps` | The card had no live KLPs at answer time. |
-| `failed` | Grading or tag extraction errored. |
+| `failed` | Grading or tag extraction errored — `submitShortAnswer` catches its grading `generateJson` call specifically and writes this row (`score`/`isCorrect: null`, no fabricated tags) rather than leaving a total gap; the client-facing `{ success: false }` contract is unchanged. |
 
 **`no_provenance` is a missing-data verdict, not a "nothing happened" verdict.**
 It must never be confused with a deliberate zero-row answer (§5) — an
@@ -531,10 +531,11 @@ each retry.
 | Condition | Behaviour | `analysisStatus` |
 | --- | --- | --- |
 | Card has no KLPs | Today's three-dimension rubric; no KLP results or tags | `no_klps` |
-| No AI credential | Unchanged from today — grading fails as it already does | `failed` |
+| No AI credential (short answer) | The grading `generateJson` call throws; a placeholder `QuizAnswer` is written (`score`/`isCorrect: null`, no fabricated tags) instead of leaving a total gap. The client still sees `{ success: false }` — this only affects what's in the database, not the UI's error handling. | `failed` |
 | v1 option cache (no provenance) | Correctness recorded, no tag written | `no_provenance` |
 | TF/MC, no `QuizQuestion` row (predates generation, or generation never ran) | Correctness recorded (or left unscored for TF), no claim written | `no_provenance` |
 | Correct answer whose `targetKlpIds` no longer resolve against the live KLP set (mid-attempt card edit superseded them) | Correctness recorded, nothing credited | `no_provenance` |
+| Short answer: card has live KLPs but the grader's response has empty `klpResults` | Grade/score still recorded; the grader simply didn't return the per-KLP judgment it was asked for | `no_provenance` |
 | TF, learner rejected the real (uncorrupted) statement | No KLP result written — second-guessing, not a knowledge gap (§3, "Why 'answered false to the real definition' writes nothing") | `analyzed` |
 | TF question with no `corruption` | Target recorded from `targetKlpIds`, no type | `analyzed` |
 | Model returns an unknown `type` | That tag dropped; the rest of the answer persists | `analyzed` |
@@ -639,23 +640,6 @@ Two existing patterns are the model to copy when these are addressed:
 type, and the credential encryption format is pinned by a golden-vector test
 (`tests/security/api-key.test.ts`).
 
-- **`analysisStatus: 'failed'` is never actually written.** §5's degradation
-  table lists "No AI credential → `failed`", but `submitShortAnswer`
-  (`src/actions/quiz.ts`) doesn't wrap its `generateJson` grading call in
-  try/catch — a grading failure throws out of the action before any
-  `QuizAnswer` row is created, so there's no row left to mark `'failed'` on.
-  The table entry describes intended, not current, behaviour. Fix would mean
-  catching the grading failure and writing a `QuizAnswer` with
-  `analysisStatus: 'failed'` (still no fabricated tags) instead of just
-  returning `{ success: false }`. Left out of scope: it changes
-  `submitShortAnswer`'s error contract with the client, which is a bigger
-  decision than a status-mapping fix.
-- **`submitShortAnswer`'s two `buildAnalysisWrites` calls (text and
-  multimodal paths) never pass `forcedStatus`.** Unlike MC/TF there's no
-  legacy-cache equivalent for short answer, so an empty `grade.klpResults` on
-  a card that has live KLPs is indistinguishable from a genuinely clean grade
-  — both read as `analyzed`. Whether that's the right call, or whether a
-  malformed/incomplete grader response deserves its own status, is undecided.
 - **`src/lib/errors/klp-credit.ts`'s `EVIDENCE_STRENGTH` carries entries this
   spec never asked for** — `matching: 0.75`, `review: 0.8`, `lesson: 0.8`,
   plus a `DEFAULT_STRENGTH = 0.75` fallback and a loosened

@@ -794,6 +794,57 @@ async function createAnswerWithAnalysis(
   });
 }
 
+/**
+ * Records a placeholder answer when short-answer grading itself failed to
+ * produce a grade — `analysisStatus: 'failed'` rather than leaving a total
+ * gap where the spec's own degradation table (§5: "No AI credential ->
+ * failed") describes behaviour that never actually happens.
+ *
+ * Best-effort: swallows its OWN write failure so a DB hiccup here can never
+ * mask the original grading error, which the caller re-throws to the
+ * existing outer catch — the client-facing contract (a plain
+ * `{ success: false }`) is unchanged.
+ */
+async function recordFailedShortAnswerAnalysis(input: {
+  attemptId: string;
+  userId: string;
+  cardId: string;
+  answer: string;
+  correctAnswer: string;
+  klps: { id: string; weight: number }[];
+  starred: boolean;
+  latencyMs?: number;
+}): Promise<void> {
+  try {
+    const writes = buildAnalysisWrites({
+      mode: toStudySource('short-answer'),
+      klps: input.klps,
+      starred: input.starred,
+      klpResults: [],
+      errorTags: [],
+      forcedStatus: 'failed',
+    });
+    await createAnswerWithAnalysis(
+      {
+        attemptId: input.attemptId,
+        userId: input.userId,
+        cardId: input.cardId,
+        mode: 'short-answer',
+        prompt: input.answer,
+        answer: input.answer,
+        correctAnswer: input.correctAnswer,
+        score: null,
+        isCorrect: null,
+        latencyMs: normalizeLatency(input.latencyMs),
+        feedback: 'Grading failed.',
+      },
+      writes,
+    );
+  } catch (writeErr) {
+    console.error('Failed to record failed-grading analysis row:', writeErr);
+  }
+}
+
 export async function submitShortAnswer(input: {
   attemptId: string;
   cardId: string;
@@ -859,12 +910,27 @@ export async function submitShortAnswer(input: {
         profileBlock,
         klps: promptKlps.length > 0 ? promptKlps : undefined,
       });
-      const grade = await generateJson({
-        userId: session.user.id,
-        task: 'grade',
-        prompt,
-        schema: ShortAnswerGradeSchema,
-      });
+      let grade;
+      try {
+        grade = await generateJson({
+          userId: session.user.id,
+          task: 'grade',
+          prompt,
+          schema: ShortAnswerGradeSchema,
+        });
+      } catch (gradingErr) {
+        await recordFailedShortAnswerAnalysis({
+          attemptId: input.attemptId,
+          userId: session.user.id,
+          cardId: input.cardId,
+          answer: input.answer,
+          correctAnswer: card.definition,
+          klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+          starred,
+          latencyMs: input.latencyMs,
+        });
+        throw gradingErr;
+      }
 
       let annotations: any[] = [];
       try {
@@ -883,12 +949,22 @@ export async function submitShortAnswer(input: {
       const score = grade.overall * 10;
       const isCorrect = grade.overall >= 8;
 
+      // Spec 2a §4: a correct SA answer writes one row per KLP on the card —
+      // the grader evaluates each regardless of overall correctness. Empty
+      // klpResults on a card that HAS live KLPs means the grader didn't do
+      // the per-KLP judgment it was asked for, never a legitimately clean
+      // grade. Unlike MC/TF there's no legacy-cache case here, so this is
+      // the only no_provenance trigger for short answer.
+      const forcedStatus =
+        klps.length > 0 && (grade.klpResults ?? []).length === 0 ? ('no_provenance' as const) : undefined;
+
       const writes = buildAnalysisWrites({
         mode: toStudySource('short-answer'),
         klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
         starred,
         klpResults: grade.klpResults ?? [],
         errorTags: (grade.errorTags ?? []) as ErrorTagDraft[],
+        forcedStatus,
       });
 
       const answer = await createAnswerWithAnalysis(
@@ -951,12 +1027,27 @@ export async function submitShortAnswer(input: {
 
     // In a full implementation, assetToPart would be called here to add inlineData
     // For now, we just use the text parts as fallback
-    const grade = await generateJson({
-      userId: session.user.id,
-      task: 'grade',
-      parts,
-      schema: ShortAnswerGradeSchema,
-    });
+    let grade;
+    try {
+      grade = await generateJson({
+        userId: session.user.id,
+        task: 'grade',
+        parts,
+        schema: ShortAnswerGradeSchema,
+      });
+    } catch (gradingErr) {
+      await recordFailedShortAnswerAnalysis({
+        attemptId: input.attemptId,
+        userId: session.user.id,
+        cardId: input.cardId,
+        answer: input.answer,
+        correctAnswer: card.definition,
+        klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+        starred,
+        latencyMs: input.latencyMs,
+      });
+      throw gradingErr;
+    }
 
     let annotations: any[] = [];
     try {
@@ -975,12 +1066,18 @@ export async function submitShortAnswer(input: {
     const score = grade.overall * 10;
     const isCorrect = grade.overall >= 8;
 
+    // See the text-only path above: empty klpResults on a card with live
+    // KLPs is never a legitimately clean grade for short answer.
+    const forcedStatus =
+      klps.length > 0 && (grade.klpResults ?? []).length === 0 ? ('no_provenance' as const) : undefined;
+
     const writes = buildAnalysisWrites({
       mode: toStudySource('short-answer'),
       klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
       starred,
       klpResults: grade.klpResults ?? [],
       errorTags: (grade.errorTags ?? []) as ErrorTagDraft[],
+      forcedStatus,
     });
 
     const answer = await createAnswerWithAnalysis(

@@ -132,7 +132,11 @@ describe('submitShortAnswer analysis capture', () => {
   it('drops an unknown type, keeps the answer, and names the rejection', async () => {
     h.generateJson.mockResolvedValue({
       ...gradeShape,
-      klpResults: [],
+      // Non-empty so this test isolates ONLY the invalid-tag-drop behavior —
+      // an empty klpResults on a card with live KLPs now triggers a SEPARATE
+      // no_provenance rule (see the dedicated test for that below), which
+      // would otherwise mask what this test is actually checking.
+      klpResults: [{ klpRef: 0, status: 'passed' }],
       errorTags: [{ dimension: 'accuracy', type: 'vibes', klpRef: 0, severity: 3 }],
     })
 
@@ -152,6 +156,21 @@ describe('submitShortAnswer analysis capture', () => {
     await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
 
     expect(h.answerCreate.mock.calls[0][0].data.analysisStatus).toBe('no_klps')
+    expect(h.klpResultCreateMany).not.toHaveBeenCalled()
+  })
+
+  it('records no_provenance, NOT analyzed, when the card has live KLPs but the grader returns none', async () => {
+    // The spec's own rule ("Short answer... one row per KLP on the card, the
+    // grader evaluated each") means an empty klpResults on a card WITH KLPs
+    // is never a legitimately clean grade — the grader just didn't do the
+    // per-KLP judgment it was asked for. Unlike no_klps (a card fact), this
+    // is a data-quality fact about THIS response, so it must not read as a
+    // clean 'analyzed' answer.
+    h.generateJson.mockResolvedValue({ ...gradeShape, klpResults: [], errorTags: [] })
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
+
+    expect(h.answerCreate.mock.calls[0][0].data.analysisStatus).toBe('no_provenance')
     expect(h.klpResultCreateMany).not.toHaveBeenCalled()
   })
 
@@ -278,5 +297,38 @@ describe('submitShortAnswer analysis capture', () => {
     expect(klpResults).toHaveLength(1)
     expect(klpResults[0]).toMatchObject({ status: 'failed' }) // the SECOND grade, not the first
     expect(errorTags).toHaveLength(0) // the stale tag from the first attempt is gone
+  })
+
+  it('records analysisStatus failed when grading itself throws, and still returns success: false', async () => {
+    // Previously: a grading failure threw straight out of the action with no
+    // row ever created, so the spec's own degradation table ("No AI
+    // credential -> failed") described intended, not actual, behavior.
+    h.generateJson.mockRejectedValue(new Error('grading blew up'))
+
+    const result = await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
+
+    // Client-facing contract is UNCHANGED — still a plain failure the UI
+    // already knows how to show, just with a row now recorded behind it.
+    expect(result.success).toBe(false)
+
+    expect(h.answerCreate).toHaveBeenCalledTimes(1)
+    const data = h.answerCreate.mock.calls[0][0].data
+    expect(data.analysisStatus).toBe('failed')
+    expect(data.score).toBeNull()
+    expect(data.isCorrect).toBeNull()
+    expect(h.klpResultCreateMany).not.toHaveBeenCalled()
+    expect(h.errorTagCreateMany).not.toHaveBeenCalled()
+  })
+
+  it('does not record a failed row for an unrelated pre-grading failure', async () => {
+    // The failed-row bookkeeping is scoped to the grading call specifically —
+    // a card lookup failure (or any other pre-grading error) must not
+    // fabricate a "grading failed" row for an answer that was never graded.
+    h.cardFindUnique.mockResolvedValue(null)
+
+    const result = await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
+
+    expect(result.success).toBe(false)
+    expect(h.answerCreate).not.toHaveBeenCalled()
   })
 })
