@@ -9,9 +9,7 @@ import type { ActionResult } from '@/types/action';
 import { generateJson } from '@/lib/ai/generate';
 import { safeProfileBlock } from '@/lib/ai/context';
 import { SESSION_INSIGHT_PROMPT } from '@/lib/ai/prompts/registry';
-
-export const STUDY_SESSION_KINDS = ['quiz', 'matching', 'confidence'] as const;
-export type StudySessionKind = (typeof STUDY_SESSION_KINDS)[number];
+import { STUDY_SESSION_KINDS, type StudySessionKind } from '@/lib/memory/session-kind';
 
 export async function startStudySession(input: {
   setId: string;

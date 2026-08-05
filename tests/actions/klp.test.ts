@@ -72,11 +72,11 @@ vi.mock('next/cache', () => ({ revalidatePath: h.revalidatePath }))
 import {
   extractKlpsForCards,
   ensureKlpsReady,
-  KLP_BATCH_SIZE,
   getCardKlps,
   saveCardKlp,
 } from '@/actions/klp'
 import { klpSourceHash } from '@/lib/cards/klp-hash'
+import { KLP_BATCH_SIZE } from '@/lib/cards/klp-batch'
 
 const card = (id: string) => ({
   id,

@@ -5,6 +5,18 @@ import {
 import { computeSignificance } from '@/lib/errors/significance'
 import { klpCredit, type KlpStatus } from '@/lib/errors/klp-credit'
 
+/**
+ * Version of the whole analysis-capture contract: the error-tag vocabulary,
+ * the significance constants, and the klp-credit constants, versioned
+ * together. Bump this if any of those three change in a way that makes an
+ * old row's numbers not comparable to a new one's.
+ *
+ * Lives here (not in the `'use server'` action file that writes it) because
+ * a "use server" module may only export async functions — a plain constant
+ * export there is a hard Next.js build error.
+ */
+export const ANALYSIS_VERSION = 1
+
 /** Why an answer has the analysis rows it has. */
 export type AnalysisOutcome = 'analyzed' | 'no_provenance' | 'no_klps' | 'failed'
 

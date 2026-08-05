@@ -8,14 +8,8 @@ import { EXTRACT_KLPS_PROMPT } from '@/lib/ai/prompts/extract-klps';
 import { KlpExtractionSchema } from '@/lib/ai/schemas';
 import { klpSourceHash } from '@/lib/cards/klp-hash';
 import { selectStaleCardIds } from '@/lib/cards/stale';
+import { KLP_BATCH_SIZE } from '@/lib/cards/klp-batch';
 import type { ActionResult } from '@/types/action';
-
-/**
- * Cards per extraction call. The pipe/semicolon importer creates 100+ cards in
- * one save; one call per card would exhaust the user's key pool and surface as
- * `quota_exhausted` across their whole account.
- */
-export const KLP_BATCH_SIZE = 10;
 
 /**
  * An AiGenerationError carrying zero attempts means the candidate pool was
