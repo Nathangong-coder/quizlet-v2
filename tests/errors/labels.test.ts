@@ -22,6 +22,15 @@ describe('labelForErrorType', () => {
   it('capitalizes only the first word when de-slugging', () => {
     expect(labelForErrorType('some_new_type')).toBe('Some new type')
   })
+
+  it('never returns the literal string "undefined" for a degenerate input', () => {
+    // Regression: `w[0]?.toUpperCase() + w.slice(1)` on an empty first word
+    // silently produces the STRING "undefined" via concatenation, not a
+    // thrown error and not an empty string — the worst of both worlds for a
+    // function whose entire point is graceful degradation.
+    expect(labelForErrorType('')).not.toContain('undefined')
+    expect(labelForErrorType('_leading_underscore')).not.toContain('undefined')
+  })
 })
 
 describe('labelForKlpStatus', () => {
