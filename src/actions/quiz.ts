@@ -33,6 +33,7 @@ import { parseOptionCache, resolveDistractorProvenance, type ParsedOptions, type
 import { pickTfVariant } from '@/lib/quiz/coin-flip';
 import {
   buildAnalysisWrites,
+  ANALYSIS_VERSION,
   type AnalysisWrites,
   type ErrorTagDraft,
   type KlpResultDraft,
@@ -40,14 +41,6 @@ import {
 import { toStudySource } from '@/lib/quiz/mode';
 import type { StudySource } from '@/lib/memory/scoring';
 import { severityFromCorruption } from '@/lib/errors/severity';
-
-/**
- * Version of the whole analysis-capture contract: the error-tag vocabulary,
- * the significance constants, and the klp-credit constants, versioned
- * together. Bump this if any of those three change in a way that makes an
- * old row's numbers not comparable to a new one's.
- */
-export const ANALYSIS_VERSION = 1;
 
 /**
  * Fisher-Yates. The correct answer must not sit in a predictable slot — the
