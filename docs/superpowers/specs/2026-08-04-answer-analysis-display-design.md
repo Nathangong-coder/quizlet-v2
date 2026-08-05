@@ -169,3 +169,19 @@ Component-level: a snapshot or RTL test on `QuizSummary.tsx` asserting the KLP c
 - **Humanizing error-type strings** (`factual_error` → "Factual error", `unsupported_leap` → "Unsupported leap") needs a lookup table somewhere — either inline in the display component or a shared `src/lib/errors/labels.ts`. Small, but worth deciding once rather than ad-hoc per call site.
 - **Icon/color choices** for pass/partial/fail and per-dimension badges aren't pinned here — left to implementation to match the existing design system (`src/components/ui/badge.tsx` variants), not dictated by this doc.
 - Whether the rollup card should be collapsible/collapsed-by-default on a long multi-mode quiz is a UX call better made against a real screenshot than in prose here.
+
+## Found and fixed during implementation
+
+**`getQuizAttemptSummary` had no ownership check at all** —
+`prisma.quizAttempt.findUnique({ where: { id: attemptId } })`, no `userId`
+filter anywhere in the function. Any authenticated user who knew or guessed
+an `attemptId` could read another user's full quiz results. Pre-existing (not
+introduced by this spec), but this spec's own include widened what leaked
+through it — `AnswerKlpResult.evidence` and `AnswerErrorTag.quote` are
+verbatim quotes from the learner's own typed answers. Fixed by switching to
+an owner-scoped `findFirst({ where: { id, userId } })`, matching the pattern
+already established (with an explanatory comment referencing the exact same
+bug class) in `submitMultipleChoiceAnswer`/`submitTrueFalseAnswer`/
+`submitShortAnswer`. Pinned by a new test in
+`tests/actions/quiz-submit-ownership.test.ts`, alongside the equivalent tests
+for the three submit actions.

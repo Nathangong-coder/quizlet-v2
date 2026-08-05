@@ -18,6 +18,7 @@ const h = vi.hoisted(() => ({
   answerFindMany: vi.fn(),
   answerFindFirst: vi.fn(),
   cardFindUnique: vi.fn(),
+  optionCacheFindMany: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -35,6 +36,7 @@ vi.mock('@/lib/db', () => ({
       findMany: h.answerFindMany,
       findFirst: h.answerFindFirst,
     },
+    quizOptionCache: { findMany: h.optionCacheFindMany },
     card: { findUnique: h.cardFindUnique },
   },
 }))
@@ -57,6 +59,7 @@ import {
   submitMultipleChoiceAnswer,
   submitShortAnswer,
   submitTrueFalseAnswer,
+  getQuizAttemptSummary,
 } from '@/actions/quiz'
 
 const OWNER = 'user-owner'
@@ -130,5 +133,20 @@ describe('submit actions reject a foreign attemptId', () => {
     expect(result.error).toBe('Attempt not found')
     expect(h.generateJson).not.toHaveBeenCalled()
     expectNoWrites()
+  })
+
+  it('getQuizAttemptSummary', async () => {
+    // No owner check at all previously — findUnique({ where: { id } }) let
+    // any authenticated user view any other user's quiz results, including
+    // (as of Spec 2b) verbatim quotes from their short answers via
+    // AnswerKlpResult.evidence / AnswerErrorTag.quote.
+    const result = await getQuizAttemptSummary(FOREIGN_ATTEMPT)
+
+    expect(result.success).toBe(false)
+    if (result.success) throw new Error('expected failure')
+    expect(result.error).toBe('Attempt not found')
+    expect(h.attemptFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: FOREIGN_ATTEMPT, userId: OWNER } }),
+    )
   })
 })

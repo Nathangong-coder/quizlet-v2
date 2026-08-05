@@ -5,14 +5,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // vi.hoisted() + vi.mock() pattern in tests/actions/analysis-mc-tf.test.ts.
 const h = vi.hoisted(() => ({
   auth: vi.fn(),
-  attemptFindUnique: vi.fn(),
+  attemptFindFirst: vi.fn(),
   optionCacheFindMany: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
 vi.mock('@/lib/db', () => ({
   prisma: {
-    quizAttempt: { findUnique: h.attemptFindUnique },
+    quizAttempt: { findFirst: h.attemptFindFirst },
     quizOptionCache: { findMany: h.optionCacheFindMany },
   },
 }))
@@ -29,7 +29,7 @@ beforeEach(() => {
 
 describe('getQuizAttemptSummary — analysis include', () => {
   it('fetches klpResults and errorTags with their KLP text joined in', async () => {
-    h.attemptFindUnique.mockResolvedValue({
+    h.attemptFindFirst.mockResolvedValue({
       id: 'a1',
       userId: OWNER,
       session: null,
@@ -69,13 +69,13 @@ describe('getQuizAttemptSummary — analysis include', () => {
     expect(result.data.attempt.answers[0].errorTags[0].dimension).toBe('accuracy')
 
     // Regression guard on the actual query shape, not just the mocked return.
-    const includeArg = h.attemptFindUnique.mock.calls[0][0].include.answers.include
+    const includeArg = h.attemptFindFirst.mock.calls[0][0].include.answers.include
     expect(includeArg).toHaveProperty('klpResults')
     expect(includeArg).toHaveProperty('errorTags')
   })
 
   it('does not throw when an error tag has a null klp (deleted card, or a whole-answer tag)', async () => {
-    h.attemptFindUnique.mockResolvedValue({
+    h.attemptFindFirst.mockResolvedValue({
       id: 'a1',
       userId: OWNER,
       session: null,

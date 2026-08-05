@@ -1164,8 +1164,14 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
-    const attempt = await prisma.quizAttempt.findUnique({
-      where: { id: attemptId },
+    // Owner-scoped: previously `findUnique({ where: { id: attemptId } })` had
+    // no ownership check at all, so any authenticated user who knew or
+    // guessed an attemptId could read another user's full results —
+    // including, as of Spec 2b, verbatim quotes from their short answers via
+    // AnswerKlpResult.evidence / AnswerErrorTag.quote. Matches the
+    // owner-scoped `findFirst` pattern already used by the submit* actions.
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: attemptId, userId: session.user.id },
       include: {
         user: true,
         set: { include: { cards: true } },
