@@ -1,12 +1,16 @@
 import { Card } from '@prisma/client';
 import { ContentBlock } from '@/lib/cards/content';
 import { ShortAnswerGradeSchema } from '@/lib/ai/schemas';
+import { ACCURACY_TYPES, CLARITY_TYPES, CONCISENESS_TYPES, MAX_TAGS_PER_ANSWER } from '@/lib/errors/taxonomy';
 import { learnerContextBlock } from './shared';
+import { PromptKlp } from './multiple-choice';
 
 export interface GradeShortAnswerBuildInput {
   card: Card;
   answer: string;
   profileBlock?: string;
+  /** Live KLPs. Absent or empty falls back to the rubric-only prompt. */
+  klps?: PromptKlp[];
 }
 
 export interface GradeShortAnswerBuildPartsInput {
@@ -14,6 +18,8 @@ export interface GradeShortAnswerBuildPartsInput {
   promptBlocks: ContentBlock[];
   answer: string;
   profileBlock?: string;
+  /** Live KLPs. Absent or empty falls back to the rubric-only prompt. */
+  klps?: PromptKlp[];
 }
 
 const RUBRIC_BODY = `For each of the following categories, provide a score (1-10), a list of pros, and a list of cons:
@@ -39,28 +45,73 @@ JSON Schema:
 }`;
 
 /**
+ * Appended when live KLPs are supplied. Asks for per-KLP outcomes and
+ * closed-vocabulary error tags in the SAME call as the rubric — no second AI
+ * call, no window where a grade exists without its analysis. `severity` is
+ * the model's only numeric contribution; significance is computed in TS.
+ */
+const ANALYSIS_BODY = (klps: PromptKlp[]) => `
+Key Learning Points this card teaches:
+${klps.map((k) => `[${k.ref}] (${k.kind}) ${k.text}`).join('\n')}
+
+Additionally return:
+
+"klpResults": one entry per Key Learning Point above, judging ONLY that point:
+  - "passed"  — the answer covers it correctly
+  - "partial" — mentioned but incomplete or imprecise
+  - "failed"  — absent, or stated wrongly
+  Include a short verbatim "evidence" quote from the answer where one exists.
+  Reference points by their [ref] number.
+
+"errorTags": at most ${MAX_TAGS_PER_ANSWER} tags, at most 2 per dimension.
+  Tag only what is genuinely wrong; a clean answer returns an empty list.
+
+  dimension "accuracy"     — types: ${ACCURACY_TYPES.join(', ')}
+  dimension "clarity"      — types: ${CLARITY_TYPES.join(', ')}
+  dimension "conciseness"  — types: ${CONCISENESS_TYPES.join(', ')}
+
+  Each tag needs:
+  - "type" from that dimension's list. Use NO other word.
+  - "klpRef" when the error is about a specific point; omit it when the error
+    is about the whole answer.
+  - "secondaryKlpRef" for "conflation" only: the point it was confused WITH.
+  - "severity" 1-5, how bad THIS instance is.
+  - "quote": the span of the answer the tag refers to.
+
+Rank by what matters most. Do not pad to the cap.`;
+
+/**
  * Short-answer grading prompt. Registry entry per Stage 6 Task 5 — routed
  * via task 'grade' in generateJson (strongest available flash). The rubric/schema is
  * unchanged from the pre-registry version: still 1-10
  * clarity/conciseness/correctness/overall. `profileBlock` only adds learner
  * context; it does not change what's being graded.
+ *
+ * v2 (Stage 8 Spec 2a): when live KLPs are supplied, the SAME call also
+ * returns per-KLP outcomes and closed-vocabulary error tags (ANALYSIS_BODY).
+ * Without KLPs the output is byte-identical to v1 — pre-existing tests and a
+ * keyless user both depend on that.
  */
 export const GRADE_SHORT_ANSWER_PROMPT = {
   id: 'grade-short-answer',
-  version: 1,
+  version: 2,
   schema: ShortAnswerGradeSchema,
 
   build(input: GradeShortAnswerBuildInput): string {
+    const analysis = input.klps && input.klps.length > 0 ? ANALYSIS_BODY(input.klps) : '';
+
     return `${learnerContextBlock(input.profileBlock)}You are a finance interview grader. Grade the following short-answer response.
 
 Term: ${input.card.term}
 Expected Definition: ${input.card.definition}
 User Answer: "${input.answer}"
 
-${RUBRIC_BODY}`;
+${RUBRIC_BODY}${analysis}`;
   },
 
   buildParts(input: GradeShortAnswerBuildPartsInput): { parts: any[]; promptText: string } {
+    const analysis = input.klps && input.klps.length > 0 ? ANALYSIS_BODY(input.klps) : '';
+
     const promptText = `${learnerContextBlock(input.profileBlock)}You are a finance interview grader. Grade the following short-answer response.
 
 ${input.promptBlocks.some((b) => b.type !== 'text') ? '[The question material is shown above/below as images, audio, video, etc.]' : ''}
@@ -68,7 +119,7 @@ ${input.promptBlocks.some((b) => b.type !== 'text') ? '[The question material is
 Expected Definition: ${input.card.definition}
 User Answer: "${input.answer}"
 
-${RUBRIC_BODY}`;
+${RUBRIC_BODY}${analysis}`;
 
     return { parts: [{ text: promptText }], promptText };
   },

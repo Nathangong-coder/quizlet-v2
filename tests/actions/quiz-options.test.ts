@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   cardFindUnique: vi.fn(),
   cardFindFirst: vi.fn(),
   setFindUnique: vi.fn(),
+  attemptFindFirst: vi.fn(),
   questionUpsert: vi.fn(),
 }))
 
@@ -24,6 +25,9 @@ vi.mock('@/lib/db', () => ({
     // recordQuizQuestion's klpVersion read.
     card: { findUnique: h.cardFindUnique, findFirst: h.cardFindFirst },
     set: { findUnique: h.setFindUnique },
+    // recordQuizQuestion's owner check on attemptId, added alongside the
+    // cardId owner check this file already covered.
+    quizAttempt: { findFirst: h.attemptFindFirst },
     quizQuestion: { upsert: h.questionUpsert },
   },
 }))
@@ -68,6 +72,8 @@ beforeEach(() => {
   h.cardFindUnique.mockResolvedValue(card)
   h.cardFindFirst.mockResolvedValue(card)
   h.setFindUnique.mockResolvedValue(set)
+  // Owns the attempt by default; the dedicated ownership test overrides this.
+  h.attemptFindFirst.mockResolvedValue({ id: 'attempt1' })
   h.cacheFindUnique.mockResolvedValue(null)
   h.cacheUpsert.mockResolvedValue({})
   h.questionUpsert.mockResolvedValue({})

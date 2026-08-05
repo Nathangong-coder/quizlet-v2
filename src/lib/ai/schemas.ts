@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { CORRUPTIONS } from '@/lib/quiz/options';
+import { DIMENSIONS, MAX_TAGS_PER_ANSWER } from '@/lib/errors/taxonomy';
+import { KLP_STATUSES } from '@/lib/errors/klp-credit';
 
 export const MultipleChoiceOptionsSchema = z.object({
   options: z.array(z.string().min(1)).length(4),
@@ -27,6 +29,28 @@ export const ShortAnswerGradeSchema = z.object({
   overall: z.number().min(1).max(10),
   summary: z.string().min(1),
   suggestedImprovement: z.string().min(1),
+  /**
+   * Per-KLP outcomes. `klpRef` is an index into the prompt's KLP list, never a
+   * cuid. Optional so the no-KLP path parses today's shape unchanged.
+   */
+  klpResults: z.array(z.object({
+    klpRef: z.number().int().min(0),
+    status: z.enum(KLP_STATUSES),
+    evidence: z.string().optional(),
+  })).optional(),
+  /**
+   * `type` is z.string(), not an enum: it is validated against its OWN
+   * dimension in TS (buildAnalysisWrites), which a flat enum cannot express.
+   * `severity` is the AI's ONLY numeric contribution.
+   */
+  errorTags: z.array(z.object({
+    dimension: z.enum(DIMENSIONS),
+    type: z.string().min(1),
+    klpRef: z.number().int().min(0).optional(),
+    secondaryKlpRef: z.number().int().min(0).optional(),
+    severity: z.number().int().min(1).max(5),
+    quote: z.string().optional(),
+  })).max(MAX_TAGS_PER_ANSWER).optional(),
 });
 
 export type ShortAnswerGrade = z.infer<typeof ShortAnswerGradeSchema>;

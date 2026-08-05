@@ -2,6 +2,7 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { generateJson, resolveTaskModel, AiGenerationError } from '@/lib/ai/generate';
 import {
   MULTIPLE_CHOICE_PROMPT,
@@ -28,8 +29,25 @@ import { safeProfileBlock } from '@/lib/ai/context';
 import { ActionResult } from '@/types/action';
 import { SessionInsightSchema, type SessionInsight } from '@/lib/memory/insight';
 import { ensureKlpsReady } from '@/actions/klp';
-import { parseOptionCache, type ParsedOptions } from '@/lib/quiz/options';
+import { parseOptionCache, resolveDistractorProvenance, type ParsedOptions, type Corruption } from '@/lib/quiz/options';
 import { pickTfVariant } from '@/lib/quiz/coin-flip';
+import {
+  buildAnalysisWrites,
+  type AnalysisWrites,
+  type ErrorTagDraft,
+  type KlpResultDraft,
+} from '@/lib/analysis/persist';
+import { toStudySource } from '@/lib/quiz/mode';
+import type { StudySource } from '@/lib/memory/scoring';
+import { severityFromCorruption } from '@/lib/errors/severity';
+
+/**
+ * Version of the whole analysis-capture contract: the error-tag vocabulary,
+ * the significance constants, and the klp-credit constants, versioned
+ * together. Bump this if any of those three change in a way that makes an
+ * old row's numbers not comparable to a new one's.
+ */
+export const ANALYSIS_VERSION = 1;
 
 /**
  * Fisher-Yates. The correct answer must not sit in a predictable slot — the
@@ -47,20 +65,120 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 /**
+ * Why a binary-mode answer's drafts came up empty (or, for a correct answer,
+ * whether crediting actually resolved anything). Distinguishes two different
+ * reasons for zero rows that must NOT be conflated into one `analyzed`
+ * bucket: an answer that legitimately has nothing to attribute BY DESIGN
+ * (`deliberate_none`) versus one where attribution was attempted and failed
+ * for a data reason (`unattributable`) — a legacy v1 cache row, a v2
+ * distractor missing provenance, or a `sourceKlpId`/target that no longer
+ * resolves after a mid-attempt card edit superseded the live KLP set.
+ */
+type Attribution = 'attributed' | 'deliberate_none' | 'unattributable';
+
+/**
+ * Analysis drafts for a binary-mode answer, with NO AI call.
+ *
+ * Everything needed is already on the QuizQuestion row: the generator recorded
+ * which KLP each distractor corrupts and how, so a wrong pick diagnoses itself.
+ *
+ * `targetKlpIds` are the KLPs the QUESTION tested — a correct answer credits
+ * all of them, but a wrong answer implicates ONLY the one the learner actually
+ * chose. Rejecting the other distractors carries no information, because the
+ * correct answer was rejected too.
+ */
+function binaryModeDrafts(input: {
+  mode: StudySource;
+  isCorrect: boolean;
+  klps: { id: string; weight: number }[];
+  targetKlpIds: string[];
+  /** The KLP the chosen wrong answer corrupts, when known. */
+  failedKlpId: string | null;
+  corruption: Corruption | null;
+  /**
+   * True when the caller already knows there is nothing to attribute BY
+   * DESIGN, not because attribution failed — TF where the learner rejected
+   * the real (uncorrupted) statement. Rejecting a true statement is
+   * second-guessing, not a knowledge gap, so it is a clean `deliberate_none`
+   * (zero rows, but nothing went wrong — maps to `analysisStatus: 'analyzed'`).
+   * Do NOT set this for an unscored answer (no `QuizQuestion` row / no answer
+   * key) — that IS a missing-data case and must fall through to
+   * `unattributable` (-> `no_provenance`), the same as a v1 MC cache row, or
+   * Spec 3's denominator would count an unevaluated answer as "analyzed and
+   * clean". Ignored when `isCorrect` is true.
+   */
+  deliberateEmpty?: boolean;
+}): { klpResults: KlpResultDraft[]; errorTags: ErrorTagDraft[]; attribution: Attribution } {
+  const refOf = (id: string) => input.klps.findIndex((k) => k.id === id);
+
+  if (input.isCorrect) {
+    const klpResults = input.targetKlpIds
+      .map(refOf)
+      .filter((ref) => ref >= 0)
+      .map((klpRef) => ({ klpRef, status: 'passed' as const }));
+    // A correct answer whose targets resolve to nothing is the SAME failure
+    // as a wrong pick with no provenance, just wearing a different hat — most
+    // often the mid-attempt-edit case, where every id the question was
+    // generated against has since been superseded.
+    return { klpResults, errorTags: [], attribution: klpResults.length > 0 ? 'attributed' : 'unattributable' };
+  }
+
+  if (input.deliberateEmpty) {
+    return { klpResults: [], errorTags: [], attribution: 'deliberate_none' };
+  }
+
+  // Wrong, and nothing tells us WHICH proposition failed: no QuizQuestion
+  // row, a v1 cache row, or a v2 distractor missing provenance. Record no
+  // claim rather than an invented one.
+  if (!input.failedKlpId || !input.corruption) {
+    return { klpResults: [], errorTags: [], attribution: 'unattributable' };
+  }
+
+  const klpRef = refOf(input.failedKlpId);
+  // The id was real at generation time but no longer resolves against the
+  // CURRENT live KLP set — a mid-attempt card edit superseded it.
+  if (klpRef < 0) return { klpResults: [], errorTags: [], attribution: 'unattributable' };
+
+  return {
+    klpResults: [{ klpRef, status: 'failed' }],
+    errorTags: [
+      {
+        dimension: 'accuracy',
+        type: input.corruption,
+        klpRef,
+        severity: severityFromCorruption(input.corruption, input.mode),
+      },
+    ],
+    attribution: 'attributed',
+  };
+}
+
+/**
  * Freezes the question as asked, with its KLP provenance. Spec 2 reads this to
  * diagnose a wrong pick with no grading call. Upsert because a user may
  * navigate back to a question before submitting. No-op without an attemptId
- * (e.g. the printable-quiz path, which has no attempt).
+ * (e.g. the printable-quiz path, which has no attempt) OR when attemptId
+ * doesn't belong to this user — `cardId` ownership is checked by the caller,
+ * but `attemptId` is client-supplied too, and previously reached the upsert
+ * unchecked, letting a caller plant a QuizQuestion row keyed to someone
+ * else's attempt.
  *
  * Bookkeeping only: a failure here must never fail option generation, so
- * callers wrap this in try/catch and swallow.
+ * callers wrap this in try/catch and swallow — the ownership no-op follows
+ * the same contract, silently skipping rather than throwing.
  */
 async function recordQuizQuestion(
   attemptId: string | undefined,
   cardId: string,
   parsed: ParsedOptions,
+  userId: string,
 ): Promise<void> {
   if (!attemptId) return;
+  const attempt = await prisma.quizAttempt.findFirst({
+    where: { id: attemptId, userId },
+    select: { id: true },
+  });
+  if (!attempt) return;
   const targetKlpIds = Array.from(
     new Set(parsed.options.map((o) => o.sourceKlpId).filter((id): id is string => Boolean(id))),
   );
@@ -118,7 +236,7 @@ export async function getOrGenerateMultipleChoiceOptions(
       const parsedCache = cached ? parseOptionCache(cached.options) : null;
       if (parsedCache) {
         try {
-          await recordQuizQuestion(attemptId, cardId, parsedCache);
+          await recordQuizQuestion(attemptId, cardId, parsedCache, session.user.id);
         } catch (recordErr) {
           console.error('recordQuizQuestion failed (cache hit):', recordErr);
         }
@@ -206,7 +324,7 @@ export async function getOrGenerateMultipleChoiceOptions(
 
     const parsed = parseOptionCache(optionsJson)!;
     try {
-      await recordQuizQuestion(attemptId, cardId, parsed);
+      await recordQuizQuestion(attemptId, cardId, parsed, session.user.id);
     } catch (recordErr) {
       console.error('recordQuizQuestion failed (fresh generation):', recordErr);
     }
@@ -377,8 +495,51 @@ export async function submitMultipleChoiceAnswer(input: {
       }
     }
 
-    const answer = await prisma.quizAnswer.create({
-      data: {
+    // Diagnose the wrong pick with NO AI call: the generator already recorded
+    // which KLP each distractor corrupts and how, on the QuizQuestion row.
+    const question = await prisma.quizQuestion.findUnique({
+      where: { attemptId_cardId_mode: { attemptId: input.attemptId, cardId: input.cardId, mode: 'multiple-choice' } },
+    });
+    const parsed = question?.options
+      ? parseOptionCache({ v: 2, correctAnswer: input.correctAnswer, options: question.options })
+      : null;
+    const provenance = parsed && !isCorrect
+      ? resolveDistractorProvenance(parsed, input.selectedOption)
+      : null;
+
+    const klps = await ensureKlpsReady(session.user.id, input.cardId);
+    const progress = await prisma.cardProgress.findUnique({
+      where: { userId_cardId: { userId: session.user.id, cardId: input.cardId } },
+      select: { starred: true },
+    });
+
+    const mode = toStudySource('multiple-choice');
+    const drafts = binaryModeDrafts({
+      mode,
+      isCorrect,
+      klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+      targetKlpIds: (question?.targetKlpIds as string[] | null) ?? [],
+      failedKlpId: provenance?.sourceKlpId ?? null,
+      corruption: provenance?.corruption ?? null,
+    });
+
+    // A pick we could not attribute (no provenance, or a stale klp id) is
+    // `no_provenance`, NOT a clean answer — `binaryModeDrafts` already tells
+    // us which case we're in via `attribution`.
+    const forcedStatus =
+      drafts.attribution === 'unattributable' ? ('no_provenance' as const) : undefined;
+
+    const writes = buildAnalysisWrites({
+      mode,
+      klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+      starred: progress?.starred ?? false,
+      klpResults: drafts.klpResults,
+      errorTags: drafts.errorTags,
+      forcedStatus,
+    });
+
+    const answer = await createAnswerWithAnalysis(
+      {
         attemptId: input.attemptId,
         userId: session.user.id,
         cardId: input.cardId,
@@ -391,7 +552,8 @@ export async function submitMultipleChoiceAnswer(input: {
         latencyMs: normalizeLatency(input.latencyMs),
         feedback,
       },
-    });
+      writes,
+    );
 
     try {
       await recordStudyEvent({
@@ -511,8 +673,55 @@ export async function submitTrueFalseAnswer(input: {
       }
     }
 
-    const answer = await prisma.quizAnswer.create({
-      data: {
+    const klps = await ensureKlpsReady(session.user.id, input.cardId);
+    const progress = await prisma.cardProgress.findUnique({
+      where: { userId_cardId: { userId: session.user.id, cardId: input.cardId } },
+      select: { starred: true },
+    });
+
+    // Only a wrong answer to a CORRUPTED statement implicates a KLP. Answering
+    // "false" to the real definition means the learner rejected something true —
+    // second-guessing, not a knowledge gap (docs/ai/error-taxonomy.md §4).
+    // Recording `failed` there would teach Spec 3 they lack a proposition they
+    // may well hold.
+    const rejectedTruth = question?.isTrue === true;
+    const failedKlpId =
+      isCorrect === false && !rejectedTruth
+        ? ((question?.targetKlpIds as string[] | null) ?? [])[0] ?? null
+        : null;
+
+    const mode = toStudySource('true-false');
+    const drafts = binaryModeDrafts({
+      mode,
+      isCorrect: isCorrect === true,
+      klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+      targetKlpIds: (question?.targetKlpIds as string[] | null) ?? [],
+      failedKlpId,
+      corruption: (question?.corruption as Corruption | null) ?? null,
+      // Only the "rejected the true statement" case is deliberate. An
+      // unscored answer (isCorrect === null, no question row) is missing
+      // data, not a by-design non-finding — it must fall through to
+      // `unattributable` on its own via the null failedKlpId/corruption
+      // below, not be forced here.
+      deliberateEmpty: rejectedTruth,
+    });
+
+    // A wrong pick we could not attribute (no question row, or a stale klp
+    // id) is `no_provenance`, NOT a clean `analyzed` answer.
+    const forcedStatus =
+      drafts.attribution === 'unattributable' ? ('no_provenance' as const) : undefined;
+
+    const writes = buildAnalysisWrites({
+      mode,
+      klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+      starred: progress?.starred ?? false,
+      klpResults: drafts.klpResults,
+      errorTags: drafts.errorTags,
+      forcedStatus,
+    });
+
+    const answer = await createAnswerWithAnalysis(
+      {
         attemptId: input.attemptId,
         userId: session.user.id,
         cardId: input.cardId,
@@ -525,7 +734,8 @@ export async function submitTrueFalseAnswer(input: {
         latencyMs: normalizeLatency(input.latencyMs),
         feedback,
       },
-    });
+      writes,
+    );
 
     if (isCorrect !== null) {
       try {
@@ -557,6 +767,92 @@ export async function submitTrueFalseAnswer(input: {
     return { success: true, data: { isCorrect, score, feedback } };
   } catch (error) {
     return { success: false, error: 'Failed to submit answer' };
+  }
+}
+
+/**
+ * Persists an answer together with its analysis, atomically.
+ *
+ * One transaction, not an after(): a QuizAnswer without an analysisStatus is a
+ * row Spec 3 cannot classify — neither analyzed nor explicitly unanalyzable —
+ * and nothing later can tell it apart from an analysis that genuinely failed.
+ */
+async function createAnswerWithAnalysis(
+  answerData: Prisma.QuizAnswerUncheckedCreateInput,
+  writes: AnalysisWrites,
+) {
+  return prisma.$transaction(async (tx) => {
+    const answer = await tx.quizAnswer.create({
+      data: {
+        ...answerData,
+        analysisStatus: writes.status,
+        analysisVersion: ANALYSIS_VERSION,
+        analysisWarnings:
+          writes.warnings.length > 0 ? (writes.warnings as unknown as object) : undefined,
+      },
+    });
+    if (writes.klpResults.length > 0) {
+      await tx.answerKlpResult.createMany({
+        data: writes.klpResults.map((r) => ({ ...r, quizAnswerId: answer.id })),
+      });
+    }
+    if (writes.errorTags.length > 0) {
+      await tx.answerErrorTag.createMany({
+        data: writes.errorTags.map((t) => ({ ...t, quizAnswerId: answer.id })),
+      });
+    }
+    return answer;
+  });
+}
+
+/**
+ * Records a placeholder answer when short-answer grading itself failed to
+ * produce a grade — `analysisStatus: 'failed'` rather than leaving a total
+ * gap where the spec's own degradation table (§5: "No AI credential ->
+ * failed") describes behaviour that never actually happens.
+ *
+ * Best-effort: swallows its OWN write failure so a DB hiccup here can never
+ * mask the original grading error, which the caller re-throws to the
+ * existing outer catch — the client-facing contract (a plain
+ * `{ success: false }`) is unchanged.
+ */
+async function recordFailedShortAnswerAnalysis(input: {
+  attemptId: string;
+  userId: string;
+  cardId: string;
+  answer: string;
+  correctAnswer: string;
+  klps: { id: string; weight: number }[];
+  starred: boolean;
+  latencyMs?: number;
+}): Promise<void> {
+  try {
+    const writes = buildAnalysisWrites({
+      mode: toStudySource('short-answer'),
+      klps: input.klps,
+      starred: input.starred,
+      klpResults: [],
+      errorTags: [],
+      forcedStatus: 'failed',
+    });
+    await createAnswerWithAnalysis(
+      {
+        attemptId: input.attemptId,
+        userId: input.userId,
+        cardId: input.cardId,
+        mode: 'short-answer',
+        prompt: input.answer,
+        answer: input.answer,
+        correctAnswer: input.correctAnswer,
+        score: null,
+        isCorrect: null,
+        latencyMs: normalizeLatency(input.latencyMs),
+        feedback: 'Grading failed.',
+      },
+      writes,
+    );
+  } catch (writeErr) {
+    console.error('Failed to record failed-grading analysis row:', writeErr);
   }
 }
 
@@ -598,6 +894,20 @@ export async function submitShortAnswer(input: {
 
     const profileBlock = await safeProfileBlock(session.user.id, card.setId, 'short-answer grading');
 
+    // Live KLPs (empty when extraction is impossible) and starred state,
+    // resolved once and shared by both branches below: both the prompt (so
+    // the model can return per-KLP outcomes) and the post-grade analysis
+    // write need the same KLPs and the same starred flag.
+    const klps = await ensureKlpsReady(session.user.id, input.cardId);
+    const progress = await prisma.cardProgress.findUnique({
+      where: { userId_cardId: { userId: session.user.id, cardId: input.cardId } },
+      select: { starred: true },
+    });
+    // No progress row means the learner has never interacted with this card —
+    // a definite "not starred", not missing data.
+    const starred = progress?.starred ?? false;
+    const promptKlps = klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind }));
+
     // Get content blocks for the term side (what the user was asked about)
     const termBlocks = card.contentBlocks
       .filter(b => b.side === 'term')
@@ -605,13 +915,33 @@ export async function submitShortAnswer(input: {
 
     // Use text-only path if no media
     if (termBlocks.every(b => b.type === 'text')) {
-      const prompt = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: input.answer, profileBlock });
-      const grade = await generateJson({
-        userId: session.user.id,
-        task: 'grade',
-        prompt,
-        schema: ShortAnswerGradeSchema,
+      const prompt = GRADE_SHORT_ANSWER_PROMPT.build({
+        card,
+        answer: input.answer,
+        profileBlock,
+        klps: promptKlps.length > 0 ? promptKlps : undefined,
       });
+      let grade;
+      try {
+        grade = await generateJson({
+          userId: session.user.id,
+          task: 'grade',
+          prompt,
+          schema: ShortAnswerGradeSchema,
+        });
+      } catch (gradingErr) {
+        await recordFailedShortAnswerAnalysis({
+          attemptId: input.attemptId,
+          userId: session.user.id,
+          cardId: input.cardId,
+          answer: input.answer,
+          correctAnswer: card.definition,
+          klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+          starred,
+          latencyMs: input.latencyMs,
+        });
+        throw gradingErr;
+      }
 
       let annotations: any[] = [];
       try {
@@ -630,8 +960,26 @@ export async function submitShortAnswer(input: {
       const score = grade.overall * 10;
       const isCorrect = grade.overall >= 8;
 
-      const answer = await prisma.quizAnswer.create({
-        data: {
+      // Spec 2a §4: a correct SA answer writes one row per KLP on the card —
+      // the grader evaluates each regardless of overall correctness. Empty
+      // klpResults on a card that HAS live KLPs means the grader didn't do
+      // the per-KLP judgment it was asked for, never a legitimately clean
+      // grade. Unlike MC/TF there's no legacy-cache case here, so this is
+      // the only no_provenance trigger for short answer.
+      const forcedStatus =
+        klps.length > 0 && (grade.klpResults ?? []).length === 0 ? ('no_provenance' as const) : undefined;
+
+      const writes = buildAnalysisWrites({
+        mode: toStudySource('short-answer'),
+        klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+        starred,
+        klpResults: grade.klpResults ?? [],
+        errorTags: (grade.errorTags ?? []) as ErrorTagDraft[],
+        forcedStatus,
+      });
+
+      const answer = await createAnswerWithAnalysis(
+        {
           attemptId: input.attemptId,
           userId: session.user.id,
           cardId: input.cardId,
@@ -645,7 +993,8 @@ export async function submitShortAnswer(input: {
           latencyMs: normalizeLatency(input.latencyMs),
           feedback: grade.summary,
         },
-      });
+        writes,
+      );
 
       try {
         await recordStudyEvent({
@@ -679,16 +1028,37 @@ export async function submitShortAnswer(input: {
       position: b.position,
     })) as any;
 
-    const { parts } = GRADE_SHORT_ANSWER_PROMPT.buildParts({ card, promptBlocks: contentBlocks, answer: input.answer, profileBlock });
+    const { parts } = GRADE_SHORT_ANSWER_PROMPT.buildParts({
+      card,
+      promptBlocks: contentBlocks,
+      answer: input.answer,
+      profileBlock,
+      klps: promptKlps.length > 0 ? promptKlps : undefined,
+    });
 
     // In a full implementation, assetToPart would be called here to add inlineData
     // For now, we just use the text parts as fallback
-    const grade = await generateJson({
-      userId: session.user.id,
-      task: 'grade',
-      parts,
-      schema: ShortAnswerGradeSchema,
-    });
+    let grade;
+    try {
+      grade = await generateJson({
+        userId: session.user.id,
+        task: 'grade',
+        parts,
+        schema: ShortAnswerGradeSchema,
+      });
+    } catch (gradingErr) {
+      await recordFailedShortAnswerAnalysis({
+        attemptId: input.attemptId,
+        userId: session.user.id,
+        cardId: input.cardId,
+        answer: input.answer,
+        correctAnswer: card.definition,
+        klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+        starred,
+        latencyMs: input.latencyMs,
+      });
+      throw gradingErr;
+    }
 
     let annotations: any[] = [];
     try {
@@ -707,8 +1077,22 @@ export async function submitShortAnswer(input: {
     const score = grade.overall * 10;
     const isCorrect = grade.overall >= 8;
 
-    const answer = await prisma.quizAnswer.create({
-      data: {
+    // See the text-only path above: empty klpResults on a card with live
+    // KLPs is never a legitimately clean grade for short answer.
+    const forcedStatus =
+      klps.length > 0 && (grade.klpResults ?? []).length === 0 ? ('no_provenance' as const) : undefined;
+
+    const writes = buildAnalysisWrites({
+      mode: toStudySource('short-answer'),
+      klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+      starred,
+      klpResults: grade.klpResults ?? [],
+      errorTags: (grade.errorTags ?? []) as ErrorTagDraft[],
+      forcedStatus,
+    });
+
+    const answer = await createAnswerWithAnalysis(
+      {
         attemptId: input.attemptId,
         userId: session.user.id,
         cardId: input.cardId,
@@ -722,7 +1106,8 @@ export async function submitShortAnswer(input: {
         latencyMs: normalizeLatency(input.latencyMs),
         feedback: grade.summary,
       },
-    });
+      writes,
+    );
 
     try {
       await recordStudyEvent({
@@ -761,8 +1146,12 @@ export async function getQuizAttemptCards(attemptId: string): Promise<ActionResu
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
-    const attempt = await prisma.quizAttempt.findUnique({
-      where: { id: attemptId },
+    // Owner-scoped: previously findUnique({ where: { id: attemptId } }) had no
+    // ownership check, letting any authenticated user fetch another user's
+    // full deck of cards (term, definition, content blocks) for an
+    // in-progress or completed attempt. Same fix as getQuizAttemptSummary.
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: attemptId, userId: session.user.id },
     });
     if (!attempt || !attempt.selectedCardIds) return { success: false, error: 'Attempt not found' };
 
@@ -790,8 +1179,14 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
-    const attempt = await prisma.quizAttempt.findUnique({
-      where: { id: attemptId },
+    // Owner-scoped: previously `findUnique({ where: { id: attemptId } })` had
+    // no ownership check at all, so any authenticated user who knew or
+    // guessed an attemptId could read another user's full results —
+    // including, as of Spec 2b, verbatim quotes from their short answers via
+    // AnswerKlpResult.evidence / AnswerErrorTag.quote. Matches the
+    // owner-scoped `findFirst` pattern already used by the submit* actions.
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: attemptId, userId: session.user.id },
       include: {
         user: true,
         set: { include: { cards: true } },
@@ -799,6 +1194,15 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
         answers: {
           include: {
             card: { include: { contentBlocks: { orderBy: { position: 'asc' } } } },
+            klpResults: {
+              include: { klp: { select: { text: true, kind: true } } },
+            },
+            errorTags: {
+              include: {
+                klp: { select: { text: true, kind: true } },
+                secondaryKlp: { select: { text: true, kind: true } },
+              },
+            },
           },
         },
       },
