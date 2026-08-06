@@ -75,7 +75,10 @@ Additionally return:
   - "klpRef" when the error is about a specific point; omit it when the error
     is about the whole answer.
   - "secondaryKlpRef" for "conflation" only: the point it was confused WITH.
-  - "severity" 1-5, how bad THIS instance is.
+  - "magnitude" 1-10, how severe THIS instance of that type is. 1 is a
+    borderline case barely worth tagging; 10 is the most severe form of this
+    error you could see. Judge degree WITHIN the type you chose — do not use
+    it to rank one type against another.
   - "quote": the span of the answer the tag refers to.
 
 Rank by what matters most. Do not pad to the cap.`;
@@ -91,10 +94,15 @@ Rank by what matters most. Do not pad to the cap.`;
  * returns per-KLP outcomes and closed-vocabulary error tags (ANALYSIS_BODY).
  * Without KLPs the output is byte-identical to v1 — pre-existing tests and a
  * keyless user both depend on that.
+ *
+ * v3 (Stage 8 Spec 3): `severity` (absolute 1-5) is replaced by `magnitude`
+ * (1-10, degree within the chosen type). The band table in TS converts it to
+ * severity, which keeps the model out of cross-type ranking — a judgment it
+ * has no stable anchor for.
  */
 export const GRADE_SHORT_ANSWER_PROMPT = {
   id: 'grade-short-answer',
-  version: 2,
+  version: 3,
   schema: ShortAnswerGradeSchema,
 
   build(input: GradeShortAnswerBuildInput): string {
