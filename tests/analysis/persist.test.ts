@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildAnalysisWrites } from '@/lib/analysis/persist'
+import { MC_TF_MAGNITUDE } from '@/lib/errors/bands'
 
 const klps = [
   { id: 'klp-a', weight: 5 },
@@ -51,14 +52,15 @@ describe('buildAnalysisWrites — KLP results', () => {
 })
 
 describe('buildAnalysisWrites — error tags', () => {
-  const tag = { dimension: 'accuracy' as const, type: 'inversion', klpRef: 0, severity: 4 }
+  // inversion band is [2,5]; magnitude 7 -> floor 2 + 3*(6/9) = 4.
+  const tag = { dimension: 'accuracy' as const, type: 'inversion', klpRef: 0, magnitude: 7 }
 
   it('computes significance from the KLP weight, not the model', () => {
     const w = buildAnalysisWrites({ ...base, errorTags: [tag] })
     expect(w.errorTags).toHaveLength(1)
     expect(w.errorTags[0]).toMatchObject({
       dimension: 'accuracy', type: 'inversion', klpId: 'klp-a',
-      relevance: 5, severity: 4, starred: false,
+      relevance: 5, severity: 4, magnitude: 7, mode: 'quiz-sa', starred: false,
     })
     // relevance 5 (klp-a's weight), severity 4, accuracy (1.0), unstarred:
     // (0.55*5 + 0.45*4) * 2 * 1.0 * 1 = 9.1 -> 9
@@ -68,7 +70,7 @@ describe('buildAnalysisWrites — error tags', () => {
   it('drops a tag with an unknown dimension, and warns', () => {
     const w = buildAnalysisWrites({
       ...base,
-      errorTags: [{ dimension: 'delivery' as never, type: 'inversion', klpRef: 0, severity: 3 }],
+      errorTags: [{ dimension: 'delivery' as never, type: 'inversion', klpRef: 0, magnitude: 3 }],
     })
     expect(w.errorTags).toEqual([])
     expect(w.warnings).toContainEqual({ reason: 'unknown_dimension', value: 'delivery' })
@@ -94,7 +96,7 @@ describe('buildAnalysisWrites — error tags', () => {
     // defensible neutral, and it is recorded so it can be recomputed.
     const w = buildAnalysisWrites({
       ...base,
-      errorTags: [{ dimension: 'conciseness', type: 'rambling', severity: 3 }],
+      errorTags: [{ dimension: 'conciseness', type: 'rambling', magnitude: 5 }],
     })
     expect(w.errorTags[0]).toMatchObject({ klpId: null, relevance: 3 })
   })
@@ -103,13 +105,16 @@ describe('buildAnalysisWrites — error tags', () => {
     const w = buildAnalysisWrites({
       ...base,
       errorTags: [
-        { dimension: 'accuracy', type: 'omission', klpRef: 0, severity: 2 },
-        { dimension: 'accuracy', type: 'inversion', klpRef: 0, severity: 5 },
-        { dimension: 'accuracy', type: 'incomplete', klpRef: 1, severity: 4 },
+        // omission [2,5] at magnitude 1 -> floor 2
+        { dimension: 'accuracy', type: 'omission', klpRef: 0, magnitude: 1 },
+        // inversion [2,5] at MC_TF_MAGNITUDE -> ceiling 5
+        { dimension: 'accuracy', type: 'inversion', klpRef: 0, magnitude: MC_TF_MAGNITUDE },
+        // incomplete [1,3] at MC_TF_MAGNITUDE -> ceiling 3
+        { dimension: 'accuracy', type: 'incomplete', klpRef: 1, magnitude: MC_TF_MAGNITUDE },
       ],
     })
     expect(w.errorTags).toHaveLength(2)
-    expect(w.errorTags.map((t) => t.severity)).toEqual([5, 4])
+    expect(w.errorTags.map((t) => t.severity)).toEqual([5, 3])
     expect(w.warnings).toContainEqual({ reason: 'dimension_cap', value: 'accuracy' })
   })
 
@@ -119,8 +124,8 @@ describe('buildAnalysisWrites — error tags', () => {
     const w = buildAnalysisWrites({
       ...base,
       errorTags: [
-        { dimension: 'accuracy', type: 'omission', klpRef: 0, severity: 3 },
-        { dimension: 'accuracy', type: 'inversion', klpRef: 1, severity: 4 },
+        { dimension: 'accuracy', type: 'omission', klpRef: 0, magnitude: 5 },
+        { dimension: 'accuracy', type: 'inversion', klpRef: 1, magnitude: 6 },
       ],
     })
     expect(w.errorTags).toHaveLength(2)
@@ -130,7 +135,7 @@ describe('buildAnalysisWrites — error tags', () => {
   it('carries secondaryKlpId for conflation', () => {
     const w = buildAnalysisWrites({
       ...base,
-      errorTags: [{ dimension: 'accuracy', type: 'conflation', klpRef: 0, secondaryKlpRef: 1, severity: 5 }],
+      errorTags: [{ dimension: 'accuracy', type: 'conflation', klpRef: 0, secondaryKlpRef: 1, magnitude: MC_TF_MAGNITUDE }],
     })
     expect(w.errorTags[0]).toMatchObject({ klpId: 'klp-a', secondaryKlpId: 'klp-b' })
   })
@@ -145,7 +150,7 @@ describe('buildAnalysisWrites — status', () => {
     // "did we analyze" and "was the analysis lossy" are independent. Folding a
     // 'partial' status in would make "no_klps AND two tags rejected"
     // inexpressible.
-    const w = buildAnalysisWrites({ ...base, errorTags: [{ dimension: 'accuracy', type: 'vibes', severity: 3 }] })
+    const w = buildAnalysisWrites({ ...base, errorTags: [{ dimension: 'accuracy', type: 'vibes', magnitude: 3 }] })
     expect(w.status).toBe('analyzed')
     expect(w.warnings.length).toBeGreaterThan(0)
   })
@@ -167,5 +172,57 @@ describe('buildAnalysisWrites — status', () => {
   it('lets forcedStatus win even when the card genuinely has no KLPs', () => {
     const w = buildAnalysisWrites({ ...base, klps: [], forcedStatus: 'failed' })
     expect(w.status).toBe('failed')
+  })
+})
+
+describe('magnitude persistence (Spec 3)', () => {
+  it('stores magnitude alongside the derived severity for short answer', () => {
+    const result = buildAnalysisWrites({
+      mode: 'quiz-sa',
+      klps: [{ id: 'klp1', weight: 5 }],
+      starred: false,
+      klpResults: [],
+      errorTags: [
+        { dimension: 'accuracy', type: 'inversion', klpRef: 0, magnitude: 1 },
+      ],
+    })
+
+    expect(result.errorTags[0].magnitude).toBe(1)
+    // inversion band [2,5] at magnitude 1 -> floor
+    expect(result.errorTags[0].severity).toBe(2)
+  })
+
+  it('writes MC_TF_MAGNITUDE for a multiple-choice tag so null stays legacy-only', () => {
+    const result = buildAnalysisWrites({
+      mode: 'quiz-mc',
+      klps: [{ id: 'klp1', weight: 5 }],
+      starred: false,
+      klpResults: [],
+      errorTags: [
+        { dimension: 'accuracy', type: 'inversion', klpRef: 0, magnitude: MC_TF_MAGNITUDE },
+      ],
+    })
+
+    expect(result.errorTags[0].magnitude).toBe(MC_TF_MAGNITUDE)
+    expect(result.errorTags[0].severity).toBe(5)
+  })
+
+  it('still caps per dimension by the derived severity', () => {
+    const result = buildAnalysisWrites({
+      mode: 'quiz-sa',
+      klps: [{ id: 'klp1', weight: 5 }],
+      starred: false,
+      klpResults: [],
+      errorTags: [
+        { dimension: 'conciseness', type: 'redundancy', magnitude: 1 },
+        { dimension: 'conciseness', type: 'kitchen_sink', magnitude: 10 },
+        { dimension: 'conciseness', type: 'rambling', magnitude: 10 },
+      ],
+    })
+
+    const kept = result.errorTags.filter((t) => t.dimension === 'conciseness')
+    expect(kept).toHaveLength(2)
+    expect(kept.map((t) => t.type)).toContain('kitchen_sink')
+    expect(kept.map((t) => t.type)).not.toContain('redundancy')
   })
 })

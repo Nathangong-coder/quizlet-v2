@@ -97,8 +97,8 @@ describe('GRADE_SHORT_ANSWER_PROMPT v2 (KLP-aware)', () => {
     { ref: 1, text: 'D&A is added back because it is non-cash', kind: 'causal' },
   ]
 
-  it('is version 2', () => {
-    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(2)
+  it('is version 3', () => {
+    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(3)
   })
 
   it('lists each KLP by ref and asks for a per-KLP status', () => {
@@ -116,10 +116,11 @@ describe('GRADE_SHORT_ANSWER_PROMPT v2 (KLP-aware)', () => {
     }
   })
 
-  it('asks for severity but NEVER for significance', () => {
-    // The AI supplies one ordinal; every score is computed in TypeScript.
+  it('asks for magnitude but NEVER for significance', () => {
+    // The AI supplies one ordinal (magnitude, within its own type); the type
+    // band converts it to severity, and every score is computed in TypeScript.
     const p = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x', klps })
-    expect(p).toContain('severity')
+    expect(p).toContain('magnitude')
     expect(p.toLowerCase()).not.toContain('significance')
   })
 

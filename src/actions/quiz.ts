@@ -40,7 +40,7 @@ import {
 } from '@/lib/analysis/persist';
 import { toStudySource } from '@/lib/quiz/mode';
 import type { StudySource } from '@/lib/memory/scoring';
-import { severityFromCorruption } from '@/lib/errors/severity';
+import { MC_TF_MAGNITUDE } from '@/lib/errors/bands';
 
 /**
  * Fisher-Yates. The correct answer must not sit in a predictable slot — the
@@ -139,7 +139,7 @@ function binaryModeDrafts(input: {
         dimension: 'accuracy',
         type: input.corruption,
         klpRef,
-        severity: severityFromCorruption(input.corruption, input.mode),
+        magnitude: MC_TF_MAGNITUDE,
       },
     ],
     attribution: 'attributed',

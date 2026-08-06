@@ -4,6 +4,7 @@ import {
 } from '@/lib/errors/taxonomy'
 import { computeSignificance } from '@/lib/errors/significance'
 import { klpCredit, type KlpStatus } from '@/lib/errors/klp-credit'
+import { resolveSeverity } from '@/lib/errors/bands'
 
 /**
  * Version of the whole analysis-capture contract: the error-tag vocabulary,
@@ -14,8 +15,11 @@ import { klpCredit, type KlpStatus } from '@/lib/errors/klp-credit'
  * Lives here (not in the `'use server'` action file that writes it) because
  * a "use server" module may only export async functions — a plain constant
  * export there is a hard Next.js build error.
+ *
+ * v2 (Spec 3): severity is now derived from a type band and an instance
+ * magnitude, so a v1 row's severity is not comparable to a v2 row's.
  */
-export const ANALYSIS_VERSION = 1
+export const ANALYSIS_VERSION = 2
 
 /** Why an answer has the analysis rows it has. */
 export type AnalysisOutcome = 'analyzed' | 'no_provenance' | 'no_klps' | 'failed'
@@ -36,7 +40,8 @@ export interface ErrorTagDraft {
   type: string
   klpRef?: number
   secondaryKlpRef?: number
-  severity: number
+  /** 1-10 instance magnitude. `MC_TF_MAGNITUDE` for a generated distractor. */
+  magnitude: number
   quote?: string
 }
 
@@ -61,6 +66,8 @@ export interface AnalysisWrites {
     secondaryKlpId: string | null
     relevance: number
     severity: number
+    magnitude: number
+    mode: StudySource
     starred: boolean
     significance: number
     quote?: string
@@ -135,9 +142,15 @@ export function buildAnalysisWrites(input: {
     }
     const secondary = resolve(t.secondaryKlpRef)
 
+    const severity = resolveSeverity({
+      type: t.type,
+      magnitude: t.magnitude,
+      mode: input.mode,
+    })
+
     const sig = computeSignificance({
       relevance: target?.weight ?? WHOLE_ANSWER_RELEVANCE,
-      severity: t.severity,
+      severity,
       dimension: t.dimension,
       starred: input.starred,
     })
@@ -149,6 +162,8 @@ export function buildAnalysisWrites(input: {
       secondaryKlpId: secondary?.id ?? null,
       relevance: sig.relevance,
       severity: sig.severity,
+      magnitude: t.magnitude,
+      mode: input.mode,
       starred: sig.starred,
       significance: sig.significance,
       quote: t.quote,
