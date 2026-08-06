@@ -665,15 +665,23 @@ Add both fields to the data object at each site:
       mode: input.mode,
 ```
 
-- [ ] **Step 6: Run the full suite**
+- [ ] **Step 6: Retire the assertions Task 4 superseded**
 
-Run: `npm test`
-Expected: PASS. Fix any remaining fixture that still passes `severity` to a draft.
+Task 4 left `tests/ai/prompts.test.ts` with two knowingly-red assertions — `is version 2` and `asks for severity but NEVER for significance` — because they assert the prompt version and wording that Task 4 changed. Task 4 added a new, disjoint test file rather than editing them, so they are superseded, not broken.
 
-- [ ] **Step 7: Commit**
+Update them here: the version assertion becomes `3`, and the severity assertion becomes the magnitude wording. **Keep the "NEVER for significance" half intact** — significance is computed in TypeScript and must never be asked of the model, which is a live invariant, not a stale one.
+
+- [ ] **Step 7: Run the full suite and type-check**
+
+Run: `npm test && npx tsc --noEmit`
+Expected: both PASS, with zero known-red tests remaining.
+
+`tsc` is not optional here. Vitest does not type-check, so a fixture that still passes `severity` to a draft can pass at runtime while being wrong — Task 4 confirmed this. Before this task, `tsc` reported exactly two errors, both in `src/actions/quiz.ts` (around lines 970 and 1083), both "Property 'severity' is missing ... required in type 'ErrorTagDraft'". Both must be gone. Renaming the field on `ErrorTagDraft` will surface further stale fixtures that Vitest alone would hide; fix each to pass `magnitude`.
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/lib/analysis/persist.ts src/actions tests/analysis/persist.test.ts
+git add src/lib/analysis/persist.ts src/lib/errors/severity.ts src/actions tests
 git commit -m "feat(spec3): persist tag magnitude and derive severity from bands"
 ```
 
