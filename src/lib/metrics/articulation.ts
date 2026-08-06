@@ -27,6 +27,8 @@ export interface ArticulationInput {
   tags: DerivedTag[]
   /** Per-KLP BKT results, keyed by klpId. */
   knowledge: Record<string, KnowledgeRef>
+  /** Count of analyzed answers these tags came from. */
+  analyzedAnswers: number
 }
 
 export interface Articulation {
@@ -38,8 +40,12 @@ export interface Articulation {
   readiness: number | null
 }
 
-/** Scales total tag weight into a 0-1 readiness. Tuned to be gentle. */
-const READINESS_SCALE = 20
+/**
+ * Average per-answer expression-error weight at which readiness reaches 0.
+ * Roughly two significant expression tags on every answer. A starting value
+ * that will become user-tunable once real tag volume exists.
+ */
+export const READINESS_WEIGHT_PER_ANSWER = 12
 
 export function computeArticulation(input: ArticulationInput): Articulation {
   let over = 0
@@ -73,10 +79,13 @@ export function computeArticulation(input: ArticulationInput): Articulation {
     }
   }
 
-  const hasEvidence = input.tags.length > 0
-  const readiness = hasEvidence
-    ? Math.max(0, 1 - expressionWeight / READINESS_SCALE)
-    : null
+  let readiness: number | null
+  if (input.analyzedAnswers === 0) {
+    readiness = null
+  } else {
+    const weightPerAnswer = expressionWeight / input.analyzedAnswers
+    readiness = Math.max(0, 1 - weightPerAnswer / READINESS_WEIGHT_PER_ANSWER)
+  }
 
   return { verbosityIndex: over - under, knowledgeGapTerseness, readiness }
 }

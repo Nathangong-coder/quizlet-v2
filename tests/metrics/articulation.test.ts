@@ -30,6 +30,7 @@ describe('signed verbosity index', () => {
     const result = computeArticulation({
       tags: [tag({ type: 'rambling' }), tag({ type: 'kitchen_sink' })],
       knowledge: known,
+      analyzedAnswers: 2,
     })
     expect(result.verbosityIndex).toBeGreaterThan(0)
   })
@@ -38,6 +39,7 @@ describe('signed verbosity index', () => {
     const result = computeArticulation({
       tags: [tag({ type: 'too_terse' })],
       knowledge: known,
+      analyzedAnswers: 1,
     })
     expect(result.verbosityIndex).toBeLessThan(0)
   })
@@ -46,6 +48,7 @@ describe('signed verbosity index', () => {
     const result = computeArticulation({
       tags: [tag({ type: 'rambling', significance: 6 }), tag({ type: 'too_terse', significance: 6 })],
       knowledge: known,
+      analyzedAnswers: 1,
     })
     expect(result.verbosityIndex).toBe(0)
   })
@@ -56,6 +59,7 @@ describe('too_terse is conditioned on knowledge', () => {
     const result = computeArticulation({
       tags: [tag({ type: 'too_terse' })],
       knowledge: { klp1: { pKnown: 0.2, observations: 5 } },
+      analyzedAnswers: 1,
     })
     expect(result.verbosityIndex).toBe(0)
     expect(result.knowledgeGapTerseness).toBe(1)
@@ -65,6 +69,7 @@ describe('too_terse is conditioned on knowledge', () => {
     const result = computeArticulation({
       tags: [tag({ type: 'too_terse' })],
       knowledge: { klp1: { pKnown: 0.9, observations: 1 } },
+      analyzedAnswers: 1,
     })
     expect(result.verbosityIndex).toBe(0)
     expect(result.knowledgeGapTerseness).toBe(1)
@@ -74,6 +79,7 @@ describe('too_terse is conditioned on knowledge', () => {
     const result = computeArticulation({
       tags: [tag({ type: 'too_terse', klpId: null })],
       knowledge: known,
+      analyzedAnswers: 1,
     })
     expect(result.verbosityIndex).toBe(0)
   })
@@ -82,6 +88,7 @@ describe('too_terse is conditioned on knowledge', () => {
     const result = computeArticulation({
       tags: [tag({ type: 'rambling' })],
       knowledge: { klp1: { pKnown: 0.1, observations: 5 } },
+      analyzedAnswers: 1,
     })
     expect(result.verbosityIndex).toBeGreaterThan(0)
     expect(ARTICULATION_MIN_PKNOWN).toBe(0.6)
@@ -93,20 +100,41 @@ describe('clarity tags do not affect verbosity index', () => {
     const result = computeArticulation({
       tags: [tag({ dimension: 'clarity', type: 'disorganized', significance: 9 })],
       knowledge: known,
+      analyzedAnswers: 1,
     })
     expect(result.verbosityIndex).toBe(0)
   })
 })
 
 describe('readiness', () => {
-  it('is null with no analyzed short-answer evidence rather than a fabricated score', () => {
-    expect(computeArticulation({ tags: [], knowledge: {} }).readiness).toBeNull()
+  it('is null with zero analyzed answers rather than a fabricated score', () => {
+    expect(computeArticulation({ tags: [], knowledge: {}, analyzedAnswers: 0 }).readiness).toBeNull()
+  })
+
+  it('is 1.0 (clean) when analyzedAnswers > 0 but no expression tags', () => {
+    expect(computeArticulation({ tags: [], knowledge: {}, analyzedAnswers: 5 }).readiness).toBe(1)
+  })
+
+  it('is identical for same per-answer weight across 2 and 20 analyzed answers', () => {
+    const twoAnswers = computeArticulation({
+      tags: [tag({ type: 'rambling', significance: 12 })],
+      knowledge: known,
+      analyzedAnswers: 2,
+    })
+    const twentyAnswers = computeArticulation({
+      tags: [tag({ type: 'rambling', significance: 120 })],
+      knowledge: known,
+      analyzedAnswers: 20,
+    })
+    // Both have per-answer weight of 6, so same readiness
+    expect(twoAnswers.readiness).toBe(twentyAnswers.readiness)
   })
 
   it('is lower for a learner with heavy clarity and conciseness problems', () => {
     const clean = computeArticulation({
       tags: [tag({ type: 'rambling', significance: 1 })],
       knowledge: known,
+      analyzedAnswers: 1,
     })
     const messy = computeArticulation({
       tags: [
@@ -114,6 +142,7 @@ describe('readiness', () => {
         tag({ dimension: 'clarity', type: 'disorganized', significance: 9 }),
       ],
       knowledge: known,
+      analyzedAnswers: 1,
     })
     expect(messy.readiness!).toBeLessThan(clean.readiness!)
   })
