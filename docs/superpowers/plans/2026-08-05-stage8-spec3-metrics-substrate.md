@@ -644,7 +644,9 @@ At each call site building an `ErrorTagDraft` from a distractor's corruption, re
       magnitude: MC_TF_MAGNITUDE,
 ```
 
-importing `MC_TF_MAGNITUDE` from `@/lib/errors/bands`. The band resolution now applies the true/false dock, so `severityFromCorruption` is no longer called there. Leave the function itself in place — Task 2's test imports `CORRUPTION_SEVERITY` from that module to pin the no-op property.
+importing `MC_TF_MAGNITUDE` from `@/lib/errors/bands`. The band resolution now applies the true/false dock, so `severityFromCorruption` is no longer called there.
+
+**Delete `severityFromCorruption` from `src/lib/errors/severity.ts`, and keep `CORRUPTION_SEVERITY`.** The band table supersedes the function, and leaving it would be dead code. The constant stays because Task 2's test imports it to pin the no-op property — that is what makes the ceilings provably correct rather than merely asserted. Move the function's doc comment about the true/false dock (its rationale — a wrong answer is a deliberate choice, not luck, so this is not a guess-rate adjustment) onto `resolveSeverity` in `bands.ts`, where the dock now lives. Fix any other importer the grep in Step 4 turns up.
 
 - [ ] **Step 5: Persist the columns in the writing action**
 
@@ -685,14 +687,14 @@ git commit -m "feat(spec3): persist tag magnitude and derive severity from bands
 
 **Interfaces:**
 - Consumes: `resolveSeverity`, `BandTable` (Task 2); `computeSignificance` from `@/lib/errors/significance`
-- Produces: `interface StoredTag`, `interface DerivedTag`, `REPEAT_BONUS = 1`, `REPEAT_WINDOW_ATTEMPTS = 3`, `deriveTagScores(tags: StoredTag[], bands?: BandTable): DerivedTag[]`
+- Produces: `interface StoredTag`, `interface DerivedTag`, `interface RawTagRow`, `REPEAT_BONUS = 1`, `REPEAT_WINDOW_ATTEMPTS = 3`, `toStoredTags(rows: RawTagRow[]): StoredTag[]`, `deriveTagScores(tags: StoredTag[], bands?: BandTable): DerivedTag[]`
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 // tests/errors/derive.test.ts
 import { describe, it, expect } from 'vitest'
-import { deriveTagScores, type StoredTag } from '@/lib/errors/derive'
+import { deriveTagScores, toStoredTags, type StoredTag } from '@/lib/errors/derive'
 
 const NOW = new Date('2026-08-05T12:00:00.000Z')
 const minsAgo = (n: number): Date => new Date(NOW.getTime() - n * 60_000)
@@ -777,6 +779,33 @@ describe('repeatBonus', () => {
     expect(derived[1].significance).toBeLessThanOrEqual(10)
   })
 })
+
+describe('toStoredTags', () => {
+  const row = (o: any = {}) => ({
+    dimension: 'accuracy', type: 'inversion', klpId: 'klp1',
+    relevance: 3, starred: false, magnitude: 8, mode: 'quiz-mc',
+    severity: 4, significance: 7, createdAt: NOW,
+    quizAnswer: { attemptId: 'att1' },
+    ...o,
+  })
+
+  it('lifts the attemptId out of the joined answer', () => {
+    expect(toStoredTags([row()])[0].attemptId).toBe('att1')
+  })
+
+  it('falls back to quiz-sa for a legacy row with no stored mode', () => {
+    // quiz-sa is the only mode with no dock, so a legacy tag is never docked
+    // on a guess. Its severity comes from storedSeverity regardless.
+    const stored = toStoredTags([row({ mode: null, magnitude: null })])
+    expect(stored[0].mode).toBe('quiz-sa')
+    expect(stored[0].magnitude).toBeNull()
+    expect(stored[0].storedSeverity).toBe(4)
+  })
+
+  it('preserves a stored mode when present', () => {
+    expect(toStoredTags([row({ mode: 'quiz-tf' })])[0].mode).toBe('quiz-tf')
+  })
+})
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -811,6 +840,46 @@ export interface StoredTag {
   storedSignificance: number
   mode: StudySource
   createdAt: Date
+}
+
+/** An AnswerErrorTag row as Prisma returns it, with its answer joined. */
+export interface RawTagRow {
+  dimension: string
+  type: string
+  klpId: string | null
+  relevance: number
+  starred: boolean
+  magnitude: number | null
+  mode: string | null
+  severity: number
+  significance: number
+  createdAt: Date
+  quizAnswer: { attemptId: string }
+}
+
+/**
+ * Map DB rows to the pure shape. Lives here, not in the read shell, so the
+ * legacy-mode fallback is a tested decision rather than an untested one.
+ *
+ * A legacy row stores no mode. `quiz-sa` is the safe stand-in because it is
+ * the only mode with no true/false dock — so a legacy tag is never docked on
+ * a guess. Its severity comes from `storedSeverity` regardless, since a
+ * legacy row also has no magnitude.
+ */
+export function toStoredTags(rows: RawTagRow[]): StoredTag[] {
+  return rows.map((r) => ({
+    attemptId: r.quizAnswer.attemptId,
+    dimension: r.dimension as StoredTag['dimension'],
+    type: r.type,
+    klpId: r.klpId,
+    relevance: r.relevance,
+    starred: r.starred,
+    magnitude: r.magnitude,
+    mode: (r.mode ?? 'quiz-sa') as StoredTag['mode'],
+    storedSeverity: r.severity,
+    storedSignificance: r.significance,
+    createdAt: r.createdAt,
+  }))
 }
 
 export interface DerivedTag extends StoredTag {
@@ -2375,14 +2444,14 @@ git commit -m "refactor(spec3): rename LearnerProfile to LearnerCardProfile"
 
 **Interfaces:**
 - Consumes: `LearnerCardProfile` (Task 14); `computeArticulation`, `Articulation` (Task 12); `MIN_OBSERVATIONS` (Task 7)
-- Produces: `interface TopicRow`, `interface LearnerTopicProfile`, `interface LearnerProfile`, `shapeTopicProfile(input): LearnerTopicProfile[]`, `composeLearnerProfile(cards, topics): LearnerProfile`
+- Produces: `interface TopicRow`, `interface RawCategoryRow`, `interface LearnerTopicProfile`, `interface LearnerProfile`, `toTopicRows(rows: RawCategoryRow[]): TopicRow[]`, `shapeTopicProfile(input): LearnerTopicProfile[]`, `composeLearnerProfile(cards, topics): LearnerProfile`
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 // tests/memory/topic-profile.test.ts
 import { describe, it, expect } from 'vitest'
-import { shapeTopicProfile, composeLearnerProfile } from '@/lib/memory/topic-profile'
+import { shapeTopicProfile, composeLearnerProfile, toTopicRows } from '@/lib/memory/topic-profile'
 import type { TopicRow } from '@/lib/memory/topic-profile'
 import type { LearnerCardProfile } from '@/lib/memory/profile'
 
@@ -2433,6 +2502,31 @@ describe('topic keying', () => {
       tags: [],
     })
     expect(result[0].knowledge).toBeNull()
+  })
+})
+
+describe('toTopicRows', () => {
+  it('flattens joined assignments into a de-duplicable KLP id list', () => {
+    const rows = toTopicRows([
+      {
+        normalizedName: 'valuation',
+        name: 'Valuation',
+        color: '#3b82f6',
+        assignments: [
+          { card: { klps: [{ id: 'k1' }, { id: 'k2' }] } },
+          { card: { klps: [{ id: 'k3' }] } },
+        ],
+      },
+    ])
+    expect(rows[0].klpIds).toEqual(['k1', 'k2', 'k3'])
+    expect(rows[0].displayName).toBe('Valuation')
+  })
+
+  it('yields an empty klpIds list for a category whose cards have no KLPs', () => {
+    const rows = toTopicRows([
+      { normalizedName: 'dcf', name: 'DCF', color: null, assignments: [{ card: { klps: [] } }] },
+    ])
+    expect(rows[0].klpIds).toEqual([])
   })
 })
 
@@ -2561,6 +2655,27 @@ export function composeLearnerProfile(
 ): LearnerProfile {
   return { cards, topics }
 }
+
+/** A CardCategory row as Prisma returns it, with assignments and KLPs joined. */
+export interface RawCategoryRow {
+  normalizedName: string
+  name: string
+  color: string | null
+  assignments: { card: { klps: { id: string }[] } }[]
+}
+
+/**
+ * Flatten joined category rows into TopicRows. Lives here, not in the read
+ * shell, so the KLP flattening is covered by tests like every other decision.
+ */
+export function toTopicRows(rows: RawCategoryRow[]): TopicRow[] {
+  return rows.map((c) => ({
+    normalizedName: c.normalizedName,
+    displayName: c.name,
+    color: c.color,
+    klpIds: c.assignments.flatMap((a) => a.card.klps.map((k) => k.id)),
+  }))
+}
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -2583,7 +2698,7 @@ The surface Spec 3C renders. It lives here so the dashboard adds no aggregation 
 
 **Files:**
 - Create: `src/lib/metrics/read.ts`
-- Test: none — this is a thin DB shell, deliberately untested here per the precedent set by `profile.ts:322-331`. All logic it calls is already covered.
+- Test: none — and this file must EARN that, per the `profile.ts:322-331` precedent. It may contain Prisma queries and delegation only. Every transformation lives in a tested pure function: `toStoredTags` (Task 6), `toTopicRows` (Task 15), `toRecallPairs` (Task 9), `computeCleanStreaks` (Task 11). If you find yourself writing a `.map` that decides anything, it belongs in one of those modules instead.
 
 **Interfaces:**
 - Consumes: every pure module above; `HistoryScope`, `scopeToCardWhere` from `@/lib/memory/scope`
@@ -2597,10 +2712,10 @@ import type { HistoryScope } from '@/lib/memory/scope'
 import type { LearnerProfile } from '@/lib/memory/topic-profile'
 import type { Misconception } from '@/lib/metrics/misconceptions'
 import type { ForgettingCurve } from '@/lib/metrics/forgetting'
-import { deriveTagScores, type StoredTag } from '@/lib/errors/derive'
+import { deriveTagScores, toStoredTags } from '@/lib/errors/derive'
 import { deriveMisconceptions, computeCleanStreaks } from '@/lib/metrics/misconceptions'
 import { buildForgettingCurve, toRecallPairs } from '@/lib/metrics/forgetting'
-import { shapeTopicProfile, composeLearnerProfile } from '@/lib/memory/topic-profile'
+import { shapeTopicProfile, composeLearnerProfile, toTopicRows } from '@/lib/memory/topic-profile'
 import { buildLearnerProfile } from '@/lib/memory/profile'
 import type { BandTable } from '@/lib/errors/bands'
 
@@ -2660,25 +2775,8 @@ export async function getLearnerMetrics({
     klpStates.map((s: any) => [s.klpId, { pKnown: s.pKnown, observations: s.observations }]),
   )
 
-  const stored: StoredTag[] = tagRows.map((t: any) => ({
-    attemptId: t.quizAnswer.attemptId,
-    dimension: t.dimension,
-    type: t.type,
-    klpId: t.klpId,
-    relevance: t.relevance,
-    starred: t.starred,
-    magnitude: t.magnitude,
-    // A legacy row has no stored mode. 'quiz-sa' is the safe stand-in: it is
-    // the only mode with no dock, so a legacy tag is never docked on a guess.
-    // Its severity comes from `storedSeverity` anyway, since magnitude is null.
-    mode: (t.mode ?? 'quiz-sa') as StoredTag['mode'],
-    storedSeverity: t.severity,
-    storedSignificance: t.significance,
-    createdAt: t.createdAt,
-  }))
-
-  const derived = deriveTagScores(stored, bands)
-  const topics = await loadTopicRows(prisma, userId, scope)
+  const derived = deriveTagScores(toStoredTags(tagRows), bands)
+  const topics = toTopicRows(await loadCategoryRows(prisma, userId, scope))
 
   const misconceptions = deriveMisconceptions({
     tags: tagRows
@@ -2715,25 +2813,26 @@ export async function getLearnerMetrics({
   }
 }
 
-/** Resolves scoped categories to TopicRows via groupCategoriesByName's key. */
-async function loadTopicRows(prisma: any, userId: string, scope: HistoryScope) {
-  const categories = await prisma.cardCategory.findMany({
+/**
+ * Query only — the shape mapping is `toTopicRows`, which is tested. Only LIVE
+ * KLPs are selected: a superseded KLP belongs to an older version of the card
+ * and its evidence should not count toward current knowledge.
+ */
+async function loadCategoryRows(prisma: any, userId: string, scope: HistoryScope) {
+  return prisma.cardCategory.findMany({
     where: {
       set: { userId, ...(scope.setIds.length > 0 ? { id: { in: scope.setIds } } : {}) },
       ...(scope.categoryKeys.length > 0 ? { normalizedName: { in: scope.categoryKeys } } : {}),
     },
     select: {
       normalizedName: true, name: true, color: true,
-      assignments: { select: { card: { select: { klps: { where: { supersededAt: null }, select: { id: true } } } } } },
+      assignments: {
+        select: {
+          card: { select: { klps: { where: { supersededAt: null }, select: { id: true } } } },
+        },
+      },
     },
   })
-
-  return categories.map((c: any) => ({
-    normalizedName: c.normalizedName,
-    displayName: c.name,
-    color: c.color,
-    klpIds: c.assignments.flatMap((a: any) => a.card.klps.map((k: any) => k.id)),
-  }))
 }
 ```
 
