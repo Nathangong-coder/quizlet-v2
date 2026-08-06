@@ -32,7 +32,6 @@ export interface GapEvent {
 export function toRecallPairs(events: GapEvent[]): RecallPair[] {
   const byCard = new Map<string, GapEvent[]>()
   for (const e of events) {
-    if (e.correct === null) continue
     const list = byCard.get(e.cardId)
     if (list) list.push(e)
     else byCard.set(e.cardId, [e])
@@ -43,12 +42,23 @@ export function toRecallPairs(events: GapEvent[]): RecallPair[] {
     const chronological = [...list].sort(
       (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
     )
-    for (let i = 1; i < chronological.length; i++) {
-      const gapMs = chronological[i].createdAt.getTime() - chronological[i - 1].createdAt.getTime()
-      pairs.push({
-        gapDays: gapMs / 86_400_000,
-        recalled: chronological[i].correct === true,
-      })
+    let chain: GapEvent[] = []
+    for (const event of chronological) {
+      if (event.correct === null) {
+        // Break the chain: do not pair events before and after this unscored event
+        chain = []
+      } else {
+        // Pair with the previous scored event in the chain if one exists
+        if (chain.length > 0) {
+          const prev = chain[chain.length - 1]
+          const gapMs = event.createdAt.getTime() - prev.createdAt.getTime()
+          pairs.push({
+            gapDays: gapMs / 86_400_000,
+            recalled: event.correct === true,
+          })
+        }
+        chain.push(event)
+      }
     }
   }
   return pairs

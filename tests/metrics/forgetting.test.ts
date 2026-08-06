@@ -9,6 +9,11 @@ describe('insufficient data', () => {
     const pairs = Array.from({ length: MIN_GAP_PAIRS - 1 }, () => pair(1, true))
     expect(buildForgettingCurve(pairs)).toBeNull()
   })
+
+  it('returns a curve at exactly the pair floor', () => {
+    const pairs = Array.from({ length: MIN_GAP_PAIRS }, () => pair(1, true))
+    expect(buildForgettingCurve(pairs)).not.toBeNull()
+  })
 })
 
 describe('bucketing', () => {
@@ -104,6 +109,15 @@ describe('toRecallPairs', () => {
     const pairs = toRecallPairs([
       { cardId: 'c1', correct: true, createdAt: at(5) },
       { cardId: 'c1', correct: null, createdAt: at(3) },
+    ])
+    expect(pairs).toHaveLength(0)
+  })
+
+  it('breaks the chain at unscored events — does not pair across null', () => {
+    const pairs = toRecallPairs([
+      { cardId: 'c1', correct: true, createdAt: at(5) },
+      { cardId: 'c1', correct: null, createdAt: at(3) },
+      { cardId: 'c1', correct: true, createdAt: at(1) },
     ])
     expect(pairs).toHaveLength(0)
   })
