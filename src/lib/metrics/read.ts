@@ -7,7 +7,8 @@ import { deriveMisconceptions, computeCleanStreaks } from '@/lib/metrics/misconc
 import { buildForgettingCurve, toRecallPairs } from '@/lib/metrics/forgetting'
 import { shapeTopicProfile, composeLearnerProfile, toTopicRows } from '@/lib/memory/topic-profile'
 import { buildLearnerProfile } from '@/lib/memory/profile'
-import { eventCorrectness } from '@/lib/memory/scoring'
+import { eventRecalled, type StudySource } from '@/lib/memory/scoring'
+import { paceOutliers as computePaceOutliers } from '@/lib/metrics/pace'
 import type { BandTable } from '@/lib/errors/bands'
 import type { PrismaClient } from '@prisma/client'
 
@@ -15,6 +16,15 @@ export interface LearnerMetrics {
   profile: LearnerProfile
   misconceptions: Misconception[]
   forgetting: ForgettingCurve | null
+  /**
+   * "Correct but not fluent" cards: answered right, but slowly enough
+   * relative to the learner's own baseline to be worth flagging. Scoped to
+   * `quiz-sa` — the typed, recall-and-articulate mode this app's interview
+   * prep is built around, and the one `paceIndex`'s docstring names as
+   * differing from other modes by an order of magnitude, so it cannot share
+   * a baseline with them.
+   */
+  paceOutliers: { cardId: string; index: number }[]
 }
 
 /**
@@ -59,7 +69,7 @@ export async function getLearnerMetrics({
     }),
     prisma.studyEvent.findMany({
       where: { userId },
-      select: { cardId: true, correct: true, score: true, createdAt: true },
+      select: { cardId: true, correct: true, score: true, createdAt: true, source: true, latencyMs: true },
     }),
   ])
 
@@ -102,24 +112,30 @@ export async function getLearnerMetrics({
       shapeTopicProfile({ topics, knowledge, tags: derived, analyzedAnswersByTopic }),
     ),
     misconceptions,
+    // `StudyEvent.correct` is NULL for short-answer rows (they carry a
+    // `score`, not a boolean) — mapping raw `correct` straight through would
+    // drop every short-answer exposure from the curve AND break the pairing
+    // chain around it. `eventRecalled` already knows how to read both shapes
+    // and apply the one named recall threshold.
     forgetting: buildForgettingCurve(
       toRecallPairs(
-        events.map((e) => {
-          // `StudyEvent.correct` is NULL for short-answer rows (they carry a
-          // `score`, not a boolean) — mapping raw `correct` straight through
-          // would drop every short-answer exposure from the curve AND break
-          // the pairing chain around it. `eventCorrectness` already knows how
-          // to read both shapes; its continuous 0-1 result is thresholded at
-          // 0.5, the same cutoff `lib/memory/profile.ts`'s `isMiss` uses for
-          // "did they know it" on a graded outcome.
-          const correctness = eventCorrectness(e)
-          return {
-            cardId: e.cardId,
-            correct: correctness === null ? null : correctness >= 0.5,
-            createdAt: e.createdAt,
-          }
-        }),
+        events.map((e) => ({
+          cardId: e.cardId,
+          correct: eventRecalled(e),
+          createdAt: e.createdAt,
+        })),
       ),
+    ),
+    paceOutliers: computePaceOutliers(
+      events
+        .filter((e): e is typeof e & { latencyMs: number } => typeof e.latencyMs === 'number')
+        .map((e) => ({
+          cardId: e.cardId,
+          mode: e.source as StudySource,
+          latencyMs: e.latencyMs,
+          correct: eventRecalled(e),
+        })),
+      'quiz-sa',
     ),
   }
 }

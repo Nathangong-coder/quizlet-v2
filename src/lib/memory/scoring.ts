@@ -98,6 +98,27 @@ export function eventCorrectness(event: MasteryEvent): number | null {
 }
 
 /**
+ * Below this `eventCorrectness` value, a graded event counts as "not
+ * recalled." Binary events collapse to exactly 0 or 1 so this only has teeth
+ * for graded (short-answer) events, where it draws the same line
+ * `lib/memory/profile.ts`'s `isMiss` already draws inline for "did they know
+ * it" — kept here as a named, exported constant so other callers (e.g. the
+ * forgetting curve) don't each re-pick their own cutoff.
+ */
+export const RECALL_THRESHOLD = 0.5
+
+/**
+ * Boolean recall verdict for a single event, derived from `eventCorrectness`.
+ * `null` when the event carries no usable signal at all (same case
+ * `eventCorrectness` returns null for) — callers must not guess a verdict for
+ * an unscored event.
+ */
+export function eventRecalled(event: MasteryEvent): boolean | null {
+  const correctness = eventCorrectness(event)
+  return correctness === null ? null : correctness >= RECALL_THRESHOLD
+}
+
+/**
  * Recency-weighted correctness over the most recent `MASTERY_WINDOW` events,
  * as a 0-100 integer. Returns `null` when there is no scorable event (empty
  * history, or every event lacks both `correct` and `score`).

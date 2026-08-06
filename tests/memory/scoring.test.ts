@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { nextConfidence, masteryScore, masteryBucket } from '@/lib/memory/scoring'
+import { nextConfidence, masteryScore, masteryBucket, eventRecalled, RECALL_THRESHOLD } from '@/lib/memory/scoring'
 import type { MasteryEvent } from '@/lib/memory/scoring'
 
 describe('nextConfidence — binary outcomes (review, quiz-mc, quiz-tf, matching)', () => {
@@ -161,6 +161,41 @@ describe('masteryScore', () => {
     }))
 
     expect(masteryScore([...recentPerfect, ...oldWrongTail])).toBe(100)
+  })
+})
+
+describe('eventRecalled', () => {
+  const at = (secondsAgo: number): Date => new Date(Date.now() - secondsAgo * 1000)
+
+  it('returns null when the event carries no usable signal', () => {
+    expect(eventRecalled({ createdAt: at(0) })).toBeNull()
+  })
+
+  it('reads a binary correct event straight through', () => {
+    expect(eventRecalled({ correct: true, createdAt: at(0) })).toBe(true)
+    expect(eventRecalled({ correct: false, createdAt: at(0) })).toBe(false)
+  })
+
+  it('confirms the threshold constant is 0.5', () => {
+    expect(RECALL_THRESHOLD).toBe(0.5)
+  })
+
+  it('treats a graded score at exactly the threshold as recalled (inclusive)', () => {
+    expect(eventRecalled({ score: 50, createdAt: at(0) })).toBe(true)
+  })
+
+  it('treats a graded score one point below the threshold as not recalled', () => {
+    expect(eventRecalled({ score: 49, createdAt: at(0) })).toBe(false)
+  })
+
+  it('treats a high graded score as recalled and a low one as not', () => {
+    expect(eventRecalled({ score: 90, createdAt: at(0) })).toBe(true)
+    expect(eventRecalled({ score: 10, createdAt: at(0) })).toBe(false)
+  })
+
+  it('prefers the graded score over correct when both are set, same as eventCorrectness', () => {
+    expect(eventRecalled({ correct: true, score: 10, createdAt: at(0) })).toBe(false)
+    expect(eventRecalled({ correct: false, score: 90, createdAt: at(0) })).toBe(true)
   })
 })
 
