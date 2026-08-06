@@ -49,11 +49,13 @@ export interface ShapeTopicProfileInput {
    * distinct answers among the tags would only ever see the answers that went
    * wrong, making every learner look maximally unready.
    *
-   * Optional: callers that don't care about readiness (e.g. tests exercising
-   * only knowledge/klpCount) can omit it; missing counts default to 0, same
-   * as an explicit miss on a present map.
+   * Required (not optional/defaulted) so the caller populating this map — the
+   * read API — is forced to decide where the count comes from: analyzed-answer
+   * rows, not tags. A topic key absent from this map (propositions exist, but
+   * no analyzed answers yet) yields `readiness: null`, not 0 — see
+   * `computeArticulation`'s `analyzedAnswers === 0` branch.
    */
-  analyzedAnswersByTopic?: Record<string, number>
+  analyzedAnswersByTopic: Record<string, number>
 }
 
 export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicProfile[] {
@@ -81,7 +83,7 @@ export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicPr
     const articulation = computeArticulation({
       tags: input.tags.filter((t) => t.klpId !== null && klpSet.has(t.klpId)),
       knowledge: input.knowledge,
-      analyzedAnswers: input.analyzedAnswersByTopic?.[key] ?? 0,
+      analyzedAnswers: input.analyzedAnswersByTopic[key] ?? 0,
     })
 
     out.push({

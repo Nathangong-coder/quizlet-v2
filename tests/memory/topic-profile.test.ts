@@ -44,6 +44,9 @@ describe('topic keying', () => {
         k2: { pKnown: 0.4, observations: 5 },
       },
       tags: [],
+      // This test asserts grouping, not readiness — an empty map is fine and
+      // honest here; it must still be written out, not defaulted in.
+      analyzedAnswersByTopic: {},
     })
 
     expect(result).toHaveLength(1)
@@ -59,6 +62,7 @@ describe('topic keying', () => {
         k2: { pKnown: 0.5, observations: 5 },
       },
       tags: [],
+      analyzedAnswersByTopic: {},
     })
     expect(result[0].knowledge).toBeCloseTo(0.7, 5)
   })
@@ -68,8 +72,22 @@ describe('topic keying', () => {
       topics: [row({ normalizedName: 'dcf', klpIds: ['k1'] })],
       knowledge: { k1: { pKnown: 0.9, observations: 1 } },
       tags: [],
+      analyzedAnswersByTopic: {},
     })
     expect(result[0].knowledge).toBeNull()
+  })
+
+  it('yields readiness: null for a topic present in topics but absent from analyzedAnswersByTopic', () => {
+    const result = shapeTopicProfile({
+      topics: [row({ normalizedName: 'dcf', klpIds: ['k1'] })],
+      knowledge: { k1: { pKnown: 0.9, observations: 5 } },
+      tags: [],
+      // 'dcf' has propositions but no analyzed answers yet — the real-world
+      // case the per-topic lookup exists to handle. Must not crash and must
+      // not silently read as 0 (fully unready); it must be null (unknown).
+      analyzedAnswersByTopic: {},
+    })
+    expect(result[0].readiness).toBeNull()
   })
 })
 
