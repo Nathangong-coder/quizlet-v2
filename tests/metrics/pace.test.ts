@@ -77,25 +77,31 @@ describe('paceIndex', () => {
 })
 
 describe('paceOutliers', () => {
-  // 12 distinct single-observation cards, each below MIN_TIMED_OBSERVATIONS
-  // on its own (so none can appear in the output itself), but together large
-  // enough that they, not a test card's own 3 samples, anchor the population
-  // median at exactly 1000 regardless of how slow a test card is. Every test
-  // below adds at most 6 non-baseline samples, well under the 12-strong
-  // baseline, so this holds throughout.
+  // `paceIndex` deliberately folds the target card's own samples into the
+  // population median it's compared against — every card must share the
+  // same denominator for indices to be comparable across cards. That means a
+  // small baseline pool lets one slow card drag its own baseline up and mask
+  // itself (a 3-card baseline plus a card's own 3 slow samples shifts the
+  // 6-value median toward the card, understating its index). This fixture
+  // uses 12 distinct SINGLE-OBSERVATION cards — each below
+  // MIN_TIMED_OBSERVATIONS on its own, so none can appear in the output
+  // itself — specifically because 12 outnumbers the largest non-baseline
+  // sample set any test below adds (max 6), which keeps the population
+  // median pinned at exactly 1000 regardless of how slow a test card is.
+  // Do not shrink this pool without re-deriving the arithmetic.
   const baseline = Array.from({ length: 12 }, (_, i) => ev(`other${i}`, 1000))
 
   it('includes a card exactly at the threshold', () => {
     // index = 1500 / 1000 = 1.5 === PACE_OUTLIER_MIN_INDEX
     const events = [...baseline, evc('c1', 1500, true), evc('c1', 1500, true), evc('c1', 1500, true)]
-    const outliers = paceOutliers(events, 'quiz-sa')
-    expect(outliers).toEqual([{ cardId: 'c1', index: 1.5 }])
+    const outliers = paceOutliers(events)
+    expect(outliers).toEqual([{ cardId: 'c1', mode: 'quiz-sa', index: 1.5 }])
   })
 
   it('excludes a card just below the threshold', () => {
     // index = 1499 / 1000 = 1.499 < 1.5
     const events = [...baseline, evc('c1', 1499, true), evc('c1', 1499, true), evc('c1', 1499, true)]
-    expect(paceOutliers(events, 'quiz-sa')).toEqual([])
+    expect(paceOutliers(events)).toEqual([])
   })
 
   it('excludes a slow card that was majority-incorrect — that is a knowledge gap, not a fluency one', () => {
@@ -104,17 +110,17 @@ describe('paceOutliers', () => {
       ...baseline,
       evc('c1', 3000, true), evc('c1', 3000, false), evc('c1', 3000, false),
     ]
-    expect(paceOutliers(events, 'quiz-sa')).toEqual([])
+    expect(paceOutliers(events)).toEqual([])
   })
 
   it('excludes a card with no correctness evidence at all (a tie, not a majority)', () => {
     const events = [...baseline, ev('c1', 3000), ev('c1', 3000), ev('c1', 3000)]
-    expect(paceOutliers(events, 'quiz-sa')).toEqual([])
+    expect(paceOutliers(events)).toEqual([])
   })
 
   it('excludes cards below the observation floor regardless of latency or correctness', () => {
     const events = [...baseline, evc('c1', 5000, true), evc('c1', 5000, true)]
-    expect(paceOutliers(events, 'quiz-sa')).toEqual([])
+    expect(paceOutliers(events)).toEqual([])
   })
 
   it('sorts multiple outliers by index descending', () => {
@@ -123,24 +129,57 @@ describe('paceOutliers', () => {
       evc('slow', 2000, true), evc('slow', 2000, true), evc('slow', 2000, true),
       evc('slower', 4000, true), evc('slower', 4000, true), evc('slower', 4000, true),
     ]
-    expect(paceOutliers(events, 'quiz-sa')).toEqual([
-      { cardId: 'slower', index: 4 },
-      { cardId: 'slow', index: 2 },
+    expect(paceOutliers(events)).toEqual([
+      { cardId: 'slower', mode: 'quiz-sa', index: 4 },
+      { cardId: 'slow', mode: 'quiz-sa', index: 2 },
     ])
   })
 
   it('accepts a custom minIndex', () => {
     const events = [...baseline, evc('c1', 1200, true), evc('c1', 1200, true), evc('c1', 1200, true)]
     // index = 1.2, below the default 1.5 floor but above a custom 1.0 floor.
-    expect(paceOutliers(events, 'quiz-sa')).toEqual([])
-    expect(paceOutliers(events, 'quiz-sa', 1.0)).toEqual([{ cardId: 'c1', index: 1.2 }])
+    expect(paceOutliers(events)).toEqual([])
+    expect(paceOutliers(events, 1.0)).toEqual([{ cardId: 'c1', mode: 'quiz-sa', index: 1.2 }])
   })
 
-  it('never mixes outliers across modes', () => {
+  it('scores every mode present against its own baseline, not a single fixed mode', () => {
+    // A TF-only baseline/card pair, entirely separate from the SA fixtures
+    // above, at a slow-enough TF index to qualify on its own.
+    const tfBaseline = Array.from({ length: 12 }, (_, i) => ev(`tfother${i}`, 100, 'quiz-tf'))
+    const events = [
+      ...baseline, // SA baseline, median 1000
+      evc('sa1', 1500, true), evc('sa1', 1500, true), evc('sa1', 1500, true), // SA index 1.5
+      ...tfBaseline, // TF baseline, median 100
+      evc('tf1', 300, true, 'quiz-tf'), evc('tf1', 300, true, 'quiz-tf'), evc('tf1', 300, true, 'quiz-tf'), // TF index 3.0
+    ]
+    expect(paceOutliers(events)).toEqual([
+      { cardId: 'tf1', mode: 'quiz-tf', index: 3 },
+      { cardId: 'sa1', mode: 'quiz-sa', index: 1.5 },
+    ])
+  })
+
+  it('reports a card once, for the correct mode only, when it is an outlier in one mode but ordinary in another', () => {
+    // c1 is slow (outlier) in quiz-sa but at its own quiz-tf baseline
+    // (ordinary) — proving the two modes' baselines stayed fully separate
+    // rather than one contaminating the other.
+    const tfBaseline = Array.from({ length: 12 }, (_, i) => ev(`tfother${i}`, 100, 'quiz-tf'))
+    const events = [
+      ...baseline, // SA baseline, median 1000
+      evc('c1', 1500, true), evc('c1', 1500, true), evc('c1', 1500, true), // SA index 1.5 — outlier
+      ...tfBaseline, // TF baseline, median 100
+      evc('c1', 100, true, 'quiz-tf'), evc('c1', 100, true, 'quiz-tf'), evc('c1', 100, true, 'quiz-tf'), // TF index 1.0 — ordinary
+    ]
+    expect(paceOutliers(events)).toEqual([{ cardId: 'c1', mode: 'quiz-sa', index: 1.5 }])
+  })
+
+  it('never lets a fast mode\'s samples corrupt a slow mode\'s baseline', () => {
     const events = [
       ...baseline,
       evc('c1', 3000, true, 'quiz-tf'), evc('c1', 3000, true, 'quiz-tf'), evc('c1', 3000, true, 'quiz-tf'),
     ]
-    expect(paceOutliers(events, 'quiz-sa')).toEqual([])
+    // c1 only has quiz-tf events; against ITS OWN (all-3000) baseline its
+    // index is 1, not an outlier — it must not be scored against the
+    // unrelated quiz-sa baseline above.
+    expect(paceOutliers(events)).toEqual([])
   })
 })

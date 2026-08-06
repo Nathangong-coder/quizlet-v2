@@ -18,13 +18,14 @@ export interface LearnerMetrics {
   forgetting: ForgettingCurve | null
   /**
    * "Correct but not fluent" cards: answered right, but slowly enough
-   * relative to the learner's own baseline to be worth flagging. Scoped to
-   * `quiz-sa` — the typed, recall-and-articulate mode this app's interview
-   * prep is built around, and the one `paceIndex`'s docstring names as
-   * differing from other modes by an order of magnitude, so it cannot share
-   * a baseline with them.
+   * relative to the learner's own baseline IN THAT MODE to be worth
+   * flagging. Spans every mode the learner has timed answers in — each
+   * scored against its own baseline, never mixed with another mode's — so a
+   * card can appear once per mode it qualifies in. See `paceOutliers`'s
+   * doc comment (`@/lib/metrics/pace`) for why a single fixed mode would
+   * silently hide real findings in an MC/TF-heavy corpus.
    */
-  paceOutliers: { cardId: string; index: number }[]
+  paceOutliers: { cardId: string; mode: StudySource; index: number }[]
 }
 
 /**
@@ -135,7 +136,6 @@ export async function getLearnerMetrics({
           latencyMs: e.latencyMs,
           correct: eventRecalled(e),
         })),
-      'quiz-sa',
     ),
   }
 }

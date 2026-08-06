@@ -51,8 +51,19 @@ export const PACE_OUTLIER_MIN_INDEX = 1.5
 
 /**
  * Cards the learner answers correctly but effortfully: `paceIndex` at or
- * above `minIndex`, restricted to cards whose timed answers in `mode` were
- * majority-correct.
+ * above `minIndex` IN SOME MODE, restricted to cards whose timed answers in
+ * that mode were majority-correct.
+ *
+ * Iterates every mode present in `events` and scores each mode against ITS
+ * OWN baseline — never a mode mixed into another's. `paceIndex` already
+ * refuses to compare across modes (short answer and true/false differ by an
+ * order of magnitude), and that refusal is the point: a fixed single mode
+ * would silently discard every finding in the others, and in a corpus that
+ * is MC/TF-heavy that would make this list read as empty when it is not. The
+ * mode is part of the finding, not an incidental parameter — a slow-but-
+ * correct multiple-choice answer means the learner had to work it out rather
+ * than recognise it, which is exactly what a slow-but-correct short answer
+ * means for typed recall.
  *
  * The majority-correct filter is the point of the metric, not an incidental
  * restriction. This surfaces "correct but not fluent" — a real, distinct
@@ -62,34 +73,41 @@ export const PACE_OUTLIER_MIN_INDEX = 1.5
  * drown out the actual fluency signal this metric exists to isolate.
  *
  * "Majority" compares explicit `correct: true` vs `correct: false` counts
- * among the card's timed events in `mode` — events with `correct` unset or
- * null count toward neither side, so a card with no correctness evidence at
- * all is excluded (a tie, not a majority) rather than assumed correct.
+ * among the card's timed events in that mode — events with `correct` unset
+ * or null count toward neither side, so a card with no correctness evidence
+ * at all is excluded (a tie, not a majority) rather than assumed correct.
  *
- * Cards below `MIN_TIMED_OBSERVATIONS` are excluded automatically: their
- * `paceIndex` is already null, which never clears `minIndex`.
+ * Cards below `MIN_TIMED_OBSERVATIONS` (in a given mode) are excluded
+ * automatically: their `paceIndex` is already null there, which never clears
+ * `minIndex`. A card can be an outlier in one mode and ordinary in another —
+ * each mode is scored independently, so it appears at most once per mode,
+ * and only for the modes where it actually qualifies.
  *
- * Sorted by index descending — the most effortful cards first.
+ * Sorted by index descending across all modes — the most effortful cards
+ * first, regardless of which mode produced them.
  */
 export function paceOutliers(
   events: TimedEvent[],
-  mode: StudySource,
   minIndex: number = PACE_OUTLIER_MIN_INDEX,
-): { cardId: string; index: number }[] {
-  const inMode = events.filter((e) => e.mode === mode)
-  const cardIds = [...new Set(inMode.map((e) => e.cardId))]
+): { cardId: string; mode: StudySource; index: number }[] {
+  const modes = [...new Set(events.map((e) => e.mode))]
 
-  const outliers: { cardId: string; index: number }[] = []
-  for (const cardId of cardIds) {
-    const index = paceIndex(events, cardId, mode)
-    if (index === null || index < minIndex) continue
+  const outliers: { cardId: string; mode: StudySource; index: number }[] = []
+  for (const mode of modes) {
+    const inMode = events.filter((e) => e.mode === mode)
+    const cardIds = [...new Set(inMode.map((e) => e.cardId))]
 
-    const cardEvents = inMode.filter((e) => e.cardId === cardId)
-    const correctCount = cardEvents.filter((e) => e.correct === true).length
-    const incorrectCount = cardEvents.filter((e) => e.correct === false).length
-    if (correctCount <= incorrectCount) continue
+    for (const cardId of cardIds) {
+      const index = paceIndex(events, cardId, mode)
+      if (index === null || index < minIndex) continue
 
-    outliers.push({ cardId, index })
+      const cardEvents = inMode.filter((e) => e.cardId === cardId)
+      const correctCount = cardEvents.filter((e) => e.correct === true).length
+      const incorrectCount = cardEvents.filter((e) => e.correct === false).length
+      if (correctCount <= incorrectCount) continue
+
+      outliers.push({ cardId, mode, index })
+    }
   }
 
   return outliers.sort((a, b) => b.index - a.index)
