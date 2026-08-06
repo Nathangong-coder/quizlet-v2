@@ -42,10 +42,8 @@ export interface RawTagRow {
  * Map DB rows to the pure shape. Lives here, not in the read shell, so the
  * legacy-mode fallback is a tested decision rather than an untested one.
  *
- * A legacy row stores no mode. `quiz-sa` is the safe stand-in because it is
- * the only mode with no true/false dock — so a legacy tag is never docked on
- * a guess. Its severity comes from `storedSeverity` regardless, since a
- * legacy row also has no magnitude.
+ * A legacy row stores no mode. `quiz-sa` is a safe neutral default for rows
+ * that predate the stored `mode` field.
  */
 export function toStoredTags(rows: RawTagRow[]): StoredTag[] {
   return rows.map((r) => ({

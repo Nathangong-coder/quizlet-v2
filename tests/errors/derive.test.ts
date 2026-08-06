@@ -64,7 +64,7 @@ describe('repeatBonus', () => {
     expect(derived[1].repeatBonus).toBe(0)
   })
 
-  it('does not fire once the earlier occurrence is more than 3 attempts back', () => {
+  it('fires when the earlier occurrence is exactly 3 attempts back', () => {
     const derived = deriveTagScores([
       tag({ attemptId: 'a1', createdAt: minsAgo(50) }),
       tag({ attemptId: 'a2', type: 'omission', createdAt: minsAgo(40) }),
@@ -72,7 +72,59 @@ describe('repeatBonus', () => {
       tag({ attemptId: 'a4', type: 'omission', createdAt: minsAgo(20) }),
       tag({ attemptId: 'a5', createdAt: minsAgo(10) }),
     ])
+    // a1 is attempt 0, a5 is attempt 4, distance = 4 - 0 = 4 which exceeds window
     expect(derived[4].repeatBonus).toBe(0)
+  })
+
+  it('does not fire once the earlier occurrence is more than 3 attempts back', () => {
+    const derived = deriveTagScores([
+      tag({ attemptId: 'a1', createdAt: minsAgo(60) }),
+      tag({ attemptId: 'a2', type: 'omission', createdAt: minsAgo(50) }),
+      tag({ attemptId: 'a3', type: 'omission', createdAt: minsAgo(40) }),
+      tag({ attemptId: 'a4', type: 'omission', createdAt: minsAgo(30) }),
+      tag({ attemptId: 'a5', createdAt: minsAgo(20) }),
+    ])
+    // a1 is attempt 0, a5 is attempt 4, distance = 4 > 3, does not fire
+    expect(derived[4].repeatBonus).toBe(0)
+  })
+
+  it('pins the boundary: fires exactly at distance 3, not at distance 4', () => {
+    const derived = deriveTagScores([
+      tag({ attemptId: 'a1', createdAt: minsAgo(50) }),
+      tag({ attemptId: 'a2', type: 'other', createdAt: minsAgo(40) }),
+      tag({ attemptId: 'a3', type: 'other', createdAt: minsAgo(30) }),
+      tag({ attemptId: 'a4', createdAt: minsAgo(20) }),
+    ])
+    // a1 is attempt 0, a4 is attempt 3, distance = 3 - 0 = 3, should fire
+    expect(derived[3].repeatBonus).toBe(1)
+  })
+
+  it('does not allow tags in the same attempt to trigger each other', () => {
+    const derived = deriveTagScores([
+      tag({ attemptId: 'a1', klpId: 'klp1', type: 'inversion', createdAt: minsAgo(20) }),
+      tag({ attemptId: 'a1', klpId: 'klp1', type: 'inversion', createdAt: minsAgo(19) }),
+    ])
+    expect(derived[0].repeatBonus).toBe(0)
+    expect(derived[1].repeatBonus).toBe(0)
+  })
+
+  it('produces identical scores regardless of input order', () => {
+    const tags = [
+      tag({ attemptId: 'a1', createdAt: minsAgo(30) }),
+      tag({ attemptId: 'a2', createdAt: minsAgo(20) }),
+      tag({ attemptId: 'a3', createdAt: minsAgo(10) }),
+    ]
+    const inOrder = deriveTagScores(tags)
+    const reversed = deriveTagScores([...tags].reverse())
+    // Match by attemptId since order may differ
+    const byId = new Map(reversed.map((d) => [d.attemptId, d]))
+    for (const d of inOrder) {
+      const rev = byId.get(d.attemptId)
+      expect(rev).toBeDefined()
+      expect(rev!.severity).toBe(d.severity)
+      expect(rev!.repeatBonus).toBe(d.repeatBonus)
+      expect(rev!.significance).toBe(d.significance)
+    }
   })
 
   it('never pushes significance above 10', () => {
