@@ -1,6 +1,7 @@
 /**
- * Compact, ID-free "learner snapshot" built from the unified study-memory
- * tables (`CardProgress` + `StudyEvent`) written by `lib/memory/record.ts`.
+ * The CARD-grain learner snapshot. Spec 3 adds a topic-grain profile
+ * (src/lib/memory/topic-profile.ts) and a composite `LearnerProfile` that
+ * holds both — this one deliberately keeps its narrow, card-level meaning.
  *
  * This is consumed by `lib/ai/context.ts` (`profileToPromptBlock`) to inject
  * a bounded, human-readable summary into AI prompts — the model must never
@@ -96,7 +97,7 @@ export interface GradedAccuracy {
   count: number
 }
 
-export interface LearnerProfile {
+export interface LearnerCardProfile {
   setId: string | null
   setTitle: string | null
   weak: WeakTerm[]
@@ -232,7 +233,7 @@ const MODE_ORDER: StudySource[] = ['quiz-mc', 'quiz-tf', 'review', 'matching']
 // The pure shaper — all real logic lives here.
 // ---------------------------------------------------------------------------
 
-export function shapeLearnerProfile(input: ShapeLearnerProfileInput): LearnerProfile {
+export function shapeLearnerProfile(input: ShapeLearnerProfileInput): LearnerCardProfile {
   const now = input.now ?? new Date()
   const eventsByCard = groupByCard(input.events)
 
@@ -336,7 +337,7 @@ export async function buildLearnerProfile({
 }: {
   userId: string
   setId?: string
-}): Promise<LearnerProfile> {
+}): Promise<LearnerCardProfile> {
   const { prisma } = await import('@/lib/db')
   const cardFilter = setId ? { card: { setId } } : {}
 

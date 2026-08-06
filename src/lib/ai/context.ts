@@ -1,5 +1,5 @@
 /**
- * Renders a `LearnerProfile` (src/lib/memory/profile.ts) into an ID-free
+ * Renders a `LearnerCardProfile` (src/lib/memory/profile.ts) into an ID-free
  * text block for injection into AI prompts. Uncapped — every qualifying
  * card is included, not truncated to a fixed length.
  *
@@ -8,7 +8,7 @@
  * memory-and-prompting.md's "Compact, ID-free AI context" global constraint.
  */
 
-import { buildLearnerProfile, type LearnerProfile, type Trend } from '@/lib/memory/profile'
+import { buildLearnerProfile, type LearnerCardProfile, type Trend } from '@/lib/memory/profile'
 
 const MODE_LABELS: Partial<Record<string, string>> = {
   'quiz-mc': 'MC',
@@ -29,7 +29,7 @@ function missPhrase(count: number): string {
   return `${count} times`
 }
 
-export function profileToPromptBlock(profile: LearnerProfile): string {
+export function profileToPromptBlock(profile: LearnerCardProfile): string {
   const lines: string[] = []
 
   lines.push(

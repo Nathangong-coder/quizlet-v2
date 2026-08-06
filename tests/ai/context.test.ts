@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { profileToPromptBlock } from '@/lib/ai/context'
-import type { LearnerProfile } from '@/lib/memory/profile'
+import type { LearnerCardProfile } from '@/lib/memory/profile'
 
-function emptyProfile(overrides: Partial<LearnerProfile> = {}): LearnerProfile {
+function emptyProfile(overrides: Partial<LearnerCardProfile> = {}): LearnerCardProfile {
   return {
     setId: null,
     setTitle: null,
