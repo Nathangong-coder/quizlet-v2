@@ -1011,7 +1011,7 @@ describe('guess rate is derived, never re-declared', () => {
 })
 
 describe('no ceiling on repeated correct multiple choice', () => {
-  it('converges toward 1, not toward the ~0.76 fixed point credit would create', () => {
+  it('converges toward 1, not toward the fixed point collapsing credit would create', () => {
     const observations = Array.from({ length: 100 }, () => obs({ status: 'passed', mode: 'quiz-mc' }))
     const result = traceKlp(observations)
     expect(result.pKnown).toBeGreaterThan(0.99)
@@ -1132,7 +1132,10 @@ export interface BktResult {
  * two different positions here: `STATUS_CREDIT` in the mixing weight,
  * `EVIDENCE_STRENGTH` inside the likelihood via `guess`. Feeding the product as
  * the mixing weight applies the mode discount twice and creates a fixed point
- * (~0.76 for MC), so a learner answering correctly a hundred times running
+ * strictly below 1 (~0.82 for MC and ~0.40 for TF at the constants above; SA's
+ * evidence strength is too close to 1 to bind, and the value moves if
+ * BKT_LEARN or BKT_SLIP are retuned), so a learner answering correctly a
+ * hundred times running
  * could never be modelled as knowing it.
  */
 export function stepBkt(pKnown: number, obs: KlpObservation): number {

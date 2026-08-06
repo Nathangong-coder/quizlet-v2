@@ -183,9 +183,15 @@ over a KLP's `AnswerKlpResult` rows, returning `{ pKnown, observations }`.
   belong in two different positions of the update: `STATUS_CREDIT` in the
   mixing weight, `EVIDENCE_STRENGTH` in `guess` inside the likelihood. Feeding
   the product as the mixing weight applies the mode discount twice and creates
-  a **fixed point** — iterate a correct MC answer and `pKnown` converges to
-  ≈0.76 and stops, so a learner answering correctly a hundred times running
-  could never be modelled as knowing it.
+  a **fixed point** strictly below 1 — iterate a correct MC answer and `pKnown`
+  stalls there, so a learner answering correctly a hundred times running could
+  never be modelled as knowing it. The exact ceiling depends on `BKT_LEARN`,
+  `BKT_SLIP` and the mode's evidence strength: ≈0.82 for MC and ≈0.40 for TF at
+  the constants below, with no binding ceiling for SA, whose evidence strength
+  is too close to 1 to bind. (An earlier draft of this spec said ≈0.76; that was
+  a hand calculation that dropped the learning-rate term — it is exactly 10/13
+  only when `BKT_LEARN` is 0. Corrected 2026-08-06 after the implementation
+  measured the real value.)
 - `partial` is soft evidence, interpolated by `STATUS_CREDIT[status]` — the
   categorical fraction only.
 - `observations` ships alongside `pKnown` because a one-observation posterior is
@@ -412,7 +418,8 @@ following `tests/memory/profile.test.ts`. Two properties pinned specifically:
   someone tunes it.
 
 Plus: BKT's fixed-point regression (a long run of correct MC answers must
-converge toward 1, not stall at ≈0.76); misconception promotion and retirement
+converge toward 1, not stall at the constant-dependent ceiling described in §5);
+misconception promotion and retirement
 boundaries; `too_terse` excluded from the verbosity index below the knowledge
 threshold; and legacy rows with null `magnitude` falling back to stored
 severity.
