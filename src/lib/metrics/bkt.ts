@@ -1,4 +1,4 @@
-import { EVIDENCE_STRENGTH, STATUS_CREDIT, type KlpStatus } from '@/lib/errors/klp-credit'
+import { DEFAULT_STRENGTH, EVIDENCE_STRENGTH, STATUS_CREDIT, type KlpStatus } from '@/lib/errors/klp-credit'
 import type { StudySource } from '@/lib/memory/scoring'
 
 /** P(knew it before any evidence). */
@@ -10,9 +10,6 @@ export const BKT_SLIP = 0.1
 /** Below this, no caller may describe a KLP as weak or strong. */
 export const MIN_OBSERVATIONS = 3
 
-/** Fallback for a mode with no documented evidence strength. */
-const DEFAULT_GUESS = 1 - 0.75
-
 /**
  * P(gets it right without knowing it).
  *
@@ -23,7 +20,7 @@ const DEFAULT_GUESS = 1 - 0.75
  */
 export function guessRate(mode: StudySource): number {
   const strength = EVIDENCE_STRENGTH[mode]
-  return strength === undefined ? DEFAULT_GUESS : 1 - strength
+  return strength === undefined ? 1 - DEFAULT_STRENGTH : 1 - strength
 }
 
 export interface KlpObservation {
@@ -45,8 +42,10 @@ export interface BktResult {
  * two different positions here: `STATUS_CREDIT` in the mixing weight,
  * `EVIDENCE_STRENGTH` inside the likelihood via `guess`. Feeding the product as
  * the mixing weight applies the mode discount twice and creates a fixed point
- * (~0.76 for MC), so a learner answering correctly a hundred times running
- * could never be modelled as knowing it.
+ * strictly below 1 whose value depends on `BKT_LEARN`, `BKT_SLIP`, and the
+ * mode's evidence strength — approximately 0.82 for multiple choice, 0.40 for
+ * true/false, with no binding ceiling for short answer at current constants.
+ * The figure moves if these constants are retuned.
  */
 export function stepBkt(pKnown: number, obs: KlpObservation): number {
   const guess = guessRate(obs.mode)

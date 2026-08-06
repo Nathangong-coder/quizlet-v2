@@ -35,7 +35,7 @@ export const EVIDENCE_STRENGTH: Record<string, number> = {
  * review/matching/lesson evidence. Revisit when one of those modes actually
  * starts crediting KLPs.
  */
-const DEFAULT_STRENGTH = 0.75
+export const DEFAULT_STRENGTH = 0.75
 
 /**
  * Graded evidence that a learner holds one KLP, 0-1.
