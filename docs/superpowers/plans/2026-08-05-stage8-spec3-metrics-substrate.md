@@ -2599,11 +2599,23 @@ export interface LearnerProfile {
   topics: LearnerTopicProfile[]
 }
 
-export function shapeTopicProfile(input: {
+export interface ShapeTopicProfileInput {
   topics: TopicRow[]
   knowledge: Record<string, KnowledgeRef>
   tags: DerivedTag[]
-}): LearnerTopicProfile[] {
+  /**
+   * Analyzed-answer count per topic key. Required because readiness is an
+   * intensity (weight per answer), not a lifetime sum — see articulation.ts.
+   *
+   * It cannot be derived from `tags`: a clean answer produces NO tags, and a
+   * clean answer is exactly the positive evidence readiness needs. Counting
+   * distinct answers among the tags would only ever see the answers that went
+   * wrong, making every learner look maximally unready.
+   */
+  analyzedAnswersByTopic: Record<string, number>
+}
+
+export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicProfile[] {
   const grouped = new Map<string, TopicRow[]>()
   for (const t of input.topics) {
     const list = grouped.get(t.normalizedName)
@@ -2628,6 +2640,7 @@ export function shapeTopicProfile(input: {
     const articulation = computeArticulation({
       tags: input.tags.filter((t) => t.klpId !== null && klpSet.has(t.klpId)),
       knowledge: input.knowledge,
+      analyzedAnswers: input.analyzedAnswersByTopic[key] ?? 0,
     })
 
     out.push({
@@ -2789,6 +2802,12 @@ export async function getLearnerMetrics({
   const derived = deriveTagScores(toStoredTags(tagRows), bands)
   const topics = toTopicRows(await loadCategoryRows(prisma, userId, scope))
 
+  // Analyzed-answer counts per topic. MUST come from QuizAnswer rows with
+  // analysisStatus 'analyzed', NOT from the tags — a clean answer produces no
+  // tags, and clean answers are precisely the positive evidence readiness
+  // needs. Deriving this from tags would make every learner look unready.
+  const analyzedAnswersByTopic = await loadAnalyzedAnswerCounts(prisma, userId, scope)
+
   const misconceptions = deriveMisconceptions({
     tags: tagRows
       .filter((t: any) => t.type === 'conflation' && t.klpId && t.secondaryKlpId)
@@ -2810,7 +2829,10 @@ export async function getLearnerMetrics({
   })
 
   return {
-    profile: composeLearnerProfile(cards, shapeTopicProfile({ topics, knowledge, tags: derived })),
+    profile: composeLearnerProfile(
+      cards,
+      shapeTopicProfile({ topics, knowledge, tags: derived, analyzedAnswersByTopic }),
+    ),
     misconceptions,
     forgetting: buildForgettingCurve(
       toRecallPairs(
@@ -2822,6 +2844,46 @@ export async function getLearnerMetrics({
       ),
     ),
   }
+}
+
+/**
+ * Analyzed-answer count per topic key, from QuizAnswer rows whose
+ * `analysisStatus` is 'analyzed'. Answers whose analysis was degraded
+ * (`no_provenance`, `no_klps`, `failed`) are EXCLUDED: they are not evidence of
+ * clean expression, only of analysis that could not run, and counting them
+ * would inflate readiness for learners whose cards lack KLPs.
+ *
+ * Resolve each answer's card to its categories and increment every matching
+ * normalized name, so an answer on a card in two topics counts once for each.
+ */
+async function loadAnalyzedAnswerCounts(
+  prisma: any,
+  userId: string,
+  scope: HistoryScope,
+): Promise<Record<string, number>> {
+  const answers = await prisma.quizAnswer.findMany({
+    where: {
+      attempt: { userId },
+      analysisStatus: 'analyzed',
+      ...(scope.setIds.length > 0 ? { card: { setId: { in: scope.setIds } } } : {}),
+    },
+    select: {
+      card: {
+        select: {
+          categoryAssignments: { select: { category: { select: { normalizedName: true } } } },
+        },
+      },
+    },
+  })
+
+  const counts: Record<string, number> = {}
+  for (const a of answers) {
+    for (const assignment of a.card?.categoryAssignments ?? []) {
+      const key = assignment.category.normalizedName
+      counts[key] = (counts[key] ?? 0) + 1
+    }
+  }
+  return counts
 }
 
 /**
