@@ -441,6 +441,14 @@ model AnswerKlpResult {
 /// The inputs are stored, not the derived constants: knowing a row used
 /// dimWeight 1.0 does not let you recompute it at 0.9, but knowing the
 /// dimension does.
+///
+/// `magnitude` and `mode` are written on every row from Spec 3 onward —
+/// the AI's 1-10 for short answer, MC_TF_MAGNITUDE for a generated distractor.
+/// NULL therefore means "legacy row" and nothing else, which is what lets the
+/// read path tell a pre-migration row (use stored `severity`) from a
+/// full-magnitude one. `mode` is stored because it is an INPUT to severity —
+/// the true/false dock — and a whole-answer tag has no AnswerKlpResult to
+/// recover it from.
 model AnswerErrorTag {
   id             String     @id @default(cuid())
   quizAnswerId   String
@@ -450,6 +458,8 @@ model AnswerErrorTag {
   secondaryKlpId String?    // conflation only: the concept confused WITH
   relevance      Int        // CardKlp.weight AS OF THIS ANSWER
   severity       Int        // 1-5, the AI's only numeric contribution
+  magnitude      Int?       // 1-10 instance magnitude; NULL means a legacy row
+  mode           String?    // StudySource at answer time; NULL means a legacy row
   starred        Boolean    // CardProgress.starred AT ANSWER TIME
   significance   Int        // computed; excludes repeatBonus
   quote          String?    @db.Text
