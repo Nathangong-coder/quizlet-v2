@@ -34,8 +34,7 @@ export function paceIndex(
   if (cardTimes.length < MIN_TIMED_OBSERVATIONS) return null
 
   const cardMedian = medianOf(cardTimes)
-  const baselineTimes = inMode.filter((e) => e.cardId !== cardId).map((e) => e.latencyMs)
-  const baseline = medianOf(baselineTimes)
+  const baseline = medianOf(inMode.map((e) => e.latencyMs))
   if (cardMedian === null || baseline === null || baseline === 0) return null
 
   return cardMedian / baseline

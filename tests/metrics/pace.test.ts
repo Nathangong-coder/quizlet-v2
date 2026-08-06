@@ -22,7 +22,7 @@ describe('medianOf', () => {
   })
 
   it('distinguishes median from mean with skewed data', () => {
-    // mean = 24, median = 20
+    // mean = 32.5, median = 25
     expect(medianOf([10, 20, 30, 70])).toBe(25)
     expect(medianOf([10, 20, 30, 70])).not.toBe(32.5)
   })
@@ -37,8 +37,12 @@ describe('paceIndex', () => {
   })
 
   it('returns above 1 for effortful retrieval', () => {
-    const events = [...baseline, ev('c1', 2400), ev('c1', 2400), ev('c1', 2400)]
-    expect(paceIndex(events, 'c1', 'quiz-sa')).toBeGreaterThan(2)
+    const manyBaseline = [
+      ev('other1', 1000), ev('other2', 1000), ev('other3', 1000),
+      ev('other4', 1000), ev('other5', 1000), ev('other6', 1000),
+    ]
+    const events = [...manyBaseline, ev('c1', 2400), ev('c1', 2400), ev('c1', 2400)]
+    expect(paceIndex(events, 'c1', 'quiz-sa')).toBeCloseTo(2.4, 5)
   })
 
   it('returns null below the observation floor rather than a one-sample ratio', () => {
@@ -51,9 +55,12 @@ describe('paceIndex', () => {
     const events = [
       ev('c1', 8000, 'quiz-sa'), ev('c1', 8000, 'quiz-sa'), ev('c1', 8000, 'quiz-sa'),
       ev('o1', 8000, 'quiz-sa'), ev('o2', 8000, 'quiz-sa'), ev('o3', 8000, 'quiz-sa'),
-      ev('o1', 500, 'quiz-tf'), ev('o2', 500, 'quiz-tf'), ev('o3', 500, 'quiz-tf'),
+      ev('o1', 100, 'quiz-tf'), ev('o2', 100, 'quiz-tf'), ev('o3', 100, 'quiz-tf'),
+      ev('o4', 100, 'quiz-tf'), ev('o5', 100, 'quiz-tf'), ev('o6', 100, 'quiz-tf'),
     ]
-    // The fast TF baseline must not inflate the SA index.
+    // Six fast TF events must not corrupt the SA baseline.
+    // SA only: [8000, 8000, 8000, 8000, 8000, 8000], median 8000.
+    // All modes mixed would be [100, 100, 100, 100, 100, 100, 8000, 8000, 8000, 8000, 8000, 8000], median 4050.
     expect(paceIndex(events, 'c1', 'quiz-sa')).toBeCloseTo(1, 5)
   })
 
