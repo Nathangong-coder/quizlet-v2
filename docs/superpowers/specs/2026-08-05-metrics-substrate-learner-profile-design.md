@@ -4,7 +4,8 @@
 **Status:** design, approved in conversation
 **Depends on:** Spec 1 (KLPs & question generation), Spec 2a (answer-analysis capture), Spec 2b (display)
 **Frozen reference:** `docs/ai/error-taxonomy.md`
-**Followed by:** Spec 3B (user-tunable settings), Spec 4 (action plan & AI lessons)
+**Followed by:** Spec 3B (user-tunable settings), Spec 3C (learner dashboard),
+Spec 4 (action plan & AI lessons)
 
 ---
 
@@ -19,7 +20,11 @@ accumulated corpus into a durable model of the learner. Spec 3 does, delivering:
   deterministic misconception promotion.
 - Two learner-facing metrics: **knowledge** and **short-answer readiness**.
 - A restructured profile with a new per-topic grain.
-- A materialized cache, and the `/profile/learner` dashboard.
+- A materialized cache.
+
+**Out of scope:** the `/profile/learner` dashboard, split into Spec 3C. Spec 3
+is pure functions and persistence; the dashboard cannot start until they exist,
+and keeping them together would delay a working substrate behind UI work.
 
 Nothing here lets the AI *compute* mastery. The AI supplies categorical
 judgments and at most one bounded number per tag; every aggregation is
@@ -383,16 +388,15 @@ grows.
 
 ---
 
-## 10. `/profile/learner`
+## 10. Read API for the dashboard
 
-The dashboard for what the learner is struggling with: weak topics ranked by
-the selected ordering, weak KLPs with their evidence, per-topic verbosity
-calibration, active misconceptions, forgetting/due state, and pace outliers.
+Spec 3 ships the read functions Spec 3C renders, so the dashboard is a
+presentation layer over an already-tested surface rather than a place where new
+aggregation logic accretes: per-topic rollups, weak KLPs with their evidence
+quotes, active misconceptions, forgetting/due state, and pace outliers — each
+accepting a `HistoryScope` so 3C never filters in the component.
 
-It follows `/profile/memory`'s established pattern — a single `HistoryScope`
-narrowing the view, the tiles, and the filter options together, with empty
-scope as the consolidated view, URL-synced. A second scoping mechanism would
-drift from the first.
+The dashboard itself is Spec 3C.
 
 ---
 
