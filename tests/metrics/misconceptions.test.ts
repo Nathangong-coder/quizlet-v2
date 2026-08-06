@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { deriveMisconceptions, computeCleanStreaks } from '@/lib/metrics/misconceptions'
-import type { ConflationTag } from '@/lib/metrics/misconceptions'
+import { deriveMisconceptions, computeCleanStreaks, toConflationTags } from '@/lib/metrics/misconceptions'
+import type { ConflationTag, RawConflationRow } from '@/lib/metrics/misconceptions'
 
 const NOW = new Date('2026-08-05T12:00:00.000Z')
 const daysAgo = (n: number): Date => new Date(NOW.getTime() - n * 86_400_000)
@@ -92,6 +92,67 @@ describe('retirement', () => {
       now: NOW,
     })
     expect(result[0].active).toBe(true)
+  })
+})
+
+describe('toConflationTags', () => {
+  const row = (o: Partial<RawConflationRow> = {}): RawConflationRow => ({
+    type: 'conflation',
+    klpId: 'a',
+    secondaryKlpId: 'b',
+    quote: 'they are the same thing',
+    createdAt: daysAgo(1),
+    quizAnswer: { attemptId: 'attempt1' },
+    ...o,
+  })
+
+  it('maps a well-formed conflation row to a ConflationTag', () => {
+    const [result] = toConflationTags([row()])
+    expect(result).toEqual({
+      klpId: 'a',
+      secondaryKlpId: 'b',
+      sessionId: 'attempt1',
+      quote: 'they are the same thing',
+      createdAt: row().createdAt,
+    })
+  })
+
+  it('excludes non-conflation types', () => {
+    expect(toConflationTags([row({ type: 'inversion' })])).toHaveLength(0)
+    expect(toConflationTags([row({ type: 'too_terse' })])).toHaveLength(0)
+  })
+
+  it('excludes a conflation tag missing klpId', () => {
+    expect(toConflationTags([row({ klpId: null })])).toHaveLength(0)
+  })
+
+  it('excludes a conflation tag missing secondaryKlpId', () => {
+    expect(toConflationTags([row({ secondaryKlpId: null })])).toHaveLength(0)
+  })
+
+  it('excludes a conflation tag missing both targets', () => {
+    expect(toConflationTags([row({ klpId: null, secondaryKlpId: null })])).toHaveLength(0)
+  })
+
+  it('takes sessionId from the joined quizAnswer.attemptId, not a bare field', () => {
+    const [result] = toConflationTags([row({ quizAnswer: { attemptId: 'attempt2' } })])
+    expect(result.sessionId).toBe('attempt2')
+  })
+
+  it('passes through a null quote unchanged', () => {
+    const [result] = toConflationTags([row({ quote: null })])
+    expect(result.quote).toBeNull()
+  })
+
+  it('filters a mixed batch to only the well-formed conflation rows', () => {
+    const rows = [
+      row({ type: 'conflation', klpId: 'a', secondaryKlpId: 'b' }),
+      row({ type: 'factual_error', klpId: 'c', secondaryKlpId: 'd' }),
+      row({ type: 'conflation', klpId: 'e', secondaryKlpId: null }),
+    ]
+    const result = toConflationTags(rows)
+    expect(result).toHaveLength(1)
+    expect(result[0].klpId).toBe('a')
   })
 })
 

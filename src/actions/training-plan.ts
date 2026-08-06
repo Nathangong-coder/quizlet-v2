@@ -23,7 +23,7 @@ export async function generateTrainingPlan(setId: string): Promise<ActionResult<
     // plan generation outright (same pattern as recordStudyEvent).
     let profileBlock: string | undefined;
     try {
-      const profile = await buildLearnerProfile({ userId, setId });
+      const profile = await buildLearnerProfile({ userId, setIds: [setId] });
       profileBlock = profileToPromptBlock(profile);
     } catch (err) {
       console.error('buildLearnerProfile failed for training plan:', err);

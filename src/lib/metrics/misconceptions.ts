@@ -25,6 +25,50 @@ export interface Misconception {
   retiredReason: 'stale' | 'cleared' | null
 }
 
+/**
+ * An `AnswerErrorTag` row as Prisma returns it, with its answer joined —
+ * enough of it for `toConflationTags` to decide what counts as misconception
+ * evidence. Mirrors `RawTagRow` in `@/lib/errors/derive` in spirit (same
+ * "DB shape in, pure shape out" split) without importing its extra
+ * severity/significance fields this function never reads.
+ */
+export interface RawConflationRow {
+  type: string
+  klpId: string | null
+  secondaryKlpId: string | null
+  quote: string | null
+  createdAt: Date
+  quizAnswer: { attemptId: string }
+}
+
+/**
+ * Filters raw error-tag rows down to conflation evidence and maps them to
+ * `ConflationTag`s. Lives here, not in the read shell, because "what counts
+ * as a conflation tag" is a decision, not plumbing — the read shell should
+ * only ever call this, never inline the predicate itself.
+ *
+ * Two exclusions, both defensive rather than expected in practice (writers
+ * always pair `klpId`/`secondaryKlpId` when tagging a conflation): a
+ * non-conflation `type` is excluded outright, and a conflation tag missing
+ * either target is excluded rather than passed through with a fabricated or
+ * null target — a half-formed conflation tells us nothing about which two
+ * concepts were confused.
+ */
+export function toConflationTags(rows: RawConflationRow[]): ConflationTag[] {
+  return rows
+    .filter(
+      (r): r is RawConflationRow & { klpId: string; secondaryKlpId: string } =>
+        r.type === 'conflation' && r.klpId !== null && r.secondaryKlpId !== null,
+    )
+    .map((r) => ({
+      klpId: r.klpId,
+      secondaryKlpId: r.secondaryKlpId,
+      sessionId: r.quizAnswer.attemptId,
+      quote: r.quote,
+      createdAt: r.createdAt,
+    }))
+}
+
 /** One per-KLP outcome, for streak counting. */
 export interface KlpOutcome {
   klpId: string

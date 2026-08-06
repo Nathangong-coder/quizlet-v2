@@ -103,6 +103,35 @@ export function groupCategoriesByName(rows: CategoryRow[]): CrossSetCategory[] {
 }
 
 /**
+ * The set/category dimensions of a scope, as a Prisma `where` fragment for
+ * whatever relation is named `card` on the model being queried. Shared by
+ * every scope-aware query builder below so the set/category union semantics
+ * (in particular the uncategorized-sentinel OR) are defined exactly once —
+ * duplicating this per model is exactly the kind of drift risk a single
+ * source of truth is meant to prevent.
+ */
+function buildCardScopeWhere(scope: HistoryScope, categoryIds: string[]): Record<string, unknown> {
+  const card: Record<string, unknown> = {};
+
+  if (scope.setIds.length > 0) card.setId = { in: scope.setIds };
+
+  if (scope.categoryKeys.length > 0) {
+    const wantUncategorized = scope.categoryKeys.includes(UNCATEGORIZED_ID);
+    const hasNamed = scope.categoryKeys.some((k) => k !== UNCATEGORIZED_ID);
+    // Note: an empty `in` matches nothing, which is what we want — a stale
+    // category key from the URL must not silently widen back to everything.
+    const named = { categoryAssignments: { some: { categoryId: { in: categoryIds } } } };
+    const uncategorized = { categoryAssignments: { none: {} } };
+
+    if (wantUncategorized && hasNamed) card.OR = [named, uncategorized];
+    else if (wantUncategorized) Object.assign(card, uncategorized);
+    else Object.assign(card, named);
+  }
+
+  return card;
+}
+
+/**
  * Prisma `where` for StudyEvent under a scope. Pure, so every combination is
  * testable without a database; the caller resolves `categoryIds` from the
  * scope's category keys first.
@@ -122,23 +151,37 @@ export function buildStudyEventWhere(
     return where;
   }
 
-  const card: Record<string, unknown> = {};
+  const card = buildCardScopeWhere(scope, categoryIds);
+  if (Object.keys(card).length > 0) where.card = card;
 
-  if (scope.setIds.length > 0) card.setId = { in: scope.setIds };
+  return where;
+}
 
-  if (scope.categoryKeys.length > 0) {
-    const wantUncategorized = scope.categoryKeys.includes(UNCATEGORIZED_ID);
-    const hasNamed = scope.categoryKeys.some((k) => k !== UNCATEGORIZED_ID);
-    // Note: an empty `in` matches nothing, which is what we want — a stale
-    // category key from the URL must not silently widen back to everything.
-    const named = { categoryAssignments: { some: { categoryId: { in: categoryIds } } } };
-    const uncategorized = { categoryAssignments: { none: {} } };
+/**
+ * Prisma `where` for QuizAnswer under a scope, meant to be embedded as the
+ * `quizAnswer: {...}` relation filter when scoping AnswerErrorTag/
+ * AnswerKlpResult rows — neither has its own card/set/category relation;
+ * both reach one only through their parent QuizAnswer. Mirrors
+ * `buildStudyEventWhere`'s exact branching, adapted to QuizAnswer's shape:
+ * `mode` stands in for StudyEvent's `source` (both store the StudySource at
+ * answer time), and QuizAnswer's own scalar `cardId` is the same
+ * narrowest-scope-subsumes-the-rest case.
+ */
+export function buildQuizAnswerScopeWhere(
+  userId: string,
+  scope: HistoryScope,
+  categoryIds: string[],
+): Record<string, unknown> {
+  const where: Record<string, unknown> = { userId };
 
-    if (wantUncategorized && hasNamed) card.OR = [named, uncategorized];
-    else if (wantUncategorized) Object.assign(card, uncategorized);
-    else Object.assign(card, named);
+  if (scope.source) where.mode = scope.source;
+
+  if (scope.cardId) {
+    where.cardId = scope.cardId;
+    return where;
   }
 
+  const card = buildCardScopeWhere(scope, categoryIds);
   if (Object.keys(card).length > 0) where.card = card;
 
   return where;

@@ -3,6 +3,7 @@ import {
   EMPTY_SCOPE,
   groupCategoriesByName,
   buildStudyEventWhere,
+  buildQuizAnswerScopeWhere,
   serializeScope,
   parseScope,
   isConsolidated,
@@ -170,6 +171,88 @@ describe("buildStudyEventWhere", () => {
   it("matches nothing when a category scope resolves to no ids", () => {
     // A stale category key from the URL must not silently widen to "everything".
     const where = buildStudyEventWhere(userId, { ...EMPTY_SCOPE, categoryKeys: ["ghost"] }, []);
+    expect(where).toEqual({
+      userId,
+      card: { categoryAssignments: { some: { categoryId: { in: [] } } } },
+    });
+  });
+});
+
+describe("buildQuizAnswerScopeWhere", () => {
+  const userId = "u1";
+
+  it("scopes to the user only when consolidated", () => {
+    expect(buildQuizAnswerScopeWhere(userId, EMPTY_SCOPE, [])).toEqual({ userId });
+  });
+
+  it("filters by sets", () => {
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, setIds: ["s1", "s2"] }, []);
+    expect(where).toEqual({ userId, card: { setId: { in: ["s1", "s2"] } } });
+  });
+
+  it("filters by category ids", () => {
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, categoryKeys: ["valuation"] }, ["c1", "c2"]);
+    expect(where).toEqual({
+      userId,
+      card: { categoryAssignments: { some: { categoryId: { in: ["c1", "c2"] } } } },
+    });
+  });
+
+  it("filters uncategorized cards via the sentinel", () => {
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, categoryKeys: [UNCATEGORIZED_ID] }, []);
+    expect(where).toEqual({
+      userId,
+      card: { categoryAssignments: { none: {} } },
+    });
+  });
+
+  it("ORs a real category with uncategorized", () => {
+    const where = buildQuizAnswerScopeWhere(
+      userId,
+      { ...EMPTY_SCOPE, categoryKeys: ["valuation", UNCATEGORIZED_ID] },
+      ["c1"],
+    );
+    expect(where).toEqual({
+      userId,
+      card: {
+        OR: [
+          { categoryAssignments: { some: { categoryId: { in: ["c1"] } } } },
+          { categoryAssignments: { none: {} } },
+        ],
+      },
+    });
+  });
+
+  it("ANDs the set and category dimensions", () => {
+    const where = buildQuizAnswerScopeWhere(
+      userId,
+      { ...EMPTY_SCOPE, setIds: ["s1"], categoryKeys: ["valuation"] },
+      ["c1"],
+    );
+    expect(where).toEqual({
+      userId,
+      card: {
+        setId: { in: ["s1"] },
+        categoryAssignments: { some: { categoryId: { in: ["c1"] } } },
+      },
+    });
+  });
+
+  it("lets cardId take precedence over set scope", () => {
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, setIds: ["s1"], cardId: "card9" }, []);
+    expect(where).toEqual({ userId, cardId: "card9" });
+  });
+
+  it("narrows by source via the mode field", () => {
+    // QuizAnswer stores the StudySource at answer time as `mode`, not
+    // `source` — this is the one field name that differs from
+    // buildStudyEventWhere.
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-sa" }, []);
+    expect(where).toEqual({ userId, mode: "quiz-sa" });
+  });
+
+  it("matches nothing when a category scope resolves to no ids", () => {
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, categoryKeys: ["ghost"] }, []);
     expect(where).toEqual({
       userId,
       card: { categoryAssignments: { some: { categoryId: { in: [] } } } },

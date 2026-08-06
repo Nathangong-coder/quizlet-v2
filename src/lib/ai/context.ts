@@ -88,7 +88,7 @@ export async function safeProfileBlock(
   label: string,
 ): Promise<string | undefined> {
   try {
-    const profile = await buildLearnerProfile({ userId, setId })
+    const profile = await buildLearnerProfile({ userId, setIds: [setId] })
     return profileToPromptBlock(profile)
   } catch (err) {
     console.error(`buildLearnerProfile failed for ${label}:`, err)

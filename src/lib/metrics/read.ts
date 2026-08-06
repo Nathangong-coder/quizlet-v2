@@ -3,12 +3,14 @@ import type { LearnerProfile } from '@/lib/memory/topic-profile'
 import type { Misconception } from '@/lib/metrics/misconceptions'
 import type { ForgettingCurve } from '@/lib/metrics/forgetting'
 import { deriveTagScores, toStoredTags } from '@/lib/errors/derive'
-import { deriveMisconceptions, computeCleanStreaks } from '@/lib/metrics/misconceptions'
+import { deriveMisconceptions, computeCleanStreaks, toConflationTags } from '@/lib/metrics/misconceptions'
 import { buildForgettingCurve, toRecallPairs } from '@/lib/metrics/forgetting'
 import { shapeTopicProfile, composeLearnerProfile, toTopicRows } from '@/lib/memory/topic-profile'
 import { buildLearnerProfile } from '@/lib/memory/profile'
 import { eventRecalled, type StudySource } from '@/lib/memory/scoring'
 import { paceOutliers as computePaceOutliers } from '@/lib/metrics/pace'
+import { buildStudyEventWhere, buildQuizAnswerScopeWhere } from '@/lib/memory/scope'
+import { UNCATEGORIZED_ID } from '@/lib/cards/categories'
 import type { BandTable } from '@/lib/errors/bands'
 import type { PrismaClient } from '@prisma/client'
 
@@ -49,14 +51,26 @@ export async function getLearnerMetrics({
 }): Promise<LearnerMetrics> {
   const { prisma } = await import('@/lib/db')
 
+  // Resolved once and shared by every scope-aware query below, so
+  // misconceptions/forgetting/pace-outliers respect the same set, category,
+  // card, and source scoping the topic profile already does — a request
+  // scoped to one set must not answer with the learner's entire cross-set
+  // retention curve and misconception list sitting behind it.
+  const categoryIds = await resolveCategoryIds(prisma, userId, scope.categoryKeys)
+  const quizAnswerScopeWhere = buildQuizAnswerScopeWhere(userId, scope, categoryIds)
+  const studyEventWhere = buildStudyEventWhere(userId, scope, categoryIds)
+
   const [cards, klpStates, tagRows, klpOutcomes, events] = await Promise.all([
-    buildLearnerProfile({ userId, setId: scope.setIds[0] }),
+    buildLearnerProfile({ userId, setIds: scope.setIds }),
+    // Deliberately NOT scoped: `shapeTopicProfile` re-filters knowledge by
+    // each topic's own klpId set, so an out-of-scope KLP's pKnown is never
+    // read regardless of what this query returns.
     prisma.klpState.findMany({
       where: { userId },
       select: { klpId: true, pKnown: true, observations: true },
     }),
     prisma.answerErrorTag.findMany({
-      where: { quizAnswer: { userId } },
+      where: { quizAnswer: quizAnswerScopeWhere },
       select: {
         dimension: true, type: true, klpId: true, secondaryKlpId: true,
         relevance: true, starred: true, magnitude: true, mode: true,
@@ -65,11 +79,11 @@ export async function getLearnerMetrics({
       },
     }),
     prisma.answerKlpResult.findMany({
-      where: { quizAnswer: { userId } },
+      where: { quizAnswer: quizAnswerScopeWhere },
       select: { klpId: true, status: true, createdAt: true },
     }),
     prisma.studyEvent.findMany({
-      where: { userId },
+      where: studyEventWhere,
       select: { cardId: true, correct: true, score: true, createdAt: true, source: true, latencyMs: true },
     }),
   ])
@@ -88,15 +102,7 @@ export async function getLearnerMetrics({
   const analyzedAnswersByTopic = await loadAnalyzedAnswerCounts(prisma, userId, scope)
 
   const misconceptions = deriveMisconceptions({
-    tags: tagRows
-      .filter((t) => t.type === 'conflation' && t.klpId && t.secondaryKlpId)
-      .map((t) => ({
-        klpId: t.klpId as string,
-        secondaryKlpId: t.secondaryKlpId as string,
-        sessionId: t.quizAnswer.attemptId,
-        quote: t.quote,
-        createdAt: t.createdAt,
-      })),
+    tags: toConflationTags(tagRows),
     cleanStreaks: computeCleanStreaks(
       klpOutcomes.map((o) => ({
         klpId: o.klpId,
@@ -200,4 +206,33 @@ async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: His
       },
     },
   })
+}
+
+/**
+ * Resolve a scope's cross-set category keys (normalized names) to the
+ * concrete per-set CardCategory ids they cover, restricted to sets this user
+ * owns — required by `buildQuizAnswerScopeWhere`/`buildStudyEventWhere`,
+ * which take resolved ids rather than names.
+ *
+ * Mirrors `resolveCategoryIds` in `src/actions/memory.ts` (not imported from
+ * there: that file is a 'use server' action module, the wrong dependency
+ * direction for a lib module to reach into). The only branching here is
+ * "skip the UNCATEGORIZED_ID sentinel, and skip the query entirely once
+ * nothing named is left" — a query-shaping guard, not a decision. The actual
+ * decision (how UNCATEGORIZED_ID combines with named categories) lives in
+ * the pure, tested `buildCardScopeWhere` inside `@/lib/memory/scope`.
+ */
+async function resolveCategoryIds(
+  prisma: PrismaClient,
+  userId: string,
+  categoryKeys: string[],
+): Promise<string[]> {
+  const named = categoryKeys.filter((key) => key !== UNCATEGORIZED_ID)
+  if (named.length === 0) return []
+
+  const rows = await prisma.cardCategory.findMany({
+    where: { set: { userId }, normalizedName: { in: named } },
+    select: { id: true },
+  })
+  return rows.map((r) => r.id)
 }
