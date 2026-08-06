@@ -25,6 +25,7 @@ model User {
   trainingPlans    TrainingPlan[]
   assets           CardAsset[]
   studySessions    StudySession[]
+  klpStates        KlpState[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 }
@@ -97,9 +98,31 @@ model CardKlp {
   answerResults      AnswerKlpResult[]
   errorTags          AnswerErrorTag[] @relation("ErrorTagKlp")
   secondaryErrorTags AnswerErrorTag[] @relation("ErrorTagSecondaryKlp")
+  states             KlpState[]
 
   @@unique([cardId, version, index])
   @@index([cardId, supersededAt])
+}
+
+/// Stage 8 Spec 3: materialized per-KLP BKT posterior.
+///
+/// Stepped FORWARD on each new answer rather than invalidated — BKT's update
+/// is incremental by construction, so a replay is only needed when the inputs
+/// themselves change: a Spec 3B band edit, or a Spec 2a resubmit-cascade
+/// re-analysis of an already-recorded answer.
+model KlpState {
+  id              String   @id @default(cuid())
+  userId          String
+  klpId           String
+  pKnown          Float
+  observations    Int
+  lastObservedAt  DateTime
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  klp             CardKlp  @relation(fields: [klpId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, klpId])
+  @@index([userId, pKnown])
 }
 
 model CardCategory {
