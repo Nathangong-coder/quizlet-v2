@@ -16,6 +16,16 @@ describe('medianOf', () => {
   it('averages the middle pair for an even count', () => {
     expect(medianOf([10, 20, 30, 40])).toBe(25)
   })
+
+  it('returns the middle value for an odd count', () => {
+    expect(medianOf([10, 20, 30])).toBe(20)
+  })
+
+  it('distinguishes median from mean with skewed data', () => {
+    // mean = 24, median = 20
+    expect(medianOf([10, 20, 30, 70])).toBe(25)
+    expect(medianOf([10, 20, 30, 70])).not.toBe(32.5)
+  })
 })
 
 describe('paceIndex', () => {
