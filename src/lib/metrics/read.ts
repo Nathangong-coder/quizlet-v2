@@ -99,7 +99,12 @@ export async function getLearnerMetrics({
   // analysisStatus 'analyzed', NOT from the tags — a clean answer produces no
   // tags, and clean answers are precisely the positive evidence readiness
   // needs. Deriving this from tags would make every learner look unready.
-  const analyzedAnswersByTopic = await loadAnalyzedAnswerCounts(prisma, userId, scope)
+  //
+  // Scoped by the SAME `quizAnswerScopeWhere` the tag query above uses: this
+  // count is readiness's denominator and the tags are its numerator, so any
+  // scope the numerator honours and the denominator doesn't inflates
+  // readiness — the narrower the scope, the worse the overstatement.
+  const analyzedAnswersByTopic = await loadAnalyzedAnswerCounts(prisma, quizAnswerScopeWhere)
 
   const misconceptions = deriveMisconceptions({
     tags: toConflationTags(tagRows),
@@ -155,17 +160,20 @@ export async function getLearnerMetrics({
  *
  * Resolve each answer's card to its categories and increment every matching
  * normalized name, so an answer on a card in two topics counts once for each.
+ *
+ * Takes the caller's already-built `buildQuizAnswerScopeWhere` fragment rather
+ * than a `HistoryScope`, so the full scope (sets, categories, cardId, source)
+ * is honoured by exactly the tested builder the tag query uses — not by a
+ * second, narrower filter written here that can drift from it.
  */
 async function loadAnalyzedAnswerCounts(
   prisma: PrismaClient,
-  userId: string,
-  scope: HistoryScope,
+  quizAnswerScopeWhere: Record<string, unknown>,
 ): Promise<Record<string, number>> {
   const answers = await prisma.quizAnswer.findMany({
     where: {
-      userId,
+      ...quizAnswerScopeWhere,
       analysisStatus: 'analyzed',
-      ...(scope.setIds.length > 0 ? { card: { setId: { in: scope.setIds } } } : {}),
     },
     select: {
       card: {
