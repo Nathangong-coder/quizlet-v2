@@ -39,6 +39,7 @@ import {
   type KlpResultDraft,
 } from '@/lib/analysis/persist';
 import { toStudySource } from '@/lib/quiz/mode';
+import { persistKlpStates } from '@/lib/metrics/state-writer';
 import type { StudySource } from '@/lib/memory/scoring';
 import { MC_TF_MAGNITUDE } from '@/lib/errors/bands';
 
@@ -769,6 +770,14 @@ export async function submitTrueFalseAnswer(input: {
  * One transaction, not an after(): a QuizAnswer without an analysisStatus is a
  * row Spec 3 cannot classify — neither analyzed nor explicitly unanalyzable —
  * and nothing later can tell it apart from an analysis that genuinely failed.
+ *
+ * The same transaction steps `KlpState` forward for every KLP this answer
+ * observed. That materialized posterior is the ONLY thing Spec 3's read path
+ * consults for knowledge; without a writer here it stays permanently empty, so
+ * every topic's knowledge reads null AND `computeArticulation` books every
+ * `too_terse` as a knowledge gap — making the signed verbosity index unable to
+ * go negative. Inside the transaction, not after it, so a KlpState that has
+ * counted an observation always has the AnswerKlpResult row behind it.
  */
 async function createAnswerWithAnalysis(
   answerData: Prisma.QuizAnswerUncheckedCreateInput,
@@ -794,6 +803,35 @@ async function createAnswerWithAnalysis(
         data: writes.errorTags.map((t) => ({ ...t, quizAnswerId: answer.id })),
       });
     }
+
+    // `answer.createdAt` (not `new Date()`) so the posterior's clock is the
+    // same one `AnswerKlpResult.createdAt` replays from — a backfill and the
+    // live writer must converge on the same number.
+    await persistKlpStates({
+      userId: answerData.userId,
+      results: writes.klpResults,
+      observedAt: answer.createdAt,
+      load: (klpId) =>
+        tx.klpState.findUnique({
+          where: { userId_klpId: { userId: answerData.userId, klpId } },
+          select: {
+            userId: true, klpId: true, pKnown: true, observations: true, lastObservedAt: true,
+          },
+        }),
+      save: async (s) => {
+        const data = {
+          pKnown: s.pKnown,
+          observations: s.observations,
+          lastObservedAt: s.lastObservedAt,
+        };
+        await tx.klpState.upsert({
+          where: { userId_klpId: { userId: s.userId, klpId: s.klpId } },
+          create: { userId: s.userId, klpId: s.klpId, ...data },
+          update: data,
+        });
+      },
+    });
+
     return answer;
   });
 }
