@@ -29,6 +29,12 @@ const h = vi.hoisted(() => ({
   errorTagCreateMany: vi.fn(),
   klpStateFindUnique: vi.fn(),
   klpStateUpsert: vi.fn(),
+  // B2: the prior answer is now superseded INSIDE the write transaction, and
+  // the KLPs its cascaded-away results credited are replayed from surviving
+  // history. Both reads default to empty here — these tests submit once.
+  txPriorFindMany: vi.fn(),
+  txKlpResultFindMany: vi.fn(),
+  klpStateDeleteMany: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -99,13 +105,27 @@ beforeEach(() => {
   h.errorTagCreateMany.mockResolvedValue({ count: 0 })
   h.klpStateFindUnique.mockResolvedValue(null)
   h.klpStateUpsert.mockResolvedValue({})
+  h.txPriorFindMany.mockResolvedValue([])
+  h.txKlpResultFindMany.mockResolvedValue([])
+  h.klpStateDeleteMany.mockResolvedValue({ count: 0 })
   h.recordStudyEvent.mockResolvedValue({ confidence: 6, mastery: 0.5, dueAt: new Date() })
   h.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
-      quizAnswer: { create: h.answerCreate },
-      answerKlpResult: { createMany: h.klpResultCreateMany },
+      quizAnswer: {
+        create: h.answerCreate,
+        findMany: h.txPriorFindMany,
+        deleteMany: h.answerDeleteMany,
+      },
+      answerKlpResult: {
+        createMany: h.klpResultCreateMany,
+        findMany: h.txKlpResultFindMany,
+      },
       answerErrorTag: { createMany: h.errorTagCreateMany },
-      klpState: { findUnique: h.klpStateFindUnique, upsert: h.klpStateUpsert },
+      klpState: {
+        findUnique: h.klpStateFindUnique,
+        upsert: h.klpStateUpsert,
+        deleteMany: h.klpStateDeleteMany,
+      },
     }),
   )
 })

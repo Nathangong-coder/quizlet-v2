@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { persistKlpStates, type KlpObservationWrite } from '@/lib/metrics/state-writer'
+import { describe, it, expect, vi } from 'vitest'
+import { persistKlpStates, rebuildKlpStates, type KlpObservationWrite } from '@/lib/metrics/state-writer'
 import { rebuildStatesFromResults, type KlpStateRow } from '@/lib/metrics/cache'
 import { BKT_PRIOR } from '@/lib/metrics/bkt'
 
@@ -108,5 +108,168 @@ describe('persistKlpStates', () => {
       userId: 'u1', results: [res()], observedAt: at(99), load: store.load, save: store.save,
     })
     expect(store.rows.get('klp1')!.lastObservedAt.getTime()).toBe(at(99).getTime())
+  })
+})
+
+/**
+ * B2. Re-submitting an answer deletes the prior `QuizAnswer` and cascades away
+ * its `AnswerKlpResult` rows — but `KlpState` is an incremental posterior, and
+ * `stepBkt` is not invertible, so nothing can subtract the deleted attempt back
+ * out. The only correct response is a replay of what survives.
+ */
+describe('re-submission must not double-count (B2)', () => {
+  const T = new Date('2026-08-07T12:00:00.000Z')
+  const later = (mins: number): Date => new Date(T.getTime() + mins * 60_000)
+
+  // The two numbers this whole task turns on, replayed from the constants
+  // rather than restated: one `passed` observation, from the BKT prior.
+  const ONE_PASS_SA = rebuildStatesFromResults('u1', [
+    { klpId: 'k1', status: 'passed', mode: 'quiz-sa', createdAt: T },
+  ])[0]
+  const ONE_PASS_MC = rebuildStatesFromResults('u1', [
+    { klpId: 'k1', status: 'passed', mode: 'quiz-mc', createdAt: T },
+  ])[0]
+
+  it('pins the surviving-history truth a re-submit must land on', () => {
+    // After a re-submit the failed row is DELETED by the cascade. The surviving
+    // history is one passed observation, so the posterior must equal a replay
+    // of exactly that — never the stale value stepped a second time.
+    expect(ONE_PASS_SA.observations).toBe(1)
+    expect(ONE_PASS_SA.pKnown).toBeCloseTo(0.8714285714285714, 10)
+    // Same shape at multiple choice's weaker evidence (guessRate 0.25).
+    expect(ONE_PASS_MC.observations).toBe(1)
+    expect(ONE_PASS_MC.pKnown).toBeCloseTo(0.5909090909, 8)
+  })
+
+  interface Row {
+    id: string
+    klpId: string
+    userId: string
+    status: string
+    mode: string
+    createdAt: Date
+  }
+
+  /**
+   * A transaction client over an in-memory `AnswerKlpResult` table.
+   *
+   * Deliberately models two things a naive stub would paper over:
+   * - `where.quizAnswer.userId` is honoured only when the query asks for it, so
+   *   dropping the owner scope really does pull in another learner's rows.
+   * - Without an `orderBy` the rows come back in storage order, which is what a
+   *   real planner is free to do. Storage order here is NOT chronological.
+   */
+  function fakeTx(rows: Row[]) {
+    // Both take a typed `args` so assertions can read `mock.calls[0][0]`
+    // directly; a zero-arg `vi.fn()` types its calls as `[]`.
+    const upsert = vi.fn(async (_args: any) => ({}))
+    const deleteMany = vi.fn(async (_args: any) => ({ count: 1 }))
+    const findMany = vi.fn(async (args: any) => {
+      const wanted: string[] = args.where.klpId.in
+      const owner: string | undefined = args.where.quizAnswer?.userId
+      const hits = rows.filter(
+        (r) => wanted.includes(r.klpId) && (owner === undefined || r.userId === owner),
+      )
+      const ordered = args.orderBy
+        ? [...hits].sort(
+            (a, b) =>
+              a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+          )
+        : hits
+      // `select` narrows the row, as the real query does.
+      return ordered.map((r) => ({
+        klpId: r.klpId,
+        status: r.status,
+        mode: r.mode,
+        createdAt: r.createdAt,
+      }))
+    })
+    return {
+      tx: { answerKlpResult: { findMany }, klpState: { upsert, deleteMany } },
+      findMany,
+      upsert,
+      deleteMany,
+    }
+  }
+
+  const written = (upsert: ReturnType<typeof vi.fn>) =>
+    upsert.mock.calls[0][0] as {
+      create: { pKnown: number; observations: number; lastObservedAt: Date }
+      update: { pKnown: number; observations: number }
+    }
+
+  it('recomputes the posterior from surviving rows instead of stepping the stale one', async () => {
+    // Fail, then re-submit as a pass. The failed row is gone with its answer,
+    // so the only surviving evidence is the pass.
+    const f = fakeTx([
+      { id: 'r1', klpId: 'k1', userId: 'u1', status: 'passed', mode: 'quiz-sa', createdAt: T },
+    ])
+    await rebuildKlpStates(f.tx as any, 'u1', ['k1'])
+
+    expect(f.upsert).toHaveBeenCalledOnce()
+    const w = written(f.upsert)
+    expect(w.create.observations).toBe(1)
+    expect(w.create.pKnown).toBeCloseTo(ONE_PASS_SA.pKnown, 12)
+    expect(w.update.observations).toBe(1)
+    // Not the stale double-count: stepping the failed posterior (0.1305) by the
+    // pass gives 0.7569 on TWO observations. Both are wrong.
+    expect(w.create.pKnown).not.toBeCloseTo(0.7568720379146919, 6)
+  })
+
+  it('replays only this learner rows, never another user answers', async () => {
+    // `AnswerKlpResult` carries no userId of its own and a `CardKlp` is shared
+    // by everyone studying the set, so an unscoped read would rebuild this
+    // learner's posterior partly out of strangers' evidence.
+    const f = fakeTx([
+      { id: 'r1', klpId: 'k1', userId: 'u1', status: 'passed', mode: 'quiz-sa', createdAt: T },
+      { id: 'r2', klpId: 'k1', userId: 'u2', status: 'failed', mode: 'quiz-sa', createdAt: later(1) },
+    ])
+    await rebuildKlpStates(f.tx as any, 'u1', ['k1'])
+
+    const w = written(f.upsert)
+    expect(w.create.observations).toBe(1)
+    expect(w.create.pKnown).toBeCloseTo(ONE_PASS_SA.pKnown, 12)
+    expect(f.findMany.mock.calls[0][0].where.quizAnswer).toEqual({ userId: 'u1' })
+  })
+
+  it('deletes the state when the cascade left no surviving evidence', async () => {
+    // A stale row would keep claiming knowledge from observations that no
+    // longer exist — and keep the KLP above MIN_OBSERVATIONS, so downstream
+    // code would call the proposition weak or strong on deleted rows.
+    const f = fakeTx([
+      { id: 'r1', klpId: 'k1', userId: 'u1', status: 'passed', mode: 'quiz-sa', createdAt: T },
+    ])
+    await rebuildKlpStates(f.tx as any, 'u1', ['k1', 'k2'])
+
+    expect(f.deleteMany).toHaveBeenCalledWith({ where: { userId: 'u1', klpId: 'k2' } })
+    expect(f.upsert).toHaveBeenCalledOnce()
+    expect(f.upsert.mock.calls[0][0].where).toEqual({ userId_klpId: { userId: 'u1', klpId: 'k1' } })
+  })
+
+  it('pins replay order, because tied timestamps are the norm and stepBkt is not commutative', async () => {
+    // Rows written by one `createMany` share a transaction timestamp, so ties
+    // are ordinary. `traceKlp`'s sort is stable, which means tied rows replay
+    // in ARRIVAL order — whatever the planner returned. Same evidence, two
+    // orders, two answers: pass-then-fail lands at 0.4747, fail-then-pass at
+    // 0.7569. Only an ORDER BY makes the number reproducible.
+    const f = fakeTx([
+      { id: 'r2', klpId: 'k1', userId: 'u1', status: 'passed', mode: 'quiz-sa', createdAt: T },
+      { id: 'r1', klpId: 'k1', userId: 'u1', status: 'failed', mode: 'quiz-sa', createdAt: T },
+    ])
+    await rebuildKlpStates(f.tx as any, 'u1', ['k1'])
+
+    const w = written(f.upsert)
+    expect(w.create.observations).toBe(2)
+    // r1 (failed) before r2 (passed) — the id tiebreak, not storage order.
+    expect(w.create.pKnown).toBeCloseTo(0.7568720379146919, 10)
+    expect(f.findMany.mock.calls[0][0].orderBy).toEqual([{ createdAt: 'asc' }, { id: 'asc' }])
+  })
+
+  it('touches nothing when no KLP was superseded', async () => {
+    const f = fakeTx([])
+    await rebuildKlpStates(f.tx as any, 'u1', [])
+    expect(f.findMany).not.toHaveBeenCalled()
+    expect(f.upsert).not.toHaveBeenCalled()
+    expect(f.deleteMany).not.toHaveBeenCalled()
   })
 })
