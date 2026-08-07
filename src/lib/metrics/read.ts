@@ -64,7 +64,9 @@ export async function getLearnerMetrics({
   const studyEventWhere = buildStudyEventWhere(userId, scope, categoryIds)
 
   const [cards, klpStates, tagRows, klpOutcomes, events, attempts] = await Promise.all([
-    buildLearnerProfile({ userId, setIds: scope.setIds }),
+    // The full scope, not just `setIds` — `shapeTopicProfile` below honours
+    // every dimension, and the two are returned in one `LearnerProfile`.
+    buildLearnerProfile({ userId, scope, categoryIds }),
     // Deliberately NOT scoped: `shapeTopicProfile` re-filters knowledge by
     // each topic's own klpId set, so an out-of-scope KLP's pKnown is never
     // read regardless of what this query returns.

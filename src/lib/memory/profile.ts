@@ -16,6 +16,7 @@
 
 import { eventCorrectness } from './scoring'
 import type { StudySource } from './scoring'
+import { buildCardScopeWhere, buildStudyEventWhere, type HistoryScope } from './scope'
 
 // ---------------------------------------------------------------------------
 // Thresholds. Bucket sizes are intentionally uncapped — every qualifying
@@ -332,28 +333,68 @@ export function shapeLearnerProfile(input: ShapeLearnerProfileInput): LearnerCar
 // ---------------------------------------------------------------------------
 
 /**
- * `setIds` empty means unscoped (every set the user has cards in). A single
- * id keeps the exact old single-set behavior, including the returned
- * `setId`/`setTitle`. Multiple ids widen the card-level `in` filter but
- * intentionally do NOT resolve to a `setTitle` — `LearnerCardProfile.setId`/
+ * An EMPTY scope means unscoped (every set the user has cards in). A scope
+ * naming a single set keeps the exact old single-set behavior, including the
+ * returned `setId`/`setTitle`. Multiple ids widen the card-level `in` filter
+ * but intentionally do NOT resolve to a `setTitle` — `LearnerCardProfile.setId`/
  * `setTitle` are singular by type, and there is no one title to show for a
  * multi-set scope, so both come back `null` (same as the unscoped case) to
  * avoid picking one set's title to arbitrarily represent all of them.
+ *
+ * Takes the whole `HistoryScope`, not just `setIds`. It used to take only
+ * `setIds` while `shapeTopicProfile` — returned alongside it in the same
+ * `LearnerProfile` — honoured all four dimensions, so a card- or category-
+ * scoped request answered with narrow topics beside a whole-library set of
+ * weak/strong/starred terms and a whole-library streak. Two populations, one
+ * object, no indication which was which.
+ *
+ * `categoryIds` are the caller's already-resolved ids for `scope.categoryKeys`
+ * (resolution needs a DB round-trip the caller has usually already made).
+ *
+ * The two halves scope differently because the models differ:
+ * - `StudyEvent` has `cardId` and `source` scalars, so it uses the shared
+ *   `buildStudyEventWhere` unchanged.
+ * - `CardProgress` has a `cardId` scalar but NO source column — it is a
+ *   per-card aggregate over every mode. It reaches `source` through the card's
+ *   events instead, so a review-scoped profile lists the terms reviewed rather
+ *   than every term the learner owns.
  */
 export async function buildLearnerProfile({
   userId,
-  setIds = [],
+  scope,
+  categoryIds = [],
 }: {
   userId: string
-  setIds?: string[]
+  scope: HistoryScope
+  categoryIds?: string[]
 }): Promise<LearnerCardProfile> {
   const { prisma } = await import('@/lib/db')
-  const cardFilter = setIds.length > 0 ? { card: { setId: { in: setIds } } } : {}
+  const { setIds } = scope
   const singleSetId = setIds.length === 1 ? setIds[0] : null
+
+  const eventWhere = buildStudyEventWhere(userId, scope, categoryIds)
+
+  // Mirrors buildStudyEventWhere's branching against CardProgress's shape:
+  // its own `cardId` scalar is the narrowest scope and subsumes set/category,
+  // and `source` is only reachable through the card's events.
+  const progressWhere: Record<string, unknown> = { userId }
+  if (scope.cardId) {
+    progressWhere.cardId = scope.cardId
+  } else {
+    const card = buildCardScopeWhere(scope, categoryIds)
+    if (Object.keys(card).length > 0) progressWhere.card = card
+  }
+  if (scope.source) {
+    const card = (progressWhere.card ?? {}) as Record<string, unknown>
+    progressWhere.card = {
+      ...card,
+      studyEvents: { some: { userId, source: scope.source } },
+    }
+  }
 
   const [progressRows, eventRows, set] = await Promise.all([
     prisma.cardProgress.findMany({
-      where: { userId, ...cardFilter },
+      where: progressWhere,
       select: {
         cardId: true,
         confidence: true,
@@ -364,7 +405,7 @@ export async function buildLearnerProfile({
       },
     }),
     prisma.studyEvent.findMany({
-      where: { userId, ...cardFilter },
+      where: eventWhere,
       orderBy: { createdAt: 'desc' },
       take: RECENT_EVENTS_FETCH_CAP,
       select: {

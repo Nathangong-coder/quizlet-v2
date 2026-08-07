@@ -6,6 +6,7 @@ import { generateJson, AiGenerationError } from '@/lib/ai/generate';
 import { TRAINING_PLAN_PROMPT } from '@/lib/ai/prompts/registry';
 import { TrainingPlanSchema } from '@/lib/ai/schemas';
 import { buildLearnerProfile } from '@/lib/memory/profile';
+import { EMPTY_SCOPE } from '@/lib/memory/scope';
 import { profileToPromptBlock } from '@/lib/ai/context';
 import { ActionResult } from '@/types/action';
 
@@ -23,7 +24,10 @@ export async function generateTrainingPlan(setId: string): Promise<ActionResult<
     // plan generation outright (same pattern as recordStudyEvent).
     let profileBlock: string | undefined;
     try {
-      const profile = await buildLearnerProfile({ userId, setIds: [setId] });
+      const profile = await buildLearnerProfile({
+        userId,
+        scope: { ...EMPTY_SCOPE, setIds: [setId] },
+      });
       // Topic-grain data isn't wired into this call site yet (Spec 3 read API
       // lives in lib/metrics/read.ts, not here) — an empty topics array keeps
       // this producing the exact same block as before Task 17.

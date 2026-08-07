@@ -121,8 +121,16 @@ export function groupCategoriesByName(rows: CategoryRow[]): CrossSetCategory[] {
  * (in particular the uncategorized-sentinel OR) are defined exactly once —
  * duplicating this per model is exactly the kind of drift risk a single
  * source of truth is meant to prevent.
+ *
+ * Exported for `buildLearnerProfile`, whose `CardProgress` query needs the
+ * set/category dimensions but not the source/cardId branching the two `where`
+ * builders below wrap it in (CardProgress has its own scalar `cardId`, and no
+ * source dimension at all).
  */
-function buildCardScopeWhere(scope: HistoryScope, categoryIds: string[]): Record<string, unknown> {
+export function buildCardScopeWhere(
+  scope: HistoryScope,
+  categoryIds: string[],
+): Record<string, unknown> {
   const card: Record<string, unknown> = {};
 
   if (scope.setIds.length > 0) card.setId = { in: scope.setIds };
