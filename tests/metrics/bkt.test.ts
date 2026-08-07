@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { guessRate, traceKlp, stepBkt, MIN_OBSERVATIONS, BKT_PRIOR, BKT_SLIP, BKT_LEARN } from '@/lib/metrics/bkt'
+import { guessRate, traceKlp, stepBkt, MIN_OBSERVATIONS, BKT_PRIOR } from '@/lib/metrics/bkt'
 import { EVIDENCE_STRENGTH, DEFAULT_STRENGTH } from '@/lib/errors/klp-credit'
 import type { KlpObservation } from '@/lib/metrics/bkt'
 
@@ -160,12 +160,9 @@ describe('fallback guess rate for undocumented modes', () => {
   })
 
   it('produces reasonable results on undocumented modes', () => {
-    // Fallback should behave like an intermediate-difficulty mode
     const result = stepBkt(0.25, obs({ status: 'passed', mode: 'review' }))
-    // Should be between TF (0.5 strength) and MC (0.75 strength) results
-    const tfResult = stepBkt(0.25, obs({ status: 'passed', mode: 'quiz-tf' }))
     const mcResult = stepBkt(0.25, obs({ status: 'passed', mode: 'quiz-mc' }))
-    // Actually DEFAULT_STRENGTH=0.75, same as MC, so should equal MC
+    // DEFAULT_STRENGTH is 0.75, the same as MC, so the fallback must equal MC.
     expect(result).toBeCloseTo(mcResult, 10)
   })
 })

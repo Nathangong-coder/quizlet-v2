@@ -12,7 +12,9 @@ import { learnerContextBlock } from './shared';
  * an append-only-but-no-longer-appended-to table.
  *
  * This task replaces all of that with a single `profileBlock`: the rendered
- * `LearnerProfile` (src/lib/memory/profile.ts + lib/ai/context.ts), built
+ * `LearnerCardProfile` (src/lib/memory/profile.ts + lib/ai/context.ts) — the
+ * card grain of what Spec 3 now calls `LearnerProfile`, which since
+ * src/lib/memory/topic-profile.ts also carries a topic grain — built
  * fresh from `CardProgress`/`StudyEvent` on every call. It already carries
  * weak/fading/strong/starred terms and recent per-mode accuracy in
  * ID-free, capped form — a strict superset of what the old raw

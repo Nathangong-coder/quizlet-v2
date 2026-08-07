@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { deriveTagScores, toStoredTags, type StoredTag } from '@/lib/errors/derive'
+import {
+  deriveTagScores, toStoredTags, type StoredTag, type RawTagRow,
+} from '@/lib/errors/derive'
 
 const NOW = new Date('2026-08-05T12:00:00.000Z')
 const minsAgo = (n: number): Date => new Date(NOW.getTime() - n * 60_000)
@@ -192,16 +194,20 @@ describe('repeatBonus', () => {
 })
 
 describe('toStoredTags', () => {
-  const row = (o: any = {}) => ({
+  const row = (o: Partial<RawTagRow> = {}): RawTagRow => ({
     dimension: 'accuracy', type: 'inversion', klpId: 'klp1',
     relevance: 3, starred: false, magnitude: 8, mode: 'quiz-mc',
     severity: 4, significance: 7, createdAt: NOW,
-    quizAnswer: { attemptId: 'att1' },
+    quizAnswer: { attemptId: 'att1', cardId: 'card1' },
     ...o,
   })
 
   it('lifts the attemptId out of the joined answer', () => {
     expect(toStoredTags([row()])[0].attemptId).toBe('att1')
+  })
+
+  it('lifts the cardId out too, so whole-answer tags stay attributable', () => {
+    expect(toStoredTags([row()])[0].cardId).toBe('card1')
   })
 
   it('falls back to quiz-sa for a legacy row with no stored mode', () => {

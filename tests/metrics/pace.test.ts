@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { paceIndex, medianOf, MIN_TIMED_OBSERVATIONS, paceOutliers, PACE_OUTLIER_MIN_INDEX } from '@/lib/metrics/pace'
+import { paceIndex, medianOf, MIN_TIMED_OBSERVATIONS, paceOutliers } from '@/lib/metrics/pace'
 import type { TimedEvent } from '@/lib/metrics/pace'
 
 const ev = (cardId: string, latencyMs: number, mode: TimedEvent['mode'] = 'quiz-sa'): TimedEvent => ({

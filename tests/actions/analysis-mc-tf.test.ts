@@ -339,10 +339,22 @@ describe('KlpState is stepped forward by the same transaction', () => {
   // negative, which is the spec's headline deliverable.
   const ANSWERED_AT = new Date('2026-08-05T12:00:00.000Z')
 
+  interface StateWrite {
+    create: {
+      userId: string; klpId: string
+      pKnown: number; observations: number; lastObservedAt: Date
+    }
+    update: { pKnown: number; observations: number; lastObservedAt: Date }
+  }
+  const stateWrites = (): StateWrite[] =>
+    h.klpStateUpsert.mock.calls.map((c) => c[0] as StateWrite)
+
   beforeEach(() => {
-    h.answerCreate.mockImplementation(async ({ data }: any) => ({
-      id: 'answer-1', createdAt: ANSWERED_AT, ...data,
-    }))
+    h.answerCreate.mockImplementation(
+      async ({ data }: { data: Record<string, unknown> }) => ({
+        id: 'answer-1', createdAt: ANSWERED_AT, ...data,
+      }),
+    )
     h.questionFindUnique.mockResolvedValue({
       options: mcOptions,
       targetKlpIds: ['klp-a', 'klp-b', 'klp-picked'],
@@ -358,8 +370,8 @@ describe('KlpState is stepped forward by the same transaction', () => {
     })
 
     expect(h.klpStateUpsert).toHaveBeenCalledTimes(3)
-    const written = h.klpStateUpsert.mock.calls.map((c: any) => c[0])
-    expect(written.map((w: any) => w.create.klpId).sort()).toEqual(['klp-a', 'klp-b', 'klp-picked'])
+    const written = stateWrites()
+    expect(written.map((w) => w.create.klpId).sort()).toEqual(['klp-a', 'klp-b', 'klp-picked'])
     for (const w of written) {
       expect(w.create.userId).toBe(OWNER)
       // One observation counted, not a bare prior row: a state that looks
@@ -380,7 +392,7 @@ describe('KlpState is stepped forward by the same transaction', () => {
     })
 
     expect(h.klpStateUpsert).toHaveBeenCalledTimes(1)
-    const write = h.klpStateUpsert.mock.calls[0][0] as any
+    const write = stateWrites()[0]
     expect(write.create.klpId).toBe('klp-picked')
     // A failure must be able to drive the posterior DOWN, or knowledge can
     // only ever grow and terseness can never be read as an expression gap.
@@ -388,13 +400,15 @@ describe('KlpState is stepped forward by the same transaction', () => {
   })
 
   it('steps an existing state forward instead of restarting from the prior', async () => {
-    h.klpStateFindUnique.mockImplementation(async ({ where }: any) => ({
-      userId: OWNER,
-      klpId: where.userId_klpId.klpId,
-      pKnown: 0.8,
-      observations: 7,
-      lastObservedAt: new Date('2026-08-01T00:00:00.000Z'),
-    }))
+    h.klpStateFindUnique.mockImplementation(
+      async ({ where }: { where: { userId_klpId: { klpId: string } } }) => ({
+        userId: OWNER,
+        klpId: where.userId_klpId.klpId,
+        pKnown: 0.8,
+        observations: 7,
+        lastObservedAt: new Date('2026-08-01T00:00:00.000Z'),
+      }),
+    )
 
     await submitMultipleChoiceAnswer({
       attemptId: ATTEMPT_ID,
@@ -403,7 +417,7 @@ describe('KlpState is stepped forward by the same transaction', () => {
       correctAnswer: 'The Correct Answer',
     })
 
-    const write = h.klpStateUpsert.mock.calls[0][0] as any
+    const write = stateWrites()[0]
     expect(write.update.observations).toBe(8)
     expect(write.update.pKnown).toBeLessThan(0.8)
   })
