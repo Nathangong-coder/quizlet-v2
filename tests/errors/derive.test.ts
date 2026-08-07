@@ -223,3 +223,50 @@ describe('toStoredTags', () => {
     expect(toStoredTags([row({ mode: 'quiz-tf' })])[0].mode).toBe('quiz-tf')
   })
 })
+
+describe('the repeat window rejects negative distances (B5)', () => {
+  it('does not fire when the earlier-seen tag belongs to a LATER attempt', () => {
+    // `here - s.attemptIdx <= WINDOW` is true for EVERY negative difference, so
+    // any tag that chronologically follows one from a later attempt scored a
+    // repeat no matter how far apart they sit. Reachable whenever attempts
+    // interleave (open a quiz, start a second, finish the first), and
+    // unavoidably when a tag names an attempt absent from `attemptOrder` —
+    // those are appended at the END of `order`, so every subsequent real-
+    // attempt tag scores a negative distance against them.
+    const tags = [
+      tag({ attemptId: 'a6', createdAt: minsAgo(30) }),
+      tag({ attemptId: 'a1', createdAt: minsAgo(10) }),
+    ]
+    const derived = deriveTagScores(tags, undefined, ['a1', 'a2', 'a3', 'a4', 'a5', 'a6'])
+    const onA1 = derived.find((d) => d.attemptId === 'a1')!
+    expect(onA1.repeatBonus).toBe(0)
+  })
+
+  it('still fires for a genuine backward repeat inside the window', () => {
+    // The guard must be `here > s.attemptIdx`, not `Math.abs(...)` — narrowing
+    // to a strictly backward look must not cost the bonus its real job.
+    const derived = deriveTagScores(
+      [
+        tag({ attemptId: 'a1', createdAt: minsAgo(30) }),
+        tag({ attemptId: 'a3', createdAt: minsAgo(10) }),
+      ],
+      undefined,
+      ['a1', 'a2', 'a3'],
+    )
+    expect(derived.find((d) => d.attemptId === 'a3')!.repeatBonus).toBe(1)
+  })
+
+  it('does not fire twice within one attempt', () => {
+    // `here === s.attemptIdx` is subsumed by the strict `>`: two tags of the
+    // same kind in ONE sitting are one problem, not a repeat of itself.
+    const derived = deriveTagScores(
+      [
+        tag({ attemptId: 'a1', cardId: 'cardA', createdAt: minsAgo(30) }),
+        tag({ attemptId: 'a1', cardId: 'cardB', createdAt: minsAgo(29) }),
+      ],
+      undefined,
+      ['a1'],
+    )
+    expect(derived[1].repeatBonus).toBe(0)
+  })
+})

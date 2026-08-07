@@ -124,8 +124,19 @@ export function deriveTagScores(
     // Always present: `order` is seeded from the caller and then completed
     // from the tags themselves.
     const here = attemptIndex.get(t.attemptId) as number
+    // The window looks STRICTLY BACKWARD. `here > s.attemptIdx` is the guard:
+    // without it, `here - s.attemptIdx <= WINDOW` holds for every negative
+    // difference, so a tag whose earlier-seen twin sits in a LATER attempt
+    // scored a repeat from any distance. That is not hypothetical — a tag
+    // naming an attempt the caller did not list is appended to the end of
+    // `order`, so every real-attempt tag after it measured negative.
+    // `here !== s.attemptIdx` is subsumed: two tags in one sitting are one
+    // problem, not a repeat.
     const repeated = seen.some(
-      (s) => s.key === key && here - s.attemptIdx <= REPEAT_WINDOW_ATTEMPTS && here !== s.attemptIdx,
+      (s) =>
+        s.key === key &&
+        here > s.attemptIdx &&
+        here - s.attemptIdx <= REPEAT_WINDOW_ATTEMPTS,
     )
     const repeatBonus = repeated ? REPEAT_BONUS : 0
     seen.push({ key, attemptIdx: here })
