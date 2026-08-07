@@ -15,7 +15,21 @@ export interface TopicRow {
   normalizedName: string
   displayName: string
   color: string | null
+  /** LIVE KLP ids. Knowledge and `klpCount` are computed from these alone. */
   klpIds: string[]
+  /**
+   * Retired KLP ids for the same cards — versions superseded by a card edit.
+   *
+   * Separate from `klpIds` rather than merged into it because the two are used
+   * for different things. Knowledge must stay LIVE-ONLY: a superseded KLP
+   * describes an older version of the card and its evidence should not move the
+   * current estimate. But TAG ATTRIBUTION must include them, because a
+   * historical tag points at whichever version was live when the answer was
+   * given. Filtering tags through the live set alone meant editing a card
+   * silently emptied readiness's numerator for it while its answers stayed in
+   * the denominator — readiness jumped toward 1.0 on an edit.
+   */
+  supersededKlpIds: string[]
   /**
    * The cards assigned to this category. Needed because a WHOLE-ANSWER tag
    * (`no_thesis`, `disorganized`, `rambling` — the grading prompt tells the
@@ -77,8 +91,14 @@ export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicPr
   const out: LearnerTopicProfile[] = []
   for (const [key, rows] of grouped) {
     const klpIds = [...new Set(rows.flatMap((r) => r.klpIds))]
-    const klpSet = new Set(klpIds)
     const cardSet = new Set(rows.flatMap((r) => r.cardIds))
+    // Live AND superseded: this set is used ONLY to attribute a tag to its
+    // topic. `klpIds` stays live-only below, so knowledge and klpCount are
+    // unaffected by history.
+    const attributableKlpSet = new Set([
+      ...klpIds,
+      ...rows.flatMap((r) => r.supersededKlpIds),
+    ])
 
     const scored = klpIds
       .map((id) => input.knowledge[id])
@@ -89,13 +109,16 @@ export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicPr
         ? null
         : scored.reduce((sum, k) => sum + k.pKnown, 0) / scored.length
 
-    // A KLP-targeted tag belongs to this topic when the KLP does. A
-    // whole-answer tag has no KLP, so it belongs when its CARD does —
+    // A KLP-targeted tag belongs to this topic when the KLP does — in ANY
+    // version, live or superseded, since the tag names the version that was
+    // asked. A whole-answer tag has no KLP, so it belongs when its CARD does —
     // `computeArticulation` then counts it toward expression weight while
     // still keeping it out of the signed index.
     const articulation = computeArticulation({
       tags: input.tags.filter((t) =>
-        t.klpId !== null ? klpSet.has(t.klpId) : t.cardId !== null && cardSet.has(t.cardId),
+        t.klpId !== null
+          ? attributableKlpSet.has(t.klpId)
+          : t.cardId !== null && cardSet.has(t.cardId),
       ),
       knowledge: input.knowledge,
       analyzedAnswers: input.analyzedAnswersByTopic[key] ?? 0,
@@ -143,19 +166,27 @@ export interface RawCategoryRow {
   normalizedName: string
   name: string
   color: string | null
-  assignments: { card: { id: string; klps: { id: string }[] } }[]
+  assignments: { card: { id: string; klps: { id: string; supersededAt: Date | null }[] } }[]
 }
 
 /**
  * Flatten joined category rows into TopicRows. Lives here, not in the read
- * shell, so the KLP flattening is covered by tests like every other decision.
+ * shell, so the KLP flattening is covered by tests like every other decision —
+ * including the live/superseded split, which is a correctness boundary rather
+ * than a formatting detail: put a retired id in `klpIds` and it starts moving
+ * the knowledge estimate; leave it out of `supersededKlpIds` and its tags fall
+ * out of readiness.
  */
 export function toTopicRows(rows: RawCategoryRow[]): TopicRow[] {
-  return rows.map((c) => ({
-    normalizedName: c.normalizedName,
-    displayName: c.name,
-    color: c.color,
-    klpIds: c.assignments.flatMap((a) => a.card.klps.map((k) => k.id)),
-    cardIds: c.assignments.map((a) => a.card.id),
-  }))
+  return rows.map((c) => {
+    const klps = c.assignments.flatMap((a) => a.card.klps)
+    return {
+      normalizedName: c.normalizedName,
+      displayName: c.name,
+      color: c.color,
+      klpIds: klps.filter((k) => k.supersededAt === null).map((k) => k.id),
+      supersededKlpIds: klps.filter((k) => k.supersededAt !== null).map((k) => k.id),
+      cardIds: c.assignments.map((a) => a.card.id),
+    }
+  })
 }

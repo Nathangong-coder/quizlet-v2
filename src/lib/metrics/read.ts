@@ -75,7 +75,18 @@ export async function getLearnerMetrics({
       select: { klpId: true, pKnown: true, observations: true },
     }),
     prisma.answerErrorTag.findMany({
-      where: { quizAnswer: quizAnswerScopeWhere },
+      // `analysisStatus: 'analyzed'` makes this — readiness's NUMERATOR —
+      // share a population with `loadAnalyzedAnswerCounts`, its denominator,
+      // which has always counted analyzed answers only. Without it, the
+      // whole-answer clarity/conciseness tags `buildAnalysisWrites` still
+      // writes under `no_klps`/`no_provenance` added expression weight with no
+      // matching answer underneath: a topic whose cards have no key points yet
+      // read as far less ready than it was, and could pin to 0.
+      //
+      // Not restricted to short answer, though the denominator is: MC/TF tags
+      // are always `dimension: 'accuracy'`, which `computeArticulation`
+      // ignores, and `deriveMisconceptions` below legitimately spans modes.
+      where: { quizAnswer: { ...quizAnswerScopeWhere, analysisStatus: 'analyzed' } },
       select: {
         dimension: true, type: true, klpId: true, secondaryKlpId: true,
         relevance: true, starred: true, magnitude: true, mode: true,
@@ -217,9 +228,16 @@ async function loadAnalyzedAnswerCounts(
 
 /**
  * Query only — the shape mapping is `toTopicRows` and the scope shaping is
- * `buildCategoryQuery`, both tested. Only LIVE KLPs are selected: a superseded
- * KLP belongs to an older version of the card and its evidence should not
- * count toward current knowledge.
+ * `buildCategoryQuery`, both tested.
+ *
+ * EVERY version of each KLP is selected, live and superseded, and `toTopicRows`
+ * splits them. Knowledge still uses live ids only — a superseded KLP belongs to
+ * an older version of the card and its evidence must not count toward current
+ * knowledge — but TAG ATTRIBUTION needs the retired ones: a historical tag
+ * references the version that was live when the answer was given. Filtering
+ * them out here dropped every past tag on an edited card from readiness's
+ * numerator while its answers stayed in the denominator, so readiness jumped
+ * toward 1.0 on a card edit, with no change in the learner's behaviour.
  */
 async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: HistoryScope) {
   const { where, assignmentWhere } = buildCategoryQuery(userId, scope)
@@ -231,7 +249,7 @@ async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: His
         where: assignmentWhere,
         select: {
           card: {
-            select: { id: true, klps: { where: { supersededAt: null }, select: { id: true } } },
+            select: { id: true, klps: { select: { id: true, supersededAt: true } } },
           },
         },
       },
