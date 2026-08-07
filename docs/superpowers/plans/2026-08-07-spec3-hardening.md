@@ -129,10 +129,44 @@ describe('re-submission must not double-count (B2)', () => {
 })
 ```
 
-- [ ] **Step 2: Run it and confirm the real bug**
+- [ ] **Step 2: Write the test that actually fails**
 
-Run: `npx vitest run tests/metrics/state-writer.test.ts`
-Expected: this test PASSES — it documents the truth. The defect is that the production path does not reach it. Confirm the defect by reading `src/actions/quiz.ts` around each `deleteMany`: the prior answer and its `AnswerKlpResult` rows are deleted **outside** the transaction, and nothing decrements `KlpState`. The next submit steps a posterior that already absorbed the deleted attempt, giving `pKnown 0.4157, observations 2` instead of `0.5909, observations 1`.
+The test above documents the truth but passes today — the defect is that the production path never reaches it. Add a second test that exercises the path, following the mocked-transaction pattern already used for the `KlpState` block in `tests/actions/analysis-mc-tf.test.ts`:
+
+```ts
+// tests/actions/quiz-resubmit-state.test.ts
+import { describe, it, expect, vi } from 'vitest'
+
+describe('re-submit rebuilds rather than accumulating (B2)', () => {
+  it('recomputes the posterior from surviving rows instead of stepping the stale one', async () => {
+    // Fail then re-submit as a pass. The failed AnswerKlpResult is deleted, so
+    // the only surviving evidence is one pass — the posterior must equal a
+    // replay of that, NOT the stale value stepped forward a second time.
+    const klpStateUpsert = vi.fn()
+    const answerKlpResultFindMany = vi.fn().mockResolvedValue([
+      { klpId: 'k1', status: 'passed', mode: 'quiz-sa', createdAt: new Date('2026-08-07T12:00:00Z') },
+    ])
+
+    const tx = {
+      klpState: { upsert: klpStateUpsert, deleteMany: vi.fn(), findUnique: vi.fn().mockResolvedValue(null) },
+      answerKlpResult: { findMany: answerKlpResultFindMany },
+    }
+
+    const { rebuildKlpStates } = await import('@/lib/metrics/state-writer')
+    await rebuildKlpStates(tx as any, 'u1', ['k1'])
+
+    expect(klpStateUpsert).toHaveBeenCalledOnce()
+    const written = klpStateUpsert.mock.calls[0][0].create
+    expect(written.observations).toBe(1)
+    expect(written.pKnown).toBeCloseTo(0.5909090909, 8)
+  })
+})
+```
+
+Run: `npx vitest run tests/actions/quiz-resubmit-state.test.ts`
+Expected: **FAIL** — `rebuildKlpStates` does not exist. That is the regression this task closes.
+
+Then confirm the production defect by reading `src/actions/quiz.ts` around each `deleteMany`: the prior answer and its `AnswerKlpResult` rows are deleted **outside** the transaction, and nothing touches `KlpState`. The next submit steps a posterior that already absorbed the deleted attempt, giving `pKnown 0.4157, observations 2` where the truth is `0.5909, observations 1`.
 
 - [ ] **Step 3: Add a rebuild helper**
 
