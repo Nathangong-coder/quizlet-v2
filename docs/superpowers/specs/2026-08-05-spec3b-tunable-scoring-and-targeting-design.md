@@ -16,6 +16,9 @@ the learner:
   become editable.
 - **Targeting strategy** — the ordering Spec 3 §6.4 deliberately declined to
   pick becomes a selectable option.
+- **Read-time derivation on the quiz results screen** (§3.4), so a retune
+  re-scores every surface rather than only the dashboard. Added 2026-08-06;
+  without it the two views disagree the moment a band is edited.
 
 Both live under **AI settings** (`src/app/settings/ai/`), as the user directed.
 Worth noting for later: the bands govern TypeScript-computed scoring rather than
@@ -89,14 +92,47 @@ short-answer grading will also change every MC and TF inversion they have ever
 picked. This is non-obvious and needs surfacing at the point of edit, not in a
 help page.
 
-### 3.3 Save triggers a replay
+### 3.3 Saving triggers NOTHING — and that is the design working
 
-Because severity is read-time derived, the materialized per-KLP BKT cache
-(Spec 3 §8.2) is stale after a band change. Saving enqueues a **full replay
-scoped to that user** via `after()`, the pattern KLP extraction already uses.
-Replay is bounded by the user's own corpus, but is not instant for a heavy user;
-the UI reports that recalculation is in progress rather than showing
-half-updated numbers.
+**Corrected 2026-08-06, after implementation.** An earlier draft of this
+section claimed a band change staled the materialized per-KLP knowledge cache
+and required a full replay. That was wrong, and it contradicted Spec 3's own
+architecture.
+
+BKT reads `AnswerKlpResult.status` and `.mode` and nothing else — deliberately,
+since collapsing the mode discount into the update is what creates a hard
+ceiling on `pKnown`. Bands never touch it. What bands *do* affect is
+severity → significance → the verbosity index and readiness, and every one of
+those is derived at read time from stored inputs.
+
+So saving new bands requires **no recomputation, no replay, and no background
+job**. The next read simply produces different numbers. This is precisely the
+payoff Spec 3 §3.2 was built for; a replay here would be expensive work
+achieving nothing.
+
+The only obligation is that every surface reading these values derives them —
+see §3.4.
+
+### 3.4 Every surface must derive, or two screens will disagree
+
+At the end of Spec 3, exactly one caller derived severity and significance at
+read time: the learner-metrics read API. The quiz results screen still read the
+values **stored on the row when the answer was graded** —
+`QuizSummary.tsx` sorts tags by the stored `significance`, and
+`rollupSessionAnalysis` sums it.
+
+Left alone, that means the first band retune makes the same error show one
+number on the results page and a different one on the dashboard, with nothing
+on either screen explaining the discrepancy. Worse, the stored value silently
+reflects whichever bands happened to be active on the day it was graded.
+
+**Spec 3B therefore also migrates the Spec 2b display to read-time
+derivation** — the per-answer badges and the session rollup both. One number
+everywhere, and a retune visibly re-scores history, which is the entire point
+of exposing the knob.
+
+The stored `severity`/`significance` columns keep their narrowed role: a
+fallback for legacy rows that predate `magnitude`.
 
 ---
 
@@ -105,6 +141,15 @@ half-updated numbers.
 Each strategy is a **pure ranking function** over Spec 3's metrics, and the
 setting selects one. Every function ranks the same candidate set and returns the
 same shape, so adding a strategy never touches a call site.
+
+**The candidate is a KLP**, carrying its own metrics: `pKnown`, `observations`,
+the topic it rolls up to, that topic's readiness and verbosity index, and the
+card's due state. A KLP is the finest actionable unit — it is what a focus quiz
+targets and what Spec 4's action plan will schedule — and topic-level ordering
+is derivable by aggregating candidates, while the reverse is not. Candidates
+below `MIN_OBSERVATIONS` rank last under every strategy: an unmeasured
+proposition is not evidence of weakness, and `polish_near_ready` in particular
+must not promote a KLP whose high `pKnown` rests on one lucky answer.
 
 | Key | Ranks by | For |
 | --- | --- | --- |
