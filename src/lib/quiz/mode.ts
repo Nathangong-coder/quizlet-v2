@@ -25,3 +25,27 @@ const TO_STUDY_SOURCE: Record<QuizMode, StudySource> = {
 export function toStudySource(mode: QuizMode): StudySource {
   return TO_STUDY_SOURCE[mode]
 }
+
+/**
+ * INVERTED from `TO_STUDY_SOURCE` rather than written out a second time — a
+ * hand-maintained second table is exactly how the two vocabularies drift, and
+ * drift here is silent (a `where` clause that matches nothing, not an error).
+ */
+const FROM_STUDY_SOURCE = Object.fromEntries(
+  (Object.entries(TO_STUDY_SOURCE) as [QuizMode, StudySource][]).map(
+    ([mode, source]) => [source, mode],
+  ),
+) as Partial<Record<StudySource, QuizMode>>
+
+/**
+ * The quiz layer's name for a study source, or `null` when the source has no
+ * quiz mode at all (`review`, `lesson`).
+ *
+ * PARTIAL by design: `StudySource` is the wider vocabulary. `null` is a real
+ * answer meaning "no QuizAnswer row can ever carry this source", and callers
+ * must translate it into a filter that matches nothing — NOT drop the filter,
+ * which would silently widen the query back to every mode.
+ */
+export function toQuizMode(source: StudySource | string): QuizMode | null {
+  return FROM_STUDY_SOURCE[source as StudySource] ?? null
+}

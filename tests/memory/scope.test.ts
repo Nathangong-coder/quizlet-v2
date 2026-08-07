@@ -3,6 +3,9 @@ import {
   EMPTY_SCOPE,
   groupCategoriesByName,
   buildStudyEventWhere,
+  buildQuizAnswerScopeWhere,
+  buildExpressionAnswerWhere,
+  buildCategoryQuery,
   serializeScope,
   parseScope,
   isConsolidated,
@@ -174,6 +177,187 @@ describe("buildStudyEventWhere", () => {
       userId,
       card: { categoryAssignments: { some: { categoryId: { in: [] } } } },
     });
+  });
+});
+
+describe("buildQuizAnswerScopeWhere", () => {
+  const userId = "u1";
+
+  it("scopes to the user only when consolidated", () => {
+    expect(buildQuizAnswerScopeWhere(userId, EMPTY_SCOPE, [])).toEqual({ userId });
+  });
+
+  it("filters by sets", () => {
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, setIds: ["s1", "s2"] }, []);
+    expect(where).toEqual({ userId, card: { setId: { in: ["s1", "s2"] } } });
+  });
+
+  it("filters by category ids", () => {
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, categoryKeys: ["valuation"] }, ["c1", "c2"]);
+    expect(where).toEqual({
+      userId,
+      card: { categoryAssignments: { some: { categoryId: { in: ["c1", "c2"] } } } },
+    });
+  });
+
+  it("filters uncategorized cards via the sentinel", () => {
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, categoryKeys: [UNCATEGORIZED_ID] }, []);
+    expect(where).toEqual({
+      userId,
+      card: { categoryAssignments: { none: {} } },
+    });
+  });
+
+  it("ORs a real category with uncategorized", () => {
+    const where = buildQuizAnswerScopeWhere(
+      userId,
+      { ...EMPTY_SCOPE, categoryKeys: ["valuation", UNCATEGORIZED_ID] },
+      ["c1"],
+    );
+    expect(where).toEqual({
+      userId,
+      card: {
+        OR: [
+          { categoryAssignments: { some: { categoryId: { in: ["c1"] } } } },
+          { categoryAssignments: { none: {} } },
+        ],
+      },
+    });
+  });
+
+  it("ANDs the set and category dimensions", () => {
+    const where = buildQuizAnswerScopeWhere(
+      userId,
+      { ...EMPTY_SCOPE, setIds: ["s1"], categoryKeys: ["valuation"] },
+      ["c1"],
+    );
+    expect(where).toEqual({
+      userId,
+      card: {
+        setId: { in: ["s1"] },
+        categoryAssignments: { some: { categoryId: { in: ["c1"] } } },
+      },
+    });
+  });
+
+  it("lets cardId take precedence over set scope", () => {
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, setIds: ["s1"], cardId: "card9" }, []);
+    expect(where).toEqual({ userId, cardId: "card9" });
+  });
+
+  it("translates the scope's StudySource into QuizAnswer's QuizMode vocabulary", () => {
+    // `HistoryScope.source` is a StudySource ('quiz-sa'); `QuizAnswer.mode` is
+    // a QuizMode ('short-answer'). They are DIFFERENT vocabularies — comparing
+    // one to the other matches zero rows, silently.
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-sa" }, []);
+    expect(where).toEqual({ userId, mode: "short-answer" });
+  });
+
+  it("translates every quiz source, not just short answer", () => {
+    expect(buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-mc" }, []))
+      .toEqual({ userId, mode: "multiple-choice" });
+    expect(buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-tf" }, []))
+      .toEqual({ userId, mode: "true-false" });
+    expect(buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "matching" }, []))
+      .toEqual({ userId, mode: "matching" });
+  });
+
+  it("matches nothing for a source that no QuizAnswer can carry", () => {
+    // 'review' is a StudySource with no quiz mode. Dropping the filter would
+    // silently widen the query back to every mode.
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "review" }, []);
+    expect(where).toEqual({ userId, mode: { in: [] } });
+  });
+
+  it("matches nothing when a category scope resolves to no ids", () => {
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, categoryKeys: ["ghost"] }, []);
+    expect(where).toEqual({
+      userId,
+      card: { categoryAssignments: { some: { categoryId: { in: [] } } } },
+    });
+  });
+});
+
+describe("buildCategoryQuery", () => {
+  const userId = "u1";
+
+  it("scopes to the user's sets with no other scope", () => {
+    expect(buildCategoryQuery(userId, EMPTY_SCOPE)).toEqual({
+      where: { set: { userId } },
+      assignmentWhere: undefined,
+    });
+  });
+
+  it("honours set and category scope", () => {
+    expect(
+      buildCategoryQuery(userId, { ...EMPTY_SCOPE, setIds: ["s1"], categoryKeys: ["valuation"] }),
+    ).toEqual({
+      where: { set: { userId, id: { in: ["s1"] } }, normalizedName: { in: ["valuation"] } },
+      assignmentWhere: undefined,
+    });
+  });
+
+  it("narrows the ASSIGNMENTS to the scoped card", () => {
+    // Without this, a card-scoped request returned whole-topic knowledge and
+    // KLP counts beside card-scoped tags — two different populations presented
+    // as one profile.
+    const q = buildCategoryQuery(userId, { ...EMPTY_SCOPE, cardId: "card9" });
+    expect(q.assignmentWhere).toEqual({ cardId: "card9" });
+  });
+
+  it("narrows the CATEGORIES to those the scoped card carries", () => {
+    const q = buildCategoryQuery(userId, { ...EMPTY_SCOPE, cardId: "card9" });
+    expect(q.where).toEqual({
+      set: { userId },
+      assignments: { some: { cardId: "card9" } },
+    });
+  });
+
+  it("lets cardId subsume set and category scope, as the other builders do", () => {
+    const q = buildCategoryQuery(userId, {
+      setIds: ["s1"], categoryKeys: ["valuation"], cardId: "card9",
+    });
+    expect(q.where).toEqual({
+      set: { userId },
+      assignments: { some: { cardId: "card9" } },
+    });
+  });
+});
+
+describe("buildExpressionAnswerWhere", () => {
+  const userId = "u1";
+
+  it("restricts readiness's denominator to analyzed SHORT-ANSWER rows", () => {
+    // MC/TF answers hardcode dimension 'accuracy' and can never produce a
+    // clarity/conciseness tag, so counting them in the denominator while only
+    // short answers feed the numerator inverts readiness: 100 MC answers plus
+    // 3 poor short answers would score ~0.96 instead of ~0.
+    const where = buildExpressionAnswerWhere(
+      buildQuizAnswerScopeWhere(userId, EMPTY_SCOPE, []),
+    );
+    expect(where).toEqual({
+      userId,
+      analysisStatus: "analyzed",
+      AND: [{ mode: "short-answer" }],
+    });
+  });
+
+  it("preserves the set/category scope it is layered on top of", () => {
+    const where = buildExpressionAnswerWhere(
+      buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, setIds: ["s1"] }, []),
+    );
+    expect(where).toMatchObject({ userId, card: { setId: { in: ["s1"] } } });
+    expect(where.AND).toEqual([{ mode: "short-answer" }]);
+  });
+
+  it("contradicts rather than overwrites a conflicting source scope", () => {
+    // Scoped to multiple choice: there is no such thing as an MC expression
+    // answer, so the result must be zero rows, not "short answer after all".
+    const where = buildExpressionAnswerWhere(
+      buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-mc" }, []),
+    );
+    expect(where.mode).toBe("multiple-choice");
+    expect(where.AND).toEqual([{ mode: "short-answer" }]);
   });
 });
 

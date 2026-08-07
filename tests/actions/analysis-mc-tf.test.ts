@@ -27,6 +27,8 @@ const h = vi.hoisted(() => ({
   answerCreate: vi.fn(),
   klpResultCreateMany: vi.fn(),
   errorTagCreateMany: vi.fn(),
+  klpStateFindUnique: vi.fn(),
+  klpStateUpsert: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -66,6 +68,7 @@ vi.mock('@/lib/quiz/coin-flip', () => ({ pickTfVariant: vi.fn() }))
 vi.mock('@/lib/memory/record', () => ({ recordStudyEvent: h.recordStudyEvent }))
 
 import { submitMultipleChoiceAnswer, submitTrueFalseAnswer } from '@/actions/quiz'
+import { BKT_PRIOR } from '@/lib/metrics/bkt'
 
 const OWNER = 'user-owner'
 const ATTEMPT_ID = 'attempt1'
@@ -94,12 +97,15 @@ beforeEach(() => {
   h.answerCreate.mockImplementation(async ({ data }: any) => ({ id: 'answer-1', ...data }))
   h.klpResultCreateMany.mockResolvedValue({ count: 0 })
   h.errorTagCreateMany.mockResolvedValue({ count: 0 })
+  h.klpStateFindUnique.mockResolvedValue(null)
+  h.klpStateUpsert.mockResolvedValue({})
   h.recordStudyEvent.mockResolvedValue({ confidence: 6, mastery: 0.5, dueAt: new Date() })
   h.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
       quizAnswer: { create: h.answerCreate },
       answerKlpResult: { createMany: h.klpResultCreateMany },
       answerErrorTag: { createMany: h.errorTagCreateMany },
+      klpState: { findUnique: h.klpStateFindUnique, upsert: h.klpStateUpsert },
     }),
   )
 })
@@ -322,5 +328,112 @@ describe('submitTrueFalseAnswer analysis capture', () => {
     // NOT be recorded as a clean `analyzed` row, or Spec 3's rate
     // calculations would silently count an unevaluated answer as evaluated.
     expect(h.answerCreate.mock.calls[0][0].data.analysisStatus).toBe('no_provenance')
+  })
+})
+
+describe('KlpState is stepped forward by the same transaction', () => {
+  // The C1 bug: KlpState had a READER (src/lib/metrics/read.ts) and no writer
+  // anywhere in production. `knowledge` was permanently `{}`, so every topic's
+  // knowledge read null forever AND computeArticulation booked every
+  // `too_terse` as a knowledge gap — the signed verbosity index could never go
+  // negative, which is the spec's headline deliverable.
+  const ANSWERED_AT = new Date('2026-08-05T12:00:00.000Z')
+
+  interface StateWrite {
+    create: {
+      userId: string; klpId: string
+      pKnown: number; observations: number; lastObservedAt: Date
+    }
+    update: { pKnown: number; observations: number; lastObservedAt: Date }
+  }
+  const stateWrites = (): StateWrite[] =>
+    h.klpStateUpsert.mock.calls.map((c) => c[0] as StateWrite)
+
+  beforeEach(() => {
+    h.answerCreate.mockImplementation(
+      async ({ data }: { data: Record<string, unknown> }) => ({
+        id: 'answer-1', createdAt: ANSWERED_AT, ...data,
+      }),
+    )
+    h.questionFindUnique.mockResolvedValue({
+      options: mcOptions,
+      targetKlpIds: ['klp-a', 'klp-b', 'klp-picked'],
+    })
+  })
+
+  it('upserts a state for every KLP the answer credited', async () => {
+    await submitMultipleChoiceAnswer({
+      attemptId: ATTEMPT_ID,
+      cardId: CARD_ID,
+      selectedOption: 'The Correct Answer',
+      correctAnswer: 'The Correct Answer',
+    })
+
+    expect(h.klpStateUpsert).toHaveBeenCalledTimes(3)
+    const written = stateWrites()
+    expect(written.map((w) => w.create.klpId).sort()).toEqual(['klp-a', 'klp-b', 'klp-picked'])
+    for (const w of written) {
+      expect(w.create.userId).toBe(OWNER)
+      // One observation counted, not a bare prior row: a state that looks
+      // materialized but carries no evidence is indistinguishable at read time
+      // from a learner who was never observed.
+      expect(w.create.observations).toBe(1)
+      expect(w.update.observations).toBe(1)
+      expect(w.create.lastObservedAt).toEqual(ANSWERED_AT)
+    }
+  })
+
+  it('upserts only the failed KLP for a wrong pick', async () => {
+    await submitMultipleChoiceAnswer({
+      attemptId: ATTEMPT_ID,
+      cardId: CARD_ID,
+      selectedOption: 'Distractor Picked',
+      correctAnswer: 'The Correct Answer',
+    })
+
+    expect(h.klpStateUpsert).toHaveBeenCalledTimes(1)
+    const write = stateWrites()[0]
+    expect(write.create.klpId).toBe('klp-picked')
+    // A failure must be able to drive the posterior DOWN, or knowledge can
+    // only ever grow and terseness can never be read as an expression gap.
+    expect(write.create.pKnown).toBeLessThan(BKT_PRIOR)
+  })
+
+  it('steps an existing state forward instead of restarting from the prior', async () => {
+    h.klpStateFindUnique.mockImplementation(
+      async ({ where }: { where: { userId_klpId: { klpId: string } } }) => ({
+        userId: OWNER,
+        klpId: where.userId_klpId.klpId,
+        pKnown: 0.8,
+        observations: 7,
+        lastObservedAt: new Date('2026-08-01T00:00:00.000Z'),
+      }),
+    )
+
+    await submitMultipleChoiceAnswer({
+      attemptId: ATTEMPT_ID,
+      cardId: CARD_ID,
+      selectedOption: 'Distractor Picked',
+      correctAnswer: 'The Correct Answer',
+    })
+
+    const write = stateWrites()[0]
+    expect(write.update.observations).toBe(8)
+    expect(write.update.pKnown).toBeLessThan(0.8)
+  })
+
+  it('writes no state when the answer attributed nothing', async () => {
+    // A v1 cache row: no provenance, so nothing to attribute. Fabricating an
+    // observation here would promote knowledge the learner never demonstrated.
+    h.questionFindUnique.mockResolvedValue(null)
+
+    await submitMultipleChoiceAnswer({
+      attemptId: ATTEMPT_ID,
+      cardId: CARD_ID,
+      selectedOption: 'Distractor Picked',
+      correctAnswer: 'The Correct Answer',
+    })
+
+    expect(h.klpStateUpsert).not.toHaveBeenCalled()
   })
 })

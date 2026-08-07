@@ -10,7 +10,11 @@ const SCALE = 2
 export interface SignificanceInput {
   /** CardKlp.weight as of this answer — how central the point is. */
   relevance: number
-  /** 1-5, the AI's only numeric contribution. */
+  /**
+   * 1-5. Since Spec 3 this is DERIVED (`resolveSeverity`) from the type's
+   * band and the AI-supplied instance `magnitude` — the AI no longer names a
+   * severity directly.
+   */
   severity: number
   dimension: Dimension
   /** CardProgress.starred at answer time. No progress row means false. */

@@ -1,6 +1,7 @@
 /**
- * Compact, ID-free "learner snapshot" built from the unified study-memory
- * tables (`CardProgress` + `StudyEvent`) written by `lib/memory/record.ts`.
+ * The CARD-grain learner snapshot. Spec 3 adds a topic-grain profile
+ * (src/lib/memory/topic-profile.ts) and a composite `LearnerProfile` that
+ * holds both — this one deliberately keeps its narrow, card-level meaning.
  *
  * This is consumed by `lib/ai/context.ts` (`profileToPromptBlock`) to inject
  * a bounded, human-readable summary into AI prompts — the model must never
@@ -96,7 +97,7 @@ export interface GradedAccuracy {
   count: number
 }
 
-export interface LearnerProfile {
+export interface LearnerCardProfile {
   setId: string | null
   setTitle: string | null
   weak: WeakTerm[]
@@ -232,7 +233,7 @@ const MODE_ORDER: StudySource[] = ['quiz-mc', 'quiz-tf', 'review', 'matching']
 // The pure shaper — all real logic lives here.
 // ---------------------------------------------------------------------------
 
-export function shapeLearnerProfile(input: ShapeLearnerProfileInput): LearnerProfile {
+export function shapeLearnerProfile(input: ShapeLearnerProfileInput): LearnerCardProfile {
   const now = input.now ?? new Date()
   const eventsByCard = groupByCard(input.events)
 
@@ -330,15 +331,25 @@ export function shapeLearnerProfile(input: ShapeLearnerProfileInput): LearnerPro
 // top-level import would break every test in this file, not just DB tests.
 // ---------------------------------------------------------------------------
 
+/**
+ * `setIds` empty means unscoped (every set the user has cards in). A single
+ * id keeps the exact old single-set behavior, including the returned
+ * `setId`/`setTitle`. Multiple ids widen the card-level `in` filter but
+ * intentionally do NOT resolve to a `setTitle` — `LearnerCardProfile.setId`/
+ * `setTitle` are singular by type, and there is no one title to show for a
+ * multi-set scope, so both come back `null` (same as the unscoped case) to
+ * avoid picking one set's title to arbitrarily represent all of them.
+ */
 export async function buildLearnerProfile({
   userId,
-  setId,
+  setIds = [],
 }: {
   userId: string
-  setId?: string
-}): Promise<LearnerProfile> {
+  setIds?: string[]
+}): Promise<LearnerCardProfile> {
   const { prisma } = await import('@/lib/db')
-  const cardFilter = setId ? { card: { setId } } : {}
+  const cardFilter = setIds.length > 0 ? { card: { setId: { in: setIds } } } : {}
+  const singleSetId = setIds.length === 1 ? setIds[0] : null
 
   const [progressRows, eventRows, set] = await Promise.all([
     prisma.cardProgress.findMany({
@@ -365,7 +376,7 @@ export async function buildLearnerProfile({
         createdAt: true,
       },
     }),
-    setId ? prisma.set.findUnique({ where: { id: setId }, select: { title: true } }) : null,
+    singleSetId ? prisma.set.findUnique({ where: { id: singleSetId }, select: { title: true } }) : null,
   ])
 
   const progress: ProgressRow[] = progressRows.map((p) => ({
@@ -387,7 +398,7 @@ export async function buildLearnerProfile({
   }))
 
   return shapeLearnerProfile({
-    setId: setId ?? null,
+    setId: singleSetId,
     setTitle: set?.title ?? null,
     progress,
     events,

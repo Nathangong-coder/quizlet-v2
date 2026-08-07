@@ -23,8 +23,11 @@ export async function generateTrainingPlan(setId: string): Promise<ActionResult<
     // plan generation outright (same pattern as recordStudyEvent).
     let profileBlock: string | undefined;
     try {
-      const profile = await buildLearnerProfile({ userId, setId });
-      profileBlock = profileToPromptBlock(profile);
+      const profile = await buildLearnerProfile({ userId, setIds: [setId] });
+      // Topic-grain data isn't wired into this call site yet (Spec 3 read API
+      // lives in lib/metrics/read.ts, not here) — an empty topics array keeps
+      // this producing the exact same block as before Task 17.
+      profileBlock = profileToPromptBlock({ cards: profile, topics: [] });
     } catch (err) {
       console.error('buildLearnerProfile failed for training plan:', err);
     }

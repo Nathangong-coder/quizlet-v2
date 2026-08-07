@@ -41,14 +41,16 @@ export const ShortAnswerGradeSchema = z.object({
   /**
    * `type` is z.string(), not an enum: it is validated against its OWN
    * dimension in TS (buildAnalysisWrites), which a flat enum cannot express.
-   * `severity` is the AI's ONLY numeric contribution.
+   * `magnitude` is the AI's ONLY numeric contribution — how bad THIS instance
+   * is within its type. The type's band converts it to a 1-5 severity in TS
+   * (src/lib/errors/bands.ts); the model never sees the band.
    */
   errorTags: z.array(z.object({
     dimension: z.enum(DIMENSIONS),
     type: z.string().min(1),
     klpRef: z.number().int().min(0).optional(),
     secondaryKlpRef: z.number().int().min(0).optional(),
-    severity: z.number().int().min(1).max(5),
+    magnitude: z.number().int().min(1).max(10),
     quote: z.string().optional(),
   })).max(MAX_TAGS_PER_ANSWER).optional(),
 });

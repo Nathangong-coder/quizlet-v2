@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { QUIZ_MODES, toStudySource } from '@/lib/quiz/mode'
+import { QUIZ_MODES, toStudySource, toQuizMode } from '@/lib/quiz/mode'
 
 describe('toStudySource', () => {
   it('maps every quiz mode to a study source', () => {
@@ -24,5 +24,32 @@ describe('toStudySource', () => {
     const produced = QUIZ_MODES.map(toStudySource)
     expect(produced).not.toContain('review')
     expect(produced).not.toContain('lesson')
+  })
+})
+
+describe('toQuizMode', () => {
+  it('round-trips every quiz mode through its study source', () => {
+    for (const mode of QUIZ_MODES) {
+      expect(toQuizMode(toStudySource(mode))).toBe(mode)
+    }
+  })
+
+  it('maps the study sources a QuizAnswer can actually store', () => {
+    expect(toQuizMode('quiz-sa')).toBe('short-answer')
+    expect(toQuizMode('quiz-mc')).toBe('multiple-choice')
+    expect(toQuizMode('quiz-tf')).toBe('true-false')
+  })
+
+  it('returns null for a source with no quiz mode rather than guessing', () => {
+    // A caller must turn this into a filter that matches nothing. Guessing a
+    // mode here would attribute review answers to a quiz.
+    expect(toQuizMode('review')).toBeNull()
+    expect(toQuizMode('lesson')).toBeNull()
+  })
+
+  it('returns null for an unrecognized string', () => {
+    // `HistoryScope.source` comes from a URL param, so it is arbitrary text.
+    expect(toQuizMode('short-answer')).toBeNull()
+    expect(toQuizMode('garbage')).toBeNull()
   })
 })

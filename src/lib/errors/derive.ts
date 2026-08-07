@@ -1,0 +1,150 @@
+import type { StudySource } from '@/lib/memory/scoring'
+import type { Dimension } from '@/lib/errors/taxonomy'
+import { computeSignificance } from '@/lib/errors/significance'
+import { resolveSeverity, type BandTable } from '@/lib/errors/bands'
+
+/** Per the frozen taxonomy reference §3. */
+export const REPEAT_BONUS = 1
+export const REPEAT_WINDOW_ATTEMPTS = 3
+
+/** An AnswerErrorTag row as read, plus the attempt it belongs to. */
+export interface StoredTag {
+  attemptId: string
+  /**
+   * The card the answer was on. A whole-answer tag (`klpId: null`) has no KLP
+   * to attribute it by, so this is the only thing that ties it to a topic —
+   * without it, every `no_thesis`/`rambling`/`disorganized` judgement is
+   * silently dropped from readiness. Null only on a shape with no answer join.
+   */
+  cardId: string | null
+  dimension: Dimension
+  type: string
+  klpId: string | null
+  relevance: number
+  starred: boolean
+  /** Null on rows written before Spec 3. */
+  magnitude: number | null
+  storedSeverity: number
+  storedSignificance: number
+  mode: StudySource
+  createdAt: Date
+}
+
+/** An AnswerErrorTag row as Prisma returns it, with its answer joined. */
+export interface RawTagRow {
+  dimension: string
+  type: string
+  klpId: string | null
+  relevance: number
+  starred: boolean
+  magnitude: number | null
+  mode: string | null
+  severity: number
+  significance: number
+  createdAt: Date
+  quizAnswer: { attemptId: string; cardId: string }
+}
+
+/**
+ * Map DB rows to the pure shape. Lives here, not in the read shell, so the
+ * legacy-mode fallback is a tested decision rather than an untested one.
+ *
+ * A legacy row stores no mode. `quiz-sa` is a safe neutral default for rows
+ * that predate the stored `mode` field.
+ */
+export function toStoredTags(rows: RawTagRow[]): StoredTag[] {
+  return rows.map((r) => ({
+    attemptId: r.quizAnswer.attemptId,
+    cardId: r.quizAnswer.cardId,
+    dimension: r.dimension as StoredTag['dimension'],
+    type: r.type,
+    klpId: r.klpId,
+    relevance: r.relevance,
+    starred: r.starred,
+    magnitude: r.magnitude,
+    mode: (r.mode ?? 'quiz-sa') as StoredTag['mode'],
+    storedSeverity: r.severity,
+    storedSignificance: r.significance,
+    createdAt: r.createdAt,
+  }))
+}
+
+export interface DerivedTag extends StoredTag {
+  severity: number
+  repeatBonus: number
+  significance: number
+  /** True when the row predates `magnitude` and its severity could not be rederived. */
+  isLegacy: boolean
+}
+
+/**
+ * Recompute severity and significance from stored inputs, then apply
+ * `repeatBonus` — which cannot be frozen at write time because it depends on
+ * whether the same (type, target) recurs in LATER attempts.
+ *
+ * Tags are processed in chronological order so each one sees only what came
+ * before it. Callers may pass an unsorted array.
+ *
+ * `attemptOrder` is the learner's REAL attempt sequence (QuizAttempt ids,
+ * oldest first). Pass it. Deriving the sequence from the tags alone makes
+ * CLEAN attempts invisible, so an error repeated after ten flawless sittings
+ * still reads as "+1, they keep doing this" — and, worse, the same tag's
+ * significance then changes with the request's scope, because a narrower scope
+ * removes the intervening tags that were holding the distance open.
+ */
+export function deriveTagScores(
+  tags: StoredTag[],
+  bands?: BandTable,
+  attemptOrder?: string[],
+): DerivedTag[] {
+  const chronological = [...tags].sort(
+    (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+  )
+
+  // Attempt order, oldest first, so "within the last N attempts" is countable.
+  // Any tag naming an attempt the caller did not list is appended in
+  // chronological order rather than dropped or collapsed to index 0 — the old
+  // `?? 0` fallback silently made every unknown attempt the same attempt.
+  const order: string[] = [...(attemptOrder ?? [])]
+  for (const t of chronological) {
+    if (!order.includes(t.attemptId)) order.push(t.attemptId)
+  }
+  const attemptIndex = new Map(order.map((id, i) => [id, i]))
+
+  const seen: { key: string; attemptIdx: number }[] = []
+  const out: DerivedTag[] = []
+
+  for (const t of chronological) {
+    const isLegacy = t.magnitude === null
+    const severity = isLegacy
+      ? t.storedSeverity
+      : resolveSeverity({ type: t.type, magnitude: t.magnitude as number, mode: t.mode, bands })
+
+    const key = `${t.type}::${t.klpId ?? 'whole'}`
+    // Always present: `order` is seeded from the caller and then completed
+    // from the tags themselves.
+    const here = attemptIndex.get(t.attemptId) as number
+    const repeated = seen.some(
+      (s) => s.key === key && here - s.attemptIdx <= REPEAT_WINDOW_ATTEMPTS && here !== s.attemptIdx,
+    )
+    const repeatBonus = repeated ? REPEAT_BONUS : 0
+    seen.push({ key, attemptIdx: here })
+
+    const base = computeSignificance({
+      relevance: t.relevance,
+      severity,
+      dimension: t.dimension,
+      starred: t.starred,
+    })
+
+    out.push({
+      ...t,
+      severity,
+      repeatBonus,
+      significance: Math.min(10, base.significance + repeatBonus),
+      isLegacy,
+    })
+  }
+
+  return out
+}

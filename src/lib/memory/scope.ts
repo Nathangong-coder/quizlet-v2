@@ -1,4 +1,16 @@
 import { CATEGORY_PALETTE, UNCATEGORIZED_ID } from "@/lib/cards/categories";
+import { toQuizMode, type QuizMode } from "@/lib/quiz/mode";
+
+/**
+ * The only quiz mode that can produce expression evidence.
+ *
+ * MC and TF answers are graded without an AI call and hardcode
+ * `dimension: 'accuracy'` (`binaryModeDrafts`), so they can never contribute a
+ * clarity or conciseness tag. Counting them in readiness's denominator while
+ * only short answers can contribute to its numerator inverts the metric: the
+ * more multiple choice a learner does, the more "interview-ready" they look.
+ */
+const EXPRESSION_QUIZ_MODE: QuizMode = "short-answer";
 
 /**
  * A scope narrows the study-history views (feed, stats, filter options).
@@ -103,6 +115,35 @@ export function groupCategoriesByName(rows: CategoryRow[]): CrossSetCategory[] {
 }
 
 /**
+ * The set/category dimensions of a scope, as a Prisma `where` fragment for
+ * whatever relation is named `card` on the model being queried. Shared by
+ * every scope-aware query builder below so the set/category union semantics
+ * (in particular the uncategorized-sentinel OR) are defined exactly once —
+ * duplicating this per model is exactly the kind of drift risk a single
+ * source of truth is meant to prevent.
+ */
+function buildCardScopeWhere(scope: HistoryScope, categoryIds: string[]): Record<string, unknown> {
+  const card: Record<string, unknown> = {};
+
+  if (scope.setIds.length > 0) card.setId = { in: scope.setIds };
+
+  if (scope.categoryKeys.length > 0) {
+    const wantUncategorized = scope.categoryKeys.includes(UNCATEGORIZED_ID);
+    const hasNamed = scope.categoryKeys.some((k) => k !== UNCATEGORIZED_ID);
+    // Note: an empty `in` matches nothing, which is what we want — a stale
+    // category key from the URL must not silently widen back to everything.
+    const named = { categoryAssignments: { some: { categoryId: { in: categoryIds } } } };
+    const uncategorized = { categoryAssignments: { none: {} } };
+
+    if (wantUncategorized && hasNamed) card.OR = [named, uncategorized];
+    else if (wantUncategorized) Object.assign(card, uncategorized);
+    else Object.assign(card, named);
+  }
+
+  return card;
+}
+
+/**
  * Prisma `where` for StudyEvent under a scope. Pure, so every combination is
  * testable without a database; the caller resolves `categoryIds` from the
  * scope's category keys first.
@@ -122,26 +163,115 @@ export function buildStudyEventWhere(
     return where;
   }
 
-  const card: Record<string, unknown> = {};
-
-  if (scope.setIds.length > 0) card.setId = { in: scope.setIds };
-
-  if (scope.categoryKeys.length > 0) {
-    const wantUncategorized = scope.categoryKeys.includes(UNCATEGORIZED_ID);
-    const hasNamed = scope.categoryKeys.some((k) => k !== UNCATEGORIZED_ID);
-    // Note: an empty `in` matches nothing, which is what we want — a stale
-    // category key from the URL must not silently widen back to everything.
-    const named = { categoryAssignments: { some: { categoryId: { in: categoryIds } } } };
-    const uncategorized = { categoryAssignments: { none: {} } };
-
-    if (wantUncategorized && hasNamed) card.OR = [named, uncategorized];
-    else if (wantUncategorized) Object.assign(card, uncategorized);
-    else Object.assign(card, named);
-  }
-
+  const card = buildCardScopeWhere(scope, categoryIds);
   if (Object.keys(card).length > 0) where.card = card;
 
   return where;
+}
+
+/**
+ * Prisma `where` for QuizAnswer under a scope, meant to be embedded as the
+ * `quizAnswer: {...}` relation filter when scoping AnswerErrorTag/
+ * AnswerKlpResult rows — neither has its own card/set/category relation;
+ * both reach one only through their parent QuizAnswer. Mirrors
+ * `buildStudyEventWhere`'s exact branching, adapted to QuizAnswer's shape:
+ * `mode` stands in for StudyEvent's `source`, and QuizAnswer's own scalar
+ * `cardId` is the same narrowest-scope-subsumes-the-rest case.
+ *
+ * `mode` is NOT the same vocabulary as `source`, however: `HistoryScope.source`
+ * holds a `StudySource` (`quiz-sa`) while `QuizAnswer.mode` holds a `QuizMode`
+ * (`short-answer`). Assigning one to the other matches ZERO rows — silently,
+ * because a scoped view with no tags reads as "no expression problems at all"
+ * rather than as an error. `toQuizMode` is the single bridge.
+ */
+export function buildQuizAnswerScopeWhere(
+  userId: string,
+  scope: HistoryScope,
+  categoryIds: string[],
+): Record<string, unknown> {
+  const where: Record<string, unknown> = { userId };
+
+  if (scope.source) {
+    const mode = toQuizMode(scope.source);
+    // A source with no quiz mode (`review`, `lesson`) or an unknown string
+    // must match nothing, not fall through to every mode.
+    where.mode = mode ?? { in: [] };
+  }
+
+  if (scope.cardId) {
+    where.cardId = scope.cardId;
+    return where;
+  }
+
+  const card = buildCardScopeWhere(scope, categoryIds);
+  if (Object.keys(card).length > 0) where.card = card;
+
+  return where;
+}
+
+/** The two `where` fragments a scoped CardCategory query needs. */
+export interface CategoryQueryShape {
+  /** Filter on CardCategory itself. */
+  where: Record<string, unknown>;
+  /**
+   * Filter on the nested `assignments` relation. `undefined` means every
+   * assignment — Prisma treats an undefined relation filter as absent.
+   */
+  assignmentWhere: { cardId: string } | undefined;
+}
+
+/**
+ * Scoped query shape for the CardCategory rows the topic profile is built
+ * from. Pure so the cardId branch is tested like the other two builders'.
+ *
+ * `cardId` is the narrowest scope and SUBSUMES set/category, exactly as in
+ * `buildStudyEventWhere`/`buildQuizAnswerScopeWhere`. It must narrow BOTH
+ * sides: the categories (or a card-scoped request answers with every topic the
+ * learner has) and the assignments inside them (or it answers with whole-topic
+ * knowledge and KLP counts sitting beside card-scoped tags — numbers from two
+ * different populations presented as one profile).
+ *
+ * The `set: { userId }` guard stays in every branch: CardCategory has no
+ * userId of its own and reaches one only through its set.
+ */
+export function buildCategoryQuery(
+  userId: string,
+  scope: HistoryScope,
+): CategoryQueryShape {
+  if (scope.cardId) {
+    return {
+      where: { set: { userId }, assignments: { some: { cardId: scope.cardId } } },
+      assignmentWhere: { cardId: scope.cardId },
+    };
+  }
+
+  return {
+    where: {
+      set: { userId, ...(scope.setIds.length > 0 ? { id: { in: scope.setIds } } : {}) },
+      ...(scope.categoryKeys.length > 0 ? { normalizedName: { in: scope.categoryKeys } } : {}),
+    },
+    assignmentWhere: undefined,
+  };
+}
+
+/**
+ * Narrow an already-scoped QuizAnswer `where` to the answers that may carry
+ * EXPRESSION evidence: analyzed short-answer rows only. This is readiness's
+ * denominator.
+ *
+ * The mode constraint goes in `AND` rather than overwriting `base.mode`, so a
+ * source-scoped request for a non-short-answer mode yields a contradiction
+ * (zero rows) instead of quietly widening back to short answer. Two truths
+ * that cannot both hold must produce nothing, not the more convenient one.
+ */
+export function buildExpressionAnswerWhere(
+  base: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...base,
+    analysisStatus: "analyzed",
+    AND: [{ mode: EXPRESSION_QUIZ_MODE }],
+  };
 }
 
 export function serializeScope(scope: HistoryScope): string {

@@ -17,6 +17,8 @@ const h = vi.hoisted(() => ({
   answerCreate: vi.fn(),
   klpResultCreateMany: vi.fn(),
   errorTagCreateMany: vi.fn(),
+  klpStateFindUnique: vi.fn(),
+  klpStateUpsert: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -88,11 +90,14 @@ beforeEach(() => {
   h.answerCreate.mockResolvedValue({ id: 'answer-1' })
   h.klpResultCreateMany.mockResolvedValue({ count: 0 })
   h.errorTagCreateMany.mockResolvedValue({ count: 0 })
+  h.klpStateFindUnique.mockResolvedValue(null)
+  h.klpStateUpsert.mockResolvedValue({})
   h.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
       quizAnswer: { create: h.answerCreate },
       answerKlpResult: { createMany: h.klpResultCreateMany },
       answerErrorTag: { createMany: h.errorTagCreateMany },
+      klpState: { findUnique: h.klpStateFindUnique, upsert: h.klpStateUpsert },
     }),
   )
 })
@@ -113,12 +118,13 @@ describe('submitShortAnswer analysis capture', () => {
   })
 
   it('computes relevance from the STORED KLP weight, not from the model', async () => {
-    // The load-bearing test. The AI's only numeric input is severity (1-5);
+    // The load-bearing test. The AI's only numeric input is magnitude (1-10);
     // if it could influence relevance it could inflate its own significance.
     h.generateJson.mockResolvedValue({
       ...gradeShape,
       klpResults: [],
-      errorTags: [{ dimension: 'accuracy', type: 'inversion', klpRef: 0, severity: 4, relevance: 99 }],
+      // inversion band [2,5]; magnitude 7 -> floor 2 + 3*(6/9) = 4.
+      errorTags: [{ dimension: 'accuracy', type: 'inversion', klpRef: 0, magnitude: 7, relevance: 99 }],
     })
 
     await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
@@ -126,6 +132,8 @@ describe('submitShortAnswer analysis capture', () => {
     const tag = h.errorTagCreateMany.mock.calls[0][0].data[0]
     expect(tag.relevance).toBe(5) // the KLP's stored weight
     expect(tag.severity).toBe(4)
+    expect(tag.magnitude).toBe(7)
+    expect(tag.mode).toBe('quiz-sa')
     expect(tag.significance).toBe(9) // round((.55*5 + .45*4) * 2 * 1.0)
   })
 
@@ -137,7 +145,7 @@ describe('submitShortAnswer analysis capture', () => {
       // no_provenance rule (see the dedicated test for that below), which
       // would otherwise mask what this test is actually checking.
       klpResults: [{ klpRef: 0, status: 'passed' }],
-      errorTags: [{ dimension: 'accuracy', type: 'vibes', klpRef: 0, severity: 3 }],
+      errorTags: [{ dimension: 'accuracy', type: 'vibes', klpRef: 0, magnitude: 3 }],
     })
 
     const res = await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
@@ -276,7 +284,7 @@ describe('submitShortAnswer analysis capture', () => {
     h.generateJson.mockResolvedValue({
       ...gradeShape,
       klpResults: [{ klpRef: 0, status: 'passed' }],
-      errorTags: [{ dimension: 'accuracy', type: 'inversion', klpRef: 0, severity: 3 }],
+      errorTags: [{ dimension: 'accuracy', type: 'inversion', klpRef: 0, magnitude: 3 }],
     })
     await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'first try' })
     expect(answers).toHaveLength(1)
