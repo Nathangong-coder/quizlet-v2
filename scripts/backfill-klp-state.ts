@@ -7,12 +7,29 @@
  * with no posterior materialized from it. This replays that evidence.
  *
  * Full replay, not incremental stepping: the stored rows ARE the inputs, and
- * `traceKlp` sorts them chronologically, so the result does not depend on the
- * order the database returns them in. Safe to re-run — it is idempotent by
- * construction, because it recomputes each state from scratch rather than
- * adding to whatever is already there.
+ * `traceKlp` sorts them chronologically with a stable sort. That makes the
+ * result independent of the order rows arrive from the database, but ONLY if
+ * the order itself is deterministic across runs: `createdAt` is
+ * millisecond-precision, so two observations for the same (user, KLP) that
+ * land in the same millisecond are otherwise ordered however the database
+ * feels like returning them that run, and a stable sort preserves whatever
+ * arbitrary order that was — producing a different posterior on different
+ * runs. The query below orders by `(createdAt, id)` so the tie always breaks
+ * the same way.
  *
- * Usage: `npx tsx scripts/backfill-klp-state.ts [--dry-run]`
+ * Re-running this script back-to-back is safe — it recomputes each state
+ * from scratch rather than adding to whatever is already there, so repeated
+ * runs against the same unchanged data converge to the same result.
+ *
+ * It is NOT safe to run against a live/active database: the script takes one
+ * snapshot of `AnswerKlpResult` per user, then writes absolute `pKnown`/
+ * `observations` values for that user. An answer committed after that user's
+ * snapshot was read but before the write lands is not merged into the new
+ * state — it is silently overwritten and its observation is lost. Run this
+ * during a quiet period with no in-flight quiz submissions, not against
+ * live traffic.
+ *
+ * Usage: `npm run backfill:klp-state -- --dry-run`
  */
 import { PrismaClient } from '@prisma/client'
 import { PrismaNeon } from '@prisma/adapter-neon'
@@ -31,32 +48,40 @@ const prisma = new PrismaClient({
 const dryRun = process.argv.includes('--dry-run')
 
 async function main() {
-  // Grouped per user: `rebuildStatesFromResults` keys states by (user, KLP),
-  // and two users answering the same shared card must never share a posterior.
-  const rows = await prisma.answerKlpResult.findMany({
-    select: {
-      klpId: true,
-      status: true,
-      mode: true,
-      createdAt: true,
-      quizAnswer: { select: { userId: true } },
-    },
+  // Users are processed one at a time rather than loading every
+  // `AnswerKlpResult` row for every user into memory at once: each user's
+  // rows are fetched, replayed, and (if not a dry run) written before moving
+  // to the next user, bounding memory to one user's history at a time.
+  const userRows = await prisma.quizAnswer.findMany({
+    where: { klpResults: { some: {} } },
+    select: { userId: true },
+    distinct: ['userId'],
   })
+  const userIds = userRows.map((u) => u.userId)
 
-  const byUser = new Map<string, { klpId: string; status: string; mode: string; createdAt: Date }[]>()
-  for (const r of rows) {
-    const userId = r.quizAnswer.userId
-    const list = byUser.get(userId)
-    const obs = { klpId: r.klpId, status: r.status, mode: r.mode, createdAt: r.createdAt }
-    if (list) list.push(obs)
-    else byUser.set(userId, [obs])
-  }
+  console.log(`Users with AnswerKlpResult rows: ${userIds.length}`)
 
-  console.log(`AnswerKlpResult rows: ${rows.length} across ${byUser.size} user(s)`)
-
+  let totalRows = 0
   let written = 0
-  for (const [userId, results] of byUser) {
-    const states = rebuildStatesFromResults(userId, results)
+
+  for (const userId of userIds) {
+    // Deterministic order: `createdAt` alone cannot break same-millisecond
+    // ties, and `traceKlp`'s stable sort would otherwise let those ties
+    // resolve however the database happens to return them. `id` guarantees
+    // a total order so the same input always replays to the same posterior.
+    const rows = await prisma.answerKlpResult.findMany({
+      where: { quizAnswer: { userId } },
+      select: {
+        klpId: true,
+        status: true,
+        mode: true,
+        createdAt: true,
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    })
+    totalRows += rows.length
+
+    const states = rebuildStatesFromResults(userId, rows)
     for (const s of states) {
       if (dryRun) {
         console.log(
@@ -78,6 +103,7 @@ async function main() {
     }
   }
 
+  console.log(`AnswerKlpResult rows: ${totalRows} across ${userIds.length} user(s)`)
   console.log(dryRun ? 'Dry run — nothing written.' : `KlpState rows written: ${written}`)
 }
 
