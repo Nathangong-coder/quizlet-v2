@@ -6,6 +6,7 @@ const NOW = new Date('2026-08-05T12:00:00.000Z')
 
 const tag = (o: Partial<DerivedTag> = {}): DerivedTag => ({
   attemptId: 'a1',
+  cardId: 'card1',
   dimension: 'conciseness',
   type: 'rambling',
   klpId: 'klp1',
@@ -84,6 +85,19 @@ describe('too_terse is conditioned on knowledge', () => {
     expect(result.verbosityIndex).toBe(0)
   })
 
+  it('does not call a whole-answer terseness a knowledge gap', () => {
+    // `knowledgeGapTerseness` means "excluded BECAUSE they likely do not know
+    // it". A whole-answer tag is excluded from the INDEX for a different
+    // reason — no target — and is booked as expression evidence instead.
+    const result = computeArticulation({
+      tags: [tag({ type: 'too_terse', klpId: null, significance: 9 })],
+      knowledge: known,
+      analyzedAnswers: 1,
+    })
+    expect(result.knowledgeGapTerseness).toBe(0)
+    expect(result.readiness!).toBeLessThan(1)
+  })
+
   it('still counts over-talking regardless of knowledge', () => {
     const result = computeArticulation({
       tags: [tag({ type: 'rambling' })],
@@ -103,6 +117,44 @@ describe('clarity tags do not affect verbosity index', () => {
       analyzedAnswers: 1,
     })
     expect(result.verbosityIndex).toBe(0)
+  })
+})
+
+describe('whole-answer tags count toward expression weight', () => {
+  it('lowers readiness for a klpId-less clarity tag', () => {
+    // `no_thesis`, `disorganized`, `incoherent_syntax` are whole-answer
+    // judgements by nature. If they cannot move readiness, a learner whose
+    // every answer is a shapeless ramble scores perfectly interview-ready.
+    const result = computeArticulation({
+      tags: [tag({ dimension: 'clarity', type: 'no_thesis', klpId: null, significance: 9 })],
+      knowledge: {},
+      analyzedAnswers: 1,
+    })
+    expect(result.readiness!).toBeLessThan(1)
+  })
+
+  it('lowers readiness for a klpId-less over-talk tag while leaving the index at zero', () => {
+    const result = computeArticulation({
+      tags: [tag({ type: 'rambling', klpId: null, significance: 9 })],
+      knowledge: {},
+      analyzedAnswers: 1,
+    })
+    expect(result.verbosityIndex).toBe(0)
+    expect(result.readiness!).toBeLessThan(1)
+  })
+
+  it('weighs a whole-answer tag the same as a KLP-targeted one of equal significance', () => {
+    const targeted = computeArticulation({
+      tags: [tag({ dimension: 'clarity', type: 'disorganized', klpId: 'klp1', significance: 9 })],
+      knowledge: known,
+      analyzedAnswers: 3,
+    })
+    const wholeAnswer = computeArticulation({
+      tags: [tag({ dimension: 'clarity', type: 'disorganized', klpId: null, significance: 9 })],
+      knowledge: known,
+      analyzedAnswers: 3,
+    })
+    expect(wholeAnswer.readiness).toBe(targeted.readiness)
   })
 })
 

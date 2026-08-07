@@ -77,7 +77,9 @@ export async function getLearnerMetrics({
         dimension: true, type: true, klpId: true, secondaryKlpId: true,
         relevance: true, starred: true, magnitude: true, mode: true,
         severity: true, significance: true, quote: true, createdAt: true,
-        quizAnswer: { select: { attemptId: true } },
+        // `cardId` is what ties a WHOLE-ANSWER tag (klpId null) to a topic;
+        // without it those tags are dropped from readiness entirely.
+        quizAnswer: { select: { attemptId: true, cardId: true } },
       },
     }),
     prisma.answerKlpResult.findMany({
@@ -211,7 +213,9 @@ async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: His
       normalizedName: true, name: true, color: true,
       assignments: {
         select: {
-          card: { select: { klps: { where: { supersededAt: null }, select: { id: true } } } },
+          card: {
+            select: { id: true, klps: { where: { supersededAt: null }, select: { id: true } } },
+          },
         },
       },
     },

@@ -10,6 +10,13 @@ export const REPEAT_WINDOW_ATTEMPTS = 3
 /** An AnswerErrorTag row as read, plus the attempt it belongs to. */
 export interface StoredTag {
   attemptId: string
+  /**
+   * The card the answer was on. A whole-answer tag (`klpId: null`) has no KLP
+   * to attribute it by, so this is the only thing that ties it to a topic —
+   * without it, every `no_thesis`/`rambling`/`disorganized` judgement is
+   * silently dropped from readiness. Null only on a shape with no answer join.
+   */
+  cardId: string | null
   dimension: Dimension
   type: string
   klpId: string | null
@@ -35,7 +42,7 @@ export interface RawTagRow {
   severity: number
   significance: number
   createdAt: Date
-  quizAnswer: { attemptId: string }
+  quizAnswer: { attemptId: string; cardId: string }
 }
 
 /**
@@ -48,6 +55,7 @@ export interface RawTagRow {
 export function toStoredTags(rows: RawTagRow[]): StoredTag[] {
   return rows.map((r) => ({
     attemptId: r.quizAnswer.attemptId,
+    cardId: r.quizAnswer.cardId,
     dimension: r.dimension as StoredTag['dimension'],
     type: r.type,
     klpId: r.klpId,

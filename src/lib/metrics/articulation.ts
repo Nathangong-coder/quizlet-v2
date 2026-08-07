@@ -54,6 +54,14 @@ export function computeArticulation(input: ArticulationInput): Articulation {
   let expressionWeight = 0
 
   for (const tag of input.tags) {
+    // A whole-answer tag names no KLP — the grading prompt tells the model to
+    // omit the reference for errors that are judgements about the answer as a
+    // whole. It is real expression evidence and MUST reach `expressionWeight`,
+    // but it is excluded from the SIGNED index: there is no pKnown to test, so
+    // counting whole-answer over-talk while whole-answer terseness can never
+    // be counted would bias the index positive by construction.
+    const wholeAnswer = tag.klpId === null
+
     if (tag.dimension === 'clarity') {
       expressionWeight += tag.significance
       continue
@@ -61,13 +69,22 @@ export function computeArticulation(input: ArticulationInput): Articulation {
     if (tag.dimension !== 'conciseness') continue
 
     if (OVER_TALK_TYPES.has(tag.type)) {
-      over += tag.significance
       expressionWeight += tag.significance
+      if (!wholeAnswer) over += tag.significance
       continue
     }
 
     if (tag.type === 'too_terse') {
-      const k = tag.klpId ? input.knowledge[tag.klpId] : undefined
+      // Not `knowledgeGapTerseness`: that counter means "excluded BECAUSE the
+      // learner likely does not know it". A whole-answer terseness is excluded
+      // for a different reason — no target to test — and is booked as
+      // expression, so calling it a knowledge gap would misreport it.
+      if (wholeAnswer) {
+        expressionWeight += tag.significance
+        continue
+      }
+
+      const k = input.knowledge[tag.klpId as string]
       const counts =
         k !== undefined && k.observations >= MIN_OBSERVATIONS && k.pKnown >= ARTICULATION_MIN_PKNOWN
       if (counts) {

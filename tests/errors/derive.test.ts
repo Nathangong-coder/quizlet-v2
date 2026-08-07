@@ -6,6 +6,7 @@ const minsAgo = (n: number): Date => new Date(NOW.getTime() - n * 60_000)
 
 function tag(overrides: Partial<StoredTag> & { attemptId: string }): StoredTag {
   return {
+    cardId: 'card1',
     dimension: 'accuracy',
     type: 'inversion',
     klpId: 'klp1',

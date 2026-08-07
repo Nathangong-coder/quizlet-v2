@@ -10,11 +10,13 @@ const row = (o: Partial<TopicRow> & { normalizedName: string }): TopicRow => ({
   displayName: 'Valuation',
   color: '#3b82f6',
   klpIds: ['klp1'],
+  cardIds: ['card1'],
   ...o,
 })
 
 const tag = (o: Partial<DerivedTag> = {}): DerivedTag => ({
   attemptId: 'a1',
+  cardId: 'card1',
   dimension: 'conciseness',
   type: 'rambling',
   klpId: 'klp1',
@@ -140,6 +142,56 @@ describe('articulation scoping per topic', () => {
   })
 })
 
+describe('whole-answer tags reach readiness', () => {
+  it('attributes a klpId-less tag to the topics of the card it was answered on', () => {
+    // `no_thesis`/`disorganized`/`rambling` are whole-answer judgements and the
+    // grading prompt tells the model to omit the KLP reference for them. Filtering
+    // tags by klpId alone dropped every one of them, so a learner whose every
+    // answer rambles scored perfect readiness.
+    const result = shapeTopicProfile({
+      topics: [row({ normalizedName: 'a', klpIds: ['ka'], cardIds: ['c1'] })],
+      knowledge: { ka: { pKnown: 0.9, observations: 5 } },
+      tags: [
+        tag({ klpId: null, cardId: 'c1', dimension: 'clarity', type: 'no_thesis', significance: 9 }),
+      ],
+      analyzedAnswersByTopic: { a: 1 },
+    })
+    expect(result[0].readiness).not.toBeNull()
+    expect(result[0].readiness!).toBeLessThan(1)
+  })
+
+  it('does not leak a whole-answer tag into a topic the card does not belong to', () => {
+    const result = shapeTopicProfile({
+      topics: [
+        row({ normalizedName: 'a', klpIds: ['ka'], cardIds: ['c1'] }),
+        row({ normalizedName: 'b', klpIds: ['kb'], cardIds: ['c2'] }),
+      ],
+      knowledge: {},
+      tags: [
+        tag({ klpId: null, cardId: 'c1', dimension: 'clarity', type: 'no_thesis', significance: 9 }),
+      ],
+      analyzedAnswersByTopic: { a: 1, b: 1 },
+    })
+    expect(result.find((t) => t.key === 'a')!.readiness!).toBeLessThan(1)
+    expect(result.find((t) => t.key === 'b')!.readiness).toBe(1)
+  })
+
+  it('keeps a whole-answer tag out of the signed verbosity index', () => {
+    const result = shapeTopicProfile({
+      topics: [row({ normalizedName: 'a', klpIds: ['ka'], cardIds: ['c1'] })],
+      knowledge: {},
+      tags: [
+        tag({ klpId: null, cardId: 'c1', dimension: 'conciseness', type: 'rambling', significance: 9 }),
+      ],
+      analyzedAnswersByTopic: { a: 1 },
+    })
+    // Counted as expression weight, but not as evidence of over-talking: with
+    // no pKnown to test, whole-answer terseness could never balance it.
+    expect(result[0].verbosityIndex).toBe(0)
+    expect(result[0].readiness!).toBeLessThan(1)
+  })
+})
+
 describe('toTopicRows', () => {
   it('flattens joined assignments into a de-duplicable KLP id list', () => {
     const rows = toTopicRows([
@@ -148,8 +200,8 @@ describe('toTopicRows', () => {
         name: 'Valuation',
         color: '#3b82f6',
         assignments: [
-          { card: { klps: [{ id: 'k1' }, { id: 'k2' }] } },
-          { card: { klps: [{ id: 'k3' }] } },
+          { card: { id: 'c1', klps: [{ id: 'k1' }, { id: 'k2' }] } },
+          { card: { id: 'c2', klps: [{ id: 'k3' }] } },
         ],
       },
     ])
@@ -157,11 +209,32 @@ describe('toTopicRows', () => {
     expect(rows[0].displayName).toBe('Valuation')
   })
 
+  it('carries the card ids, which is all a whole-answer tag can be scoped by', () => {
+    const rows = toTopicRows([
+      {
+        normalizedName: 'valuation',
+        name: 'Valuation',
+        color: null,
+        assignments: [
+          { card: { id: 'c1', klps: [{ id: 'k1' }] } },
+          { card: { id: 'c2', klps: [] } },
+        ],
+      },
+    ])
+    // c2 has no KLPs at all — dropping it here would make every whole-answer
+    // tag on that card invisible to readiness.
+    expect(rows[0].cardIds).toEqual(['c1', 'c2'])
+  })
+
   it('yields an empty klpIds list for a category whose cards have no KLPs', () => {
     const rows = toTopicRows([
-      { normalizedName: 'dcf', name: 'DCF', color: null, assignments: [{ card: { klps: [] } }] },
+      {
+        normalizedName: 'dcf', name: 'DCF', color: null,
+        assignments: [{ card: { id: 'c1', klps: [] } }],
+      },
     ])
     expect(rows[0].klpIds).toEqual([])
+    expect(rows[0].cardIds).toEqual(['c1'])
   })
 })
 

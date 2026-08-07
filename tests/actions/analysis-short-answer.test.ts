@@ -17,6 +17,8 @@ const h = vi.hoisted(() => ({
   answerCreate: vi.fn(),
   klpResultCreateMany: vi.fn(),
   errorTagCreateMany: vi.fn(),
+  klpStateFindUnique: vi.fn(),
+  klpStateUpsert: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -88,11 +90,14 @@ beforeEach(() => {
   h.answerCreate.mockResolvedValue({ id: 'answer-1' })
   h.klpResultCreateMany.mockResolvedValue({ count: 0 })
   h.errorTagCreateMany.mockResolvedValue({ count: 0 })
+  h.klpStateFindUnique.mockResolvedValue(null)
+  h.klpStateUpsert.mockResolvedValue({})
   h.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
       quizAnswer: { create: h.answerCreate },
       answerKlpResult: { createMany: h.klpResultCreateMany },
       answerErrorTag: { createMany: h.errorTagCreateMany },
+      klpState: { findUnique: h.klpStateFindUnique, upsert: h.klpStateUpsert },
     }),
   )
 })

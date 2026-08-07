@@ -16,6 +16,14 @@ export interface TopicRow {
   displayName: string
   color: string | null
   klpIds: string[]
+  /**
+   * The cards assigned to this category. Needed because a WHOLE-ANSWER tag
+   * (`no_thesis`, `disorganized`, `rambling` — the grading prompt tells the
+   * model to omit the KLP reference for these) has no klpId to attribute it
+   * by. Scoping those tags by KLP alone drops them entirely, so a learner
+   * whose every answer rambles scores perfect readiness.
+   */
+  cardIds: string[]
 }
 
 export interface LearnerTopicProfile {
@@ -70,6 +78,7 @@ export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicPr
   for (const [key, rows] of grouped) {
     const klpIds = [...new Set(rows.flatMap((r) => r.klpIds))]
     const klpSet = new Set(klpIds)
+    const cardSet = new Set(rows.flatMap((r) => r.cardIds))
 
     const scored = klpIds
       .map((id) => input.knowledge[id])
@@ -80,8 +89,14 @@ export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicPr
         ? null
         : scored.reduce((sum, k) => sum + k.pKnown, 0) / scored.length
 
+    // A KLP-targeted tag belongs to this topic when the KLP does. A
+    // whole-answer tag has no KLP, so it belongs when its CARD does —
+    // `computeArticulation` then counts it toward expression weight while
+    // still keeping it out of the signed index.
     const articulation = computeArticulation({
-      tags: input.tags.filter((t) => t.klpId !== null && klpSet.has(t.klpId)),
+      tags: input.tags.filter((t) =>
+        t.klpId !== null ? klpSet.has(t.klpId) : t.cardId !== null && cardSet.has(t.cardId),
+      ),
       knowledge: input.knowledge,
       analyzedAnswers: input.analyzedAnswersByTopic[key] ?? 0,
     })
@@ -128,7 +143,7 @@ export interface RawCategoryRow {
   normalizedName: string
   name: string
   color: string | null
-  assignments: { card: { klps: { id: string }[] } }[]
+  assignments: { card: { id: string; klps: { id: string }[] } }[]
 }
 
 /**
@@ -141,5 +156,6 @@ export function toTopicRows(rows: RawCategoryRow[]): TopicRow[] {
     displayName: c.name,
     color: c.color,
     klpIds: c.assignments.flatMap((a) => a.card.klps.map((k) => k.id)),
+    cardIds: c.assignments.map((a) => a.card.id),
   }))
 }
