@@ -9,7 +9,9 @@ import { shapeTopicProfile, composeLearnerProfile, toTopicRows } from '@/lib/mem
 import { buildLearnerProfile } from '@/lib/memory/profile'
 import { eventRecalled, type StudySource } from '@/lib/memory/scoring'
 import { paceOutliers as computePaceOutliers } from '@/lib/metrics/pace'
-import { buildStudyEventWhere, buildQuizAnswerScopeWhere } from '@/lib/memory/scope'
+import {
+  buildStudyEventWhere, buildQuizAnswerScopeWhere, buildExpressionAnswerWhere,
+} from '@/lib/memory/scope'
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories'
 import type { BandTable } from '@/lib/errors/bands'
 import type { PrismaClient } from '@prisma/client'
@@ -152,11 +154,14 @@ export async function getLearnerMetrics({
 }
 
 /**
- * Analyzed-answer count per topic key, from QuizAnswer rows whose
- * `analysisStatus` is 'analyzed'. Answers whose analysis was degraded
- * (`no_provenance`, `no_klps`, `failed`) are EXCLUDED: they are not evidence of
- * clean expression, only of analysis that could not run, and counting them
- * would inflate readiness for learners whose cards lack KLPs.
+ * Analyzed SHORT-ANSWER count per topic key. Answers whose analysis was
+ * degraded (`no_provenance`, `no_klps`, `failed`) are EXCLUDED: they are not
+ * evidence of clean expression, only of analysis that could not run, and
+ * counting them would inflate readiness for learners whose cards lack KLPs.
+ *
+ * Restricted to short answer by `buildExpressionAnswerWhere` — see its doc
+ * comment and `EXPRESSION_QUIZ_MODE` for why an all-modes denominator inverts
+ * the metric.
  *
  * Resolve each answer's card to its categories and increment every matching
  * normalized name, so an answer on a card in two topics counts once for each.
@@ -171,10 +176,7 @@ async function loadAnalyzedAnswerCounts(
   quizAnswerScopeWhere: Record<string, unknown>,
 ): Promise<Record<string, number>> {
   const answers = await prisma.quizAnswer.findMany({
-    where: {
-      ...quizAnswerScopeWhere,
-      analysisStatus: 'analyzed',
-    },
+    where: buildExpressionAnswerWhere(quizAnswerScopeWhere),
     select: {
       card: {
         select: {

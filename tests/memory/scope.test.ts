@@ -4,6 +4,7 @@ import {
   groupCategoriesByName,
   buildStudyEventWhere,
   buildQuizAnswerScopeWhere,
+  buildExpressionAnswerWhere,
   serializeScope,
   parseScope,
   isConsolidated,
@@ -243,12 +244,28 @@ describe("buildQuizAnswerScopeWhere", () => {
     expect(where).toEqual({ userId, cardId: "card9" });
   });
 
-  it("narrows by source via the mode field", () => {
-    // QuizAnswer stores the StudySource at answer time as `mode`, not
-    // `source` — this is the one field name that differs from
-    // buildStudyEventWhere.
+  it("translates the scope's StudySource into QuizAnswer's QuizMode vocabulary", () => {
+    // `HistoryScope.source` is a StudySource ('quiz-sa'); `QuizAnswer.mode` is
+    // a QuizMode ('short-answer'). They are DIFFERENT vocabularies — comparing
+    // one to the other matches zero rows, silently.
     const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-sa" }, []);
-    expect(where).toEqual({ userId, mode: "quiz-sa" });
+    expect(where).toEqual({ userId, mode: "short-answer" });
+  });
+
+  it("translates every quiz source, not just short answer", () => {
+    expect(buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-mc" }, []))
+      .toEqual({ userId, mode: "multiple-choice" });
+    expect(buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-tf" }, []))
+      .toEqual({ userId, mode: "true-false" });
+    expect(buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "matching" }, []))
+      .toEqual({ userId, mode: "matching" });
+  });
+
+  it("matches nothing for a source that no QuizAnswer can carry", () => {
+    // 'review' is a StudySource with no quiz mode. Dropping the filter would
+    // silently widen the query back to every mode.
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "review" }, []);
+    expect(where).toEqual({ userId, mode: { in: [] } });
   });
 
   it("matches nothing when a category scope resolves to no ids", () => {
@@ -257,6 +274,43 @@ describe("buildQuizAnswerScopeWhere", () => {
       userId,
       card: { categoryAssignments: { some: { categoryId: { in: [] } } } },
     });
+  });
+});
+
+describe("buildExpressionAnswerWhere", () => {
+  const userId = "u1";
+
+  it("restricts readiness's denominator to analyzed SHORT-ANSWER rows", () => {
+    // MC/TF answers hardcode dimension 'accuracy' and can never produce a
+    // clarity/conciseness tag, so counting them in the denominator while only
+    // short answers feed the numerator inverts readiness: 100 MC answers plus
+    // 3 poor short answers would score ~0.96 instead of ~0.
+    const where = buildExpressionAnswerWhere(
+      buildQuizAnswerScopeWhere(userId, EMPTY_SCOPE, []),
+    );
+    expect(where).toEqual({
+      userId,
+      analysisStatus: "analyzed",
+      AND: [{ mode: "short-answer" }],
+    });
+  });
+
+  it("preserves the set/category scope it is layered on top of", () => {
+    const where = buildExpressionAnswerWhere(
+      buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, setIds: ["s1"] }, []),
+    );
+    expect(where).toMatchObject({ userId, card: { setId: { in: ["s1"] } } });
+    expect(where.AND).toEqual([{ mode: "short-answer" }]);
+  });
+
+  it("contradicts rather than overwrites a conflicting source scope", () => {
+    // Scoped to multiple choice: there is no such thing as an MC expression
+    // answer, so the result must be zero rows, not "short answer after all".
+    const where = buildExpressionAnswerWhere(
+      buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-mc" }, []),
+    );
+    expect(where.mode).toBe("multiple-choice");
+    expect(where.AND).toEqual([{ mode: "short-answer" }]);
   });
 });
 

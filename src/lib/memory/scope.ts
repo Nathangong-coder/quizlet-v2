@@ -1,4 +1,16 @@
 import { CATEGORY_PALETTE, UNCATEGORIZED_ID } from "@/lib/cards/categories";
+import { toQuizMode, type QuizMode } from "@/lib/quiz/mode";
+
+/**
+ * The only quiz mode that can produce expression evidence.
+ *
+ * MC and TF answers are graded without an AI call and hardcode
+ * `dimension: 'accuracy'` (`binaryModeDrafts`), so they can never contribute a
+ * clarity or conciseness tag. Counting them in readiness's denominator while
+ * only short answers can contribute to its numerator inverts the metric: the
+ * more multiple choice a learner does, the more "interview-ready" they look.
+ */
+const EXPRESSION_QUIZ_MODE: QuizMode = "short-answer";
 
 /**
  * A scope narrows the study-history views (feed, stats, filter options).
@@ -163,9 +175,14 @@ export function buildStudyEventWhere(
  * AnswerKlpResult rows — neither has its own card/set/category relation;
  * both reach one only through their parent QuizAnswer. Mirrors
  * `buildStudyEventWhere`'s exact branching, adapted to QuizAnswer's shape:
- * `mode` stands in for StudyEvent's `source` (both store the StudySource at
- * answer time), and QuizAnswer's own scalar `cardId` is the same
- * narrowest-scope-subsumes-the-rest case.
+ * `mode` stands in for StudyEvent's `source`, and QuizAnswer's own scalar
+ * `cardId` is the same narrowest-scope-subsumes-the-rest case.
+ *
+ * `mode` is NOT the same vocabulary as `source`, however: `HistoryScope.source`
+ * holds a `StudySource` (`quiz-sa`) while `QuizAnswer.mode` holds a `QuizMode`
+ * (`short-answer`). Assigning one to the other matches ZERO rows — silently,
+ * because a scoped view with no tags reads as "no expression problems at all"
+ * rather than as an error. `toQuizMode` is the single bridge.
  */
 export function buildQuizAnswerScopeWhere(
   userId: string,
@@ -174,7 +191,12 @@ export function buildQuizAnswerScopeWhere(
 ): Record<string, unknown> {
   const where: Record<string, unknown> = { userId };
 
-  if (scope.source) where.mode = scope.source;
+  if (scope.source) {
+    const mode = toQuizMode(scope.source);
+    // A source with no quiz mode (`review`, `lesson`) or an unknown string
+    // must match nothing, not fall through to every mode.
+    where.mode = mode ?? { in: [] };
+  }
 
   if (scope.cardId) {
     where.cardId = scope.cardId;
@@ -185,6 +207,26 @@ export function buildQuizAnswerScopeWhere(
   if (Object.keys(card).length > 0) where.card = card;
 
   return where;
+}
+
+/**
+ * Narrow an already-scoped QuizAnswer `where` to the answers that may carry
+ * EXPRESSION evidence: analyzed short-answer rows only. This is readiness's
+ * denominator.
+ *
+ * The mode constraint goes in `AND` rather than overwriting `base.mode`, so a
+ * source-scoped request for a non-short-answer mode yields a contradiction
+ * (zero rows) instead of quietly widening back to short answer. Two truths
+ * that cannot both hold must produce nothing, not the more convenient one.
+ */
+export function buildExpressionAnswerWhere(
+  base: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...base,
+    analysisStatus: "analyzed",
+    AND: [{ mode: EXPRESSION_QUIZ_MODE }],
+  };
 }
 
 export function serializeScope(scope: HistoryScope): string {
