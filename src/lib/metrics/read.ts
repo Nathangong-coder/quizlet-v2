@@ -63,7 +63,8 @@ export async function getLearnerMetrics({
   const quizAnswerScopeWhere = buildQuizAnswerScopeWhere(userId, scope, categoryIds)
   const studyEventWhere = buildStudyEventWhere(userId, scope, categoryIds)
 
-  const [cards, klpStates, tagRows, klpOutcomes, events, attempts] = await Promise.all([
+  const [cards, klpStates, tagRows, klpOutcomes, events, attempts, paceBaseline] =
+    await Promise.all([
     // The full scope, not just `setIds` — `shapeTopicProfile` below honours
     // every dimension, and the two are returned in one `LearnerProfile`.
     buildLearnerProfile({ userId, scope, categoryIds }),
@@ -113,6 +114,24 @@ export async function getLearnerMetrics({
       where: { userId },
       orderBy: { createdAt: 'asc' },
       select: { id: true },
+    }),
+    // The pace BASELINE, deliberately NOT scoped — for the same reason the
+    // attempts query above isn't. A learner's normal speed in a mode is a
+    // property of the learner, not of the view asking. Drawing it from the
+    // scoped events made a card-scoped request degenerate: the filtered set is
+    // that card's own events, so its median IS the baseline and the index is
+    // exactly 1.0 — a 2.4x outlier reported as no fluency problem at all.
+    //
+    // Only timed rows, and capped, since this is the one query here whose size
+    // does not shrink with the scope.
+    prisma.studyEvent.findMany({
+      where: { userId, latencyMs: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: PACE_BASELINE_FETCH_CAP,
+      select: {
+        cardId: true, source: true, latencyMs: true,
+        correct: true, score: true, createdAt: true,
+      },
     }),
   ])
 
@@ -170,17 +189,45 @@ export async function getLearnerMetrics({
         })),
       ),
     ),
+    // Candidates are scoped; the baseline they are judged against is not.
     paceOutliers: computePaceOutliers(
-      events
-        .filter((e): e is typeof e & { latencyMs: number } => typeof e.latencyMs === 'number')
-        .map((e) => ({
-          cardId: e.cardId,
-          mode: e.source as StudySource,
-          latencyMs: e.latencyMs,
-          correct: eventRecalled(e),
-        })),
+      toTimedEvents(events),
+      undefined,
+      toTimedEvents(paceBaseline),
     ),
   }
+}
+
+/**
+ * Bound on the unscoped pace-baseline read. Every other query here narrows
+ * with the scope; this one deliberately does not, so it gets an explicit cap
+ * rather than an unbounded lifetime scan. Most-recent-first, so the baseline
+ * tracks the learner's current speed rather than averaging in how slow they
+ * were a year ago.
+ */
+const PACE_BASELINE_FETCH_CAP = 5000
+
+/** Rows with a real latency, in the shape `paceOutliers` consumes. */
+function toTimedEvents(
+  rows: {
+    cardId: string
+    source: string
+    latencyMs: number | null
+    correct: boolean | null
+    score: number | null
+    createdAt: Date
+  }[],
+) {
+  return rows
+    .filter((e): e is typeof e & { latencyMs: number } => typeof e.latencyMs === 'number')
+    .map((e) => ({
+      cardId: e.cardId,
+      mode: e.source as StudySource,
+      latencyMs: e.latencyMs,
+      // `StudyEvent.correct` is NULL for short answer (it carries a score);
+      // `eventRecalled` reads both shapes against the one recall threshold.
+      correct: eventRecalled(e),
+    }))
 }
 
 /**

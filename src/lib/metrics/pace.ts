@@ -25,18 +25,35 @@ export function medianOf(values: number[]): number | null {
  * magnitude — a cross-mode ratio measures the mode, not the card. `> 1` is
  * effortful retrieval, `< 1` fluent. This is what separates "correct" from
  * "actually known": a card answered right at 2.4x baseline is not mastered.
+ *
+ * `baselineEvents` is the population the median is drawn from, and it is a
+ * SEPARATE parameter from `events` because the two narrow differently. The
+ * card's own times come from `events`, which a scoped request rightly filters;
+ * the baseline is the learner's normal speed in that mode and must NOT be
+ * filtered with it. Drawing both from one array made a card-scoped call
+ * degenerate: the filtered set is that card's own events, so its median equals
+ * the baseline and the index is exactly 1.0 no matter how slow the card is.
+ *
+ * Defaults to `events`, so a caller with a single unscoped population — which
+ * is every caller that predates the split — behaves exactly as before.
  */
 export function paceIndex(
   events: TimedEvent[],
   cardId: string,
   mode: StudySource,
+  baselineEvents: TimedEvent[] = events,
 ): number | null {
-  const inMode = events.filter((e) => e.mode === mode)
-  const cardTimes = inMode.filter((e) => e.cardId === cardId).map((e) => e.latencyMs)
+  const cardTimes = events
+    .filter((e) => e.mode === mode && e.cardId === cardId)
+    .map((e) => e.latencyMs)
   if (cardTimes.length < MIN_TIMED_OBSERVATIONS) return null
 
   const cardMedian = medianOf(cardTimes)
-  const baseline = medianOf(inMode.map((e) => e.latencyMs))
+  // Still mode-scoped: widening the population must not mix modes, or the
+  // ratio goes back to measuring the mode instead of the card.
+  const baseline = medianOf(
+    baselineEvents.filter((e) => e.mode === mode).map((e) => e.latencyMs),
+  )
   if (cardMedian === null || baseline === null || baseline === 0) return null
 
   return cardMedian / baseline
@@ -85,10 +102,16 @@ export const PACE_OUTLIER_MIN_INDEX = 1.5
  *
  * Sorted by index descending across all modes — the most effortful cards
  * first, regardless of which mode produced them.
+ *
+ * `events` are the CANDIDATES — the cards this call may report on, which a
+ * scoped request narrows. `baselineEvents` is the population their speed is
+ * judged against, which it must not: the learner's normal pace in a mode is a
+ * property of the learner, not of the view asking. See `paceIndex`.
  */
 export function paceOutliers(
   events: TimedEvent[],
   minIndex: number = PACE_OUTLIER_MIN_INDEX,
+  baselineEvents: TimedEvent[] = events,
 ): { cardId: string; mode: StudySource; index: number }[] {
   const modes = [...new Set(events.map((e) => e.mode))]
 
@@ -98,7 +121,7 @@ export function paceOutliers(
     const cardIds = [...new Set(inMode.map((e) => e.cardId))]
 
     for (const cardId of cardIds) {
-      const index = paceIndex(events, cardId, mode)
+      const index = paceIndex(events, cardId, mode, baselineEvents)
       if (index === null || index < minIndex) continue
 
       const cardEvents = inMode.filter((e) => e.cardId === cardId)
