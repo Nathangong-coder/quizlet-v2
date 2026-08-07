@@ -65,7 +65,7 @@ describe('repeatBonus', () => {
     expect(derived[1].repeatBonus).toBe(0)
   })
 
-  it('fires when the earlier occurrence is exactly 3 attempts back', () => {
+  it('does not fire once the earlier occurrence is 4 attempts back', () => {
     const derived = deriveTagScores([
       tag({ attemptId: 'a1', createdAt: minsAgo(50) }),
       tag({ attemptId: 'a2', type: 'omission', createdAt: minsAgo(40) }),
@@ -74,18 +74,6 @@ describe('repeatBonus', () => {
       tag({ attemptId: 'a5', createdAt: minsAgo(10) }),
     ])
     // a1 is attempt 0, a5 is attempt 4, distance = 4 - 0 = 4 which exceeds window
-    expect(derived[4].repeatBonus).toBe(0)
-  })
-
-  it('does not fire once the earlier occurrence is more than 3 attempts back', () => {
-    const derived = deriveTagScores([
-      tag({ attemptId: 'a1', createdAt: minsAgo(60) }),
-      tag({ attemptId: 'a2', type: 'omission', createdAt: minsAgo(50) }),
-      tag({ attemptId: 'a3', type: 'omission', createdAt: minsAgo(40) }),
-      tag({ attemptId: 'a4', type: 'omission', createdAt: minsAgo(30) }),
-      tag({ attemptId: 'a5', createdAt: minsAgo(20) }),
-    ])
-    // a1 is attempt 0, a5 is attempt 4, distance = 4 > 3, does not fire
     expect(derived[4].repeatBonus).toBe(0)
   })
 
@@ -126,6 +114,71 @@ describe('repeatBonus', () => {
       expect(rev!.repeatBonus).toBe(d.repeatBonus)
       expect(rev!.significance).toBe(d.significance)
     }
+  })
+
+  it('counts CLEAN attempts in the window when the real sequence is supplied', () => {
+    // Two occurrences of the same (type, target) with four flawless sittings
+    // between them. Every fixture above happens to have one tag per attempt,
+    // which is precisely why the bug survived: deriving the sequence from the
+    // tags makes clean attempts invisible, and the gap collapses to 1.
+    const tags = [
+      tag({ attemptId: 'a1', createdAt: minsAgo(60) }),
+      tag({ attemptId: 'a6', createdAt: minsAgo(10) }),
+    ]
+    const realOrder = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6']
+
+    expect(deriveTagScores(tags, undefined, realOrder)[1].repeatBonus).toBe(0)
+    // Without the real sequence the same two tags look adjacent.
+    expect(deriveTagScores(tags)[1].repeatBonus).toBe(1)
+  })
+
+  it('still fires inside the window when the clean attempts are few', () => {
+    const tags = [
+      tag({ attemptId: 'a1', createdAt: minsAgo(60) }),
+      tag({ attemptId: 'a4', createdAt: minsAgo(10) }),
+    ]
+    expect(deriveTagScores(tags, undefined, ['a1', 'a2', 'a3', 'a4'])[1].repeatBonus).toBe(1)
+    expect(deriveTagScores(tags, undefined, ['a1', 'a2', 'a3', 'x', 'a4'])[1].repeatBonus).toBe(0)
+  })
+
+  it('does not let scope change a tag score once the real sequence is supplied', () => {
+    // The narrower "view" drops the intervening tag entirely. With the real
+    // attempt sequence the distance — and so the score — is unchanged.
+    const wide = [
+      tag({ attemptId: 'a1', createdAt: minsAgo(60) }),
+      tag({ attemptId: 'a2', type: 'omission', createdAt: minsAgo(50) }),
+      tag({ attemptId: 'a3', type: 'omission', createdAt: minsAgo(40) }),
+      tag({ attemptId: 'a4', type: 'omission', createdAt: minsAgo(30) }),
+      tag({ attemptId: 'a6', createdAt: minsAgo(10) }),
+    ]
+    const narrow = [wide[0], wide[4]]
+    const order = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6']
+
+    const wideScore = deriveTagScores(wide, undefined, order).find((d) => d.attemptId === 'a6')!
+    const narrowScore = deriveTagScores(narrow, undefined, order).find((d) => d.attemptId === 'a6')!
+    expect(narrowScore.repeatBonus).toBe(wideScore.repeatBonus)
+    expect(narrowScore.significance).toBe(wideScore.significance)
+
+    // Without the real sequence the two views disagree: the wide view's
+    // intervening tags hold the distance open, the narrow view's do not.
+    expect(deriveTagScores(wide).find((d) => d.attemptId === 'a6')!.repeatBonus).toBe(0)
+    expect(deriveTagScores(narrow).find((d) => d.attemptId === 'a6')!.repeatBonus).toBe(1)
+  })
+
+  it('appends an attempt missing from the supplied sequence rather than collapsing it', () => {
+    // A tag whose attempt the caller did not list must not land at index 0
+    // alongside every other unknown attempt — that would make unrelated tags
+    // look like they happened in the same sitting.
+    const derived = deriveTagScores(
+      [
+        tag({ attemptId: 'ghost1', createdAt: minsAgo(30) }),
+        tag({ attemptId: 'ghost2', createdAt: minsAgo(20) }),
+      ],
+      undefined,
+      ['a1', 'a2'],
+    )
+    expect(derived[0].repeatBonus).toBe(0)
+    expect(derived[1].repeatBonus).toBe(1)
   })
 
   it('never pushes significance above 10', () => {

@@ -63,7 +63,7 @@ export async function getLearnerMetrics({
   const quizAnswerScopeWhere = buildQuizAnswerScopeWhere(userId, scope, categoryIds)
   const studyEventWhere = buildStudyEventWhere(userId, scope, categoryIds)
 
-  const [cards, klpStates, tagRows, klpOutcomes, events] = await Promise.all([
+  const [cards, klpStates, tagRows, klpOutcomes, events, attempts] = await Promise.all([
     buildLearnerProfile({ userId, setIds: scope.setIds }),
     // Deliberately NOT scoped: `shapeTopicProfile` re-filters knowledge by
     // each topic's own klpId set, so an out-of-scope KLP's pKnown is never
@@ -91,13 +91,27 @@ export async function getLearnerMetrics({
       where: studyEventWhere,
       select: { cardId: true, correct: true, score: true, createdAt: true, source: true, latencyMs: true },
     }),
+    // The learner's REAL attempt sequence, for `repeatBonus`'s "within the
+    // last N attempts" window. Deliberately NOT scoped: a clean sitting is
+    // exactly what has to be visible, and scoping this would make the same
+    // tag's significance depend on which view is asking — the bug this query
+    // exists to fix, reintroduced one level down.
+    prisma.quizAttempt.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }),
   ])
 
   const knowledge = Object.fromEntries(
     klpStates.map((s) => [s.klpId, { pKnown: s.pKnown, observations: s.observations }]),
   )
 
-  const derived = deriveTagScores(toStoredTags(tagRows), bands)
+  const derived = deriveTagScores(
+    toStoredTags(tagRows),
+    bands,
+    attempts.map((a) => a.id),
+  )
   const topics = toTopicRows(await loadCategoryRows(prisma, userId, scope))
 
   // Analyzed-answer counts per topic. MUST come from QuizAnswer rows with

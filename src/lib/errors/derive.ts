@@ -84,18 +84,32 @@ export interface DerivedTag extends StoredTag {
  *
  * Tags are processed in chronological order so each one sees only what came
  * before it. Callers may pass an unsorted array.
+ *
+ * `attemptOrder` is the learner's REAL attempt sequence (QuizAttempt ids,
+ * oldest first). Pass it. Deriving the sequence from the tags alone makes
+ * CLEAN attempts invisible, so an error repeated after ten flawless sittings
+ * still reads as "+1, they keep doing this" — and, worse, the same tag's
+ * significance then changes with the request's scope, because a narrower scope
+ * removes the intervening tags that were holding the distance open.
  */
-export function deriveTagScores(tags: StoredTag[], bands?: BandTable): DerivedTag[] {
+export function deriveTagScores(
+  tags: StoredTag[],
+  bands?: BandTable,
+  attemptOrder?: string[],
+): DerivedTag[] {
   const chronological = [...tags].sort(
     (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
   )
 
   // Attempt order, oldest first, so "within the last N attempts" is countable.
-  const attemptOrder: string[] = []
+  // Any tag naming an attempt the caller did not list is appended in
+  // chronological order rather than dropped or collapsed to index 0 — the old
+  // `?? 0` fallback silently made every unknown attempt the same attempt.
+  const order: string[] = [...(attemptOrder ?? [])]
   for (const t of chronological) {
-    if (!attemptOrder.includes(t.attemptId)) attemptOrder.push(t.attemptId)
+    if (!order.includes(t.attemptId)) order.push(t.attemptId)
   }
-  const attemptIndex = new Map(attemptOrder.map((id, i) => [id, i]))
+  const attemptIndex = new Map(order.map((id, i) => [id, i]))
 
   const seen: { key: string; attemptIdx: number }[] = []
   const out: DerivedTag[] = []
@@ -107,7 +121,9 @@ export function deriveTagScores(tags: StoredTag[], bands?: BandTable): DerivedTa
       : resolveSeverity({ type: t.type, magnitude: t.magnitude as number, mode: t.mode, bands })
 
     const key = `${t.type}::${t.klpId ?? 'whole'}`
-    const here = attemptIndex.get(t.attemptId) ?? 0
+    // Always present: `order` is seeded from the caller and then completed
+    // from the tags themselves.
+    const here = attemptIndex.get(t.attemptId) as number
     const repeated = seen.some(
       (s) => s.key === key && here - s.attemptIdx <= REPEAT_WINDOW_ATTEMPTS && here !== s.attemptIdx,
     )
