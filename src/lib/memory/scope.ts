@@ -209,6 +209,51 @@ export function buildQuizAnswerScopeWhere(
   return where;
 }
 
+/** The two `where` fragments a scoped CardCategory query needs. */
+export interface CategoryQueryShape {
+  /** Filter on CardCategory itself. */
+  where: Record<string, unknown>;
+  /**
+   * Filter on the nested `assignments` relation. `undefined` means every
+   * assignment — Prisma treats an undefined relation filter as absent.
+   */
+  assignmentWhere: { cardId: string } | undefined;
+}
+
+/**
+ * Scoped query shape for the CardCategory rows the topic profile is built
+ * from. Pure so the cardId branch is tested like the other two builders'.
+ *
+ * `cardId` is the narrowest scope and SUBSUMES set/category, exactly as in
+ * `buildStudyEventWhere`/`buildQuizAnswerScopeWhere`. It must narrow BOTH
+ * sides: the categories (or a card-scoped request answers with every topic the
+ * learner has) and the assignments inside them (or it answers with whole-topic
+ * knowledge and KLP counts sitting beside card-scoped tags — numbers from two
+ * different populations presented as one profile).
+ *
+ * The `set: { userId }` guard stays in every branch: CardCategory has no
+ * userId of its own and reaches one only through its set.
+ */
+export function buildCategoryQuery(
+  userId: string,
+  scope: HistoryScope,
+): CategoryQueryShape {
+  if (scope.cardId) {
+    return {
+      where: { set: { userId }, assignments: { some: { cardId: scope.cardId } } },
+      assignmentWhere: { cardId: scope.cardId },
+    };
+  }
+
+  return {
+    where: {
+      set: { userId, ...(scope.setIds.length > 0 ? { id: { in: scope.setIds } } : {}) },
+      ...(scope.categoryKeys.length > 0 ? { normalizedName: { in: scope.categoryKeys } } : {}),
+    },
+    assignmentWhere: undefined,
+  };
+}
+
 /**
  * Narrow an already-scoped QuizAnswer `where` to the answers that may carry
  * EXPRESSION evidence: analyzed short-answer rows only. This is readiness's

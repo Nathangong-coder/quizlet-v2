@@ -11,6 +11,7 @@ import { eventRecalled, type StudySource } from '@/lib/memory/scoring'
 import { paceOutliers as computePaceOutliers } from '@/lib/metrics/pace'
 import {
   buildStudyEventWhere, buildQuizAnswerScopeWhere, buildExpressionAnswerWhere,
+  buildCategoryQuery,
 } from '@/lib/memory/scope'
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories'
 import type { BandTable } from '@/lib/errors/bands'
@@ -199,19 +200,19 @@ async function loadAnalyzedAnswerCounts(
 }
 
 /**
- * Query only — the shape mapping is `toTopicRows`, which is tested. Only LIVE
- * KLPs are selected: a superseded KLP belongs to an older version of the card
- * and its evidence should not count toward current knowledge.
+ * Query only — the shape mapping is `toTopicRows` and the scope shaping is
+ * `buildCategoryQuery`, both tested. Only LIVE KLPs are selected: a superseded
+ * KLP belongs to an older version of the card and its evidence should not
+ * count toward current knowledge.
  */
 async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: HistoryScope) {
+  const { where, assignmentWhere } = buildCategoryQuery(userId, scope)
   return prisma.cardCategory.findMany({
-    where: {
-      set: { userId, ...(scope.setIds.length > 0 ? { id: { in: scope.setIds } } : {}) },
-      ...(scope.categoryKeys.length > 0 ? { normalizedName: { in: scope.categoryKeys } } : {}),
-    },
+    where,
     select: {
       normalizedName: true, name: true, color: true,
       assignments: {
+        where: assignmentWhere,
         select: {
           card: {
             select: { id: true, klps: { where: { supersededAt: null }, select: { id: true } } },

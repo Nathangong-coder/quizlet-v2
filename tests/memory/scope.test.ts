@@ -5,6 +5,7 @@ import {
   buildStudyEventWhere,
   buildQuizAnswerScopeWhere,
   buildExpressionAnswerWhere,
+  buildCategoryQuery,
   serializeScope,
   parseScope,
   isConsolidated,
@@ -273,6 +274,52 @@ describe("buildQuizAnswerScopeWhere", () => {
     expect(where).toEqual({
       userId,
       card: { categoryAssignments: { some: { categoryId: { in: [] } } } },
+    });
+  });
+});
+
+describe("buildCategoryQuery", () => {
+  const userId = "u1";
+
+  it("scopes to the user's sets with no other scope", () => {
+    expect(buildCategoryQuery(userId, EMPTY_SCOPE)).toEqual({
+      where: { set: { userId } },
+      assignmentWhere: undefined,
+    });
+  });
+
+  it("honours set and category scope", () => {
+    expect(
+      buildCategoryQuery(userId, { ...EMPTY_SCOPE, setIds: ["s1"], categoryKeys: ["valuation"] }),
+    ).toEqual({
+      where: { set: { userId, id: { in: ["s1"] } }, normalizedName: { in: ["valuation"] } },
+      assignmentWhere: undefined,
+    });
+  });
+
+  it("narrows the ASSIGNMENTS to the scoped card", () => {
+    // Without this, a card-scoped request returned whole-topic knowledge and
+    // KLP counts beside card-scoped tags — two different populations presented
+    // as one profile.
+    const q = buildCategoryQuery(userId, { ...EMPTY_SCOPE, cardId: "card9" });
+    expect(q.assignmentWhere).toEqual({ cardId: "card9" });
+  });
+
+  it("narrows the CATEGORIES to those the scoped card carries", () => {
+    const q = buildCategoryQuery(userId, { ...EMPTY_SCOPE, cardId: "card9" });
+    expect(q.where).toEqual({
+      set: { userId },
+      assignments: { some: { cardId: "card9" } },
+    });
+  });
+
+  it("lets cardId subsume set and category scope, as the other builders do", () => {
+    const q = buildCategoryQuery(userId, {
+      setIds: ["s1"], categoryKeys: ["valuation"], cardId: "card9",
+    });
+    expect(q.where).toEqual({
+      set: { userId },
+      assignments: { some: { cardId: "card9" } },
     });
   });
 });
