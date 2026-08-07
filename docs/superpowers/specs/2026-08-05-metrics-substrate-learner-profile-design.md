@@ -468,3 +468,55 @@ confidence signal to enter without a rewrite.
 and merge, synonym aliases ("EV" = "Enterprise Value"), and per-topic metadata.
 Deferred safely because the topic key is the same string either way, making the
 upgrade additive rather than a migration of meaning.
+
+---
+
+## 14. Known follow-ups after implementation (2026-08-06)
+
+Recorded from the implementation's final review so they survive outside a
+scratch ledger. None blocks merge; the first two gate on Spec 3C.
+
+**The prompt block is inert until a caller supplies topics.** All three callers
+of `profileToPromptBlock` hardcode `topics: []`, and `getLearnerMetrics` — the
+only function that produces them — has no callers. §9 is built but not wired.
+Do not describe the extended prompt block as shipped until 3C connects it.
+
+**The topic section is the first thing the character cap discards.** The card
+section is concatenated first and has no per-bucket limit, so an active
+learner's weak/strong/starred lines can exhaust the budget alone and silently
+drop the entire topic signal while still looking well-formed. Give topics a
+reserved budget, or render them first.
+
+**§9 is only partly delivered.** Shipped: topic name, knowledge %, verbosity
+clause. Still missing: weak KLP texts, active misconception labels, and pace
+outliers.
+
+**Unbounded reads.** `answerErrorTag` and `studyEvent` in `read.ts` have no
+`take` or date floor, unlike `buildLearnerProfile`'s `RECENT_EVENTS_FETCH_CAP`.
+Fine at current volume; bound them before 3C renders this.
+
+**A `no_klps` answer can enter the readiness numerator but not its
+denominator** — it may carry whole-answer expression tags while being excluded
+from the `analysisStatus: 'analyzed'` count. The direction is conservative and
+readiness clamps at 0, but the asymmetry is now reachable.
+
+**Two definitions of "correct" for short answer cross a boundary.**
+`recordStudyEvent` writes `StudyEvent.correct` from `overall >= 8`, while
+`eventRecalled` uses `score >= 50`. An answer scoring 60 is "incorrect" in the
+card profile's mode accuracy and "correct" for pace outliers. Intentional, but
+undocumented at the call site.
+
+**Per-dimension cap tests do not discriminate derived severity from raw
+magnitude.** In both fixtures the dropped tag also has the lowest magnitude, so
+the "caps by derived severity" claim is weakly covered. Closing case:
+`redundancy` at magnitude 10 resolves to severity 2, `kitchen_sink` at
+magnitude 1 resolves to 4.
+
+**Smaller items.** `session-shape.ts` has no production consumer.
+`knowledgeGapTerseness` and `readiness` are computed but rendered nowhere.
+Topic colour selection takes the first non-null colour while
+`groupCategoriesByName` takes the most common with a palette tiebreak, so one
+topic can render two colours across views. `profile.ts`'s `isMiss` still
+inlines its own 0.5 threshold rather than calling `eventRecalled`.
+`buildExpressionAnswerWhere` assigns `AND` rather than merging — harmless
+today, brittle if a base filter ever emits one.
