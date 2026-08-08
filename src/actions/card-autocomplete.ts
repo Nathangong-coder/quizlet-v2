@@ -17,8 +17,15 @@ export async function getCardAutocompleteSuggestions(
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
-    const set = await prisma.set.findUnique({
-      where: { id: setId },
+    // Owner-scoped, NOT readable-scoped, and previously unscoped entirely.
+    //
+    // This is an authoring aid: its output is only useful while editing, and
+    // editing is owner-only. Granting it to readers of a link-shared set would
+    // let anyone with a link spend their own AI budget having a model
+    // paraphrase someone else's cards, for no legitimate purpose. So unlike
+    // every other set read in this codebase, visibility does NOT widen it.
+    const set = await prisma.set.findFirst({
+      where: { id: setId, userId: session.user.id },
       include: { cards: true },
     });
     if (!set) return { success: false, error: 'Set not found' };
