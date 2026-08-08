@@ -105,12 +105,28 @@ export function buildAnalysisWrites(input: {
     typeof ref === 'number' ? input.klps[ref] ?? null : null
 
   const klpResults: AnalysisWrites['klpResults'] = []
+  // AnswerKlpResult is unique on (quizAnswerId, klpId), and nothing stops the
+  // grader naming the same point twice — the schema permits a repeated
+  // `klpRef`. Undeduped, `createMany` violated the constraint and rolled back
+  // the ENTIRE transaction, so a successfully graded answer was discarded
+  // behind "Failed to submit answer".
+  //
+  // Keyed on the RESOLVED klpId, not the ref: two different refs can point at
+  // the same KLP, and the constraint is on the id. The FIRST occurrence wins
+  // — merging two contradictory statuses would invent a judgment the grader
+  // never made, which is the same fabrication the unresolved-ref path refuses.
+  const seenKlpIds = new Set<string>()
   for (const r of input.klpResults) {
     const klp = resolve(r.klpRef)
     if (!klp) {
       warnings.push({ reason: 'unresolved_klp_ref', value: String(r.klpRef) })
       continue
     }
+    if (seenKlpIds.has(klp.id)) {
+      warnings.push({ reason: 'duplicate_klp_ref', value: String(r.klpRef) })
+      continue
+    }
+    seenKlpIds.add(klp.id)
     klpResults.push({
       klpId: klp.id,
       status: r.status,

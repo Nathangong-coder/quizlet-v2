@@ -39,7 +39,7 @@ import {
   type KlpResultDraft,
 } from '@/lib/analysis/persist';
 import { toStudySource } from '@/lib/quiz/mode';
-import { persistKlpStates, rebuildKlpStates } from '@/lib/metrics/state-writer';
+import { persistKlpStates, rebuildKlpStates, lockKlpStates } from '@/lib/metrics/state-writer';
 import type { StudySource } from '@/lib/memory/scoring';
 import { MC_TF_MAGNITUDE } from '@/lib/errors/bands';
 
@@ -831,6 +831,16 @@ async function createAnswerWithAnalysis(
       });
     }
 
+    // Before ANY posterior read. The step below is read-modify-write with an
+    // absolute write, so without this two answers touching one KLP both read
+    // the same pre-state and the second drops the first's observation — a
+    // permanent loss, since the posterior cannot be stepped backward.
+    // Covers the rebuild too: it writes the same rows.
+    await lockKlpStates(tx, answerData.userId, [
+      ...writes.klpResults.map((r) => r.klpId),
+      ...supersededKlpIds,
+    ]);
+
     // `answer.createdAt` (not `new Date()`) so the posterior's clock is the
     // same one `AnswerKlpResult.createdAt` replays from — a backfill and the
     // live writer must converge on the same number.
@@ -864,8 +874,22 @@ async function createAnswerWithAnalysis(
     await rebuildKlpStates(tx, answerData.userId, supersededKlpIds);
 
     return answer;
-  });
+  }, ANALYSIS_TX_OPTIONS);
 }
+
+/**
+ * Prisma's interactive-transaction defaults are 2s to acquire and 5s to run.
+ * This transaction performs several SERIALIZED round-trips per KLP — an
+ * advisory lock, a read, and a write each — so a five-KLP card on a slow
+ * connection can exceed 5s, and a `P2028` timeout here does not degrade: it
+ * throws away a graded answer the learner already paid for and shows "Failed
+ * to submit answer". The lock also means a second writer on the same KLP now
+ * WAITS, which the 2s acquire default was never sized for.
+ *
+ * Generous rather than tight on purpose: the cost of an over-long timeout is a
+ * slow request, the cost of a short one is lost work.
+ */
+const ANALYSIS_TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
 
 /**
  * Records a placeholder answer when short-answer grading itself failed to

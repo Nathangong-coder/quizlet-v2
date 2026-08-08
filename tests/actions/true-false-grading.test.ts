@@ -5,6 +5,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // tests/actions/true-false.test.ts and tests/actions/quiz-options.test.ts.
 const h = vi.hoisted(() => ({
   auth: vi.fn(),
+  // The advisory lock taken before any posterior read (B9).
+  txQueryRaw: vi.fn(),
   generateJson: vi.fn(),
   recordStudyEvent: vi.fn(),
   ensureKlpsReady: vi.fn(),
@@ -117,6 +119,9 @@ beforeEach(() => {
         createMany: h.klpResultCreateMany,
         findMany: h.txKlpResultFindMany,
       },
+      // The advisory lock createAnswerWithAnalysis takes before touching any
+      // posterior (B9). Registered here so the transaction still runs.
+      $queryRaw: h.txQueryRaw,
       answerErrorTag: { createMany: h.errorTagCreateMany },
       klpState: {
         findUnique: h.klpStateFindUnique,

@@ -124,6 +124,8 @@ function makeStore() {
   let atCommit: StateRow | undefined
   let insideTx = false
   const deletedInsideTx: boolean[] = []
+  /** Ordered log of lock/read operations against the posterior. */
+  const trace: string[] = []
 
   /**
    * Prisma's interactive-transaction client is dead once the callback resolves
@@ -212,9 +214,18 @@ function makeStore() {
         return { count: 0 }
       },
     },
+    // The advisory lock (B9). Records the ORDER of operations so a test can
+    // assert the lock precedes every posterior read — a lock taken after the
+    // read serializes nothing.
+    $queryRaw: async (_strings: TemplateStringsArray, ...values: unknown[]) => {
+      await query()
+      trace.push(`lock:${String(values[0])}`)
+      return []
+    },
     klpState: {
       findUnique: async ({ where }: any) => {
         await query()
+        trace.push('read')
         const { userId, klpId } = where.userId_klpId
         const s = states.get(klpId)
         return s ? { userId, klpId, ...s } : null
@@ -243,6 +254,7 @@ function makeStore() {
     answers: () => answers,
     results: () => results,
     deletedInsideTx,
+    trace,
     commitSnapshot: () => atCommit,
     setClock: (d: Date) => {
       clock = d
@@ -352,5 +364,38 @@ describe('re-submit rebuilds rather than accumulating (B2)', () => {
 
     expect(store.results()).toHaveLength(0)
     expect(store.states.has(KLP)).toBe(false)
+  })
+})
+
+describe('the posterior write is serialized against concurrent writers (B9)', () => {
+  it('takes the row lock before reading the posterior, not after', async () => {
+    // The write is read-modify-write with an ABSOLUTE update under READ
+    // COMMITTED. Two answers touching one KLP in flight both read the same
+    // pre-state and the second silently drops the first's observation — and
+    // because the posterior cannot be stepped backward, that loss is permanent
+    // until a backfill replays it. A lock taken after the read serializes
+    // nothing, so the ORDER is the property under test.
+    await submit('failed', FIRST_AT)
+
+    const firstLock = store.trace.indexOf('lock:klpstate:user-owner:klp-a')
+    const firstRead = store.trace.indexOf('read')
+    expect(firstLock).toBeGreaterThanOrEqual(0)
+    expect(firstRead).toBeGreaterThanOrEqual(0)
+    expect(firstLock).toBeLessThan(firstRead)
+  })
+
+  it('locks the KLPs a re-submit will replay, not only the ones it writes', async () => {
+    // The rebuild writes the same rows the step does. Locking only the new
+    // answer's KLPs would leave the replay racing anything else touching a KLP
+    // whose evidence was just cascaded away.
+    await submit('failed', FIRST_AT)
+    store.trace.length = 0
+
+    store.setClock(SECOND_AT)
+    h.generateJson.mockResolvedValue({ ...gradeShape, klpResults: [], errorTags: [] })
+    await submitShortAnswer({ attemptId: ATTEMPT_ID, cardId: CARD_ID, answer: 'text' })
+
+    // No klpResults this time, so the only lock can come from the superseded set.
+    expect(store.trace).toContain('lock:klpstate:user-owner:klp-a')
   })
 })

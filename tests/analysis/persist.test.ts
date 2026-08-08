@@ -226,3 +226,78 @@ describe('magnitude persistence (Spec 3)', () => {
     expect(kept.map((t) => t.type)).not.toContain('redundancy')
   })
 })
+
+describe('duplicate KLP references must not destroy the answer (B10)', () => {
+  it('keeps one result per KLP when the grader names the same point twice', () => {
+    // ShortAnswerGradeSchema permits a repeated klpRef — nothing in the schema
+    // or the prompt forbids it. Without deduping, `createMany` violates the
+    // (quizAnswerId, klpId) unique constraint, the whole transaction rolls
+    // back, and a paid-for grading is discarded behind "Failed to submit
+    // answer". The learner loses the answer to a grader quirk.
+    const result = buildAnalysisWrites({
+      mode: 'quiz-sa',
+      klps: [{ id: 'klp1', weight: 5 }],
+      starred: false,
+      klpResults: [
+        { klpRef: 0, status: 'partial' },
+        { klpRef: 0, status: 'passed' },
+      ],
+      errorTags: [],
+    })
+
+    expect(result.klpResults).toHaveLength(1)
+    expect(result.warnings.map((w) => w.reason)).toContain('duplicate_klp_ref')
+  })
+
+  it('keeps the FIRST judgment, rather than merging two contradictory ones', () => {
+    // Merging would invent a verdict the grader never gave. Dropping the later
+    // one is the only option that persists something the model actually said.
+    const result = buildAnalysisWrites({
+      mode: 'quiz-sa',
+      klps: [{ id: 'klp1', weight: 5 }],
+      starred: false,
+      klpResults: [
+        { klpRef: 0, status: 'failed' },
+        { klpRef: 0, status: 'passed' },
+      ],
+      errorTags: [],
+    })
+
+    expect(result.klpResults[0].status).toBe('failed')
+    expect(result.klpResults[0].credit).toBe(0)
+  })
+
+  it('does not confuse two DIFFERENT refs that both resolve', () => {
+    const result = buildAnalysisWrites({
+      mode: 'quiz-sa',
+      klps: [{ id: 'klp1', weight: 5 }, { id: 'klp2', weight: 3 }],
+      starred: false,
+      klpResults: [
+        { klpRef: 0, status: 'passed' },
+        { klpRef: 1, status: 'failed' },
+      ],
+      errorTags: [],
+    })
+
+    expect(result.klpResults.map((r) => r.klpId)).toEqual(['klp1', 'klp2'])
+    expect(result.warnings.map((w) => w.reason)).not.toContain('duplicate_klp_ref')
+  })
+
+  it('dedupes on the resolved KLP id, not the raw ref', () => {
+    // Two distinct refs can resolve to the same KLP if the caller's `klps`
+    // array repeats one — the constraint is on klpId, so that is what must be
+    // deduped. Deduping on `klpRef` alone would still hit the constraint.
+    const result = buildAnalysisWrites({
+      mode: 'quiz-sa',
+      klps: [{ id: 'klp1', weight: 5 }, { id: 'klp1', weight: 5 }],
+      starred: false,
+      klpResults: [
+        { klpRef: 0, status: 'passed' },
+        { klpRef: 1, status: 'failed' },
+      ],
+      errorTags: [],
+    })
+
+    expect(result.klpResults).toHaveLength(1)
+  })
+})

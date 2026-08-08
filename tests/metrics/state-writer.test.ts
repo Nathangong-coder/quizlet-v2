@@ -67,18 +67,23 @@ describe('persistKlpStates', () => {
     expect(store.rows.get('klp1')!.lastObservedAt.getTime()).toBe(at(2).getTime())
   })
 
-  it('composes two results naming the same KLP in one answer', async () => {
-    // Sequential, not concurrent: a parallel read-then-write would have both
-    // observations read the same pre-state and one would be lost.
+  it('steps sequentially, each observation reading what the last one wrote', async () => {
+    // Formerly "composes two results naming the same KLP in one answer" —
+    // asserting behaviour that cannot occur: AnswerKlpResult is unique on
+    // (quizAnswerId, klpId), and `buildAnalysisWrites` now dedupes, so one
+    // answer never yields two results for one KLP. Two DISTINCT KLPs is the
+    // real shape, and the property that matters is still that the loop is
+    // sequential — a parallel read-then-write would lose a state.
     const store = fakeStore()
     await persistKlpStates({
       userId: 'u1',
-      results: [res(), res()],
+      results: [res({ klpId: 'klp1' }), res({ klpId: 'klp2' })],
       observedAt: NOW,
       load: store.load,
       save: store.save,
     })
-    expect(store.rows.get('klp1')!.observations).toBe(2)
+    expect(store.rows.get('klp1')!.observations).toBe(1)
+    expect(store.rows.get('klp2')!.observations).toBe(1)
   })
 
   it('converges with the backfill replay over the same evidence', async () => {

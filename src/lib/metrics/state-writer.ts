@@ -20,11 +20,16 @@ export interface KlpObservationWrite {
  * knowledge read null forever and `computeArticulation` booked every
  * `too_terse` as a knowledge gap.
  *
- * SEQUENTIAL, deliberately. Two results naming the same KLP in one answer must
- * compose into two observations; running them concurrently would have both
- * read the same pre-state and the second write would discard the first.
+ * SEQUENTIAL, deliberately: each step reads the state the previous one wrote.
  * Callers pass closures bound to their transaction, so the states and the
  * `AnswerKlpResult` rows behind them commit together.
+ *
+ * The results within ONE answer are distinct by KLP — `buildAnalysisWrites`
+ * dedupes them, as it must, since `AnswerKlpResult` is unique on
+ * `(quizAnswerId, klpId)`. (An earlier version of this comment claimed two
+ * results naming the same KLP compose into two observations; the constraint
+ * makes that unreachable.) The real lost-update risk is ACROSS answers, and it
+ * is handled by the caller's row lock — see `lockKlpStates`.
  */
 export async function persistKlpStates(input: {
   userId: string
@@ -42,6 +47,41 @@ export async function persistKlpStates(input: {
       createdAt: input.observedAt,
     })
     await input.save(next)
+  }
+}
+
+/**
+ * Serialize every writer touching these (user, KLP) posteriors, for the rest
+ * of the calling transaction.
+ *
+ * The posterior write is read-modify-write — `findUnique`, step, `upsert` with
+ * an ABSOLUTE value — under Postgres's default READ COMMITTED. Two answers
+ * touching one KLP in flight (a quiz fans one generation out per card, and a
+ * fast learner submits the next card while the previous grading is still
+ * committing) both read the same pre-state, and the second write silently
+ * discards the first's observation. Because the posterior is incremental and
+ * not self-correcting, that loss is permanent until a backfill replays it.
+ *
+ * An ADVISORY lock rather than `SELECT ... FOR UPDATE`: the row usually does
+ * not exist yet on the write that matters most — the first observation of a
+ * KLP — and `FOR UPDATE` locks nothing when it matches nothing, so two
+ * concurrent first-writes would both proceed from a null pre-state. An
+ * `xact` advisory lock is keyed on a value, not a row, so it works
+ * identically whether or not the row exists, and Postgres releases it at
+ * commit or rollback with no cleanup path to get wrong.
+ *
+ * Ids are SORTED before locking. Two transactions taking the same locks in
+ * opposite orders deadlock; a total order over the keys removes that by
+ * construction.
+ */
+export async function lockKlpStates(
+  tx: KlpRebuildTx,
+  userId: string,
+  klpIds: string[],
+): Promise<void> {
+  const keys = [...new Set(klpIds)].sort()
+  for (const klpId of keys) {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`klpstate:${userId}:${klpId}`}, 0))`
   }
 }
 
