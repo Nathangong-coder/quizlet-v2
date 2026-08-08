@@ -30,9 +30,18 @@ async function main() {
     _count: { _all: true },
   })
 
+  // The knowledge posterior. Reported next to the evidence it is derived from
+  // because the two must move together: `KlpState` is maintained incrementally
+  // and is not self-correcting, so states far below results means the writer
+  // is not running, and states with no results behind them means a reset or a
+  // cascade removed evidence without replaying what remained.
+  const klpStates = await prisma.klpState.count()
+  const observed = await prisma.klpState.aggregate({ _sum: { observations: true } })
+
   console.log(`\nLive KLPs: ${liveKlps}`)
   console.log(`AnswerKlpResult rows: ${klpResults}`)
   console.log(`AnswerErrorTag rows: ${tags}`)
+  console.log(`KlpState rows: ${klpStates} (${observed._sum.observations ?? 0} observations)`)
   console.log('\nQuiz answers by analysisStatus:')
   for (const row of answersByAnalysis) {
     console.log(`  ${row.analysisStatus ?? 'null (legacy)'}: ${row._count._all}`)
