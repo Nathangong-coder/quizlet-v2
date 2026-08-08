@@ -34,6 +34,14 @@ model Set {
   id           String         @id @default(cuid())
   title        String
   description  String?
+  /// Vocabulary: SET_VISIBILITIES in src/lib/sets/visibility.ts (private|link).
+  /// Import that const rather than writing a literal — this is a String
+  /// column, so a typo compiles and never matches.
+  ///
+  /// Defaults to `private`, so the migration makes every EXISTING set private
+  /// too. That is the intent: sets were readable by anyone holding the id, and
+  /// this closes that rather than grandfathering it.
+  visibility   String         @default("private")
   userId       String
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   cards        Card[]
