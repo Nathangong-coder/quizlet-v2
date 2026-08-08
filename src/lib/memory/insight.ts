@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { STUDY_SOURCES } from '@/lib/memory/scoring'
 
 /**
  * Bump when the persisted shape changes incompatibly. Readers parse with the
@@ -31,9 +32,9 @@ export const SessionComputedSchema = z.object({
   ),
   byMode: z.array(
     z.object({
-      // The StudySource values from src/lib/memory/scoring.ts — must stay
-      // in step with that union.
-      mode: z.enum(['review', 'quiz-mc', 'quiz-sa', 'quiz-tf', 'matching', 'lesson']),
+      // Derived from STUDY_SOURCES, never re-listed. A literal copy here made
+      // adding a study mode a runtime parse failure that type-checked clean.
+      mode: z.enum(STUDY_SOURCES),
       correct: z.number(),
       total: z.number(),
       avgScore: z.number().nullable(),
@@ -46,8 +47,8 @@ export const SessionComputedSchema = z.object({
     slowest: TimedItemSchema.nullable(),
     byMode: z.array(
       z.object({
-        // Same StudySource union as byMode above.
-        mode: z.enum(['review', 'quiz-mc', 'quiz-sa', 'quiz-tf', 'matching', 'lesson']),
+        // Same derivation as byMode above.
+        mode: z.enum(STUDY_SOURCES),
         medianLatencyMs: z.number().nullable(),
       }),
     ),

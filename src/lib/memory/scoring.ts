@@ -7,14 +7,28 @@
  * are trivially unit-testable without touching the database.
  */
 
-/** Every mode that can currently write to study memory. */
-export type StudySource =
-  | 'review'
-  | 'quiz-mc'
-  | 'quiz-sa'
-  | 'quiz-tf'
-  | 'matching'
-  | 'lesson'
+/**
+ * Every mode that can currently write to study memory.
+ *
+ * A single `as const` with the type DERIVED from it, following `AI_TASKS`
+ * (`src/lib/ai/model-routing.ts`). These strings are persisted in
+ * `StudyEvent.source`, `AnswerKlpResult.mode` and `AnswerErrorTag.mode`, and
+ * they are validated by a Zod schema in `src/lib/memory/insight.ts`. When the
+ * union was declared here but re-listed as a literal `z.enum([...])` there,
+ * adding a mode type-checked everywhere and then failed at RUNTIME on
+ * `SessionInsight` parsing — a shape the type system had already accepted.
+ * Import this const rather than re-listing these anywhere.
+ */
+export const STUDY_SOURCES = [
+  'review',
+  'quiz-mc',
+  'quiz-sa',
+  'quiz-tf',
+  'matching',
+  'lesson',
+] as const
+
+export type StudySource = (typeof STUDY_SOURCES)[number]
 
 /**
  * The result of a single study interaction.
