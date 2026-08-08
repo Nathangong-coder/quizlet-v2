@@ -284,16 +284,26 @@ describe('extractKlpsForCards', () => {
     )
   })
 
-  it("scopes the card load by owner, so a foreign card id extracts nothing", async () => {
-    // The owner-scoped findMany returns nothing for a card belonging to
-    // someone else, so no generation and no CardKlp write happens.
+  it('scopes the card load by READABILITY, so an unreadable card id extracts nothing', async () => {
+    // Widened from owner-scoped to readable-scoped when set visibility landed:
+    // a viewer studying a link-shared set must be able to fill a KLP gap, or
+    // their quiz records every answer as `no_klps` and pollutes their OWN
+    // learner profile. The write is still constrained — `ensureKlpsReady`
+    // refuses to supersede a card the caller does not own, and a viewer's
+    // failure never marks the owner's card (tests/actions/klp-gap-fill.test.ts).
+    //
+    // A card on a set that is neither owned nor shared still returns nothing,
+    // which is what this asserts.
     h.findMany.mockResolvedValue([])
 
     await extractKlpsForCards('u1', ['card-not-mine'])
 
     expect(h.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: { in: ['card-not-mine'] }, set: { userId: 'u1' } },
+        where: {
+          id: { in: ['card-not-mine'] },
+          set: { OR: [{ userId: 'u1' }, { visibility: 'link' }] },
+        },
       }),
     )
     expect(h.generateJson).not.toHaveBeenCalled()
@@ -359,6 +369,10 @@ describe('ensureKlpsReady', () => {
       definition: DEFINITION,
       klpStatus: 'ready',
       klpSourceHash: currentHash,
+      // `ensureKlpsReady` selects the owning user so it can tell an owner from
+      // a viewer of a link-shared set — owners may re-extract a stale card,
+      // viewers may only fill a gap. These fixtures are all the owner's own.
+      set: { userId: OWNER },
       contentBlocks: [],
       ...overrides,
     })

@@ -14,6 +14,7 @@ import {
   type CardKlpStatus,
   type CardKlpFailureStatus,
 } from '@/lib/cards/klp-status';
+import { readableSetWhere } from '@/lib/sets/visibility';
 import type { ActionResult } from '@/types/action';
 
 /**
@@ -50,20 +51,38 @@ export interface ReadyKlp {
  * exception would surface as an unhandled rejection long after the user's
  * response went out. Every failure is recorded on the card instead.
  */
-export async function extractKlpsForCards(userId: string, cardIds: string[]): Promise<void> {
+export async function extractKlpsForCards(
+  userId: string,
+  cardIds: string[],
+  /**
+   * False when a VIEWER triggered this on a link-shared set they do not own.
+   *
+   * A viewer's failure must never write `klpStatus: 'failed' | 'skipped'` or
+   * `klpError` onto a stranger's card: a viewer with no AI credential would
+   * otherwise stamp 'skipped' on the owner's card and suppress the owner's own
+   * retry UI, from an account the owner cannot see or control.
+   *
+   * Defaults true so the `after()` save path and `retryKlpExtraction` — both
+   * of which only ever run for the owner — are unchanged.
+   */
+  isOwner: boolean = true,
+): Promise<void> {
   if (cardIds.length === 0) return;
 
   let cards: BatchCard[];
   try {
+    // Readable-scoped to match `ensureKlpsReady`'s lookup. The gap-fill rule
+    // lives there, at the decision point; this query only has to agree about
+    // which cards are reachable at all.
     cards = await prisma.card.findMany({
-      where: { id: { in: cardIds }, set: { userId } },
+      where: { id: { in: cardIds }, set: readableSetWhere(userId) },
       include: { contentBlocks: true, set: { select: { title: true } } },
     });
   } catch (err) {
     // Can't even load the cards (e.g. DB unreachable) — nothing to batch, but
     // still must not throw. Best-effort mark the requested ids failed, owner-
     // scoped: `cardIds` is caller-supplied and unverified on this path.
-    await markFailed(cardIds, err, 'failed', userId);
+    if (isOwner) await markFailed(cardIds, err, 'failed', userId);
     return;
   }
 
@@ -77,7 +96,8 @@ export async function extractKlpsForCards(userId: string, cardIds: string[]): Pr
       await extractOneBatch(userId, batch, succeeded);
     } catch (err) {
       const failedIds = batch.map((c) => c.id).filter((id) => !succeeded.includes(id));
-      if (failedIds.length > 0) {
+      // Owner only — see the `isOwner` parameter doc.
+      if (failedIds.length > 0 && isOwner) {
         await markFailed(failedIds, err, isNoUsableCredential(err) ? 'skipped' : 'failed');
       }
     }
@@ -273,12 +293,15 @@ async function writeKlpVersion(
  */
 const inFlightExtractions = new Map<string, Promise<void>>();
 
-function extractOnce(userId: string, cardId: string): Promise<void> {
+function extractOnce(userId: string, cardId: string, isOwner: boolean): Promise<void> {
+  // `isOwner` is NOT part of the key: it is a property of (userId, cardId), so
+  // two concurrent calls for the same pair always agree on it. Including it
+  // would be dead precision that reads as if it could vary.
   const key = `${userId}:${cardId}`;
   const pending = inFlightExtractions.get(key);
   if (pending) return pending;
 
-  const promise = extractKlpsForCards(userId, [cardId]).finally(() => {
+  const promise = extractKlpsForCards(userId, [cardId], isOwner).finally(() => {
     inFlightExtractions.delete(key);
   });
   inFlightExtractions.set(key, promise);
@@ -307,16 +330,20 @@ export async function ensureKlpsReady(userId: string, cardId: string): Promise<R
 
   const existing = await live();
 
-  // Owner-scoped: this decides whether to run an AI call and a write on the
-  // card, so it must not act on a card the caller does not own.
+  // READABLE-scoped, not owner-scoped. A viewer studying a link-shared set
+  // needs its KLPs, or True/False falls back, MC distractors degrade, and
+  // every answer records `no_klps` — polluting the VIEWER'S OWN learner
+  // profile with analysis that could not run. `set.userId` comes back so the
+  // gap-fill rule below can tell an owner from a viewer.
   const card = await prisma.card.findFirst({
-    where: { id: cardId, set: { userId } },
+    where: { id: cardId, set: readableSetWhere(userId) },
     select: {
       id: true,
       term: true,
       definition: true,
       klpStatus: true,
       klpSourceHash: true,
+      set: { select: { userId: true } },
       contentBlocks: {
         select: { side: true, type: true, text: true, assetId: true, position: true },
       },
@@ -324,16 +351,29 @@ export async function ensureKlpsReady(userId: string, cardId: string): Promise<R
   });
   if (!card) return [];
 
-  // Same pure predicate the save path uses — one definition of "stale".
-  const isStale = selectStaleCardIds([card]).length > 0;
-  if (existing.length > 0 && !isStale) return existing;
+  const isOwner = card.set.userId === userId;
 
-  // 'skipped' means the user has no key. Retrying per question would fire one
-  // doomed call per card in the quiz. Serve whatever exists (possibly stale —
-  // there is no way to refresh it) rather than nothing.
+  // Same pure predicate the save path uses — one definition of "stale".
+  // Staleness is an OWNER-only trigger: re-extracting supersedes live rows,
+  // which is the one thing a viewer must never do.
+  const isStale = selectStaleCardIds([card]).length > 0;
+  if (existing.length > 0 && !(isOwner && isStale)) return existing;
+
+  // GAP-FILL ONLY for a viewer. Extraction supersedes live CardKlp rows and
+  // mutates the card, so widening the read without this would let anyone
+  // holding a link replace the propositions the OWNER's error analysis rests
+  // on, using whatever model their credential points at. A viewer may fill a
+  // hole; only the owner may overwrite. Redundant with the staleness guard
+  // above today, and kept anyway: it states the rule directly rather than
+  // leaving it as a consequence of how `isStale` happens to be composed.
+  if (!isOwner && existing.length > 0) return existing;
+
+  // 'skipped' means no usable key. Retrying per question would fire one doomed
+  // call per card in the quiz. Serve whatever exists (possibly stale — there
+  // is no way to refresh it) rather than nothing.
   if (card.klpStatus === 'skipped') return existing;
 
-  await extractOnce(userId, cardId);
+  await extractOnce(userId, cardId, isOwner);
   return live();
 }
 
