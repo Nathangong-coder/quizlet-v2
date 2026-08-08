@@ -165,10 +165,12 @@ describe('re-submission must not double-count (B2)', () => {
    *   real planner is free to do. Storage order here is NOT chronological.
    */
   function fakeTx(rows: Row[]) {
-    // Both take a typed `args` so assertions can read `mock.calls[0][0]`
-    // directly; a zero-arg `vi.fn()` types its calls as `[]`.
-    const upsert = vi.fn(async (_args: any) => ({}))
-    const deleteMany = vi.fn(async (_args: any) => ({ count: 1 }))
+    // Both declare their `args` so assertions can read `mock.calls[0][0]`
+    // directly; a zero-arg `vi.fn()` types its calls as `[]`, which has no
+    // element at index 0.
+    type Args = Record<string, Record<string, unknown>>
+    const upsert = vi.fn(async (args: Args) => ({ args }))
+    const deleteMany = vi.fn(async (args: Args) => ({ args, count: 1 }))
     const findMany = vi.fn(async (args: any) => {
       const wanted: string[] = args.where.klpId.in
       const owner: string | undefined = args.where.quizAnswer?.userId
