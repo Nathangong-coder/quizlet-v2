@@ -5,6 +5,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // tests/actions/true-false.test.ts and tests/actions/quiz-options.test.ts.
 const h = vi.hoisted(() => ({
   auth: vi.fn(),
+  // The advisory lock taken before any posterior read (B9).
+  txQueryRaw: vi.fn(),
   generateJson: vi.fn(),
   recordStudyEvent: vi.fn(),
   ensureKlpsReady: vi.fn(),
@@ -22,6 +24,12 @@ const h = vi.hoisted(() => ({
   errorTagCreateMany: vi.fn(),
   klpStateFindUnique: vi.fn(),
   klpStateUpsert: vi.fn(),
+  // B2: the belt-and-braces replacement delete moved inside the write
+  // transaction, and now replays the posterior for any KLP its cascade
+  // removed. Both reads default to empty — nothing here submits twice.
+  txPriorFindMany: vi.fn(),
+  txKlpResultFindMany: vi.fn(),
+  klpStateDeleteMany: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -97,12 +105,29 @@ beforeEach(() => {
   h.errorTagCreateMany.mockResolvedValue({ count: 0 })
   h.klpStateFindUnique.mockResolvedValue(null)
   h.klpStateUpsert.mockResolvedValue({})
+  h.txPriorFindMany.mockResolvedValue([])
+  h.txKlpResultFindMany.mockResolvedValue([])
+  h.klpStateDeleteMany.mockResolvedValue({ count: 0 })
   h.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
-      quizAnswer: { create: h.answerCreate },
-      answerKlpResult: { createMany: h.klpResultCreateMany },
+      quizAnswer: {
+        create: h.answerCreate,
+        findMany: h.txPriorFindMany,
+        deleteMany: h.answerDeleteMany,
+      },
+      answerKlpResult: {
+        createMany: h.klpResultCreateMany,
+        findMany: h.txKlpResultFindMany,
+      },
+      // The advisory lock createAnswerWithAnalysis takes before touching any
+      // posterior (B9). Registered here so the transaction still runs.
+      $queryRaw: h.txQueryRaw,
       answerErrorTag: { createMany: h.errorTagCreateMany },
-      klpState: { findUnique: h.klpStateFindUnique, upsert: h.klpStateUpsert },
+      klpState: {
+        findUnique: h.klpStateFindUnique,
+        upsert: h.klpStateUpsert,
+        deleteMany: h.klpStateDeleteMany,
+      },
     }),
   )
 })

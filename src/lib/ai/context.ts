@@ -16,6 +16,7 @@
 
 import { buildLearnerProfile, type LearnerCardProfile, type Trend } from '@/lib/memory/profile'
 import type { LearnerProfile, LearnerTopicProfile } from '@/lib/memory/topic-profile'
+import { EMPTY_SCOPE } from '@/lib/memory/scope'
 
 const MODE_LABELS: Partial<Record<string, string>> = {
   'quiz-mc': 'MC',
@@ -144,7 +145,10 @@ export async function safeProfileBlock(
   label: string,
 ): Promise<string | undefined> {
   try {
-    const cards = await buildLearnerProfile({ userId, setIds: [setId] })
+    const cards = await buildLearnerProfile({
+      userId,
+      scope: { ...EMPTY_SCOPE, setIds: [setId] },
+    })
     // Topic-grain data isn't wired into this call site yet (Spec 3 read API
     // lives in lib/metrics/read.ts, not here) — an empty topics array keeps
     // this producing the exact same block as before Task 17.

@@ -10,6 +10,7 @@ const row = (o: Partial<TopicRow> & { normalizedName: string }): TopicRow => ({
   displayName: 'Valuation',
   color: '#3b82f6',
   klpIds: ['klp1'],
+  supersededKlpIds: [],
   cardIds: ['card1'],
   ...o,
 })
@@ -192,6 +193,9 @@ describe('whole-answer tags reach readiness', () => {
   })
 })
 
+const live = (id: string) => ({ id, supersededAt: null })
+const retired = (id: string) => ({ id, supersededAt: new Date('2026-07-01T00:00:00.000Z') })
+
 describe('toTopicRows', () => {
   it('flattens joined assignments into a de-duplicable KLP id list', () => {
     const rows = toTopicRows([
@@ -200,13 +204,30 @@ describe('toTopicRows', () => {
         name: 'Valuation',
         color: '#3b82f6',
         assignments: [
-          { card: { id: 'c1', klps: [{ id: 'k1' }, { id: 'k2' }] } },
-          { card: { id: 'c2', klps: [{ id: 'k3' }] } },
+          { card: { id: 'c1', klps: [live('k1'), live('k2')] } },
+          { card: { id: 'c2', klps: [live('k3')] } },
         ],
       },
     ])
     expect(rows[0].klpIds).toEqual(['k1', 'k2', 'k3'])
     expect(rows[0].displayName).toBe('Valuation')
+  })
+
+  it('splits superseded KLPs out of klpIds without discarding them (B7)', () => {
+    const rows = toTopicRows([
+      {
+        normalizedName: 'valuation',
+        name: 'Valuation',
+        color: null,
+        assignments: [
+          { card: { id: 'c1', klps: [live('k-new'), retired('k-old')] } },
+        ],
+      },
+    ])
+    // Live-only drives knowledge and klpCount; the retired id survives so a
+    // historical tag naming it can still be attributed to this topic.
+    expect(rows[0].klpIds).toEqual(['k-new'])
+    expect(rows[0].supersededKlpIds).toEqual(['k-old'])
   })
 
   it('carries the card ids, which is all a whole-answer tag can be scoped by', () => {
@@ -216,7 +237,7 @@ describe('toTopicRows', () => {
         name: 'Valuation',
         color: null,
         assignments: [
-          { card: { id: 'c1', klps: [{ id: 'k1' }] } },
+          { card: { id: 'c1', klps: [live('k1')] } },
           { card: { id: 'c2', klps: [] } },
         ],
       },
@@ -245,5 +266,52 @@ describe('composite', () => {
     const composite = composeLearnerProfile(cards, [])
     expect(composite.cards).toBe(cards)
     expect(composite.topics).toEqual([])
+  })
+})
+
+describe('readiness keeps tags whose target KLP was superseded (B7)', () => {
+  it('attributes a tag on a retired KLP to the topic that KLP belonged to', () => {
+    // The numerator filtered KLP-targeted tags through the topic's LIVE KLP
+    // set, but a historical tag references the version that was live when the
+    // answer was given. Editing a card supersedes its KLPs, so every past tag
+    // on it silently left the numerator while its answers stayed in the
+    // denominator — readiness jumped toward 1.0 with no change in behaviour.
+    const result = shapeTopicProfile({
+      topics: [row({ normalizedName: 'dcf', klpIds: ['k-new'], supersededKlpIds: ['k-old'] })],
+      knowledge: {},
+      tags: [tag({ klpId: 'k-old', type: 'rambling', dimension: 'conciseness' })],
+      analyzedAnswersByTopic: { dcf: 4 },
+    })
+
+    expect(result[0].readiness).not.toBeNull()
+    expect(result[0].readiness!).toBeLessThan(1)
+  })
+
+  it('still counts only LIVE KLPs toward knowledge and klpCount', () => {
+    // Only tag ATTRIBUTION widens. A superseded KLP belongs to an older
+    // version of the card, so its evidence must not move current knowledge.
+    const result = shapeTopicProfile({
+      topics: [row({ normalizedName: 'dcf', klpIds: ['k-new'], supersededKlpIds: ['k-old'] })],
+      knowledge: {
+        'k-new': { pKnown: 0.9, observations: 5 },
+        'k-old': { pKnown: 0.1, observations: 5 },
+      },
+      tags: [],
+      analyzedAnswersByTopic: { dcf: 4 },
+    })
+
+    expect(result[0].klpCount).toBe(1)
+    expect(result[0].knowledge).toBeCloseTo(0.9, 10)
+  })
+
+  it('does not claim a tag on a KLP belonging to no topic in scope', () => {
+    const result = shapeTopicProfile({
+      topics: [row({ normalizedName: 'dcf', klpIds: ['k-new'], supersededKlpIds: [] })],
+      knowledge: {},
+      tags: [tag({ klpId: 'k-elsewhere', cardId: 'other-card' })],
+      analyzedAnswersByTopic: { dcf: 4 },
+    })
+
+    expect(result[0].readiness).toBe(1)
   })
 })

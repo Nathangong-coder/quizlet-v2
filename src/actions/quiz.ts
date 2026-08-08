@@ -39,7 +39,7 @@ import {
   type KlpResultDraft,
 } from '@/lib/analysis/persist';
 import { toStudySource } from '@/lib/quiz/mode';
-import { persistKlpStates } from '@/lib/metrics/state-writer';
+import { persistKlpStates, rebuildKlpStates, lockKlpStates } from '@/lib/metrics/state-writer';
 import type { StudySource } from '@/lib/memory/scoring';
 import { MC_TF_MAGNITUDE } from '@/lib/errors/bands';
 
@@ -459,17 +459,6 @@ export async function submitMultipleChoiceAnswer(input: {
     // attemptId still fell through and deleted/inserted rows on that attempt.
     if (!attempt) return { success: false, error: 'Attempt not found' };
 
-    // Replace only this card's answer *in this mode* (a card may also be
-    // tested in another mode within the same attempt — keep those intact).
-    await prisma.quizAnswer.deleteMany({
-      where: {
-        attemptId: input.attemptId,
-        userId: session.user.id,
-        cardId: input.cardId,
-        mode: 'multiple-choice',
-      },
-    });
-
     let feedback = isCorrect ? 'Correct!' : 'Incorrect.';
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     if (card) {
@@ -547,6 +536,11 @@ export async function submitMultipleChoiceAnswer(input: {
         feedback,
       },
       writes,
+      // Replace only this card's answer *in this mode* (a card may also be
+      // tested in another mode within the same attempt — keep those intact).
+      // Inside the transaction, so a failure here can never leave the learner
+      // with the old answer deleted and no new one written.
+      { attemptId: input.attemptId, cardId: input.cardId, mode: 'multiple-choice' },
     );
 
     try {
@@ -633,17 +627,6 @@ export async function submitTrueFalseAnswer(input: {
         : null;
     const score = isCorrect === null ? null : isCorrect ? 100 : 0;
 
-    // Unreachable given the one-shot guard above, but kept (and owner-scoped)
-    // as a belt-and-braces idempotency guard against a partial prior write.
-    await prisma.quizAnswer.deleteMany({
-      where: {
-        attemptId: input.attemptId,
-        userId: session.user.id,
-        cardId: input.cardId,
-        mode: 'true-false',
-      },
-    });
-
     let feedback = isCorrect === null ? 'Unscored.' : isCorrect ? 'Correct!' : 'Incorrect.';
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     if (card) {
@@ -729,6 +712,11 @@ export async function submitTrueFalseAnswer(input: {
         feedback,
       },
       writes,
+      // Unreachable given the one-shot `alreadyAnswered` guard above, but kept
+      // as a belt-and-braces idempotency guard against a partial prior write —
+      // and now it also rolls back that partial write's posterior rather than
+      // leaving it stepped by evidence the cascade removed.
+      { attemptId: input.attemptId, cardId: input.cardId, mode: 'true-false' },
     );
 
     if (isCorrect !== null) {
@@ -778,12 +766,51 @@ export async function submitTrueFalseAnswer(input: {
  * `too_terse` as a knowledge gap — making the signed verbosity index unable to
  * go negative. Inside the transaction, not after it, so a KlpState that has
  * counted an observation always has the AnswerKlpResult row behind it.
+ *
+ * `replace` supersedes a prior answer for the same (attempt, card, mode) — the
+ * re-submit path. It belongs HERE, inside the transaction, for two reasons:
+ *
+ * 1. Deleting outside it meant a failure between the delete and the insert lost
+ *    the answer entirely, leaving the learner with nothing recorded.
+ * 2. The cascade takes the prior answer's `AnswerKlpResult` rows with it, and
+ *    `KlpState` is an incremental posterior that cannot be stepped backward. So
+ *    the KLPs the deleted rows touched are collected BEFORE the delete and
+ *    replayed from surviving evidence afterwards. Without that, a re-submit
+ *    steps a posterior that already absorbed the attempt it just deleted —
+ *    double-counting it, and inflating `observations` past MIN_OBSERVATIONS on
+ *    evidence that no longer exists.
+ *
+ * The rebuild runs AFTER this answer's own `persistKlpStates`, so any KLP the
+ * new answer also touched ends up at the replayed value rather than the stepped
+ * one — the replay is authoritative, and it sees the new rows because it reads
+ * through the same transaction.
  */
 async function createAnswerWithAnalysis(
   answerData: Prisma.QuizAnswerUncheckedCreateInput,
   writes: AnalysisWrites,
+  replace?: { attemptId: string; cardId: string; mode: string },
 ) {
   return prisma.$transaction(async (tx) => {
+    // Collected before the delete: once the rows are gone there is no way to
+    // learn which KLPs they credited.
+    let supersededKlpIds: string[] = [];
+    if (replace) {
+      const where = {
+        attemptId: replace.attemptId,
+        userId: answerData.userId,
+        cardId: replace.cardId,
+        mode: replace.mode,
+      };
+      const prior = await tx.quizAnswer.findMany({
+        where,
+        select: { klpResults: { select: { klpId: true } } },
+      });
+      supersededKlpIds = [
+        ...new Set(prior.flatMap((p) => p.klpResults.map((r) => r.klpId))),
+      ];
+      await tx.quizAnswer.deleteMany({ where });
+    }
+
     const answer = await tx.quizAnswer.create({
       data: {
         ...answerData,
@@ -803,6 +830,16 @@ async function createAnswerWithAnalysis(
         data: writes.errorTags.map((t) => ({ ...t, quizAnswerId: answer.id })),
       });
     }
+
+    // Before ANY posterior read. The step below is read-modify-write with an
+    // absolute write, so without this two answers touching one KLP both read
+    // the same pre-state and the second drops the first's observation — a
+    // permanent loss, since the posterior cannot be stepped backward.
+    // Covers the rebuild too: it writes the same rows.
+    await lockKlpStates(tx, answerData.userId, [
+      ...writes.klpResults.map((r) => r.klpId),
+      ...supersededKlpIds,
+    ]);
 
     // `answer.createdAt` (not `new Date()`) so the posterior's clock is the
     // same one `AnswerKlpResult.createdAt` replays from — a backfill and the
@@ -832,9 +869,27 @@ async function createAnswerWithAnalysis(
       },
     });
 
+    // Last, so it overwrites anything the step above wrote for a KLP whose
+    // evidence was just partly deleted.
+    await rebuildKlpStates(tx, answerData.userId, supersededKlpIds);
+
     return answer;
-  });
+  }, ANALYSIS_TX_OPTIONS);
 }
+
+/**
+ * Prisma's interactive-transaction defaults are 2s to acquire and 5s to run.
+ * This transaction performs several SERIALIZED round-trips per KLP — an
+ * advisory lock, a read, and a write each — so a five-KLP card on a slow
+ * connection can exceed 5s, and a `P2028` timeout here does not degrade: it
+ * throws away a graded answer the learner already paid for and shows "Failed
+ * to submit answer". The lock also means a second writer on the same KLP now
+ * WAITS, which the 2s acquire default was never sized for.
+ *
+ * Generous rather than tight on purpose: the cost of an over-long timeout is a
+ * slow request, the cost of a short one is lost work.
+ */
+const ANALYSIS_TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
 
 /**
  * Records a placeholder answer when short-answer grading itself failed to
@@ -881,6 +936,10 @@ async function recordFailedShortAnswerAnalysis(input: {
         feedback: 'Grading failed.',
       },
       writes,
+      // A failed re-grade still supersedes the prior answer — and, because it
+      // goes through the same helper, still replays the posterior for whatever
+      // KLPs that prior answer had credited.
+      { attemptId: input.attemptId, cardId: input.cardId, mode: 'short-answer' },
     );
   } catch (writeErr) {
     console.error('Failed to record failed-grading analysis row:', writeErr);
@@ -905,17 +964,16 @@ export async function submitShortAnswer(input: {
     // previously discarded, leaving a foreign attemptId fully writable.
     if (!attempt) return { success: false, error: 'Attempt not found' };
 
-    // Idempotent, but scoped to this mode so a card also tested in another
-    // section keeps that section's answer. A re-submit replaces the prior
-    // short-answer row instead of creating a second graded one.
-    await prisma.quizAnswer.deleteMany({
-      where: {
-        attemptId: input.attemptId,
-        userId: session.user.id,
-        cardId: input.cardId,
-        mode: 'short-answer',
-      },
-    });
+    // The prior short-answer row is superseded inside the write transaction
+    // (see `createAnswerWithAnalysis`), not deleted up here. Deleting first
+    // meant a grading failure that also failed to record its placeholder left
+    // the learner with no answer at all — and it dropped `AnswerKlpResult`
+    // rows without ever rolling back the posterior they had been folded into.
+    const replaces = {
+      attemptId: input.attemptId,
+      cardId: input.cardId,
+      mode: 'short-answer',
+    };
 
     const card = await prisma.card.findUnique({
       where: { id: input.cardId },
@@ -1025,6 +1083,7 @@ export async function submitShortAnswer(input: {
           feedback: grade.summary,
         },
         writes,
+        replaces,
       );
 
       try {
@@ -1138,6 +1197,7 @@ export async function submitShortAnswer(input: {
         feedback: grade.summary,
       },
       writes,
+      replaces,
     );
 
     try {

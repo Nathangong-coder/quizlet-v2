@@ -183,3 +183,59 @@ describe('paceOutliers', () => {
     expect(paceOutliers(events)).toEqual([])
   })
 })
+
+describe('the baseline must not be narrowed with the scope (B8)', () => {
+  it("still reports an outlier when only that card's events are the scoped set", () => {
+    // `paceIndex` drew its baseline median from the very array it was scoring.
+    // Under a card scope that array IS the card's own events, so the card
+    // median equalled the baseline and the index was exactly 1.0 — below any
+    // threshold, always. A card-scoped view reported "no fluency problem" for
+    // a card that is a 2.4x outlier in the learner's real distribution.
+    const baseline = Array.from({ length: 12 }, (_, i) => evc(`other${i}`, 1000, true))
+    const cardOnly = [evc('c1', 2400, true), evc('c1', 2400, true), evc('c1', 2400, true)]
+
+    const out = paceOutliers(cardOnly, undefined, [...baseline, ...cardOnly])
+
+    expect(out.map((o) => o.cardId)).toContain('c1')
+    expect(out.find((o) => o.cardId === 'c1')!.index).toBeCloseTo(2.4, 10)
+  })
+
+  it('defaults the baseline to the candidate events, leaving old callers unchanged', () => {
+    const events = [
+      ...Array.from({ length: 12 }, (_, i) => evc(`other${i}`, 1000, true)),
+      evc('c1', 2400, true),
+      evc('c1', 2400, true),
+      evc('c1', 2400, true),
+    ]
+    expect(paceOutliers(events).map((o) => o.cardId)).toContain('c1')
+  })
+
+  it('keeps the baseline mode-scoped, so one mode cannot set another mode median', () => {
+    // The widened population must still be split by mode — short answer and
+    // true/false differ by an order of magnitude, so a mixed baseline measures
+    // the mode rather than the card.
+    const tfBaseline = Array.from({ length: 12 }, (_, i) => evc(`tf${i}`, 500, true, 'quiz-tf'))
+    const saBaseline = Array.from({ length: 12 }, (_, i) => evc(`sa${i}`, 5000, true, 'quiz-sa'))
+    const candidate = [
+      evc('c1', 1200, true, 'quiz-tf'),
+      evc('c1', 1200, true, 'quiz-tf'),
+      evc('c1', 1200, true, 'quiz-tf'),
+    ]
+
+    const out = paceOutliers(candidate, undefined, [...tfBaseline, ...saBaseline, ...candidate])
+    // 1200 / 500 = 2.4 against TF's own median, not 1200 / 5000 against SA's.
+    expect(out.find((o) => o.cardId === 'c1')!.index).toBeCloseTo(2.4, 10)
+  })
+
+  it('scores only the candidates, never every card in the baseline', () => {
+    // Widening the baseline must not widen the ANSWER — a card-scoped request
+    // still reports on that card alone.
+    const others = [evc('slow', 9000, true), evc('slow', 9000, true), evc('slow', 9000, true)]
+    const baseline = [...Array.from({ length: 12 }, (_, i) => evc(`o${i}`, 1000, true)), ...others]
+    const candidate = [evc('c1', 2400, true), evc('c1', 2400, true), evc('c1', 2400, true)]
+
+    const out = paceOutliers(candidate, undefined, [...baseline, ...candidate])
+
+    expect(out.map((o) => o.cardId)).toEqual(['c1'])
+  })
+})

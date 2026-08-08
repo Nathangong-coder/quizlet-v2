@@ -63,8 +63,11 @@ export async function getLearnerMetrics({
   const quizAnswerScopeWhere = buildQuizAnswerScopeWhere(userId, scope, categoryIds)
   const studyEventWhere = buildStudyEventWhere(userId, scope, categoryIds)
 
-  const [cards, klpStates, tagRows, klpOutcomes, events, attempts] = await Promise.all([
-    buildLearnerProfile({ userId, setIds: scope.setIds }),
+  const [cards, klpStates, tagRows, klpOutcomes, events, attempts, paceBaseline] =
+    await Promise.all([
+    // The full scope, not just `setIds` — `shapeTopicProfile` below honours
+    // every dimension, and the two are returned in one `LearnerProfile`.
+    buildLearnerProfile({ userId, scope, categoryIds }),
     // Deliberately NOT scoped: `shapeTopicProfile` re-filters knowledge by
     // each topic's own klpId set, so an out-of-scope KLP's pKnown is never
     // read regardless of what this query returns.
@@ -73,7 +76,18 @@ export async function getLearnerMetrics({
       select: { klpId: true, pKnown: true, observations: true },
     }),
     prisma.answerErrorTag.findMany({
-      where: { quizAnswer: quizAnswerScopeWhere },
+      // `analysisStatus: 'analyzed'` makes this — readiness's NUMERATOR —
+      // share a population with `loadAnalyzedAnswerCounts`, its denominator,
+      // which has always counted analyzed answers only. Without it, the
+      // whole-answer clarity/conciseness tags `buildAnalysisWrites` still
+      // writes under `no_klps`/`no_provenance` added expression weight with no
+      // matching answer underneath: a topic whose cards have no key points yet
+      // read as far less ready than it was, and could pin to 0.
+      //
+      // Not restricted to short answer, though the denominator is: MC/TF tags
+      // are always `dimension: 'accuracy'`, which `computeArticulation`
+      // ignores, and `deriveMisconceptions` below legitimately spans modes.
+      where: { quizAnswer: { ...quizAnswerScopeWhere, analysisStatus: 'analyzed' } },
       select: {
         dimension: true, type: true, klpId: true, secondaryKlpId: true,
         relevance: true, starred: true, magnitude: true, mode: true,
@@ -100,6 +114,24 @@ export async function getLearnerMetrics({
       where: { userId },
       orderBy: { createdAt: 'asc' },
       select: { id: true },
+    }),
+    // The pace BASELINE, deliberately NOT scoped — for the same reason the
+    // attempts query above isn't. A learner's normal speed in a mode is a
+    // property of the learner, not of the view asking. Drawing it from the
+    // scoped events made a card-scoped request degenerate: the filtered set is
+    // that card's own events, so its median IS the baseline and the index is
+    // exactly 1.0 — a 2.4x outlier reported as no fluency problem at all.
+    //
+    // Only timed rows, and capped, since this is the one query here whose size
+    // does not shrink with the scope.
+    prisma.studyEvent.findMany({
+      where: { userId, latencyMs: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: PACE_BASELINE_FETCH_CAP,
+      select: {
+        cardId: true, source: true, latencyMs: true,
+        correct: true, score: true, createdAt: true,
+      },
     }),
   ])
 
@@ -157,17 +189,45 @@ export async function getLearnerMetrics({
         })),
       ),
     ),
+    // Candidates are scoped; the baseline they are judged against is not.
     paceOutliers: computePaceOutliers(
-      events
-        .filter((e): e is typeof e & { latencyMs: number } => typeof e.latencyMs === 'number')
-        .map((e) => ({
-          cardId: e.cardId,
-          mode: e.source as StudySource,
-          latencyMs: e.latencyMs,
-          correct: eventRecalled(e),
-        })),
+      toTimedEvents(events),
+      undefined,
+      toTimedEvents(paceBaseline),
     ),
   }
+}
+
+/**
+ * Bound on the unscoped pace-baseline read. Every other query here narrows
+ * with the scope; this one deliberately does not, so it gets an explicit cap
+ * rather than an unbounded lifetime scan. Most-recent-first, so the baseline
+ * tracks the learner's current speed rather than averaging in how slow they
+ * were a year ago.
+ */
+const PACE_BASELINE_FETCH_CAP = 5000
+
+/** Rows with a real latency, in the shape `paceOutliers` consumes. */
+function toTimedEvents(
+  rows: {
+    cardId: string
+    source: string
+    latencyMs: number | null
+    correct: boolean | null
+    score: number | null
+    createdAt: Date
+  }[],
+) {
+  return rows
+    .filter((e): e is typeof e & { latencyMs: number } => typeof e.latencyMs === 'number')
+    .map((e) => ({
+      cardId: e.cardId,
+      mode: e.source as StudySource,
+      latencyMs: e.latencyMs,
+      // `StudyEvent.correct` is NULL for short answer (it carries a score);
+      // `eventRecalled` reads both shapes against the one recall threshold.
+      correct: eventRecalled(e),
+    }))
 }
 
 /**
@@ -215,9 +275,16 @@ async function loadAnalyzedAnswerCounts(
 
 /**
  * Query only — the shape mapping is `toTopicRows` and the scope shaping is
- * `buildCategoryQuery`, both tested. Only LIVE KLPs are selected: a superseded
- * KLP belongs to an older version of the card and its evidence should not
- * count toward current knowledge.
+ * `buildCategoryQuery`, both tested.
+ *
+ * EVERY version of each KLP is selected, live and superseded, and `toTopicRows`
+ * splits them. Knowledge still uses live ids only — a superseded KLP belongs to
+ * an older version of the card and its evidence must not count toward current
+ * knowledge — but TAG ATTRIBUTION needs the retired ones: a historical tag
+ * references the version that was live when the answer was given. Filtering
+ * them out here dropped every past tag on an edited card from readiness's
+ * numerator while its answers stayed in the denominator, so readiness jumped
+ * toward 1.0 on a card edit, with no change in the learner's behaviour.
  */
 async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: HistoryScope) {
   const { where, assignmentWhere } = buildCategoryQuery(userId, scope)
@@ -229,7 +296,7 @@ async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: His
         where: assignmentWhere,
         select: {
           card: {
-            select: { id: true, klps: { where: { supersededAt: null }, select: { id: true } } },
+            select: { id: true, klps: { select: { id: true, supersededAt: true } } },
           },
         },
       },
