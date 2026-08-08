@@ -9,6 +9,11 @@ import { KlpExtractionSchema } from '@/lib/ai/schemas';
 import { klpSourceHash } from '@/lib/cards/klp-hash';
 import { selectStaleCardIds } from '@/lib/cards/stale';
 import { KLP_BATCH_SIZE } from '@/lib/cards/klp-batch';
+import {
+  toCardKlpStatus,
+  type CardKlpStatus,
+  type CardKlpFailureStatus,
+} from '@/lib/cards/klp-status';
 import type { ActionResult } from '@/types/action';
 
 /**
@@ -87,7 +92,7 @@ export async function extractKlpsForCards(userId: string, cardIds: string[]): Pr
 async function markFailed(
   ids: string[],
   err: unknown,
-  status: 'failed' | 'skipped' = 'failed',
+  status: CardKlpFailureStatus = 'failed',
   userId?: string,
 ) {
   try {
@@ -236,7 +241,7 @@ async function writeKlpVersion(
       await tx.card.update({
         where: { id: cardId },
         data: {
-          klpStatus: 'ready',
+          klpStatus: 'ready' satisfies CardKlpStatus,
           klpVersion: version,
           klpSourceHash: hash,
           klpError: null,
@@ -338,7 +343,7 @@ export async function ensureKlpsReady(userId: string, cardId: string): Promise<R
  */
 export async function getCardKlps(
   cardId: string,
-): Promise<ActionResult<{ status: string; klps: ReadyKlp[] }>> {
+): Promise<ActionResult<{ status: CardKlpStatus; klps: ReadyKlp[] }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
@@ -354,7 +359,9 @@ export async function getCardKlps(
     select: { id: true, index: true, text: true, weight: true, kind: true },
   });
 
-  return { success: true, data: { status: card.klpStatus, klps } };
+  // Narrowed at the DB boundary, so `KlpEditor`'s four status comparisons are
+  // type-checked rather than string-vs-string.
+  return { success: true, data: { status: toCardKlpStatus(card.klpStatus), klps } };
 }
 
 /**

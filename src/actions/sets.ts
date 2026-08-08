@@ -13,6 +13,7 @@ import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categor
 import { reconcileCards } from '@/lib/cards/reconcile'
 import { extractKlpsForCards } from '@/actions/klp'
 import { selectRefreshableStaleCardIds } from '@/lib/cards/stale'
+import type { CardKlpStatus } from '@/lib/cards/klp-status'
 
 const CardInputSchema = z.object({
   // Present when the editor is round-tripping an existing card. Absent for
@@ -335,7 +336,7 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
     if (stale.length > 0) {
       await prisma.card.updateMany({
         where: { setId: id, id: { in: stale } },
-        data: { klpStatus: 'pending' },
+        data: { klpStatus: 'pending' satisfies CardKlpStatus },
       })
     }
 

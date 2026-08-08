@@ -64,7 +64,10 @@ model Card {
   assets              CardAsset[]
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
-  klpStatus           String                   @default("pending") // pending|ready|failed|skipped
+  /// Vocabulary: CARD_KLP_STATUSES in src/lib/cards/klp-status.ts
+  /// (pending|ready|failed|skipped). Import that const rather than writing a
+  /// literal — this is a String column, so a typo compiles and never matches.
+  klpStatus           String                   @default("pending")
   klpVersion          Int                      @default(0)
   klpSourceHash       String?
   klpError            String?                  @db.Text
