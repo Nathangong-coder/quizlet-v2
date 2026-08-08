@@ -42,6 +42,7 @@ import { toStudySource } from '@/lib/quiz/mode';
 import { persistKlpStates, rebuildKlpStates, lockKlpStates } from '@/lib/metrics/state-writer';
 import type { StudySource } from '@/lib/memory/scoring';
 import { MC_TF_MAGNITUDE } from '@/lib/errors/bands';
+import { readableSetWhere } from '@/lib/sets/visibility';
 
 /**
  * Fisher-Yates. The correct answer must not sit in a predictable slot — the
@@ -247,8 +248,10 @@ export async function getOrGenerateMultipleChoiceOptions(
       }
     }
 
-    const set = await prisma.set.findUnique({
-      where: { id: card.setId },
+    // Readability-scoped: these sibling cards become MC distractors, so an
+    // unguarded fetch hands a caller the full contents of any set by id.
+    const set = await prisma.set.findFirst({
+      where: { id: card.setId, ...readableSetWhere(session.user.id) },
       include: { cards: true },
     });
     if (!set) return { success: false, error: 'Set not found' };
@@ -353,8 +356,13 @@ export async function startQuizAttempt(
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
-    const set = await prisma.set.findUnique({
-      where: { id: setId },
+    // Readability-scoped. This was the shape Spec 2b explicitly declined to
+    // patch in isolation — the set page had the same hole, so fixing one call
+    // site would have been inconsistent rather than a fix. Both are fixed now.
+    // Not-found, never forbidden: a distinguishable error would confirm to an
+    // id-prober that a private set exists.
+    const set = await prisma.set.findFirst({
+      where: { id: setId, ...readableSetWhere(session.user.id) },
       include: {
         cards: {
           include: {

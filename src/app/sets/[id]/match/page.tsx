@@ -1,4 +1,6 @@
+import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
+import { readableSetWhere } from '@/lib/sets/visibility'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { buttonVariants } from '@/components/ui/button'
@@ -18,9 +20,14 @@ export default async function MatchGamePage({
 }) {
   const { id } = await params
   const { cat } = await searchParams
+  // This page had no auth() call at all. It gains one only to identify the
+  // viewer for the readability check — NOT to require a session, since a
+  // link-shared set is playable signed-out by design.
+  const session = await auth()
+  const viewerId = session?.user?.id ?? null
 
-  const set = await prisma.set.findUnique({
-    where: { id },
+  const set = await prisma.set.findFirst({
+    where: { id, ...readableSetWhere(viewerId) },
     include: {
       categories: true,
       cards: {

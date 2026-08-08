@@ -13,14 +13,18 @@ import ConfidenceRate from '@/components/sets/ConfidenceRate'
 import { cn } from '@/lib/utils'
 import { TermsList } from '@/components/sets/TermsList'
 import { ActivityTiles } from '@/components/sets/ActivityTiles'
+import { readableSetWhere } from '@/lib/sets/visibility'
 
 export default async function SetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await auth()
+  // Explicitly null, never a bare `session?.user?.id`: a link-shared set is
+  // readable signed-out by design, so this page must NOT require a session.
+  const viewerId = session?.user?.id ?? null
 
   const [set, progressList] = await Promise.all([
-    prisma.set.findUnique({
-      where: { id },
+    prisma.set.findFirst({
+      where: { id, ...readableSetWhere(viewerId) },
       include: {
         cards: {
           orderBy: { position: 'asc' },
