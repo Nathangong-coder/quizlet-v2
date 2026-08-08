@@ -9,7 +9,34 @@
 **Tech Stack:** TypeScript, Prisma 7 (Postgres/Neon), Next.js 16 App Router, React 19, Vitest, Zod, shadcn/base-ui.
 
 **Spec:** `docs/superpowers/specs/2026-08-05-spec3b-tunable-scoring-and-targeting-design.md`
-**Depends on:** Spec 3 (merged to main as PR #11)
+**Depends on:** Spec 3 (merged to main as PR #11), **and the Spec 3 hardening pass**
+(`docs/superpowers/plans/2026-08-07-spec3-hardening.md`, landed 2026-08-08 on
+`spec3b-tunable-scoring`) — that pass fixed ten defects in the numbers this plan
+tunes, including three criticals in the knowledge posterior. Do not build on the
+pre-hardening numbers.
+
+> ### Open input for the rebuild: make `MIN_OBSERVATIONS` a tunable
+>
+> This plan currently consumes `MIN_OBSERVATIONS` from `@/lib/metrics/bkt` as a
+> **fixed constant** (Task at `:452`, `:610`, `:683`) — candidates below it sort
+> last under every strategy, and topics below it report `knowledge: null`.
+>
+> It belongs in this spec's knob set. It decides how much evidence counts as
+> "enough to have an opinion", which is a judgement about the learner's situation
+> — an interview next week justifies acting on thinner evidence than one six
+> months out — not a universal constant. Leaving it hardcoded makes that call for
+> every user, which is the exact pattern [[user-prefers-configurable-targeting]]
+> says to avoid, and which this spec exists to undo for bands and strategy.
+>
+> **Concrete motivation, found 2026-08-08:** at `MIN_OBSERVATIONS = 3`, the live
+> database (19 answers, every KLP seen exactly once) reports non-null knowledge
+> for **zero** topics. The floor is not academic — it is currently the single
+> thing gating every knowledge-dependent surface from showing anything at all.
+> A learner should be able to lower it and see provisional numbers.
+>
+> Note the read-time property that makes this cheap, the same one that makes
+> bands cheap: `observations` is stored on `KlpState` and the floor is applied
+> when read, so changing it needs **no replay** — same as §3.3's rule for bands.
 
 ## Global Constraints
 
