@@ -640,6 +640,28 @@ Two existing patterns are the model to copy when these are addressed:
 type, and the credential encryption format is pinned by a golden-vector test
 (`tests/security/api-key.test.ts`).
 
+**Both RESOLVED 2026-08-08**, on branch `spec3b-tunable-scoring`, using exactly
+the `AI_TASKS` pattern named above:
+
+- `STUDY_SOURCES` is now the single `as const` in `src/lib/memory/scoring.ts`
+  and `StudySource` derives from it; both `insight.ts` sites read
+  `z.enum(STUDY_SOURCES)`. Pinned by `tests/memory/study-sources.test.ts`,
+  which asserts **both** call sites — fixing one and missing the other was the
+  reachable half-fix. A mutation check reproduced the original failure
+  verbatim before the fix landed.
+- `CARD_KLP_STATUSES` + `toCardKlpStatus` live in `src/lib/cards/klp-status.ts`,
+  pinned by `tests/cards/klp-status.test.ts`. Deliberately named
+  **`CardKlpStatus`**, not `KlpStatus`: `@/lib/errors/klp-credit` already
+  exports a `KlpStatus` (`passed | partial | failed`) for a learner's outcome on
+  one key point. The two vocabularies share the member `failed` and nothing
+  else, so a bare `KlpStatus` import would read as either at a glance while
+  being assignable in one direction that means something entirely different. A
+  test pins them disjoint.
+
+The third item recorded above — whether a memory reset should extend to quiz
+history — remains open, and is now tracked in `CLAUDE.md`'s Future
+Considerations as a product decision rather than a drift risk.
+
 **Resolved (2026-08-04):** `EVIDENCE_STRENGTH` no longer carries the three
 unrequested `matching`/`review`/`lesson` entries — removed down to exactly the
 three modes Spec 2a actually grades, with `DEFAULT_STRENGTH` (now documented
