@@ -13,7 +13,8 @@ import ConfidenceRate from '@/components/sets/ConfidenceRate'
 import { cn } from '@/lib/utils'
 import { TermsList } from '@/components/sets/TermsList'
 import { ActivityTiles } from '@/components/sets/ActivityTiles'
-import { readableSetWhere } from '@/lib/sets/visibility'
+import { readableSetWhere, toSetVisibility } from '@/lib/sets/visibility'
+import VisibilityToggle from '@/components/sets/VisibilityToggle'
 
 export default async function SetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -70,7 +71,22 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
         )}
       </div>
 
-      <p className="text-sm text-muted-foreground mb-6">{set.cards.length} cards</p>
+      <p className="text-sm text-muted-foreground mb-4">{set.cards.length} cards</p>
+
+      {isOwner ? (
+        <div className="mb-6">
+          <VisibilityToggle setId={id} visibility={toSetVisibility(set.visibility)} />
+        </div>
+      ) : (
+        // Study writes are keyed (userId, cardId), so a viewer's confidence,
+        // events and quiz history genuinely never touch the owner's. True, but
+        // not something anyone should have to infer before they start studying
+        // on someone else's set.
+        <div className="mb-6 rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+          Someone shared this set with you. You can study it, but not edit it — and your
+          progress is your own.
+        </div>
+      )}
 
       {set.cards.length > 0 && (
         <FlashcardSection

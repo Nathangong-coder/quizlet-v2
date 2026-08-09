@@ -14,6 +14,7 @@ import { reconcileCards } from '@/lib/cards/reconcile'
 import { extractKlpsForCards } from '@/actions/klp'
 import { selectRefreshableStaleCardIds } from '@/lib/cards/stale'
 import type { CardKlpStatus } from '@/lib/cards/klp-status'
+import { toSetVisibility, type SetVisibility } from '@/lib/sets/visibility'
 
 const CardInputSchema = z.object({
   // Present when the editor is round-tripping an existing card. Absent for
@@ -349,6 +350,49 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
     if (error instanceof z.ZodError) {
       return { success: false, error: error.issues[0].message }
     }
+    return { success: false, error: (error as Error).message }
+  }
+}
+
+/**
+ * Change who can read a set. OWNER ONLY.
+ *
+ * Visibility governs who may READ a set; changing it is a write, so it is
+ * gated on ownership rather than on readability. `updateMany` with the owner
+ * in the `where` rather than findUnique-then-check, for the same reason
+ * `readableSetWhere` exists: a check embedded in the query cannot be forgotten,
+ * and a mismatch updates zero rows instead of silently succeeding.
+ */
+export async function setSetVisibility(
+  setId: string,
+  visibility: string,
+): Promise<ActionResult<{ visibility: SetVisibility }>> {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return { success: false, error: 'Authentication required' }
+    }
+
+    // Reject rather than coerce. `toSetVisibility` fails CLOSED, so silently
+    // accepting an unrecognised value would make the set private while the UI
+    // showed whatever the user clicked — the failure mode is invisible.
+    const parsed = toSetVisibility(visibility)
+    if (parsed !== visibility) {
+      return { success: false, error: 'Unrecognised visibility setting' }
+    }
+
+    const updated = await prisma.set.updateMany({
+      where: { id: setId, userId: session.user.id },
+      data: { visibility: parsed },
+    })
+    // Not-found rather than unauthorized: the same reason every read path
+    // 404s. A distinguishable error confirms the set exists.
+    if (updated.count === 0) return { success: false, error: 'Set not found' }
+
+    revalidatePath(`/sets/${setId}`)
+    revalidatePath('/sets')
+    return { success: true, data: { visibility: parsed } }
+  } catch (error) {
     return { success: false, error: (error as Error).message }
   }
 }
