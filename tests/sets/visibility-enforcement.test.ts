@@ -24,6 +24,11 @@ const ENFORCED_PATHS = [
   'src/app/sets/[id]/review/page.tsx',
   'src/app/sets/[id]/print/page.tsx',
   'src/actions/quiz.ts',
+  // Fetches a set TITLE for the profile block from a URL-controlled scope.
+  // Only the title leaked, since its other reads are userId-scoped — but the
+  // hole was the same shape, and an exception here would be the first crack in
+  // a list whose whole value is having none.
+  'src/lib/memory/profile.ts',
 ]
 
 describe('every set read path applies readableSetWhere', () => {

@@ -18,14 +18,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const h = vi.hoisted(() => ({
   progressFindMany: vi.fn(),
   eventFindMany: vi.fn(),
-  setFindUnique: vi.fn(),
+  setFindFirst: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({
   prisma: {
     cardProgress: { findMany: h.progressFindMany },
     studyEvent: { findMany: h.eventFindMany },
-    set: { findUnique: h.setFindUnique },
+    // `findFirst`, not `findUnique`: the set-title lookup is scoped by
+    // `readableSetWhere`, which cannot be spread into a findUnique.
+    set: { findFirst: h.setFindFirst },
   },
 }))
 
@@ -54,7 +56,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   h.progressFindMany.mockResolvedValue([])
   h.eventFindMany.mockResolvedValue([])
-  h.setFindUnique.mockResolvedValue(null)
+  h.setFindFirst.mockResolvedValue(null)
 })
 
 describe('the card-grain profile honours every scope dimension (B4)', () => {
@@ -90,7 +92,7 @@ describe('the card-grain profile honours every scope dimension (B4)', () => {
   })
 
   it('still scopes by set, and still resolves a single set title', async () => {
-    h.setFindUnique.mockResolvedValue({ title: 'Valuation' })
+    h.setFindFirst.mockResolvedValue({ title: 'Valuation' })
     const profile = await buildLearnerProfile({
       userId: 'u1',
       scope: scope({ setIds: ['s1'] }),

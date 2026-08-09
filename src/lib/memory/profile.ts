@@ -17,6 +17,7 @@
 import { eventCorrectness } from './scoring'
 import type { StudySource } from './scoring'
 import { buildCardScopeWhere, buildStudyEventWhere, type HistoryScope } from './scope'
+import { readableSetWhere as buildReadableSetWhere } from '@/lib/sets/visibility'
 
 // ---------------------------------------------------------------------------
 // Thresholds. Bucket sizes are intentionally uncapped — every qualifying
@@ -417,7 +418,18 @@ export async function buildLearnerProfile({
         createdAt: true,
       },
     }),
-    singleSetId ? prisma.set.findUnique({ where: { id: singleSetId }, select: { title: true } }) : null,
+    // Readability-scoped. `singleSetId` comes from `scope.setIds`, which is
+    // URL-controlled, so an unscoped lookup let anyone pull another user's set
+    // TITLE into their own profile block by guessing an id. The progress and
+    // event rows above are already userId-scoped, so the title was the only
+    // thing leaking — small, but the same class of hole as every other one
+    // this predicate closes, and free to fix here.
+    singleSetId
+      ? prisma.set.findFirst({
+          where: { id: singleSetId, ...buildReadableSetWhere(userId) },
+          select: { title: true },
+        })
+      : null,
   ])
 
   const progress: ProgressRow[] = progressRows.map((p) => ({
