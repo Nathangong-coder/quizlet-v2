@@ -16,7 +16,11 @@ Branch `spec3b-tunable-scoring`, ~10 commits, **not merged, not pushed**.
 
 Sets are private by default, owner-togglable to link-shareable. Closed 10 read-by-id exposures. Verified live against the dev server and the real DB, not just in tests.
 
-### 2. ⬜ Deletion & forgetting — **NO SPEC YET. START HERE.**
+### 2. ⬜ Deletion & forgetting — **SPEC WRITTEN 2026-08-10. NO PLAN YET. START HERE.**
+
+Spec: `specs/2026-08-10-deletion-and-forgetting-design.md` (commit `c128a05`)
+
+The spec settles the open question below: **forget drops the evidence too**, and a reset quiz is **erased outright**, not kept as a scored receipt. One erasure module (`src/lib/memory/erase.ts`) with a pure planner backs all six verbs. It also records two defects found during design — `StudySession` is missing from `RESET_MEMORY_MODELS`, and `QuizAttempt.score` / `StudySession.itemCount` go stale on partial deletion.
 
 **The user's decisions are already made** (2026-08-08) — do not re-litigate, just design against them:
 
