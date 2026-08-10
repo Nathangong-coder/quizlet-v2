@@ -14,6 +14,17 @@ Sets are **private by default** and the owner may toggle any set to
 state. A link-shareable set is readable by anyone holding its id, including
 signed-out visitors; studying it requires an account.
 
+**Corrected 2026-08-09, during implementation.** An earlier draft of this
+section listed the Matching game among the signed-out-readable surfaces.
+That was wrong on its own terms — matching *is* studying, and studying
+requires an account. It was also already false in code: `src/middleware.ts:8-10`
+gates `/match`, `/review` and `/quiz` behind sign-in, which is why
+`match/page.tsx` carried no `auth()` call. That absence read like an oversight
+during the survey; it was the opposite. Signed-out reading therefore covers the
+**set detail page only**. The visibility check still runs on every one of those
+routes, because middleware establishes *that* a viewer is signed in and says
+nothing about *which* sets they may read.
+
 This is a product decision that has been open since 2026-08-04. It was
 deliberately not answered inside Spec 2b's bug-fix pass, because the
 open-by-id behaviour is consistent across the whole app rather than an

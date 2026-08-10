@@ -20,9 +20,15 @@ export default async function MatchGamePage({
 }) {
   const { id } = await params
   const { cat } = await searchParams
-  // This page had no auth() call at all. It gains one only to identify the
-  // viewer for the readability check — NOT to require a session, since a
-  // link-shared set is playable signed-out by design.
+  // This page had no auth() call at all, because `src/middleware.ts` already
+  // gates /match behind sign-in — so `session` is in practice never null here.
+  // It gains one to identify WHICH sets this viewer may read, which middleware
+  // says nothing about: middleware establishes that someone is signed in, not
+  // that the set is theirs or shared with them.
+  //
+  // Written null-tolerantly as defence in depth, so removing /match from the
+  // middleware matcher would degrade to "shared sets only" rather than
+  // silently exposing every private set to anonymous visitors.
   const session = await auth()
   const viewerId = session?.user?.id ?? null
 
