@@ -25,6 +25,7 @@ import { revalidatePath } from 'next/cache';
 import { QuizSetup } from '@/lib/quiz/setup';
 import { recordStudyEvent } from '@/lib/memory/record';
 import { normalizeLatency } from '@/lib/memory/latency';
+import { recomputeCardProgress } from '@/lib/memory/recompute';
 import { safeProfileBlock } from '@/lib/ai/context';
 import { ActionResult } from '@/types/action';
 import { SessionInsightSchema, type SessionInsight } from '@/lib/memory/insight';
@@ -882,6 +883,46 @@ async function createAnswerWithAnalysis(
     // Last, so it overwrites anything the step above wrote for a KLP whose
     // evidence was just partly deleted.
     await rebuildKlpStates(tx, answerData.userId, supersededKlpIds);
+
+    // The replace above cascaded the prior answer's StudyEvent away (see the
+    // quizAnswerId FK). CardProgress is incremental and cannot be stepped
+    // backward, so it must be replayed from what survives — otherwise it keeps
+    // a confidence step from a row that is gone. This also fixes the older bug
+    // where a resubmit stepped confidence twice, because the prior event used
+    // to survive the replace entirely.
+    if (replace) {
+      const remaining = await tx.studyEvent.findMany({
+        where: { userId: answerData.userId, cardId: replace.cardId },
+        select: { correct: true, score: true, createdAt: true },
+      });
+      const recomputed = recomputeCardProgress(remaining);
+      if (recomputed === null) {
+        await tx.cardProgress.deleteMany({
+          where: { userId: answerData.userId, cardId: replace.cardId },
+        });
+      } else {
+        await tx.cardProgress.upsert({
+          where: { userId_cardId: { userId: answerData.userId, cardId: replace.cardId } },
+          update: {
+            confidence: recomputed.confidence,
+            mastery: recomputed.mastery,
+            reps: recomputed.reps,
+            dueAt: recomputed.dueAt,
+            lastSeenAt: recomputed.lastSeenAt,
+          },
+          create: {
+            userId: answerData.userId,
+            cardId: replace.cardId,
+            confidence: recomputed.confidence,
+            mastery: recomputed.mastery,
+            reps: recomputed.reps,
+            dueAt: recomputed.dueAt,
+            lastSeenAt: recomputed.lastSeenAt,
+            starred: false,
+          },
+        });
+      }
+    }
 
     return answer;
   }, ANALYSIS_TX_OPTIONS);
