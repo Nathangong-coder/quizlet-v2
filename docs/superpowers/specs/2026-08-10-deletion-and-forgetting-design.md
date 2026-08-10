@@ -162,7 +162,17 @@ The planner is pure, so the load-bearing assertions need no database.
 
 ---
 
-## 8. Out of scope
+## 8. Deferred: answers should not be resubmittable at all
+
+**Decided 2026-08-10. Not built here — this spec only makes the existing resubmit path correct.**
+
+`createAnswerWithAnalysis` (`src/actions/quiz.ts:796`) accepts a `replace` argument and deletes the prior `QuizAnswer` for a `(attempt, card, mode)` before writing a new one. This spec's FK makes that path *correct* — the superseded answer's `StudyEvent` cascades away and `CardProgress` is replayed, which also fixes a pre-existing double-step of confidence. **That fix stays.** But re-answering the same question should not be a product affordance in the first place: a second attempt at a question you have already seen graded is not evidence of knowledge, and every metric downstream treats it as though it were.
+
+**The one legitimate case is different in kind, not a re-answer.** In short-answer, a learner may miss a high-weight KLP simply by not mentioning it. The right response is an **AI-generated follow-up question** targeting that KLP — a new question with its own provenance and its own `QuizAnswer` row — not a second pass at the original. That needs a different quiz type and a different UI (a conversational or multi-turn short-answer flow), and it should be designed as such.
+
+When that lands, the `replace` path here should be removed rather than extended. Until then it stays, correct but unadvertised.
+
+## 9. Out of scope
 
 - **`TrainingPlan`.** It is derived from memory and will be stale after an erasure. Stage 7/Spec 4 owns the plan lifecycle; wiring erasure into it here would design half of that feature blind.
 - **Undo.** Every verb is permanent. An undo buffer would need to snapshot evidence *and* aggregates, and the confirmation dialogs are the mitigation instead.

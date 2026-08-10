@@ -2337,4 +2337,6 @@ Use the `superpowers:finishing-a-development-branch` skill to decide how this in
 1. **Task 2 is not optional.** Adding the FK changes resubmit behaviour, because `createAnswerWithAnalysis` deletes the superseded answer. Without the replay, `CardProgress` keeps a confidence step from a cascaded-away event — the exact invariant violation this feature exists to prevent, on a hot path.
 2. **Task 7's `studySession` addition** fixes a live defect that predates this work.
 
-**What is deliberately NOT in scope** (spec §8): `TrainingPlan` staleness, undo, batching the per-KLP advisory locks, and a reset verb for non-quiz sessions.
+**What is deliberately NOT in scope** (spec §9): `TrainingPlan` staleness, undo, batching the per-KLP advisory locks, and a reset verb for non-quiz sessions.
+
+**Do not extend the resubmit path.** Spec §8 records a decision made after this plan was written: answers should not be resubmittable at all, and the legitimate case — a missed high-weight KLP in short answer — is an AI-generated *follow-up question*, not a second pass at the same one. Task 2 makes the existing path correct and stops there. Do not add UI for it, and do not broaden `replace`.
