@@ -12,6 +12,12 @@ export interface RecordStudyEventInput {
   /** Groups this event under a StudySession. Absent for write paths with no
    *  session envelope (e.g. a one-off action outside any activity). */
   sessionId?: string
+  /**
+   * The graded answer this event describes, for quiz sources. Set it and the
+   * database keeps the two rows' lifetimes tied: deleting the answer cascades
+   * the event. Absent for `review`/`matching`/`lesson`, which have no answer.
+   */
+  quizAnswerId?: string
   outcome: StudyOutcome
   /** Optional per-interaction metadata, persisted onto the StudyEvent row. */
   meta?: {
@@ -57,7 +63,7 @@ export async function recordStudyEvent(
   input: RecordStudyEventInput,
   tx?: Prisma.TransactionClient,
 ): Promise<RecordStudyEventResult> {
-  const { userId, cardId, source, sessionId, outcome, meta } = input
+  const { userId, cardId, source, sessionId, quizAnswerId, outcome, meta } = input
 
   // Derive the fields StudyEvent/CardProgress actually store from the
   // outcome shape, using the same conventions already established in
@@ -131,6 +137,7 @@ export async function recordStudyEvent(
         userId,
         cardId,
         sessionId,
+        quizAnswerId,
         source,
         correct,
         score,

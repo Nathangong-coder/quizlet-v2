@@ -325,6 +325,7 @@ describe('submitTrueFalseAnswer', () => {
       cardId: CARD_ID,
       source: 'quiz-tf',
       sessionId: SESSION_ID,
+      quizAnswerId: 'answer1',
       outcome: { correct: false },
       meta: { latencyMs: 1234 },
     })

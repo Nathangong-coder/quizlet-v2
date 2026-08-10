@@ -557,6 +557,7 @@ export async function submitMultipleChoiceAnswer(input: {
         cardId: input.cardId,
         source: 'quiz-mc',
         sessionId: attempt?.sessionId ?? undefined,
+        quizAnswerId: answer.id,
         outcome: { correct: isCorrect },
         meta: { latencyMs: input.latencyMs },
       });
@@ -734,6 +735,7 @@ export async function submitTrueFalseAnswer(input: {
           cardId: input.cardId,
           source: 'quiz-tf',
           sessionId: attempt?.sessionId ?? undefined,
+          quizAnswerId: answer.id,
           outcome: { correct: isCorrect },
           meta: { latencyMs: input.latencyMs },
         });
@@ -1100,6 +1102,7 @@ export async function submitShortAnswer(input: {
           cardId: input.cardId,
           source: 'quiz-sa',
           sessionId: attempt?.sessionId ?? undefined,
+          quizAnswerId: answer.id,
           outcome: { overall: grade.overall },
           meta: { latencyMs: input.latencyMs },
         });
@@ -1214,6 +1217,7 @@ export async function submitShortAnswer(input: {
         cardId: input.cardId,
         source: 'quiz-sa',
         sessionId: attempt?.sessionId ?? undefined,
+        quizAnswerId: answer.id,
         outcome: { overall: grade.overall },
         meta: { latencyMs: input.latencyMs },
       });

@@ -65,4 +65,32 @@ describe('recordStudyEvent session/latency plumbing', () => {
       }),
     )
   })
+
+  it('stamps quizAnswerId onto the StudyEvent when the caller supplies one', async () => {
+    // Without this link nothing can delete the memory row when its graded answer
+    // goes, and confidence keeps a contribution from evidence that is gone.
+    await recordStudyEvent({
+      userId: 'u1',
+      cardId: 'c1',
+      source: 'quiz-mc',
+      quizAnswerId: 'a1',
+      outcome: { correct: true },
+    })
+
+    expect(h.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ quizAnswerId: 'a1' }) }),
+    )
+  })
+
+  it('omits quizAnswerId for a non-quiz source', async () => {
+    await recordStudyEvent({
+      userId: 'u1',
+      cardId: 'c1',
+      source: 'review',
+      outcome: { correct: true },
+    })
+
+    const data = h.create.mock.calls.at(-1)![0].data
+    expect(data.quizAnswerId).toBeUndefined()
+  })
 })
