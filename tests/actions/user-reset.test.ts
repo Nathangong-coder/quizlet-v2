@@ -1,7 +1,22 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { RESET_MEMORY_MODELS } from '@/lib/memory/reset'
 
-describe('resetUserMemory (B3)', () => {
+const h = vi.hoisted(() => ({ auth: vi.fn(), executeErasure: vi.fn() }))
+
+vi.mock('@/auth', () => ({ auth: h.auth }))
+vi.mock('@/lib/db', () => ({ prisma: {} }))
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
+vi.mock('@/lib/memory/erase-execute', () => ({ executeErasure: h.executeErasure }))
+
+import { resetUserMemory } from '@/actions/user'
+
+describe('RESET_MEMORY_MODELS (B3)', () => {
+  // NOTE: this list is no longer the delete set. `resetUserMemory` routes
+  // through the erasure module, which truncates ERASABLE_MEMORY_MODELS —
+  // this list spread plus `studySession`. These assertions survive because
+  // that constant is built FROM this one, so a regression here still reaches
+  // the reset; see tests/memory/erase-coverage.test.ts for the link itself.
+
   it('clears the knowledge posterior, not only the evidence behind it', () => {
     // KlpState is an incremental posterior and is not self-correcting: leaving
     // it behind means "reset my memory" silently preserves every knowledge
@@ -32,13 +47,43 @@ describe('resetUserMemory (B3)', () => {
     expect(models.indexOf('quizAttempt')).toBeLessThan(models.indexOf('quizAnswer'))
   })
 
-  it('names only real Prisma model keys, since the reset indexes the client by them', () => {
-    // The list IS the delete set — resetUserMemory maps over it rather than
-    // repeating a hand-written array, so a typo here is a runtime failure of
-    // the whole reset, not a silently skipped table.
+  it('names only real Prisma model keys, since the erasure indexes the client by them', () => {
+    // `eraseAccount` keys a Record on this union and indexes it per model, so
+    // a typo here is a runtime failure of the whole reset, not a silently
+    // skipped table.
     for (const model of RESET_MEMORY_MODELS) {
       expect(model).toMatch(/^[a-z][A-Za-z]+$/)
     }
     expect(new Set(RESET_MEMORY_MODELS).size).toBe(RESET_MEMORY_MODELS.length)
+  })
+})
+
+describe('resetUserMemory', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    h.auth.mockResolvedValue({ user: { id: 'u1' } })
+    h.executeErasure.mockResolvedValue(undefined)
+  })
+
+  it('delegates to the erasure module rather than deleting by hand', async () => {
+    // The hand-written transaction is what let the account reset omit
+    // studySession (and, once before, klpState). One module, one answer to
+    // "what counts as memory".
+    const result = await resetUserMemory()
+    expect(result.success).toBe(true)
+    expect(h.executeErasure).toHaveBeenCalledWith('u1', { kind: 'account' })
+  })
+
+  it('rejects a signed-out caller without erasing anything', async () => {
+    h.auth.mockResolvedValue(null)
+    const result = await resetUserMemory()
+    expect(result).toEqual({ success: false, error: 'Unauthorized' })
+    expect(h.executeErasure).not.toHaveBeenCalled()
+  })
+
+  it('reports a failure rather than throwing', async () => {
+    h.executeErasure.mockRejectedValue(new Error('boom'))
+    const result = await resetUserMemory()
+    expect(result).toEqual({ success: false, error: 'Failed to reset memory' })
   })
 })
