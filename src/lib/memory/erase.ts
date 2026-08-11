@@ -1,5 +1,5 @@
 import { overallQuizScore } from '@/lib/quiz/scoring'
-import { RESET_MEMORY_MODELS, type ResetMemoryModel } from './reset'
+import { RESET_MEMORY_MODELS } from './reset'
 
 /**
  * The single place that decides what a deletion removes and what must be
@@ -18,13 +18,30 @@ import { RESET_MEMORY_MODELS, type ResetMemoryModel } from './reset'
  * deletion.
  */
 
+/**
+ * Every scope granularity `planErasure` understands, as a single `as const`
+ * with the type DERIVED from it, following `STUDY_SOURCES`
+ * (`src/lib/memory/scoring.ts`). Without this, a scope added later could
+ * silently escape the regression guard's coverage instead of failing a test.
+ */
+export const ERASURE_SCOPE_KINDS = [
+  'event',
+  'answer',
+  'attempt',
+  'card',
+  'set',
+  'account',
+] as const
+
+export type ErasureScopeKind = (typeof ERASURE_SCOPE_KINDS)[number]
+
 export type ErasureScope =
-  | { kind: 'event'; eventId: string }
-  | { kind: 'answer'; answerId: string }
-  | { kind: 'attempt'; attemptId: string }
-  | { kind: 'card'; cardId: string }
-  | { kind: 'set'; setId: string }
-  | { kind: 'account' }
+  | { kind: Extract<ErasureScopeKind, 'event'>; eventId: string }
+  | { kind: Extract<ErasureScopeKind, 'answer'>; answerId: string }
+  | { kind: Extract<ErasureScopeKind, 'attempt'>; attemptId: string }
+  | { kind: Extract<ErasureScopeKind, 'card'>; cardId: string }
+  | { kind: Extract<ErasureScopeKind, 'set'>; setId: string }
+  | { kind: Extract<ErasureScopeKind, 'account'> }
 
 export interface SnapshotAnswer {
   id: string
@@ -51,10 +68,37 @@ export interface SnapshotAttempt {
   answers: { id: string; score: number | null }[]
 }
 
+export interface SnapshotSession {
+  id: string
+  /** The STORED planned item count — NOT derived from answers. Written once
+   *  when the session starts (`quiz.ts:420` from `selectedIds.length`,
+   *  `study-session.ts:35` from callers passing `tiles.length / 2` or
+   *  `deckSize`). Erasure decrements it; it never recomputes it from
+   *  survivors, or an abandoned 20-question quiz would be permanently
+   *  rewritten to "2 items" just because 2 answers happen to remain. */
+  itemCount: number
+}
+
+/**
+ * A read-only view of everything an erasure scope might touch, assembled by
+ * the caller inside its transaction.
+ *
+ * Precondition for the `set` scope: the loader must have already narrowed
+ * every array (`answers`, `events`, `attempts`, `sessions`) to rows
+ * belonging to that one set — `planErasure` does not filter by set itself,
+ * it erases everything it is handed (see the `set` case below). If
+ * `narrowedSetId` is supplied, `planErasure` cross-checks it against
+ * `scope.setId` and throws on a mismatch, catching a caller that built the
+ * snapshot for the wrong set; when omitted, no check is made and the caller
+ * is trusted.
+ */
 export interface ErasureSnapshot {
   answers: SnapshotAnswer[]
   events: SnapshotEvent[]
   attempts: SnapshotAttempt[]
+  sessions: SnapshotSession[]
+  /** Optional self-check for the `set` scope — see the interface doc above. */
+  narrowedSetId?: string
 }
 
 export interface ErasurePlan {
@@ -72,12 +116,24 @@ export interface ErasurePlan {
     attemptId: string
     sessionId: string | null
     score: number | null
-    itemCount: number
+    /** Omitted, never guessed, when the session is absent from the
+     *  snapshot — see `SnapshotSession`'s doc comment. */
+    itemCount?: number
   }[]
   /** The legacy Stage 2 history table, which has no replay. */
   deleteConfidenceEventCardIds: string[]
   replayCardIds: string[]
   replayKlpIds: string[]
+  /**
+   * Sessions whose persisted `insight`/`insightAt` AI summary must be
+   * cleared — every session behind a surviving-but-updated attempt (i.e.
+   * every non-null `sessionId` in `updateAttempts`). `insight` makes
+   * per-card claims and nothing else invalidates it, so after an erasure it
+   * can go on naming a card the learner explicitly erased. Planner only:
+   * this task does not write the executor that performs the clear — that is
+   * Task 5's job.
+   */
+  clearInsightSessionIds: string[]
 }
 
 /**
@@ -91,10 +147,15 @@ export const ERASABLE_MEMORY_MODELS = [
   'studySession',
 ] as const
 
-export type ErasableMemoryModel = ResetMemoryModel | 'studySession'
+export type ErasableMemoryModel = (typeof ERASABLE_MEMORY_MODELS)[number]
 
 const uniq = (xs: string[]): string[] => [...new Set(xs)]
 
+/**
+ * See `ErasureSnapshot`'s doc comment for the `set` scope's narrowing
+ * precondition, which this function enforces via `narrowedSetId` when the
+ * caller supplies it.
+ */
 export function planErasure(
   snapshot: ErasureSnapshot,
   scope: ErasureScope,
@@ -108,6 +169,7 @@ export function planErasure(
     deleteConfidenceEventCardIds: [],
     replayCardIds: [],
     replayKlpIds: [],
+    clearInsightSessionIds: [],
   }
 
   // The account scope is a truncate, not a plan: loading every row in order to
@@ -115,6 +177,17 @@ export function planErasure(
   // onto ERASABLE_MEMORY_MODELS. The variant stays in the union so the
   // vocabulary is complete and the coverage test has something to assert.
   if (scope.kind === 'account') return empty
+
+  if (
+    scope.kind === 'set' &&
+    snapshot.narrowedSetId !== undefined &&
+    snapshot.narrowedSetId !== scope.setId
+  ) {
+    throw new Error(
+      `planErasure: snapshot is narrowed to set ${snapshot.narrowedSetId}, but the set ` +
+        `scope targets ${scope.setId}. The loader built the wrong snapshot for this scope.`,
+    )
+  }
 
   // 1. Which answers and which standalone events does this scope remove?
   let answerIds: string[] = []
@@ -134,7 +207,22 @@ export function planErasure(
       // page you reached it. The cascade only runs answer -> event, so a
       // quiz-sourced event must be erased BY its answer.
       if (event.quizAnswerId !== null) {
-        answerIds = [event.quizAnswerId]
+        const answer = snapshot.answers.find((a) => a.id === event.quizAnswerId)
+        if (!answer) {
+          // Resolving through the snapshot (rather than trusting the FK id
+          // directly) matters: if the answer isn't here, deletedAnswers
+          // below would be empty while deleteAnswerIds is not, so
+          // replayCardIds/replayKlpIds would come back empty. The executor
+          // would delete the answer, cascade its AnswerKlpResult rows, and
+          // replay nothing — evidence gone, posterior standing, permanent.
+          throw new Error(
+            `planErasure: event ${event.id} routes to answer ${event.quizAnswerId}, which is ` +
+              `absent from the snapshot. The loader must widen to include it — otherwise the ` +
+              `delete set and the replay set come from different sources and the KLP posterior ` +
+              `survives its own evidence.`,
+          )
+        }
+        answerIds = [answer.id]
       } else {
         eventIds = [event.id]
       }
@@ -181,7 +269,15 @@ export function planErasure(
 
   for (const attemptId of touchedAttemptIds) {
     const attempt = snapshot.attempts.find((a) => a.id === attemptId)
-    if (!attempt) continue
+
+    if (!attempt) {
+      // An attempt the caller explicitly targeted (via the `attempt` scope)
+      // but that the loader never enumerated — e.g. a zero-answer,
+      // never-completed quiz — must still be deleted. Otherwise "reset this
+      // quiz" on an abandoned attempt silently deletes nothing.
+      if (wholeAttemptIds.includes(attemptId)) deleteAttemptIds.push(attemptId)
+      continue
+    }
 
     const survivors = attempt.answers.filter((a) => !answerIds.includes(a.id))
 
@@ -192,24 +288,42 @@ export function planErasure(
       continue
     }
 
-    // Score and itemCount are STORED numbers derived from answers. Deleting one
-    // makes both wrong, and nothing else recomputes them.
+    // Score is a STORED number derived from answers. Deleting one makes it
+    // wrong, and nothing else recomputes it.
     //
     // Rounded because `overallQuizScore` returns a float mean and
     // `QuizAttempt.score` is an Int column — the live writer in
     // src/actions/quiz.ts rounds for the same reason.
     const mean = overallQuizScore(survivors)
+    const session = attempt.sessionId
+      ? snapshot.sessions.find((s) => s.id === attempt.sessionId)
+      : undefined
+    const deletedCountForAttempt = deletedAnswers.filter((a) => a.attemptId === attemptId).length
+
     updateAttempts.push({
       attemptId,
       sessionId: attempt.sessionId,
       score: mean === null ? null : Math.round(mean),
-      itemCount: survivors.length,
+      // itemCount is the STORED planned count minus how many of this
+      // attempt's answers are being deleted — never the survivor count
+      // (see SnapshotSession) — and omitted, not guessed, when the session
+      // itself is absent from the snapshot.
+      ...(session ? { itemCount: Math.max(0, session.itemCount - deletedCountForAttempt) } : {}),
     })
   }
 
-  const deleteSessionIds = deleteAttemptIds
-    .map((id) => snapshot.attempts.find((a) => a.id === id)?.sessionId ?? null)
-    .filter((id): id is string => id !== null)
+  const deleteSessionIds =
+    scope.kind === 'set'
+      ? // The set scope sweeps every session in the snapshot, including
+        // matching/review StudySessions with no QuizAttempt at all —
+        // otherwise they survive "forget this set" as an empty husk
+        // (verbatim spec defect #3, previously fixed only for `account`).
+        uniq(snapshot.sessions.map((s) => s.id))
+      : uniq(
+          deleteAttemptIds
+            .map((id) => snapshot.attempts.find((a) => a.id === id)?.sessionId ?? null)
+            .filter((id): id is string => id !== null),
+        )
 
   // 3. What must be replayed? Every card that lost an answer or an event, and
   //    every KLP a deleted answer credited.
@@ -217,7 +331,7 @@ export function planErasure(
     deleteAnswerIds: uniq(answerIds),
     deleteEventIds: uniq(eventIds),
     deleteAttemptIds: uniq(deleteAttemptIds),
-    deleteSessionIds: uniq(deleteSessionIds),
+    deleteSessionIds,
     updateAttempts,
     deleteConfidenceEventCardIds: uniq(confidenceCardIds),
     replayCardIds: uniq([
@@ -225,5 +339,10 @@ export function planErasure(
       ...deletedEvents.map((e) => e.cardId),
     ]),
     replayKlpIds: uniq(deletedAnswers.flatMap((a) => a.klpIds)),
+    clearInsightSessionIds: uniq(
+      updateAttempts
+        .map((u) => u.sessionId)
+        .filter((id): id is string => id !== null),
+    ),
   }
 }
