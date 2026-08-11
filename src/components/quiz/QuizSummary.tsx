@@ -4,8 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, CheckCircle2, XCircle, MinusCircle } from 'lucide-react';
+import { Trophy, CheckCircle2, XCircle, MinusCircle, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { getQuizAttemptSummary } from '@/actions/quiz';
+import { resetQuizAnswer } from '@/actions/memory';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { ExpandableText } from '@/components/ui/expandable-text';
@@ -27,6 +30,12 @@ interface QuizSummaryProps {
   score?: number;
   setId: string;
   attemptId: string;
+  /**
+   * Show per-question erase controls. Default false, so the LIVE end-of-quiz
+   * screen — which renders this same component — is unaffected. Only the
+   * activity permalink opts in.
+   */
+  canReset?: boolean;
 }
 
 function GradeFactor({ title, data }: { title: string, data: { score: number, pros: string[], cons: string[] } }) {
@@ -260,9 +269,24 @@ function SessionRollupCard({
   );
 }
 
-export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
+export function QuizSummary({ score, setId, attemptId, canReset = false }: QuizSummaryProps) {
+  const router = useRouter();
   const [summary, setSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  async function handleResetAnswer(answerId: string) {
+    const result = await resetQuizAnswer(answerId);
+    if (!result.success) {
+      toast.error(result.error || 'Failed to reset this question');
+      return;
+    }
+    toast.success('Question erased');
+    // Reload rather than filtering locally: erasing the last answer deletes the
+    // whole attempt, and the recomputed score comes from the server.
+    const refreshed = await getQuizAttemptSummary(attemptId);
+    if (refreshed.success && refreshed.data) setSummary(refreshed.data);
+    else router.push('/profile');
+  }
 
   useEffect(() => {
     async function loadSummary() {
@@ -401,6 +425,17 @@ export function QuizSummary({ score, setId, attemptId }: QuizSummaryProps) {
                               <Badge variant={answer.grade.overall >= 8 ? 'default' : answer.grade.overall >= 5 ? 'secondary' : 'destructive'}>
                                 AI Grade: {answer.grade.overall}/10
                               </Badge>
+                            )}
+                            {canReset && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 shrink-0"
+                                aria-label={`Erase question ${index + 1}`}
+                                onClick={() => handleResetAnswer(answer.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             )}
                           </CardTitle>
                           {/* Render the actual prompt (incl. images) rather than raw term text */}

@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { getStudySession } from '@/actions/study-session';
 import { SessionInsightView } from '@/components/memory/SessionInsightView';
 import { QuizSummary } from '@/components/quiz/QuizSummary';
+import { ResetQuizButton } from '@/components/memory/ResetQuizButton';
 import { activityLabel, formatDuration } from '@/lib/memory/activity-labels';
 
 export default async function ActivityDetailPage({
@@ -30,7 +31,10 @@ export default async function ActivityDetailPage({
         // The identical component the live end-of-quiz screen renders, so the
         // permalink IS "the page I saw when I finished" rather than a copy of
         // it that can drift.
-        <QuizSummary setId={activity.setId} attemptId={activity.attemptId} />
+        <>
+          <QuizSummary setId={activity.setId} attemptId={activity.attemptId} canReset />
+          <ResetQuizButton attemptId={activity.attemptId} setId={activity.setId} />
+        </>
       ) : (
         <SessionInsightView
           insight={activity.insight}

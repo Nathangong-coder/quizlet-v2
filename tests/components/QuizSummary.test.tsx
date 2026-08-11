@@ -3,6 +3,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react'
 import { QuizSummary } from '@/components/quiz/QuizSummary'
 
+const h = vi.hoisted(() => ({ resetQuizAnswer: vi.fn() }))
+
 // RTL's auto-cleanup between tests relies on a global `afterEach`, which
 // this repo doesn't register (vitest.config.ts has no `globals: true`) —
 // without this, one test's rendered DOM bleeds into the next test's queries.
@@ -20,6 +22,13 @@ vi.mock('@/actions/study-session', () => ({
   generateSessionInsight: vi.fn(),
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+
+// QuizSummary imports resetQuizAnswer for the permalink's per-question erase
+// control. It's a 'use server' module, so importing it for real drags
+// next-auth into jsdom and the whole suite fails to load with
+// "Cannot find module next/server".
+vi.mock('@/actions/memory', () => ({ resetQuizAnswer: h.resetQuizAnswer }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }))
 
 function baseAnswer(overrides: Record<string, unknown>) {
   return {
@@ -191,5 +200,72 @@ describe('QuizSummary — session rollup', () => {
     render(<QuizSummary setId="s1" attemptId="a1" />)
     await switchToOverallAnalysis()
     await waitFor(() => screen.getByText(/D&A is added back/))
+  })
+})
+
+describe('QuizSummary — the canReset opt-in', () => {
+  // The `as any` the older tests above use is a no-explicit-any lint error
+  // apiece; go through a typed handle instead so these additions don't raise
+  // the repo's lint baseline.
+  const summaryMock = getQuizAttemptSummary as unknown as ReturnType<typeof vi.fn>
+
+  function oneAnswerAttempt() {
+    summaryMock.mockResolvedValue({
+      success: true,
+      data: {
+        attempt: { mode: 'multiple-choice', answers: [baseAnswer({})] },
+        insight: null,
+      },
+    })
+  }
+
+  it('renders no erase control by default, so the live end-of-quiz screen is untouched', async () => {
+    // QuizContainer renders this same component the moment a learner finishes.
+    // An erase control there is one mis-tap away from destroying the work they
+    // just did — the permalink is the only surface that opts in.
+    oneAnswerAttempt()
+    render(<QuizSummary setId="s1" attemptId="a1" />)
+    await waitFor(() => screen.getByText(/Question 1/))
+    expect(screen.queryByRole('button', { name: /erase question/i })).not.toBeInTheDocument()
+  })
+
+  it('renders one erase control per question when opted in', async () => {
+    oneAnswerAttempt()
+    render(<QuizSummary setId="s1" attemptId="a1" canReset />)
+    await waitFor(() => screen.getByRole('button', { name: /erase question 1/i }))
+  })
+
+  it('reloads the attempt from the server after erasing a question', async () => {
+    // Not a local filter: erasing the last answer deletes the whole attempt,
+    // and the attempt's stored score is recomputed server-side.
+    oneAnswerAttempt()
+    h.resetQuizAnswer.mockResolvedValue({ success: true })
+
+    render(<QuizSummary setId="s1" attemptId="a1" canReset />)
+    const eraseButton = await waitFor(() =>
+      screen.getByRole('button', { name: /erase question 1/i }),
+    )
+    summaryMock.mockClear()
+    fireEvent.click(eraseButton)
+
+    await waitFor(() => expect(h.resetQuizAnswer).toHaveBeenCalledWith('ans1'))
+    await waitFor(() => expect(getQuizAttemptSummary).toHaveBeenCalledWith('a1'))
+  })
+
+  it('does not reload when the erase fails', async () => {
+    // A refetch after a failed erase would redraw the identical page and read
+    // as though something happened.
+    oneAnswerAttempt()
+    h.resetQuizAnswer.mockResolvedValue({ success: false, error: 'Failed to reset this question' })
+
+    render(<QuizSummary setId="s1" attemptId="a1" canReset />)
+    const eraseButton = await waitFor(() =>
+      screen.getByRole('button', { name: /erase question 1/i }),
+    )
+    summaryMock.mockClear()
+    fireEvent.click(eraseButton)
+
+    await waitFor(() => expect(h.resetQuizAnswer).toHaveBeenCalled())
+    expect(getQuizAttemptSummary).not.toHaveBeenCalled()
   })
 })
