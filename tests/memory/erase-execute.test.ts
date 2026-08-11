@@ -189,6 +189,19 @@ describe('executeErasure — ordering', () => {
 
     expect(h.transaction).toHaveBeenCalledOnce()
   })
+
+  it('raises the transaction timeout off Prisma defaults (I-1)', async () => {
+    // Prisma's defaults are 2s to acquire / 5s to run. This transaction does
+    // strictly more serialized round-trips than the one ANALYSIS_TX_OPTIONS
+    // (src/actions/quiz.ts) was widened for. On the defaults a set-level
+    // forget fails on precisely the sets with the most history.
+    const tx = fakeTx(twoAnswerAttempt())
+    run(tx)
+
+    await executeErasure('u1', { kind: 'attempt', attemptId: 'att1' })
+
+    expect(h.transaction.mock.calls[0][1]).toEqual({ maxWait: 10_000, timeout: 30_000 })
+  })
 })
 
 describe('executeErasure — ownership', () => {
@@ -256,11 +269,30 @@ describe('executeErasure — ownership', () => {
 
     await executeErasure('u1', { kind: 'set', setId: 'set1' })
 
+    expect(argFor(tx, 'quizAnswer', 'findMany').where.userId).toBe('u1')
+    expect(argFor(tx, 'studySession', 'findMany').where).toEqual({ userId: 'u1', setId: 'set1' })
+  })
+
+  it('reaches every answer on every attempt it will delete (M-2)', async () => {
+    // The planner deletes `snapshot.attempts` WHOLESALE for the set scope, and
+    // QuizAttempt -> QuizAnswer cascades. An answer on one of those attempts
+    // whose card is NOT in the set would therefore be cascade-deleted without
+    // ever appearing in `deleteAnswerIds` — so its card misses `replayCardIds`
+    // and its KLPs miss `replayKlpIds`, leaving a posterior standing above
+    // evidence that is gone. Permanently: the backfill only rebuilds from
+    // surviving rows.
+    //
+    // Unreachable today (attempts only answer cards from their own set, and
+    // cards cannot move sets), so this closes the hole by construction.
+    const tx = fakeTx({ ...twoAnswerAttempt(), events: [] })
+    run(tx)
+
+    await executeErasure('u1', { kind: 'set', setId: 'set1' })
+
     expect(argFor(tx, 'quizAnswer', 'findMany').where).toEqual({
       userId: 'u1',
-      card: { setId: 'set1' },
+      OR: [{ card: { setId: 'set1' } }, { attempt: { setId: 'set1' } }],
     })
-    expect(argFor(tx, 'studySession', 'findMany').where).toEqual({ userId: 'u1', setId: 'set1' })
   })
 })
 
@@ -426,6 +458,102 @@ describe('executeErasure — sessions', () => {
     await executeErasure('u1', { kind: 'answer', answerId: 'a1' })
 
     expect(argsFor(tx, 'studySession', 'updateMany').some((a) => 'itemCount' in a.data)).toBe(false)
+  })
+})
+
+describe('executeErasure — the answer delete predicate (I-2)', () => {
+  it('narrows by BOTH userId and the planned id list', async () => {
+    // The widest blast radius in the module. Dropping the id narrowing deletes
+    // every answer the learner owns; dropping userId reaches other learners.
+    // Neither mutation is caught by an ordering assertion, which is all this
+    // call had before.
+    const tx = fakeTx(twoAnswerAttempt())
+    run(tx)
+
+    await executeErasure('u1', { kind: 'attempt', attemptId: 'att1' })
+
+    expect(tx.quizAnswer.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', id: { in: ['a1', 'a2'] } },
+    })
+  })
+
+  it('deletes only the one answer the answer scope names, not its attempt siblings', async () => {
+    // The loader widens the SNAPSHOT to the whole attempt so the score can be
+    // recomputed; the DELETE must stay narrow. Confusing the two would erase a
+    // whole quiz when the learner erased one question.
+    const tx = fakeTx(twoAnswerAttempt())
+    run(tx)
+
+    await executeErasure('u1', { kind: 'answer', answerId: 'a1' })
+
+    expect(tx.quizAnswer.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', id: { in: ['a1'] } },
+    })
+  })
+})
+
+describe('executeErasure — unconditional CardProgress deletion (C-1)', () => {
+  it('deletes CardProgress for a card with no answers and no events at all', async () => {
+    // starCard and updateConfidence (src/actions/confidence.ts) both create a
+    // CardProgress row directly, with no StudyEvent and no QuizAnswer behind
+    // it. `replayCardIds` is derived purely from deleted answers/events, so it
+    // never visits such a card — "forget this card" would leave its star,
+    // confidence and mastery standing, feeding the star UI, the starred-only
+    // quiz filter, getDueCards and the learner profile.
+    const tx = fakeTx({ answers: [], events: [] })
+    run(tx)
+
+    await executeErasure('u1', { kind: 'card', cardId: 'c1' })
+
+    expect(tx.cardProgress.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', cardId: { in: ['c1'] } },
+    })
+  })
+
+  it('deletes CardProgress by SET for the set scope, scoped by userId', async () => {
+    // Without userId this reaches every learner's progress on a link-shared
+    // set.
+    const tx = fakeTx({ answers: [], events: [] })
+    run(tx)
+
+    await executeErasure('u1', { kind: 'set', setId: 'set1' })
+
+    expect(tx.cardProgress.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', card: { setId: 'set1' } },
+    })
+  })
+
+  it('deletes CardProgress BEFORE the replay recomputes anything', async () => {
+    // The explicit delete is what guarantees the row is gone; the replay's own
+    // delete-when-nothing-survives is a second, incidental line of defence
+    // rather than the thing being relied on.
+    const tx = fakeTx({ answers: [], events: [] })
+    run(tx)
+
+    await executeErasure('u1', { kind: 'card', cardId: 'c1' })
+
+    const explicit = tx.calls.findIndex(
+      (c) => c.model === 'cardProgress' && c.op === 'deleteMany' && 'in' in (c.arg.where.cardId ?? {}),
+    )
+    const anyReplayRead = tx.calls.findIndex(
+      (c) => c.model === 'studyEvent' && c.op === 'findMany' && c.arg.select?.createdAt,
+    )
+    expect(explicit).toBeGreaterThanOrEqual(0)
+    if (anyReplayRead >= 0) expect(explicit).toBeLessThan(anyReplayRead)
+  })
+
+  it('issues no unconditional delete for a scope that names neither', async () => {
+    // The attempt scope still deletes CardProgress per replayed card, but only
+    // through the replay — never wholesale.
+    const tx = fakeTx(twoAnswerAttempt())
+    run(tx)
+
+    await executeErasure('u1', { kind: 'attempt', attemptId: 'att1' })
+
+    const wholesale = argsFor(tx, 'cardProgress', 'deleteMany').filter(
+      (a) => a.where.card !== undefined || typeof a.where.cardId === 'object',
+    )
+    expect(wholesale).toEqual([])
   })
 })
 

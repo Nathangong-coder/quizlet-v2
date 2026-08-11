@@ -16,6 +16,28 @@ type Tx = Prisma.TransactionClient
 type PlannedScope = Exclude<ErasureScope, { kind: 'account' }>
 
 /**
+ * Prisma's interactive-transaction defaults are 2s to acquire and 5s to run.
+ *
+ * Matches `ANALYSIS_TX_OPTIONS` (`src/actions/quiz.ts`), which was widened for
+ * the same reason: several SERIALIZED round-trips per KLP. An erasure does
+ * strictly more of them — one advisory lock per KLP in `lockKlpStates`, then a
+ * `findMany` plus a write per card in `replayCardProgress`, then a further
+ * per-KLP upsert loop in `rebuildKlpStates`. A set-level forget on a set with
+ * real history would blow through 5s on a Neon serverless connection, so the
+ * defaults would fail "forget this set" on exactly the sets that most need it.
+ *
+ * It fails safe — `P2028` rolls the whole transaction back, so nothing is left
+ * half-erased — which makes this a usability defect rather than a corruption
+ * one, but a total-loss one for the user either way.
+ *
+ * Generous rather than tight on purpose: the cost of an over-long timeout is a
+ * slow request, the cost of a short one is a feature that does not work. If a
+ * very large set ever does time out, the fix is `replayCardProgress`'s
+ * O(cards) sequential round-trips, not a bigger number here.
+ */
+const ERASURE_TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 }
+
+/**
  * Runs an erasure: read a snapshot, plan, delete, replay — all inside ONE
  * transaction, so a replay that throws rolls the deletes back rather than
  * leaving evidence gone and aggregates stale. That failure mode is the whole
@@ -89,6 +111,31 @@ export async function executeErasure(userId: string, scope: ErasureScope): Promi
       })
     }
 
+    // `CardProgress` deleted OUTRIGHT, not left to the replay. Same union
+    // shape and the same userId scoping as ConfidenceEvent above, and for a
+    // structurally identical reason: `replayCardIds` is derived from deleted
+    // answers and events, so it never visits a card that has a CardProgress
+    // row with NO evidence behind it at all — `starCard` and
+    // `updateConfidence` (src/actions/confidence.ts) both create one directly.
+    // Such a card would keep its star, confidence and mastery through "forget
+    // this card", which feeds the star UI, the starred-only quiz filter,
+    // getDueCards and the learner profile.
+    //
+    // Ordered BEFORE `replayCardProgress` deliberately: for these scopes no
+    // event survives, so the replay recomputes to null and issues a second,
+    // harmless delete — but the guarantee that the row is gone comes from
+    // here, rather than depending on the replay happening to notice.
+    if (plan.deleteCardProgressCardIds.length > 0) {
+      await tx.cardProgress.deleteMany({
+        where: { userId, cardId: { in: plan.deleteCardProgressCardIds } },
+      })
+    }
+    if (plan.deleteCardProgressSetId !== undefined) {
+      await tx.cardProgress.deleteMany({
+        where: { userId, card: { setId: plan.deleteCardProgressSetId } },
+      })
+    }
+
     // --- stored counters on survivors ------------------------------------
     // `updateMany` with the userId in the predicate rather than `update` by id:
     // every other write here is owner-scoped, and a plan that somehow named a
@@ -127,7 +174,7 @@ export async function executeErasure(userId: string, scope: ErasureScope): Promi
     // It also deletes any KlpState with no evidence left, which is what stops a
     // stale posterior sitting above MIN_OBSERVATIONS forever.
     await rebuildKlpStates(tx, userId, plan.replayKlpIds)
-  })
+  }, ERASURE_TX_OPTIONS)
 }
 
 /**
@@ -395,7 +442,23 @@ async function scopeToQueries(
 
     case 'set':
       return {
-        answerWhere: { userId, card: { setId: scope.setId } },
+        // Reaches by ATTEMPT as well as by card (M-2). The planner deletes
+        // `snapshot.attempts` wholesale for this scope and QuizAttempt
+        // cascades to QuizAnswer, so an answer on one of those attempts whose
+        // card is not in this set would be cascade-deleted without appearing
+        // in `deleteAnswerIds` — its card would miss `replayCardIds` and its
+        // KLPs would miss `replayKlpIds`, leaving a posterior standing above
+        // evidence that no longer exists, permanently.
+        //
+        // Unreachable today (an attempt only answers cards from its own set,
+        // and a card cannot move sets), so this closes the hole by
+        // construction rather than fixing a live bug. The events query is NOT
+        // widened to match: a StudyEvent has no attempt link, and its card is
+        // the only thing that places it in a set.
+        answerWhere: {
+          userId,
+          OR: [{ card: { setId: scope.setId } }, { attempt: { setId: scope.setId } }],
+        },
         eventWhere: { userId, card: { setId: scope.setId } },
       }
   }
