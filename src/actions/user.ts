@@ -25,6 +25,9 @@ export interface UserStats {
     mode: string;
     score: number | null;
     date: Date;
+    /** The activity permalink is keyed on the session, not the attempt.
+     *  Null for pre-Stage-6 attempts, which have no session envelope. */
+    sessionId: string | null;
   }[];
 }
 
@@ -80,6 +83,7 @@ export async function getUserStats(): Promise<ActionResult<UserStats>> {
           mode: a.mode,
           score: a.score,
           date: a.createdAt,
+          sessionId: a.sessionId,
         })),
       },
     };
