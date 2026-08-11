@@ -805,6 +805,16 @@ async function createAnswerWithAnalysis(
     // Collected before the delete: once the rows are gone there is no way to
     // learn which KLPs they credited.
     let supersededKlpIds: string[] = [];
+    // `replace` is passed on every call site today, even a card's very first
+    // answer — it is not evidence anything was actually superseded. Gating
+    // the CardProgress replay below on `replace` alone was a real bug: a
+    // starred-but-never-studied card (CardProgress with no StudyEvent, from
+    // toggleStar) hit the replay on its first-ever quiz answer, replayed zero
+    // surviving events, and `recomputeCardProgress` returning null deleted
+    // the row — silently unstarring it. Track how many prior answers this
+    // replace actually matched so the replay only runs when something was
+    // genuinely deleted.
+    let priorAnswerCount = 0;
     if (replace) {
       const where = {
         attemptId: replace.attemptId,
@@ -816,6 +826,7 @@ async function createAnswerWithAnalysis(
         where,
         select: { klpResults: { select: { klpId: true } } },
       });
+      priorAnswerCount = prior.length;
       supersededKlpIds = [
         ...new Set(prior.flatMap((p) => p.klpResults.map((r) => r.klpId))),
       ];
@@ -890,7 +901,10 @@ async function createAnswerWithAnalysis(
     // a confidence step from a row that is gone. This also fixes the older bug
     // where a resubmit stepped confidence twice, because the prior event used
     // to survive the replace entirely.
-    if (replace) {
+    // Gated on priorAnswerCount, NOT just `replace`: `replace` is passed on
+    // every submission, including a card's first-ever answer, where nothing
+    // was superseded and this must not run at all (see note above).
+    if (replace && priorAnswerCount > 0) {
       const remaining = await tx.studyEvent.findMany({
         where: { userId: answerData.userId, cardId: replace.cardId },
         select: { correct: true, score: true, createdAt: true },

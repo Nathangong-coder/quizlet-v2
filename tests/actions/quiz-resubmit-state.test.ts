@@ -449,4 +449,21 @@ describe('CardProgress replay on resubmit (Task 2)', () => {
       }),
     )
   })
+
+  it('does not touch CardProgress on a first-time answer, even for a starred card with no StudyEvent history', async () => {
+    // toggleStar (src/actions/confidence.ts) upserts a CardProgress row with
+    // starred: true and NO StudyEvent. `replace` is passed on every
+    // submission, including a card's first-ever answer, so gating the replay
+    // on `replace` alone (rather than on something actually having been
+    // superseded) ran it here too: zero surviving events replayed to `null`,
+    // and the row was deleted -- silently unstarring the card. The replay
+    // must only run when a prior answer was actually found and deleted.
+    h.progressFindUnique.mockResolvedValue({ starred: true })
+
+    await submit('passed', FIRST_AT)
+
+    expect(h.eventFindMany).not.toHaveBeenCalled()
+    expect(h.progressDeleteMany).not.toHaveBeenCalled()
+    expect(h.progressUpsert).not.toHaveBeenCalled()
+  })
 })

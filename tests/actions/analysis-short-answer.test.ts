@@ -28,11 +28,6 @@ const h = vi.hoisted(() => ({
   txPriorFindMany: vi.fn(),
   txKlpResultFindMany: vi.fn(),
   klpStateDeleteMany: vi.fn(),
-  // Task 2: CardProgress replay after a resubmit reads/writes through the
-  // same transaction. These tests submit once, so both default to a no-op.
-  txStudyEventFindMany: vi.fn(),
-  txProgressUpsert: vi.fn(),
-  txProgressDeleteMany: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -109,9 +104,6 @@ beforeEach(() => {
   h.txPriorFindMany.mockResolvedValue([])
   h.txKlpResultFindMany.mockResolvedValue([])
   h.klpStateDeleteMany.mockResolvedValue({ count: 0 })
-  h.txStudyEventFindMany.mockResolvedValue([])
-  h.txProgressUpsert.mockResolvedValue({})
-  h.txProgressDeleteMany.mockResolvedValue({ count: 0 })
   h.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
       quizAnswer: {
@@ -132,10 +124,10 @@ beforeEach(() => {
         upsert: h.klpStateUpsert,
         deleteMany: h.klpStateDeleteMany,
       },
-      // Task 2: CardProgress replay when `replace` is passed (always, from
-      // every call site today).
-      studyEvent: { findMany: h.txStudyEventFindMany },
-      cardProgress: { upsert: h.txProgressUpsert, deleteMany: h.txProgressDeleteMany },
+      // Task 2's CardProgress replay is gated on a prior answer actually
+      // being found (priorAnswerCount > 0). txPriorFindMany resolves []
+      // above, so it never runs here — no studyEvent/cardProgress stub
+      // needed on this fake tx.
     }),
   )
 })
