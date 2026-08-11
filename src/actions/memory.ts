@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { recomputeCardProgress } from '@/lib/memory/recompute';
+import { executeErasure } from '@/lib/memory/erase-execute';
+import type { ErasureScope } from '@/lib/memory/erase';
 import {
   buildStudyEventWhere,
   groupCategoriesByName,
@@ -266,104 +267,44 @@ export async function getScopedMemoryStats(
   }
 }
 
-export async function deleteStudyEvent(eventId: string): Promise<ActionResult<void>> {
+/**
+ * Every erasure verb is a scope selector over one module. The rules for what
+ * each scope removes and what it replays live in `src/lib/memory/erase.ts`,
+ * where they are pure and unit-tested — NOT here, and not duplicated per verb.
+ */
+async function erase(scope: ErasureScope, failure: string): Promise<ActionResult<void>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
-  const userId = session.user.id;
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const event = await tx.studyEvent.findUnique({
-        where: { id: eventId },
-        select: { userId: true, cardId: true },
-      });
-
-      if (!event || event.userId !== userId) {
-        throw new Error('Not found');
-      }
-
-      await tx.studyEvent.delete({ where: { id: eventId } });
-
-      const remaining = await tx.studyEvent.findMany({
-        where: { userId, cardId: event.cardId },
-        select: { correct: true, score: true, createdAt: true },
-      });
-
-      const recomputed = recomputeCardProgress(remaining);
-
-      if (recomputed === null) {
-        await tx.cardProgress.deleteMany({ where: { userId, cardId: event.cardId } });
-      } else {
-        await tx.cardProgress.upsert({
-          where: { userId_cardId: { userId, cardId: event.cardId } },
-          update: {
-            confidence: recomputed.confidence,
-            mastery: recomputed.mastery,
-            reps: recomputed.reps,
-            dueAt: recomputed.dueAt,
-            lastSeenAt: recomputed.lastSeenAt,
-          },
-          create: {
-            userId,
-            cardId: event.cardId,
-            confidence: recomputed.confidence,
-            mastery: recomputed.mastery,
-            reps: recomputed.reps,
-            dueAt: recomputed.dueAt,
-            lastSeenAt: recomputed.lastSeenAt,
-            starred: false,
-          },
-        });
-      }
-    });
-
+    await executeErasure(session.user.id, scope);
     revalidatePath('/profile/memory');
     revalidatePath('/profile');
     return { success: true, data: undefined };
   } catch (error) {
-    console.error('Delete study event error:', error);
-    return { success: false, error: 'Failed to delete entry' };
+    console.error(`${failure}:`, error);
+    return { success: false, error: failure };
   }
+}
+
+export async function deleteStudyEvent(eventId: string): Promise<ActionResult<void>> {
+  return erase({ kind: 'event', eventId }, 'Failed to delete entry');
 }
 
 export async function forgetCard(cardId: string): Promise<ActionResult<void>> {
-  const session = await auth();
-  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
-  const userId = session.user.id;
-
-  try {
-    await prisma.$transaction([
-      prisma.confidenceEvent.deleteMany({ where: { userId, cardId } }),
-      prisma.studyEvent.deleteMany({ where: { userId, cardId } }),
-      prisma.cardProgress.deleteMany({ where: { userId, cardId } }),
-    ]);
-
-    revalidatePath('/profile/memory');
-    revalidatePath('/profile');
-    return { success: true, data: undefined };
-  } catch (error) {
-    console.error('Forget card error:', error);
-    return { success: false, error: 'Failed to forget card' };
-  }
+  return erase({ kind: 'card', cardId }, 'Failed to forget card');
 }
 
 export async function forgetSet(setId: string): Promise<ActionResult<void>> {
-  const session = await auth();
-  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
-  const userId = session.user.id;
+  return erase({ kind: 'set', setId }, 'Failed to forget set');
+}
 
-  try {
-    await prisma.$transaction([
-      prisma.confidenceEvent.deleteMany({ where: { userId, card: { setId } } }),
-      prisma.studyEvent.deleteMany({ where: { userId, card: { setId } } }),
-      prisma.cardProgress.deleteMany({ where: { userId, card: { setId } } }),
-    ]);
+/** Erases one quiz outright — attempt, answers, session, events. */
+export async function resetQuizAttempt(attemptId: string): Promise<ActionResult<void>> {
+  return erase({ kind: 'attempt', attemptId }, 'Failed to reset this quiz');
+}
 
-    revalidatePath('/profile/memory');
-    revalidatePath('/profile');
-    return { success: true, data: undefined };
-  } catch (error) {
-    console.error('Forget set error:', error);
-    return { success: false, error: 'Failed to forget set' };
-  }
+/** Erases one question from a quiz, recomputing the attempt's stored score. */
+export async function resetQuizAnswer(answerId: string): Promise<ActionResult<void>> {
+  return erase({ kind: 'answer', answerId }, 'Failed to reset this question');
 }
