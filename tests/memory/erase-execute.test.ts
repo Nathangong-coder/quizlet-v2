@@ -527,19 +527,32 @@ describe('executeErasure — unconditional CardProgress deletion (C-1)', () => {
     // The explicit delete is what guarantees the row is gone; the replay's own
     // delete-when-nothing-survives is a second, incidental line of defence
     // rather than the thing being relied on.
-    const tx = fakeTx({ answers: [], events: [] })
+    //
+    // This fixture deliberately DIFFERS from the two tests above: it carries
+    // an answer on c1 so `replayCardIds` is non-empty and `replayCardProgress`
+    // actually issues its read. On the zero-answers/zero-events fixture the
+    // replay loops zero times, no read is ever issued, and an ordering
+    // assertion has nothing to order against — a guard that cannot fail.
+    const tx = fakeTx({
+      answers: [{ id: 'a1', attemptId: 'att1', cardId: 'c1', score: 100, klpResults: [] }],
+      events: [],
+      attempts: [{ id: 'att1', sessionId: null, answers: [{ id: 'a1', score: 100 }] }],
+    })
     run(tx)
 
     await executeErasure('u1', { kind: 'card', cardId: 'c1' })
 
+    // The wholesale delete, distinguished from the replay's own per-card one
+    // by its `in`-shaped predicate.
     const explicit = tx.calls.findIndex(
       (c) => c.model === 'cardProgress' && c.op === 'deleteMany' && 'in' in (c.arg.where.cardId ?? {}),
     )
-    const anyReplayRead = tx.calls.findIndex(
+    const replayRead = tx.calls.findIndex(
       (c) => c.model === 'studyEvent' && c.op === 'findMany' && c.arg.select?.createdAt,
     )
     expect(explicit).toBeGreaterThanOrEqual(0)
-    if (anyReplayRead >= 0) expect(explicit).toBeLessThan(anyReplayRead)
+    expect(replayRead).toBeGreaterThanOrEqual(0)
+    expect(explicit).toBeLessThan(replayRead)
   })
 
   it('issues no unconditional delete for a scope that names neither', async () => {
