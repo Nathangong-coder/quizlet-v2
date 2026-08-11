@@ -58,6 +58,16 @@ export interface SnapshotEvent {
   /** Null for `review`/`matching`/`lesson`, which have no graded answer. */
   quizAnswerId: string | null
   source: string
+  /**
+   * The session this event belonged to, or null if it isn't tied to one.
+   * Needed so erasing a standalone review or matching event (one with
+   * `quizAnswerId: null`) can invalidate that session's persisted
+   * `insight` — review/matching sessions have no `QuizAttempt`, so this is
+   * the only path back to the session. A quiz-sourced event's session is
+   * already reachable via its answer's attempt, so this field is only
+   * consulted for events that end up in `deleteEventIds` directly.
+   */
+  sessionId: string | null
 }
 
 export interface SnapshotAttempt {
@@ -126,12 +136,18 @@ export interface ErasurePlan {
   replayKlpIds: string[]
   /**
    * Sessions whose persisted `insight`/`insightAt` AI summary must be
-   * cleared — every session behind a surviving-but-updated attempt (i.e.
-   * every non-null `sessionId` in `updateAttempts`). `insight` makes
-   * per-card claims and nothing else invalidates it, so after an erasure it
-   * can go on naming a card the learner explicitly erased. Planner only:
-   * this task does not write the executor that performs the clear — that is
-   * Task 5's job.
+   * cleared: every session behind a surviving-but-updated attempt (a
+   * non-null `sessionId` in `updateAttempts`), UNION the session of every
+   * directly-deleted standalone event (a non-null `sessionId` among the
+   * events in `deleteEventIds`) — review/matching sessions have no
+   * `QuizAttempt`, so erasing one of their events can only reach the
+   * session through the event's own `sessionId`. Sessions already present
+   * in `deleteSessionIds` are excluded: clearing a field on a row that is
+   * about to be deleted outright is pointless. `insight` makes per-card
+   * claims and nothing else invalidates it, so left alone it can go on
+   * naming a card the learner explicitly erased. Planner only: this task
+   * does not write the executor that performs the clear — that is Task 5's
+   * job.
    */
   clearInsightSessionIds: string[]
 }
@@ -339,10 +355,9 @@ export function planErasure(
       ...deletedEvents.map((e) => e.cardId),
     ]),
     replayKlpIds: uniq(deletedAnswers.flatMap((a) => a.klpIds)),
-    clearInsightSessionIds: uniq(
-      updateAttempts
-        .map((u) => u.sessionId)
-        .filter((id): id is string => id !== null),
-    ),
+    clearInsightSessionIds: uniq([
+      ...updateAttempts.map((u) => u.sessionId).filter((id): id is string => id !== null),
+      ...deletedEvents.map((e) => e.sessionId).filter((id): id is string => id !== null),
+    ]).filter((id) => !deleteSessionIds.includes(id)),
   }
 }

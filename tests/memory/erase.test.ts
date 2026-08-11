@@ -13,9 +13,11 @@ import {
  *    k1), a2 (card c2, klp k2)
  *  attempt att2 (session s2, planned itemCount 2) — answers a3 (card c1, klp
  *    k1), a5 (card c3, klp k3)
- *  events: e1->a1, e2->a2, e3->a3, e4 = a standalone review of c1, e5->a5
+ *  events: e1->a1 (session s1), e2->a2 (session s1), e3->a3 (session s2),
+ *    e4 = a standalone review of c1 tied to session s3, e5->a5 (session s2)
  *  sessions: s1 (att1), s2 (att2), s3 = a standalone matching/review session
- *    with NO QuizAttempt at all
+ *    with NO QuizAttempt at all — e4's session, exercising the only path
+ *    back to a review/matching session's insight (I-7 gap fix)
  *
  * a5/c3 exists so the attempt-scope replay assertions have a card outside
  * att1's touch-set to prove against — att1 only ever touched c1 and c2,
@@ -30,11 +32,11 @@ const snapshot = (): ErasureSnapshot => ({
     { id: 'a5', attemptId: 'att2', cardId: 'c3', klpIds: ['k3'], score: 20 },
   ],
   events: [
-    { id: 'e1', cardId: 'c1', quizAnswerId: 'a1', source: 'quiz-mc' },
-    { id: 'e2', cardId: 'c2', quizAnswerId: 'a2', source: 'quiz-mc' },
-    { id: 'e3', cardId: 'c1', quizAnswerId: 'a3', source: 'quiz-sa' },
-    { id: 'e4', cardId: 'c1', quizAnswerId: null, source: 'review' },
-    { id: 'e5', cardId: 'c3', quizAnswerId: 'a5', source: 'quiz-mc' },
+    { id: 'e1', cardId: 'c1', quizAnswerId: 'a1', source: 'quiz-mc', sessionId: 's1' },
+    { id: 'e2', cardId: 'c2', quizAnswerId: 'a2', source: 'quiz-mc', sessionId: 's1' },
+    { id: 'e3', cardId: 'c1', quizAnswerId: 'a3', source: 'quiz-sa', sessionId: 's2' },
+    { id: 'e4', cardId: 'c1', quizAnswerId: null, source: 'review', sessionId: 's3' },
+    { id: 'e5', cardId: 'c3', quizAnswerId: 'a5', source: 'quiz-mc', sessionId: 's2' },
   ],
   attempts: [
     { id: 'att1', sessionId: 's1', answers: [{ id: 'a1', score: 100 }, { id: 'a2', score: 0 }] },
@@ -103,7 +105,7 @@ describe('planErasure — answer scope, last-answer cascade', () => {
     // Otherwise the activity feed shows a ghost quiz with nothing in it.
     const snap: ErasureSnapshot = {
       answers: [{ id: 'x1', attemptId: 'attX', cardId: 'cX', klpIds: ['kX'], score: 50 }],
-      events: [{ id: 'ex1', cardId: 'cX', quizAnswerId: 'x1', source: 'quiz-sa' }],
+      events: [{ id: 'ex1', cardId: 'cX', quizAnswerId: 'x1', source: 'quiz-sa', sessionId: 'sX' }],
       attempts: [{ id: 'attX', sessionId: 'sX', answers: [{ id: 'x1', score: 50 }] }],
       sessions: [{ id: 'sX', itemCount: 1 }],
     }
@@ -157,10 +159,48 @@ describe('planErasure — clearInsightSessionIds (I-7)', () => {
     expect(p.clearInsightSessionIds).toEqual([])
   })
 
-  it('collects a session id for every updated attempt it backs', () => {
+  it('collects a session id for every updated attempt AND every deleted standalone event it backs', () => {
     const p = plan({ kind: 'card', cardId: 'c1' })
-    // card scope recomputes both att1 (session s1) and att2 (session s2)
-    expect(p.clearInsightSessionIds.sort()).toEqual(['s1', 's2'])
+    // card scope recomputes att1 (session s1) and att2 (session s2), and
+    // also deletes e4 — the standalone review event on c1, tied to s3.
+    expect(p.clearInsightSessionIds.sort()).toEqual(['s1', 's2', 's3'])
+  })
+
+  // Round 2 gap: review/matching sessions have no QuizAttempt, so
+  // updateAttempts alone can never reach them. A learner who erases a
+  // standalone review event from the memory-history page must still get
+  // that session's insight cleared, or it goes on naming a card they just
+  // erased — precisely the failure I-7 exists to prevent.
+  describe('standalone (non-quiz) events', () => {
+    it('clears the insight of a standalone review event\'s session', () => {
+      const p = plan({ kind: 'event', eventId: 'e4' })
+      expect(p.clearInsightSessionIds).toEqual(['s3'])
+    })
+
+    it('adds nothing when the deleted standalone event has no session', () => {
+      // No null leaking in — same class of bug the deleteSessionIds
+      // predicate already guards against.
+      const snap = snapshot()
+      snap.events.push({
+        id: 'e6',
+        cardId: 'c1',
+        quizAnswerId: null,
+        source: 'review',
+        sessionId: null,
+      })
+      const p = planErasure(snap, { kind: 'event', eventId: 'e6' })
+      expect(p.clearInsightSessionIds).toEqual([])
+    })
+
+    it('excludes a session that is already being deleted outright', () => {
+      // The set scope deletes s3 outright (I-2's full session sweep) and
+      // also deletes e4, whose sessionId is s3. Without the exclusion, s3
+      // would be listed for both outright deletion AND a pointless
+      // field-clear on a row that is about to be gone.
+      const p = plan({ kind: 'set', setId: 'set1' })
+      expect(p.deleteSessionIds).toContain('s3')
+      expect(p.clearInsightSessionIds).not.toContain('s3')
+    })
   })
 })
 
@@ -195,7 +235,13 @@ describe('planErasure — event scope', () => {
     // The executor would delete the answer, cascade its AnswerKlpResult rows,
     // and replay nothing: evidence gone, posterior standing, permanent.
     const snap = snapshot()
-    snap.events.push({ id: 'eGhost', cardId: 'c9', quizAnswerId: 'aGhost', source: 'quiz-mc' })
+    snap.events.push({
+      id: 'eGhost',
+      cardId: 'c9',
+      quizAnswerId: 'aGhost',
+      source: 'quiz-mc',
+      sessionId: null,
+    })
     expect(() => planErasure(snap, { kind: 'event', eventId: 'eGhost' })).toThrow(
       /absent from the snapshot/,
     )
@@ -341,14 +387,30 @@ describe('planErasure — account scope', () => {
 })
 
 describe('planErasure — purity', () => {
-  it('does not mutate the snapshot passed in', () => {
+  // One representative scope per kind, all resolvable against the shared
+  // fixture, so a mutation confined to a single branch (e.g. only the
+  // `card` case) can't hide behind a test that only ever exercised `set`.
+  const allScopes: ErasureScope[] = [
+    { kind: 'event', eventId: 'e1' },
+    { kind: 'answer', answerId: 'a1' },
+    { kind: 'attempt', attemptId: 'att1' },
+    { kind: 'card', cardId: 'c1' },
+    { kind: 'set', setId: 'set1' },
+    { kind: 'account' },
+  ]
+
+  it('the parameterisation covers every scope kind', () => {
+    expect(allScopes.map((s) => s.kind).sort()).toEqual([...ERASURE_SCOPE_KINDS].sort())
+  })
+
+  it.each(allScopes)('does not mutate the snapshot passed in (%o)', (scope) => {
     // Both B3-guard blocks below derive their expectations from `snap`
     // *after* calling planErasure(snap, ...). If the planner ever mutated
     // its input, the guard would be checking its own corruption and could
     // go green over a broken planner.
     const snap = snapshot()
     const before = JSON.parse(JSON.stringify(snap))
-    planErasure(snap, { kind: 'set', setId: 'set1' })
+    planErasure(snap, scope)
     expect(snap).toEqual(before)
   })
 })
