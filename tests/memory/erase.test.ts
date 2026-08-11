@@ -326,12 +326,14 @@ describe('planErasure — attempt scope', () => {
       expect(p.deleteEventIds).not.toContain('eOther')
     })
 
-    it('does not sweep a standalone (non-quiz) review event on the same session', () => {
-      // Not part of M-1's contract either way in this fixture shape, but
-      // pins that a null-quizAnswerId event on the attempt's session is
-      // still swept regardless of its `source` label — the planner has no
-      // other signal to distinguish "orphaned quiz event" from "review
-      // event that happens to share the session."
+    it('also sweeps a standalone review-sourced event that shares the attempt session', () => {
+      // A `review`-sourced event shouldn't structurally exist on a session
+      // whose `kind` is "quiz" — but the planner has no better signal than
+      // (sessionId match, quizAnswerId null) to identify M-1's orphans, so
+      // it sweeps this one too rather than trying to distinguish by
+      // `source`. Pinned here so a future attempt to add a `source` filter
+      // has to consciously decide to narrow this, not discover it by
+      // accident.
       const snap = orphanFixture()
       snap.events.push({
         id: 'eReview',
@@ -364,6 +366,16 @@ describe('planErasure — card scope', () => {
   it('clears the legacy ConfidenceEvent rows for that card', () => {
     const p = plan({ kind: 'card', cardId: 'c1' })
     expect(p.deleteConfidenceEventCardIds).toEqual(['c1'])
+  })
+
+  it('deletes CardProgress unconditionally, not via replay (C-1)', () => {
+    // A card can hold a CardProgress row with NO StudyEvent/QuizAnswer
+    // behind it at all (starCard/updateConfidence create one directly), so
+    // replayCardIds — derived purely from deleted answers/events — would
+    // never visit it. "Forget this card" must delete CardProgress outright.
+    const p = plan({ kind: 'card', cardId: 'c1' })
+    expect(p.deleteCardProgressCardIds).toEqual(['c1'])
+    expect(p.deleteCardProgressSetId).toBeUndefined()
   })
 
   it('leaves the sibling card untouched', () => {
@@ -461,6 +473,39 @@ describe('planErasure — deleteConfidenceEventSetId (N-1)', () => {
   })
 })
 
+describe('planErasure — deleteCardProgressCardIds / deleteCardProgressSetId (C-1)', () => {
+  // CardProgress can exist with ZERO events behind it — starCard and
+  // updateConfidence (src/actions/confidence.ts) both `create` a row
+  // directly — so replayCardIds (derived from deleted answers/events) can
+  // never be trusted to reach it. Both scopes below must delete it
+  // outright, matching forgetCard/forgetSet's unconditional deletes today
+  // (src/actions/memory.ts) and the design's Deletes column, not Replays.
+  it('the card scope emits [cardId] and no set id', () => {
+    const p = plan({ kind: 'card', cardId: 'c1' })
+    expect(p.deleteCardProgressCardIds).toEqual(['c1'])
+    expect(p.deleteCardProgressSetId).toBeUndefined()
+  })
+
+  it('the set scope emits the set id and an empty card list', () => {
+    const p = plan({ kind: 'set', setId: 'set1' })
+    expect(p.deleteCardProgressSetId).toBe('set1')
+    expect(p.deleteCardProgressCardIds).toEqual([])
+  })
+
+  const otherScopesForCardProgress: ErasureScope[] = [
+    { kind: 'event', eventId: 'e1' },
+    { kind: 'answer', answerId: 'a1' },
+    { kind: 'attempt', attemptId: 'att1' },
+    { kind: 'account' },
+  ]
+
+  it.each(otherScopesForCardProgress)('every other scope emits neither (%o)', (scope) => {
+    const p = plan(scope)
+    expect(p.deleteCardProgressCardIds).toEqual([])
+    expect(p.deleteCardProgressSetId).toBeUndefined()
+  })
+})
+
 describe('planErasure — account scope', () => {
   it('returns the empty plan without reading the snapshot', () => {
     // A full account wipe is a truncate, not a plan — loading every row to
@@ -474,6 +519,7 @@ describe('planErasure — account scope', () => {
       deleteSessionIds: [],
       updateAttempts: [],
       deleteConfidenceEventCardIds: [],
+      deleteCardProgressCardIds: [],
       replayCardIds: [],
       replayKlpIds: [],
       clearInsightSessionIds: [],

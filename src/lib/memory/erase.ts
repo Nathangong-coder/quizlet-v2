@@ -147,6 +147,33 @@ export interface ErasurePlan {
    * instruction instead.
    */
   deleteConfidenceEventSetId?: string
+  /**
+   * Card ids whose `CardProgress` row must be deleted OUTRIGHT — never
+   * replayed. Set for the `card` scope only (`[scope.cardId]`); every other
+   * scope leaves this empty. Distinct from `replayCardIds` and necessary
+   * because a card can hold a `CardProgress` row with NO `StudyEvent` or
+   * `QuizAnswer` behind it at all: `starCard` and `updateConfidence`
+   * (`src/actions/confidence.ts`) both `create` one directly (star-only or
+   * manually-rated cards). `replayCardIds`, derived purely from deleted
+   * answers/events, would never visit such a card, so "forget this card"
+   * would silently leave its star/confidence/mastery standing — the design
+   * (`docs/superpowers/specs/2026-08-10-deletion-and-forgetting-design.md`
+   * §3.1) lists `CardProgress` as an unconditional delete for this scope,
+   * not a replay, and `forgetCard`/`forgetSet` (`src/actions/memory.ts`)
+   * already delete it unconditionally today.
+   */
+  deleteCardProgressCardIds: string[]
+  /**
+   * Set for the `set` scope only, for the same structural reason as
+   * `deleteConfidenceEventSetId`: `deleteCardProgressCardIds` is
+   * card-scoped, and the snapshot does not carry the set's full card list,
+   * so the `set` scope cannot express "every `CardProgress` row in this
+   * set" as a card-id list without loading one just to delete rows that
+   * may not exist. The executor is expected to delete by
+   * `{ userId, card: { setId } }`, matching `forgetSet`'s unconditional
+   * breadth today.
+   */
+  deleteCardProgressSetId?: string
   replayCardIds: string[]
   replayKlpIds: string[]
   /**
@@ -198,6 +225,7 @@ export function planErasure(
     deleteSessionIds: [],
     updateAttempts: [],
     deleteConfidenceEventCardIds: [],
+    deleteCardProgressCardIds: [],
     replayCardIds: [],
     replayKlpIds: [],
     clearInsightSessionIds: [],
@@ -271,6 +299,12 @@ export function planErasure(
       // silently dropped: after the session is deleted (`sessionId` is
       // `SetNull`) they survive invisible and unreachable, still feeding
       // CardProgress.
+      //
+      // This lookup relies on `loadSnapshot` (src/lib/memory/erase-execute.ts)
+      // folding `targetedAttemptId` into its attempt query even for a
+      // zero-answer attempt — otherwise a never-completed quiz wouldn't
+      // appear in `snapshot.attempts` at all and this would find nothing.
+      // Nothing but a test enforces that contract across the two modules.
       const targetAttempt = snapshot.attempts.find((a) => a.id === scope.attemptId)
       if (targetAttempt?.sessionId) {
         eventIds = snapshot.events
@@ -381,6 +415,8 @@ export function planErasure(
     updateAttempts,
     deleteConfidenceEventCardIds: uniq(confidenceCardIds),
     ...(scope.kind === 'set' ? { deleteConfidenceEventSetId: scope.setId } : {}),
+    deleteCardProgressCardIds: scope.kind === 'card' ? [scope.cardId] : [],
+    ...(scope.kind === 'set' ? { deleteCardProgressSetId: scope.setId } : {}),
     replayCardIds: uniq([
       ...deletedAnswers.map((a) => a.cardId),
       ...deletedEvents.map((e) => e.cardId),
