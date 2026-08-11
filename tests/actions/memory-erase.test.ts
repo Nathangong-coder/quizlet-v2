@@ -47,5 +47,9 @@ describe('the memory erasure actions', () => {
     h.executeErasure.mockRejectedValue(new Error('Not found'))
     const result = await resetQuizAttempt('att1')
     expect(result.success).toBe(false)
+    // The verb's own copy, not the thrown message. executeErasure throws a bare
+    // 'Not found' for both absent and not-yours, which tells a learner nothing
+    // and tells a prober whether the id exists.
+    expect(result).toEqual({ success: false, error: 'Failed to reset this quiz' })
   })
 })
