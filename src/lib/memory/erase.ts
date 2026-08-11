@@ -132,6 +132,21 @@ export interface ErasurePlan {
   }[]
   /** The legacy Stage 2 history table, which has no replay. */
   deleteConfidenceEventCardIds: string[]
+  /**
+   * Set for the `set` scope only — the executor deletes legacy
+   * `ConfidenceEvent` rows by `{ userId, card: { setId } }`, matching
+   * today's `forgetSet` (`src/actions/memory.ts`) breadth: every card in
+   * the set, not only the ones that also appear in `answers`/`events`.
+   * `deleteConfidenceEventCardIds` cannot cover this — it is derived from
+   * cards present in the snapshot's answers or events, so a card whose only
+   * remaining memory is a legacy `ConfidenceEvent` row (no answer, no
+   * event) never appears there, and its rows would silently survive
+   * "forget this set." Widening `deleteConfidenceEventCardIds` instead
+   * would require the snapshot to carry the set's full card list just to
+   * delete rows that may not exist, so this is a separate, set-scoped
+   * instruction instead.
+   */
+  deleteConfidenceEventSetId?: string
   replayCardIds: string[]
   replayKlpIds: string[]
   /**
@@ -247,6 +262,21 @@ export function planErasure(
     case 'attempt': {
       wholeAttemptIds = [scope.attemptId]
       answerIds = snapshot.answers.filter((a) => a.attemptId === scope.attemptId).map((a) => a.id)
+      // Pre-Stage-6 StudyEvent rows can be quiz-sourced with a NULL
+      // quizAnswerId that Task 3's backfill structurally cannot link. The
+      // executor's loader reaches them by the attempt's session as well as
+      // by its answers (M-1) — `QuizAttempt.sessionId` is @unique, so a
+      // session has at most one attempt and this cannot pull in another
+      // attempt's events. Without this, those rows are loaded and then
+      // silently dropped: after the session is deleted (`sessionId` is
+      // `SetNull`) they survive invisible and unreachable, still feeding
+      // CardProgress.
+      const targetAttempt = snapshot.attempts.find((a) => a.id === scope.attemptId)
+      if (targetAttempt?.sessionId) {
+        eventIds = snapshot.events
+          .filter((e) => e.sessionId === targetAttempt.sessionId && e.quizAnswerId === null)
+          .map((e) => e.id)
+      }
       break
     }
     case 'card': {
@@ -350,6 +380,7 @@ export function planErasure(
     deleteSessionIds,
     updateAttempts,
     deleteConfidenceEventCardIds: uniq(confidenceCardIds),
+    ...(scope.kind === 'set' ? { deleteConfidenceEventSetId: scope.setId } : {}),
     replayCardIds: uniq([
       ...deletedAnswers.map((a) => a.cardId),
       ...deletedEvents.map((e) => e.cardId),

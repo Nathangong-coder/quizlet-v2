@@ -282,6 +282,75 @@ describe('planErasure — attempt scope', () => {
     expect(p.deleteAttemptIds).toEqual(['attN'])
     expect(p.deleteSessionIds).toEqual([])
   })
+
+  describe('orphan quiz events reachable only via the session (M-1)', () => {
+    // Pre-Stage-6 StudyEvent rows can be quiz-sourced with a NULL
+    // quizAnswerId that Task 3's backfill structurally cannot link — the
+    // executor's loader reaches them through the attempt's session as well
+    // as through its answers. Without the planner routing these into
+    // eventIds too, they're loaded and then silently dropped: after the
+    // session is deleted (StudyEvent.sessionId is SetNull) they survive
+    // invisible, unreachable, and still feeding CardProgress.
+    const orphanFixture = (): ErasureSnapshot => ({
+      answers: [{ id: 'y1', attemptId: 'attY', cardId: 'cY', klpIds: ['kY'], score: 80 }],
+      events: [
+        { id: 'ey1', cardId: 'cY', quizAnswerId: 'y1', source: 'quiz-mc', sessionId: 'sY' },
+        // The orphan: quiz-sourced, but its quizAnswerId is null, so it is
+        // reachable ONLY through sessionId matching attY's session.
+        { id: 'eOrphan', cardId: 'cOrphan', quizAnswerId: null, source: 'quiz-mc', sessionId: 'sY' },
+      ],
+      attempts: [{ id: 'attY', sessionId: 'sY', answers: [{ id: 'y1', score: 80 }] }],
+      sessions: [{ id: 'sY', itemCount: 1 }],
+    })
+
+    it('deletes the orphan event and replays its card', () => {
+      const p = planErasure(orphanFixture(), { kind: 'attempt', attemptId: 'attY' })
+      expect(p.deleteEventIds).toEqual(['eOrphan'])
+      expect(p.replayCardIds).toContain('cOrphan')
+    })
+
+    it('does not pull in an orphan event belonging to a DIFFERENT session', () => {
+      // QuizAttempt.sessionId is @unique, so this is a defensive check: even
+      // if two attempts existed, an orphan tied to a different session must
+      // not be swept in.
+      const snap = orphanFixture()
+      snap.events.push({
+        id: 'eOther',
+        cardId: 'cOther',
+        quizAnswerId: null,
+        source: 'quiz-mc',
+        sessionId: 'sOther',
+      })
+      const p = planErasure(snap, { kind: 'attempt', attemptId: 'attY' })
+      expect(p.deleteEventIds).toEqual(['eOrphan'])
+      expect(p.deleteEventIds).not.toContain('eOther')
+    })
+
+    it('does not sweep a standalone (non-quiz) review event on the same session', () => {
+      // Not part of M-1's contract either way in this fixture shape, but
+      // pins that a null-quizAnswerId event on the attempt's session is
+      // still swept regardless of its `source` label — the planner has no
+      // other signal to distinguish "orphaned quiz event" from "review
+      // event that happens to share the session."
+      const snap = orphanFixture()
+      snap.events.push({
+        id: 'eReview',
+        cardId: 'cReview',
+        quizAnswerId: null,
+        source: 'review',
+        sessionId: 'sY',
+      })
+      const p = planErasure(snap, { kind: 'attempt', attemptId: 'attY' })
+      expect(p.deleteEventIds.sort()).toEqual(['eOrphan', 'eReview'])
+    })
+
+    it('sweeps nothing extra when the attempt has no session', () => {
+      const snap = orphanFixture()
+      snap.attempts[0] = { ...snap.attempts[0], sessionId: null }
+      const p = planErasure(snap, { kind: 'attempt', attemptId: 'attY' })
+      expect(p.deleteEventIds).toEqual([])
+    })
+  })
 })
 
 describe('planErasure — card scope', () => {
@@ -363,6 +432,32 @@ describe('planErasure — set scope', () => {
     const snap = snapshot()
     expect(snap.narrowedSetId).toBeUndefined()
     expect(() => planErasure(snap, { kind: 'set', setId: 'set1' })).not.toThrow()
+  })
+})
+
+describe('planErasure — deleteConfidenceEventSetId (N-1)', () => {
+  // Today's forgetSet (src/actions/memory.ts) deletes ConfidenceEvent by
+  // { userId, card: { setId } } — every card in the set, including one whose
+  // only remaining memory is a legacy ConfidenceEvent row with no surviving
+  // answer or event. deleteConfidenceEventCardIds can't reach that card (it
+  // only ever contains cards present in the snapshot's answers/events), so
+  // this is a separate, set-scoped signal matching that breadth.
+  it('is set to the setId for the set scope', () => {
+    const p = plan({ kind: 'set', setId: 'set1' })
+    expect(p.deleteConfidenceEventSetId).toBe('set1')
+  })
+
+  const otherScopes: ErasureScope[] = [
+    { kind: 'event', eventId: 'e1' },
+    { kind: 'answer', answerId: 'a1' },
+    { kind: 'attempt', attemptId: 'att1' },
+    { kind: 'card', cardId: 'c1' },
+    { kind: 'account' },
+  ]
+
+  it.each(otherScopes)('is undefined for every other scope (%o)', (scope) => {
+    const p = plan(scope)
+    expect(p.deleteConfidenceEventSetId).toBeUndefined()
   })
 })
 
