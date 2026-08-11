@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-09
+**Last updated:** 2026-08-11
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -16,27 +16,17 @@ Branch `spec3b-tunable-scoring`, ~10 commits, **not merged, not pushed**.
 
 Sets are private by default, owner-togglable to link-shareable. Closed 10 read-by-id exposures. Verified live against the dev server and the real DB, not just in tests.
 
-### 2. ⬜ Deletion & forgetting — **SPEC WRITTEN 2026-08-10. NO PLAN YET. START HERE.**
+### 2. 🟨 Deletion & forgetting — **BUILT, TASKS 1-10 OF 11. AWAITING LIVE VERIFICATION (Task 11).**
 
-Spec: `specs/2026-08-10-deletion-and-forgetting-design.md` (commit `c128a05`)
+Spec: `specs/2026-08-10-deletion-and-forgetting-design.md` · Plan: `plans/2026-08-10-deletion-and-forgetting.md`
+Ledger: `.superpowers/sdd/2026-08-10-deletion-and-forgetting/progress.md`
+Branch `spec3b-tunable-scoring` (same branch as item 1), **not merged, not pushed**.
 
-The spec settles the open question below: **forget drops the evidence too**, and a reset quiz is **erased outright**, not kept as a scored receipt. One erasure module (`src/lib/memory/erase.ts`) with a pure planner backs all six verbs. It also records two defects found during design — `StudySession` is missing from `RESET_MEMORY_MODELS`, and `QuizAttempt.score` / `StudySession.itemCount` go stale on partial deletion.
+Forget now drops the **evidence**, not just the estimate, and a reset quiz is erased outright rather than kept as a scored receipt. All six verbs — `deleteStudyEvent`, `forgetCard`, `forgetSet`, `resetQuizAttempt`, `resetQuizAnswer`, `resetUserMemory` — route through one module: a pure planner (`src/lib/memory/erase.ts`) plus a transactional executor (`src/lib/memory/erase-execute.ts`) that snapshots, deletes, then replays `CardProgress` and `KlpState` from what survives. Both defects the spec found are fixed: `StudySession` was missing from the account reset, and `QuizAttempt.score` no longer goes stale on partial deletion.
 
-**The user's decisions are already made** (2026-08-08) — do not re-litigate, just design against them:
+**Task 11 is the remaining gate, and it needs the human.** Every test here is mocked, so **nothing has proven the FK cascade or a replay against a real database** — the same reason item 1 shipped only after live verification. An agent session cannot do it: auth is GitHub OAuth only (`src/auth.config.ts`) and `.env` has no `GITHUB_ID`/`GITHUB_SECRET`, so no signed-in page is reachable. Task 11's steps in the plan are written to be followed directly; they also absorb the browser checks deferred from Tasks 8 (Step 6) and 9 (Step 7).
 
-1. **Memory reset extends to quiz history.** *Already true at account level* — `resetUserMemory` (`src/actions/user.ts`) deletes `QuizAttempt` + `QuizAnswer` (cascading `AnswerKlpResult`/`AnswerErrorTag`), `ConfidenceEvent`, `CardProgress`, `StudyEvent`, `KlpState`. The Spec 2a note claiming quiz history survives a reset went stale in commit `4a9d0ef`. **Nothing to do here.**
-2. **Granular reset is the real ask** — reset a *specific quiz* (attempt) or a *specific question* (answer).
-3. **Forget must affect the data it stored and everything it fed.** Today `forgetCard`/`forgetSet` (`src/actions/memory.ts:329-369`) delete only `ConfidenceEvent`, `StudyEvent`, `CardProgress`. They leave `QuizAnswer`, `AnswerKlpResult`, `AnswerErrorTag` and `KlpState` standing.
-
-**Machinery that already exists — extend it, don't reinvent:**
-- `deleteStudyEvent` (`src/actions/memory.ts:269-327`) is the exact shape to copy: delete one row inside a transaction, then recompute the derived aggregate from what survives.
-- `recomputeCardProgress` (`src/lib/memory/recompute.ts`) — pure replay for `CardProgress`.
-- `rebuildKlpStates` (`src/lib/metrics/state-writer.ts:131`) — pure-ish replay for the BKT posterior. **Required**, because the posterior is incremental and *not invertible*: `stepBkt` mixes two Bayes updates plus a learning term, so several priors map to one posterior. The only correct response to a deletion is replaying what remains.
-- `lockKlpStates` (`state-writer.ts:77`) — advisory lock, needed on any path that read-modify-writes `KlpState`.
-
-**The invariant the whole spec turns on:** *no derived number may claim knowledge from evidence that no longer exists.* A stale posterior stays above `MIN_OBSERVATIONS` forever and is beyond the backfill's reach, because `scripts/backfill-klp-state.ts` only rebuilds from *surviving* `AnswerKlpResult` rows.
-
-**Open question to settle in the spec:** should `forgetCard`/`forgetSet` drop the *estimate*, the *evidence*, or both? They currently leave `QuizAnswer` intact, so evidence and posterior stay mutually consistent — a replay recomputes the same numbers. That is why it is not a repeat of hardening defect B3. But "forget this card" leaving KLP knowledge intact is the same *surprise* B3 fixed at account level.
+**Known and deliberate:** matching-mode answers render through `MatchingReview`, which has no per-answer card, so they get no per-question erase control even on the permalink.
 
 ### 3. ⬜ Spec 3B — tunable scoring — **PLAN READY TO EXECUTE**
 
@@ -69,7 +59,7 @@ Never in memory — always in a spec's own section.
 | `2026-08-04-answer-analysis-display-design.md` (2b) | "Explicitly NOT fixed" | **Resolved** — `startQuizAttempt` ownership, closed by the visibility work. |
 | `2026-08-05-metrics-substrate-learner-profile-design.md` (Spec 3) | **§14 follow-ups** | **BOTH STILL OPEN** — see queue item 4. |
 | `2026-08-10-deletion-and-forgetting-design.md` | **§8 "Answers should not be resubmittable at all"** | **OPEN — decided 2026-08-10, not built.** Re-answering a graded question isn't evidence of knowledge, but every metric downstream treats it as though it were. The legitimate case (a missed high-weight KLP in short answer) is an AI-generated **follow-up question** with its own provenance — a different quiz type and UI, not a second pass. Remove the `replace` path in `createAnswerWithAnalysis` when that lands. |
-| `CLAUDE.md` | Future Considerations | Both product decisions now answered (visibility → item 1, forget → item 2). **Prune each from CLAUDE.md as it ships.** |
+| `CLAUDE.md` | Future Considerations | Forget: **pruned 2026-08-11** (item 2 built). Visibility: still carries the stale pre-fix paragraph — **delete it when this branch merges**, as its own note says. |
 
 ---
 
@@ -86,6 +76,10 @@ Never in memory — always in a spec's own section.
 | `print/page.tsx` fetched a `QuizAttempt` by id checking only `attempt.setId`, so any signed-in user could print another learner's attempt (their `selectedCardIds` + generated options). Same class Spec 2b fixed twice and missed here. | `src/app/sets/[id]/print/page.tsx` | `78d58e0` |
 | `profile.ts` fetched a set **title** from a URL-controlled scope with no check — anyone could pull another user's set title into their profile block. Found by the plan's own final-verification grep. | `src/lib/memory/profile.ts:420` | `92102b6` |
 | Spec + plan both claimed `/match` is readable signed-out. It is not — middleware gates it — and matching *is* studying, so it shouldn't be. | docs + `match/page.tsx` comment | (doc commit) |
+| `StudySession` was missing from `RESET_MEMORY_MODELS`; both `sessionId` FKs are `SetNull`, so a full account reset left every session row standing as an empty husk. | `src/lib/memory/erase.ts` | `6ff0a1d` |
+| A quiz resubmit stepped confidence twice — the superseded answer's `StudyEvent` survived the replace, and `CardProgress` is incremental. | `src/actions/quiz.ts` | `c570d8a` |
+| Quizzing a **starred** card silently unstarred it: the resubmit replay ran on every submission, and a starred-but-unstudied card replays over zero events → `recomputeCardProgress` returns null → the row is deleted and recreated with `starred: false`. | `src/actions/quiz.ts` | `c570d8a` |
+| `/profile/activity/[id]` rendered a full quiz permalink that **nothing in the app linked to**. | `src/app/profile/page.tsx` | `b911ae4` |
 
 ### Still open — not bugs, but know them
 
@@ -118,11 +112,23 @@ Never in memory — always in a spec's own section.
 
 4. **`tsx` scripts must live inside the project** (e.g. `scripts/`) or module resolution fails, and they need a `main()` wrapper — top-level `await` breaks under the CJS output format.
 
+5. **`prisma migrate dev` is unusable from an agent shell** — it needs a TTY and has no non-interactive override (unlike `migrate deploy`). Either the human runs it, or generate the SQL and apply it yourself:
+   ```bash
+   npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+   ```
+   then write it to `prisma/migrations/<timestamp>_<name>/migration.sql` and `npx prisma migrate deploy`. Re-run the diff afterwards — "This is an empty migration" means zero residual drift. Note `--from-schema-datasource` was **removed** in this Prisma version; the flag is now `--from-config-datasource` (a `prisma.config.ts` exists).
+
+6. **No signed-in page is reachable from an agent session.** Auth is GitHub OAuth only (`src/auth.config.ts`) and `.env` has no `GITHUB_ID`/`GITHUB_SECRET`, so `NEXTAUTH_SECRET=dev-only` gets the server up but not past the login wall. Any plan step of the form "take a quiz and check X" must be handed to the human — write it as an explicit gate rather than discovering it mid-task.
+
+7. **A client component that gains a server-action import breaks every jsdom test that renders it.** A `'use server'` module pulls `next-auth` into the browser environment and the test file dies at load with `Cannot find module next/server` — before any test runs, so the failure looks unrelated to the change. Mock the action module (see `tests/components/QuizSummary.test.tsx`).
+
+8. **Component tests must call `afterEach(cleanup)` themselves.** `vitest.config.ts` has no `globals: true`, so RTL never registers its auto-cleanup and one test's DOM bleeds into the next — a second `render` makes `getByRole` throw on multiple matches. Also: each `*.test.tsx` needs `// @vitest-environment jsdom` as its literal first line.
+
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-09)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-11)
 
-- **Tests:** 80 files / **874 passing** (excluding `cursor-agents`)
+- **Tests:** 88 files / **1013 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
-- **`npm run lint`:** **187 problems** (130 errors, 57 warnings) — all pre-existing. Compare against this; do not fix unrelated ones.
+- **`npm run lint`:** **186 problems** (133 errors, 53 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (Was 187 on 2026-08-09; the deletion work removed one by deleting the code that carried it.)
 - Branch is **not merged and not pushed**.

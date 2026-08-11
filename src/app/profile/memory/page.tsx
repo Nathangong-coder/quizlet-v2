@@ -145,7 +145,7 @@ function MemoryHistoryContent() {
   }
 
   async function handleDeleteEvent(eventId: string) {
-    if (!confirm("Delete this entry? This will recompute this card's confidence and mastery from its remaining history.")) return;
+    if (!confirm("Delete this entry? If it came from a quiz, the graded answer is deleted too, and this card's confidence and mastery are recomputed from its remaining history.")) return;
     const result = await deleteStudyEvent(eventId);
     if (result.success) {
       toast.success('Entry deleted');
@@ -158,7 +158,7 @@ function MemoryHistoryContent() {
   async function handleForgetCard() {
     if (!scope.cardId) return;
     const term = options.cards.find((c) => c.id === scope.cardId)?.term ?? 'this card';
-    if (!confirm(`Forget everything about "${term}"? This deletes all its history and resets it to unseen. This cannot be undone.`)) return;
+    if (!confirm(`Forget everything about "${term}"? This deletes its study history AND its graded quiz answers, resets it to unseen, and unstars it. This cannot be undone.`)) return;
     const result = await forgetCard(scope.cardId);
     if (result.success) {
       toast.success('Card memory forgotten');
@@ -172,7 +172,7 @@ function MemoryHistoryContent() {
     const setId = scope.setIds.length === 1 ? scope.setIds[0] : undefined;
     if (!setId) return;
     const title = options.sets.find((s) => s.id === setId)?.title ?? 'this set';
-    if (!confirm(`Forget all memory for "${title}"? This deletes history for every card in this set. This cannot be undone.`)) return;
+    if (!confirm(`Forget all memory for "${title}"? This deletes study history, graded quiz answers, and quiz results for every card in this set, and unstars them. This cannot be undone.`)) return;
     const result = await forgetSet(setId);
     if (result.success) {
       toast.success('Set memory forgotten');
@@ -183,7 +183,7 @@ function MemoryHistoryContent() {
   }
 
   async function handleFullReset() {
-    if (!confirm('Are you sure you want to reset your entire learning memory? This will delete all quiz history, confidence scores, and progress. This action cannot be undone.')) return;
+    if (!confirm('Are you sure you want to reset your entire learning memory? This will delete all quiz history, confidence scores, progress, and your study activity — including matching and review sessions, not just quizzes. This action cannot be undone.')) return;
     setIsResetting(true);
     const result = await resetUserMemory();
     setIsResetting(false);
@@ -295,7 +295,8 @@ function MemoryHistoryContent() {
         <CardContent>
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground max-w-md">
-              This will permanently delete all your quiz history, confidence scores, and progress across all sets.
+              This will permanently delete all your quiz history, confidence scores, progress, and study
+              activity across all sets — including matching and review sessions, not just quizzes.
               This action cannot be undone.
             </p>
             <Button variant="destructive" onClick={handleFullReset} disabled={isResetting} className="whitespace-nowrap">
