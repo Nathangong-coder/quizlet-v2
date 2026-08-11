@@ -429,6 +429,61 @@ describe('executeErasure — sessions', () => {
   })
 })
 
+describe('executeErasure — legacy ConfidenceEvent breadth (N-1)', () => {
+  it('deletes the set scope ConfidenceEvent rows by SET, not by the card id list', async () => {
+    // `deleteConfidenceEventCardIds` only covers cards appearing in answers or
+    // events. A card whose only remaining memory is a legacy ConfidenceEvent
+    // row (no answer, no event) is in neither, so its rows would silently
+    // survive "forget this set" — a regression against today's shipped
+    // forgetSet, which deletes by `{ userId, card: { setId } }`.
+    const tx = fakeTx({ ...twoAnswerAttempt(), events: [] })
+    run(tx)
+
+    await executeErasure('u1', { kind: 'set', setId: 'set1' })
+
+    expect(tx.confidenceEvent.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', card: { setId: 'set1' } },
+    })
+  })
+
+  it('scopes that delete by userId, so it cannot reach another learner rows', async () => {
+    // A ConfidenceEvent delete scoped only by set would erase every learner's
+    // legacy history for a link-shared set.
+    const tx = fakeTx({ ...twoAnswerAttempt(), events: [] })
+    run(tx)
+
+    await executeErasure('u1', { kind: 'set', setId: 'set1' })
+
+    for (const call of argsFor(tx, 'confidenceEvent', 'deleteMany')) {
+      expect(call.where.userId).toBe('u1')
+    }
+  })
+
+  it('still deletes by card id for the card scope', async () => {
+    const tx = fakeTx(twoAnswerAttempt())
+    run(tx)
+
+    await executeErasure('u1', { kind: 'card', cardId: 'c1' })
+
+    expect(tx.confidenceEvent.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', cardId: { in: ['c1'] } },
+    })
+  })
+
+  it('issues no ConfidenceEvent delete for a scope that names neither', async () => {
+    // The attempt scope erases one quiz session. There is no FK from
+    // ConfidenceEvent to a StudyEvent or QuizAnswer, so the only alternative
+    // to touching nothing would be wiping a card's whole legacy history to
+    // erase one quiz — a far worse surprise (M-4, closed as not-a-defect).
+    const tx = fakeTx(twoAnswerAttempt())
+    run(tx)
+
+    await executeErasure('u1', { kind: 'attempt', attemptId: 'att1' })
+
+    expect(tx.confidenceEvent.deleteMany).not.toHaveBeenCalled()
+  })
+})
+
 describe('executeErasure — CardProgress replay', () => {
   it('deletes the row when no evidence survives, reverting the card to never-studied', async () => {
     const tx = fakeTx(twoAnswerAttempt())
@@ -468,15 +523,40 @@ describe('executeErasure — CardProgress replay', () => {
 })
 
 describe('executeErasure — M-1: the attempt scope reaches events by session', () => {
+  it('deletes the orphan events the plan lists AND replays their cards', async () => {
+    // The end-to-end proof that the loader and the planner agree. A
+    // quiz-sourced StudyEvent with a NULL quizAnswerId (pre-Stage-6 rows,
+    // which Task 3's backfill structurally cannot link) is invisible to the
+    // answer join, so the loader reaches it by the attempt's session and the
+    // planner now puts it in `deleteEventIds`. If either half regresses the
+    // row survives the reset invisibly — `StudyEvent.sessionId` is SetNull, so
+    // after the session goes it is unreachable AND still feeding CardProgress.
+    const f = twoAnswerAttempt()
+    const tx = fakeTx({
+      ...f,
+      events: [
+        ...f.events!,
+        { id: 'e9', cardId: 'c9', quizAnswerId: null, source: 'quiz-mc', sessionId: 's1' },
+      ],
+    })
+    run(tx)
+
+    await executeErasure('u1', { kind: 'attempt', attemptId: 'att1' })
+
+    expect(tx.studyEvent.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', id: { in: ['e9'] } },
+    })
+    // The orphan's card must be replayed too — deleting the evidence and
+    // leaving its CardProgress standing is the exact invariant violation this
+    // whole feature exists to prevent.
+    expect(tx.cardProgress.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'u1', cardId: 'c9' },
+    })
+  })
+
   it('queries events via the attempt session as well as via its answers', async () => {
-    // A quiz-sourced StudyEvent with a NULL quizAnswerId (pre-Stage-6 rows,
-    // structurally excluded from Task 3's backfill) is unreachable through the
-    // answer join. The attempt's session is the only other path to it.
-    //
-    // NOTE: this pins the LOADER half only. planErasure's `attempt` case never
-    // populates `eventIds`, so these rows are loaded and then dropped — see
-    // the task report. Closing M-1 needs a planner change, which this task is
-    // forbidden from making.
+    // The loader half on its own: without the session arm the orphan above is
+    // never even loaded, so the planner has nothing to put in deleteEventIds.
     const tx = fakeTx(twoAnswerAttempt())
     run(tx)
 

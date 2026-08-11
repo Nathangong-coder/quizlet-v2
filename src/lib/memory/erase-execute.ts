@@ -67,9 +67,25 @@ export async function executeErasure(userId: string, scope: ErasureScope): Promi
     if (plan.deleteSessionIds.length > 0) {
       await tx.studySession.deleteMany({ where: { userId, id: { in: plan.deleteSessionIds } } })
     }
+    // The legacy Stage-2 table, which has no replay. Two INDEPENDENT
+    // instructions, applied as a union rather than an either/or: the planner
+    // only ever sets one today, but an executor that preferred one would
+    // silently under-delete the day that changes. Both are userId-scoped — a
+    // delete scoped only by set would reach every learner's legacy history for
+    // a link-shared set.
     if (plan.deleteConfidenceEventCardIds.length > 0) {
       await tx.confidenceEvent.deleteMany({
         where: { userId, cardId: { in: plan.deleteConfidenceEventCardIds } },
+      })
+    }
+    // Set-scoped and deliberately BROADER than the card id list, which only
+    // covers cards appearing in answers or events: a card whose only remaining
+    // memory is a legacy ConfidenceEvent row appears in neither, and would
+    // survive "forget this set" — a regression against today's shipped
+    // `forgetSet` (src/actions/memory.ts), which deletes by set.
+    if (plan.deleteConfidenceEventSetId !== undefined) {
+      await tx.confidenceEvent.deleteMany({
+        where: { userId, card: { setId: plan.deleteConfidenceEventSetId } },
       })
     }
 
