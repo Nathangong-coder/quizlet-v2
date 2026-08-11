@@ -322,8 +322,26 @@ export function planErasure(
       break
     }
     case 'set': {
-      // The snapshot loader has already narrowed to this set, so everything in
-      // hand is in scope.
+      // Everything in hand is in scope: loadSnapshot (erase-execute.ts)
+      // narrows per scope, so this case erases what it was handed without
+      // re-filtering.
+      //
+      // "Narrowed" does NOT mean "restricted to cards in this set" — the
+      // answer query also reaches answers on this set's attempts whose card
+      // sits elsewhere. That widening is deliberate: this case deletes
+      // snapshot.attempts wholesale, and QuizAttempt cascades to
+      // QuizAnswer, so an answer cascade-deleted without appearing in
+      // deleteAnswerIds would leave its card out of replayCardIds and its
+      // KLPs out of replayKlpIds — a posterior standing above evidence that
+      // no longer exists, permanently. Unreachable today (an attempt only
+      // answers cards from its own set, and cards cannot move sets), but
+      // closed by construction rather than left to chance.
+      //
+      // Events are NOT widened to match, and that asymmetry is correct: a
+      // StudyEvent carries no attempt link to widen through, and an
+      // answer-linked event is never listed in the plan anyway — the
+      // `quizAnswerId` FK cascade removes it, same as everywhere else in
+      // this file.
       answerIds = snapshot.answers.map((a) => a.id)
       eventIds = snapshot.events.filter((e) => e.quizAnswerId === null).map((e) => e.id)
       wholeAttemptIds = snapshot.attempts.map((a) => a.id)
