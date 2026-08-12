@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const h = vi.hoisted(() => ({
   auth: vi.fn(),
   // The advisory lock taken before any posterior read (B9).
-  txQueryRaw: vi.fn(),
+  txExecuteRaw: vi.fn(),
   generateJson: vi.fn(),
   recordStudyEvent: vi.fn(),
   ensureKlpsReady: vi.fn(),
@@ -121,7 +121,9 @@ beforeEach(() => {
       },
       // The advisory lock createAnswerWithAnalysis takes before touching any
       // posterior (B9). Registered here so the transaction still runs.
-      $queryRaw: h.txQueryRaw,
+      // lockKlpStates uses $executeRaw: pg_advisory_xact_lock returns void, which
+      // $queryRaw cannot deserialize under the Neon adapter (see state-writer.ts).
+      $executeRaw: h.txExecuteRaw,
       answerErrorTag: { createMany: h.errorTagCreateMany },
       klpState: {
         findUnique: h.klpStateFindUnique,

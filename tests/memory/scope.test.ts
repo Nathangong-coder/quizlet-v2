@@ -9,6 +9,7 @@ import {
   serializeScope,
   parseScope,
   isConsolidated,
+  scopeToCard,
   type HistoryScope,
 } from "../../src/lib/memory/scope";
 import { UNCATEGORIZED_ID, CATEGORY_PALETTE } from "../../src/lib/cards/categories";
@@ -388,6 +389,44 @@ describe("scope URL round-trip", () => {
     const parsed = parseScope(new URLSearchParams("sets=s1"));
     expect(parsed.cardId).toBeUndefined();
     expect(parsed.source).toBeUndefined();
+  });
+});
+
+describe("scopeToCard", () => {
+  const card = { cardId: "c1", setId: "s1" };
+
+  it("pins the card's own set, not whatever was selected", () => {
+    // ScopeBar disables its card <select> unless exactly one set is chosen.
+    // A cardId set alongside two sets renders as a disabled control showing a
+    // value the user can neither change nor clear.
+    const scope = scopeToCard({ ...EMPTY_SCOPE, setIds: ["s7", "s9"] }, card);
+    expect(scope.setIds).toEqual(["s1"]);
+    expect(scope.cardId).toBe("c1");
+  });
+
+  it("drops category keys, which are inert once a card is chosen", () => {
+    // buildStudyEventWhere returns early on cardId, so the categories would
+    // filter nothing while their chips still claimed to.
+    const scope = scopeToCard({ ...EMPTY_SCOPE, categoryKeys: ["valuation"] }, card);
+    expect(scope.categoryKeys).toEqual([]);
+  });
+
+  it("keeps the source filter, which still narrows within the card", () => {
+    const scope = scopeToCard({ ...EMPTY_SCOPE, source: "review" }, card);
+    expect(scope.source).toBe("review");
+  });
+
+  it("re-targets cleanly when a different card is picked", () => {
+    const first = scopeToCard(EMPTY_SCOPE, card);
+    const second = scopeToCard(first, { cardId: "c2", setId: "s2" });
+    expect(second).toEqual({ ...EMPTY_SCOPE, setIds: ["s2"], cardId: "c2" });
+  });
+
+  it("narrows the study-event query to exactly that card", () => {
+    // The whole point: one click from the feed produces a scope the forget
+    // verb can act on.
+    const scope = scopeToCard({ ...EMPTY_SCOPE, setIds: ["s7"] }, card);
+    expect(buildStudyEventWhere("u1", scope, [])).toEqual({ userId: "u1", cardId: "c1" });
   });
 });
 
