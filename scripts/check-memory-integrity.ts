@@ -22,14 +22,27 @@ async function main() {
 
   const problems: string[] = []
 
-  // 1. A KlpState with no surviving AnswerKlpResult is a posterior claiming
-  //    knowledge from deleted evidence.
-  const states = await prisma.klpState.findMany({ select: { userId: true, klpId: true } })
+  // 1. The posterior must be exactly as observed as its surviving evidence.
+  //    `observations` increments once per replayed AnswerKlpResult (see
+  //    stepBkt / rebuildState in src/lib/metrics/cache.ts), so after a correct
+  //    replay the two are equal by construction. A count HIGHER than the
+  //    evidence is the precise signature of the defect this whole design
+  //    exists to prevent: a posterior still carrying a deleted answer's
+  //    contribution. Zero evidence with a surviving row is its worst case.
+  const states = await prisma.klpState.findMany({
+    select: { userId: true, klpId: true, observations: true },
+  })
   for (const s of states) {
     const evidence = await prisma.answerKlpResult.count({
       where: { klpId: s.klpId, quizAnswer: { userId: s.userId } },
     })
-    if (evidence === 0) problems.push(`KlpState ${s.userId}/${s.klpId} has zero surviving evidence`)
+    if (evidence === 0) {
+      problems.push(`KlpState ${s.userId}/${s.klpId} has zero surviving evidence`)
+    } else if (s.observations !== evidence) {
+      problems.push(
+        `KlpState ${s.userId}/${s.klpId} claims ${s.observations} observations but ${evidence} results survive`,
+      )
+    }
   }
 
   // 2. A CardProgress with no surviving StudyEvent is the same defect one
