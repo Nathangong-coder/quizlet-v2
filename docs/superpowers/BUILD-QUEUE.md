@@ -24,9 +24,18 @@ Branch `spec3b-tunable-scoring` (same branch as item 1), **not merged**. Pushed 
 
 Forget now drops the **evidence**, not just the estimate, and a reset quiz is erased outright rather than kept as a scored receipt. All six verbs — `deleteStudyEvent`, `forgetCard`, `forgetSet`, `resetQuizAttempt`, `resetQuizAnswer`, `resetUserMemory` — route through one module: a pure planner (`src/lib/memory/erase.ts`) plus a transactional executor (`src/lib/memory/erase-execute.ts`) that snapshots, deletes, then replays `CardProgress` and `KlpState` from what survives. Both defects the spec found are fixed: `StudySession` was missing from the account reset, and `QuizAttempt.score` no longer goes stale on partial deletion.
 
-**Task 11 is the remaining gate, and it needs the human.** Every test here is mocked, so **nothing has proven the FK cascade or a replay against a real database** — the same reason item 1 shipped only after live verification. An agent session cannot do it: auth is GitHub OAuth only (`src/auth.config.ts`) and `.env` has no `GITHUB_ID`/`GITHUB_SECRET`, so no signed-in page is reachable. Task 11's steps in the plan are written to be followed directly; they also absorb the browser checks deferred from Tasks 8 (Step 6) and 9 (Step 7).
+**Task 11 live verification: checkpoints ①–③ PASSED against the real database on 2026-08-12.** Method: full snapshot + predictions recorded **in advance**, then one action, then measure. Every prediction hit.
+- **①** erase one answer → `answers −1`, **`events −1` (the FK cascade proven — no application code deletes that row)**, `attempt.score 77→65` recomputed via `overallQuizScore`, `session.itemCount 3→2` (stored planned count minus deletions, confirming the I-1 ruling).
+- **②** erase the last two → the attempt **and** its session deleted outright, not left as a scored husk (the I-3 fix).
+- **③a** forget a card with quiz history → **`klpStates −3`**, the behaviour change the whole spec exists for: those posteriors sat at `pKnown 0.871` and would previously have survived forever, beyond the backfill's reach. Two *different* attempts re-scored in one operation (96→95, 83→82); a `matching` answer erased via the card scope; the card's `CardKlp` definitions survived — you forget your history with a card, not the card.
+- **③b** forget a starred, never-studied card → `CardProgress` row deleted unconditionally. That is **C-1** from Task 5's review, the one defect no mocked test could reach.
+- `scripts/check-memory-integrity.ts` (run after each) asserts `KlpState.observations === count(surviving AnswerKlpResult)` for every row — a posterior still carrying a deleted answer reads `evidence + 1`. Clean throughout.
 
-**Known and deliberate:** matching-mode answers render through `MatchingReview`, which has no per-answer card, so they get no per-question erase control even on the permalink.
+**Only ④ remains: the Danger Zone full reset**, which must drive `sessions` to **0** (Task 7's fix — `StudySession` was absent from the reset list and both `sessionId` FKs are `SetNull`, so all sessions used to survive as husks). Deliberately left to the human; it is irreversible and destroys their real study history, which they have signed off on.
+
+**Two bugs Task 11 found that the entire mocked suite could not** — this is the argument for keeping live verification as a gate: the `$queryRaw`/`void` advisory-lock failure (trap 8 below), which had also broken quiz submission outright, and "Forget this card" being effectively unreachable in the UI (fixed `f4236d9`; clicking a term in the activity feed now scopes to that card).
+
+**Known and deliberate:** matching-mode answers render through `MatchingReview`, which has no per-answer card, so they get no per-question erase control even on the permalink. Erasing them via the card or set scope works, as ③a confirmed.
 
 ### 2b. ⬜ Empty quiz attempts — **DECIDED 2026-08-11, NOT BUILT. Small; do it before 3B.**
 
@@ -134,7 +143,9 @@ Never in memory — always in a spec's own section.
 
 7. **A client component that gains a server-action import breaks every jsdom test that renders it.** A `'use server'` module pulls `next-auth` into the browser environment and the test file dies at load with `Cannot find module next/server` — before any test runs, so the failure looks unrelated to the change. Mock the action module (see `tests/components/QuizSummary.test.tsx`).
 
-8. **Component tests must call `afterEach(cleanup)` themselves.** `vitest.config.ts` has no `globals: true`, so RTL never registers its auto-cleanup and one test's DOM bleeds into the next — a second `render` makes `getByRole` throw on multiple matches. Also: each `*.test.tsx` needs `// @vitest-environment jsdom` as its literal first line.
+8. **A raw statement whose result you never read must use `$executeRaw`, never `$queryRaw`.** `$queryRaw` deserializes result columns, and the Neon driver adapter throws `P2010 / UnsupportedNativeDataType — Failed to deserialize column of type 'void'` on a `void`-returning function. This broke `pg_advisory_xact_lock` in `lockKlpStates` for three days (shipped `81e2d1f`, fixed `1bcbc74`), taking down **quiz answer submission** as well as every erasure verb, because both call it inside the write transaction. **No mocked test can catch this** — a fake deserializes nothing, and the four fake tx clients answering `$queryRaw` are exactly what made the suite green over a broken statement. `SELECT id ... FOR UPDATE` (match-session, quiz-matching) is fine: `id` is a real column.
+
+9. **Component tests must call `afterEach(cleanup)` themselves.** `vitest.config.ts` has no `globals: true`, so RTL never registers its auto-cleanup and one test's DOM bleeds into the next — a second `render` makes `getByRole` throw on multiple matches. Also: each `*.test.tsx` needs `// @vitest-environment jsdom` as its literal first line.
 
 ---
 
