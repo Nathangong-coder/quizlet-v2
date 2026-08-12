@@ -31,6 +31,30 @@ export interface HistoryScope {
 
 export const EMPTY_SCOPE: HistoryScope = { setIds: [], categoryKeys: [] };
 
+/**
+ * Narrow a scope to a single card — what clicking a term in the activity feed
+ * does, and the only path to "Forget this card" that does not require the user
+ * to first guess that they must select exactly one set.
+ *
+ * `setIds` is pinned to that card's own set even though the query does not
+ * need it: `buildStudyEventWhere` returns early on `cardId`, subsuming
+ * set/category. The UI needs it, because `ScopeBar` disables its card
+ * `<select>` unless exactly one set is chosen — a `cardId` set while two sets
+ * are selected renders as a disabled control showing a value the user can
+ * neither change nor clear.
+ *
+ * `categoryKeys` are dropped for the mirror-image reason: they are inert
+ * against the query once `cardId` is set, so leaving the chips up would
+ * advertise a filter that is not filtering. `source` is kept — it still
+ * narrows *within* the card.
+ */
+export function scopeToCard(
+  scope: HistoryScope,
+  card: { cardId: string; setId: string },
+): HistoryScope {
+  return { ...scope, setIds: [card.setId], categoryKeys: [], cardId: card.cardId };
+}
+
 export function isConsolidated(scope: HistoryScope): boolean {
   return (
     scope.setIds.length === 0 &&

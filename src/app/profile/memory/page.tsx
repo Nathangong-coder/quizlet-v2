@@ -21,7 +21,7 @@ import {
   type StudyEventHistoryRow,
 } from '@/actions/memory';
 import { resetUserMemory } from '@/actions/user';
-import { EMPTY_SCOPE, parseScope, serializeScope, type HistoryScope } from '@/lib/memory/scope';
+import { EMPTY_SCOPE, parseScope, serializeScope, scopeToCard, type HistoryScope } from '@/lib/memory/scope';
 import ScopeBar, { SOURCE_LABELS } from '@/components/memory/ScopeBar';
 import ScopeStats from '@/components/memory/ScopeStats';
 
@@ -198,6 +198,8 @@ function MemoryHistoryContent() {
 
   const canForgetCard = Boolean(scope.cardId);
   const canForgetSet = scope.setIds.length === 1 && !scope.cardId;
+  const scopedCardTerm = options.cards.find((c) => c.id === scope.cardId)?.term ?? 'this card';
+  const scopedSetTitle = options.sets.find((s) => s.id === scope.setIds[0])?.title ?? 'this set';
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-12 space-y-8">
@@ -217,18 +219,30 @@ function MemoryHistoryContent() {
       <ScopeStats stats={stats?.value ?? null} loading={statsLoading} />
 
       {(canForgetCard || canForgetSet) && (
-        <div className="flex flex-wrap gap-2">
-          {canForgetCard && (
-            <Button variant="outline" size="sm" onClick={handleForgetCard}>
-              <Trash2 className="w-4 h-4 mr-1" /> Forget this card
-            </Button>
-          )}
-          {canForgetSet && (
-            <Button variant="outline" size="sm" onClick={handleForgetSet}>
-              <Trash2 className="w-4 h-4 mr-1" /> Forget this set
-            </Button>
-          )}
-        </div>
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">
+                {canForgetCard ? `Forget "${scopedCardTerm}"` : `Forget "${scopedSetTitle}"`}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {canForgetCard
+                  ? 'Deletes this card’s study history and its graded quiz answers, unstars it, and resets it to unseen.'
+                  : 'Deletes study history, graded quiz answers, and quiz results for every card in this set.'}{' '}
+                This cannot be undone.
+              </p>
+            </div>
+            {canForgetCard ? (
+              <Button variant="destructive" size="sm" onClick={handleForgetCard} className="shrink-0">
+                <Trash2 className="w-4 h-4 mr-1" /> Forget this card
+              </Button>
+            ) : (
+              <Button variant="destructive" size="sm" onClick={handleForgetSet} className="shrink-0">
+                <Trash2 className="w-4 h-4 mr-1" /> Forget this set
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <Card>
@@ -248,7 +262,17 @@ function MemoryHistoryContent() {
               {feed!.events.map((event) => (
                 <div key={event.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors gap-3">
                   <div className="flex flex-col min-w-0">
-                    <span className="font-medium truncate">{event.term}</span>
+                    {/* The only discoverable route to "Forget this card":
+                        otherwise you must know to pick exactly one set before
+                        the card filter un-disables. */}
+                    <button
+                      type="button"
+                      className="font-medium truncate text-left hover:underline"
+                      title={`Show only "${event.term}"`}
+                      onClick={() => setScope(scopeToCard(scope, event))}
+                    >
+                      {event.term}
+                    </button>
                     <span className="text-xs text-muted-foreground truncate">
                       {event.setTitle} &middot; {format(new Date(event.createdAt), 'MMM d, h:mm a')}
                     </span>
