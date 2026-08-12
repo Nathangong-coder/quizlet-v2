@@ -12,7 +12,7 @@ const h = vi.hoisted(() => ({
   cacheUpsert: vi.fn(),
   cardFindUnique: vi.fn(),
   cardFindFirst: vi.fn(),
-  setFindUnique: vi.fn(),
+  setFindFirst: vi.fn(),
   attemptFindFirst: vi.fn(),
   questionUpsert: vi.fn(),
 }))
@@ -24,7 +24,9 @@ vi.mock('@/lib/db', () => ({
     // `findFirst` is the owner-scoped main card lookup; `findUnique` backs
     // recordQuizQuestion's klpVersion read.
     card: { findUnique: h.cardFindUnique, findFirst: h.cardFindFirst },
-    set: { findUnique: h.setFindUnique },
+    // `findFirst`, not `findUnique`: the sibling-card fetch is now scoped by
+    // `readableSetWhere`, which cannot be spread into a findUnique.
+    set: { findFirst: h.setFindFirst },
     // recordQuizQuestion's owner check on attemptId, added alongside the
     // cardId owner check this file already covered.
     quizAttempt: { findFirst: h.attemptFindFirst },
@@ -71,7 +73,7 @@ beforeEach(() => {
   h.safeProfileBlock.mockResolvedValue(undefined)
   h.cardFindUnique.mockResolvedValue(card)
   h.cardFindFirst.mockResolvedValue(card)
-  h.setFindUnique.mockResolvedValue(set)
+  h.setFindFirst.mockResolvedValue(set)
   // Owns the attempt by default; the dedicated ownership test overrides this.
   h.attemptFindFirst.mockResolvedValue({ id: 'attempt1' })
   h.cacheFindUnique.mockResolvedValue(null)

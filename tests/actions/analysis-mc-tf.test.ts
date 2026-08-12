@@ -131,6 +131,10 @@ beforeEach(() => {
         upsert: h.klpStateUpsert,
         deleteMany: h.klpStateDeleteMany,
       },
+      // Task 2's CardProgress replay is gated on a prior answer actually
+      // being found (priorAnswerCount > 0). txPriorFindMany resolves []
+      // above, so it never runs here — no studyEvent/cardProgress stub
+      // needed on this fake tx.
     }),
   )
 })

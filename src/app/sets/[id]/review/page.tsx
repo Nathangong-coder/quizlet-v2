@@ -7,6 +7,7 @@ import ReviewSession from '@/components/review/ReviewSession'
 import { cn } from '@/lib/utils'
 import { filterCardsByCategories } from '@/lib/cards/categories'
 import { CategoryUrlFilter } from '@/components/sets/CategoryUrlFilter'
+import { readableSetWhere } from '@/lib/sets/visibility'
 
 export default async function ReviewPage({
   params,
@@ -20,8 +21,9 @@ export default async function ReviewPage({
   const session = await auth()
   if (!session?.user?.id) redirect('/api/auth/signin')
 
-  const set = await prisma.set.findUnique({
-    where: { id },
+  // Sign-in stays required — reviewing writes study memory keyed to a userId.
+  const set = await prisma.set.findFirst({
+    where: { id, ...readableSetWhere(session.user.id) },
     include: {
       categories: true,
       cards: {

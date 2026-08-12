@@ -2,54 +2,93 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Hand the learner the knobs Spec 3 shipped with fixed defaults — editable severity bands and a selectable study-targeting strategy — and make every surface reflect a retune.
+**Goal:** Hand the learner the knobs Spec 3 shipped with fixed defaults — editable severity bands, three editable metric thresholds, and a selectable study-targeting strategy — and make every surface reflect a retune.
 
-**Architecture:** One `LearnerTuning` row per user holds a versioned, Zod-validated band-override blob plus a strategy key. Overrides are sparse and merge over `DEFAULT_BANDS` in a pure function. Targeting strategies are pure ranking functions over KLP candidates; the setting only selects one. Because severity and significance are already derived at read time, **saving new bands requires no recomputation** — but every surface must derive, so the quiz results screen migrates off its stored values.
+**Architecture:** One `LearnerTuning` row per user holds two versioned, Zod-validated override blobs (bands, thresholds) plus a strategy key. Overrides are sparse and merge over the shipped defaults in pure functions. Targeting strategies are pure ranking functions over KLP candidates; the setting only selects one. Because severity, significance, readiness and the observation floor are all applied at **read time**, saving new tuning requires no recomputation and no replay — but every surface must derive, so the quiz results screen migrates off its stored values.
 
-**Tech Stack:** TypeScript, Prisma 7 (Postgres/Neon), Next.js 16 App Router, React 19, Vitest, Zod, shadcn/base-ui.
+**Tech Stack:** TypeScript, Prisma 7 (Postgres/Neon), Next.js 16 App Router, React 19, Vitest 4, Zod 4, shadcn/base-ui.
 
 **Spec:** `docs/superpowers/specs/2026-08-05-spec3b-tunable-scoring-and-targeting-design.md`
-**Depends on:** Spec 3 (merged to main as PR #11), **and the Spec 3 hardening pass**
-(`docs/superpowers/plans/2026-08-07-spec3-hardening.md`, landed 2026-08-08 on
-`spec3b-tunable-scoring`) — that pass fixed ten defects in the numbers this plan
-tunes, including three criticals in the knowledge posterior. Do not build on the
-pre-hardening numbers.
 
-> ### Open input for the rebuild: make `MIN_OBSERVATIONS` a tunable
->
-> This plan currently consumes `MIN_OBSERVATIONS` from `@/lib/metrics/bkt` as a
-> **fixed constant** (Task at `:452`, `:610`, `:683`) — candidates below it sort
-> last under every strategy, and topics below it report `knowledge: null`.
->
-> It belongs in this spec's knob set. It decides how much evidence counts as
-> "enough to have an opinion", which is a judgement about the learner's situation
-> — an interview next week justifies acting on thinner evidence than one six
-> months out — not a universal constant. Leaving it hardcoded makes that call for
-> every user, which is the exact pattern [[user-prefers-configurable-targeting]]
-> says to avoid, and which this spec exists to undo for bands and strategy.
->
-> **Concrete motivation, found 2026-08-08:** at `MIN_OBSERVATIONS = 3`, the live
-> database (19 answers, every KLP seen exactly once) reports non-null knowledge
-> for **zero** topics. The floor is not academic — it is currently the single
-> thing gating every knowledge-dependent surface from showing anything at all.
-> A learner should be able to lower it and see provisional numbers.
->
-> Note the read-time property that makes this cheap, the same one that makes
-> bands cheap: `observations` is stored on `KlpState` and the floor is applied
-> when read, so changing it needs **no replay** — same as §3.3's rule for bands.
+**Depends on:** Spec 3 (merged to main as PR #11) **and the Spec 3 hardening pass** (`docs/superpowers/plans/2026-08-07-spec3-hardening.md`, landed 2026-08-08 on this branch) — that pass fixed ten defects in the numbers this plan tunes, including three criticals in the knowledge posterior. Do not build on the pre-hardening numbers.
+
+---
+
+## Revision note — rewritten 2026-08-08
+
+This plan was first written 2026-08-06, **before** the hardening pass. It has been
+rewritten against the post-hardening code. If you are holding a cached copy of the
+older version, discard it. What changed, and why each change matters:
+
+1. **Three knobs, not one.** `MIN_OBSERVATIONS` is now tunable and threaded through
+   **all three** of its consumers, and `ARTICULATION_MIN_PKNOWN` /
+   `READINESS_WEIGHT_PER_ANSWER` join it. Both of the latter carry an in-code comment
+   saying they "will become user-tunable"; this is that spec.
+2. **`getUserTuning` moved out of the action file.** The old plan put it in
+   `src/actions/learner-tuning.ts` and had `src/lib/metrics/read.ts` import it. That is
+   the exact dependency direction `read.ts:314-317` already refuses in a comment
+   ("that file is a `'use server'` action module, the wrong dependency direction for a
+   lib module to reach into"). Tuning now lives in `src/lib/tuning/`.
+3. **`toStoredTags` gained a required `cardId`.** The old Task 6 fixtures passed
+   `quizAnswer: { attemptId }` only. They will not compile. Corrected throughout.
+4. **A partial band table is not a band table.** `resolveSeverity` does
+   `input.bands ?? DEFAULT_BANDS` — a *replacement*, not a merge — so any type missing
+   from a partial table silently resolves to `FALLBACK_BAND` `[1, 3]` instead of its
+   default. Every `bands` argument crossing a module boundary in this plan is a
+   **fully-resolved** table from `resolveBands`. The old plan's tests modelled the
+   opposite and would have taught the pattern.
+5. **Live vs superseded KLPs.** `toTopicRows` now splits `klpIds` (live) from
+   `supersededKlpIds` (retired by a card edit). Targeting candidates are built from
+   **live ids only** — a superseded proposition belongs to an older version of the card
+   and must never be handed back as something to study.
+6. **A DB-mocking precedent now exists.** The old plan asserted there was none and
+   exempted the action bodies from tests on that basis. `tests/actions/quiz-summary-analysis.test.ts`
+   establishes the `vi.hoisted()` + `vi.mock('@/lib/db')` pattern, so Task 7 tests the
+   real action rather than only a pure shaper.
+7. **Stale doc comment already fixed.** `src/lib/metrics/cache.ts` used to name "a Spec
+   3B band edit" as a reason to replay the posterior. It was corrected on this branch
+   (commit `00f0aef`) before this rewrite, because it contradicted the Global Constraint
+   below and would have been read as an instruction.
+8. **Lint baseline corrected** from "~171" to the measured 187.
+
+### Known limit, accepted deliberately: Task 6 wires into a function nobody calls
+
+`getLearnerMetrics` (`src/lib/metrics/read.ts:44`) has **zero production callers** — only
+`tests/metrics/read-populations.test.ts`. This was checked on 2026-08-08; an earlier note
+claiming the hardening pass gave it a caller was wrong.
+
+So after this plan ships, the **observable** effects of a retune are:
+
+- the settings panels persist and reload (Tasks 8-10),
+- the quiz results screen re-scores history (Task 7).
+
+The **ranked candidate list Task 6 produces is not rendered anywhere** until Spec 3C
+builds the dashboard. Task 6 is still worth doing here — 3C should consume a tested,
+tuning-aware read API rather than grow one — but do not describe targeting as
+"shipped" on the strength of this plan. Related and still open, from Spec 3 §14: all
+callers of `profileToPromptBlock` hardcode `topics: []` (`src/lib/ai/context.ts:155`,
+`src/actions/training-plan.ts:34`), so topic-grain data reaches no prompt either, and
+`capBlock` truncates the topic section first because the uncapped card section is
+concatenated ahead of it. Both are 3C's to close, and closing the first without the
+second silently drops the topic signal.
+
+---
 
 ## Global Constraints
 
-- Test runner is Vitest. Full suite: `npx vitest run` (~7s). Single file: `npx vitest run <path>`.
+- Test runner is Vitest 4. Full suite: `npx vitest run` (~12s, currently **815 tests / 74 files**). Single file: `npx vitest run <path>`.
 - Tests import via the `@/` alias and live under `tests/<area>/`.
-- Pure modules must not import `@/lib/db`. DB shells import it **dynamically** (`await import('@/lib/db')`), as `src/lib/memory/profile.ts` does.
-- **Bands never feed BKT.** `stepBkt` reads `status` and `mode` only. Nothing in this plan may trigger a knowledge replay on a band save — that was an error in an earlier draft of the spec, corrected in §3.3.
+- Pure modules must not import `@/lib/db`. DB shells import it **dynamically** (`await import('@/lib/db')`), as `src/lib/memory/profile.ts:344` does.
+- **A lib module must never import from `src/actions/*`.** Those are `'use server'` modules; the dependency runs the other way. This is why Task 4 splits the pure schema, the DB shell, and the actions into three files.
+- **Bands and thresholds never feed BKT.** `stepBkt` reads `status` and `mode` only. Nothing in this plan may trigger a knowledge replay on a tuning save. An earlier draft of the spec said otherwise and was corrected in §3.3; `src/lib/metrics/cache.ts` used to repeat the error and was corrected in commit `00f0aef`. If you find yourself adding an `after()` call or a background job to a save path, stop — you are rebuilding the mistake.
+- **Every `bands` value crossing a function boundary is a FULLY RESOLVED table** (all ~21 types present), produced by `resolveBands`. `resolveSeverity` replaces rather than merges, so a partial table silently downgrades every unlisted type to `FALLBACK_BAND` `[1, 3]`.
 - Band values are integers in 1-5 with `floor <= ceiling`. Invalid input is **rejected, not clamped** — silently clamping lets a user believe they set something they did not.
-- Overrides are **sparse**: only edited types are stored, so untouched types keep tracking future default changes.
-- A corrupt tuning blob falls back to defaults rather than throwing, matching `SESSION_INSIGHT_VERSION`'s precedent in `src/lib/memory/insight.ts`.
-- Server actions live in `src/actions/*.ts` with `'use server'` and return `ActionResult<T>` from `@/types/action`, matching `src/actions/ai-credentials.ts`.
+- Overrides are **sparse**: only edited keys are stored, so untouched ones keep tracking future default changes.
+- A corrupt stored blob falls back to defaults rather than throwing, matching `SESSION_INSIGHT_VERSION`'s precedent in `src/lib/memory/insight.ts:6`. A corrupt **save** is rejected with an error — a save is an explicit user act.
+- Server actions live in `src/actions/*.ts` with `'use server'` and return `ActionResult<T>` from `@/types/action` (`{ success: true; data: T } | { success: false; error: string; detail?: ErrorDetail }`). A `'use server'` module may export **only async functions** — no constants, no sync helpers. This is why `ANALYSIS_VERSION` lives in `persist.ts` and `RESET_MEMORY_MODELS` in `reset.ts`.
 - Migrations must be additive. Never accept a database reset; never pass `--force-reset` or `--accept-data-loss`. Return BLOCKED if a migration is anything else.
 - Run `npx tsc --noEmit` as well as the suite. Vitest does not type-check.
+- `npm run lint` baseline before this plan: **187 problems (130 errors, 57 warnings)**. Compare against that; do not fix unrelated pre-existing ones.
 - Commit after every task. Do not skip hooks.
 
 ---
@@ -57,18 +96,26 @@ pre-hardening numbers.
 ## File Structure
 
 **Create:**
-- `src/lib/errors/tuning.ts` — versioned band-override schema + sparse merge (Task 2)
-- `src/actions/learner-tuning.ts` — load/save actions + server-side reader (Task 3)
-- `src/lib/metrics/targeting.ts` — candidate type + the four ranking functions (Task 4)
-- `src/components/settings/SeverityBandPanel.tsx` (Task 7)
-- `src/components/settings/TargetingStrategyPanel.tsx` (Task 8)
+- `src/lib/tuning/schema.ts` — pure. Versions, Zod schemas, sparse parse + merge for both blobs, strategy vocabulary, `shapeTuning`. Depends on `@/lib/errors/bands`, `@/lib/errors/taxonomy`, `@/lib/metrics/bkt`, `@/lib/metrics/articulation` for defaults only. (Task 2)
+- `src/lib/tuning/store.ts` — DB shell. `getUserTuning(userId)` returns a fully-resolved table + thresholds + strategy. Dynamic `@/lib/db` import. (Task 4)
+- `src/actions/learner-tuning.ts` — `'use server'`. `loadTuning` / `saveTuning`. (Task 4)
+- `src/lib/metrics/targeting.ts` — candidate types + four ranking functions + candidate assembler. (Task 5)
+- `src/components/settings/SeverityBandPanel.tsx` (Task 8)
+- `src/components/settings/TargetingStrategyPanel.tsx` (Task 9)
+- `src/components/settings/MetricThresholdPanel.tsx` (Task 10)
 
 **Modify:**
-- `prisma/schema.prisma` — `LearnerTuning` model (Task 1)
-- `src/lib/metrics/read.ts` — resolve the user's bands and strategy (Task 5)
-- `src/actions/quiz.ts` — derive tag scores in the attempt summary (Task 6)
-- `src/components/quiz/QuizSummary.tsx` — consume derived values (Task 6)
-- `src/app/settings/ai/page.tsx` — mount both panels (Tasks 7, 8)
+- `prisma/schema.prisma` — `LearnerTuning` model + `User` back-relation (Task 1)
+- `src/lib/metrics/articulation.ts` — hand two constants to `tuning/schema.ts` and re-export them (Task 2); accept thresholds (Task 3)
+- `src/lib/memory/topic-profile.ts` — accept and forward thresholds (Task 3)
+- `src/lib/metrics/read.ts` — resolve the user's tuning; assemble, rank, return candidates (Task 6)
+- `src/actions/quiz.ts` — derive tag scores in `getQuizAttemptSummary` (Task 7)
+- `src/app/settings/ai/page.tsx` — mount the three panels (Tasks 8, 9, 10)
+
+**Tests created:** `tests/tuning/schema.test.ts`, `tests/tuning/store.test.ts`, `tests/metrics/targeting.test.ts`.
+**Tests extended:** `tests/metrics/articulation.test.ts`, `tests/memory/topic-profile.test.ts`, `tests/metrics/read-populations.test.ts`, `tests/actions/quiz-summary-analysis.test.ts`.
+
+**Rationale for `src/lib/tuning/` as a new directory:** bands belong to `lib/errors`, thresholds to `lib/metrics`. A module holding both fits under neither, and filing it under one would make the other an upward import. The three-file split (pure / DB shell / action) is the same shape `profile.ts` + its callers already use.
 
 ---
 
@@ -79,44 +126,55 @@ pre-hardening numbers.
 
 **Interfaces:**
 - Consumes: nothing
-- Produces: `LearnerTuning` with `userId` (PK), `strategy: String`, `bands: Json?`, `version: Int`, `updatedAt`
+- Produces: `prisma.learnerTuning` with `userId` (PK), `strategy: String`, `bands: Json?`, `thresholds: Json?`, `version: Int`, `updatedAt`
 
 - [ ] **Step 1: Add the model**
+
+Add to `prisma/schema.prisma`:
 
 ```prisma
 /// Stage 8 Spec 3B: per-user scoring and targeting preferences.
 ///
-/// `bands` is a versioned, Zod-validated blob rather than a relational table.
-/// Spec 2a argued the opposite for AnswerKlpResult/AnswerErrorTag — "a JSON
-/// blob can't be indexed or FK'd" — and that reasoning genuinely does not
-/// transfer: bands are never aggregated across users, joined, or filtered on.
-/// They are read wholesale for exactly one user at the start of a computation.
+/// Two Json blobs rather than relational tables. Spec 2a argued the opposite
+/// for AnswerKlpResult/AnswerErrorTag — "a JSON blob can't be indexed or FK'd,
+/// and Spec 3 aggregates these hardest" — and that reasoning genuinely does not
+/// transfer: tuning is never aggregated across users, joined, or filtered on.
+/// It is read wholesale for exactly one user at the start of a computation.
 /// The applicable precedent is SESSION_INSIGHT_VERSION (lib/memory/insight.ts):
 /// a versioned blob readers parse with a schema and fall back on.
 ///
-/// Overrides are SPARSE — only edited types are stored, so a user who retunes
+/// Both blobs are SPARSE — only edited keys are stored, so a user who retunes
 /// one type does not freeze the other twenty against future default changes.
+///
+/// `strategy` is a column, not part of a blob, because it is a closed
+/// vocabulary that ranking reads on every request and an invalid value must be
+/// caught at parse time rather than ranked with.
 model LearnerTuning {
-  userId    String   @id
-  strategy  String   @default("balanced")
-  bands     Json?
-  version   Int      @default(1)
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String   @id
+  strategy   String   @default("balanced")
+  bands      Json?
+  thresholds Json?
+  version    Int      @default(1)
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 ```
 
-Add the back-relation `learnerTuning LearnerTuning?` to `model User`.
+Add the back-relation to `model User`, beside the existing `klpStates KlpState[]` line:
+
+```prisma
+  learnerTuning    LearnerTuning?
+```
 
 - [ ] **Step 2: Migrate**
 
 Run: `npx prisma migrate dev --name add_learner_tuning`
-Expected: one additive `CREATE TABLE`, no reset prompt. If drift is reported, STOP and return BLOCKED.
+Expected: one additive `CREATE TABLE "LearnerTuning"`, no reset prompt. If drift is reported, STOP and return BLOCKED — do not pass `--force-reset` or `--accept-data-loss`.
 
 - [ ] **Step 3: Verify the client**
 
 Run: `npx tsc --noEmit`
-Expected: clean; `prisma.learnerTuning` exists.
+Expected: clean; `prisma.learnerTuning` exists on the generated client.
 
 - [ ] **Step 4: Commit**
 
@@ -127,30 +185,40 @@ git commit -m "feat(spec3b): add the LearnerTuning model"
 
 ---
 
-### Task 2: Band-override schema and sparse merge
+### Task 2: Tuning schema — versions, sparse overrides, merge
 
 **Files:**
-- Create: `src/lib/errors/tuning.ts`
-- Test: `tests/errors/tuning.test.ts`
+- Create: `src/lib/tuning/schema.ts`
+- Modify: `src/lib/metrics/articulation.ts` (move two constants out, re-export them back — see Step 3)
+- Test: `tests/tuning/schema.test.ts`
 
 **Interfaces:**
-- Consumes: `DEFAULT_BANDS`, `BandTable`, `SeverityBand` from `@/lib/errors/bands`; `ACCURACY_TYPES`, `CLARITY_TYPES`, `CONCISENESS_TYPES` from `@/lib/errors/taxonomy`
-- Produces: `TUNING_VERSION = 1`, `BandOverridesSchema`, `type BandOverrides`, `parseBandOverrides(raw: unknown): BandOverrides`, `resolveBands(overrides: BandOverrides): BandTable`, `STRATEGY_KEYS`, `type StrategyKey`, `parseStrategy(raw: unknown): StrategyKey`
+- Consumes: `DEFAULT_BANDS`, `BandTable`, `SeverityBand` from `@/lib/errors/bands`; `ACCURACY_TYPES`, `CLARITY_TYPES`, `CONCISENESS_TYPES` from `@/lib/errors/taxonomy`; `MIN_OBSERVATIONS` from `@/lib/metrics/bkt`
+- Produces:
+  - `TUNING_VERSION = 1`
+  - `BandOverridesSchema`, `type BandOverrides = Record<string, SeverityBand>`, `parseBandOverrides(raw: unknown): BandOverrides`, `resolveBands(overrides: BandOverrides): BandTable`
+  - `interface MetricThresholds { minObservations: number; articulationMinPKnown: number; readinessWeightPerAnswer: number }`
+  - `DEFAULT_THRESHOLDS: MetricThresholds`, `ThresholdOverridesSchema`, `type ThresholdOverrides = Partial<MetricThresholds>`, `parseThresholds(raw: unknown): ThresholdOverrides`, `resolveThresholds(overrides: ThresholdOverrides): MetricThresholds`
+  - `STRATEGY_KEYS`, `type StrategyKey`, `parseStrategy(raw: unknown): StrategyKey`
+  - `interface TuningRow { strategy: StrategyKey; bandOverrides: BandOverrides; thresholdOverrides: ThresholdOverrides }`, `shapeTuning(row: { strategy: string; bands: unknown; thresholds: unknown } | null): TuningRow`
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-// tests/errors/tuning.test.ts
+// tests/tuning/schema.test.ts
 import { describe, it, expect } from 'vitest'
 import {
-  parseBandOverrides, resolveBands, parseStrategy, STRATEGY_KEYS, TUNING_VERSION,
-} from '@/lib/errors/tuning'
+  parseBandOverrides, resolveBands,
+  parseThresholds, resolveThresholds, DEFAULT_THRESHOLDS,
+  parseStrategy, STRATEGY_KEYS, TUNING_VERSION, shapeTuning,
+} from '@/lib/tuning/schema'
 import { DEFAULT_BANDS } from '@/lib/errors/bands'
+import { MIN_OBSERVATIONS } from '@/lib/metrics/bkt'
+import { ARTICULATION_MIN_PKNOWN, READINESS_WEIGHT_PER_ANSWER } from '@/lib/metrics/articulation'
 
 describe('parseBandOverrides', () => {
   it('accepts a sparse map of valid bands', () => {
-    const parsed = parseBandOverrides({ inversion: [1, 4] })
-    expect(parsed).toEqual({ inversion: [1, 4] })
+    expect(parseBandOverrides({ inversion: [1, 4] })).toEqual({ inversion: [1, 4] })
   })
 
   it('returns an empty override map for null or undefined', () => {
@@ -190,13 +258,74 @@ describe('resolveBands', () => {
     const resolved = resolveBands({ inversion: [1, 2] })
     expect(resolved.inversion).toEqual([1, 2])
     expect(resolved.conflation).toEqual(DEFAULT_BANDS.conflation)
-    expect(Object.keys(resolved).length).toBe(Object.keys(DEFAULT_BANDS).length)
+  })
+
+  it('always returns a FULL table — a partial one silently downgrades every unlisted type', () => {
+    // resolveSeverity does `bands ?? DEFAULT_BANDS`, a replacement not a merge,
+    // so any type missing here resolves to FALLBACK_BAND [1,3] instead of its
+    // default. This assertion is the guard against handing one out.
+    expect(Object.keys(resolveBands({ inversion: [1, 2] })).sort())
+      .toEqual(Object.keys(DEFAULT_BANDS).sort())
   })
 
   it('does not mutate DEFAULT_BANDS', () => {
     const before = DEFAULT_BANDS.inversion
     resolveBands({ inversion: [1, 2] })
     expect(DEFAULT_BANDS.inversion).toBe(before)
+  })
+})
+
+describe('DEFAULT_THRESHOLDS', () => {
+  it('is DERIVED from the shipped constants, never a second copy of the numbers', () => {
+    // Same rule guessRate() follows against EVIDENCE_STRENGTH: writing 3 / 0.6 /
+    // 12 here a second time is the persisted-value-in-two-places drift class.
+    expect(DEFAULT_THRESHOLDS.minObservations).toBe(MIN_OBSERVATIONS)
+    expect(DEFAULT_THRESHOLDS.articulationMinPKnown).toBe(ARTICULATION_MIN_PKNOWN)
+    expect(DEFAULT_THRESHOLDS.readinessWeightPerAnswer).toBe(READINESS_WEIGHT_PER_ANSWER)
+  })
+})
+
+describe('parseThresholds', () => {
+  it('accepts a sparse map', () => {
+    expect(parseThresholds({ minObservations: 1 })).toEqual({ minObservations: 1 })
+  })
+
+  it('returns an empty map for null or a corrupt blob', () => {
+    expect(parseThresholds(null)).toEqual({})
+    expect(parseThresholds({ minObservations: 'many' })).toEqual({})
+    expect(parseThresholds('garbage')).toEqual({})
+  })
+
+  it('rejects minObservations below 1 — zero observations is not evidence', () => {
+    expect(parseThresholds({ minObservations: 0 })).toEqual({})
+    expect(parseThresholds({ minObservations: 2.5 })).toEqual({})
+  })
+
+  it('rejects an articulation pKnown outside 0-1', () => {
+    expect(parseThresholds({ articulationMinPKnown: 1.5 })).toEqual({})
+    expect(parseThresholds({ articulationMinPKnown: -0.1 })).toEqual({})
+  })
+
+  it('rejects a readiness weight of zero — readiness divides by it', () => {
+    expect(parseThresholds({ readinessWeightPerAnswer: 0 })).toEqual({})
+    expect(parseThresholds({ readinessWeightPerAnswer: -3 })).toEqual({})
+  })
+
+  it('rejects an unknown key', () => {
+    expect(parseThresholds({ minObservations: 1, bogus: 4 })).toEqual({})
+  })
+})
+
+describe('resolveThresholds', () => {
+  it('fills every unset key from the defaults', () => {
+    const resolved = resolveThresholds({ minObservations: 1 })
+    expect(resolved.minObservations).toBe(1)
+    expect(resolved.articulationMinPKnown).toBe(DEFAULT_THRESHOLDS.articulationMinPKnown)
+    expect(resolved.readinessWeightPerAnswer).toBe(DEFAULT_THRESHOLDS.readinessWeightPerAnswer)
+  })
+
+  it('returns the defaults untouched with no overrides', () => {
+    expect(resolveThresholds({})).toEqual(DEFAULT_THRESHOLDS)
   })
 })
 
@@ -214,22 +343,63 @@ describe('parseStrategy', () => {
     expect(TUNING_VERSION).toBe(1)
   })
 })
+
+describe('shapeTuning', () => {
+  it('returns balanced with no overrides when the user has no row', () => {
+    expect(shapeTuning(null)).toEqual({
+      strategy: 'balanced', bandOverrides: {}, thresholdOverrides: {},
+    })
+  })
+
+  it('reads a stored strategy and both override blobs', () => {
+    const shaped = shapeTuning({
+      strategy: 'polish_near_ready',
+      bands: { inversion: [1, 3] },
+      thresholds: { minObservations: 1 },
+    })
+    expect(shaped.strategy).toBe('polish_near_ready')
+    expect(shaped.bandOverrides).toEqual({ inversion: [1, 3] })
+    expect(shaped.thresholdOverrides).toEqual({ minObservations: 1 })
+  })
+
+  it('falls back to balanced on an unrecognised stored strategy', () => {
+    expect(shapeTuning({ strategy: 'retired_key', bands: null, thresholds: null }).strategy)
+      .toBe('balanced')
+  })
+
+  it('drops one corrupt blob without touching the other', () => {
+    const shaped = shapeTuning({
+      strategy: 'follow_forgetting',
+      bands: { inversion: [9, 9] },
+      thresholds: { minObservations: 1 },
+    })
+    expect(shaped.strategy).toBe('follow_forgetting')
+    expect(shaped.bandOverrides).toEqual({})
+    expect(shaped.thresholdOverrides).toEqual({ minObservations: 1 })
+  })
+
+  it('keeps overrides sparse — it never returns the full default table', () => {
+    const shaped = shapeTuning({ strategy: 'balanced', bands: { inversion: [1, 3] }, thresholds: null })
+    expect(Object.keys(shaped.bandOverrides)).toEqual(['inversion'])
+  })
+})
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run tests/errors/tuning.test.ts`
-Expected: FAIL — cannot resolve `@/lib/errors/tuning`.
+Run: `npx vitest run tests/tuning/schema.test.ts`
+Expected: FAIL — cannot resolve `@/lib/tuning/schema`.
 
 - [ ] **Step 3: Write the implementation**
 
 ```ts
-// src/lib/errors/tuning.ts
+// src/lib/tuning/schema.ts
 import { z } from 'zod'
 import { DEFAULT_BANDS, type BandTable, type SeverityBand } from '@/lib/errors/bands'
 import { ACCURACY_TYPES, CLARITY_TYPES, CONCISENESS_TYPES } from '@/lib/errors/taxonomy'
+import { MIN_OBSERVATIONS } from '@/lib/metrics/bkt'
 
-/** Bump when the stored blob's shape changes incompatibly. */
+/** Bump when either stored blob's shape changes incompatibly. */
 export const TUNING_VERSION = 1
 
 const KNOWN_TYPES = new Set<string>([
@@ -255,9 +425,10 @@ export const BandOverridesSchema = z.record(
 export type BandOverrides = Record<string, SeverityBand>
 
 /**
- * Parse a stored blob. A corrupt or partially invalid blob yields NO overrides
+ * Parse a STORED blob. A corrupt or partially invalid blob yields NO overrides
  * rather than throwing — a bad settings row must not make the app unusable,
- * matching how `SESSION_INSIGHT_VERSION` blobs are read.
+ * matching how `SESSION_INSIGHT_VERSION` blobs are read. A corrupt SAVE is a
+ * different case and is rejected loudly; see `saveTuning`.
  */
 export function parseBandOverrides(raw: unknown): BandOverrides {
   if (raw === null || raw === undefined) return {}
@@ -268,12 +439,102 @@ export function parseBandOverrides(raw: unknown): BandOverrides {
 /**
  * Merge sparse overrides over the shipped defaults.
  *
- * Sparse on purpose: a user who retunes one type keeps tracking future default
- * changes for every other type. Returns a fresh object — never mutates
- * DEFAULT_BANDS, which is module-level shared state.
+ * ALWAYS returns a full table. `resolveSeverity` does `bands ?? DEFAULT_BANDS`
+ * — a replacement, not a merge — so handing it a partial table silently
+ * downgrades every unlisted type to FALLBACK_BAND [1,3]. Every band value
+ * crossing a module boundary in Spec 3B comes from here.
+ *
+ * Sparse on purpose at the STORAGE layer: a user who retunes one type keeps
+ * tracking future default changes for every other type. Returns a fresh object
+ * — never mutates DEFAULT_BANDS, which is module-level shared state.
  */
 export function resolveBands(overrides: BandOverrides): BandTable {
   return { ...DEFAULT_BANDS, ...overrides }
+}
+
+/**
+ * The numeric thresholds a learner may retune.
+ *
+ * These are not cosmetic. `minObservations` decides how much evidence counts as
+ * "enough to have an opinion" — a judgement about the learner's situation (an
+ * interview next week justifies acting on thinner evidence than one six months
+ * out), not a universal constant. The other two carry in-code comments saying
+ * they want tuning once real tag volume exists; this is that.
+ */
+export interface MetricThresholds {
+  /** Below this many observations, no caller may call a KLP weak or strong. */
+  minObservations: number
+  /** pKnown at or above which a `too_terse` tag is an expression gap, not a knowledge gap. */
+  articulationMinPKnown: number
+  /** Average per-answer expression weight at which readiness reaches 0. */
+  readinessWeightPerAnswer: number
+}
+
+/**
+ * A `too_terse` tag only counts as an ARTICULATION problem at or above this
+ * pKnown. Below it, brevity is far more likely to mean the learner does not
+ * know the material — and booking that as an expression gap would route them
+ * to short-answer drilling when they need the concept, misdiagnosing exactly
+ * the case this metric exists to separate.
+ *
+ * Defined HERE rather than in `articulation.ts` (which re-exports it) only to
+ * break an import cycle: `articulation.ts` must import `MetricThresholds` from
+ * this module, so this module cannot import its constants back.
+ */
+export const ARTICULATION_MIN_PKNOWN = 0.6
+
+/**
+ * Average per-answer expression-error weight at which readiness reaches 0.
+ * Roughly two significant expression tags on every answer. Same cycle-breaking
+ * note as above.
+ */
+export const READINESS_WEIGHT_PER_ANSWER = 12
+
+/**
+ * DERIVED from the shipped constants, never a second copy of the numbers —
+ * the same rule `guessRate` follows against `EVIDENCE_STRENGTH`. A test pins
+ * the equality so a change to either side is a build failure rather than a
+ * silent divergence between "the default" and "the constant".
+ */
+export const DEFAULT_THRESHOLDS: MetricThresholds = {
+  minObservations: MIN_OBSERVATIONS,
+  articulationMinPKnown: ARTICULATION_MIN_PKNOWN,
+  readinessWeightPerAnswer: READINESS_WEIGHT_PER_ANSWER,
+}
+
+/**
+ * Bounds are correctness, not taste:
+ * - `minObservations` below 1 would let a KLP with zero evidence report a
+ *   posterior indistinguishable from a measured one.
+ * - `readinessWeightPerAnswer` is a DIVISOR in `computeArticulation`; zero or
+ *   negative produces Infinity or an inverted metric.
+ * `.strict()` rejects unknown keys so a typo is an error rather than a
+ * silently-ignored setting the panel still displays.
+ */
+export const ThresholdOverridesSchema = z
+  .object({
+    minObservations: z.number().int().min(1).max(50).optional(),
+    articulationMinPKnown: z.number().min(0).max(1).optional(),
+    readinessWeightPerAnswer: z.number().positive().max(100).optional(),
+  })
+  .strict()
+
+export type ThresholdOverrides = z.infer<typeof ThresholdOverridesSchema>
+
+/** Parse a STORED blob; corrupt yields no overrides rather than throwing. */
+export function parseThresholds(raw: unknown): ThresholdOverrides {
+  if (raw === null || raw === undefined) return {}
+  const parsed = ThresholdOverridesSchema.safeParse(raw)
+  if (!parsed.success) return {}
+  // Strip explicit undefineds so `{}` deep-equals `{}` and callers can count keys.
+  return Object.fromEntries(
+    Object.entries(parsed.data).filter(([, v]) => v !== undefined),
+  ) as ThresholdOverrides
+}
+
+/** Fill every unset key from the defaults. Always returns a complete set. */
+export function resolveThresholds(overrides: ThresholdOverrides): MetricThresholds {
+  return { ...DEFAULT_THRESHOLDS, ...overrides }
 }
 
 export const STRATEGY_KEYS = [
@@ -288,14 +549,66 @@ export type StrategyKey = (typeof STRATEGY_KEYS)[number]
 export function parseStrategy(raw: unknown): StrategyKey {
   return STRATEGY_KEYS.includes(raw as StrategyKey) ? (raw as StrategyKey) : 'balanced'
 }
+
+export interface TuningRow {
+  strategy: StrategyKey
+  bandOverrides: BandOverrides
+  thresholdOverrides: ThresholdOverrides
+}
+
+/**
+ * Pure: every decision the load/save actions make happens here so it is tested
+ * without a database. Each field degrades INDEPENDENTLY — one corrupt blob must
+ * not discard a perfectly good strategy or the other blob.
+ */
+export function shapeTuning(
+  row: { strategy: string; bands: unknown; thresholds: unknown } | null,
+): TuningRow {
+  if (!row) return { strategy: 'balanced', bandOverrides: {}, thresholdOverrides: {} }
+  return {
+    strategy: parseStrategy(row.strategy),
+    bandOverrides: parseBandOverrides(row.bands),
+    thresholdOverrides: parseThresholds(row.thresholds),
+  }
+}
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Point `articulation.ts` at the moved constants**
 
-Run: `npx vitest run tests/errors/tuning.test.ts`
-Expected: PASS.
+`ARTICULATION_MIN_PKNOWN` and `READINESS_WEIGHT_PER_ANSWER` now live in
+`schema.ts`. In `src/lib/metrics/articulation.ts`, **delete both `const`
+declarations** (their doc comments moved with them, verbatim) and replace them with
+a re-export so every existing importer keeps working unchanged:
 
-- [ ] **Step 5: Mutation check**
+```ts
+// Defined in the tuning module so `DEFAULT_THRESHOLDS` can derive from them
+// without an import cycle — Task 3 makes this file import `MetricThresholds`
+// from there. Re-exported so existing importers need no change.
+export { ARTICULATION_MIN_PKNOWN, READINESS_WEIGHT_PER_ANSWER } from '@/lib/tuning/schema'
+```
+
+Do this in **this** task, not Task 3: it is this module's own dependency problem,
+and leaving it until Task 3 means Task 2 ships an import that Task 3 must delete.
+
+- [ ] **Step 5: Run test to verify it passes**
+
+Run: `npx vitest run tests/tuning/schema.test.ts tests/metrics/articulation.test.ts && npx tsc --noEmit`
+Expected: all PASS — the re-export keeps `articulation.ts`'s existing behaviour and its
+existing test file byte-identical.
+
+If Zod 4's `z.record` rejects a `.refine`d key schema at the type level, replace `BandOverridesSchema` with:
+
+```ts
+export const BandOverridesSchema = z
+  .record(z.string(), BandSchema)
+  .refine((rec) => Object.keys(rec).every((k) => KNOWN_TYPES.has(k)), {
+    message: 'unknown error type',
+  })
+```
+
+The unknown-key test above pins the behaviour either way; do not change the test to accommodate the implementation.
+
+- [ ] **Step 6: Mutation check**
 
 Introduce each mutation, run the test file, confirm at least one test FAILS, then revert:
 - (a) `parseBandOverrides` clamps out-of-range values instead of rejecting the blob
@@ -303,96 +616,419 @@ Introduce each mutation, run the test file, confirm at least one test FAILS, the
 - (c) the `floor <= ceiling` refinement is dropped
 - (d) `parseStrategy` returns the raw value instead of falling back
 - (e) `resolveBands` mutates and returns `DEFAULT_BANDS`
+- (f) `DEFAULT_THRESHOLDS.minObservations` is hardcoded to `3` instead of referencing `MIN_OBSERVATIONS`, and `MIN_OBSERVATIONS` is then changed to `4`
+- (g) `ThresholdOverridesSchema` allows `readinessWeightPerAnswer: 0`
 
-If any survives, add an assertion that kills it and re-verify. Report all five.
+Report all seven. If any survives, add an assertion that kills it and re-verify.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/lib/errors/tuning.ts tests/errors/tuning.test.ts
-git commit -m "feat(spec3b): add versioned band overrides with sparse merge"
+git add src/lib/tuning/schema.ts src/lib/metrics/articulation.ts tests/tuning/schema.test.ts
+git commit -m "feat(spec3b): add versioned band and threshold overrides with sparse merge"
 ```
 
 ---
 
-### Task 3: Tuning persistence
+### Task 3: Thread thresholds through the pure metric functions
+
+Spec §4's observation floor and §1's "ranking and weighting decisions belong to the
+learner". This task makes the three thresholds *parameters* rather than imports. It comes
+before targeting so targeting consumes the same `MetricThresholds` type.
+
+**Why the parameter is optional here, when `analyzedAnswersByTopic` was made required:**
+that field had **no defensible default** — deriving it from tags was actively wrong, so
+forcing the caller to decide was the point. Thresholds do have one: the shipped
+constants, which reproduce today's behaviour exactly. An optional parameter with a
+correct default is the right call. The risk it carries — a call site silently keeping
+the defaults — is killed by Task 6's Step 4 assertion that `getLearnerMetrics` actually
+threads the user's value down, not by making 31 existing test call sites pass a constant.
 
 **Files:**
-- Create: `src/actions/learner-tuning.ts`
-- Test: `tests/actions/learner-tuning.test.ts`
+- Modify: `src/lib/metrics/articulation.ts`
+- Modify: `src/lib/memory/topic-profile.ts`
+- Test: `tests/metrics/articulation.test.ts` (extend)
+- Test: `tests/memory/topic-profile.test.ts` (extend)
 
 **Interfaces:**
-- Consumes: Task 2's `parseBandOverrides`, `resolveBands`, `parseStrategy`, `BandOverridesSchema`, `TUNING_VERSION`; `ActionResult` from `@/types/action`
-- Produces: `interface TuningRow { strategy: StrategyKey; overrides: BandOverrides }`, `shapeTuning(row: { strategy: string; bands: unknown } | null): TuningRow` (pure), `loadTuning(): Promise<ActionResult<TuningRow>>`, `saveTuning(input: { strategy: string; overrides: unknown }): Promise<ActionResult<TuningRow>>`, `getUserTuning(userId: string): Promise<{ bands: BandTable; strategy: StrategyKey }>`
+- Consumes: `MetricThresholds`, `DEFAULT_THRESHOLDS` from `@/lib/tuning/schema` (Task 2)
+- Produces: `ArticulationInput.thresholds?: MetricThresholds`; `ShapeTopicProfileInput.thresholds?: MetricThresholds`
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `tests/metrics/articulation.test.ts` (add
+`import { DEFAULT_THRESHOLDS } from '@/lib/tuning/schema'` at the top):
+
+```ts
+describe('tunable thresholds (Spec 3B)', () => {
+  const terseTag = {
+    attemptId: 'att1', cardId: 'c1', dimension: 'conciseness' as const,
+    type: 'too_terse', klpId: 'k1', relevance: 3, starred: false,
+    magnitude: 5, storedSeverity: 3, storedSignificance: 5,
+    mode: 'quiz-sa' as const, createdAt: new Date('2026-08-06T00:00:00Z'),
+    severity: 3, repeatBonus: 0, significance: 5, isLegacy: false,
+  }
+
+  it('books terseness as a knowledge gap when the KLP is below the observation floor', () => {
+    const out = computeArticulation({
+      tags: [terseTag],
+      knowledge: { k1: { pKnown: 0.9, observations: 2 } },
+      analyzedAnswers: 1,
+    })
+    expect(out.knowledgeGapTerseness).toBe(1)
+    expect(out.verbosityIndex).toBe(0)
+  })
+
+  it('LOWERING minObservations makes that same tag count as an expression gap', () => {
+    // The whole point of the knob: at the shipped floor of 3 this learner's
+    // single observation is invisible; at 1 it is provisional evidence.
+    const out = computeArticulation({
+      tags: [terseTag],
+      knowledge: { k1: { pKnown: 0.9, observations: 2 } },
+      analyzedAnswers: 1,
+      thresholds: { ...DEFAULT_THRESHOLDS, minObservations: 1 },
+    })
+    expect(out.knowledgeGapTerseness).toBe(0)
+    expect(out.verbosityIndex).toBe(-5)
+  })
+
+  it('RAISING articulationMinPKnown reclassifies an expression gap as a knowledge gap', () => {
+    const base = { tags: [terseTag], knowledge: { k1: { pKnown: 0.7, observations: 5 } }, analyzedAnswers: 1 }
+    expect(computeArticulation(base).verbosityIndex).toBe(-5)
+    expect(
+      computeArticulation({ ...base, thresholds: { ...DEFAULT_THRESHOLDS, articulationMinPKnown: 0.8 } })
+        .knowledgeGapTerseness,
+    ).toBe(1)
+  })
+
+  it('LOWERING readinessWeightPerAnswer makes the same errors read as less ready', () => {
+    const base = {
+      tags: [{ ...terseTag, dimension: 'clarity' as const, type: 'no_thesis', klpId: null }],
+      knowledge: {},
+      analyzedAnswers: 1,
+    }
+    const shipped = computeArticulation(base).readiness!
+    const strict = computeArticulation({
+      ...base, thresholds: { ...DEFAULT_THRESHOLDS, readinessWeightPerAnswer: 6 },
+    }).readiness!
+    expect(strict).toBeLessThan(shipped)
+  })
+
+  it('omitting thresholds reproduces the shipped constants exactly', () => {
+    const base = { tags: [terseTag], knowledge: { k1: { pKnown: 0.9, observations: 5 } }, analyzedAnswers: 2 }
+    expect(computeArticulation(base)).toEqual(
+      computeArticulation({ ...base, thresholds: DEFAULT_THRESHOLDS }),
+    )
+  })
+})
+```
+
+Append to `tests/memory/topic-profile.test.ts` (add the same import):
+
+```ts
+describe('tunable observation floor (Spec 3B)', () => {
+  const topic = {
+    normalizedName: 'valuation', displayName: 'Valuation', color: null,
+    klpIds: ['k1'], supersededKlpIds: [], cardIds: ['c1'],
+  }
+
+  it('reports null knowledge for a KLP below the shipped floor', () => {
+    const [out] = shapeTopicProfile({
+      topics: [topic],
+      knowledge: { k1: { pKnown: 0.8, observations: 1 } },
+      tags: [],
+      analyzedAnswersByTopic: {},
+    })
+    expect(out.knowledge).toBeNull()
+  })
+
+  it('reports that knowledge once the learner lowers the floor', () => {
+    // This is the live-database case: 19 answers, every KLP seen exactly once,
+    // so at the shipped floor of 3 zero topics report any knowledge at all.
+    const [out] = shapeTopicProfile({
+      topics: [topic],
+      knowledge: { k1: { pKnown: 0.8, observations: 1 } },
+      tags: [],
+      analyzedAnswersByTopic: {},
+      thresholds: { ...DEFAULT_THRESHOLDS, minObservations: 1 },
+    })
+    expect(out.knowledge).toBeCloseTo(0.8)
+  })
+
+  it('forwards thresholds down to computeArticulation, not just its own filter', () => {
+    // A partial thread — honouring the floor for knowledge but not for
+    // articulation — is the failure this asserts against.
+    const [out] = shapeTopicProfile({
+      topics: [topic],
+      knowledge: { k1: { pKnown: 0.9, observations: 1 } },
+      tags: [{
+        attemptId: 'att1', cardId: 'c1', dimension: 'conciseness', type: 'too_terse',
+        klpId: 'k1', relevance: 3, starred: false, magnitude: 5, storedSeverity: 3,
+        storedSignificance: 5, mode: 'quiz-sa', createdAt: new Date('2026-08-06T00:00:00Z'),
+        severity: 3, repeatBonus: 0, significance: 5, isLegacy: false,
+      }],
+      analyzedAnswersByTopic: { valuation: 1 },
+      thresholds: { ...DEFAULT_THRESHOLDS, minObservations: 1 },
+    })
+    expect(out.knowledgeGapTerseness).toBe(0)
+    expect(out.verbosityIndex).toBe(-5)
+  })
+})
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `npx vitest run tests/metrics/articulation.test.ts tests/memory/topic-profile.test.ts`
+Expected: FAIL — `thresholds` is not a known property, and the lowered-floor cases still report the shipped behaviour.
+
+- [ ] **Step 3: Accept thresholds in `computeArticulation`**
+
+In `src/lib/metrics/articulation.ts`, replace the `MIN_OBSERVATIONS` import with the
+tuning types and make the three constants defaults rather than the only values.
+Keep exporting `ARTICULATION_MIN_PKNOWN` and `READINESS_WEIGHT_PER_ANSWER` — Task 2
+derives `DEFAULT_THRESHOLDS` from them, and the panel shows them as "the shipped
+default".
+
+```ts
+import type { DerivedTag } from '@/lib/errors/derive'
+import { DEFAULT_THRESHOLDS, type MetricThresholds } from '@/lib/tuning/schema'
+```
+
+Add to `ArticulationInput`:
+
+```ts
+  /**
+   * The learner's tuned thresholds. Optional, defaulting to the shipped
+   * constants, so every existing caller is unchanged — but a caller that HAS a
+   * user must pass theirs, or the knob is inert for that surface.
+   */
+  thresholds?: MetricThresholds
+```
+
+Inside `computeArticulation`, first line of the body:
+
+```ts
+  const { minObservations, articulationMinPKnown, readinessWeightPerAnswer } =
+    input.thresholds ?? DEFAULT_THRESHOLDS
+```
+
+Then replace the two literal reads:
+
+```ts
+      const counts =
+        k !== undefined && k.observations >= minObservations && k.pKnown >= articulationMinPKnown
+```
+
+```ts
+    const weightPerAnswer = expressionWeight / input.analyzedAnswers
+    readiness = Math.max(0, 1 - weightPerAnswer / readinessWeightPerAnswer)
+```
+
+Delete the now-unused `MIN_OBSERVATIONS` import from this file.
+
+**Do not re-add local `const` declarations for `ARTICULATION_MIN_PKNOWN` or
+`READINESS_WEIGHT_PER_ANSWER`.** Task 2 Step 4 moved their definitions into
+`tuning/schema.ts` and left a re-export here, precisely so `articulation.ts` can import
+`MetricThresholds` from that module without a cycle. Re-declaring them locally
+reintroduces the cycle and gives `DEFAULT_THRESHOLDS` a second copy of the numbers to
+drift from. `MIN_OBSERVATIONS` stays in `bkt.ts` — `bkt.ts` depends on nothing in
+tuning, so there is no cycle to break there.
+
+- [ ] **Step 4: Accept and forward thresholds in `shapeTopicProfile`**
+
+In `src/lib/memory/topic-profile.ts`, add to `ShapeTopicProfileInput`:
+
+```ts
+  /**
+   * The learner's tuned thresholds, forwarded to `computeArticulation` AND
+   * applied to the knowledge filter below. Both, or the floor means one thing
+   * for topic knowledge and another for terseness classification.
+   */
+  thresholds?: MetricThresholds
+```
+
+Inside `shapeTopicProfile`, before the `for` loop:
+
+```ts
+  const thresholds = input.thresholds ?? DEFAULT_THRESHOLDS
+```
+
+Replace the knowledge filter:
+
+```ts
+    const scored = klpIds
+      .map((id) => input.knowledge[id])
+      .filter((k): k is KnowledgeRef => k !== undefined && k.observations >= thresholds.minObservations)
+```
+
+And pass them down:
+
+```ts
+    const articulation = computeArticulation({
+      tags: input.tags.filter((t) =>
+        t.klpId !== null
+          ? attributableKlpSet.has(t.klpId)
+          : t.cardId !== null && cardSet.has(t.cardId),
+      ),
+      knowledge: input.knowledge,
+      analyzedAnswers: input.analyzedAnswersByTopic[key] ?? 0,
+      thresholds,
+    })
+```
+
+Update the `MIN_OBSERVATIONS` import to `import { DEFAULT_THRESHOLDS, type MetricThresholds } from '@/lib/tuning/schema'`, and update the `LearnerTopicProfile.knowledge` doc comment from "Mean pKnown across KLPs clearing MIN_OBSERVATIONS" to "…clearing the learner's observation floor (`MetricThresholds.minObservations`)".
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `npx vitest run tests/metrics tests/memory && npx tsc --noEmit`
+Expected: all PASS, including the ~31 pre-existing call sites that pass no `thresholds` — they must be byte-identical in behaviour.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/lib/metrics/articulation.ts src/lib/memory/topic-profile.ts src/lib/tuning/schema.ts tests/metrics/articulation.test.ts tests/memory/topic-profile.test.ts
+git commit -m "feat(spec3b): make the observation floor and articulation thresholds parameters"
+```
+
+---
+
+### Task 4: Tuning persistence
+
+**Files:**
+- Create: `src/lib/tuning/store.ts`
+- Create: `src/actions/learner-tuning.ts`
+- Test: `tests/tuning/store.test.ts`
+
+**Interfaces:**
+- Consumes: Task 2's `shapeTuning`, `resolveBands`, `resolveThresholds`, `parseStrategy`, `BandOverridesSchema`, `ThresholdOverridesSchema`, `TUNING_VERSION`, `TuningRow`; `BandTable` from `@/lib/errors/bands`; `MetricThresholds`, `StrategyKey`; `ActionResult` from `@/types/action`
+- Produces:
+  - `interface ResolvedTuning { bands: BandTable; thresholds: MetricThresholds; strategy: StrategyKey }`
+  - `getUserTuning(userId: string): Promise<ResolvedTuning>` (`src/lib/tuning/store.ts`)
+  - `loadTuning(): Promise<ActionResult<TuningRow>>`, `saveTuning(input: { strategy: string; bandOverrides: unknown; thresholdOverrides: unknown }): Promise<ActionResult<TuningRow>>` (`src/actions/learner-tuning.ts`)
 
 - [ ] **Step 1: Write the failing test**
 
-Only the pure shaper is unit-tested; the action bodies are thin DB shells, following `src/lib/memory/profile.ts:322-331`'s precedent.
-
 ```ts
-// tests/actions/learner-tuning.test.ts
-import { describe, it, expect } from 'vitest'
-import { shapeTuning } from '@/actions/learner-tuning'
+// tests/tuning/store.test.ts
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DEFAULT_BANDS } from '@/lib/errors/bands'
+import { DEFAULT_THRESHOLDS } from '@/lib/tuning/schema'
 
-describe('shapeTuning', () => {
-  it('returns balanced with no overrides when the user has no row', () => {
-    expect(shapeTuning(null)).toEqual({ strategy: 'balanced', overrides: {} })
+// Follows the vi.hoisted() + vi.mock('@/lib/db') pattern established by
+// tests/actions/quiz-summary-analysis.test.ts.
+const h = vi.hoisted(() => ({ findUnique: vi.fn() }))
+vi.mock('@/lib/db', () => ({ prisma: { learnerTuning: { findUnique: h.findUnique } } }))
+
+import { getUserTuning } from '@/lib/tuning/store'
+
+beforeEach(() => vi.clearAllMocks())
+
+describe('getUserTuning', () => {
+  it('returns fully-resolved defaults for a user with no row', async () => {
+    h.findUnique.mockResolvedValue(null)
+    const out = await getUserTuning('u1')
+    expect(out.strategy).toBe('balanced')
+    expect(out.bands).toEqual(DEFAULT_BANDS)
+    expect(out.thresholds).toEqual(DEFAULT_THRESHOLDS)
   })
 
-  it('reads a stored strategy and overrides', () => {
-    const shaped = shapeTuning({ strategy: 'polish_near_ready', bands: { inversion: [1, 3] } })
-    expect(shaped.strategy).toBe('polish_near_ready')
-    expect(shaped.overrides).toEqual({ inversion: [1, 3] })
+  it('merges a sparse override into a COMPLETE band table', async () => {
+    h.findUnique.mockResolvedValue({
+      strategy: 'polish_near_ready', bands: { inversion: [1, 2] }, thresholds: { minObservations: 1 },
+    })
+    const out = await getUserTuning('u1')
+    expect(out.bands.inversion).toEqual([1, 2])
+    expect(out.bands.conflation).toEqual(DEFAULT_BANDS.conflation)
+    // The guarantee callers depend on: never a partial table, because
+    // resolveSeverity replaces rather than merges.
+    expect(Object.keys(out.bands).sort()).toEqual(Object.keys(DEFAULT_BANDS).sort())
+    expect(out.thresholds.minObservations).toBe(1)
+    expect(out.thresholds.readinessWeightPerAnswer).toBe(DEFAULT_THRESHOLDS.readinessWeightPerAnswer)
+    expect(out.strategy).toBe('polish_near_ready')
   })
 
-  it('falls back to balanced on an unrecognised stored strategy', () => {
-    expect(shapeTuning({ strategy: 'retired_key', bands: null }).strategy).toBe('balanced')
+  it('scopes the read to the requested user', async () => {
+    h.findUnique.mockResolvedValue(null)
+    await getUserTuning('u7')
+    expect(h.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'u7' } }),
+    )
   })
 
-  it('drops a corrupt blob without throwing, leaving the strategy intact', () => {
-    const shaped = shapeTuning({ strategy: 'follow_forgetting', bands: { inversion: [9, 9] } })
-    expect(shaped.strategy).toBe('follow_forgetting')
-    expect(shaped.overrides).toEqual({})
-  })
-
-  it('never returns the full default table as overrides — overrides stay sparse', () => {
-    const shaped = shapeTuning({ strategy: 'balanced', bands: { inversion: [1, 3] } })
-    expect(Object.keys(shaped.overrides)).toEqual(['inversion'])
-    expect(Object.keys(shaped.overrides).length).toBeLessThan(Object.keys(DEFAULT_BANDS).length)
+  it('falls back to full defaults on a corrupt stored blob rather than throwing', async () => {
+    h.findUnique.mockResolvedValue({ strategy: 'balanced', bands: 'garbage', thresholds: 'garbage' })
+    const out = await getUserTuning('u1')
+    expect(out.bands).toEqual(DEFAULT_BANDS)
+    expect(out.thresholds).toEqual(DEFAULT_THRESHOLDS)
   })
 })
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run tests/actions/learner-tuning.test.ts`
-Expected: FAIL — cannot resolve `@/actions/learner-tuning`.
+Run: `npx vitest run tests/tuning/store.test.ts`
+Expected: FAIL — cannot resolve `@/lib/tuning/store`.
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 3: Write the store**
+
+```ts
+// src/lib/tuning/store.ts
+import type { BandTable } from '@/lib/errors/bands'
+import {
+  resolveBands, resolveThresholds, shapeTuning,
+  type MetricThresholds, type StrategyKey,
+} from '@/lib/tuning/schema'
+
+export interface ResolvedTuning {
+  /** ALWAYS a complete table — see `resolveBands`. */
+  bands: BandTable
+  thresholds: MetricThresholds
+  strategy: StrategyKey
+}
+
+/**
+ * Server-side reader for the metric paths.
+ *
+ * Lives in `lib/`, NOT in `src/actions/learner-tuning.ts`, because
+ * `src/lib/metrics/read.ts` consumes it and a lib module must not import a
+ * `'use server'` action module — the same rule `read.ts`'s own
+ * `resolveCategoryIds` comment states about `src/actions/memory.ts`.
+ *
+ * Returns FULLY RESOLVED values so callers never merge defaults themselves:
+ * two call sites merging independently is how they drift, and a half-merged
+ * band table silently downgrades every unlisted type to FALLBACK_BAND.
+ *
+ * `prisma` is imported dynamically so importing this module for its types
+ * never touches `lib/db.ts`, which throws at import time without DATABASE_URL.
+ */
+export async function getUserTuning(userId: string): Promise<ResolvedTuning> {
+  const { prisma } = await import('@/lib/db')
+  const row = await prisma.learnerTuning.findUnique({
+    where: { userId },
+    select: { strategy: true, bands: true, thresholds: true },
+  })
+  const shaped = shapeTuning(row)
+  return {
+    bands: resolveBands(shaped.bandOverrides),
+    thresholds: resolveThresholds(shaped.thresholdOverrides),
+    strategy: shaped.strategy,
+  }
+}
+```
+
+- [ ] **Step 4: Write the actions**
 
 ```ts
 // src/actions/learner-tuning.ts
 'use server'
 
 import { auth } from '@/auth'
+import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/action'
-import type { BandTable } from '@/lib/errors/bands'
 import {
-  BandOverridesSchema, parseBandOverrides, parseStrategy, resolveBands,
-  TUNING_VERSION, type BandOverrides, type StrategyKey,
-} from '@/lib/errors/tuning'
-
-export interface TuningRow {
-  strategy: StrategyKey
-  overrides: BandOverrides
-}
-
-/** Pure: everything the actions decide happens here so it can be tested. */
-export function shapeTuning(row: { strategy: string; bands: unknown } | null): TuningRow {
-  if (!row) return { strategy: 'balanced', overrides: {} }
-  return { strategy: parseStrategy(row.strategy), overrides: parseBandOverrides(row.bands) }
-}
+  BandOverridesSchema, ThresholdOverridesSchema, parseStrategy, shapeTuning,
+  TUNING_VERSION, type BandOverrides, type ThresholdOverrides, type TuningRow,
+} from '@/lib/tuning/schema'
 
 export async function loadTuning(): Promise<ActionResult<TuningRow>> {
   const session = await auth()
@@ -401,14 +1037,15 @@ export async function loadTuning(): Promise<ActionResult<TuningRow>> {
   const { prisma } = await import('@/lib/db')
   const row = await prisma.learnerTuning.findUnique({
     where: { userId: session.user.id },
-    select: { strategy: true, bands: true },
+    select: { strategy: true, bands: true, thresholds: true },
   })
   return { success: true, data: shapeTuning(row) }
 }
 
 export async function saveTuning(input: {
   strategy: string
-  overrides: unknown
+  bandOverrides: unknown
+  thresholdOverrides: unknown
 }): Promise<ActionResult<TuningRow>> {
   const session = await auth()
   if (!session?.user?.id) return { success: false, error: 'Not signed in' }
@@ -416,80 +1053,90 @@ export async function saveTuning(input: {
   // Reject rather than salvage: a save is an explicit user act, so invalid
   // input must surface as an error instead of being silently discarded the way
   // a corrupt STORED blob is.
-  const parsed = BandOverridesSchema.safeParse(input.overrides ?? {})
-  if (!parsed.success) {
-    return { success: false, error: 'Each band must be two whole numbers from 1 to 5, with the first no larger than the second.' }
+  const bands = BandOverridesSchema.safeParse(input.bandOverrides ?? {})
+  if (!bands.success) {
+    return {
+      success: false,
+      error: 'Each band must be two whole numbers from 1 to 5, with the first no larger than the second.',
+    }
+  }
+  const thresholds = ThresholdOverridesSchema.safeParse(input.thresholdOverrides ?? {})
+  if (!thresholds.success) {
+    return {
+      success: false,
+      error: 'Thresholds must be within range: evidence floor 1-50, articulation confidence 0-1, readiness weight above 0.',
+    }
   }
   const strategy = parseStrategy(input.strategy)
+
+  const data = {
+    strategy,
+    bands: bands.data,
+    thresholds: thresholds.data,
+    version: TUNING_VERSION,
+  }
 
   const { prisma } = await import('@/lib/db')
   await prisma.learnerTuning.upsert({
     where: { userId: session.user.id },
-    create: {
-      userId: session.user.id,
+    create: { userId: session.user.id, ...data },
+    update: data,
+  })
+
+  revalidatePath('/settings/ai')
+  return {
+    success: true,
+    data: {
       strategy,
-      bands: parsed.data,
-      version: TUNING_VERSION,
+      bandOverrides: bands.data as BandOverrides,
+      thresholdOverrides: thresholds.data as ThresholdOverrides,
     },
-    update: { strategy, bands: parsed.data, version: TUNING_VERSION },
-  })
-
-  return { success: true, data: { strategy, overrides: parsed.data as BandOverrides } }
-}
-
-/**
- * Server-side reader for the metric paths. Returns a fully resolved band table
- * so callers never merge defaults themselves — two call sites merging
- * independently is how they drift.
- */
-export async function getUserTuning(
-  userId: string,
-): Promise<{ bands: BandTable; strategy: StrategyKey }> {
-  const { prisma } = await import('@/lib/db')
-  const row = await prisma.learnerTuning.findUnique({
-    where: { userId },
-    select: { strategy: true, bands: true },
-  })
-  const shaped = shapeTuning(row)
-  return { bands: resolveBands(shaped.overrides), strategy: shaped.strategy }
+  }
 }
 ```
 
-- [ ] **Step 4: Run test and type-check**
+**`saveTuning` writes all three fields on every call.** The panels must therefore send
+the *current* values of the fields they are not editing, or a strategy change wipes the
+band overrides. Tasks 8-10 each state this; Task 9 Step 3 verifies it by hand.
 
-Run: `npx vitest run tests/actions/learner-tuning.test.ts && npx tsc --noEmit`
-Expected: both PASS. If `'use server'` rejects the non-async `shapeTuning` export at build time, move `shapeTuning` to `src/lib/errors/tuning.ts` and re-export nothing from the action file — a `'use server'` module may only export async functions, which is why `ANALYSIS_VERSION` lives in `persist.ts` rather than its action.
+- [ ] **Step 5: Verify**
 
-- [ ] **Step 5: Commit**
+Run: `npx vitest run tests/tuning && npx tsc --noEmit`
+Expected: both PASS. If `'use server'` rejects any non-async export from
+`src/actions/learner-tuning.ts`, the offending symbol belongs in `src/lib/tuning/schema.ts`
+— that module already holds every constant and sync helper for exactly this reason.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/actions/learner-tuning.ts tests/actions/learner-tuning.test.ts
+git add src/lib/tuning/store.ts src/actions/learner-tuning.ts tests/tuning/store.test.ts
 git commit -m "feat(spec3b): persist per-user tuning with validated overrides"
 ```
 
 ---
 
-### Task 4: Targeting strategies
+### Task 5: Targeting strategies
 
 **Files:**
 - Create: `src/lib/metrics/targeting.ts`
 - Test: `tests/metrics/targeting.test.ts`
 
 **Interfaces:**
-- Consumes: `MIN_OBSERVATIONS` from `@/lib/metrics/bkt`; `StrategyKey` from `@/lib/errors/tuning`
-- Produces: `interface RankCandidate`, `interface RankedCandidate`, `interface CandidateSource`, `OVERDUE_SATURATION_DAYS = 7`, `rankCandidates(candidates: RankCandidate[], strategy: StrategyKey, now?: Date): RankedCandidate[]`, `toRankCandidates(source: CandidateSource): RankCandidate[]`
+- Consumes: `BKT_PRIOR` from `@/lib/metrics/bkt`; `StrategyKey`, `MetricThresholds`, `DEFAULT_THRESHOLDS` from `@/lib/tuning/schema`
+- Produces: `interface RankCandidate`, `interface RankedCandidate`, `interface CandidateSource`, `OVERDUE_SATURATION_DAYS = 7`, `DEFAULT_WEIGHT = 3`, `rankCandidates(candidates, strategy, opts?): RankedCandidate[]`, `toRankCandidates(source: CandidateSource): RankCandidate[]`
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 // tests/metrics/targeting.test.ts
 import { describe, it, expect } from 'vitest'
-import { rankCandidates } from '@/lib/metrics/targeting'
+import { rankCandidates, toRankCandidates } from '@/lib/metrics/targeting'
 import type { RankCandidate } from '@/lib/metrics/targeting'
-import { MIN_OBSERVATIONS } from '@/lib/metrics/bkt'
+import { DEFAULT_THRESHOLDS } from '@/lib/tuning/schema'
 
 const NOW = new Date('2026-08-06T12:00:00.000Z')
 const daysAgo = (n: number): Date => new Date(NOW.getTime() - n * 86_400_000)
+const FLOOR = DEFAULT_THRESHOLDS.minObservations
 
 const cand = (o: Partial<RankCandidate> & { klpId: string }): RankCandidate => ({
   topicKey: 'valuation',
@@ -502,12 +1149,15 @@ const cand = (o: Partial<RankCandidate> & { klpId: string }): RankCandidate => (
 })
 
 const idsInOrder = (ranked: { klpId: string }[]) => ranked.map((r) => r.klpId)
+const ALL_STRATEGIES = [
+  'shore_up_weaknesses', 'polish_near_ready', 'follow_forgetting', 'balanced',
+] as const
 
 describe('shore_up_weaknesses', () => {
   it('puts the least-known proposition first', () => {
     const ranked = rankCandidates(
       [cand({ klpId: 'strong', pKnown: 0.9 }), cand({ klpId: 'weak', pKnown: 0.1 })],
-      'shore_up_weaknesses', NOW,
+      'shore_up_weaknesses', { now: NOW },
     )
     expect(idsInOrder(ranked)[0]).toBe('weak')
   })
@@ -515,7 +1165,7 @@ describe('shore_up_weaknesses', () => {
   it('breaks ties toward the more central proposition', () => {
     const ranked = rankCandidates(
       [cand({ klpId: 'minor', pKnown: 0.2, weight: 1 }), cand({ klpId: 'central', pKnown: 0.2, weight: 5 })],
-      'shore_up_weaknesses', NOW,
+      'shore_up_weaknesses', { now: NOW },
     )
     expect(idsInOrder(ranked)[0]).toBe('central')
   })
@@ -528,7 +1178,7 @@ describe('polish_near_ready', () => {
         cand({ klpId: 'unknown', pKnown: 0.1, readiness: 0.1 }),
         cand({ klpId: 'knows-cant-say', pKnown: 0.9, readiness: 0.1 }),
       ],
-      'polish_near_ready', NOW,
+      'polish_near_ready', { now: NOW },
     )
     expect(idsInOrder(ranked)[0]).toBe('knows-cant-say')
   })
@@ -539,7 +1189,7 @@ describe('polish_near_ready', () => {
         cand({ klpId: 'done', pKnown: 0.9, readiness: 1 }),
         cand({ klpId: 'rough', pKnown: 0.9, readiness: 0.2 }),
       ],
-      'polish_near_ready', NOW,
+      'polish_near_ready', { now: NOW },
     )
     expect(idsInOrder(ranked)[0]).toBe('rough')
   })
@@ -550,7 +1200,7 @@ describe('polish_near_ready', () => {
         cand({ klpId: 'unmeasured', pKnown: 0.9, readiness: null }),
         cand({ klpId: 'measured-bad', pKnown: 0.9, readiness: 0.2 }),
       ],
-      'polish_near_ready', NOW,
+      'polish_near_ready', { now: NOW },
     )
     expect(idsInOrder(ranked)[0]).toBe('measured-bad')
   })
@@ -560,7 +1210,7 @@ describe('follow_forgetting', () => {
   it('puts the most overdue first', () => {
     const ranked = rankCandidates(
       [cand({ klpId: 'fresh', dueAt: daysAgo(0) }), cand({ klpId: 'stale', dueAt: daysAgo(10) })],
-      'follow_forgetting', NOW,
+      'follow_forgetting', { now: NOW },
     )
     expect(idsInOrder(ranked)[0]).toBe('stale')
   })
@@ -571,7 +1221,7 @@ describe('follow_forgetting', () => {
         cand({ klpId: 'future', dueAt: new Date(NOW.getTime() + 86_400_000) }),
         cand({ klpId: 'overdue', dueAt: daysAgo(1) }),
       ],
-      'follow_forgetting', NOW,
+      'follow_forgetting', { now: NOW },
     )
     expect(idsInOrder(ranked)[0]).toBe('overdue')
   })
@@ -579,37 +1229,52 @@ describe('follow_forgetting', () => {
 
 describe('the observation floor applies under every strategy', () => {
   it('ranks a sub-threshold candidate last even when its metrics look ideal', () => {
-    for (const strategy of ['shore_up_weaknesses', 'polish_near_ready', 'follow_forgetting', 'balanced'] as const) {
+    for (const strategy of ALL_STRATEGIES) {
       const ranked = rankCandidates(
         [
-          cand({ klpId: 'thin', pKnown: 0.01, observations: MIN_OBSERVATIONS - 1, weight: 5, dueAt: daysAgo(30), readiness: 0 }),
-          cand({ klpId: 'measured', pKnown: 0.5, observations: MIN_OBSERVATIONS }),
+          cand({ klpId: 'thin', pKnown: 0.01, observations: FLOOR - 1, weight: 5, dueAt: daysAgo(30), readiness: 0 }),
+          cand({ klpId: 'measured', pKnown: 0.5, observations: FLOOR }),
         ],
-        strategy, NOW,
+        strategy, { now: NOW },
       )
       expect(idsInOrder(ranked)[1], strategy).toBe('thin')
     }
   })
 
   it('marks sub-threshold candidates so a caller can label them', () => {
-    const [only] = rankCandidates(
-      [cand({ klpId: 'thin', observations: 1 })], 'balanced', NOW,
-    )
+    const [only] = rankCandidates([cand({ klpId: 'thin', observations: 1 })], 'balanced', { now: NOW })
     expect(only.sufficient).toBe(false)
+  })
+
+  it('honours a LOWERED floor from the learner, promoting a candidate the default demotes', () => {
+    // Spec 3B's reason for exposing the knob: at the shipped floor of 3, a
+    // corpus where every KLP has been seen once ranks everything as
+    // insufficient, so the order carries no information at all.
+    const input = [
+      cand({ klpId: 'thin-and-weak', pKnown: 0.05, observations: 1 }),
+      cand({ klpId: 'measured-and-fine', pKnown: 0.9, observations: FLOOR }),
+    ]
+    expect(idsInOrder(rankCandidates(input, 'shore_up_weaknesses', { now: NOW }))[0])
+      .toBe('measured-and-fine')
+    expect(
+      idsInOrder(rankCandidates(input, 'shore_up_weaknesses', {
+        now: NOW, thresholds: { ...DEFAULT_THRESHOLDS, minObservations: 1 },
+      }))[0],
+    ).toBe('thin-and-weak')
   })
 })
 
 describe('shared contract', () => {
   it('returns every candidate under every strategy, never dropping any', () => {
     const input = [cand({ klpId: 'a' }), cand({ klpId: 'b' }), cand({ klpId: 'c' })]
-    for (const strategy of ['shore_up_weaknesses', 'polish_near_ready', 'follow_forgetting', 'balanced'] as const) {
-      expect(rankCandidates(input, strategy, NOW), strategy).toHaveLength(3)
+    for (const strategy of ALL_STRATEGIES) {
+      expect(rankCandidates(input, strategy, { now: NOW }), strategy).toHaveLength(3)
     }
   })
 
   it('is a pure function — it does not reorder the caller\'s array', () => {
     const input = [cand({ klpId: 'a', pKnown: 0.9 }), cand({ klpId: 'b', pKnown: 0.1 })]
-    rankCandidates(input, 'shore_up_weaknesses', NOW)
+    rankCandidates(input, 'shore_up_weaknesses', { now: NOW })
     expect(idsInOrder(input)).toEqual(['a', 'b'])
   })
 
@@ -618,9 +1283,61 @@ describe('shared contract', () => {
       cand({ klpId: 'x', pKnown: 0.9, readiness: 0.1, dueAt: daysAgo(20) }),
       cand({ klpId: 'y', pKnown: 0.1, readiness: 1, dueAt: null }),
     ]
-    const balanced = idsInOrder(rankCandidates(input, 'balanced', NOW))
-    const shore = idsInOrder(rankCandidates(input, 'shore_up_weaknesses', NOW))
-    expect(balanced).not.toEqual(shore)
+    expect(idsInOrder(rankCandidates(input, 'balanced', { now: NOW })))
+      .not.toEqual(idsInOrder(rankCandidates(input, 'shore_up_weaknesses', { now: NOW })))
+  })
+})
+
+describe('toRankCandidates', () => {
+  const base = {
+    topics: [
+      { key: 'valuation', klpIds: ['k1', 'k2'], readiness: 0.4 },
+      { key: 'accounting', klpIds: ['k3'], readiness: null },
+    ],
+    klpWeights: { k1: 5, k2: 2, k3: 4 },
+    knowledge: {
+      k1: { pKnown: 0.8, observations: 6 },
+      k2: { pKnown: 0.3, observations: 4 },
+    },
+    klpCardIds: { k1: 'cardA', k2: 'cardA', k3: 'cardB' },
+    dueByCard: { cardA: new Date('2026-08-01T00:00:00Z') },
+  }
+
+  it('emits one candidate per KLP, carrying its topic\'s readiness', () => {
+    const out = toRankCandidates(base)
+    expect(out).toHaveLength(3)
+    expect(out.find((c) => c.klpId === 'k1')!.readiness).toBe(0.4)
+    expect(out.find((c) => c.klpId === 'k3')!.readiness).toBeNull()
+  })
+
+  it('defaults an unmeasured KLP to the prior with zero observations, not to omission', () => {
+    // k3 has no knowledge entry. It must still appear — the observation floor
+    // ranks it last, but dropping it would hide the KLP entirely.
+    expect(toRankCandidates(base).find((c) => c.klpId === 'k3')!.observations).toBe(0)
+  })
+
+  it('resolves due date through the KLP\'s card', () => {
+    const out = toRankCandidates(base)
+    expect(out.find((c) => c.klpId === 'k1')!.dueAt?.toISOString()).toBe('2026-08-01T00:00:00.000Z')
+    expect(out.find((c) => c.klpId === 'k3')!.dueAt).toBeNull()
+  })
+
+  it('does not emit a KLP twice when two topics share it', () => {
+    const out = toRankCandidates({
+      ...base,
+      topics: [
+        { key: 'valuation', klpIds: ['k1'], readiness: 0.4 },
+        { key: 'dcf', klpIds: ['k1'], readiness: 0.9 },
+      ],
+    })
+    expect(out.filter((c) => c.klpId === 'k1')).toHaveLength(1)
+  })
+
+  it('gives a KLP with no stored weight the neutral centrality, not zero', () => {
+    // Weight 0 would zero out shore_up_weaknesses' score and bury a
+    // legitimately weak proposition behind every scored one.
+    const out = toRankCandidates({ ...base, klpWeights: {} })
+    expect(out.every((c) => c.weight === 3)).toBe(true)
   })
 })
 ```
@@ -634,11 +1351,14 @@ Expected: FAIL — cannot resolve `@/lib/metrics/targeting`.
 
 ```ts
 // src/lib/metrics/targeting.ts
-import { MIN_OBSERVATIONS } from '@/lib/metrics/bkt'
-import type { StrategyKey } from '@/lib/errors/tuning'
+import { BKT_PRIOR } from '@/lib/metrics/bkt'
+import { DEFAULT_THRESHOLDS, type MetricThresholds, type StrategyKey } from '@/lib/tuning/schema'
 
 /** Overdue-ness saturates here, so a year-late card does not dwarf everything. */
 export const OVERDUE_SATURATION_DAYS = 7
+
+/** Neutral centrality for a KLP with no stored weight. */
+export const DEFAULT_WEIGHT = 3
 
 /**
  * One rankable unit: a key learning point with its metrics attached.
@@ -662,7 +1382,7 @@ export interface RankCandidate {
 
 export interface RankedCandidate extends RankCandidate {
   score: number
-  /** False when the candidate is below the observation floor. */
+  /** False when the candidate is below the learner's observation floor. */
   sufficient: boolean
 }
 
@@ -704,97 +1424,42 @@ function scoreFor(c: RankCandidate, strategy: StrategyKey, now: Date): number {
 
 /**
  * Rank candidates under one strategy. Every strategy ranks the same set and
- * returns the same shape, so the setting only selects — it never changes what
+ * returns the same shape, so the setting only SELECTS — it never changes what
  * is recorded or which data is considered.
  *
- * Candidates below MIN_OBSERVATIONS sort last under EVERY strategy: an
- * unmeasured proposition is not evidence of weakness, and `polish_near_ready`
- * in particular must not promote a KLP whose high pKnown rests on one lucky
- * answer.
+ * Candidates below the learner's observation floor sort last under EVERY
+ * strategy: an unmeasured proposition is not evidence of weakness, and
+ * `polish_near_ready` in particular must not promote a KLP whose high pKnown
+ * rests on one lucky answer. The floor is the LEARNER'S, not a constant —
+ * on a thin corpus every candidate is sub-threshold and the order carries no
+ * information until they lower it.
  */
 export function rankCandidates(
   candidates: RankCandidate[],
   strategy: StrategyKey,
-  now: Date = new Date(),
+  opts: { now?: Date; thresholds?: MetricThresholds } = {},
 ): RankedCandidate[] {
+  const now = opts.now ?? new Date()
+  const { minObservations } = opts.thresholds ?? DEFAULT_THRESHOLDS
+
   return candidates
     .map((c) => ({
       ...c,
       score: scoreFor(c, strategy, now),
-      sufficient: c.observations >= MIN_OBSERVATIONS,
+      sufficient: c.observations >= minObservations,
     }))
     .sort((a, b) => {
       if (a.sufficient !== b.sufficient) return a.sufficient ? -1 : 1
       return b.score - a.score
     })
 }
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `npx vitest run tests/metrics/targeting.test.ts`
-Expected: PASS.
-
-- [ ] **Step 5: Add the candidate assembler**
-
-Task 5's shell must not build candidates itself — that is a transformation, and `read.ts` is queries and delegation only. Append this test to the same file:
-
-```ts
-describe('toRankCandidates', () => {
-  const base = {
-    topics: [
-      { key: 'valuation', klpIds: ['k1', 'k2'], readiness: 0.4 },
-      { key: 'accounting', klpIds: ['k3'], readiness: null },
-    ],
-    klpWeights: { k1: 5, k2: 2, k3: 4 },
-    knowledge: {
-      k1: { pKnown: 0.8, observations: 6 },
-      k2: { pKnown: 0.3, observations: 4 },
-    },
-    klpCardIds: { k1: 'cardA', k2: 'cardA', k3: 'cardB' },
-    dueByCard: { cardA: new Date('2026-08-01T00:00:00Z') },
-  }
-
-  it('emits one candidate per KLP, carrying its topic\'s readiness', () => {
-    const out = toRankCandidates(base)
-    expect(out).toHaveLength(3)
-    expect(out.find((c) => c.klpId === 'k1')!.readiness).toBe(0.4)
-    expect(out.find((c) => c.klpId === 'k3')!.readiness).toBeNull()
-  })
-
-  it('defaults an unmeasured KLP to the prior with zero observations, not to omission', () => {
-    // k3 has no knowledge entry. It must still appear — the observation floor
-    // ranks it last, but dropping it would hide the KLP entirely.
-    const k3 = toRankCandidates(base).find((c) => c.klpId === 'k3')!
-    expect(k3.observations).toBe(0)
-  })
-
-  it('resolves due date through the KLP\'s card', () => {
-    const out = toRankCandidates(base)
-    expect(out.find((c) => c.klpId === 'k1')!.dueAt?.toISOString()).toBe('2026-08-01T00:00:00.000Z')
-    expect(out.find((c) => c.klpId === 'k3')!.dueAt).toBeNull()
-  })
-
-  it('does not emit a KLP twice when two topics share it', () => {
-    const shared = {
-      ...base,
-      topics: [
-        { key: 'valuation', klpIds: ['k1'], readiness: 0.4 },
-        { key: 'dcf', klpIds: ['k1'], readiness: 0.9 },
-      ],
-    }
-    const out = toRankCandidates(shared)
-    expect(out.filter((c) => c.klpId === 'k1')).toHaveLength(1)
-  })
-})
-```
-
-Then implement it in `src/lib/metrics/targeting.ts`:
-
-```ts
-import { BKT_PRIOR } from '@/lib/metrics/bkt'
 
 export interface CandidateSource {
+  /**
+   * LIVE KLP ids per topic. Never `supersededKlpIds` — a retired KLP belongs to
+   * an older version of the card, and handing it back as something to study
+   * would target text the learner can no longer see.
+   */
   topics: { key: string; klpIds: string[]; readiness: number | null }[]
   /** CardKlp.weight per KLP id. */
   klpWeights: Record<string, number>
@@ -804,9 +1469,6 @@ export interface CandidateSource {
   /** CardProgress.dueAt per card id. */
   dueByCard: Record<string, Date>
 }
-
-/** Neutral centrality for a KLP with no stored weight. */
-const DEFAULT_WEIGHT = 3
 
 /**
  * Flatten topics into one candidate per KLP.
@@ -845,20 +1507,25 @@ export function toRankCandidates(source: CandidateSource): RankCandidate[] {
 }
 ```
 
-Add `toRankCandidates` to the test file's import.
+- [ ] **Step 4: Run test to verify it passes**
 
-- [ ] **Step 6: Mutation check**
+Run: `npx vitest run tests/metrics/targeting.test.ts && npx tsc --noEmit`
+Expected: both PASS.
+
+- [ ] **Step 5: Mutation check**
 
 Introduce each, run the test file, confirm at least one test FAILS, then revert:
 - (a) the observation floor is not applied (sort by score alone)
-- (b) unknown readiness is treated as 0 (maximum articulation gap) instead of 1
-- (c) `shore_up_weaknesses` ignores `weight`
-- (d) sorting is ascending instead of descending
-- (e) `rankCandidates` sorts the caller's array in place
+- (b) `rankCandidates` reads `DEFAULT_THRESHOLDS.minObservations` and ignores `opts.thresholds`
+- (c) unknown readiness is treated as 0 (maximum articulation gap) instead of 1
+- (d) `shore_up_weaknesses` ignores `weight`
+- (e) sorting is ascending instead of descending
+- (f) `rankCandidates` sorts the caller's array in place
+- (g) `toRankCandidates` uses `?? 0` instead of `?? DEFAULT_WEIGHT`
 
-Report all five. If any survives, add an assertion and re-verify.
+Report all seven. If any survives, add an assertion and re-verify.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/lib/metrics/targeting.ts tests/metrics/targeting.test.ts
@@ -867,203 +1534,518 @@ git commit -m "feat(spec3b): add pure targeting strategies over KLP candidates"
 
 ---
 
-### Task 5: Apply the user's tuning in the read API
+### Task 6: Apply the user's tuning in the read API
+
+**Read the "Known limit" note in the Revision section before starting.** `getLearnerMetrics`
+has no production callers; this task makes it tuning-aware for Spec 3C to consume. Build
+it correctly, then say so honestly in the commit message.
 
 **Files:**
 - Modify: `src/lib/metrics/read.ts`
+- Test: `tests/metrics/read-populations.test.ts` (extend)
 
 **Interfaces:**
-- Consumes: `getUserTuning` (Task 3); `rankCandidates`, `RankCandidate` (Task 4)
-- Produces: `LearnerMetrics.ranked: RankedCandidate[]`; `getLearnerMetrics`'s `bands` parameter becomes optional-override-only
-
-- [ ] **Step 1: Resolve tuning inside the shell**
-
-`getLearnerMetrics` currently accepts `bands?: BandTable` and passes it to `deriveTagScores`. Change it to load the user's tuning when no explicit override is supplied:
-
-```ts
-  const tuning = await getUserTuning(userId)
-  const effectiveBands = bands ?? tuning.bands
-```
-
-Use `effectiveBands` in the existing `deriveTagScores` call. Keep the `bands` parameter — it lets a caller preview a candidate table without saving, which the settings panel needs.
-
-- [ ] **Step 2: Widen the queries `toRankCandidates` needs**
-
-`toRankCandidates` (Task 4) needs four things the shell does not currently fetch. Add each as a query or a `select`, nothing more — the assembly itself is already a tested pure function.
-
-1. **`CardKlp.weight`** — add `weight: true` beside `id: true` on the KLP relation inside `loadCategoryRows`.
-2. **Which card each KLP belongs to** — the same relation already walks `assignments -> card -> klps`, so the card id is in hand; carry it out of `toTopicRows` as a `klpCardIds` map, or select `cardId` on the KLP.
-3. **`CardProgress.dueAt`** — a new scoped query:
-
-```ts
-  const progressRows = await prisma.cardProgress.findMany({
-    where: { userId, card: cardScopeWhere },
-    select: { cardId: true, dueAt: true },
-  })
-```
-
-Reuse the same card-scope fragment the other queries use; do not hand-roll a second filter.
-
-4. **Topic readiness** — already produced by `shapeTopicProfile`; read it from the shaped topics rather than recomputing.
-
-- [ ] **Step 3: Assemble, rank, and return**
-
-```ts
-  const candidates = toRankCandidates({
-    topics: topicProfiles.map((t) => ({
-      key: t.key,
-      klpIds: klpIdsByTopic[t.key] ?? [],
-      readiness: t.readiness,
-    })),
-    klpWeights,
-    knowledge,
-    klpCardIds,
-    dueByCard: Object.fromEntries(
-      progressRows
-        .filter((p: { dueAt: Date | null }) => p.dueAt !== null)
-        .map((p: { cardId: string; dueAt: Date }) => [p.cardId, p.dueAt]),
-    ),
-  })
-
-  const ranked = rankCandidates(candidates, tuning.strategy, now)
-```
-
-Add `ranked: RankedCandidate[]` to the `LearnerMetrics` interface and include it in the returned object.
-
-Every one of these is a query, a field rename, or a delegation. **If you find yourself writing a conditional or a threshold here, it belongs in `targeting.ts`** — that is the rule this file's exemption from unit tests rests on.
-
-- [ ] **Step 4: Verify**
-
-Run: `npx vitest run tests/metrics && npx vitest run tests/memory && npx tsc --noEmit`
-Expected: all PASS.
-
-Confirm by inspection that **no background job, `after()` call, or replay was added** on the tuning path. Bands do not feed BKT, so a band change requires no recomputation — see the Global Constraints.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/lib/metrics/read.ts src/lib/metrics/targeting.ts tests/metrics/targeting.test.ts
-git commit -m "feat(spec3b): apply the user's bands and strategy in the read API"
-```
-
----
-
-### Task 6: Derive tag scores on the quiz results screen
-
-Spec §3.4. Without this, the first retune makes the results page and the dashboard disagree about the same error.
-
-**Files:**
-- Modify: `src/actions/quiz.ts` (`getQuizAttemptSummary`)
-- Modify: `src/components/quiz/QuizSummary.tsx`
-- Test: `tests/actions/quiz-summary-analysis.test.ts` (existing — extend)
-
-**Interfaces:**
-- Consumes: `toStoredTags`, `deriveTagScores` from `@/lib/errors/derive`; `getUserTuning` (Task 3)
-- Produces: attempt-summary answers whose `errorTags` carry derived `severity` and `significance`
+- Consumes: `getUserTuning` (Task 4); `rankCandidates`, `toRankCandidates`, `RankedCandidate` (Task 5); `buildCardScopeWhere` from `@/lib/memory/scope` (already exported by the hardening pass)
+- Produces: `LearnerMetrics.ranked: RankedCandidate[]`; `getLearnerMetrics`'s `bands` parameter narrows to an explicit preview override
 
 - [ ] **Step 1: Write the failing test**
 
-Append to `tests/actions/quiz-summary-analysis.test.ts`:
+Append to `tests/metrics/read-populations.test.ts`. Match that file's existing
+`vi.hoisted()` mock shape — add `learnerTuning: { findUnique: h.tuningFindUnique }` and
+`cardProgress: { findMany: h.cardProgressFindMany }` to the mocked `prisma` object,
+declare `tuningFindUnique`, `cardProgressFindMany` and `klpStateFindMany` in the
+`vi.hoisted()` block, and default them in `beforeEach` (`tuningFindUnique` → `null`,
+`cardProgressFindMany` → `[]`). The `cardCategory.findMany` mock must return one
+category whose assignments include a live KLP `k1`/`k2` and a superseded one
+`k-retired` (`supersededAt` non-null), so the live-only assertion has something to
+catch. Add to the imports:
 
 ```ts
-describe('read-time derivation on the attempt summary (Spec 3B §3.4)', () => {
-  it('returns a severity derived from the supplied bands, not the stored value', () => {
-    // A tag stored with severity 5 under the default inversion band [2,5],
-    // read back under a retuned band [1,2], must report 2 — not 5.
-    const stored = toStoredTags([
-      {
-        dimension: 'accuracy', type: 'inversion', klpId: 'klp1',
-        relevance: 3, starred: false, magnitude: 10, mode: 'quiz-sa',
-        severity: 5, significance: 9, createdAt: new Date('2026-08-06T00:00:00Z'),
-        quizAnswer: { attemptId: 'att1' },
-      },
-    ])
-    const [derived] = deriveTagScores(stored, { inversion: [1, 2] }, ['att1'])
-    expect(derived.severity).toBe(2)
-    expect(derived.severity).not.toBe(5)
+import { resolveBands } from '@/lib/tuning/schema'
+```
+
+```ts
+describe('tuning is threaded all the way down (Spec 3B)', () => {
+  it('reads the signed-in user\'s tuning row, scoped to them', async () => {
+    await getLearnerMetrics({ userId: 'u1', scope: EMPTY_SCOPE })
+    expect(h.tuningFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'u1' } }),
+    )
   })
 
-  it('still falls back to the stored severity for a legacy row with no magnitude', () => {
-    const stored = toStoredTags([
-      {
-        dimension: 'accuracy', type: 'inversion', klpId: 'klp1',
-        relevance: 3, starred: false, magnitude: null, mode: null,
-        severity: 4, significance: 7, createdAt: new Date('2026-08-06T00:00:00Z'),
-        quizAnswer: { attemptId: 'att1' },
-      },
+  it('applies the user\'s observation floor to topic knowledge', async () => {
+    // One KLP, one observation. At the shipped floor of 3 this reports null;
+    // the user has lowered it to 1, so it must report a number. If this fails,
+    // `thresholds` stopped being forwarded into shapeTopicProfile.
+    h.tuningFindUnique.mockResolvedValue({
+      strategy: 'balanced', bands: null, thresholds: { minObservations: 1 },
+    })
+    h.klpStateFindMany.mockResolvedValue([{ klpId: 'k1', pKnown: 0.8, observations: 1 }])
+
+    const out = await getLearnerMetrics({ userId: 'u1', scope: EMPTY_SCOPE })
+    expect(out.profile.topics[0].knowledge).toBeCloseTo(0.8)
+  })
+
+  it('ranks candidates under the user\'s stored strategy', async () => {
+    h.tuningFindUnique.mockResolvedValue({
+      strategy: 'shore_up_weaknesses', bands: null, thresholds: { minObservations: 1 },
+    })
+    h.klpStateFindMany.mockResolvedValue([
+      { klpId: 'k1', pKnown: 0.9, observations: 5 },
+      { klpId: 'k2', pKnown: 0.1, observations: 5 },
     ])
-    const [derived] = deriveTagScores(stored, { inversion: [1, 2] }, ['att1'])
-    expect(derived.severity).toBe(4)
-    expect(derived.isLegacy).toBe(true)
+
+    const out = await getLearnerMetrics({ userId: 'u1', scope: EMPTY_SCOPE })
+    expect(out.ranked.map((r) => r.klpId)[0]).toBe('k2')
+  })
+
+  it('builds candidates from LIVE klp ids only — a superseded KLP is not a study target', async () => {
+    const out = await getLearnerMetrics({ userId: 'u1', scope: EMPTY_SCOPE })
+    expect(out.ranked.map((r) => r.klpId)).not.toContain('k-retired')
+  })
+
+  it('lets an explicit bands argument override the stored one, for settings preview', async () => {
+    h.tuningFindUnique.mockResolvedValue({
+      strategy: 'balanced', bands: { inversion: [5, 5] }, thresholds: null,
+    })
+    // A caller-supplied table must win, so the panel can show "what would this
+    // look like" without writing to the database first.
+    const out = await getLearnerMetrics({
+      userId: 'u1', scope: EMPTY_SCOPE, bands: resolveBands({ inversion: [1, 1] }),
+    })
+    expect(out).toBeDefined()
   })
 })
 ```
 
-Add the imports at the top of that file:
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx vitest run tests/metrics/read-populations.test.ts`
+Expected: FAIL — `learnerTuning` is not on the mocked client, and `out.ranked` is undefined.
+
+- [ ] **Step 3: Resolve tuning inside the shell**
+
+At the top of `getLearnerMetrics`, after the dynamic prisma import:
 
 ```ts
-import { toStoredTags, deriveTagScores } from '@/lib/errors/derive'
+  // The learner's own knobs. `bands` stays a parameter so the settings panel
+  // can PREVIEW a candidate table without saving — an explicit argument wins
+  // over the stored one. It must be a FULLY RESOLVED table (resolveBands):
+  // resolveSeverity replaces rather than merges, so a partial table silently
+  // downgrades every unlisted type to FALLBACK_BAND.
+  const tuning = await getUserTuning(userId)
+  const effectiveBands = bands ?? tuning.bands
+```
+
+Use `effectiveBands` in the existing `deriveTagScores(...)` call, and pass
+`thresholds: tuning.thresholds` into the existing `shapeTopicProfile({ ... })` call.
+
+Update the `bands` parameter's doc to say it is a preview override, not the primary path.
+
+- [ ] **Step 4: Widen the queries `toRankCandidates` needs**
+
+Four things the shell does not currently fetch. Add each as a query or a `select`,
+nothing more — the assembly itself is already a tested pure function.
+
+1. **`CardKlp.weight` and `cardId`** — in `loadCategoryRows`, widen the KLP select from
+   `{ id: true, supersededAt: true }` to `{ id: true, supersededAt: true, weight: true, cardId: true }`.
+   Keep `supersededAt` — the hardening pass added it, and `toTopicRows` splits on it.
+
+2. **Carry weights and card ids out** — build them in the shell from the same rows
+   `toTopicRows` consumes, so there is one query, not two:
+
+```ts
+  const categoryRows = await loadCategoryRows(prisma, userId, scope)
+  const topics = toTopicRows(categoryRows)
+
+  const klpWeights: Record<string, number> = {}
+  const klpCardIds: Record<string, string> = {}
+  for (const c of categoryRows) {
+    for (const a of c.assignments) {
+      for (const k of a.card.klps) {
+        klpWeights[k.id] = k.weight
+        klpCardIds[k.id] = a.card.id
+      }
+    }
+  }
+```
+
+   Widen `RawCategoryRow` in `src/lib/memory/topic-profile.ts` to match:
+   `assignments: { card: { id: string; klps: { id: string; supersededAt: Date | null; weight: number; cardId: string }[] } }[]`.
+   `toTopicRows` itself is unchanged — it reads only `id` and `supersededAt`.
+
+3. **`CardProgress.dueAt`** — a new scoped query, added to the existing `Promise.all`:
+
+```ts
+    prisma.cardProgress.findMany({
+      where: { userId, ...cardProgressScope },
+      select: { cardId: true, dueAt: true },
+    }),
+```
+
+   where `cardProgressScope` is built **before** the `Promise.all` using the exported
+   helper, not a hand-rolled second filter:
+
+```ts
+  // `buildCardScopeWhere` (exported by the hardening pass for exactly this kind
+  // of reuse) rather than a second filter written here that can drift from the
+  // one every other query uses. CardProgress has its own scalar `cardId`, which
+  // is the narrowest scope and subsumes set/category — the same branching
+  // `buildStudyEventWhere` and `buildLearnerProfile` both apply.
+  const cardProgressScope: Record<string, unknown> = {}
+  if (scope.cardId) {
+    cardProgressScope.cardId = scope.cardId
+  } else {
+    const card = buildCardScopeWhere(scope, categoryIds)
+    if (Object.keys(card).length > 0) cardProgressScope.card = card
+  }
+```
+
+4. **Topic readiness** — already produced by `shapeTopicProfile`; read it from the
+   shaped topics rather than recomputing.
+
+- [ ] **Step 5: Assemble, rank, and return**
+
+`shapeTopicProfile` returns `LearnerTopicProfile[]` keyed by `key`, but the live KLP ids
+live on the `TopicRow[]` that fed it. Build the map from `topics`, grouping by
+`normalizedName` the same way `shapeTopicProfile` does:
+
+```ts
+  const shapedTopics = shapeTopicProfile({
+    topics, knowledge, tags: derived, analyzedAnswersByTopic,
+    thresholds: tuning.thresholds,
+  })
+
+  // LIVE ids only. `supersededKlpIds` exists for TAG ATTRIBUTION — a historical
+  // tag names the version that was asked — and must never become a study
+  // target: that KLP describes a version of the card the learner cannot see.
+  const liveKlpIdsByTopic: Record<string, string[]> = {}
+  for (const t of topics) {
+    ;(liveKlpIdsByTopic[t.normalizedName] ??= []).push(...t.klpIds)
+  }
+
+  const ranked = rankCandidates(
+    toRankCandidates({
+      topics: shapedTopics.map((t) => ({
+        key: t.key,
+        klpIds: [...new Set(liveKlpIdsByTopic[t.key] ?? [])],
+        readiness: t.readiness,
+      })),
+      klpWeights,
+      knowledge,
+      klpCardIds,
+      dueByCard: Object.fromEntries(
+        progressRows
+          .filter((p): p is { cardId: string; dueAt: Date } => p.dueAt !== null)
+          .map((p) => [p.cardId, p.dueAt]),
+      ),
+    }),
+    tuning.strategy,
+    { now, thresholds: tuning.thresholds },
+  )
+```
+
+Add to the `LearnerMetrics` interface:
+
+```ts
+  /**
+   * KLP-grain study candidates under the learner's chosen strategy, best first.
+   * Sub-threshold candidates are present but sort last and carry
+   * `sufficient: false` — see `rankCandidates`.
+   *
+   * NOT RENDERED ANYWHERE YET. Spec 3C's dashboard is the intended consumer;
+   * until it exists this is a tested API with no UI behind it.
+   */
+  ranked: RankedCandidate[]
+```
+
+and include `ranked` in the returned object, plus `shapedTopics` in place of the
+inline `shapeTopicProfile(...)` call inside `composeLearnerProfile`.
+
+Every one of these is a query, a field widening, or a delegation. **If you find yourself
+writing a conditional or a threshold here, it belongs in `targeting.ts`** — that is the
+rule this file's exemption from unit tests rests on.
+
+- [ ] **Step 6: Verify**
+
+Run: `npx vitest run tests/metrics tests/memory && npx tsc --noEmit`
+Expected: all PASS.
+
+Confirm by inspection that **no background job, `after()` call, or replay was added** on
+the tuning path. Bands and thresholds do not feed BKT, so a tuning change requires no
+recomputation — see the Global Constraints and `src/lib/metrics/cache.ts`'s corrected
+comment.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/lib/metrics/read.ts src/lib/memory/topic-profile.ts tests/metrics/read-populations.test.ts
+git commit -m "feat(spec3b): apply the user's bands, thresholds and strategy in the read API"
+```
+
+---
+
+### Task 7: Derive tag scores on the quiz results screen
+
+Spec §3.4. Without this, the first retune makes the results page and the dashboard
+disagree about the same error, with nothing on either screen explaining the discrepancy.
+This is the **only user-visible re-scoring surface this plan ships** — see the Revision
+note.
+
+**Files:**
+- Modify: `src/actions/quiz.ts` (`getQuizAttemptSummary`, around `:1268-1356`)
+- Test: `tests/actions/quiz-summary-analysis.test.ts` (extend)
+- Read (probably unmodified): `src/components/quiz/QuizSummary.tsx`
+
+**Interfaces:**
+- Consumes: `toStoredTags`, `deriveTagScores` from `@/lib/errors/derive`; `getUserTuning` from `@/lib/tuning/store` (Task 4)
+- Produces: attempt-summary answers whose `errorTags` carry derived `severity` and `significance`
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `tests/actions/quiz-summary-analysis.test.ts`. Add
+`learnerTuning: { findUnique: h.tuningFindUnique }` and
+`quizAttempt: { findFirst: h.attemptFindFirst, findMany: h.attemptFindMany }` to the
+existing `vi.mock('@/lib/db')` block, and default both new mocks in `beforeEach`.
+
+```ts
+describe('read-time derivation on the attempt summary (Spec 3B §3.4)', () => {
+  const answerWith = (tag: Record<string, unknown>) => ({
+    id: 'ans1', mode: 'short-answer', cardId: 'c1', analysisStatus: 'analyzed',
+    card: { contentBlocks: [] }, klpResults: [],
+    errorTags: [{
+      dimension: 'accuracy', type: 'inversion', klpId: 'klp1', secondaryKlpId: null,
+      relevance: 3, starred: false, magnitude: 10, mode: 'quiz-sa',
+      severity: 5, significance: 9, quote: null,
+      createdAt: new Date('2026-08-06T00:00:00Z'),
+      klp: { text: 'a point', kind: 'fact' }, secondaryKlp: null,
+      ...tag,
+    }],
+  })
+
+  it('reports a severity derived from the user\'s bands, not the value stored at grading time', async () => {
+    // Stored severity 5 under the default inversion band [2,5]. The user has
+    // retuned inversion to [1,2], so the same answer must now read 2.
+    h.tuningFindUnique.mockResolvedValue({
+      strategy: 'balanced', bands: { inversion: [1, 2] }, thresholds: null,
+    })
+    h.attemptFindFirst.mockResolvedValue({
+      id: 'a1', userId: OWNER, session: null, answers: [answerWith({})],
+    })
+    h.attemptFindMany.mockResolvedValue([{ id: 'a1' }])
+
+    const res = await getQuizAttemptSummary('a1')
+    expect(res.success).toBe(true)
+    const [derivedTag] = (res as { data: any }).data.attempt.answers[0].errorTags
+    expect(derivedTag.severity).toBe(2)
+    expect(derivedTag.significance).toBeLessThan(9)
+  })
+
+  it('still falls back to the stored severity for a legacy row with no magnitude', async () => {
+    h.tuningFindUnique.mockResolvedValue({
+      strategy: 'balanced', bands: { inversion: [1, 2] }, thresholds: null,
+    })
+    h.attemptFindFirst.mockResolvedValue({
+      id: 'a1', userId: OWNER, session: null,
+      answers: [answerWith({ magnitude: null, mode: null, severity: 4 })],
+    })
+    h.attemptFindMany.mockResolvedValue([{ id: 'a1' }])
+
+    const res = await getQuizAttemptSummary('a1')
+    const [derivedTag] = (res as { data: any }).data.attempt.answers[0].errorTags
+    expect(derivedTag.severity).toBe(4)
+  })
+
+  it('preserves the joined klp text the badge renderer reads', async () => {
+    // The merge must add fields, never replace the tag object wholesale —
+    // `klp.text` comes from the include and is not on the derived shape.
+    h.tuningFindUnique.mockResolvedValue(null)
+    h.attemptFindFirst.mockResolvedValue({
+      id: 'a1', userId: OWNER, session: null, answers: [answerWith({})],
+    })
+    h.attemptFindMany.mockResolvedValue([{ id: 'a1' }])
+
+    const res = await getQuizAttemptSummary('a1')
+    const [derivedTag] = (res as { data: any }).data.attempt.answers[0].errorTags
+    expect(derivedTag.klp.text).toBe('a point')
+    expect(derivedTag.dimension).toBe('accuracy')
+  })
+
+  it('draws the repeat window from the user\'s REAL attempt sequence, not from the tags', async () => {
+    // Deriving attempt order from the tags makes CLEAN attempts invisible, so
+    // an error repeated after ten flawless sittings still scores "+1, they keep
+    // doing this". The query must be unscoped and chronological.
+    h.tuningFindUnique.mockResolvedValue(null)
+    h.attemptFindFirst.mockResolvedValue({
+      id: 'a9', userId: OWNER, session: null, answers: [answerWith({})],
+    })
+    h.attemptFindMany.mockResolvedValue([])
+
+    await getQuizAttemptSummary('a9')
+    expect(h.attemptFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: OWNER },
+        orderBy: { createdAt: 'asc' },
+      }),
+    )
+  })
+})
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run tests/actions/quiz-summary-analysis.test.ts`
-Expected: FAIL — the first case reports 5 until derivation is wired.
-
-Note: if it passes immediately, the imports resolved but the assertion is trivially satisfied — check the fixture actually stores 5, not 2.
+Expected: FAIL — the first case reports 5 until derivation is wired, and
+`h.attemptFindMany` is never called.
 
 - [ ] **Step 3: Derive in the attempt summary**
 
-In `getQuizAttemptSummary` (`src/actions/quiz.ts`), the answers' `errorTags` are returned straight from Prisma. Change it to:
+In `getQuizAttemptSummary`, after the existing MC-options block and before building the
+return value:
 
-1. Select the fields `toStoredTags` needs on each tag: `magnitude`, `mode`, `severity`, `significance`, `relevance`, `starred`, `dimension`, `type`, `klpId`, `createdAt`, plus the answer's `attemptId`.
-2. Load the user's bands with `getUserTuning(userId)`.
-3. Map the rows through `toStoredTags`, then `deriveTagScores(stored, bands, attemptOrder)` where `attemptOrder` is this user's attempt ids in chronological order — the same source `read.ts` uses. **Do not derive `attemptOrder` from the tags**; that is the bug Spec 3's own review found, where clean attempts become invisible and `repeatBonus` fires for an error fixed ten sittings ago.
-4. Merge the derived `severity`/`significance` back onto each answer's tags before returning.
+```ts
+    // Spec 3B §3.4: severity and significance are DERIVED here, not read from
+    // the row. The stored columns reflect whichever bands were active on the
+    // day the answer was graded; deriving means one number everywhere and a
+    // retune visibly re-scores history, which is the point of the knob.
+    const [tuning, attemptOrder] = await Promise.all([
+      getUserTuning(session.user.id),
+      // The learner's REAL attempt sequence — unscoped and chronological.
+      // Deriving it from the tags would make CLEAN attempts invisible, so
+      // `repeatBonus` fires for an error fixed ten sittings ago. Same source
+      // `src/lib/metrics/read.ts` uses.
+      prisma.quizAttempt.findMany({
+        where: { userId: session.user.id },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      }),
+    ]);
 
-- [ ] **Step 4: Consume derived values in the component**
+    // One derivation across the whole attempt, not one per answer: repeatBonus
+    // is a cross-tag judgement and must see every tag at once.
+    const flatTags = attempt.answers.flatMap((a: any) =>
+      (a.errorTags ?? []).map((t: any) => ({
+        ...t,
+        quizAnswer: { attemptId: attempt.id, cardId: a.cardId },
+      })),
+    );
+    const derived = deriveTagScores(
+      toStoredTags(flatTags),
+      tuning.bands,
+      attemptOrder.map((a) => a.id),
+    );
 
-`QuizSummary.tsx:148` sorts by `t.significance`, and `rollupSessionAnalysis` sums `tag.significance`. Both now receive derived values, so **no component change is required** — verify that by reading the data path rather than assuming, and only edit if a stored field is read directly somewhere else.
+    // Keyed positionally: deriveTagScores re-sorts chronologically, so index
+    // alignment with `flatTags` is NOT safe. Match on the identity a tag
+    // actually has within one attempt.
+    const derivedByKey = new Map(
+      derived.map((d) => [
+        `${d.cardId}::${d.type}::${d.klpId ?? 'whole'}::${d.createdAt.getTime()}`,
+        d,
+      ]),
+    );
+
+    attempt.answers = attempt.answers.map((a: any) => ({
+      ...a,
+      errorTags: (a.errorTags ?? []).map((t: any) => {
+        const d = derivedByKey.get(
+          `${a.cardId}::${t.type}::${t.klpId ?? 'whole'}::${new Date(t.createdAt).getTime()}`,
+        );
+        // Spread the ORIGINAL row first so the joined `klp`/`secondaryKlp`
+        // objects survive; overlay only the two derived numbers.
+        return d ? { ...t, severity: d.severity, significance: d.significance } : t;
+      }),
+    }));
+```
+
+Add the imports at the top of `src/actions/quiz.ts`:
+
+```ts
+import { toStoredTags, deriveTagScores } from '@/lib/errors/derive';
+import { getUserTuning } from '@/lib/tuning/store';
+```
+
+- [ ] **Step 4: Confirm the component needs no change**
+
+`QuizSummary.tsx:148` sorts by `t.significance` and `rollupSessionAnalysis` sums
+`tag.significance` (`src/lib/analysis/rollup.ts:62`). Both now receive derived values via
+the same objects, so **no component change should be required**. Verify that by reading
+the data path — `QuizSummary` → `ErrorTagBadges` → `t.significance`, and
+`rollupSessionAnalysis(attempt.answers)` → `RollupErrorTag.significance` — and only edit
+if some other site reads a stored field directly.
 
 - [ ] **Step 5: Verify**
 
-Run: `npx vitest run tests/actions && npx vitest run tests/components && npx tsc --noEmit`
+Run: `npx vitest run tests/actions tests/components && npx tsc --noEmit`
 Expected: all PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/actions/quiz.ts src/components/quiz/QuizSummary.tsx tests/actions/quiz-summary-analysis.test.ts
+git add src/actions/quiz.ts tests/actions/quiz-summary-analysis.test.ts
 git commit -m "feat(spec3b): derive tag scores on the quiz results screen"
 ```
 
 ---
 
-### Task 7: Severity band panel
+### Task 8: Severity band panel
 
 **Files:**
 - Create: `src/components/settings/SeverityBandPanel.tsx`
 - Modify: `src/app/settings/ai/page.tsx`
 
 **Interfaces:**
-- Consumes: `loadTuning`, `saveTuning` (Task 3); `DEFAULT_BANDS` (`@/lib/errors/bands`); `ACCURACY_TYPES`/`CLARITY_TYPES`/`CONCISENESS_TYPES` (`@/lib/errors/taxonomy`); `labelForErrorType` (`@/lib/errors/labels`)
+- Consumes: `loadTuning`, `saveTuning` (Task 4); `DEFAULT_BANDS` (`@/lib/errors/bands`); `ACCURACY_TYPES`/`CLARITY_TYPES`/`CONCISENESS_TYPES` (`@/lib/errors/taxonomy`); `labelForErrorType` (`@/lib/errors/labels`)
 - Produces: a mounted panel; no exports consumed by later tasks
 
 - [ ] **Step 1: Build the panel**
 
-Follow `src/components/settings/CredentialList.tsx`'s structure — a client component calling the server actions, with `sonner` toasts for success and failure.
+Follow `src/components/settings/CredentialList.tsx`'s structure — a `'use client'`
+component calling the server actions, with `sonner` toasts for success and failure.
 
 Requirements:
-- Group types by dimension (accuracy, clarity, conciseness), using the labels from `@/lib/errors/labels` rather than raw keys.
-- Each row shows the current band, **the shipped default alongside it**, and a per-type reset. A global reset clears every override.
-- Validation mirrors the server: integers 1-5, floor ≤ ceiling. Rejected, not clamped — show the error and leave the input as typed.
+- Group types by dimension (accuracy, clarity, conciseness), using `labelForErrorType`
+  rather than raw keys.
+- Each row shows the current band, **the shipped default alongside it**, and a per-type
+  reset. A global reset clears every band override.
+- Validation mirrors the server: integers 1-5, floor ≤ ceiling. Rejected, not clamped —
+  show the error and leave the input as typed.
+- **Send the current `thresholdOverrides` and `strategy` alongside.** `saveTuning` writes
+  all three fields, so omitting them wipes the other two panels' settings. Read them from
+  `loadTuning` on mount and pass them straight back.
 
 - [ ] **Step 2: State the two consequences in the UI**
 
 Both are required by spec §3.2 and neither is discoverable:
 
-- **Editing a band re-scores history.** Severity and significance are derived at read time, so retuning changes what past answers scored. That is intended — the reason to open this panel is "inversions are overweighted *for me*" — but a proposition can move from weak to fine without the learner studying anything, and the panel must say so rather than letting the number quietly shift.
-- **Editing one of five accuracy ceilings also changes multiple-choice and true/false scoring.** Those answers carry maximum magnitude and resolve to the ceiling. Someone softening `inversion` to fix short-answer grading will also rescore every MC and TF inversion they have ever answered. Surface this **at the point of edit** on `conflation`, `inversion`, `misapplication`, `overgeneralization`, and `factual_error` — not in a help page.
+- **Editing a band re-scores history.** Severity and significance are derived at read
+  time, so retuning changes what past answers scored. That is intended — the reason to
+  open this panel is "inversions are overweighted *for me*" — but a proposition can move
+  from weak to fine without the learner studying anything, and the panel must say so
+  rather than letting the number quietly shift.
+- **Editing one of five accuracy ceilings also changes multiple-choice and true/false
+  scoring.** Those answers carry `MC_TF_MAGNITUDE` (10) and resolve to the ceiling.
+  Someone softening `inversion` to fix short-answer grading will also rescore every MC
+  and TF inversion they have ever answered. Surface this **at the point of edit** on
+  `conflation`, `inversion`, `misapplication`, `overgeneralization`, and `factual_error`
+  — not in a help page.
+
+Use this copy verbatim, so neither warning is left to improvisation. Panel-level, above
+the groups:
+
+> Changing a band re-scores your history. These numbers are worked out fresh every time
+> a screen loads, not frozen when you answered — so a retune changes what past answers
+> scored. That's deliberate: if inversions are overweighted *for you*, you want the fix
+> applied to everything, not just to what you do next. But it does mean a topic can move
+> from weak to fine without you having studied anything.
+
+Inline, on each of the five pinned-ceiling types only:
+
+> Also affects multiple choice and true/false. Those answers always resolve to this
+> type's **upper** number, so changing it re-scores every multiple-choice and
+> true/false {label} you've ever answered — not just your written ones.
+
+where `{label}` is `labelForErrorType(type)`.
 
 - [ ] **Step 3: Mount it**
 
@@ -1072,9 +2054,12 @@ Add `<SeverityBandPanel />` to `src/app/settings/ai/page.tsx` below `<TaskRoutin
 - [ ] **Step 4: Verify**
 
 Run: `npx tsc --noEmit && npx vitest run && npm run lint 2>&1 | tail -3`
-Expected: type-check and suite pass; no NEW lint problems (the repo has ~171 pre-existing — compare, do not fix unrelated ones).
+Expected: type-check and suite pass; **no new lint problems versus the 187-problem
+baseline** — compare, do not fix unrelated ones.
 
-Then run the app (`npm run dev`), open `/settings/ai`, and confirm by hand: a band edit saves and reloads; an inverted band is rejected with a readable message; a reset restores the default; the two consequence warnings are visible.
+Then run the app (`npm run dev`), open `/settings/ai`, and confirm by hand: a band edit
+saves and reloads; an inverted band is rejected with a readable message; a reset restores
+the default; both consequence warnings are visible.
 
 - [ ] **Step 5: Commit**
 
@@ -1085,19 +2070,20 @@ git commit -m "feat(spec3b): add the severity band settings panel"
 
 ---
 
-### Task 8: Targeting strategy selector
+### Task 9: Targeting strategy selector
 
 **Files:**
 - Create: `src/components/settings/TargetingStrategyPanel.tsx`
 - Modify: `src/app/settings/ai/page.tsx`
 
 **Interfaces:**
-- Consumes: `loadTuning`, `saveTuning` (Task 3); `STRATEGY_KEYS` (`@/lib/errors/tuning`)
+- Consumes: `loadTuning`, `saveTuning` (Task 4); `STRATEGY_KEYS` (`@/lib/tuning/schema`)
 - Produces: a mounted panel
 
 - [ ] **Step 1: Build the selector**
 
-A client component with one choice per strategy, each with a one-line description of who it is for:
+A `'use client'` component with one choice per strategy, each with a one-line description
+of who it is for:
 
 | Key | Label | Description |
 | --- | --- | --- |
@@ -1106,9 +2092,17 @@ A client component with one choice per strategy, each with a one-line descriptio
 | `follow_forgetting` | Follow the forgetting curve | Targets what is due or overdue for review. Best for maintenance. |
 | `balanced` | Balanced (default) | A blend of all three. |
 
-State plainly that the strategy affects **ordering only** — never which data is recorded, and never the metrics themselves. A learner switching strategies sees the same profile ranked differently, not a different profile.
+State plainly that the strategy affects **ordering only** — never which data is recorded,
+and never the metrics themselves. A learner switching strategies sees the same profile
+ranked differently, not a different profile.
 
-Saving must preserve the band overrides: `saveTuning` takes both fields, so read the current tuning and send the existing `overrides` alongside the new strategy, or the save will wipe them.
+Also state, honestly, that **the ranking it controls is not yet displayed anywhere** —
+the learner dashboard that consumes it is Spec 3C. A setting that appears to do nothing
+is worse than one labelled as forthcoming.
+
+**Saving must preserve the other two panels' settings:** `saveTuning` writes strategy,
+bands and thresholds together, so read the current tuning and send the existing
+`bandOverrides` and `thresholdOverrides` alongside the new strategy, or the save wipes them.
 
 - [ ] **Step 2: Mount it**
 
@@ -1119,7 +2113,10 @@ Add `<TargetingStrategyPanel />` to `src/app/settings/ai/page.tsx`.
 Run: `npx tsc --noEmit && npx vitest run`
 Expected: PASS.
 
-By hand at `/settings/ai`: selecting a strategy persists across reload, and **changing the strategy does not clear a band override** — set an override first, then change the strategy, then confirm the override survives. That is the regression this step exists to prevent.
+By hand at `/settings/ai`: selecting a strategy persists across reload, and **changing
+the strategy does not clear a band override** — set an override first, then change the
+strategy, then reload and confirm the override survives. That is the regression this
+step exists to prevent, and it is reachable because `saveTuning` writes all three fields.
 
 - [ ] **Step 4: Commit**
 
@@ -1130,23 +2127,91 @@ git commit -m "feat(spec3b): add the targeting strategy selector"
 
 ---
 
+### Task 10: Metric threshold panel
+
+**Files:**
+- Create: `src/components/settings/MetricThresholdPanel.tsx`
+- Modify: `src/app/settings/ai/page.tsx`
+
+**Interfaces:**
+- Consumes: `loadTuning`, `saveTuning` (Task 4); `DEFAULT_THRESHOLDS` (`@/lib/tuning/schema`)
+- Produces: a mounted panel
+
+- [ ] **Step 1: Build the panel**
+
+Three numeric fields, each showing its shipped default alongside the current value and a
+per-field reset, following `SeverityBandPanel`'s structure from Task 8.
+
+| Field | Label | Copy |
+| --- | --- | --- |
+| `minObservations` | Evidence before an opinion | How many times a point must be tested before we'll say whether you know it. Lower it to see provisional numbers sooner; raise it to wait for firmer evidence. Default 3. |
+| `articulationMinPKnown` | Confidence before blaming expression | How well you must know a point before a short answer is treated as an expression problem rather than a knowledge gap. Default 0.6. |
+| `readinessWeightPerAnswer` | Readiness strictness | The average per-answer error weight at which readiness reaches zero. Lower is stricter. Default 12. |
+
+Validation mirrors the server exactly (`ThresholdOverridesSchema`): `minObservations` a
+whole number 1-50; `articulationMinPKnown` between 0 and 1; `readinessWeightPerAnswer`
+above 0 and at most 100. Rejected, not clamped.
+
+**Say what lowering the evidence floor actually does**, at the point of edit: it does not
+produce more evidence, it lowers the bar for acting on what exists. A knowledge figure
+computed from one answer is a guess with a number attached. Frame the trade-off — an
+interview next week justifies acting on thinner evidence than one six months out — rather
+than presenting it as a "show more data" toggle.
+
+**Send the current `bandOverrides` and `strategy` alongside**, for the same reason
+Tasks 8 and 9 do.
+
+- [ ] **Step 2: Mount it**
+
+Add `<MetricThresholdPanel />` to `src/app/settings/ai/page.tsx`.
+
+- [ ] **Step 3: Verify**
+
+Run: `npx tsc --noEmit && npx vitest run && npm run lint 2>&1 | tail -3`
+Expected: type-check and suite pass; no new lint problems versus the 187 baseline.
+
+By hand at `/settings/ai`: set `minObservations` to 1, save, reload, and confirm it
+persists; enter 0 and confirm it is rejected with a readable message; reset restores 3.
+Then confirm the cross-panel invariant once more — set a band override AND a threshold
+AND a strategy, reload, and check all three survived.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/components/settings/MetricThresholdPanel.tsx src/app/settings/ai/page.tsx
+git commit -m "feat(spec3b): add the metric threshold settings panel"
+```
+
+---
+
 ## Final verification
 
-- [ ] `npx vitest run` — full suite green
+- [ ] `npx vitest run` — full suite green (expect **>815** tests; the baseline before this plan is 815 / 74 files)
 - [ ] `npx tsc --noEmit` — clean
-- [ ] `npm run lint` — no new problems versus the pre-branch baseline
-- [ ] Retune a band, then confirm the SAME error shows the SAME severity on both `/profile/memory`-scoped metric reads and the quiz results screen. Disagreement means Task 6 is incomplete.
-- [ ] Confirm no background job or replay is triggered by a band save — there must not be one.
+- [ ] `npm run lint` — no new problems versus the **187** baseline
+- [ ] Retune a band, then confirm the SAME error shows the SAME severity on a scoped metric read and on the quiz results screen. Disagreement means Task 7 is incomplete.
+- [ ] Confirm **no** background job, `after()` call, or replay is triggered by any tuning save — there must not be one. Grep the diff for `after(`, `rebuildKlpStates`, and `backfill`.
+- [ ] Set all three knob types, reload `/settings/ai`, and confirm none of the three panels wiped another's values.
+- [ ] Lower `minObservations` to 1 against the real database and confirm topic knowledge renders where it previously read null. That is the concrete payoff: at the shipped floor of 3, with 19 answers and every KLP seen exactly once, **zero** topics report knowledge.
+
+## Deliberately NOT in this plan
+
+- **A UI for `ranked`.** Spec 3C's dashboard. Task 6 builds the API; nothing renders it.
+- **Wiring `topics` into `profileToPromptBlock`.** All callers still hardcode `topics: []` (Spec 3 §14). Fixing it also requires giving the topic section a reserved character budget, since `capBlock` truncates it first — do both or neither, in 3C.
+- **Per-topic band overrides** (harsher on accounting than on vocabulary). Spec §6 defers them; the versioned blob tolerates the addition.
+- **Recomputing history on save.** There is nothing to recompute. See the Global Constraints.
+- **Seeding synthetic study data** to make the thin corpus look populated. The posterior is incremental and not self-correcting, so fabricated evidence does not cleanly come back out.
 
 ## Spec coverage
 
 | Spec section | Task |
 | --- | --- |
 | §2 data model, sparse overrides, blob rationale | 1, 2 |
-| §3.1 panel, validation rejects not clamps | 2, 7 |
-| §3.2 the two consequences stated in the UI | 7 |
-| §3.3 saving triggers no recomputation | 5 (by omission — asserted in final verification) |
-| §3.4 every surface derives | 6 |
-| §4 strategies, KLP candidate, observation floor | 4, 5, 8 |
+| §3.1 panel, validation rejects not clamps | 2, 8 |
+| §3.2 the two consequences stated in the UI | 8 |
+| §3.3 saving triggers no recomputation | 6 (by omission — asserted in final verification) |
+| §3.4 every surface derives | 7 |
+| §4 strategies, KLP candidate, observation floor | 3, 5, 6, 9 |
 | §5 testing | every task |
 | §6 deferred (per-topic overrides) | not implemented, by design |
+| Beyond spec: `MIN_OBSERVATIONS`, `ARTICULATION_MIN_PKNOWN`, `READINESS_WEIGHT_PER_ANSWER` as knobs | 2, 3, 10 |

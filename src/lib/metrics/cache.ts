@@ -29,9 +29,16 @@ export function applyObservation(state: KlpStateRow, obs: KlpObservation): KlpSt
 }
 
 /**
- * Full replay from scratch. Needed only when the inputs themselves change —
- * a Spec 3B band edit, or a resubmit-cascade re-analysis — never on a new
- * answer.
+ * Full replay from scratch. Needed only when the stored EVIDENCE changes —
+ * i.e. an `AnswerKlpResult` row is deleted, as a resubmit cascade does. Never
+ * on a new answer, and never on a settings change.
+ *
+ * A Spec 3B band edit is NOT such a case, despite an earlier version of this
+ * comment saying so. `stepBkt` reads `status` and `mode` only; bands feed
+ * severity -> significance -> readiness and the verbosity index, all derived at
+ * read time. Wiring a replay onto a band save would be expensive work that
+ * changes no number here — see the corrected §3.3 of
+ * `docs/superpowers/specs/2026-08-05-spec3b-tunable-scoring-and-targeting-design.md`.
  */
 export function rebuildState(
   userId: string,

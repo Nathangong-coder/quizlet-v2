@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { PrintableQuiz } from '@/components/quiz/PrintableQuiz';
 import { buildPrintableTest } from '@/lib/quiz/printable';
 import { parseOptionCache } from '@/lib/quiz/options';
+import { readableSetWhere } from '@/lib/sets/visibility';
 
 const cardInclude = {
   contentBlocks: { include: { asset: true }, orderBy: { position: 'asc' as const } },
@@ -21,7 +22,11 @@ export default async function PrintPage({
   const session = await auth();
   if (!session?.user?.id) return notFound();
 
-  const set = await prisma.set.findUnique({ where: { id } });
+  // Sign-in stays required — printing is a personal artefact. Readability then
+  // decides which sets this signed-in user may print.
+  const set = await prisma.set.findFirst({
+    where: { id, ...readableSetWhere(session.user.id) },
+  });
   if (!set) return notFound();
 
   let cards: any[];
@@ -31,7 +36,16 @@ export default async function PrintPage({
 
   if (sp.attemptId) {
     // Mirror an actual attempt: same cards, modes, prompt side, count, and options.
-    const attempt = await prisma.quizAttempt.findUnique({ where: { id: sp.attemptId } });
+    // Owner-scoped. An attempt is one learner's personal quiz session: being
+    // able to READ a set does not confer reading someone else's attempt on it.
+    // Previously `findUnique({ where: { id } })` checked only `attempt.setId`,
+    // so any signed-in user could print another learner's attempt — leaking
+    // their selectedCardIds and generated options. Identical bug class to the
+    // one Spec 2b fixed in getQuizAttemptSummary and getQuizAttemptCards, and
+    // missed here.
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: sp.attemptId, userId: session.user.id },
+    });
     if (!attempt || attempt.setId !== id) return notFound();
 
     const cardIds = (attempt.selectedCardIds as string[]) || [];

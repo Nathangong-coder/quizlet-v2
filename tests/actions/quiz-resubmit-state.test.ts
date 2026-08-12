@@ -24,6 +24,13 @@ const h = vi.hoisted(() => ({
   cardFindUnique: vi.fn(),
   progressFindUnique: vi.fn(),
   transaction: vi.fn(),
+  // Task 2: the CardProgress replay reads/writes through the transaction
+  // client (`tx`), not the top-level `prisma` mock below — so these are
+  // wired into `makeStore()`'s fake `tx` object, not the vi.mock('@/lib/db')
+  // factory. Named to match the shape Task 2's brief expects.
+  eventFindMany: vi.fn(),
+  progressUpsert: vi.fn(),
+  progressDeleteMany: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -247,6 +254,26 @@ function makeStore() {
         return { count: 1 }
       },
     },
+    // Task 2: CardProgress replay after a resubmit. Delegated to hoisted
+    // vi.fn()s so a test can assert on call shape, same as the rest of this
+    // suite asserts against `store`'s state — but these two calls have no
+    // pure-JS state of their own to fake, so plain mocks are enough.
+    studyEvent: {
+      findMany: async (args: any) => {
+        await query()
+        return h.eventFindMany(args)
+      },
+    },
+    cardProgress: {
+      upsert: async (args: any) => {
+        await query()
+        return h.progressUpsert(args)
+      },
+      deleteMany: async (args: any) => {
+        await query()
+        return h.progressDeleteMany(args)
+      },
+    },
   }
 
   return {
@@ -286,6 +313,9 @@ beforeEach(() => {
   h.ensureKlpsReady.mockResolvedValue([
     { id: KLP, index: 0, text: 'x', weight: 5, kind: 'definition' },
   ])
+  // Default: no surviving StudyEvent history, so recomputeCardProgress sees
+  // an empty array (not undefined) unless a test overrides it.
+  h.eventFindMany.mockResolvedValue([])
   h.transaction.mockImplementation((fn: (client: unknown) => unknown) => store.run(fn))
 })
 
@@ -397,5 +427,43 @@ describe('the posterior write is serialized against concurrent writers (B9)', ()
 
     // No klpResults this time, so the only lock can come from the superseded set.
     expect(store.trace).toContain('lock:klpstate:user-owner:klp-a')
+  })
+})
+
+describe('CardProgress replay on resubmit (Task 2)', () => {
+  it('replays CardProgress after a resubmit supersedes the prior answer', async () => {
+    // The prior answer's StudyEvent is cascaded away by the FK (Task 1), but
+    // CardProgress is incremental — without a replay it keeps a confidence
+    // step from an event that no longer exists. rebuildKlpStates already
+    // covers the posterior; this is the same hole on the confidence side.
+    h.eventFindMany.mockResolvedValue([
+      { correct: true, score: null, createdAt: new Date('2026-08-01T00:00:00Z') },
+    ])
+
+    await submit('failed', FIRST_AT)
+    await submit('passed', SECOND_AT)
+
+    expect(h.progressUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId_cardId: { userId: OWNER, cardId: CARD_ID } },
+      }),
+    )
+  })
+
+  it('does not touch CardProgress on a first-time answer, even for a starred card with no StudyEvent history', async () => {
+    // toggleStar (src/actions/confidence.ts) upserts a CardProgress row with
+    // starred: true and NO StudyEvent. `replace` is passed on every
+    // submission, including a card's first-ever answer, so gating the replay
+    // on `replace` alone (rather than on something actually having been
+    // superseded) ran it here too: zero surviving events replayed to `null`,
+    // and the row was deleted -- silently unstarring the card. The replay
+    // must only run when a prior answer was actually found and deleted.
+    h.progressFindUnique.mockResolvedValue({ starred: true })
+
+    await submit('passed', FIRST_AT)
+
+    expect(h.eventFindMany).not.toHaveBeenCalled()
+    expect(h.progressDeleteMany).not.toHaveBeenCalled()
+    expect(h.progressUpsert).not.toHaveBeenCalled()
   })
 })

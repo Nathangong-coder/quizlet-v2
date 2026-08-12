@@ -143,6 +143,18 @@ export default function ProfilePage() {
                     <span className="text-sm font-bold">
                       {attempt.score === null ? '—' : `${attempt.score}%`}
                     </span>
+                    {/* The activity permalink is keyed on the session, not the
+                        attempt, and nothing else in the app links to it. Absent
+                        for pre-Stage-6 attempts, which have no session envelope
+                        — those render with History alone rather than a dead link. */}
+                    {attempt.sessionId && (
+                      <Link
+                        href={`/profile/activity/${attempt.sessionId}`}
+                        className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'h-8 px-2 text-xs')}
+                      >
+                        Results
+                      </Link>
+                    )}
                     <Link
                       href={`/profile/memory?sets=${attempt.setId}`}
                       className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'h-8 px-2 text-xs')}

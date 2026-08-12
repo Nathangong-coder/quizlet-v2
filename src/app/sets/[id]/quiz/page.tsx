@@ -3,14 +3,17 @@ import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
 import { QuizClientWrapper } from '@/components/quiz/QuizClientWrapper';
+import { readableSetWhere } from '@/lib/sets/visibility';
 
 export default async function QuizPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await auth();
   if (!session) return notFound();
 
-  const set = await prisma.set.findUnique({
-    where: { id },
+  // Sign-in stays required — quizzing writes study memory keyed to a userId.
+  // Readability then decides WHICH sets that signed-in user may quiz.
+  const set = await prisma.set.findFirst({
+    where: { id, ...readableSetWhere(session.user.id) },
     include: {
       cards: {
         include: { contentBlocks: { orderBy: { position: 'asc' } } },

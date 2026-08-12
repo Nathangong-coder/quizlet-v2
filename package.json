@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "db:seed": "ts-node --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\"}\" prisma/seed.ts",
     "db:studio": "prisma studio",
-    "backfill:klp-state": "tsx --env-file=.env scripts/backfill-klp-state.ts"
+    "backfill:klp-state": "tsx --env-file=.env scripts/backfill-klp-state.ts",
+    "backfill:study-event-link": "tsx --env-file=.env scripts/backfill-study-event-answer-link.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.22",

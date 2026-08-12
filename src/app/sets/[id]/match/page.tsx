@@ -1,4 +1,6 @@
+import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
+import { readableSetWhere } from '@/lib/sets/visibility'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { buttonVariants } from '@/components/ui/button'
@@ -18,9 +20,20 @@ export default async function MatchGamePage({
 }) {
   const { id } = await params
   const { cat } = await searchParams
+  // This page had no auth() call at all, because `src/middleware.ts` already
+  // gates /match behind sign-in — so `session` is in practice never null here.
+  // It gains one to identify WHICH sets this viewer may read, which middleware
+  // says nothing about: middleware establishes that someone is signed in, not
+  // that the set is theirs or shared with them.
+  //
+  // Written null-tolerantly as defence in depth, so removing /match from the
+  // middleware matcher would degrade to "shared sets only" rather than
+  // silently exposing every private set to anonymous visitors.
+  const session = await auth()
+  const viewerId = session?.user?.id ?? null
 
-  const set = await prisma.set.findUnique({
-    where: { id },
+  const set = await prisma.set.findFirst({
+    where: { id, ...readableSetWhere(viewerId) },
     include: {
       categories: true,
       cards: {

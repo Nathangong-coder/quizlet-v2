@@ -128,6 +128,10 @@ beforeEach(() => {
         upsert: h.klpStateUpsert,
         deleteMany: h.klpStateDeleteMany,
       },
+      // Task 2's CardProgress replay is gated on a prior answer actually
+      // being found (priorAnswerCount > 0). txPriorFindMany resolves []
+      // above, so it never runs here — no studyEvent/cardProgress stub
+      // needed on this fake tx.
     }),
   )
 })
@@ -325,6 +329,7 @@ describe('submitTrueFalseAnswer', () => {
       cardId: CARD_ID,
       source: 'quiz-tf',
       sessionId: SESSION_ID,
+      quizAnswerId: 'answer1',
       outcome: { correct: false },
       meta: { latencyMs: 1234 },
     })

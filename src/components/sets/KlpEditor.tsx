@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { KLP_KINDS } from '@/lib/ai/schemas'
 import { getCardKlps, saveCardKlp, retryKlpExtraction } from '@/actions/klp'
+import type { CardKlpStatus } from '@/lib/cards/klp-status'
 import { toast } from 'sonner'
 
 interface Klp {
@@ -21,7 +22,10 @@ interface Klp {
  */
 export function KlpEditor({ cardId }: { cardId: string }) {
   const [open, setOpen] = useState(false)
-  const [status, setStatus] = useState<string | null>(null)
+  // Typed, not `string`: the four `status === '...'` comparisons below decide
+  // which affordance renders, and a misspelling in a bare string comparison
+  // fails silently by showing nothing.
+  const [status, setStatus] = useState<CardKlpStatus | null>(null)
   const [klps, setKlps] = useState<Klp[]>([])
   const [busy, setBusy] = useState(false)
 

@@ -25,6 +25,7 @@ import { revalidatePath } from 'next/cache';
 import { QuizSetup } from '@/lib/quiz/setup';
 import { recordStudyEvent } from '@/lib/memory/record';
 import { normalizeLatency } from '@/lib/memory/latency';
+import { recomputeCardProgress } from '@/lib/memory/recompute';
 import { safeProfileBlock } from '@/lib/ai/context';
 import { ActionResult } from '@/types/action';
 import { SessionInsightSchema, type SessionInsight } from '@/lib/memory/insight';
@@ -42,6 +43,7 @@ import { toStudySource } from '@/lib/quiz/mode';
 import { persistKlpStates, rebuildKlpStates, lockKlpStates } from '@/lib/metrics/state-writer';
 import type { StudySource } from '@/lib/memory/scoring';
 import { MC_TF_MAGNITUDE } from '@/lib/errors/bands';
+import { readableSetWhere } from '@/lib/sets/visibility';
 
 /**
  * Fisher-Yates. The correct answer must not sit in a predictable slot — the
@@ -247,8 +249,10 @@ export async function getOrGenerateMultipleChoiceOptions(
       }
     }
 
-    const set = await prisma.set.findUnique({
-      where: { id: card.setId },
+    // Readability-scoped: these sibling cards become MC distractors, so an
+    // unguarded fetch hands a caller the full contents of any set by id.
+    const set = await prisma.set.findFirst({
+      where: { id: card.setId, ...readableSetWhere(session.user.id) },
       include: { cards: true },
     });
     if (!set) return { success: false, error: 'Set not found' };
@@ -353,8 +357,13 @@ export async function startQuizAttempt(
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   try {
-    const set = await prisma.set.findUnique({
-      where: { id: setId },
+    // Readability-scoped. This was the shape Spec 2b explicitly declined to
+    // patch in isolation — the set page had the same hole, so fixing one call
+    // site would have been inconsistent rather than a fix. Both are fixed now.
+    // Not-found, never forbidden: a distinguishable error would confirm to an
+    // id-prober that a private set exists.
+    const set = await prisma.set.findFirst({
+      where: { id: setId, ...readableSetWhere(session.user.id) },
       include: {
         cards: {
           include: {
@@ -549,6 +558,7 @@ export async function submitMultipleChoiceAnswer(input: {
         cardId: input.cardId,
         source: 'quiz-mc',
         sessionId: attempt?.sessionId ?? undefined,
+        quizAnswerId: answer.id,
         outcome: { correct: isCorrect },
         meta: { latencyMs: input.latencyMs },
       });
@@ -726,6 +736,7 @@ export async function submitTrueFalseAnswer(input: {
           cardId: input.cardId,
           source: 'quiz-tf',
           sessionId: attempt?.sessionId ?? undefined,
+          quizAnswerId: answer.id,
           outcome: { correct: isCorrect },
           meta: { latencyMs: input.latencyMs },
         });
@@ -794,6 +805,16 @@ async function createAnswerWithAnalysis(
     // Collected before the delete: once the rows are gone there is no way to
     // learn which KLPs they credited.
     let supersededKlpIds: string[] = [];
+    // `replace` is passed on every call site today, even a card's very first
+    // answer — it is not evidence anything was actually superseded. Gating
+    // the CardProgress replay below on `replace` alone was a real bug: a
+    // starred-but-never-studied card (CardProgress with no StudyEvent, from
+    // toggleStar) hit the replay on its first-ever quiz answer, replayed zero
+    // surviving events, and `recomputeCardProgress` returning null deleted
+    // the row — silently unstarring it. Track how many prior answers this
+    // replace actually matched so the replay only runs when something was
+    // genuinely deleted.
+    let priorAnswerCount = 0;
     if (replace) {
       const where = {
         attemptId: replace.attemptId,
@@ -805,6 +826,7 @@ async function createAnswerWithAnalysis(
         where,
         select: { klpResults: { select: { klpId: true } } },
       });
+      priorAnswerCount = prior.length;
       supersededKlpIds = [
         ...new Set(prior.flatMap((p) => p.klpResults.map((r) => r.klpId))),
       ];
@@ -872,6 +894,49 @@ async function createAnswerWithAnalysis(
     // Last, so it overwrites anything the step above wrote for a KLP whose
     // evidence was just partly deleted.
     await rebuildKlpStates(tx, answerData.userId, supersededKlpIds);
+
+    // The replace above cascaded the prior answer's StudyEvent away (see the
+    // quizAnswerId FK). CardProgress is incremental and cannot be stepped
+    // backward, so it must be replayed from what survives — otherwise it keeps
+    // a confidence step from a row that is gone. This also fixes the older bug
+    // where a resubmit stepped confidence twice, because the prior event used
+    // to survive the replace entirely.
+    // Gated on priorAnswerCount, NOT just `replace`: `replace` is passed on
+    // every submission, including a card's first-ever answer, where nothing
+    // was superseded and this must not run at all (see note above).
+    if (replace && priorAnswerCount > 0) {
+      const remaining = await tx.studyEvent.findMany({
+        where: { userId: answerData.userId, cardId: replace.cardId },
+        select: { correct: true, score: true, createdAt: true },
+      });
+      const recomputed = recomputeCardProgress(remaining);
+      if (recomputed === null) {
+        await tx.cardProgress.deleteMany({
+          where: { userId: answerData.userId, cardId: replace.cardId },
+        });
+      } else {
+        await tx.cardProgress.upsert({
+          where: { userId_cardId: { userId: answerData.userId, cardId: replace.cardId } },
+          update: {
+            confidence: recomputed.confidence,
+            mastery: recomputed.mastery,
+            reps: recomputed.reps,
+            dueAt: recomputed.dueAt,
+            lastSeenAt: recomputed.lastSeenAt,
+          },
+          create: {
+            userId: answerData.userId,
+            cardId: replace.cardId,
+            confidence: recomputed.confidence,
+            mastery: recomputed.mastery,
+            reps: recomputed.reps,
+            dueAt: recomputed.dueAt,
+            lastSeenAt: recomputed.lastSeenAt,
+            starred: false,
+          },
+        });
+      }
+    }
 
     return answer;
   }, ANALYSIS_TX_OPTIONS);
@@ -1092,6 +1157,7 @@ export async function submitShortAnswer(input: {
           cardId: input.cardId,
           source: 'quiz-sa',
           sessionId: attempt?.sessionId ?? undefined,
+          quizAnswerId: answer.id,
           outcome: { overall: grade.overall },
           meta: { latencyMs: input.latencyMs },
         });
@@ -1206,6 +1272,7 @@ export async function submitShortAnswer(input: {
         cardId: input.cardId,
         source: 'quiz-sa',
         sessionId: attempt?.sessionId ?? undefined,
+        quizAnswerId: answer.id,
         outcome: { overall: grade.overall },
         meta: { latencyMs: input.latencyMs },
       });

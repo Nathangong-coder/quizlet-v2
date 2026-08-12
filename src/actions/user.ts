@@ -4,8 +4,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { masteryBucket } from '@/lib/memory/scoring';
-import { RESET_MEMORY_MODELS, type ResetMemoryModel } from '@/lib/memory/reset';
-import type { Prisma } from '@prisma/client';
+import { executeErasure } from '@/lib/memory/erase-execute';
 
 type ActionResult<T> = {
   success: boolean;
@@ -26,6 +25,9 @@ export interface UserStats {
     mode: string;
     score: number | null;
     date: Date;
+    /** The activity permalink is keyed on the session, not the attempt.
+     *  Null for pre-Stage-6 attempts, which have no session envelope. */
+    sessionId: string | null;
   }[];
 }
 
@@ -81,6 +83,7 @@ export async function getUserStats(): Promise<ActionResult<UserStats>> {
           mode: a.mode,
           score: a.score,
           date: a.createdAt,
+          sessionId: a.sessionId,
         })),
       },
     };
@@ -94,34 +97,16 @@ export async function resetUserMemory(): Promise<ActionResult<void>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
-  const userId = session.user.id;
-
   try {
-    // Driven by RESET_MEMORY_MODELS so the delete set lives in exactly one
-    // place. Notably this now includes `klpState`: the knowledge posterior is
-    // incremental, so clearing only the evidence beneath it left every
-    // estimate standing and beyond the reach of the backfill.
-    //
-    // A Record keyed on the model union rather than `prisma[model]` — Prisma's
-    // delegates are generic over SelectSubset and do not unify structurally, so
-    // indexing the client needs a cast through `unknown` that would discard all
-    // checking. This way, adding a model to RESET_MEMORY_MODELS is a type error
-    // until a deleter exists for it, which is the property we actually want.
-    const deleters: Record<
-      ResetMemoryModel,
-      () => Prisma.PrismaPromise<Prisma.BatchPayload>
-    > = {
-      quizAttempt: () => prisma.quizAttempt.deleteMany({ where: { userId } }),
-      quizAnswer: () => prisma.quizAnswer.deleteMany({ where: { userId } }),
-      confidenceEvent: () => prisma.confidenceEvent.deleteMany({ where: { userId } }),
-      cardProgress: () => prisma.cardProgress.deleteMany({ where: { userId } }),
-      studyEvent: () => prisma.studyEvent.deleteMany({ where: { userId } }),
-      klpState: () => prisma.klpState.deleteMany({ where: { userId } }),
-    };
-
-    await prisma.$transaction(RESET_MEMORY_MODELS.map((model) => deleters[model]()));
+    // The delete set now lives in ERASABLE_MEMORY_MODELS (src/lib/memory/erase.ts)
+    // alongside every other erasure verb, so there is one answer to "what counts
+    // as memory" rather than two that can drift. It adds `studySession`, which
+    // the old list omitted — both sessionId FKs are onDelete: SetNull, so a
+    // reset left every session standing as an empty husk.
+    await executeErasure(session.user.id, { kind: 'account' });
 
     revalidatePath('/profile');
+    revalidatePath('/profile/memory');
     return { success: true };
   } catch (error) {
     console.error('Reset error:', error);

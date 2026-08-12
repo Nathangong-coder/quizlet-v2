@@ -34,6 +34,14 @@ model Set {
   id           String         @id @default(cuid())
   title        String
   description  String?
+  /// Vocabulary: SET_VISIBILITIES in src/lib/sets/visibility.ts (private|link).
+  /// Import that const rather than writing a literal — this is a String
+  /// column, so a typo compiles and never matches.
+  ///
+  /// Defaults to `private`, so the migration makes every EXISTING set private
+  /// too. That is the intent: sets were readable by anyone holding the id, and
+  /// this closes that rather than grandfathering it.
+  visibility   String         @default("private")
   userId       String
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   cards        Card[]
@@ -64,7 +72,10 @@ model Card {
   assets              CardAsset[]
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
-  klpStatus           String                   @default("pending") // pending|ready|failed|skipped
+  /// Vocabulary: CARD_KLP_STATUSES in src/lib/cards/klp-status.ts
+  /// (pending|ready|failed|skipped). Import that const rather than writing a
+  /// literal — this is a String column, so a typo compiles and never matches.
+  klpStatus           String                   @default("pending")
   klpVersion          Int                      @default(0)
   klpSourceHash       String?
   klpError            String?                  @db.Text
@@ -286,6 +297,15 @@ model StudyEvent {
   confidenceBefore Int?
   session         StudySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
+  // One graded answer produces at most one memory event, hence @unique. The FK
+  // lives here so deleting a QuizAnswer cascades the event away in the
+  // database — every erasure scope gets that for free and cannot forget it.
+  // The cascade runs answer -> event only; deleting an event leaves the answer,
+  // which is why the `event` erasure scope routes quiz-sourced events to the
+  // `answer` scope instead (see src/lib/memory/erase.ts).
+  quizAnswerId String?     @unique
+  quizAnswer   QuizAnswer? @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
+
   @@index([userId, cardId])
   @@index([userId, createdAt])
   @@index([userId, cardId, createdAt])
@@ -427,6 +447,7 @@ model QuizAnswer {
   analysisWarnings Json?    // [{ reason, value }] — non-fatal losses
   klpResults       AnswerKlpResult[]
   errorTags        AnswerErrorTag[]
+  studyEvent    StudyEvent?
 
   @@index([userId, cardId])
   @@index([userId, createdAt])
