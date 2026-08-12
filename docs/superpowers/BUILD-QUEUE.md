@@ -12,7 +12,7 @@ This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirror
 ### 1. ✅ Set visibility — DONE (2026-08-09)
 
 Spec: `specs/2026-08-08-set-visibility-design.md` · Plan: `plans/2026-08-08-set-visibility.md`
-Branch `spec3b-tunable-scoring`, ~10 commits, **not merged, not pushed**.
+Branch `spec3b-tunable-scoring`, ~10 commits, **not merged**. Pushed to `origin`.
 
 Sets are private by default, owner-togglable to link-shareable. Closed 10 read-by-id exposures. Verified live against the dev server and the real DB, not just in tests.
 
@@ -20,7 +20,7 @@ Sets are private by default, owner-togglable to link-shareable. Closed 10 read-b
 
 Spec: `specs/2026-08-10-deletion-and-forgetting-design.md` · Plan: `plans/2026-08-10-deletion-and-forgetting.md`
 Ledger: `.superpowers/sdd/2026-08-10-deletion-and-forgetting/progress.md`
-Branch `spec3b-tunable-scoring` (same branch as item 1), **not merged, not pushed**.
+Branch `spec3b-tunable-scoring` (same branch as item 1), **not merged**. Pushed to `origin`, so a Vercel preview deployment exists for it — that is where Task 11 should be verified.
 
 Forget now drops the **evidence**, not just the estimate, and a reset quiz is erased outright rather than kept as a scored receipt. All six verbs — `deleteStudyEvent`, `forgetCard`, `forgetSet`, `resetQuizAttempt`, `resetQuizAnswer`, `resetUserMemory` — route through one module: a pure planner (`src/lib/memory/erase.ts`) plus a transactional executor (`src/lib/memory/erase-execute.ts`) that snapshots, deletes, then replays `CardProgress` and `KlpState` from what survives. Both defects the spec found are fixed: `StudySession` was missing from the account reset, and `QuizAttempt.score` no longer goes stale on partial deletion.
 
@@ -131,4 +131,4 @@ Never in memory — always in a spec's own section.
 - **Tests:** 88 files / **1013 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
 - **`npm run lint`:** **186 problems** (133 errors, 53 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (Was 187 on 2026-08-09; the deletion work removed one by deleting the code that carried it.)
-- Branch is **not merged and not pushed**.
+- Branch is **not merged**, but IS pushed to `origin` (as of 2026-08-11). A Vercel preview deployment tracks it.
