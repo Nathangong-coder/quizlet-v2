@@ -73,6 +73,16 @@ export async function persistKlpStates(input: {
  * Ids are SORTED before locking. Two transactions taking the same locks in
  * opposite orders deadlock; a total order over the keys removes that by
  * construction.
+ *
+ * `$executeRaw`, NOT `$queryRaw` — this is not a style choice and must not be
+ * "tidied" back. `pg_advisory_xact_lock` returns `void`, and `$queryRaw` tries
+ * to deserialize the result column: under the Neon driver adapter that throws
+ * `P2010 / UnsupportedNativeDataType — Failed to deserialize column of type
+ * 'void'`, aborting the whole transaction. `$executeRaw` runs the statement
+ * and returns a row count without touching columns. Verified against a live
+ * database that the lock still genuinely excludes a second transaction; the
+ * fix does not quietly turn the lock into a no-op, which would reintroduce
+ * exactly the lost-update defect this function exists to prevent.
  */
 export async function lockKlpStates(
   tx: KlpRebuildTx,
@@ -81,7 +91,7 @@ export async function lockKlpStates(
 ): Promise<void> {
   const keys = [...new Set(klpIds)].sort()
   for (const klpId of keys) {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`klpstate:${userId}:${klpId}`}, 0))`
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`klpstate:${userId}:${klpId}`}, 0))`
   }
 }
 

@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
-import { persistKlpStates, rebuildKlpStates, type KlpObservationWrite } from '@/lib/metrics/state-writer'
+import {
+  persistKlpStates,
+  rebuildKlpStates,
+  lockKlpStates,
+  type KlpObservationWrite,
+} from '@/lib/metrics/state-writer'
 import { rebuildStatesFromResults, type KlpStateRow } from '@/lib/metrics/cache'
 import { BKT_PRIOR } from '@/lib/metrics/bkt'
 
@@ -27,6 +32,52 @@ function fakeStore() {
     },
   }
 }
+
+describe('lockKlpStates', () => {
+  function fakeTx() {
+    const queryRaw = vi.fn()
+    const executeRaw = vi.fn()
+    return {
+      tx: { $queryRaw: queryRaw, $executeRaw: executeRaw } as never,
+      queryRaw,
+      executeRaw,
+    }
+  }
+
+  it('locks through $executeRaw, never $queryRaw', async () => {
+    // pg_advisory_xact_lock returns void. $queryRaw deserializes the result
+    // column and the Neon adapter throws P2010 UnsupportedNativeDataType on a
+    // void one, aborting the enclosing transaction. That shipped on 2026-08-08
+    // and broke BOTH quiz answer submission and every erasure verb; no mocked
+    // test caught it because a mock deserializes nothing.
+    const { tx, queryRaw, executeRaw } = fakeTx()
+    await lockKlpStates(tx, 'u1', ['k1'])
+    expect(executeRaw).toHaveBeenCalledTimes(1)
+    expect(queryRaw).not.toHaveBeenCalled()
+  })
+
+  it('takes one lock per distinct id, in sorted order', async () => {
+    // Sorted because two transactions taking the same locks in opposite
+    // orders deadlock; deduped because taking the same lock twice is waste.
+    const { tx, executeRaw } = fakeTx()
+    await lockKlpStates(tx, 'u1', ['k2', 'k1', 'k2'])
+    expect(executeRaw).toHaveBeenCalledTimes(2)
+
+    // Tagged template: call[0] is the strings array, call[1] the first
+    // interpolated value — here the lock key.
+    const keyOf = (call: unknown[]) => call[1] as string
+    expect([keyOf(executeRaw.mock.calls[0]), keyOf(executeRaw.mock.calls[1])]).toEqual([
+      'klpstate:u1:k1',
+      'klpstate:u1:k2',
+    ])
+  })
+
+  it('issues no statement at all when there is nothing to lock', async () => {
+    const { tx, executeRaw } = fakeTx()
+    await lockKlpStates(tx, 'u1', [])
+    expect(executeRaw).not.toHaveBeenCalled()
+  })
+})
 
 describe('persistKlpStates', () => {
   it('writes a state for every KLP the answer observed', async () => {

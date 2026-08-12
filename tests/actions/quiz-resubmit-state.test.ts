@@ -224,10 +224,14 @@ function makeStore() {
     // The advisory lock (B9). Records the ORDER of operations so a test can
     // assert the lock precedes every posterior read — a lock taken after the
     // read serializes nothing.
-    $queryRaw: async (_strings: TemplateStringsArray, ...values: unknown[]) => {
+    //
+    // $executeRaw, matching lockKlpStates: pg_advisory_xact_lock returns void,
+    // which $queryRaw cannot deserialize under the Neon adapter. A fake that
+    // answers $queryRaw is what let that ship — see state-writer.ts.
+    $executeRaw: async (_strings: TemplateStringsArray, ...values: unknown[]) => {
       await query()
       trace.push(`lock:${String(values[0])}`)
-      return []
+      return 0
     },
     klpState: {
       findUnique: async ({ where }: any) => {
