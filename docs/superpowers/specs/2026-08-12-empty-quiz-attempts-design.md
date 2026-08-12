@@ -2,8 +2,16 @@
 
 **Date:** 2026-08-12
 **Queue item:** 2b
-**Status:** designed, not built
+**Status:** **BUILT 2026-08-12** (commits `31b1a09`, `3811797`) — pending the live gate in §Testing
+**Plan:** `docs/superpowers/plans/2026-08-12-empty-quiz-attempts.md`
 **Branch:** `spec3b-tunable-scoring`
+
+> **Six claims in this document were wrong about the code** and were corrected
+> before implementation; each is fixed inline below and catalogued in
+> "Corrected during planning". A further six things were found *during*
+> implementation — see "Found during implementation" at the end. Both sections
+> are load-bearing: they are the difference between what was designed and what
+> exists.
 
 ---
 
@@ -78,6 +86,15 @@ Hiding, not deleting, is the default response to a zero-answer attempt. No
 data is destroyed if the rule turns out wrong, and one predicate covers all
 four populations including printable, which must keep its row.
 
+**This also settles the question the build queue left open** when 2b was
+deferred: whether a card deletion that empties an attempt should *delete* it,
+matching `planErasure`'s stance at `erase.ts:384`, or merely null the score
+and let the filter hide it. It nulls the score. Erasing memory is a request to
+destroy data; **editing a set is not**, and the cascaded population is reached
+by another user's edit — deleting their row would spend a destructiveness
+budget the editor was never granted. D2's discard is the exception precisely
+because there the actor is deleting *their own* attempt, deliberately.
+
 ### D2 — But discard on the *skipped* path, because intent is knowable there
 
 Pressing Submit having answered nothing is an explicit act. That is a real
@@ -149,6 +166,14 @@ readers must **never** filter —
 Applying it in `metrics/read.ts` is provably safe for the tag join: every
 error tag reaches an attempt through `quizAnswer.attemptId`, so any attempt a
 tag references has ≥1 answer by construction and cannot be filtered away.
+(Were that not so, `deriveTagScores` appends an unlisted attempt to the **end**
+of its order — `src/lib/errors/derive.ts:108-112` — which would silently
+misplace it in the repeat window rather than erroring.)
+
+**That query carries a comment reading "Deliberately NOT scoped."** It refers
+to `HistoryScope`, a different axis, but a reader will take the new filter as
+violating it. The comment was amended in the same edit rather than left to
+create a contradiction.
 
 `getUserStats` must apply it to **all four** outputs — `totalAttempts`,
 `modeStats`, `overallAverageScore`, `recentAttempts` — since they derive from
@@ -187,8 +212,17 @@ Discards only when **all** hold:
 
 1. `clientAnsweredCount === 0` — the learner's intent,
 2. the attempt has zero `QuizAnswer` rows server-side — the safety check,
-3. `printable === false` — a printed test must keep its row,
+3. `printable === false` — a printable attempt exists to be printed and is
+   never submitted, so discarding one would be reaching outside this flow,
 4. the attempt belongs to the caller.
+
+**Condition 3 does not protect printing, and the original reason given here
+("a printed test must keep its row") was wrong.** Print is not gated on
+`printable`: `src/app/sets/[id]/print/page.tsx:46` reads *any* attempt of the
+caller's by id, and `QuizContainer`'s own "Print this test" button passes the
+current — non-printable — attempt id. So a learner who prints a normal quiz
+and then submits it blank does lose that row. Accepted: the printed PDF
+already exists in their other tab.
 
 Then: `executeErasure(userId, { kind: 'attempt', attemptId })`, which removes
 the attempt, its `StudySession`, and its cascading `QuizQuestion` rows.
@@ -236,15 +270,47 @@ question list, no per-question detail.
 export function storedScore(answers: { score: number | null }[]): number | null
 ```
 
-`erase.ts:404` and C6 both call it. The round-because-Int decision currently
-exists in three places (`erase.ts:404`, `quiz.ts:574`, `quiz.ts:756`); this
-collapses the two that matter for correctness here.
+`erase.ts` and C6 both call it. The round-because-`Int` decision exists in
+**five** places, not the three originally claimed here: `erase.ts:395` plus
+**four** live writers in `quiz.ts` — `:570`, `:749`, `:1169`, `:1284`. The two
+short-answer paths (text and multimodal) were missed. This collapses the two
+that matter for correctness here; the four live writers keep rounding inline,
+deliberately (see below).
+
+**The four live `quiz.ts` writers keep their `if (newScore !== null)` guard.**
+That guard is the mechanism by which an attempt keeps a score after losing its
+evidence — but on those paths an answer was *just* created, so `allAnswers` is
+never empty and it cannot fire wrongly. C6 is the path that must clear the
+column, and it does. Changing the live writers would be unrelated scoring
+behaviour.
+
+`storedScore`'s tests pin **half-up** rounding (`2.5 → 3`), distinguishing
+`Math.round` from banker's rounding. Two different rules across the erasure
+and re-score paths would make an attempt flip by a point depending on which
+code last touched it.
 
 ### C6 — `rescoreSetAttempts(tx, setId)`
 
 Called from `updateSet` only when `plan.toDeleteIds.length > 0`. One query in
 (the set's attempts with `answers: { select: { score: true } }`), `storedScore`
 per attempt, and an update **only** where the stored value actually differs.
+
+**`updateSet`'s card block had to be converted to an interactive transaction
+first.** It was an *array-form* `prisma.$transaction([...])`, which takes
+pre-built promises and therefore cannot express "read after the delete lands".
+It is now `$transaction(async (tx) => …)` with the original order preserved
+exactly: deleteMany → updates → creates → `set.update`.
+
+**Matching-mode attempts converge, and that is intended** (ruled 2026-08-12).
+`quiz-matching.ts:120` writes `round(correct / matches.length × 100)`
+**unconditionally**, scoped to its own section, while MC/SA/TF write the mean
+of the attempt's answers — and sections commit in **parallel** (`Promise.all`
+in `QuizContainer`). So a *mixed* quiz containing matching already stores
+whichever write landed last, and it already diverges from `storedScore`. A
+re-score therefore changes such an attempt even when the deleted card was
+unrelated to it. Mean-of-answers is the more defensible number; the
+convergence is a fix, not a side effect. Matching-*only* attempts are
+unaffected — the two formulas agree there.
 
 **Recomputes every attempt on the set rather than snapshotting affected ones.**
 The snapshot version must capture attempt ids *before* the cascade destroys
@@ -314,3 +380,68 @@ the tab, and confirm `/profile` never shows it.
 - **C6 is the only cross-user write in the codebase.** It needs a doc comment
   saying so explicitly, or a future reader will "fix" it by adding the
   `userId` scope every neighbouring function has.
+
+---
+
+## Corrected during planning
+
+Six claims in the original draft were wrong about the code. All are fixed
+inline above; listed here so the *pattern* is visible rather than buried.
+
+| # | The claim | What the code actually does |
+| --- | --- | --- |
+| 1 | C6 takes a `tx` from `updateSet` | That block was an array-form `$transaction`; conversion was required first |
+| 2 | C6 updates only where the value differs | Matching writes a different formula unconditionally, so mixed attempts already diverge |
+| 3 | Filter `metrics/read.ts:113` | That query is annotated "Deliberately NOT scoped" on a different axis |
+| 4 | Condition 3 protects printing | Print is not gated on `printable` at all |
+| 5 | Rounding lives in three places | Five — the two short-answer paths were missed |
+| 6 | Assorted line references | Off by 1–3 in several places |
+
+## Found during implementation
+
+Six more, each of which changed the work or the tests:
+
+1. **The regression guards named for the transaction conversion could not
+   detect a transaction regression.** The plan said to verify the array-form →
+   interactive conversion against `tests/cards/{reconcile,stale,categories}`.
+   Those are pure unit tests of helpers `updateSet` *calls*; they passed
+   identically before and after and would have passed had the ordering been
+   broken outright. The conversion-order assertion in
+   `tests/actions/update-set-rescore.test.ts` is the first thing that pins it.
+   **This is the recurring failure mode in this repo** — a green suite over a
+   thing that does not work (cf. the `$queryRaw` outage, BUILD-QUEUE trap 8).
+
+2. **Gating the session close on `discarded` alone would have added a
+   `finishStudySession` call on the grading-crash path.** The old code wrapped
+   `commitAll` and `finishStudySession` in one shared `try`, so a throw already
+   bypassed the close. The restructure needed a `!gradingFailed` term to
+   *preserve* that — otherwise a behaviour change would have been smuggled
+   inside a refactor, in the exact case where the system is already failing.
+
+3. **The over-application guard matched raw source text, so a *comment* in
+   `QuizContainer` naming `ANSWERED_ATTEMPT_WHERE` tripped it.** It now strips
+   comments and detects use, not mention. The comment is worth keeping — it
+   explains why a failed discard is survivable — and a guard that forced
+   comments to avoid naming what they describe would buy precision with worse
+   documentation. Re-verified by mutation that a real reference still fails.
+
+4. **`prisma.card.findMany` is called twice in `updateSet` with different
+   shapes** — a `select` for reconciliation, an `include` for staleness. Any
+   mocked-Prisma test of that action must branch on the args; a single
+   `mockResolvedValue` silently feeds the wrong rows to
+   `selectRefreshableStaleCardIds`.
+
+5. **A `QuizContainer` jsdom test needs four mocks, not two.** It statically
+   imports all four sections, so `MatchingQuiz` drags in
+   `@/actions/quiz-matching`; `QuizSummary` fetches its own summary via
+   `getQuizAttemptSummary`. Without both, the file dies at load with
+   `Cannot find module next/server` before any test runs — a failure that
+   looks unrelated to the change.
+
+6. **This repo's `Button` is base-ui and has no `asChild`.** Link-styled
+   buttons go through `buttonVariants()` on the `Link` directly.
+
+Three tests in this work were confirmed to discriminate **by mutation**, not
+assumed to: the cross-user re-score (adding a `userId` scope reddens it), the
+`!gradingFailed` guard, and the over-application scan. A guard with no failing
+test behind it is decoration.

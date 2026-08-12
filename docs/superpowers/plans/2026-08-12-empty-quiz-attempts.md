@@ -1,5 +1,15 @@
 # Empty Quiz Attempts Implementation Plan
 
+> **STATUS: Tasks 1–8 COMPLETE (2026-08-12), commits `31b1a09` + `3811797`.
+> Task 9 — the live gate — is OUTSTANDING and is a human task.**
+> Tests 1021 → 1083, `tsc` clean, lint 186 → 185.
+> Six things this plan got wrong about the code were found during execution;
+> they are recorded in the spec's "Found during implementation" section, not
+> here. Two are worth reading before trusting any similar plan: the guards
+> named for the `updateSet` transaction conversion could not detect a
+> transaction regression, and the `handleSubmitQuiz` restructure nearly added
+> a `finishStudySession` call on the grading-crash path.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A `QuizAttempt` with no `QuizAnswer` rows stops counting as study history — hidden on the two read paths that surface it, discarded outright on the one path where the learner's intent is knowable, and prevented from being *created* by a card deletion that strands a stored score.
@@ -59,7 +69,9 @@
 | `docs/superpowers/specs/2026-08-12-empty-quiz-attempts-design.md` | corrections 1–6 + the resolved open question (Task 8) |
 | `docs/superpowers/BUILD-QUEUE.md` | close item 2b (Task 8) |
 
-`rescore.ts` is separate from `scoring.ts` so the "which rows changed" decision is testable without importing anything Prisma-shaped, the same split `erase.ts`/`erase-execute.ts` uses.
+`rescore.ts` is separate from `scoring.ts` so the "which rows changed" decision is testable without importing anything Prisma-shaped.
+
+**As built, both halves live in `rescore.ts`** — `attemptsNeedingRescore` (pure) and `rescoreSetAttempts` (queries). The Prisma import is type-only, so the testability property holds, but this is *not* the `erase.ts`/`erase-execute.ts` pure/impure file split the sentence above gestured at. Left as built rather than churned; noted so the analogy is not read as stronger than it is.
 
 ---
 
@@ -318,7 +330,7 @@ The discard must be its own `try` — a failure there is not a grading failure a
 - [ ] `npx vitest run --exclude "**/cursor-agents/**" --exclude "**/node_modules/**"` — **1021 + the new tests**, zero regressions.
 - [ ] `npx tsc --noEmit 2>&1 | grep -v "^cursor-agents"` — clean.
 - [ ] `npm run lint` — **186 problems**, unchanged.
-- [ ] `grep -rn "ANSWERED_ATTEMPT_WHERE" src/` — **exactly three** hits: the definition and the two call sites. Any fourth is the over-application failure.
+- [x] `grep -rn "ANSWERED_ATTEMPT_WHERE" src/` — **not "exactly three hits"; that expectation was wrong.** Each call site needs its own `import`, and two files name the constant in comments, so the raw grep returns 7 lines across 4 files. The invariant is about *use*: `tests/quiz/history.test.ts` strips comments before scanning and asserts the referencing files are exactly `{history.ts, user.ts, read.ts}`, with named negative assertions per must-not-filter reader. Trust the test, not the grep.
 - [ ] `grep -rn "quizAttempt.find" src/` — confirm the four must-not-filter readers (`quiz.ts`, `quiz-matching.ts`, `print/page.tsx`, `erase-execute.ts`) are untouched.
 
 ---
