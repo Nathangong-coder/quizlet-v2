@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-12
 **Queue item:** 2b
-**Status:** **BUILT 2026-08-12** (commits `31b1a09`, `3811797`) — pending the live gate in §Testing
+**Status:** **BUILT AND LIVE-VERIFIED 2026-08-12** (commits `31b1a09`, `3811797`) — see the queue entry for what the gate covered and the one check it could not reach
 **Plan:** `docs/superpowers/plans/2026-08-12-empty-quiz-attempts.md`
 **Branch:** `spec3b-tunable-scoring`
 

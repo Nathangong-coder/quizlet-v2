@@ -39,7 +39,7 @@ Forget now drops the **evidence**, not just the estimate, and a reset quiz is er
 
 **Known and deliberate:** matching-mode answers render through `MatchingReview`, which has no per-answer card, so they get no per-question erase control even on the permalink. Erasing them via the card or set scope works, as ③a confirmed.
 
-### 2b. ✅ Empty quiz attempts — **BUILT 2026-08-12. Live gate NOT yet run.**
+### 2b. ✅ Empty quiz attempts — **DONE 2026-08-12, live-verified.**
 
 Spec: `specs/2026-08-12-empty-quiz-attempts-design.md` · Plan: `plans/2026-08-12-empty-quiz-attempts.md`
 Commits `31b1a09` (Tasks 1, 2, 4, 5) and `3811797` (Tasks 3, 6 + the in-flight guard), branch `spec3b-tunable-scoring`, **not merged**.
@@ -50,7 +50,9 @@ An attempt with no `QuizAnswer` rows no longer counts as history. `ANSWERED_ATTE
 
 **The open question from the deferral is resolved:** a card deletion **nulls the score**, it does not delete the attempt. Erasing memory is a request to destroy data; editing a set is not — and the cascaded population is reached by *another user's* edit.
 
-**⚠️ Task 9, the live gate, has NOT been run** — GitHub OAuth puts every signed-in page out of reach from an agent session (trap 6). Six checks are listed in the spec's §Testing. Until they run, this is verified only against mocks — and the lesson from item 2 is exactly that a green suite can sit over a statement Postgres rejects. **Record predictions before measuring.**
+**Live gate PASSED 2026-08-12** (run by the user; GitHub OAuth puts signed-in pages out of reach from an agent session — trap 6). Verified in the browser against the real database: a partly-answered quiz (2 of 5) survives and its results page shows exactly the answered questions; a blank submit shows "Quiz Skipped" and leaves nothing on `/profile`; an abandoned quiz never appears; deleting a tested card re-scores the attempt, and deleting every tested card nulls the score and drops it off `/profile`.
+
+**One thing the gate could NOT reach, and why it matters less than it looks.** The intended check was "force an AI failure mid-quiz, confirm you get the results screen and not 'Quiz Skipped'" — the scenario `discardSkippedQuizAttempt`'s condition 1 exists for. It is **unreachable by disabling credentials**: `src/app/sets/[id]/quiz/page.tsx:28-31` gates the whole quiz page on *any* enabled credential, before mode selection, so you never reach a short-answer question. Reproducing it needs a credential that is enabled but broken — `saveCredential` does **not** verify keys (that is `testCredential`'s separate job), so a deliberately bogus key can be saved as the only enabled credential. Not run, because the 2-of-5 result already demonstrates `answeredCount()` returns non-zero from real React state and the discard refuses on it; the residual question is only whether a *grading failure* wipes that state before submit, and `answeredCount` never observes the server's response.
 
 **Two findings worth more than the code:**
 - The regression guards the plan named for the `updateSet` transaction conversion (`tests/cards/*`) are pure unit tests of helpers `updateSet` *calls* — they **cannot** detect a transaction-shape regression, and would have passed had the ordering been broken outright. Same failure mode as trap 8.
