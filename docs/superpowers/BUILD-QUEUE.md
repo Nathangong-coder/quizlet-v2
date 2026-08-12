@@ -28,6 +28,18 @@ Forget now drops the **evidence**, not just the estimate, and a reset quiz is er
 
 **Known and deliberate:** matching-mode answers render through `MatchingReview`, which has no per-answer card, so they get no per-question erase control even on the permalink.
 
+### 2b. ⬜ Empty quiz attempts — **DECIDED 2026-08-11, NOT BUILT. Small; do it before 3B.**
+
+Found during Task 11 live verification. **User's decision:** an un-answered quiz is a typo, not history — it should not appear at all.
+
+Two distinct populations, and the obvious rule only covers one:
+- **11 attempts, no answers and no score** — never answered. `startQuizAttempt` writes the row before any answer exists. "Don't create until first answer" fixes these.
+- **5 attempts, no answers but a REAL score** (100, 99, 50…), all dated 2026-07-05 — these *did* have answers. The cards were deleted later, `QuizAnswer.cardId` cascaded, and the attempt kept a score for evidence that is gone. Deferred creation would not have prevented one of them.
+
+So the rule is **zero answers ⇒ not history, scored or not.** Note the second population is the *same* invariant violation this deletion work exists to prevent — a derived number outliving its evidence — reached through the card-delete path rather than a forget verb. `scripts/check-memory-integrity.ts` already detects it (check 4).
+
+Decide between: filtering zero-answer attempts out of the history reads (no data loss, fixes display immediately), deleting them outright, and deferring `QuizAttempt` creation until the first answer. Probably filter + a one-off cleanup; deferred creation is a bigger change to `startQuizAttempt`'s contract.
+
 ### 3. ⬜ Spec 3B — tunable scoring — **PLAN READY TO EXECUTE**
 
 Spec: `specs/2026-08-05-spec3b-tunable-scoring-and-targeting-design.md`
