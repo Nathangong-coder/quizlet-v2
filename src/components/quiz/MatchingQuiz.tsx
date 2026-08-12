@@ -105,7 +105,19 @@ export const MatchingQuiz = forwardRef<QuizSectionHandle, MatchingQuizProps>(
     }
   }
 
-  useImperativeHandle(ref, () => ({ commitAll }), [matches, attemptId]);
+  // "Answered" in this section's own terms is a pair the learner placed. This
+  // is the same quantity commitAll's early return above tests
+  // (`matchesArray.length === 0`, built from these very entries), so a zero
+  // here means commitAll wrote nothing — exactly the condition the container's
+  // skipped-quiz check is asking about.
+  function answeredCount() {
+    return Object.keys(matches).length;
+  }
+
+  // `matches` is in the dep array, so the handle is rebuilt whenever a pair is
+  // placed or removed and never reports a stale count. Verified deliberately:
+  // a stale 0 would let the container discard an attempt the learner took.
+  useImperativeHandle(ref, () => ({ commitAll, answeredCount }), [matches, attemptId]);
 
   const matchedDefIds = Object.values(matches);
 

@@ -39,7 +39,25 @@ Forget now drops the **evidence**, not just the estimate, and a reset quiz is er
 
 **Known and deliberate:** matching-mode answers render through `MatchingReview`, which has no per-answer card, so they get no per-question erase control even on the permalink. Erasing them via the card or set scope works, as ③a confirmed.
 
-### 2b. ⬜ Empty quiz attempts — **DECIDED 2026-08-11, NOT BUILT. Small; do it before 3B.**
+### 2b. ✅ Empty quiz attempts — **BUILT 2026-08-12. Live gate NOT yet run.**
+
+Spec: `specs/2026-08-12-empty-quiz-attempts-design.md` · Plan: `plans/2026-08-12-empty-quiz-attempts.md`
+Commits `31b1a09` (Tasks 1, 2, 4, 5) and `3811797` (Tasks 3, 6 + the in-flight guard), branch `spec3b-tunable-scoring`, **not merged**.
+
+Tests **1021 → 1083** (96 files), `tsc` clean, lint **186 → 185** problems.
+
+An attempt with no `QuizAnswer` rows no longer counts as history. `ANSWERED_ATTEMPT_WHERE` (`src/lib/quiz/history.ts`) hides it at the two read paths that surface it; submitting a quiz with nothing answered discards it outright through the existing `executeErasure({ kind: 'attempt' })`; and `rescoreSetAttempts` stops a card deletion from stranding a score whose evidence is gone.
+
+**The open question from the deferral is resolved:** a card deletion **nulls the score**, it does not delete the attempt. Erasing memory is a request to destroy data; editing a set is not — and the cascaded population is reached by *another user's* edit.
+
+**⚠️ Task 9, the live gate, has NOT been run** — GitHub OAuth puts every signed-in page out of reach from an agent session (trap 6). Six checks are listed in the spec's §Testing. Until they run, this is verified only against mocks — and the lesson from item 2 is exactly that a green suite can sit over a statement Postgres rejects. **Record predictions before measuring.**
+
+**Two findings worth more than the code:**
+- The regression guards the plan named for the `updateSet` transaction conversion (`tests/cards/*`) are pure unit tests of helpers `updateSet` *calls* — they **cannot** detect a transaction-shape regression, and would have passed had the ordering been broken outright. Same failure mode as trap 8.
+- Restructuring `handleSubmitQuiz` nearly added a `finishStudySession` call on the grading-crash path, because the old shared `try` already skipped it. Caught by mutation testing, not by review.
+
+<details>
+<summary>The pre-build analysis, kept for the reasoning (populations, why deferred creation was rejected)</summary>
 
 Found during Task 11 live verification. **User's decision:** an un-answered quiz is a typo, not history — it should not appear at all.
 
@@ -49,7 +67,25 @@ Two distinct populations, and the obvious rule only covers one:
 
 So the rule is **zero answers ⇒ not history, scored or not.** Note the second population is the *same* invariant violation this deletion work exists to prevent — a derived number outliving its evidence — reached through the card-delete path rather than a forget verb. `scripts/check-memory-integrity.ts` already detects it (check 4).
 
-Decide between: filtering zero-answer attempts out of the history reads (no data loss, fixes display immediately), deleting them outright, and deferring `QuizAttempt` creation until the first answer. Probably filter + a one-off cleanup; deferred creation is a bigger change to `startQuizAttempt`'s contract.
+**The design, as far as it got 2026-08-12** (brainstormed, no spec written — resume from here rather than from scratch):
+
+- **Filter, don't delete.** One `ANSWERED_ATTEMPT_WHERE = { answers: { some: {} } }` in a new `src/lib/quiz/history.ts`, spread into exactly **two** reads: `getUserStats` (`src/actions/user.ts:42`) and the `repeatBonus` attempt window (`src/lib/metrics/read.ts:113`).
+- **The risk is INVERTED from `readableSetWhere`** — do not spread this one everywhere. The other four `quizAttempt` readers (in-flight lookups in `quiz.ts`/`quiz-matching.ts`, the print page, `erase-execute`) must NOT filter: an in-flight attempt has zero answers until the first submit, so over-applying breaks the first question of every quiz. Forgetting it shows a husk; over-applying takes quizzing down.
+- Safe to apply in `metrics/read.ts`: every error tag reaches an attempt via `quizAnswer.attemptId`, so any attempt a tag references has ≥1 answer by construction.
+- **Re-score on card delete, cross-user.** `updateSet` deletes cards with a plain `prisma.card.deleteMany` (`src/actions/sets.ts:293` — the only card-delete path found) and nothing recomputes the affected `QuizAttempt.score`. Recompute **every attempt on the set** rather than snapshotting affected ones first: the snapshot version needs ids captured before the cascade destroys the link, which makes ordering load-bearing and loses a concurrently-submitted answer; recomputing from ground truth is race-*tolerant*, since a concurrent submit derives the same score itself. No `userId` filter — sets are link-shareable and `startQuizAttempt` is readability-scoped, so the owner's edit strands **other learners'** scores. No privacy cost: each score comes only from that user's own surviving answers.
+- **Reuse, don't reimplement.** `planErasure` already has this exact rule at `src/lib/memory/erase.ts:380-410`. Extract it as `storedScore(answers)` into `src/lib/quiz/scoring.ts` (where `overallQuizScore` lives) and have both callers use it — the round-because-the-column-is-`Int` decision is currently duplicated in `quiz.ts` too.
+- Must write `null`. `quiz.ts:571` and `:750` both guard `if (newScore !== null)`, which is precisely how an attempt keeps a score after losing all its evidence.
+- **Out of scope, decided:** no cleanup sweep (the 2026-08-12 account reset already removed all 16), no change to empty `StudySession` rows (nothing lists them — `studySession.findMany` appears only in `erase-execute`), and card deletion does not become an erasure scope (`KlpState` already cascades correctly via `CardKlp → Card`, so the replay would be a no-op).
+- **Left open** when deferred: whether a card deletion that empties an attempt should *delete* it, matching `planErasure:384` ("would otherwise linger in the activity feed as a ghost quiz"), or merely null the score and let the filter hide it. Argument for keeping them different is intent — erasing memory is a request to destroy data; editing a set is not, and deleting another learner's row costs a destructiveness budget the editor was never given.
+
+**What was still broken** (all addressed by the build above; kept because the populations are the reasoning):
+- **Abandoned quizzes** — `startQuizAttempt` writes the row before any answer exists; closing the tab left it on `/profile` permanently. Now hidden by the read filter; **the rows still accumulate**, deliberately — no reliable client signal exists to delete them on.
+- **Cascaded evidence** — the `updateSet` path above. Now re-scored.
+- **Printable tests** are a third population, zero-answer *by design* (`/sets/[id]/print` reads the attempt), which is why "defer `QuizAttempt` creation until the first answer" was rejected outright — it would break print.
+
+It *looked* fixed at the time only because the 2026-08-12 account reset emptied the table.
+
+</details>
 
 ### 3. ⬜ Spec 3B — tunable scoring — **PLAN READY TO EXECUTE**
 
@@ -151,9 +187,9 @@ Never in memory — always in a spec's own section.
 
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-12)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-12, after item 2b)
 
-- **Tests:** 88 files / **1021 passing** (excluding `cursor-agents`)
+- **Tests:** 96 files / **1083 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
-- **`npm run lint`:** **186 problems** (133 errors, 53 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (Was 187 on 2026-08-09; the deletion work removed one by deleting the code that carried it.)
+- **`npm run lint`:** **185 problems** (133 errors, 52 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b.)
 - Branch is **not merged**, but IS pushed to `origin` (as of 2026-08-11). A Vercel preview deployment tracks it.

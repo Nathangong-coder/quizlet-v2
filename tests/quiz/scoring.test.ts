@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shuffleOptions, scoreMultipleChoice, overallQuizScore } from '@/lib/quiz/scoring';
+import { shuffleOptions, scoreMultipleChoice, overallQuizScore, storedScore } from '@/lib/quiz/scoring';
 
 describe('Quiz Scoring Helpers', () => {
   describe('shuffleOptions', () => {
@@ -61,6 +61,43 @@ describe('Quiz Scoring Helpers', () => {
     it('should return null when there are no scored answers', () => {
       expect(overallQuizScore([])).toBeNull();
       expect(overallQuizScore([{ score: null }, { score: null }])).toBeNull();
+    });
+  });
+
+  describe('storedScore', () => {
+    it('should return the mean when it is already an integer', () => {
+      expect(storedScore([{ score: 100 }, { score: 0 }])).toBe(50);
+      expect(storedScore([{ score: 100 }, { score: 99 }, { score: 50 }])).toBe(83);
+    });
+
+    it('should round a fractional mean to an integer', () => {
+      // 100/3 = 33.33... -> down
+      expect(storedScore([{ score: 100 }, { score: 0 }, { score: 0 }])).toBe(33);
+      // 200/3 = 66.66... -> up
+      expect(storedScore([{ score: 100 }, { score: 100 }, { score: 0 }])).toBe(67);
+    });
+
+    it('should pin the half-way rounding rule to Math.round (half up)', () => {
+      // Mean is exactly 62.5. Math.round -> 63; a truncating or half-to-even
+      // rule would give 62. This is the rule the Int column has always stored,
+      // so it is asserted, not left incidental.
+      expect(storedScore([{ score: 100 }, { score: 0 }, { score: 100 }, { score: 50 }])).toBe(63);
+      // Exactly 0.5 -> 1, again half UP rather than half to even.
+      expect(storedScore([{ score: 1 }, { score: 0 }])).toBe(1);
+      // Exactly 1.5 -> 2 (half to even would give 2 as well); 2.5 -> 3 is the
+      // case that separates them.
+      expect(storedScore([{ score: 3 }, { score: 2 }])).toBe(3);
+    });
+
+    it('should return null when there is nothing to average', () => {
+      expect(storedScore([])).toBeNull();
+      expect(storedScore([{ score: null }])).toBeNull();
+      expect(storedScore([{ score: null }, { score: null }])).toBeNull();
+    });
+
+    it('should exclude nulls from the denominator, not treat them as zero', () => {
+      expect(storedScore([{ score: 100 }, { score: null }])).toBe(100);
+      expect(storedScore([{ score: 100 }, { score: null }, { score: 0 }])).toBe(50);
     });
   });
 });

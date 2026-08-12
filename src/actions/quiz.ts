@@ -44,6 +44,11 @@ import { persistKlpStates, rebuildKlpStates, lockKlpStates } from '@/lib/metrics
 import type { StudySource } from '@/lib/memory/scoring';
 import { MC_TF_MAGNITUDE } from '@/lib/errors/bands';
 import { readableSetWhere } from '@/lib/sets/visibility';
+// Used only by `discardSkippedQuizAttempt` at the bottom of this file: the
+// skipped-quiz discard reuses the erasure machinery rather than deleting rows
+// itself, so the attempt, its session and its questions all go the same way
+// "reset this quiz" sends them.
+import { executeErasure } from '@/lib/memory/erase-execute';
 
 /**
  * Fisher-Yates. The correct answer must not sit in a predictable slot — the
@@ -1533,5 +1538,100 @@ export async function getTrueFalseQuestion(
   } catch (err) {
     console.error('getTrueFalseQuestion failed:', err);
     return { success: false, error: 'Failed to load question' };
+  }
+}
+
+/**
+ * A quiz submitted with nothing answered leaves no trace: the attempt, its
+ * StudySession and its cascading QuizQuestion rows are deleted outright.
+ *
+ * This is the ONE path where the learner's intent is knowable — pressing
+ * Submit having answered nothing is an explicit act, unlike closing a tab,
+ * which fires no handler and cannot be told from "the phone rang". Every other
+ * zero-answer attempt (abandoned, printable) is HIDDEN by a read filter rather
+ * than deleted, so nothing is destroyed if that rule turns out to be wrong.
+ *
+ * Deletion goes through `executeErasure`, the same call `resetQuizAttempt`
+ * makes — `planErasure` already carries a branch written for exactly this
+ * case (src/lib/memory/erase.ts:371-378: "An attempt the caller explicitly
+ * targeted but that the loader never enumerated — e.g. a zero-answer,
+ * never-completed quiz — must still be deleted"). No second copy of the
+ * deletion rules lives here.
+ *
+ * Discards only when ALL FOUR conditions hold. Each has its own test, because
+ * a single happy-path test passes with any one of them missing.
+ *
+ * Refusal is `success: true` with `discarded: false`, not an error: the caller
+ * falls through to the ordinary results screen, which is a normal outcome and
+ * not a failure. Only an erasure that actually threw returns `success: false`.
+ */
+export async function discardSkippedQuizAttempt(input: {
+  attemptId: string;
+  clientAnsweredCount: number;
+}): Promise<ActionResult<{ discarded: boolean }>> {
+  const session = await auth();
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+  const userId = session.user.id;
+
+  // CONDITION 1 — the learner's intent. Checked first because it is the
+  // cheapest (no query) and because it is the signal the rest only guards.
+  //
+  // This is NOT redundant with the server-side zero-answer check below, which
+  // is what it looks like at a glance. Individual answer failures do not
+  // throw: `commitAll` calls `showError` and continues
+  // (MultipleChoiceQuiz.tsx:83, ShortAnswerQuiz.tsx:51, TrueFalseQuiz.tsx:73).
+  // So a learner who answered three questions and hit an AI failure on all
+  // three ALSO reaches submit with zero stored answers and no exception.
+  // Without the client's count, that learner would be shown "Quiz Skipped" and
+  // have their attempt deleted — hiding a real failure behind a message saying
+  // they did nothing.
+  //
+  // The client may never order a deletion on its own, though: this is an
+  // intent signal, and conditions 2-4 below are the authority.
+  if (input.clientAnsweredCount !== 0) {
+    return { success: true, data: { discarded: false } };
+  }
+
+  try {
+    // CONDITION 4 — ownership, via an owner-scoped `findFirst`. Not-found and
+    // not-yours are deliberately indistinguishable, matching the erasure
+    // module's convention: a distinguishable error confirms a row exists to
+    // someone probing ids.
+    const attempt = await prisma.quizAttempt.findFirst({
+      where: { id: input.attemptId, userId },
+      select: { id: true, printable: true, _count: { select: { answers: true } } },
+    });
+    if (!attempt) return { success: true, data: { discarded: false } };
+
+    // CONDITION 3 — a printable attempt is created in order to be PRINTED and
+    // never submitted, so discarding one would be reaching outside this flow.
+    //
+    // The reason is worth stating precisely, because the obvious one ("a
+    // printed test must keep its row") is wrong: printing is not gated on this
+    // flag at all. `src/app/sets/[id]/print/page.tsx:46` reads any attempt of
+    // the caller's by id, and QuizContainer's own print button passes a
+    // NON-printable attempt's id. So this guard does not fully protect
+    // printing — a learner who prints and then submits blank still loses the
+    // row. Accepted: the printed PDF already exists.
+    if (attempt.printable) return { success: true, data: { discarded: false } };
+
+    // CONDITION 2 — the server's own count is the authority behind condition 1.
+    if (attempt._count.answers > 0) return { success: true, data: { discarded: false } };
+
+    await executeErasure(userId, { kind: 'attempt', attemptId: input.attemptId });
+
+    // Both surfaces that count attempts. Mirrors the `erase` verb in
+    // src/actions/memory.ts, which revalidates the same two paths.
+    revalidatePath('/profile');
+    revalidatePath('/profile/memory');
+
+    return { success: true, data: { discarded: true } };
+  } catch (err) {
+    // Reported as an error rather than a silent `discarded: false` so the
+    // caller degrades to the normal results screen: the attempt survives, and
+    // the zero-answer read filter hides it from history anyway — which is the
+    // whole point of hiding rather than deleting.
+    console.error('discardSkippedQuizAttempt failed:', err);
+    return { success: false, error: 'Failed to discard skipped quiz' };
   }
 }

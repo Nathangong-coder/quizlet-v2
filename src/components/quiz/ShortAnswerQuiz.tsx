@@ -52,7 +52,19 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
       }
     }
 
-    useImperativeHandle(ref, () => ({ commitAll }), [cards, answers, attemptId]);
+    // The one expression for "how many did they answer" in this section: read
+    // both by SectionNav's progress badge below and by the imperative handle
+    // the container sums at submit. The `.trim()` mirrors commitAll's own skip
+    // above — a box holding only whitespace is never submitted, so it must not
+    // count as an answer either, or a wholly blank quiz would look answered.
+    function answeredCount() {
+      return cards.filter(c => (answers[c.id] || '').trim()).length;
+    }
+
+    // `answers` is in the dep array, so the handle is rebuilt on every
+    // keystroke and never reports a stale count. Verified deliberately: a
+    // stale 0 would let the container discard an attempt the learner took.
+    useImperativeHandle(ref, () => ({ commitAll, answeredCount }), [cards, answers, attemptId]);
 
     function goNext() {
       setCurrentIndex(i => Math.min(i + 1, cards.length - 1));
@@ -64,8 +76,6 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
 
     const card = cards[currentIndex];
     if (!card) return <div className="text-center p-10">No cards available for this quiz.</div>;
-
-    const answeredCount = cards.filter(c => (answers[c.id] || '').trim()).length;
 
     return (
       <div className="max-w-xl mx-auto space-y-4">
@@ -86,7 +96,7 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
         <SectionNav
           index={currentIndex}
           total={cards.length}
-          answeredCount={answeredCount}
+          answeredCount={answeredCount()}
           onPrev={goPrev}
           onNext={goNext}
         />

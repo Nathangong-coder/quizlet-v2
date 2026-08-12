@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { masteryBucket } from '@/lib/memory/scoring';
 import { executeErasure } from '@/lib/memory/erase-execute';
+import { ANSWERED_ATTEMPT_WHERE } from '@/lib/quiz/history';
 
 type ActionResult<T> = {
   success: boolean;
@@ -40,7 +41,12 @@ export async function getUserStats(): Promise<ActionResult<UserStats>> {
   try {
     const [attempts, progress] = await Promise.all([
       prisma.quizAttempt.findMany({
-        where: { userId },
+        // One query feeds all four outputs below — totalAttempts, modeStats,
+        // overallAverageScore, recentAttempts — so this single predicate fixes
+        // all four at once. A filter that cleaned up the recent list but left
+        // the count inflated is the obvious half-fix, and it would be invisible
+        // on a page that shows both.
+        where: { userId, ...ANSWERED_ATTEMPT_WHERE },
         orderBy: { createdAt: 'desc' },
         include: { set: { select: { id: true, title: true } } },
       }),
