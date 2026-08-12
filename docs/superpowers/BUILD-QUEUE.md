@@ -39,7 +39,9 @@ Forget now drops the **evidence**, not just the estimate, and a reset quiz is er
 
 **Known and deliberate:** matching-mode answers render through `MatchingReview`, which has no per-answer card, so they get no per-question erase control even on the permalink. Erasing them via the card or set scope works, as ③a confirmed.
 
-### 2b. ⬜ Empty quiz attempts — **DECIDED 2026-08-11, NOT BUILT. Small; do it before 3B.**
+### 2b. ⏸️ Empty quiz attempts — **DEFERRED 2026-08-12 by the user. Designed, not built.**
+
+Dropped in favour of starting 3B. Cosmetic, single-user, and blocking nothing. **Do not read this as fixed** — see "What is actually still broken" at the end of this item.
 
 Found during Task 11 live verification. **User's decision:** an un-answered quiz is a typo, not history — it should not appear at all.
 
@@ -49,7 +51,23 @@ Two distinct populations, and the obvious rule only covers one:
 
 So the rule is **zero answers ⇒ not history, scored or not.** Note the second population is the *same* invariant violation this deletion work exists to prevent — a derived number outliving its evidence — reached through the card-delete path rather than a forget verb. `scripts/check-memory-integrity.ts` already detects it (check 4).
 
-Decide between: filtering zero-answer attempts out of the history reads (no data loss, fixes display immediately), deleting them outright, and deferring `QuizAttempt` creation until the first answer. Probably filter + a one-off cleanup; deferred creation is a bigger change to `startQuizAttempt`'s contract.
+**The design, as far as it got 2026-08-12** (brainstormed, no spec written — resume from here rather than from scratch):
+
+- **Filter, don't delete.** One `ANSWERED_ATTEMPT_WHERE = { answers: { some: {} } }` in a new `src/lib/quiz/history.ts`, spread into exactly **two** reads: `getUserStats` (`src/actions/user.ts:42`) and the `repeatBonus` attempt window (`src/lib/metrics/read.ts:113`).
+- **The risk is INVERTED from `readableSetWhere`** — do not spread this one everywhere. The other four `quizAttempt` readers (in-flight lookups in `quiz.ts`/`quiz-matching.ts`, the print page, `erase-execute`) must NOT filter: an in-flight attempt has zero answers until the first submit, so over-applying breaks the first question of every quiz. Forgetting it shows a husk; over-applying takes quizzing down.
+- Safe to apply in `metrics/read.ts`: every error tag reaches an attempt via `quizAnswer.attemptId`, so any attempt a tag references has ≥1 answer by construction.
+- **Re-score on card delete, cross-user.** `updateSet` deletes cards with a plain `prisma.card.deleteMany` (`src/actions/sets.ts:293` — the only card-delete path found) and nothing recomputes the affected `QuizAttempt.score`. Recompute **every attempt on the set** rather than snapshotting affected ones first: the snapshot version needs ids captured before the cascade destroys the link, which makes ordering load-bearing and loses a concurrently-submitted answer; recomputing from ground truth is race-*tolerant*, since a concurrent submit derives the same score itself. No `userId` filter — sets are link-shareable and `startQuizAttempt` is readability-scoped, so the owner's edit strands **other learners'** scores. No privacy cost: each score comes only from that user's own surviving answers.
+- **Reuse, don't reimplement.** `planErasure` already has this exact rule at `src/lib/memory/erase.ts:380-410`. Extract it as `storedScore(answers)` into `src/lib/quiz/scoring.ts` (where `overallQuizScore` lives) and have both callers use it — the round-because-the-column-is-`Int` decision is currently duplicated in `quiz.ts` too.
+- Must write `null`. `quiz.ts:571` and `:750` both guard `if (newScore !== null)`, which is precisely how an attempt keeps a score after losing all its evidence.
+- **Out of scope, decided:** no cleanup sweep (the 2026-08-12 account reset already removed all 16), no change to empty `StudySession` rows (nothing lists them — `studySession.findMany` appears only in `erase-execute`), and card deletion does not become an erasure scope (`KlpState` already cascades correctly via `CardKlp → Card`, so the replay would be a no-op).
+- **Left open** when deferred: whether a card deletion that empties an attempt should *delete* it, matching `planErasure:384` ("would otherwise linger in the activity feed as a ghost quiz"), or merely null the score and let the filter hide it. Argument for keeping them different is intent — erasing memory is a request to destroy data; editing a set is not, and deleting another learner's row costs a destructiveness budget the editor was never given.
+
+**What is actually still broken.** The deletion work fixed this *only* for the erasure path. Neither population passes through it:
+- **Abandoned quizzes** — `startQuizAttempt` writes the row before any answer exists; closing the tab leaves it on `/profile` permanently. Recurs the next time anyone abandons a quiz.
+- **Cascaded evidence** — the `updateSet` path above.
+- **Printable tests** are a third population, zero-answer *by design* (`/sets/[id]/print` reads the attempt), which is why "defer `QuizAttempt` creation until the first answer" was rejected outright — it would break print.
+
+It currently *looks* fixed only because the 2026-08-12 account reset emptied the table.
 
 ### 3. ⬜ Spec 3B — tunable scoring — **PLAN READY TO EXECUTE**
 
