@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-11
+**Last updated:** 2026-08-12
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -16,22 +16,24 @@ Branch `spec3b-tunable-scoring`, ~10 commits, **not merged**. Pushed to `origin`
 
 Sets are private by default, owner-togglable to link-shareable. Closed 10 read-by-id exposures. Verified live against the dev server and the real DB, not just in tests.
 
-### 2. 🟨 Deletion & forgetting — **BUILT, TASKS 1-10 OF 11. AWAITING LIVE VERIFICATION (Task 11).**
+### 2. ✅ Deletion & forgetting — DONE (2026-08-12), live-verified
 
 Spec: `specs/2026-08-10-deletion-and-forgetting-design.md` · Plan: `plans/2026-08-10-deletion-and-forgetting.md`
 Ledger: `.superpowers/sdd/2026-08-10-deletion-and-forgetting/progress.md`
-Branch `spec3b-tunable-scoring` (same branch as item 1), **not merged**. Pushed to `origin`, so a Vercel preview deployment exists for it — that is where Task 11 should be verified.
+Branch `spec3b-tunable-scoring` (same branch as item 1), **not merged**. Pushed to `origin`.
 
 Forget now drops the **evidence**, not just the estimate, and a reset quiz is erased outright rather than kept as a scored receipt. All six verbs — `deleteStudyEvent`, `forgetCard`, `forgetSet`, `resetQuizAttempt`, `resetQuizAnswer`, `resetUserMemory` — route through one module: a pure planner (`src/lib/memory/erase.ts`) plus a transactional executor (`src/lib/memory/erase-execute.ts`) that snapshots, deletes, then replays `CardProgress` and `KlpState` from what survives. Both defects the spec found are fixed: `StudySession` was missing from the account reset, and `QuizAttempt.score` no longer goes stale on partial deletion.
 
-**Task 11 live verification: checkpoints ①–③ PASSED against the real database on 2026-08-12.** Method: full snapshot + predictions recorded **in advance**, then one action, then measure. Every prediction hit.
+**Task 11 live verification: checkpoints ①–④ ALL PASSED against the real database on 2026-08-12.** Method: full snapshot + predictions recorded **in advance**, then one action, then measure. Every prediction hit.
 - **①** erase one answer → `answers −1`, **`events −1` (the FK cascade proven — no application code deletes that row)**, `attempt.score 77→65` recomputed via `overallQuizScore`, `session.itemCount 3→2` (stored planned count minus deletions, confirming the I-1 ruling).
 - **②** erase the last two → the attempt **and** its session deleted outright, not left as a scored husk (the I-3 fix).
 - **③a** forget a card with quiz history → **`klpStates −3`**, the behaviour change the whole spec exists for: those posteriors sat at `pKnown 0.871` and would previously have survived forever, beyond the backfill's reach. Two *different* attempts re-scored in one operation (96→95, 83→82); a `matching` answer erased via the card scope; the card's `CardKlp` definitions survived — you forget your history with a card, not the card.
 - **③b** forget a starred, never-studied card → `CardProgress` row deleted unconditionally. That is **C-1** from Task 5's review, the one defect no mocked test could reach.
 - `scripts/check-memory-integrity.ts` (run after each) asserts `KlpState.observations === count(surviving AnswerKlpResult)` for every row — a posterior still carrying a deleted answer reads `evidence + 1`. Clean throughout.
 
-**Only ④ remains: the Danger Zone full reset**, which must drive `sessions` to **0** (Task 7's fix — `StudySession` was absent from the reset list and both `sessionId` FKs are `SetNull`, so all sessions used to survive as husks). Deliberately left to the human; it is irreversible and destroys their real study history, which they have signed off on.
+- **④** account reset → every memory count **0**, including `sessions` (Task 7's fix; pre-fix all 21 would have survived as husks). Content untouched: 78 cards, 152 KLPs, 7 categories, 2 credentials, 152 content blocks. The reset erases history, not the library.
+
+**Unverified on purpose:** N-1 (set scope deleting `ConfidenceEvent` by `card: { setId }`, reaching cards whose *only* memory is a legacy confidence row). The corpus could not discriminate it — every card carrying `ConfidenceEvent` rows also had answers, so pre- and post-fix code behaved identically. Not worth manufacturing, since nothing derives from `ConfidenceEvent`. **Do not assume it was tested.**
 
 **Two bugs Task 11 found that the entire mocked suite could not** — this is the argument for keeping live verification as a gate: the `$queryRaw`/`void` advisory-lock failure (trap 8 below), which had also broken quiz submission outright, and "Forget this card" being effectively unreachable in the UI (fixed `f4236d9`; clicking a term in the activity feed now scopes to that card).
 
@@ -149,9 +151,9 @@ Never in memory — always in a spec's own section.
 
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-11)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-12)
 
-- **Tests:** 88 files / **1013 passing** (excluding `cursor-agents`)
+- **Tests:** 88 files / **1021 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
 - **`npm run lint`:** **186 problems** (133 errors, 53 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (Was 187 on 2026-08-09; the deletion work removed one by deleting the code that carried it.)
 - Branch is **not merged**, but IS pushed to `origin` (as of 2026-08-11). A Vercel preview deployment tracks it.
