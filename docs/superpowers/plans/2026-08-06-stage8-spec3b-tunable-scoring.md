@@ -14,6 +14,42 @@
 
 ---
 
+## Revision note — patched 2026-08-12
+
+The spec was revised on 2026-08-12 (see its §0) after three build items landed on
+this branch. Five things in this plan were wrong as a result and are corrected in
+place. **If you are executing from a cached copy, discard it.**
+
+1. **Task 7's attempt query must filter zero-answer attempts.** Queue item 2b
+   added `ANSWERED_ATTEMPT_WHERE` and applied it to `read.ts`'s `repeatBonus`
+   attempt window. The plan's Task 7 queried `{ userId }` unfiltered — a
+   different population, therefore different attempt indices, therefore a
+   different `repeatBonus` on the results screen than on the dashboard. That is
+   the exact disagreement §3.4 exists to prevent, and the old Task 7 test
+   *pinned* the wrong predicate. Corrected in Task 7, spec §3.4.1(a).
+2. **Task 7 must derive over a repeat-window CONTEXT, not one attempt.**
+   `deriveTagScores` builds `seen` only from the tags it is given and looks
+   strictly backward, so deriving over a single attempt makes `repeatBonus`
+   **structurally always 0** on the results screen. Every single-attempt fixture
+   passes anyway. Corrected in Task 7, spec §3.4.1(b).
+3. **`saveTuning` takes partial input.** Three panels writing one row with
+   read-modify-write reverts each other in ordinary use ("change a threshold,
+   change a band, save both"). Absent field now means "leave unchanged". This
+   deletes the "send the other two panels' values" instruction from Tasks 4,
+   8, 9 and 10. Spec §5.
+4. **`prisma migrate dev` is unusable from an agent shell** (BUILD-QUEUE trap 5 —
+   it needs a TTY). Task 1 now uses the `migrate diff` + `migrate deploy` route.
+5. **Baselines were stale**: 815 tests / 187 lint → **1083 tests / 96 files /
+   185 lint**, measured 2026-08-12. Bare `npx vitest run` and `npx tsc --noEmit`
+   are also wrong here — `cursor-agents/` in the project root breaks both
+   (trap 2). Every command below carries the excludes.
+
+Also note, from the spec's §0: **the live database now holds zero study
+history**, so the plan's headline demonstration (lower the floor, watch
+knowledge appear) cannot be run until the user studies again, and no
+signed-in page is reachable from an agent session (trap 6) — every by-hand step
+below is a **human gate**.
+
 ## Revision note — rewritten 2026-08-08
 
 This plan was first written 2026-08-06, **before** the hardening pass. It has been
@@ -76,7 +112,9 @@ second silently drops the topic signal.
 
 ## Global Constraints
 
-- Test runner is Vitest 4. Full suite: `npx vitest run` (~12s, currently **815 tests / 74 files**). Single file: `npx vitest run <path>`.
+- Test runner is Vitest 4. **`cursor-agents/` in the project root breaks bare `vitest`/`tsc`** (BUILD-QUEUE trap 2), so the full suite is
+  `npx vitest run --exclude "**/cursor-agents/**" --exclude "**/node_modules/**"` (~13s, measured **1083 tests / 96 files** on 2026-08-12) and the type check is
+  `npx tsc --noEmit 2>&1 | grep -v "^cursor-agents"`. Single file: `npx vitest run <path>`.
 - Tests import via the `@/` alias and live under `tests/<area>/`.
 - Pure modules must not import `@/lib/db`. DB shells import it **dynamically** (`await import('@/lib/db')`), as `src/lib/memory/profile.ts:344` does.
 - **A lib module must never import from `src/actions/*`.** Those are `'use server'` modules; the dependency runs the other way. This is why Task 4 splits the pure schema, the DB shell, and the actions into three files.
@@ -87,8 +125,9 @@ second silently drops the topic signal.
 - A corrupt stored blob falls back to defaults rather than throwing, matching `SESSION_INSIGHT_VERSION`'s precedent in `src/lib/memory/insight.ts:6`. A corrupt **save** is rejected with an error — a save is an explicit user act.
 - Server actions live in `src/actions/*.ts` with `'use server'` and return `ActionResult<T>` from `@/types/action` (`{ success: true; data: T } | { success: false; error: string; detail?: ErrorDetail }`). A `'use server'` module may export **only async functions** — no constants, no sync helpers. This is why `ANALYSIS_VERSION` lives in `persist.ts` and `RESET_MEMORY_MODELS` in `reset.ts`.
 - Migrations must be additive. Never accept a database reset; never pass `--force-reset` or `--accept-data-loss`. Return BLOCKED if a migration is anything else.
-- Run `npx tsc --noEmit` as well as the suite. Vitest does not type-check.
-- `npm run lint` baseline before this plan: **187 problems (130 errors, 57 warnings)**. Compare against that; do not fix unrelated pre-existing ones.
+- Run the type check (`npx tsc --noEmit 2>&1 | grep -v "^cursor-agents"`) as well as the suite. Vitest does not type-check.
+- `npm run lint` baseline before this plan: **185 problems (133 errors, 52 warnings)**, measured 2026-08-12. Compare against that; do not fix unrelated pre-existing ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after item 2b.)
+- **Sub-agents do not check lint unless told.** If this plan is executed in parallel, say so explicitly per task — a `Record<string, any>` added to satisfy `tsc` is three `no-explicit-any` errors, and it hides real fields from the type checker.
 - Commit after every task. Do not skip hooks.
 
 ---
@@ -168,12 +207,19 @@ Add the back-relation to `model User`, beside the existing `klpStates KlpState[]
 
 - [ ] **Step 2: Migrate**
 
-Run: `npx prisma migrate dev --name add_learner_tuning`
-Expected: one additive `CREATE TABLE "LearnerTuning"`, no reset prompt. If drift is reported, STOP and return BLOCKED — do not pass `--force-reset` or `--accept-data-loss`.
+**`prisma migrate dev` needs a TTY and has no non-interactive override** (BUILD-QUEUE trap 5), so it cannot be run from an agent shell. Generate the SQL and apply it:
+
+```bash
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+```
+
+Write the output to `prisma/migrations/<timestamp>_add_learner_tuning/migration.sql`, then `npx prisma migrate deploy`, then **re-run the diff** — "This is an empty migration" means zero residual drift.
+
+Expected SQL: one additive `CREATE TABLE "LearnerTuning"` plus its FK. If the diff contains a `DROP` of anything, STOP and return BLOCKED — never pass `--force-reset` or `--accept-data-loss`. Note `--from-schema-datasource` was removed in this Prisma version; the flag is `--from-config-datasource` (a `prisma.config.ts` exists).
 
 - [ ] **Step 3: Verify the client**
 
-Run: `npx tsc --noEmit`
+Run: `npx prisma generate && npx tsc --noEmit 2>&1 | grep -v "^cursor-agents"`
 Expected: clean; `prisma.learnerTuning` exists on the generated client.
 
 - [ ] **Step 4: Commit**
@@ -592,7 +638,7 @@ and leaving it until Task 3 means Task 2 ships an import that Task 3 must delete
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `npx vitest run tests/tuning/schema.test.ts tests/metrics/articulation.test.ts && npx tsc --noEmit`
+Run: `npx vitest run tests/tuning/schema.test.ts tests/metrics/articulation.test.ts && npx tsc --noEmit 2>&1 | grep -v "^cursor-agents"`
 Expected: all PASS — the re-export keeps `articulation.ts`'s existing behaviour and its
 existing test file byte-identical.
 
@@ -880,7 +926,7 @@ Update the `MIN_OBSERVATIONS` import to `import { DEFAULT_THRESHOLDS, type Metri
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `npx vitest run tests/metrics tests/memory && npx tsc --noEmit`
+Run: `npx vitest run tests/metrics tests/memory && npx tsc --noEmit 2>&1 | grep -v "^cursor-agents"`
 Expected: all PASS, including the ~31 pre-existing call sites that pass no `thresholds` — they must be byte-identical in behaviour.
 
 - [ ] **Step 6: Commit**
@@ -904,7 +950,7 @@ git commit -m "feat(spec3b): make the observation floor and articulation thresho
 - Produces:
   - `interface ResolvedTuning { bands: BandTable; thresholds: MetricThresholds; strategy: StrategyKey }`
   - `getUserTuning(userId: string): Promise<ResolvedTuning>` (`src/lib/tuning/store.ts`)
-  - `loadTuning(): Promise<ActionResult<TuningRow>>`, `saveTuning(input: { strategy: string; bandOverrides: unknown; thresholdOverrides: unknown }): Promise<ActionResult<TuningRow>>` (`src/actions/learner-tuning.ts`)
+  - `loadTuning(): Promise<ActionResult<TuningRow>>`, `saveTuning(input: { strategy?: string; bandOverrides?: unknown; thresholdOverrides?: unknown }): Promise<ActionResult<TuningRow>>` — **every field optional; absent means leave unchanged** (spec §5) (`src/actions/learner-tuning.ts`)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1042,66 +1088,93 @@ export async function loadTuning(): Promise<ActionResult<TuningRow>> {
   return { success: true, data: shapeTuning(row) }
 }
 
+/**
+ * PARTIAL by design (spec §5). An ABSENT field means "leave unchanged"; a
+ * present one is written. Three panels edit this one row, and a
+ * write-all-three action forces each panel to echo back values it read at
+ * mount — so the ordinary sequence "change a threshold, change a band, save
+ * both" reverts one of them. That bug is invisible to a single-panel test.
+ *
+ * `bandOverrides: {}` is NOT the same as absent: it is the global reset, and
+ * it must stay expressible.
+ */
 export async function saveTuning(input: {
-  strategy: string
-  bandOverrides: unknown
-  thresholdOverrides: unknown
+  strategy?: string
+  bandOverrides?: unknown
+  thresholdOverrides?: unknown
 }): Promise<ActionResult<TuningRow>> {
   const session = await auth()
   if (!session?.user?.id) return { success: false, error: 'Not signed in' }
+  const userId = session.user.id
 
   // Reject rather than salvage: a save is an explicit user act, so invalid
   // input must surface as an error instead of being silently discarded the way
   // a corrupt STORED blob is.
-  const bands = BandOverridesSchema.safeParse(input.bandOverrides ?? {})
-  if (!bands.success) {
-    return {
-      success: false,
-      error: 'Each band must be two whole numbers from 1 to 5, with the first no larger than the second.',
-    }
-  }
-  const thresholds = ThresholdOverridesSchema.safeParse(input.thresholdOverrides ?? {})
-  if (!thresholds.success) {
-    return {
-      success: false,
-      error: 'Thresholds must be within range: evidence floor 1-50, articulation confidence 0-1, readiness weight above 0.',
-    }
-  }
-  const strategy = parseStrategy(input.strategy)
+  const data: {
+    strategy?: string
+    bands?: BandOverrides
+    thresholds?: ThresholdOverrides
+    version: number
+  } = { version: TUNING_VERSION }
 
-  const data = {
-    strategy,
-    bands: bands.data,
-    thresholds: thresholds.data,
-    version: TUNING_VERSION,
+  if (input.bandOverrides !== undefined) {
+    const bands = BandOverridesSchema.safeParse(input.bandOverrides)
+    if (!bands.success) {
+      return {
+        success: false,
+        error: 'Each band must be two whole numbers from 1 to 5, with the first no larger than the second.',
+      }
+    }
+    data.bands = bands.data as BandOverrides
   }
+  if (input.thresholdOverrides !== undefined) {
+    const thresholds = ThresholdOverridesSchema.safeParse(input.thresholdOverrides)
+    if (!thresholds.success) {
+      return {
+        success: false,
+        error: 'Thresholds must be within range: evidence floor 1-50, articulation confidence 0-1, readiness weight above 0.',
+      }
+    }
+    data.thresholds = thresholds.data as ThresholdOverrides
+  }
+  if (input.strategy !== undefined) data.strategy = parseStrategy(input.strategy)
 
   const { prisma } = await import('@/lib/db')
-  await prisma.learnerTuning.upsert({
-    where: { userId: session.user.id },
-    create: { userId: session.user.id, ...data },
+  // `create` needs the full row; `update` writes only the named fields, which
+  // is what makes an absent field a no-op rather than a null.
+  const row = await prisma.learnerTuning.upsert({
+    where: { userId },
+    create: {
+      userId,
+      strategy: data.strategy ?? 'balanced',
+      bands: data.bands ?? {},
+      thresholds: data.thresholds ?? {},
+      version: TUNING_VERSION,
+    },
     update: data,
+    select: { strategy: true, bands: true, thresholds: true },
   })
 
   revalidatePath('/settings/ai')
-  return {
-    success: true,
-    data: {
-      strategy,
-      bandOverrides: bands.data as BandOverrides,
-      thresholdOverrides: thresholds.data as ThresholdOverrides,
-    },
-  }
+  // Returned from the ROW, not from the input, so the caller sees what the
+  // other panels' fields actually hold rather than the blanks it sent.
+  return { success: true, data: shapeTuning(row) }
 }
 ```
 
-**`saveTuning` writes all three fields on every call.** The panels must therefore send
-the *current* values of the fields they are not editing, or a strategy change wipes the
-band overrides. Tasks 8-10 each state this; Task 9 Step 3 verifies it by hand.
+**Add to `tests/tuning/store.test.ts`** (mock `learnerTuning.upsert` alongside
+`findUnique`) — this is the regression the partial shape exists to prevent:
+
+- saving only `strategy` sends **no** `bands` key in the `update` payload;
+- saving `bandOverrides: {}` **does** send `bands: {}` (the global reset survives);
+- an invalid band is rejected and **nothing is written** (`upsert` not called).
+
+Mutation-check it: make `saveTuning` always write all three fields and confirm the
+first assertion reddens. Without that run, the guard is decoration.
 
 - [ ] **Step 5: Verify**
 
-Run: `npx vitest run tests/tuning && npx tsc --noEmit`
+Run: `npx vitest run tests/tuning && npx tsc --noEmit 2>&1 | grep -v "^cursor-agents"`
 Expected: both PASS. If `'use server'` rejects any non-async export from
 `src/actions/learner-tuning.ts`, the offending symbol belongs in `src/lib/tuning/schema.ts`
 — that module already holds every constant and sync helper for exactly this reason.
@@ -1509,7 +1582,7 @@ export function toRankCandidates(source: CandidateSource): RankCandidate[] {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run tests/metrics/targeting.test.ts && npx tsc --noEmit`
+Run: `npx vitest run tests/metrics/targeting.test.ts && npx tsc --noEmit 2>&1 | grep -v "^cursor-agents"`
 Expected: both PASS.
 
 - [ ] **Step 5: Mutation check**
@@ -1768,7 +1841,7 @@ rule this file's exemption from unit tests rests on.
 
 - [ ] **Step 6: Verify**
 
-Run: `npx vitest run tests/metrics tests/memory && npx tsc --noEmit`
+Run: `npx vitest run tests/metrics tests/memory && npx tsc --noEmit 2>&1 | grep -v "^cursor-agents"`
 Expected: all PASS.
 
 Confirm by inspection that **no background job, `after()` call, or replay was added** on
@@ -1798,8 +1871,8 @@ note.
 - Read (probably unmodified): `src/components/quiz/QuizSummary.tsx`
 
 **Interfaces:**
-- Consumes: `toStoredTags`, `deriveTagScores` from `@/lib/errors/derive`; `getUserTuning` from `@/lib/tuning/store` (Task 4)
-- Produces: attempt-summary answers whose `errorTags` carry derived `severity` and `significance`
+- Consumes: `toStoredTags`, `deriveTagScores`, `REPEAT_WINDOW_ATTEMPTS` from `@/lib/errors/derive`; `ANSWERED_ATTEMPT_WHERE` from `@/lib/quiz/history`; `getUserTuning` from `@/lib/tuning/store` (Task 4)
+- Produces: attempt-summary answers whose `errorTags` carry derived `severity`, `significance` and `repeatBonus`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1871,10 +1944,16 @@ describe('read-time derivation on the attempt summary (Spec 3B §3.4)', () => {
     expect(derivedTag.dimension).toBe('accuracy')
   })
 
-  it('draws the repeat window from the user\'s REAL attempt sequence, not from the tags', async () => {
-    // Deriving attempt order from the tags makes CLEAN attempts invisible, so
-    // an error repeated after ten flawless sittings still scores "+1, they keep
-    // doing this". The query must be unscoped and chronological.
+  it('draws the repeat window from the user\'s REAL ANSWERED attempt sequence', async () => {
+    // Two requirements in one assertion, spec §3.4.1(a):
+    //  - unscoped and chronological: deriving the order from the tags makes
+    //    CLEAN attempts invisible, so an error repeated after ten flawless
+    //    sittings still scores "+1, they keep doing this";
+    //  - ANSWERED_ATTEMPT_WHERE: `src/lib/metrics/read.ts:122` filters
+    //    zero-answer attempts out of this exact window, and abandoned attempts
+    //    still accumulate in the table (item 2b filters rather than deletes).
+    //    An unfiltered query here gives the SAME attempt a different index and
+    //    therefore a different repeatBonus than the dashboard computes.
     h.tuningFindUnique.mockResolvedValue(null)
     h.attemptFindFirst.mockResolvedValue({
       id: 'a9', userId: OWNER, session: null, answers: [answerWith({})],
@@ -1884,13 +1963,63 @@ describe('read-time derivation on the attempt summary (Spec 3B §3.4)', () => {
     await getQuizAttemptSummary('a9')
     expect(h.attemptFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { userId: OWNER },
+        where: { userId: OWNER, ...ANSWERED_ATTEMPT_WHERE },
         orderBy: { createdAt: 'asc' },
       }),
     )
   })
+
+  it('awards a repeat bonus for an error the learner made in a PRIOR attempt', async () => {
+    // Spec §3.4.1(b). deriveTagScores builds `seen` only from the tags it is
+    // given and looks STRICTLY backward, so deriving over one attempt's tags
+    // makes repeatBonus structurally always 0 — the code runs, every
+    // single-attempt fixture passes, and the number is wrong for exactly the
+    // learner the bonus describes. This fixture is the only kind that can fail.
+    h.tuningFindUnique.mockResolvedValue(null)
+    h.attemptFindFirst.mockResolvedValue({
+      id: 'a2', userId: OWNER, session: null, answers: [answerWith({})],
+    })
+    h.attemptFindMany.mockResolvedValue([{ id: 'a1' }, { id: 'a2' }])
+    // The same (type, klpId) in the immediately preceding attempt.
+    h.errorTagFindMany.mockResolvedValue([{
+      dimension: 'accuracy', type: 'inversion', klpId: 'klp1', secondaryKlpId: null,
+      relevance: 3, starred: false, magnitude: 10, mode: 'quiz-sa',
+      severity: 5, significance: 9, quote: null,
+      createdAt: new Date('2026-08-05T00:00:00Z'),
+      quizAnswer: { attemptId: 'a1', cardId: 'c1' },
+    }])
+
+    const res = await getQuizAttemptSummary('a2')
+    const [derivedTag] = (res as { data: any }).data.attempt.answers[0].errorTags
+    expect(derivedTag.repeatBonus).toBe(1)
+  })
+
+  it('scopes the repeat context to the window, the user, and analyzed answers', async () => {
+    // Bounded by REPEAT_WINDOW_ATTEMPTS because that is exactly how far back
+    // the bonus looks; `analysisStatus: 'analyzed'` because that is the
+    // population `read.ts`'s tag query uses, and a context drawn from a wider
+    // one reintroduces the divergence from the other side.
+    h.tuningFindUnique.mockResolvedValue(null)
+    h.attemptFindFirst.mockResolvedValue({
+      id: 'a5', userId: OWNER, session: null, answers: [answerWith({})],
+    })
+    h.attemptFindMany.mockResolvedValue(
+      ['a1', 'a2', 'a3', 'a4', 'a5'].map((id) => ({ id })),
+    )
+
+    await getQuizAttemptSummary('a5')
+    const where = h.errorTagFindMany.mock.calls[0][0].where
+    expect(where.quizAnswer.analysisStatus).toBe('analyzed')
+    // a2, a3, a4 — the REPEAT_WINDOW_ATTEMPTS answered attempts before a5.
+    // Not a1, and not a5 itself (its tags are already in hand).
+    expect(where.quizAnswer.attemptId.in).toEqual(['a2', 'a3', 'a4'])
+  })
 })
 ```
+
+Add `import { ANSWERED_ATTEMPT_WHERE } from '@/lib/quiz/history'` to the test file, and
+`answerErrorTag: { findMany: h.errorTagFindMany }` to the `vi.mock('@/lib/db')` block
+(defaulting to `[]` in `beforeEach`).
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -1910,19 +2039,52 @@ return value:
     // retune visibly re-scores history, which is the point of the knob.
     const [tuning, attemptOrder] = await Promise.all([
       getUserTuning(session.user.id),
-      // The learner's REAL attempt sequence — unscoped and chronological.
-      // Deriving it from the tags would make CLEAN attempts invisible, so
-      // `repeatBonus` fires for an error fixed ten sittings ago. Same source
-      // `src/lib/metrics/read.ts` uses.
+      // The learner's REAL attempt sequence — unscoped, chronological, and
+      // ANSWERED-ONLY. Deriving it from the tags would make CLEAN attempts
+      // invisible, so `repeatBonus` fires for an error fixed ten sittings ago.
+      // `ANSWERED_ATTEMPT_WHERE` because `src/lib/metrics/read.ts:122` filters
+      // this same window: an abandoned attempt left in the sequence here shifts
+      // every index and makes the two screens disagree. Spec §3.4.1(a).
       prisma.quizAttempt.findMany({
-        where: { userId: session.user.id },
+        where: { userId: session.user.id, ...ANSWERED_ATTEMPT_WHERE },
         orderBy: { createdAt: 'asc' },
         select: { id: true },
       }),
     ]);
 
-    // One derivation across the whole attempt, not one per answer: repeatBonus
-    // is a cross-tag judgement and must see every tag at once.
+    // The repeat-window CONTEXT. `deriveTagScores` builds its `seen` set only
+    // from the tags handed to it and looks strictly backward, so deriving over
+    // this attempt alone makes `repeatBonus` structurally always 0 — spec
+    // §3.4.1(b). REPEAT_WINDOW_ATTEMPTS positions back is exactly as far as the
+    // bonus can see, so a wider query would be waste and a narrower one wrong.
+    // `analysisStatus: 'analyzed'` matches the dashboard's tag population; an
+    // answer can carry tags under `no_klps`/`no_provenance` and `read.ts`
+    // excludes those.
+    const here = attemptOrder.findIndex((a) => a.id === attempt.id);
+    const windowIds = (here === -1 ? attemptOrder : attemptOrder.slice(0, here))
+      .slice(-REPEAT_WINDOW_ATTEMPTS)
+      .map((a) => a.id);
+
+    const contextRows = windowIds.length === 0 ? [] : await prisma.answerErrorTag.findMany({
+      where: {
+        quizAnswer: {
+          userId: session.user.id,
+          attemptId: { in: windowIds },
+          analysisStatus: 'analyzed',
+        },
+      },
+      select: {
+        dimension: true, type: true, klpId: true, relevance: true, starred: true,
+        magnitude: true, mode: true, severity: true, significance: true,
+        createdAt: true,
+        quizAnswer: { select: { attemptId: true, cardId: true } },
+      },
+    });
+
+    // One derivation across the whole attempt plus its context, not one per
+    // answer: repeatBonus is a cross-tag judgement and must see every tag at
+    // once. The context tags are then discarded — only this attempt's are read
+    // back out.
     const flatTags = attempt.answers.flatMap((a: any) =>
       (a.errorTags ?? []).map((t: any) => ({
         ...t,
@@ -1930,17 +2092,18 @@ return value:
       })),
     );
     const derived = deriveTagScores(
-      toStoredTags(flatTags),
+      toStoredTags([...contextRows, ...flatTags] as any),
       tuning.bands,
       attemptOrder.map((a) => a.id),
     );
 
-    // Keyed positionally: deriveTagScores re-sorts chronologically, so index
-    // alignment with `flatTags` is NOT safe. Match on the identity a tag
-    // actually has within one attempt.
+    // NOT keyed positionally: deriveTagScores re-sorts chronologically and the
+    // array now also holds context tags from other attempts, so index alignment
+    // with `flatTags` is not safe. `attemptId` is part of the key for the same
+    // reason — without it a context tag could shadow one of this attempt's.
     const derivedByKey = new Map(
       derived.map((d) => [
-        `${d.cardId}::${d.type}::${d.klpId ?? 'whole'}::${d.createdAt.getTime()}`,
+        `${d.attemptId}::${d.cardId}::${d.type}::${d.klpId ?? 'whole'}::${d.createdAt.getTime()}`,
         d,
       ]),
     );
@@ -1949,11 +2112,16 @@ return value:
       ...a,
       errorTags: (a.errorTags ?? []).map((t: any) => {
         const d = derivedByKey.get(
-          `${a.cardId}::${t.type}::${t.klpId ?? 'whole'}::${new Date(t.createdAt).getTime()}`,
+          `${attempt.id}::${a.cardId}::${t.type}::${t.klpId ?? 'whole'}::${new Date(t.createdAt).getTime()}`,
         );
         // Spread the ORIGINAL row first so the joined `klp`/`secondaryKlp`
-        // objects survive; overlay only the two derived numbers.
-        return d ? { ...t, severity: d.severity, significance: d.significance } : t;
+        // objects survive; overlay only the derived numbers. `repeatBonus` is
+        // carried too — it is what lets a badge explain WHY a significance is
+        // higher than the base, and the test asserts it directly rather than
+        // inferring it from an arithmetic difference.
+        return d
+          ? { ...t, severity: d.severity, significance: d.significance, repeatBonus: d.repeatBonus }
+          : t;
       }),
     }));
 ```
@@ -1961,25 +2129,47 @@ return value:
 Add the imports at the top of `src/actions/quiz.ts`:
 
 ```ts
-import { toStoredTags, deriveTagScores } from '@/lib/errors/derive';
+import { toStoredTags, deriveTagScores, REPEAT_WINDOW_ATTEMPTS } from '@/lib/errors/derive';
+import { ANSWERED_ATTEMPT_WHERE } from '@/lib/quiz/history';
 import { getUserTuning } from '@/lib/tuning/store';
 ```
 
 - [ ] **Step 4: Confirm the component needs no change**
 
-`QuizSummary.tsx:148` sorts by `t.significance` and `rollupSessionAnalysis` sums
-`tag.significance` (`src/lib/analysis/rollup.ts:62`). Both now receive derived values via
+`QuizSummary.tsx:157` sorts by `t.significance` and `rollupSessionAnalysis` sums
+`tag.significance` (`src/lib/analysis/rollup.ts`). Both now receive derived values via
 the same objects, so **no component change should be required**. Verify that by reading
 the data path — `QuizSummary` → `ErrorTagBadges` → `t.significance`, and
 `rollupSessionAnalysis(attempt.answers)` → `RollupErrorTag.significance` — and only edit
 if some other site reads a stored field directly.
 
-- [ ] **Step 5: Verify**
+If a component test does need touching: trap 7 — a client component that gains a
+server-action import kills every jsdom test that renders it (`next-auth` in the browser
+env, failing at load before any test runs). Mock the action module, as
+`tests/components/QuizSummary.test.tsx` already does. Trap 9 — `// @vitest-environment jsdom`
+must be the literal first line, and the file must call `afterEach(cleanup)` itself.
 
-Run: `npx vitest run tests/actions tests/components && npx tsc --noEmit`
+- [ ] **Step 5: Mutation check**
+
+Introduce each, run `tests/actions/quiz-summary-analysis.test.ts`, confirm a test FAILS,
+then revert. Three of these are the defects this task exists to prevent, and each is a
+shape that a single-attempt fixture passes happily:
+
+- (a) drop `ANSWERED_ATTEMPT_WHERE` from the attempt-order query
+- (b) drop the context query and derive over `flatTags` alone (repeatBonus → always 0)
+- (c) widen the context window to every attempt instead of `REPEAT_WINDOW_ATTEMPTS`
+- (d) drop `analysisStatus: 'analyzed'` from the context query
+- (e) overlay the derived tag wholesale instead of spreading the original first
+      (the joined `klp.text` disappears)
+
+Report all five. If any survives, add an assertion that kills it and re-verify.
+
+- [ ] **Step 6: Verify**
+
+Run: `npx vitest run tests/actions tests/components --exclude "**/cursor-agents/**" && npx tsc --noEmit 2>&1 | grep -v "^cursor-agents"`
 Expected: all PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/actions/quiz.ts tests/actions/quiz-summary-analysis.test.ts
@@ -2010,9 +2200,9 @@ Requirements:
   reset. A global reset clears every band override.
 - Validation mirrors the server: integers 1-5, floor ≤ ceiling. Rejected, not clamped —
   show the error and leave the input as typed.
-- **Send the current `thresholdOverrides` and `strategy` alongside.** `saveTuning` writes
-  all three fields, so omitting them wipes the other two panels' settings. Read them from
-  `loadTuning` on mount and pass them straight back.
+- **Send ONLY `bandOverrides`.** `saveTuning` is partial (spec §5) — an absent field is
+  left unchanged — so this panel must not echo back the strategy or thresholds it read at
+  mount. Echoing them is what reverts a sibling panel's save.
 
 - [ ] **Step 2: State the two consequences in the UI**
 
@@ -2053,13 +2243,15 @@ Add `<SeverityBandPanel />` to `src/app/settings/ai/page.tsx` below `<TaskRoutin
 
 - [ ] **Step 4: Verify**
 
-Run: `npx tsc --noEmit && npx vitest run && npm run lint 2>&1 | tail -3`
-Expected: type-check and suite pass; **no new lint problems versus the 187-problem
+Run: `npx tsc --noEmit 2>&1 | grep -v "^cursor-agents" && npx vitest run --exclude "**/cursor-agents/**" --exclude "**/node_modules/**" && npm run lint 2>&1 | tail -3`
+Expected: type-check and suite pass; **no new lint problems versus the 185-problem
 baseline** — compare, do not fix unrelated ones.
 
-Then run the app (`npm run dev`), open `/settings/ai`, and confirm by hand: a band edit
-saves and reloads; an inverted band is rejected with a readable message; a reset restores
-the default; both consequence warnings are visible.
+**HUMAN GATE.** No signed-in page is reachable from an agent session (trap 6: GitHub
+OAuth only, no `GITHUB_ID` in `.env`), so hand this to the user rather than attempting it:
+run `NEXTAUTH_SECRET=dev-only AUTH_SECRET=dev-only npm run dev`, open `/settings/ai`, and
+confirm a band edit saves and reloads; an inverted band is rejected with a readable
+message; a reset restores the default; both consequence warnings are visible.
 
 - [ ] **Step 5: Commit**
 
@@ -2100,9 +2292,8 @@ Also state, honestly, that **the ranking it controls is not yet displayed anywhe
 the learner dashboard that consumes it is Spec 3C. A setting that appears to do nothing
 is worse than one labelled as forthcoming.
 
-**Saving must preserve the other two panels' settings:** `saveTuning` writes strategy,
-bands and thresholds together, so read the current tuning and send the existing
-`bandOverrides` and `thresholdOverrides` alongside the new strategy, or the save wipes them.
+**Send ONLY `strategy`.** `saveTuning` is partial (spec §5); an absent field is left
+unchanged, so this panel neither knows nor echoes what the other two hold.
 
 - [ ] **Step 2: Mount it**
 
@@ -2110,13 +2301,14 @@ Add `<TargetingStrategyPanel />` to `src/app/settings/ai/page.tsx`.
 
 - [ ] **Step 3: Verify**
 
-Run: `npx tsc --noEmit && npx vitest run`
+Run: `npx tsc --noEmit 2>&1 | grep -v "^cursor-agents" && npx vitest run --exclude "**/cursor-agents/**" --exclude "**/node_modules/**"`
 Expected: PASS.
 
-By hand at `/settings/ai`: selecting a strategy persists across reload, and **changing
-the strategy does not clear a band override** — set an override first, then change the
-strategy, then reload and confirm the override survives. That is the regression this
-step exists to prevent, and it is reachable because `saveTuning` writes all three fields.
+**HUMAN GATE** (trap 6) at `/settings/ai`: selecting a strategy persists across reload,
+and **changing the strategy does not clear a band override** — set an override first,
+then change the strategy, then reload and confirm the override survives. Partial saves
+(spec §5) are what make this hold; the Task 4 unit test covers the payload, this covers
+the round trip.
 
 - [ ] **Step 4: Commit**
 
@@ -2158,8 +2350,7 @@ computed from one answer is a guess with a number attached. Frame the trade-off 
 interview next week justifies acting on thinner evidence than one six months out — rather
 than presenting it as a "show more data" toggle.
 
-**Send the current `bandOverrides` and `strategy` alongside**, for the same reason
-Tasks 8 and 9 do.
+**Send ONLY `thresholdOverrides`**, for the same reason Tasks 8 and 9 send only their own.
 
 - [ ] **Step 2: Mount it**
 
@@ -2167,13 +2358,13 @@ Add `<MetricThresholdPanel />` to `src/app/settings/ai/page.tsx`.
 
 - [ ] **Step 3: Verify**
 
-Run: `npx tsc --noEmit && npx vitest run && npm run lint 2>&1 | tail -3`
-Expected: type-check and suite pass; no new lint problems versus the 187 baseline.
+Run: `npx tsc --noEmit 2>&1 | grep -v "^cursor-agents" && npx vitest run --exclude "**/cursor-agents/**" --exclude "**/node_modules/**" && npm run lint 2>&1 | tail -3`
+Expected: type-check and suite pass; no new lint problems versus the 185 baseline.
 
-By hand at `/settings/ai`: set `minObservations` to 1, save, reload, and confirm it
-persists; enter 0 and confirm it is rejected with a readable message; reset restores 3.
-Then confirm the cross-panel invariant once more — set a band override AND a threshold
-AND a strategy, reload, and check all three survived.
+**HUMAN GATE** (trap 6) at `/settings/ai`: set `minObservations` to 1, save, reload, and
+confirm it persists; enter 0 and confirm it is rejected with a readable message; reset
+restores 3. Then the cross-panel invariant once more — set a band override AND a
+threshold AND a strategy, reload, and check all three survived.
 
 - [ ] **Step 4: Commit**
 
@@ -2186,19 +2377,25 @@ git commit -m "feat(spec3b): add the metric threshold settings panel"
 
 ## Final verification
 
-- [ ] `npx vitest run` — full suite green (expect **>815** tests; the baseline before this plan is 815 / 74 files)
-- [ ] `npx tsc --noEmit` — clean
-- [ ] `npm run lint` — no new problems versus the **187** baseline
-- [ ] Retune a band, then confirm the SAME error shows the SAME severity on a scoped metric read and on the quiz results screen. Disagreement means Task 7 is incomplete.
+- [ ] `npx vitest run --exclude "**/cursor-agents/**" --exclude "**/node_modules/**"` — full suite green (expect **>1083** tests; the baseline before this plan is 1083 / 96 files, measured 2026-08-12)
+- [ ] `npx tsc --noEmit 2>&1 | grep -v "^cursor-agents"` — clean
+- [ ] `npm run lint` — no new problems versus the **185** baseline
+- [ ] Retune a band, then confirm the SAME error shows the SAME severity **and the same significance** on an unscoped metric read and on the quiz results screen — including a tag that is a repeat within `REPEAT_WINDOW_ATTEMPTS`. Severity agreeing is not sufficient: it is pure in the tag, so it agrees even when `repeatBonus` does not. Disagreement means Task 7 is incomplete. (A *scoped* read may legitimately differ — spec §3.4.2.)
 - [ ] Confirm **no** background job, `after()` call, or replay is triggered by any tuning save — there must not be one. Grep the diff for `after(`, `rebuildKlpStates`, and `backfill`.
+- [ ] Confirm `LearnerTuning` was **not** added to `ERASABLE_MEMORY_MODELS`/`RESET_MEMORY_MODELS` — a preference is not memory (spec §2.3), and `tests/memory/erase-coverage.test.ts` should still pass untouched.
+
+**Human gates — hand these to the user** (trap 6; and per spec §0 the live database
+currently holds **zero** study history, so the last one is blocked until they have
+quizzed again. Do not substitute seeded data):
+
 - [ ] Set all three knob types, reload `/settings/ai`, and confirm none of the three panels wiped another's values.
-- [ ] Lower `minObservations` to 1 against the real database and confirm topic knowledge renders where it previously read null. That is the concrete payoff: at the shipped floor of 3, with 19 answers and every KLP seen exactly once, **zero** topics report knowledge.
+- [ ] Lower `minObservations` to 1 against the real database and confirm topic knowledge renders where it previously read null. That is the concrete payoff, and it needs at least one KLP carrying an observation to be visible at all.
 
 ## Deliberately NOT in this plan
 
 - **A UI for `ranked`.** Spec 3C's dashboard. Task 6 builds the API; nothing renders it.
 - **Wiring `topics` into `profileToPromptBlock`.** All callers still hardcode `topics: []` (Spec 3 §14). Fixing it also requires giving the topic section a reserved character budget, since `capBlock` truncates it first — do both or neither, in 3C.
-- **Per-topic band overrides** (harsher on accounting than on vocabulary). Spec §6 defers them; the versioned blob tolerates the addition.
+- **Per-topic band overrides** (harsher on accounting than on vocabulary). Spec §7 defers them; the versioned blob tolerates the addition.
 - **Recomputing history on save.** There is nothing to recompute. See the Global Constraints.
 - **Seeding synthetic study data** to make the thin corpus look populated. The posterior is incremental and not self-correcting, so fabricated evidence does not cleanly come back out.
 
@@ -2209,9 +2406,12 @@ git commit -m "feat(spec3b): add the metric threshold settings panel"
 | §2 data model, sparse overrides, blob rationale | 1, 2 |
 | §3.1 panel, validation rejects not clamps | 2, 8 |
 | §3.2 the two consequences stated in the UI | 8 |
+| §2.3 tuning is a preference, not memory — absent from the erasure models | 1 (by omission — asserted in final verification) |
 | §3.3 saving triggers no recomputation | 6 (by omission — asserted in final verification) |
 | §3.4 every surface derives | 7 |
-| §4 strategies, KLP candidate, observation floor | 3, 5, 6, 9 |
-| §5 testing | every task |
-| §6 deferred (per-topic overrides) | not implemented, by design |
-| Beyond spec: `MIN_OBSERVATIONS`, `ARTICULATION_MIN_PKNOWN`, `READINESS_WEIGHT_PER_ANSWER` as knobs | 2, 3, 10 |
+| §3.4.1 same attempt population + repeat-window context | 7 |
+| §3.5 the three metric thresholds | 2, 3, 10 |
+| §4 strategies, live-KLP candidate, observation floor | 3, 5, 6, 9 |
+| §5 partial saves | 4, 8, 9, 10 |
+| §6 testing, mutation checks, human gates | every task |
+| §7 deferred (per-topic overrides, unscoped `repeatBonus` in the dashboard, Spec 3 §14) | not implemented, by design |

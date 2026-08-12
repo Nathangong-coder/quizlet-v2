@@ -91,12 +91,19 @@ It *looked* fixed at the time only because the 2026-08-12 account reset emptied 
 
 ### 3. ⬜ Spec 3B — tunable scoring — **PLAN READY TO EXECUTE**
 
-Spec: `specs/2026-08-05-spec3b-tunable-scoring-and-targeting-design.md`
-Plan: `plans/2026-08-06-stage8-spec3b-tunable-scoring.md` — **rebuilt 2026-08-08** against post-hardening code (commit `269714b`). 10 tasks.
+Spec: `specs/2026-08-05-spec3b-tunable-scoring-and-targeting-design.md` — **revised 2026-08-12** (see its §0) against items 1, 2 and 2b.
+Plan: `plans/2026-08-06-stage8-spec3b-tunable-scoring.md` — rebuilt 2026-08-08 against post-hardening code (commit `269714b`), **patched 2026-08-12** to match the revised spec. 10 tasks.
 
 Knob set (user-approved): severity bands + targeting strategy + `MIN_OBSERVATIONS` + `ARTICULATION_MIN_PKNOWN` + `READINESS_WEIGHT_PER_ANSWER`.
 
-**Known limit, accepted deliberately:** `getLearnerMetrics` has **zero production callers**. Task 6 makes it tuning-aware for 3C to consume; the ranked output renders nowhere until then. 3B's visible surface is the settings panels + the quiz results screen.
+**Three design defects the 2026-08-12 revision fixed before they were built:**
+- Task 7's attempt-order query did **not** carry `ANSWERED_ATTEMPT_WHERE`, while `read.ts:122` does — different attempt indices, different `repeatBonus`, so the results screen and the dashboard would have disagreed about the same tag. That is the exact failure §3.4 exists to prevent, and the old test *pinned* the wrong predicate.
+- Deriving over one attempt's tags makes `repeatBonus` **structurally always 0** on the results screen (`deriveTagScores` looks strictly backward over the tags it is handed). Every single-attempt fixture passes. Now derives over a `REPEAT_WINDOW_ATTEMPTS`-wide, analyzed-only context.
+- `saveTuning` wrote all three fields, so three panels doing read-modify-write revert each other in ordinary use. Now partial: absent field = leave unchanged.
+
+**Known limit, accepted deliberately:** `getLearnerMetrics` has **zero production callers** (re-verified 2026-08-12). Task 6 makes it tuning-aware for 3C to consume; the ranked output renders nowhere until then. 3B's visible surface is the settings panels + the quiz results screen.
+
+**Blocked demonstration:** the payoff check — lower `minObservations` to 1 and watch topic knowledge appear — needs a corpus, and the 2026-08-12 account reset left **zero** study history. It waits on the user studying again. Seeding synthetic data is still forbidden.
 
 ### 4. ⬜ Spec 3C — learner dashboard (the UI spec) — **SPEC EXISTS, NO PLAN, NO CODE**
 
