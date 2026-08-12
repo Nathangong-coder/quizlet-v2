@@ -71,9 +71,29 @@ describe('ANSWERED_ATTEMPT_WHERE', () => {
  * two sanctioned readers. A behavioural test cannot catch this — the damage is
  * done by a call site in a file no test yet renders.
  */
+/**
+ * Comments are stripped before scanning, so this detects USE rather than
+ * mention. `QuizContainer.tsx` names the predicate in prose — explaining that a
+ * failed discard is survivable precisely because history hides the leftover
+ * attempt — and that cross-reference is worth keeping; a guard that forced
+ * comments to avoid naming the thing they describe would be buying its
+ * precision with worse documentation.
+ *
+ * Deliberately conservative: only WHOLE-LINE `//` comments and block comments
+ * go. A trailing `// ... ANSWERED_ATTEMPT_WHERE ...` still trips the guard.
+ * That is a false positive, but it fails loudly in the safe direction, whereas
+ * a greedier regex could eat a real call site sharing a line with a string
+ * containing `//` and fail silently in the dangerous one.
+ */
+function codeOnly(text: string): string {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+}
+
 describe('the predicate is applied at exactly two call sites', () => {
   const referencing = sourceFiles(join(ROOT, 'src'))
-    .filter((f) => readFileSync(f, 'utf8').includes('ANSWERED_ATTEMPT_WHERE'))
+    .filter((f) => codeOnly(readFileSync(f, 'utf8')).includes('ANSWERED_ATTEMPT_WHERE'))
     .map((f) => relative(ROOT, f).split(sep).join('/'))
     .sort()
 

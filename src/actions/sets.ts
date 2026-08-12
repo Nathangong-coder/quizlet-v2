@@ -13,6 +13,7 @@ import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categor
 import { reconcileCards } from '@/lib/cards/reconcile'
 import { extractKlpsForCards } from '@/actions/klp'
 import { selectRefreshableStaleCardIds } from '@/lib/cards/stale'
+import { rescoreSetAttempts } from '@/lib/quiz/rescore'
 import type { CardKlpStatus } from '@/lib/cards/klp-status'
 import { toSetVisibility, type SetVisibility } from '@/lib/sets/visibility'
 
@@ -288,21 +289,35 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
       validated.cards,
     )
 
-    await prisma.$transaction([
-      ...(plan.toDeleteIds.length > 0
-        ? [prisma.card.deleteMany({ where: { setId: id, id: { in: plan.toDeleteIds } } })]
-        : []),
-      ...plan.toUpdate.map(({ id: cardId, card }) =>
-        prisma.card.update({ where: { id: cardId }, data: buildCardUpdate(card, map) }),
-      ),
-      ...plan.toCreate.map((card) =>
-        prisma.card.create({ data: { setId: id, ...buildCardCreate(card, map) } }),
-      ),
-      prisma.set.update({
+    // INTERACTIVE form, not the array form this used to be. The array form
+    // takes pre-built promises and so cannot express "read after the delete
+    // lands" — which is exactly what the re-score below has to do. The order is
+    // otherwise unchanged: deleteMany -> updates -> creates -> set.update, each
+    // awaited in sequence.
+    await prisma.$transaction(async (tx) => {
+      if (plan.toDeleteIds.length > 0) {
+        await tx.card.deleteMany({ where: { setId: id, id: { in: plan.toDeleteIds } } })
+      }
+      for (const { id: cardId, card } of plan.toUpdate) {
+        await tx.card.update({ where: { id: cardId }, data: buildCardUpdate(card, map) })
+      }
+      for (const card of plan.toCreate) {
+        await tx.card.create({ data: { setId: id, ...buildCardCreate(card, map) } })
+      }
+      await tx.set.update({
         where: { id },
         data: { title: validated.title, description: validated.description },
-      }),
-    ])
+      })
+      // A card delete cascades away its QuizAnswer rows, leaving every attempt
+      // that tested it holding a score derived from evidence that no longer
+      // exists — including attempts belonging to OTHER users, since sets are
+      // link-shareable. Only on a delete: nothing else here can change what an
+      // attempt's surviving answers are worth. See rescoreSetAttempts' comment
+      // for why it carries no userId filter.
+      if (plan.toDeleteIds.length > 0) {
+        await rescoreSetAttempts(tx, id)
+      }
+    })
 
     await backfillAssetLinks(id, session.user.id, validated.cards)
 

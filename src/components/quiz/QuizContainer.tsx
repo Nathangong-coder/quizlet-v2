@@ -6,9 +6,10 @@ import { ShortAnswerQuiz } from './ShortAnswerQuiz';
 import { TrueFalseQuiz } from './TrueFalseQuiz';
 import { MatchingQuiz } from './MatchingQuiz';
 import { QuizSummary } from './QuizSummary';
+import { QuizSkippedNotice } from './QuizSkippedNotice';
 import { QuizSectionHandle } from './section';
 import { Card } from '@prisma/client';
-import { getQuizAttemptCards, startQuizAttempt } from '@/actions/quiz';
+import { discardSkippedQuizAttempt, getQuizAttemptCards, startQuizAttempt } from '@/actions/quiz';
 import { finishStudySession, generateSessionInsight } from '@/actions/study-session';
 import { Loader2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
@@ -20,6 +21,9 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
   const [selectedCards, setSelectedCards] = useState<Card[]>([]);
   const [isLoadingCards, setIsLoadingCards] = useState(true);
   const [finished, setFinished] = useState(false);
+  // Set only when the server actually discarded the attempt — never inferred
+  // from the client's own count, which is an intent signal and not authority.
+  const [skipped, setSkipped] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,14 +81,60 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
 
   async function handleSubmitQuiz() {
     setIsSubmitting(true);
+
+    // STEP 1 — grade. Its outcome is tracked in its own flag rather than
+    // sharing one `try` with everything below, because a grading crash and a
+    // skipped quiz must never be confused: see step 2.
+    let gradingFailed = false;
     try {
       // Grade every section's answers exactly once, here at submit time.
       // Sections run in parallel; each grades its answered questions.
       await Promise.all(
         sectionRefs.current.map((r) => (r ? r.commitAll() : Promise.resolve())),
       );
+    } catch (e) {
+      gradingFailed = true;
+      toast.error('Something went wrong grading your answers');
+    }
 
-      if (sessionId) {
+    // STEP 2 — a quiz submitted with nothing answered leaves no trace.
+    //
+    // Skipped ONLY when grading did not throw. A commitAll exception means the
+    // answers the learner gave never reached the server, so the attempt is
+    // zero-answer for a reason that has nothing to do with intent — calling
+    // that "Quiz Skipped" would hide a real defect behind a message saying
+    // they did nothing. (`discardSkippedQuizAttempt`'s condition 1 guards the
+    // quieter version of the same failure: individual answer errors call
+    // `showError` and continue, so they never reach this catch at all.)
+    //
+    // Its own `try`, deliberately: a discard failure is not a grading failure
+    // and must not surface as "Something went wrong grading your answers". It
+    // degrades to the ordinary results screen — the attempt simply lingers,
+    // and ANSWERED_ATTEMPT_WHERE hides it from history, which is the whole
+    // point of hiding rather than deleting.
+    let discarded = false;
+    if (!gradingFailed && attemptId) {
+      try {
+        const clientAnsweredCount = sectionRefs.current.reduce(
+          (sum, r) => sum + (r ? r.answeredCount() : 0),
+          0,
+        );
+        const result = await discardSkippedQuizAttempt({ attemptId, clientAnsweredCount });
+        // A refusal is `success: true` with `discarded: false` — a normal
+        // outcome, not an error. Anything that is not an actual discard falls
+        // through to today's path.
+        discarded = result.success && result.data.discarded;
+      } catch (e) {
+        console.error('Failed to discard skipped quiz attempt', e);
+      }
+    }
+
+    // STEP 3 — today's path, unchanged, except that a discarded attempt skips
+    // it entirely: the StudySession is being deleted along with the attempt,
+    // so closing it first is wasted work and generating an AI narrative about
+    // a quiz that no longer exists is worse.
+    if (!discarded && !gradingFailed && sessionId) {
+      try {
         const finishResult = await finishStudySession({ sessionId });
         if (!finishResult.success) {
           toast.error(finishResult.error || 'Failed to close study session');
@@ -93,13 +143,14 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
         // immediately, and the AI narrative appears on refresh if it lands.
         // A failed generation must never block the results screen.
         generateSessionInsight({ sessionId }).catch(() => {});
+      } catch {
+        toast.error('Something went wrong grading your answers');
       }
-    } catch (e) {
-      toast.error('Something went wrong grading your answers');
-    } finally {
-      setIsSubmitting(false);
-      setFinished(true);
     }
+
+    setSkipped(discarded);
+    setIsSubmitting(false);
+    setFinished(true);
   }
 
   if (error) {
@@ -114,6 +165,12 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
         </Button>
       </div>
     );
+  }
+
+  // Before the general `finished` branch: QuizSummary would fetch an attempt
+  // that has just been deleted.
+  if (finished && skipped) {
+    return <QuizSkippedNotice setId={setId} />;
   }
 
   if (finished) {
@@ -242,7 +299,8 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
           Submit Overall Quiz
         </Button>
         <p className="text-xs text-muted-foreground text-center max-w-sm">
-          You can submit at any time. Unanswered questions simply score zero.
+          You can submit at any time. A quiz with nothing answered isn&apos;t saved
+          to your history.
         </p>
       </div>
     </div>
