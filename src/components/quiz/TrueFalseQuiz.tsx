@@ -74,7 +74,19 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
       }
     }
 
-    useImperativeHandle(ref, () => ({ commitAll }), [cards, selectedAnswers, attemptId]);
+    // The one expression for "how many did they answer" in this section: read
+    // both by SectionNav's progress badge below and by the imperative handle
+    // the container sums at submit. Kept as a single function rather than
+    // duplicated, because a second copy could drift and make a skipped-quiz
+    // discard disagree with the count the learner was just shown.
+    function answeredCount() {
+      return cards.filter(c => selectedAnswers[c.id]).length;
+    }
+
+    // `selectedAnswers` is in the dep array, so the handle is rebuilt on every
+    // pick and never reports a stale count. Verified deliberately: a stale 0
+    // here would let the container discard an attempt the learner really took.
+    useImperativeHandle(ref, () => ({ commitAll, answeredCount }), [cards, selectedAnswers, attemptId]);
 
     function goNext() {
       setCurrentIndex(i => Math.min(i + 1, cards.length - 1));
@@ -87,7 +99,6 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
     const card = cards[currentIndex];
     if (!card) return <div className="text-center p-10">No cards available for this quiz.</div>;
 
-    const answeredCount = cards.filter(c => selectedAnswers[c.id]).length;
     const statementReady = Boolean(statements[card.id]) && loadingId !== card.id;
 
     return (
@@ -136,7 +147,7 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
         <SectionNav
           index={currentIndex}
           total={cards.length}
-          answeredCount={answeredCount}
+          answeredCount={answeredCount()}
           onPrev={goPrev}
           onNext={goNext}
         />

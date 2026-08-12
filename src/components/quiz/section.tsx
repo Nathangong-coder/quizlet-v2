@@ -12,6 +12,10 @@ import { ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
  */
 export interface QuizSectionHandle {
   commitAll: () => Promise<void>;
+  /** How many questions the learner actually answered, in this section's own
+   *  terms. The INTENT signal for a skipped quiz — never a deletion authority
+   *  on its own; the server re-checks. See `discardSkippedQuizAttempt`. */
+  answeredCount: () => number;
 }
 
 /**

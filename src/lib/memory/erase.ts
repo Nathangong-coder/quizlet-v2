@@ -1,4 +1,4 @@
-import { overallQuizScore } from '@/lib/quiz/scoring'
+import { storedScore } from '@/lib/quiz/scoring'
 import { RESET_MEMORY_MODELS } from './reset'
 
 /**
@@ -389,10 +389,12 @@ export function planErasure(
     // Score is a STORED number derived from answers. Deleting one makes it
     // wrong, and nothing else recomputes it.
     //
-    // Rounded because `overallQuizScore` returns a float mean and
-    // `QuizAttempt.score` is an Int column — the live writer in
-    // src/actions/quiz.ts rounds for the same reason.
-    const mean = overallQuizScore(survivors)
+    // `storedScore` (src/lib/quiz/scoring.ts) owns the round-because-Int rule:
+    // `overallQuizScore` returns a float mean and `QuizAttempt.score` is an Int
+    // column — the live writers in src/actions/quiz.ts round for the same
+    // reason, inline. Sharing the helper keeps that rule in one place, so a
+    // change to it cannot make erasure and re-scoring disagree about what the
+    // same set of answers is worth.
     const session = attempt.sessionId
       ? snapshot.sessions.find((s) => s.id === attempt.sessionId)
       : undefined
@@ -401,7 +403,7 @@ export function planErasure(
     updateAttempts.push({
       attemptId,
       sessionId: attempt.sessionId,
-      score: mean === null ? null : Math.round(mean),
+      score: storedScore(survivors),
       // itemCount is the STORED planned count minus how many of this
       // attempt's answers are being deleted — never the survivor count
       // (see SnapshotSession) — and omitted, not guessed, when the session

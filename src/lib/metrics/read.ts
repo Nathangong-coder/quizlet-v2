@@ -14,6 +14,7 @@ import {
   buildCategoryQuery,
 } from '@/lib/memory/scope'
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories'
+import { ANSWERED_ATTEMPT_WHERE } from '@/lib/quiz/history'
 import type { BandTable } from '@/lib/errors/bands'
 import type { PrismaClient } from '@prisma/client'
 
@@ -110,8 +111,17 @@ export async function getLearnerMetrics({
     // exactly what has to be visible, and scoping this would make the same
     // tag's significance depend on which view is asking — the bug this query
     // exists to fix, reintroduced one level down.
+    //
+    // Zero-answer attempts ARE excluded (ANSWERED_ATTEMPT_WHERE) — a different
+    // axis from HistoryScope. An empty attempt is not a sitting, so counting it
+    // dilutes "within the last N attempts". Provably safe for the tag join:
+    // every tag reaches an attempt through quizAnswer.attemptId, so any attempt
+    // a tag references has >= 1 answer by construction and cannot be filtered
+    // away. (`deriveTagScores` would append an unlisted attempt at the END of
+    // its order — see src/lib/errors/derive.ts:108-112 — which is why this
+    // matters.)
     prisma.quizAttempt.findMany({
-      where: { userId },
+      where: { userId, ...ANSWERED_ATTEMPT_WHERE },
       orderBy: { createdAt: 'asc' },
       select: { id: true },
     }),

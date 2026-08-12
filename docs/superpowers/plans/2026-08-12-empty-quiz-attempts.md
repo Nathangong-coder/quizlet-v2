@@ -67,7 +67,7 @@
 
 **Files:**
 - Modify: `src/lib/quiz/scoring.ts` (append), `src/lib/memory/erase.ts:389-404`
-- Test: `tests/lib/quiz/scoring.test.ts` (extend or create)
+- Test: `tests/quiz/scoring.test.ts` (extend or create)
 
 **Interfaces:**
 - Consumes: nothing.
@@ -99,7 +99,7 @@ export function storedScore(answers: { score: number | null }[]): number | null 
 **Files:**
 - Create: `src/lib/quiz/history.ts`
 - Modify: `src/actions/user.ts:42-46`, `src/lib/metrics/read.ts:108-117`
-- Test: `tests/actions/user-stats-empty-attempts.test.ts` (new), `tests/lib/quiz/history.test.ts` (new)
+- Test: `tests/actions/user-stats-empty-attempts.test.ts` (new), `tests/quiz/history.test.ts` (new)
 
 **Interfaces:**
 - Consumes: nothing.
@@ -160,7 +160,7 @@ export const ANSWERED_ATTEMPT_WHERE = {
 **Files:**
 - Create: `src/lib/quiz/rescore.ts`
 - Modify: `src/actions/sets.ts:282-305`
-- Test: `tests/lib/quiz/rescore.test.ts` (new), `tests/actions/update-set-rescore.test.ts` (new)
+- Test: `tests/quiz/rescore.test.ts` (new), `tests/actions/update-set-rescore.test.ts` (new)
 
 **Interfaces:**
 - Consumes: `storedScore` (Task 1).

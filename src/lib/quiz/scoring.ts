@@ -59,3 +59,14 @@ export function overallQuizScore(results: { score: number | null }[]): number | 
   const total = scored.reduce((sum, r) => sum + (r.score || 0), 0);
   return total / scored.length;
 }
+
+/** The stored form of an attempt's score: the mean of its answers' scores,
+ *  rounded because `QuizAttempt.score` is an Int column. Null when no answer
+ *  carries a score — and null is a value that must be WRITTEN, not skipped:
+ *  an attempt that keeps a score after losing every scored answer is the
+ *  exact defect `rescoreSetAttempts` exists to prevent. */
+// Not yet used by the four live writers in src/actions/quiz.ts (:570, :749, :1169, :1284) — they round inline. Deliberate; see the 2026-08-12 plan.
+export function storedScore(answers: { score: number | null }[]): number | null {
+  const mean = overallQuizScore(answers)
+  return mean === null ? null : Math.round(mean)
+}
