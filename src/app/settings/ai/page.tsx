@@ -2,6 +2,9 @@ import { auth } from '@/auth';
 import { notFound } from 'next/navigation';
 import CredentialList from '@/components/settings/CredentialList';
 import TaskRoutingPanel from '@/components/settings/TaskRoutingPanel';
+import SeverityBandPanel from '@/components/settings/SeverityBandPanel';
+import TargetingStrategyPanel from '@/components/settings/TargetingStrategyPanel';
+import MetricThresholdPanel from '@/components/settings/MetricThresholdPanel';
 
 export default async function AiSettingsPage() {
   const session = await auth();
@@ -23,6 +26,18 @@ export default async function AiSettingsPage() {
       <CredentialList />
 
       <TaskRoutingPanel />
+
+      {/*
+        Scoring and targeting. These govern TypeScript-computed numbers rather
+        than AI behaviour — they live here because this is where the learner
+        already comes to tune how the app judges them. If this route ever
+        narrows to strict credential management, they move rather than go.
+      */}
+      <SeverityBandPanel />
+
+      <MetricThresholdPanel />
+
+      <TargetingStrategyPanel />
     </div>
   );
 }
