@@ -42,6 +42,9 @@ import {
 import { toStudySource } from '@/lib/quiz/mode';
 import { persistKlpStates, rebuildKlpStates, lockKlpStates } from '@/lib/metrics/state-writer';
 import type { StudySource } from '@/lib/memory/scoring';
+import { toStoredTags, deriveTagScores, REPEAT_WINDOW_ATTEMPTS, type RawTagRow } from '@/lib/errors/derive';
+import { loadAnsweredAttemptIds } from '@/lib/quiz/history';
+import { getUserTuning } from '@/lib/tuning/store';
 import { MC_TF_MAGNITUDE } from '@/lib/errors/bands';
 import { readableSetWhere } from '@/lib/sets/visibility';
 // Used only by `discardSkippedQuizAttempt` at the bottom of this file: the
@@ -1337,6 +1340,33 @@ type QuizAttemptSummaryResult = {
   insight: SessionInsight | null;
 };
 
+/**
+ * The slice of an included `AnswerErrorTag` that Spec 3B's read-time
+ * derivation reads. Every field is a real column, so a row that reaches the
+ * summary always has them; `createdAt` widens to `string` only because the
+ * value survives a JSON round trip on some paths.
+ *
+ * Declared rather than inferred because `attempt` above is `any` — without a
+ * named shape, the derivation would accept anything and fail at runtime.
+ */
+interface SummaryErrorTag {
+  dimension: string;
+  type: string;
+  klpId: string | null;
+  relevance: number;
+  starred: boolean;
+  magnitude: number | null;
+  mode: string | null;
+  severity: number;
+  significance: number;
+  createdAt: Date | string;
+}
+
+interface SummaryAnswer {
+  cardId: string;
+  errorTags?: SummaryErrorTag[];
+}
+
 export async function getQuizAttemptSummary(attemptId: string): Promise<ActionResult<QuizAttemptSummaryResult>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
@@ -1410,6 +1440,112 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
         return a;
       });
     }
+
+    // Spec 3B §3.4: severity and significance are DERIVED here, not read from
+    // the row. The stored columns reflect whichever bands were active on the
+    // day the answer was graded; deriving means one number everywhere and a
+    // retune visibly re-scores history, which is the point of the knob.
+    const [tuning, attemptOrder] = await Promise.all([
+      getUserTuning(session.user.id),
+      // The learner's REAL attempt sequence — unscoped, chronological, and
+      // ANSWERED-ONLY. Deriving it from the tags would make CLEAN attempts
+      // invisible, so `repeatBonus` fires for an error fixed ten sittings ago.
+      // The SAME helper src/lib/metrics/read.ts uses, not a second copy of the
+      // query: an abandoned attempt left in the sequence here shifts every
+      // index and makes the two screens disagree. Spec §3.4.1(a).
+      loadAnsweredAttemptIds(prisma, session.user.id),
+    ]);
+
+    // The repeat-window CONTEXT. `deriveTagScores` builds its `seen` set only
+    // from the tags handed to it and looks strictly backward, so deriving over
+    // this attempt alone makes `repeatBonus` structurally always 0 — spec
+    // §3.4.1(b). REPEAT_WINDOW_ATTEMPTS positions back is exactly as far as
+    // the bonus can see, so a wider query would be waste and a narrower one
+    // wrong. `analysisStatus: 'analyzed'` matches the dashboard's tag
+    // population; an answer can carry tags under `no_klps`/`no_provenance`
+    // and read.ts excludes those.
+    const here = attemptOrder.indexOf(attempt.id);
+    const windowIds = (here === -1 ? attemptOrder : attemptOrder.slice(0, here))
+      .slice(-REPEAT_WINDOW_ATTEMPTS);
+
+    const contextRows = windowIds.length === 0 ? [] : await prisma.answerErrorTag.findMany({
+      where: {
+        quizAnswer: {
+          userId: session.user.id,
+          attemptId: { in: windowIds },
+          analysisStatus: 'analyzed',
+        },
+      },
+      select: {
+        dimension: true, type: true, klpId: true, relevance: true, starred: true,
+        magnitude: true, mode: true, severity: true, significance: true,
+        createdAt: true,
+        quizAnswer: { select: { attemptId: true, cardId: true } },
+      },
+    });
+
+    // One derivation across the whole attempt PLUS its context, not one per
+    // answer: repeatBonus is a cross-tag judgement and must see every tag at
+    // once. The context tags are then discarded — only this attempt's are read
+    // back out.
+    //
+    // Fields are listed rather than spread into `RawTagRow`. `attempt` is
+    // typed `any` (see QuizAttemptSummaryResult), so a spread would type-check
+    // whatever shape happened to arrive; naming them means a renamed column is
+    // a compile error here instead of a silently undefined severity input.
+    const summaryAnswers = attempt.answers as SummaryAnswer[];
+    const flatTags: RawTagRow[] = summaryAnswers.flatMap((a) =>
+      (a.errorTags ?? []).map((t) => ({
+        dimension: t.dimension,
+        type: t.type,
+        klpId: t.klpId,
+        relevance: t.relevance,
+        starred: t.starred,
+        magnitude: t.magnitude,
+        mode: t.mode,
+        severity: t.severity,
+        significance: t.significance,
+        createdAt: new Date(t.createdAt),
+        quizAnswer: { attemptId: attempt.id as string, cardId: a.cardId },
+      })),
+    );
+    const derived = deriveTagScores(
+      toStoredTags([...contextRows, ...flatTags]),
+      tuning.bands,
+      attemptOrder,
+    );
+
+    // NOT keyed positionally: deriveTagScores re-sorts chronologically and the
+    // array also holds context tags from other attempts, so index alignment
+    // with `flatTags` is not safe. `attemptId` is part of the key for the same
+    // reason — without it a context tag could shadow one of this attempt's.
+    const derivedByKey = new Map(
+      derived.map((d) => [
+        `${d.attemptId}::${d.cardId}::${d.type}::${d.klpId ?? 'whole'}::${d.createdAt.getTime()}`,
+        d,
+      ]),
+    );
+
+    // Cast on the WRITE, not on the reads above. The narrowed view drops
+    // `card`/`klpResults` from the static type while the spread keeps them at
+    // runtime, and the derived tags add two fields Prisma's row type does not
+    // declare. One assertion here is the honest way to say that; `any` on the
+    // callbacks would have hidden the field names the derivation depends on.
+    attempt.answers = summaryAnswers.map((a) => ({
+      ...a,
+      errorTags: (a.errorTags ?? []).map((t) => {
+        const d = derivedByKey.get(
+          `${attempt.id}::${a.cardId}::${t.type}::${t.klpId ?? 'whole'}::${new Date(t.createdAt).getTime()}`,
+        );
+        // Spread the ORIGINAL row first so the joined `klp`/`secondaryKlp`
+        // objects survive; overlay only the derived numbers. `repeatBonus` is
+        // carried too — it is what lets a badge explain why a significance is
+        // higher than the base.
+        return d
+          ? { ...t, severity: d.severity, significance: d.significance, repeatBonus: d.repeatBonus }
+          : t;
+      }),
+    })) as unknown as typeof attempt.answers;
 
     // Read, never generate. Regenerating here is what made every render of a
     // results page cost an AI call. A blob that fails to parse (older version,

@@ -16,7 +16,7 @@ import {
 import { getUserTuning } from '@/lib/tuning/store'
 import { rankCandidates, toRankCandidates, type RankedCandidate } from '@/lib/metrics/targeting'
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories'
-import { ANSWERED_ATTEMPT_WHERE } from '@/lib/quiz/history'
+import { loadAnsweredAttemptIds } from '@/lib/quiz/history'
 import type { BandTable } from '@/lib/errors/bands'
 import type { PrismaClient } from '@prisma/client'
 
@@ -102,7 +102,7 @@ export async function getLearnerMetrics({
     if (Object.keys(card).length > 0) cardProgressScope.card = card
   }
 
-  const [cards, klpStates, tagRows, klpOutcomes, events, attempts, paceBaseline, progressRows] =
+  const [cards, klpStates, tagRows, klpOutcomes, events, attemptIds, paceBaseline, progressRows] =
     await Promise.all([
     // The full scope, not just `setIds` — `shapeTopicProfile` below honours
     // every dimension, and the two are returned in one `LearnerProfile`.
@@ -145,24 +145,10 @@ export async function getLearnerMetrics({
       select: { cardId: true, correct: true, score: true, createdAt: true, source: true, latencyMs: true },
     }),
     // The learner's REAL attempt sequence, for `repeatBonus`'s "within the
-    // last N attempts" window. Deliberately NOT scoped: a clean sitting is
-    // exactly what has to be visible, and scoping this would make the same
-    // tag's significance depend on which view is asking — the bug this query
-    // exists to fix, reintroduced one level down.
-    //
-    // Zero-answer attempts ARE excluded (ANSWERED_ATTEMPT_WHERE) — a different
-    // axis from HistoryScope. An empty attempt is not a sitting, so counting it
-    // dilutes "within the last N attempts". Provably safe for the tag join:
-    // every tag reaches an attempt through quizAnswer.attemptId, so any attempt
-    // a tag references has >= 1 answer by construction and cannot be filtered
-    // away. (`deriveTagScores` would append an unlisted attempt at the END of
-    // its order — see src/lib/errors/derive.ts:108-112 — which is why this
-    // matters.)
-    prisma.quizAttempt.findMany({
-      where: { userId, ...ANSWERED_ATTEMPT_WHERE },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true },
-    }),
+    // last N attempts" window — answered attempts only, unscoped, oldest
+    // first. Shared with the quiz results screen through one helper because
+    // the two must agree exactly; see its doc comment.
+    loadAnsweredAttemptIds(prisma, userId),
     // The pace BASELINE, deliberately NOT scoped — for the same reason the
     // attempts query above isn't. A learner's normal speed in a mode is a
     // property of the learner, not of the view asking. Drawing it from the
@@ -197,7 +183,7 @@ export async function getLearnerMetrics({
   const derived = deriveTagScores(
     toStoredTags(tagRows),
     effectiveBands,
-    attempts.map((a) => a.id),
+    attemptIds,
   )
 
   const categoryRows = await loadCategoryRows(prisma, userId, scope)
