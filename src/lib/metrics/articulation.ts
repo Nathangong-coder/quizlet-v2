@@ -1,17 +1,17 @@
 import type { DerivedTag } from '@/lib/errors/derive'
 import { MIN_OBSERVATIONS } from '@/lib/metrics/bkt'
+import { ARTICULATION_MIN_PKNOWN, READINESS_WEIGHT_PER_ANSWER } from '@/lib/tuning/schema'
 
-/**
- * A `too_terse` tag only counts as an ARTICULATION problem at or above this
- * pKnown. Below it, brevity is far more likely to mean the learner does not
- * know the material — and booking that as an expression gap would route them
- * to short-answer drilling when they need the concept, misdiagnosing exactly
- * the case this metric exists to separate.
- *
- * A starting value, named rather than inlined because it wants tuning once
- * real tag volume exists.
- */
-export const ARTICULATION_MIN_PKNOWN = 0.6
+// `ARTICULATION_MIN_PKNOWN` and `READINESS_WEIGHT_PER_ANSWER` are DEFINED in
+// the tuning module so `DEFAULT_THRESHOLDS` can derive from them without an
+// import cycle — this file imports `MetricThresholds` from there. Their doc
+// comments moved with them.
+//
+// Imported and then re-exported, rather than `export { ... } from`, because a
+// pure re-export creates NO local binding and this module's own body reads
+// both as defaults. Existing importers are unaffected either way, and the
+// settings panel shows them as "the shipped default".
+export { ARTICULATION_MIN_PKNOWN, READINESS_WEIGHT_PER_ANSWER }
 
 /** Conciseness failures in the "too much" direction. */
 export const OVER_TALK_TYPES = new Set([
@@ -39,13 +39,6 @@ export interface Articulation {
   /** 0-1, higher is more interview-ready. Null with no evidence. */
   readiness: number | null
 }
-
-/**
- * Average per-answer expression-error weight at which readiness reaches 0.
- * Roughly two significant expression tags on every answer. A starting value
- * that will become user-tunable once real tag volume exists.
- */
-export const READINESS_WEIGHT_PER_ANSWER = 12
 
 export function computeArticulation(input: ArticulationInput): Articulation {
   let over = 0
