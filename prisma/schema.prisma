@@ -26,6 +26,7 @@ model User {
   assets           CardAsset[]
   studySessions    StudySession[]
   klpStates        KlpState[]
+  learnerTuning    LearnerTuning?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 }
@@ -119,8 +120,15 @@ model CardKlp {
 ///
 /// Stepped FORWARD on each new answer rather than invalidated — BKT's update
 /// is incremental by construction, so a replay is only needed when the inputs
-/// themselves change: a Spec 3B band edit, or a Spec 2a resubmit-cascade
-/// re-analysis of an already-recorded answer.
+/// themselves change: a Spec 2a resubmit-cascade re-analysis of an
+/// already-recorded answer, or an erasure (src/lib/memory/erase-execute.ts
+/// replays from what survives).
+///
+/// NOT a Spec 3B band edit, which an earlier version of this comment named.
+/// `stepBkt` reads `AnswerKlpResult.status` and `.mode` and nothing else, so
+/// bands and thresholds never reach it — see Spec 3B §3.3 and the same
+/// correction in src/lib/metrics/cache.ts (commit 00f0aef). Read as an
+/// instruction, this would have added a pointless replay to every tuning save.
 model KlpState {
   id              String   @id @default(cuid())
   userId          String
@@ -572,4 +580,35 @@ model TrainingPlan {
 
   @@index([userId, createdAt])
   @@index([sourceSetId])
+}
+
+/// Stage 8 Spec 3B: per-user scoring and targeting preferences.
+///
+/// Two Json blobs rather than relational tables. Spec 2a argued the opposite
+/// for AnswerKlpResult/AnswerErrorTag — "a JSON blob can't be indexed or FK'd,
+/// and Spec 3 aggregates these hardest" — and that reasoning genuinely does not
+/// transfer: tuning is never aggregated across users, joined, or filtered on.
+/// It is read wholesale for exactly one user at the start of a computation.
+/// The applicable precedent is SESSION_INSIGHT_VERSION (lib/memory/insight.ts):
+/// a versioned blob readers parse with a schema and fall back on.
+///
+/// Both blobs are SPARSE — only edited keys are stored, so a user who retunes
+/// one type does not freeze the other twenty against future default changes.
+///
+/// `strategy` is a column, not part of a blob, because it is a closed
+/// vocabulary that ranking reads on every request and an invalid value must be
+/// caught at parse time rather than ranked with.
+///
+/// NOT memory. Deliberately absent from ERASABLE_MEMORY_MODELS
+/// (src/lib/memory/erase.ts): resetting your study history is a request to
+/// destroy evidence, not to forget that you prefer a lower evidence floor.
+/// Account DELETION is a different act and is covered by the cascade below.
+model LearnerTuning {
+  userId     String   @id
+  strategy   String   @default("balanced")
+  bands      Json?
+  thresholds Json?
+  version    Int      @default(1)
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
