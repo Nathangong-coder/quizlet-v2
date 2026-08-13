@@ -181,6 +181,13 @@ export interface RawCategoryRow {
   normalizedName: string
   name: string
   color: string | null
+  /**
+   * Only what `toTopicRows` itself reads. The read shell selects more per KLP
+   * (`weight`, `cardId`, for Spec 3B's ranking candidates) and passes those
+   * rows straight in — structurally compatible, and deliberately NOT declared
+   * here: requiring fields this function ignores would make every fixture
+   * carry them to satisfy the type checker rather than to express anything.
+   */
   assignments: { card: { id: string; klps: { id: string; supersededAt: Date | null }[] } }[]
 }
 
