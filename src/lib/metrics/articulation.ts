@@ -1,17 +1,19 @@
 import type { DerivedTag } from '@/lib/errors/derive'
-import { MIN_OBSERVATIONS } from '@/lib/metrics/bkt'
+import {
+  ARTICULATION_MIN_PKNOWN, READINESS_WEIGHT_PER_ANSWER,
+  DEFAULT_THRESHOLDS, type MetricThresholds,
+} from '@/lib/tuning/schema'
 
-/**
- * A `too_terse` tag only counts as an ARTICULATION problem at or above this
- * pKnown. Below it, brevity is far more likely to mean the learner does not
- * know the material — and booking that as an expression gap would route them
- * to short-answer drilling when they need the concept, misdiagnosing exactly
- * the case this metric exists to separate.
- *
- * A starting value, named rather than inlined because it wants tuning once
- * real tag volume exists.
- */
-export const ARTICULATION_MIN_PKNOWN = 0.6
+// `ARTICULATION_MIN_PKNOWN` and `READINESS_WEIGHT_PER_ANSWER` are DEFINED in
+// the tuning module so `DEFAULT_THRESHOLDS` can derive from them without an
+// import cycle — this file imports `MetricThresholds` from there. Their doc
+// comments moved with them.
+//
+// Imported and then re-exported, rather than `export { ... } from`, because a
+// pure re-export creates NO local binding and this module's own body reads
+// both as defaults. Existing importers are unaffected either way, and the
+// settings panel shows them as "the shipped default".
+export { ARTICULATION_MIN_PKNOWN, READINESS_WEIGHT_PER_ANSWER }
 
 /** Conciseness failures in the "too much" direction. */
 export const OVER_TALK_TYPES = new Set([
@@ -29,6 +31,12 @@ export interface ArticulationInput {
   knowledge: Record<string, KnowledgeRef>
   /** Count of analyzed answers these tags came from. */
   analyzedAnswers: number
+  /**
+   * The learner's tuned thresholds. Optional, defaulting to the shipped
+   * constants, so every existing caller is unchanged — but a caller that HAS a
+   * user must pass theirs, or the knob is inert for that surface.
+   */
+  thresholds?: MetricThresholds
 }
 
 export interface Articulation {
@@ -40,14 +48,10 @@ export interface Articulation {
   readiness: number | null
 }
 
-/**
- * Average per-answer expression-error weight at which readiness reaches 0.
- * Roughly two significant expression tags on every answer. A starting value
- * that will become user-tunable once real tag volume exists.
- */
-export const READINESS_WEIGHT_PER_ANSWER = 12
-
 export function computeArticulation(input: ArticulationInput): Articulation {
+  const { minObservations, articulationMinPKnown, readinessWeightPerAnswer } =
+    input.thresholds ?? DEFAULT_THRESHOLDS
+
   let over = 0
   let under = 0
   let knowledgeGapTerseness = 0
@@ -86,7 +90,7 @@ export function computeArticulation(input: ArticulationInput): Articulation {
 
       const k = input.knowledge[tag.klpId as string]
       const counts =
-        k !== undefined && k.observations >= MIN_OBSERVATIONS && k.pKnown >= ARTICULATION_MIN_PKNOWN
+        k !== undefined && k.observations >= minObservations && k.pKnown >= articulationMinPKnown
       if (counts) {
         under += tag.significance
         expressionWeight += tag.significance
@@ -101,7 +105,7 @@ export function computeArticulation(input: ArticulationInput): Articulation {
     readiness = null
   } else {
     const weightPerAnswer = expressionWeight / input.analyzedAnswers
-    readiness = Math.max(0, 1 - weightPerAnswer / READINESS_WEIGHT_PER_ANSWER)
+    readiness = Math.max(0, 1 - weightPerAnswer / readinessWeightPerAnswer)
   }
 
   return { verbosityIndex: over - under, knowledgeGapTerseness, readiness }

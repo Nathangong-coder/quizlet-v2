@@ -11,10 +11,12 @@ import { eventRecalled, type StudySource } from '@/lib/memory/scoring'
 import { paceOutliers as computePaceOutliers } from '@/lib/metrics/pace'
 import {
   buildStudyEventWhere, buildQuizAnswerScopeWhere, buildExpressionAnswerWhere,
-  buildCategoryQuery,
+  buildCategoryQuery, buildCardScopeWhere,
 } from '@/lib/memory/scope'
+import { getUserTuning } from '@/lib/tuning/store'
+import { rankCandidates, toRankCandidates, type RankedCandidate } from '@/lib/metrics/targeting'
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories'
-import { ANSWERED_ATTEMPT_WHERE } from '@/lib/quiz/history'
+import { loadAnsweredAttemptIds } from '@/lib/quiz/history'
 import type { BandTable } from '@/lib/errors/bands'
 import type { PrismaClient } from '@prisma/client'
 
@@ -32,6 +34,15 @@ export interface LearnerMetrics {
    * silently hide real findings in an MC/TF-heavy corpus.
    */
   paceOutliers: { cardId: string; mode: StudySource; index: number }[]
+  /**
+   * KLP-grain study candidates under the learner's chosen strategy, best first.
+   * Sub-threshold candidates are present but sort last and carry
+   * `sufficient: false` — see `rankCandidates`.
+   *
+   * NOT RENDERED ANYWHERE YET. Spec 3C's dashboard is the intended consumer;
+   * until it exists this is a tested API with no UI behind it.
+   */
+  ranked: RankedCandidate[]
 }
 
 /**
@@ -50,10 +61,24 @@ export async function getLearnerMetrics({
 }: {
   userId: string
   scope: HistoryScope
+  /**
+   * PREVIEW OVERRIDE, not the primary path: the learner's stored bands are
+   * resolved below and used by default. An explicit table wins so the settings
+   * panel can show "what would this look like" without saving first. It must be
+   * a FULLY RESOLVED table (`resolveBands`) — `resolveSeverity` replaces rather
+   * than merges, so a partial one silently downgrades every unlisted type to
+   * FALLBACK_BAND.
+   */
   bands?: BandTable
   now?: Date
 }): Promise<LearnerMetrics> {
   const { prisma } = await import('@/lib/db')
+
+  // The learner's own knobs, resolved once and threaded into every derivation
+  // below. Nothing here writes or replays: bands and thresholds never reach
+  // BKT, so a retune changes what the next read computes and nothing else.
+  const tuning = await getUserTuning(userId)
+  const effectiveBands = bands ?? tuning.bands
 
   // Resolved once and shared by every scope-aware query below, so
   // misconceptions/forgetting/pace-outliers respect the same set, category,
@@ -64,7 +89,20 @@ export async function getLearnerMetrics({
   const quizAnswerScopeWhere = buildQuizAnswerScopeWhere(userId, scope, categoryIds)
   const studyEventWhere = buildStudyEventWhere(userId, scope, categoryIds)
 
-  const [cards, klpStates, tagRows, klpOutcomes, events, attempts, paceBaseline] =
+  // `buildCardScopeWhere` (exported for exactly this kind of reuse) rather than
+  // a second filter written here that can drift from the one every other query
+  // uses. CardProgress has its own scalar `cardId`, which is the narrowest
+  // scope and subsumes set/category — the same branching `buildStudyEventWhere`
+  // and `buildLearnerProfile` both apply.
+  const cardProgressScope: Record<string, unknown> = {}
+  if (scope.cardId) {
+    cardProgressScope.cardId = scope.cardId
+  } else {
+    const card = buildCardScopeWhere(scope, categoryIds)
+    if (Object.keys(card).length > 0) cardProgressScope.card = card
+  }
+
+  const [cards, klpStates, tagRows, klpOutcomes, events, attemptIds, paceBaseline, progressRows] =
     await Promise.all([
     // The full scope, not just `setIds` — `shapeTopicProfile` below honours
     // every dimension, and the two are returned in one `LearnerProfile`.
@@ -107,24 +145,10 @@ export async function getLearnerMetrics({
       select: { cardId: true, correct: true, score: true, createdAt: true, source: true, latencyMs: true },
     }),
     // The learner's REAL attempt sequence, for `repeatBonus`'s "within the
-    // last N attempts" window. Deliberately NOT scoped: a clean sitting is
-    // exactly what has to be visible, and scoping this would make the same
-    // tag's significance depend on which view is asking — the bug this query
-    // exists to fix, reintroduced one level down.
-    //
-    // Zero-answer attempts ARE excluded (ANSWERED_ATTEMPT_WHERE) — a different
-    // axis from HistoryScope. An empty attempt is not a sitting, so counting it
-    // dilutes "within the last N attempts". Provably safe for the tag join:
-    // every tag reaches an attempt through quizAnswer.attemptId, so any attempt
-    // a tag references has >= 1 answer by construction and cannot be filtered
-    // away. (`deriveTagScores` would append an unlisted attempt at the END of
-    // its order — see src/lib/errors/derive.ts:108-112 — which is why this
-    // matters.)
-    prisma.quizAttempt.findMany({
-      where: { userId, ...ANSWERED_ATTEMPT_WHERE },
-      orderBy: { createdAt: 'asc' },
-      select: { id: true },
-    }),
+    // last N attempts" window — answered attempts only, unscoped, oldest
+    // first. Shared with the quiz results screen through one helper because
+    // the two must agree exactly; see its doc comment.
+    loadAnsweredAttemptIds(prisma, userId),
     // The pace BASELINE, deliberately NOT scoped — for the same reason the
     // attempts query above isn't. A learner's normal speed in a mode is a
     // property of the learner, not of the view asking. Drawing it from the
@@ -143,6 +167,13 @@ export async function getLearnerMetrics({
         correct: true, score: true, createdAt: true,
       },
     }),
+    // Due state for the `follow_forgetting` candidates. Scoped, unlike the two
+    // queries above: a due date is a property of this learner's schedule for a
+    // card, so narrowing the view legitimately narrows the candidate set.
+    prisma.cardProgress.findMany({
+      where: { userId, ...cardProgressScope },
+      select: { cardId: true, dueAt: true },
+    }),
   ])
 
   const knowledge = Object.fromEntries(
@@ -151,10 +182,25 @@ export async function getLearnerMetrics({
 
   const derived = deriveTagScores(
     toStoredTags(tagRows),
-    bands,
-    attempts.map((a) => a.id),
+    effectiveBands,
+    attemptIds,
   )
-  const topics = toTopicRows(await loadCategoryRows(prisma, userId, scope))
+
+  const categoryRows = await loadCategoryRows(prisma, userId, scope)
+  const topics = toTopicRows(categoryRows)
+
+  // Weights and card ids for the candidates, built from the SAME rows
+  // `toTopicRows` consumes so there is one query rather than two.
+  const klpWeights: Record<string, number> = {}
+  const klpCardIds: Record<string, string> = {}
+  for (const c of categoryRows) {
+    for (const a of c.assignments) {
+      for (const k of a.card.klps) {
+        klpWeights[k.id] = k.weight
+        klpCardIds[k.id] = a.card.id
+      }
+    }
+  }
 
   // Analyzed-answer counts per topic. MUST come from QuizAnswer rows with
   // analysisStatus 'analyzed', NOT from the tags — a clean answer produces no
@@ -179,12 +225,43 @@ export async function getLearnerMetrics({
     now,
   })
 
+  const shapedTopics = shapeTopicProfile({
+    topics, knowledge, tags: derived, analyzedAnswersByTopic,
+    thresholds: tuning.thresholds,
+  })
+
+  // LIVE ids only. `supersededKlpIds` exists for TAG ATTRIBUTION — a historical
+  // tag names the version that was asked — and must never become a study
+  // target: that KLP describes a version of the card the learner cannot see.
+  const liveKlpIdsByTopic: Record<string, string[]> = {}
+  for (const t of topics) {
+    ;(liveKlpIdsByTopic[t.normalizedName] ??= []).push(...t.klpIds)
+  }
+
+  const ranked = rankCandidates(
+    toRankCandidates({
+      topics: shapedTopics.map((t) => ({
+        key: t.key,
+        klpIds: [...new Set(liveKlpIdsByTopic[t.key] ?? [])],
+        readiness: t.readiness,
+      })),
+      klpWeights,
+      knowledge,
+      klpCardIds,
+      dueByCard: Object.fromEntries(
+        progressRows
+          .filter((p): p is { cardId: string; dueAt: Date } => p.dueAt !== null)
+          .map((p) => [p.cardId, p.dueAt]),
+      ),
+    }),
+    tuning.strategy,
+    { now, thresholds: tuning.thresholds },
+  )
+
   return {
-    profile: composeLearnerProfile(
-      cards,
-      shapeTopicProfile({ topics, knowledge, tags: derived, analyzedAnswersByTopic }),
-    ),
+    profile: composeLearnerProfile(cards, shapedTopics),
     misconceptions,
+    ranked,
     // `StudyEvent.correct` is NULL for short-answer rows (they carry a
     // `score`, not a boolean) — mapping raw `correct` straight through would
     // drop every short-answer exposure from the curve AND break the pairing
@@ -306,7 +383,12 @@ async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: His
         where: assignmentWhere,
         select: {
           card: {
-            select: { id: true, klps: { select: { id: true, supersededAt: true } } },
+            select: {
+              id: true,
+              // `weight` and `cardId` are for Spec 3B's ranking candidates;
+              // `supersededAt` is what `toTopicRows` splits live from retired on.
+              klps: { select: { id: true, supersededAt: true, weight: true, cardId: true } },
+            },
           },
         },
       },

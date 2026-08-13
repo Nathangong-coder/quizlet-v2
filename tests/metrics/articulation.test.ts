@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { computeArticulation, ARTICULATION_MIN_PKNOWN } from '@/lib/metrics/articulation'
 import type { DerivedTag } from '@/lib/errors/derive'
+import { DEFAULT_THRESHOLDS } from '@/lib/tuning/schema'
 
 const NOW = new Date('2026-08-05T12:00:00.000Z')
 
@@ -197,5 +198,67 @@ describe('readiness', () => {
       analyzedAnswers: 1,
     })
     expect(messy.readiness!).toBeLessThan(clean.readiness!)
+  })
+})
+
+describe('tunable thresholds (Spec 3B)', () => {
+  const terseTag = {
+    attemptId: 'att1', cardId: 'c1', dimension: 'conciseness' as const,
+    type: 'too_terse', klpId: 'k1', relevance: 3, starred: false,
+    magnitude: 5, storedSeverity: 3, storedSignificance: 5,
+    mode: 'quiz-sa' as const, createdAt: new Date('2026-08-06T00:00:00Z'),
+    severity: 3, repeatBonus: 0, significance: 5, isLegacy: false,
+  }
+
+  it('books terseness as a knowledge gap when the KLP is below the observation floor', () => {
+    const out = computeArticulation({
+      tags: [terseTag],
+      knowledge: { k1: { pKnown: 0.9, observations: 2 } },
+      analyzedAnswers: 1,
+    })
+    expect(out.knowledgeGapTerseness).toBe(1)
+    expect(out.verbosityIndex).toBe(0)
+  })
+
+  it('LOWERING minObservations makes that same tag count as an expression gap', () => {
+    // The whole point of the knob: at the shipped floor of 3 this learner's
+    // two observations are invisible; at 1 they are provisional evidence.
+    const out = computeArticulation({
+      tags: [terseTag],
+      knowledge: { k1: { pKnown: 0.9, observations: 2 } },
+      analyzedAnswers: 1,
+      thresholds: { ...DEFAULT_THRESHOLDS, minObservations: 1 },
+    })
+    expect(out.knowledgeGapTerseness).toBe(0)
+    expect(out.verbosityIndex).toBe(-5)
+  })
+
+  it('RAISING articulationMinPKnown reclassifies an expression gap as a knowledge gap', () => {
+    const base = { tags: [terseTag], knowledge: { k1: { pKnown: 0.7, observations: 5 } }, analyzedAnswers: 1 }
+    expect(computeArticulation(base).verbosityIndex).toBe(-5)
+    expect(
+      computeArticulation({ ...base, thresholds: { ...DEFAULT_THRESHOLDS, articulationMinPKnown: 0.8 } })
+        .knowledgeGapTerseness,
+    ).toBe(1)
+  })
+
+  it('LOWERING readinessWeightPerAnswer makes the same errors read as less ready', () => {
+    const base = {
+      tags: [{ ...terseTag, dimension: 'clarity' as const, type: 'no_thesis', klpId: null }],
+      knowledge: {},
+      analyzedAnswers: 1,
+    }
+    const shipped = computeArticulation(base).readiness!
+    const strict = computeArticulation({
+      ...base, thresholds: { ...DEFAULT_THRESHOLDS, readinessWeightPerAnswer: 6 },
+    }).readiness!
+    expect(strict).toBeLessThan(shipped)
+  })
+
+  it('omitting thresholds reproduces the shipped constants exactly', () => {
+    const base = { tags: [terseTag], knowledge: { k1: { pKnown: 0.9, observations: 5 } }, analyzedAnswers: 2 }
+    expect(computeArticulation(base)).toEqual(
+      computeArticulation({ ...base, thresholds: DEFAULT_THRESHOLDS }),
+    )
   })
 })

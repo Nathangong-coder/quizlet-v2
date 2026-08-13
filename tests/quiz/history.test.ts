@@ -6,11 +6,29 @@ import { join, relative, sep } from 'node:path'
 const ROOT = process.cwd()
 
 /**
- * The two — and only two — call sites allowed to apply the predicate.
+ * The only call sites allowed to apply the predicate directly.
  *
  * Both are read-only history surfaces: nothing in flight passes through them.
+ *
+ * `src/lib/metrics/read.ts` USED to be here and now reaches the predicate
+ * through `loadAnsweredAttemptIds` instead, which Spec 3B added so the quiz
+ * results screen could share the identical attempt window. The results screen
+ * lives in `src/actions/quiz.ts`, which must never contain the predicate —
+ * its in-flight lookups would break — so the query moved to the one file that
+ * is allowed to hold it rather than the guard being loosened to admit quiz.ts.
+ * `HELPER_CALL_SITES` below keeps the coverage the move would otherwise lose.
  */
-const ALLOWED_CALL_SITES = ['src/actions/user.ts', 'src/lib/metrics/read.ts']
+const ALLOWED_CALL_SITES = ['src/actions/user.ts']
+
+/**
+ * The files that must reach the predicate through `loadAnsweredAttemptIds`.
+ *
+ * Asserted because dropping `read.ts` from `ALLOWED_CALL_SITES` above would
+ * otherwise silently stop checking that it filters at all — the guard would
+ * still pass if the repeatBonus window went back to counting abandoned
+ * attempts.
+ */
+const HELPER_CALL_SITES = ['src/actions/quiz.ts', 'src/lib/metrics/read.ts']
 
 /**
  * Readers that must NEVER filter, called out by name so a violation names
@@ -108,6 +126,22 @@ describe('the predicate is applied at exactly two call sites', () => {
       expect(referencing).toContain(path)
     })
   }
+
+  // The trailing `(` matters: it detects a CALL, not an import. Matching the
+  // bare name passes on a file that still imports the helper while querying
+  // around it — which is precisely the regression this assertion exists for,
+  // and it survived a mutation test written the other way.
+  const usingHelper = sourceFiles(join(ROOT, 'src'))
+    .filter((f) => codeOnly(readFileSync(f, 'utf8')).includes('loadAnsweredAttemptIds('))
+    .map((f) => relative(ROOT, f).split(sep).join('/'))
+    .sort()
+
+  it('the shared attempt-window helper is used by exactly the two derivation surfaces', () => {
+    // Both derive `repeatBonus`, which is positional, so they must draw the
+    // attempt sequence from the same filtered population or the same tag
+    // scores differently on the dashboard and on the results screen.
+    expect(usingHelper).toEqual(['src/lib/quiz/history.ts', ...HELPER_CALL_SITES].sort())
+  })
 
   for (const path of MUST_NEVER_FILTER) {
     it(`${path} never applies it`, () => {

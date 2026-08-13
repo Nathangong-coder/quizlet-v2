@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-12
+**Last updated:** 2026-08-13
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -39,7 +39,7 @@ Forget now drops the **evidence**, not just the estimate, and a reset quiz is er
 
 **Known and deliberate:** matching-mode answers render through `MatchingReview`, which has no per-answer card, so they get no per-question erase control even on the permalink. Erasing them via the card or set scope works, as ③a confirmed.
 
-### 2b. ✅ Empty quiz attempts — **BUILT 2026-08-12. Live gate NOT yet run.**
+### 2b. ✅ Empty quiz attempts — **DONE 2026-08-12, live-verified.**
 
 Spec: `specs/2026-08-12-empty-quiz-attempts-design.md` · Plan: `plans/2026-08-12-empty-quiz-attempts.md`
 Commits `31b1a09` (Tasks 1, 2, 4, 5) and `3811797` (Tasks 3, 6 + the in-flight guard), branch `spec3b-tunable-scoring`, **not merged**.
@@ -50,7 +50,9 @@ An attempt with no `QuizAnswer` rows no longer counts as history. `ANSWERED_ATTE
 
 **The open question from the deferral is resolved:** a card deletion **nulls the score**, it does not delete the attempt. Erasing memory is a request to destroy data; editing a set is not — and the cascaded population is reached by *another user's* edit.
 
-**⚠️ Task 9, the live gate, has NOT been run** — GitHub OAuth puts every signed-in page out of reach from an agent session (trap 6). Six checks are listed in the spec's §Testing. Until they run, this is verified only against mocks — and the lesson from item 2 is exactly that a green suite can sit over a statement Postgres rejects. **Record predictions before measuring.**
+**Live gate PASSED 2026-08-12** (run by the user; GitHub OAuth puts signed-in pages out of reach from an agent session — trap 6). Verified in the browser against the real database: a partly-answered quiz (2 of 5) survives and its results page shows exactly the answered questions; a blank submit shows "Quiz Skipped" and leaves nothing on `/profile`; an abandoned quiz never appears; deleting a tested card re-scores the attempt, and deleting every tested card nulls the score and drops it off `/profile`.
+
+**One thing the gate could NOT reach, and why it matters less than it looks.** The intended check was "force an AI failure mid-quiz, confirm you get the results screen and not 'Quiz Skipped'" — the scenario `discardSkippedQuizAttempt`'s condition 1 exists for. It is **unreachable by disabling credentials**: `src/app/sets/[id]/quiz/page.tsx:28-31` gates the whole quiz page on *any* enabled credential, before mode selection, so you never reach a short-answer question. Reproducing it needs a credential that is enabled but broken — `saveCredential` does **not** verify keys (that is `testCredential`'s separate job), so a deliberately bogus key can be saved as the only enabled credential. Not run, because the 2-of-5 result already demonstrates `answeredCount()` returns non-zero from real React state and the discard refuses on it; the residual question is only whether a *grading failure* wipes that state before submit, and `answeredCount` never observes the server's response.
 
 **Two findings worth more than the code:**
 - The regression guards the plan named for the `updateSet` transaction conversion (`tests/cards/*`) are pure unit tests of helpers `updateSet` *calls* — they **cannot** detect a transaction-shape regression, and would have passed had the ordering been broken outright. Same failure mode as trap 8.
@@ -87,14 +89,62 @@ It *looked* fixed at the time only because the 2026-08-12 account reset emptied 
 
 </details>
 
-### 3. ⬜ Spec 3B — tunable scoring — **PLAN READY TO EXECUTE**
+### 3. ✅ Spec 3B — tunable scoring — **BUILT 2026-08-13, live gate outstanding**
 
-Spec: `specs/2026-08-05-spec3b-tunable-scoring-and-targeting-design.md`
-Plan: `plans/2026-08-06-stage8-spec3b-tunable-scoring.md` — **rebuilt 2026-08-08** against post-hardening code (commit `269714b`). 10 tasks.
+All 10 tasks, one commit each (`c980cfa` … `8ccceea`), branch `spec3b-tunable-scoring`, **not merged**.
+Tests **1083 → 1181** (100 files), `tsc` clean, lint **185** (unchanged).
+
+`LearnerTuning` holds a strategy plus two sparse, Zod-validated override blobs; `getUserTuning`
+resolves them into a complete band table and a complete threshold set. `computeArticulation`,
+`shapeTopicProfile` and `rankCandidates` all take the thresholds as a parameter. `getLearnerMetrics`
+threads the learner's bands, thresholds and strategy and returns a ranked KLP candidate list
+(**still rendered nowhere** — 3C's job). The quiz results screen derives severity, significance and
+repeatBonus at read time. Three panels on `/settings/ai`, each sending only its own field.
+
+**Everything is mutation-tested.** 40+ mutants introduced and confirmed to redden. Three guards were
+found to be incapable of failing and were rewritten before being trusted:
+- the targeting purity test used ids already in alphabetical order, so an in-place sort was a no-op;
+- the read-API strategy test used a fixture every strategy ranked identically;
+- the new `loadAnsweredAttemptIds` guard matched the *import* rather than the call, so a file could
+  import the helper and query around it.
+
+**Three design defects were caught in the spec revision and never built.** See the spec's §0 and
+§3.4.1: the unfiltered attempt window, the structurally-always-zero repeatBonus, and the
+read-modify-write panel clobber.
+
+**Two things the plan got wrong about the code**, both corrected in place:
+- `export { X } from '…'` creates no local binding, and `articulation.ts` reads both constants as
+  defaults — it must import and re-export.
+- Widening `RawCategoryRow` with `weight`/`cardId` forces every `toTopicRows` fixture to carry
+  fields the function ignores. Prisma's inferred row type already carries them; the extra fields
+  ride along structurally.
+
+**One structural change the plan did not anticipate:** the attempt-window query moved into
+`src/lib/quiz/history.ts` as `loadAnsweredAttemptIds`. Item 2b's guard forbids
+`ANSWERED_ATTEMPT_WHERE` in `src/actions/quiz.ts` — correctly, since its in-flight lookups must
+never filter — and Task 7 needs that exact filtered window on the results screen. The query moved
+to the one file allowed to hold it rather than the guard being loosened to admit `quiz.ts`.
+
+**LIVE GATE OUTSTANDING — needs the user** (trap 6: GitHub OAuth only, no agent session reaches a
+signed-in page):
+- [ ] `/settings/ai`: a band edit saves and reloads; an inverted band is rejected with a readable
+      message; a reset restores the default; both consequence warnings are visible.
+- [ ] Set a band override AND a threshold AND a strategy, reload, confirm all three survived.
+      (Covered at the payload level by `tests/components/tuning-panels.test.tsx`; this confirms the
+      round trip.)
+- [ ] **Blocked on a corpus:** lower `minObservations` to 1 and confirm topic knowledge renders
+      where it read null. The 2026-08-12 account reset left **zero** study history, so this needs
+      the user to quiz again first. Do not seed synthetic data.
+- [ ] Retune a band, then confirm the same error shows the same severity **and significance** on the
+      results screen as on an unscoped metric read — including a tag that repeats within
+      `REPEAT_WINDOW_ATTEMPTS`. Severity agreeing is not sufficient; it is pure in the tag.
+
+Spec: `specs/2026-08-05-spec3b-tunable-scoring-and-targeting-design.md` — revised 2026-08-12 (see its §0) against items 1, 2 and 2b.
+Plan: `plans/2026-08-06-stage8-spec3b-tunable-scoring.md` — rebuilt 2026-08-08 against post-hardening code, patched 2026-08-12 to match the revised spec.
 
 Knob set (user-approved): severity bands + targeting strategy + `MIN_OBSERVATIONS` + `ARTICULATION_MIN_PKNOWN` + `READINESS_WEIGHT_PER_ANSWER`.
 
-**Known limit, accepted deliberately:** `getLearnerMetrics` has **zero production callers**. Task 6 makes it tuning-aware for 3C to consume; the ranked output renders nowhere until then. 3B's visible surface is the settings panels + the quiz results screen.
+**Known limit, accepted deliberately:** `getLearnerMetrics` still has **zero production callers**. Spec 3B made it tuning-aware and gave it a tested `ranked` output for 3C to consume; nothing renders it. 3B's visible surface is the three settings panels + the quiz results screen.
 
 ### 4. ⬜ Spec 3C — learner dashboard (the UI spec) — **SPEC EXISTS, NO PLAN, NO CODE**
 
@@ -187,9 +237,9 @@ Never in memory — always in a spec's own section.
 
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-12, after item 2b)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-13, after Spec 3B)
 
-- **Tests:** 96 files / **1083 passing** (excluding `cursor-agents`)
+- **Tests:** 100 files / **1181 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
-- **`npm run lint`:** **185 problems** (133 errors, 52 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b.)
+- **`npm run lint`:** **185 problems** (133 errors, 52 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B.)
 - Branch is **not merged**, but IS pushed to `origin` (as of 2026-08-11). A Vercel preview deployment tracks it.
