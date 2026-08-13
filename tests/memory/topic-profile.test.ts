@@ -3,6 +3,7 @@ import { shapeTopicProfile, composeLearnerProfile, toTopicRows } from '@/lib/mem
 import type { TopicRow } from '@/lib/memory/topic-profile'
 import type { LearnerCardProfile } from '@/lib/memory/profile'
 import type { DerivedTag } from '@/lib/errors/derive'
+import { DEFAULT_THRESHOLDS } from '@/lib/tuning/schema'
 
 const NOW = new Date('2026-08-05T12:00:00.000Z')
 
@@ -313,5 +314,54 @@ describe('readiness keeps tags whose target KLP was superseded (B7)', () => {
     })
 
     expect(result[0].readiness).toBe(1)
+  })
+})
+
+describe('tunable observation floor (Spec 3B)', () => {
+  const topic = {
+    normalizedName: 'valuation', displayName: 'Valuation', color: null,
+    klpIds: ['k1'], supersededKlpIds: [], cardIds: ['c1'],
+  }
+
+  it('reports null knowledge for a KLP below the shipped floor', () => {
+    const [out] = shapeTopicProfile({
+      topics: [topic],
+      knowledge: { k1: { pKnown: 0.8, observations: 1 } },
+      tags: [],
+      analyzedAnswersByTopic: {},
+    })
+    expect(out.knowledge).toBeNull()
+  })
+
+  it('reports that knowledge once the learner lowers the floor', () => {
+    // This is the live-database case: every KLP seen at most once, so at the
+    // shipped floor of 3 zero topics report any knowledge at all.
+    const [out] = shapeTopicProfile({
+      topics: [topic],
+      knowledge: { k1: { pKnown: 0.8, observations: 1 } },
+      tags: [],
+      analyzedAnswersByTopic: {},
+      thresholds: { ...DEFAULT_THRESHOLDS, minObservations: 1 },
+    })
+    expect(out.knowledge).toBeCloseTo(0.8)
+  })
+
+  it('forwards thresholds down to computeArticulation, not just its own filter', () => {
+    // A partial thread — honouring the floor for knowledge but not for
+    // articulation — is the failure this asserts against.
+    const [out] = shapeTopicProfile({
+      topics: [topic],
+      knowledge: { k1: { pKnown: 0.9, observations: 1 } },
+      tags: [{
+        attemptId: 'att1', cardId: 'c1', dimension: 'conciseness', type: 'too_terse',
+        klpId: 'k1', relevance: 3, starred: false, magnitude: 5, storedSeverity: 3,
+        storedSignificance: 5, mode: 'quiz-sa', createdAt: new Date('2026-08-06T00:00:00Z'),
+        severity: 3, repeatBonus: 0, significance: 5, isLegacy: false,
+      }],
+      analyzedAnswersByTopic: { valuation: 1 },
+      thresholds: { ...DEFAULT_THRESHOLDS, minObservations: 1 },
+    })
+    expect(out.knowledgeGapTerseness).toBe(0)
+    expect(out.verbosityIndex).toBe(-5)
   })
 })

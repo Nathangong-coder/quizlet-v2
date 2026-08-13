@@ -1,6 +1,8 @@
 import type { DerivedTag } from '@/lib/errors/derive'
-import { MIN_OBSERVATIONS } from '@/lib/metrics/bkt'
-import { ARTICULATION_MIN_PKNOWN, READINESS_WEIGHT_PER_ANSWER } from '@/lib/tuning/schema'
+import {
+  ARTICULATION_MIN_PKNOWN, READINESS_WEIGHT_PER_ANSWER,
+  DEFAULT_THRESHOLDS, type MetricThresholds,
+} from '@/lib/tuning/schema'
 
 // `ARTICULATION_MIN_PKNOWN` and `READINESS_WEIGHT_PER_ANSWER` are DEFINED in
 // the tuning module so `DEFAULT_THRESHOLDS` can derive from them without an
@@ -29,6 +31,12 @@ export interface ArticulationInput {
   knowledge: Record<string, KnowledgeRef>
   /** Count of analyzed answers these tags came from. */
   analyzedAnswers: number
+  /**
+   * The learner's tuned thresholds. Optional, defaulting to the shipped
+   * constants, so every existing caller is unchanged — but a caller that HAS a
+   * user must pass theirs, or the knob is inert for that surface.
+   */
+  thresholds?: MetricThresholds
 }
 
 export interface Articulation {
@@ -41,6 +49,9 @@ export interface Articulation {
 }
 
 export function computeArticulation(input: ArticulationInput): Articulation {
+  const { minObservations, articulationMinPKnown, readinessWeightPerAnswer } =
+    input.thresholds ?? DEFAULT_THRESHOLDS
+
   let over = 0
   let under = 0
   let knowledgeGapTerseness = 0
@@ -79,7 +90,7 @@ export function computeArticulation(input: ArticulationInput): Articulation {
 
       const k = input.knowledge[tag.klpId as string]
       const counts =
-        k !== undefined && k.observations >= MIN_OBSERVATIONS && k.pKnown >= ARTICULATION_MIN_PKNOWN
+        k !== undefined && k.observations >= minObservations && k.pKnown >= articulationMinPKnown
       if (counts) {
         under += tag.significance
         expressionWeight += tag.significance
@@ -94,7 +105,7 @@ export function computeArticulation(input: ArticulationInput): Articulation {
     readiness = null
   } else {
     const weightPerAnswer = expressionWeight / input.analyzedAnswers
-    readiness = Math.max(0, 1 - weightPerAnswer / READINESS_WEIGHT_PER_ANSWER)
+    readiness = Math.max(0, 1 - weightPerAnswer / readinessWeightPerAnswer)
   }
 
   return { verbosityIndex: over - under, knowledgeGapTerseness, readiness }

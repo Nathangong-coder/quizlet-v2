@@ -1,6 +1,6 @@
 import type { LearnerCardProfile } from '@/lib/memory/profile'
 import type { DerivedTag } from '@/lib/errors/derive'
-import { MIN_OBSERVATIONS } from '@/lib/metrics/bkt'
+import { DEFAULT_THRESHOLDS, type MetricThresholds } from '@/lib/tuning/schema'
 import { computeArticulation, type KnowledgeRef } from '@/lib/metrics/articulation'
 
 /**
@@ -45,7 +45,10 @@ export interface LearnerTopicProfile {
   name: string
   color: string | null
   klpCount: number
-  /** Mean pKnown across KLPs clearing MIN_OBSERVATIONS. Null when none do. */
+  /**
+   * Mean pKnown across KLPs clearing the learner's observation floor
+   * (`MetricThresholds.minObservations`). Null when none do.
+   */
   knowledge: number | null
   verbosityIndex: number
   knowledgeGapTerseness: number
@@ -78,9 +81,17 @@ export interface ShapeTopicProfileInput {
    * `computeArticulation`'s `analyzedAnswers === 0` branch.
    */
   analyzedAnswersByTopic: Record<string, number>
+  /**
+   * The learner's tuned thresholds, forwarded to `computeArticulation` AND
+   * applied to the knowledge filter below. Both, or the floor means one thing
+   * for topic knowledge and another for terseness classification — on the same
+   * screen, about the same topic.
+   */
+  thresholds?: MetricThresholds
 }
 
 export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicProfile[] {
+  const thresholds = input.thresholds ?? DEFAULT_THRESHOLDS
   const grouped = new Map<string, TopicRow[]>()
   for (const t of input.topics) {
     const list = grouped.get(t.normalizedName)
@@ -102,7 +113,10 @@ export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicPr
 
     const scored = klpIds
       .map((id) => input.knowledge[id])
-      .filter((k): k is KnowledgeRef => k !== undefined && k.observations >= MIN_OBSERVATIONS)
+      .filter(
+        (k): k is KnowledgeRef =>
+          k !== undefined && k.observations >= thresholds.minObservations,
+      )
 
     const knowledge =
       scored.length === 0
@@ -122,6 +136,7 @@ export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicPr
       ),
       knowledge: input.knowledge,
       analyzedAnswers: input.analyzedAnswersByTopic[key] ?? 0,
+      thresholds,
     })
 
     out.push({
