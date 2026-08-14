@@ -141,7 +141,11 @@ async function main() {
   } else {
     console.table(
       metrics.ranked.slice(0, 15).map((c) => ({
-        klpId: c.klpId.slice(0, 8),
+        // TAIL, not head. cuids created in the same batch share a long prefix,
+        // so a leading slice makes distinct KLPs render as the same id and the
+        // table looks like it is emitting duplicates — which `toRankCandidates`
+        // explicitly does not do. The entropy is at the end.
+        klpId: `…${c.klpId.slice(-6)}`,
         topic: c.topicKey,
         weight: c.weight,
         pKnown: c.pKnown.toFixed(3),
