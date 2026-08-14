@@ -159,15 +159,27 @@ Each section states what it needs **in terms of the learner's own floor** —
 `MetricThresholds.minObservations`, not from a literal 3 — and links to the
 threshold setting, since lowering it is a legitimate response.
 
-**Three distinct empty states, and conflating them is the failure mode.** The
-2026-08-13 live gate produced all three, and two were indistinguishable from a
-broken feature until diagnosed against the database:
+**Four distinct causes, and conflating them is the failure mode.** All four
+render identically — a fully loaded page with a header and no rows underneath —
+so the section must name which one it is. Three of the four are fixable in
+seconds *once the learner knows which*, which is the entire argument for
+spending copy on this. The 2026-08-13 live gate produced two of them, and both
+were indistinguishable from a broken feature until diagnosed against the
+database.
 
-| Cause | What the learner must be told |
-| --- | --- |
-| No study history at all | "Take a quiz — nothing here can fill in until you do." |
-| Evidence exists but sits below the floor | "3 KLPs measured, none has reached your 3-answer floor yet." Offer the setting. |
-| **No card is both categorized and has key points** | "None of your studied cards is in a category, so no topic can report anything." |
+| Cause | What the learner must be told | Their fix |
+| --- | --- | --- |
+| No study history at all | "Take a quiz — nothing here can fill in until you do." | study |
+| Evidence exists but sits below their floor | "3 KLPs measured, none has reached your 3-answer floor yet." | lower the floor |
+| **No card is both categorized and has key points** | "None of your studied cards is in a category, so no topic can report anything." | categorize a card |
+| **Saved study scope resolves, but nothing inside it qualifies** (§6) | "Your study scope is limited to *Valuation Deck*, and nothing in it is categorized yet." | widen the scope |
+
+Distinguishing the last two matters: both are "nothing is categorized", but one
+is about the whole library and one is about the slice the learner chose, and the
+remedies are opposite — categorize versus widen. A single merged message would
+send half of them to the wrong fix. Note the fourth is **not** the stale-scope
+case (§6.4), which has already widened by the time this renders and says so
+separately; here the scope is entirely valid, just narrow.
 
 The third is the one nobody predicts. Candidates are assembled category → card →
 live KLP, so a library whose KLP-bearing cards and categorized cards do not
@@ -296,8 +308,9 @@ Rendering tests over fixture read-API payloads:
 - `ranked` renders in the order received — a test that reorders the fixture and
   expects the DOM order to follow is the guard against a component re-sorting;
 - sub-threshold candidates are labelled and separated, not interleaved;
-- each of §5's three empty states renders its own message from the same empty
-  payload plus the coverage counts;
+- each of §5's four empty states renders its own message from the same empty
+  payload plus the coverage counts — four fixtures differing only in the counts,
+  asserting four different strings, since one merged message is the defect;
 - scope changes are URL-synced and survive reload; the saved default applies
   only when the URL carries no scope;
 - topic colours match their categories.

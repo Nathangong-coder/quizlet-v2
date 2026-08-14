@@ -155,9 +155,10 @@ feature "empty":**
 **Left in a test state on purpose** (the user's call to revert or keep): `minObservations` 1,
 `articulationMinPKnown` 0.8, a `too_terse` band override, and a `test-category` category.
 
-### 4. ⬜ Spec 3C — learner dashboard & study scope — **SPEC REVISED 2026-08-13, NO PLAN, NO CODE**
+### 4. 🔨 Spec 3C — learner dashboard & study scope — **IN PROGRESS, plan written 2026-08-14**
 
-Spec: `specs/2026-08-05-spec3c-learner-dashboard-design.md` — revised 2026-08-13 against shipped 3B, and **widened**: it now also carries a **saved study scope** setting (its §6), added at the user's request.
+Spec: `specs/2026-08-05-spec3c-learner-dashboard-design.md` — revised 2026-08-13 against shipped 3B, and **widened**: it now also carries a **saved study scope** setting (its §6), added at the user's request. §5 widened again 2026-08-14 to **four** empty causes.
+Plan: `plans/2026-08-14-stage8-spec3c-learner-dashboard.md` — 12 tasks.
 
 The dashboard is the **first production caller of `getLearnerMetrics`**. It renders `ranked` in the order received — 3B already applied the learner's strategy, so a component that re-sorts is a defect, and a test asserts the DOM follows a reordered fixture.
 
@@ -169,7 +170,7 @@ The dashboard is the **first production caller of `getLearnerMetrics`**. It rend
 
 **Fix both together or neither** — closing the first alone silently drops the topic signal the moment an active learner's card section fills `MAX_PROFILE_CHARS`. Shipping a dashboard that shows topics while every prompt still sees `topics: []` would say plainly that the dashboard and the AI are looking at different learners.
 
-**Three empty states, not one** (§5), two of which the 3B gate produced and which read as a broken page: no history at all; evidence below the learner's floor; and **no card that is both categorized and has live KLPs** — the real library had 68 KLP-bearing cards and 4 categorized cards with zero overlap, which yields an empty dashboard however much the learner studies. Also worth telling the learner: categorizing an already-studied card works retroactively.
+**Four empty causes, not one** (§5), two of which the 3B gate produced and which read as a broken page: no history at all; evidence below the learner's floor; **no card that is both categorized and has live KLPs** (the real library had 68 KLP-bearing cards and 4 categorized cards with zero overlap, which yields an empty dashboard however much the learner studies); and a valid-but-narrow saved scope. The last two must not be merged — both are "nothing is categorized", but the remedies are opposite (categorize vs. widen). Also worth telling the learner: categorizing an already-studied card works retroactively.
 
 **Do not hardcode 3 as the evidence floor** anywhere in the copy — it is `MetricThresholds.minObservations` per learner since 3B, and a learner who set it to 1 would be told they need evidence they already have.
 
