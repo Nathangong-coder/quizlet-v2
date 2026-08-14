@@ -30,7 +30,7 @@ export async function getUserTuning(userId: string): Promise<ResolvedTuning> {
   const { prisma } = await import('@/lib/db')
   const row = await prisma.learnerTuning.findUnique({
     where: { userId },
-    select: { strategy: true, bands: true, thresholds: true },
+    select: { strategy: true, bands: true, thresholds: true, studyScope: true },
   })
   const shaped = shapeTuning(row)
   return {

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { DEFAULT_BANDS, type BandTable, type SeverityBand } from '@/lib/errors/bands'
 import { ACCURACY_TYPES, CLARITY_TYPES, CONCISENESS_TYPES } from '@/lib/errors/taxonomy'
 import { MIN_OBSERVATIONS } from '@/lib/metrics/bkt'
+import { parseStudyScope, type StoredStudyScope } from '@/lib/tuning/study-scope'
 
 /** Bump when either stored blob's shape changes incompatibly. */
 export const TUNING_VERSION = 1
@@ -159,20 +160,40 @@ export interface TuningRow {
   strategy: StrategyKey
   bandOverrides: BandOverrides
   thresholdOverrides: ThresholdOverrides
+  /**
+   * Returned STORED, not resolved — unlike bands and thresholds, which merge
+   * over defaults here. Resolving a scope needs the learner's current sets and
+   * categories, a database read this pure function has no business doing.
+   * `resolveStudyScope` does it where that data is already in hand.
+   */
+  studyScope: StoredStudyScope
 }
 
 /**
  * Pure: every decision the load/save actions make happens here so it is tested
  * without a database. Each field degrades INDEPENDENTLY — one corrupt blob must
- * not discard a perfectly good strategy or the other blob.
+ * not discard a perfectly good strategy or any of the other three.
  */
 export function shapeTuning(
-  row: { strategy: string; bands: unknown; thresholds: unknown } | null,
+  row: {
+    strategy: string
+    bands: unknown
+    thresholds: unknown
+    studyScope: unknown
+  } | null,
 ): TuningRow {
-  if (!row) return { strategy: 'balanced', bandOverrides: {}, thresholdOverrides: {} }
+  if (!row) {
+    return {
+      strategy: 'balanced',
+      bandOverrides: {},
+      thresholdOverrides: {},
+      studyScope: { setIds: [], categoryKeys: [] },
+    }
+  }
   return {
     strategy: parseStrategy(row.strategy),
     bandOverrides: parseBandOverrides(row.bands),
     thresholdOverrides: parseThresholds(row.thresholds),
+    studyScope: parseStudyScope(row.studyScope),
   }
 }

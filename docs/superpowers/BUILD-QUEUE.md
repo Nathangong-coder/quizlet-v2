@@ -176,7 +176,11 @@ The dashboard is the **first production caller of `getLearnerMetrics`**. It rend
 
 **Do not hardcode 3 as the evidence floor** anywhere in the copy — it is `MetricThresholds.minObservations` per learner since 3B, and a learner who set it to 1 would be told they need evidence they already have.
 
-### 5. ⬜ Spec 4 — plan setup & readiness dashboard — **DESIGNED 2026-08-14, NOT STARTED. Do not build during 3C.**
+### 5. ⬜ Profile & sets UI overhaul — **USER'S CALL, 2026-08-14. Comes BEFORE Spec 4.**
+
+The user wants to keep working on the Spec 3 family before starting Spec 4: specifically an overhaul of the existing **user profile** and **sets** UI. Not designed or specced yet — raised while 3C was being implemented, recorded so the queue order is not lost. **Do not jump from 3C to Spec 4.**
+
+### 6. ⬜ Spec 4 — plan setup & readiness dashboard — **DESIGNED 2026-08-14, NOT STARTED. Do not build during 3C.**
 
 Belongs to Stage 8 Spec 4 (action plan & AI lessons). Designed with the user on 2026-08-14 and captured here so it survives; **no spec doc, no plan, no code.**
 

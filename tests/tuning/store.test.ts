@@ -126,13 +126,17 @@ describe('saveTuning is PARTIAL (spec §5)', () => {
     // The caller has to see the fields it did not send, or a panel that saves
     // one field renders the other two as empty.
     h.upsert.mockResolvedValue({
-      strategy: 'polish_near_ready', bands: { inversion: [1, 2] }, thresholds: { minObservations: 1 },
+      strategy: 'polish_near_ready',
+      bands: { inversion: [1, 2] },
+      thresholds: { minObservations: 1 },
+      studyScope: { setIds: ['set-a'], categoryKeys: [] },
     })
     const res = await saveTuning({ strategy: 'polish_near_ready' })
     expect(res.success && res.data).toEqual({
       strategy: 'polish_near_ready',
       bandOverrides: { inversion: [1, 2] },
       thresholdOverrides: { minObservations: 1 },
+      studyScope: { setIds: ['set-a'], categoryKeys: [] },
     })
   })
 

@@ -139,7 +139,10 @@ describe('parseStrategy', () => {
 describe('shapeTuning', () => {
   it('returns balanced with no overrides when the user has no row', () => {
     expect(shapeTuning(null)).toEqual({
-      strategy: 'balanced', bandOverrides: {}, thresholdOverrides: {},
+      strategy: 'balanced',
+      bandOverrides: {},
+      thresholdOverrides: {},
+      studyScope: { setIds: [], categoryKeys: [] },
     })
   })
 
@@ -148,6 +151,7 @@ describe('shapeTuning', () => {
       strategy: 'polish_near_ready',
       bands: { inversion: [1, 3] },
       thresholds: { minObservations: 1 },
+      studyScope: null,
     })
     expect(shaped.strategy).toBe('polish_near_ready')
     expect(shaped.bandOverrides).toEqual({ inversion: [1, 3] })
@@ -155,8 +159,10 @@ describe('shapeTuning', () => {
   })
 
   it('falls back to balanced on an unrecognised stored strategy', () => {
-    expect(shapeTuning({ strategy: 'retired_key', bands: null, thresholds: null }).strategy)
-      .toBe('balanced')
+    expect(
+      shapeTuning({ strategy: 'retired_key', bands: null, thresholds: null, studyScope: null })
+        .strategy,
+    ).toBe('balanced')
   })
 
   it('drops one corrupt blob without touching the other', () => {
@@ -164,14 +170,46 @@ describe('shapeTuning', () => {
       strategy: 'follow_forgetting',
       bands: { inversion: [9, 9] },
       thresholds: { minObservations: 1 },
+      studyScope: null,
     })
     expect(shaped.strategy).toBe('follow_forgetting')
     expect(shaped.bandOverrides).toEqual({})
     expect(shaped.thresholdOverrides).toEqual({ minObservations: 1 })
   })
 
+  it('reads a stored study scope alongside the other three fields', () => {
+    const shaped = shapeTuning({
+      strategy: 'balanced',
+      bands: null,
+      thresholds: null,
+      studyScope: { setIds: ['set-a'], categoryKeys: ['accounting'] },
+    })
+    expect(shaped.studyScope).toEqual({ setIds: ['set-a'], categoryKeys: ['accounting'] })
+  })
+
+  it('a corrupt study scope discards NOTHING else', () => {
+    // Four fields now degrade independently. A single try/catch around the
+    // whole row would let one bad blob wipe three good settings — and the user
+    // would have no way to tell which one broke.
+    const shaped = shapeTuning({
+      strategy: 'follow_forgetting',
+      bands: { inversion: [1, 3] },
+      thresholds: { minObservations: 1 },
+      studyScope: { setIds: 'not-an-array' },
+    })
+    expect(shaped.studyScope).toEqual({ setIds: [], categoryKeys: [] })
+    expect(shaped.strategy).toBe('follow_forgetting')
+    expect(shaped.bandOverrides).toEqual({ inversion: [1, 3] })
+    expect(shaped.thresholdOverrides).toEqual({ minObservations: 1 })
+  })
+
   it('keeps overrides sparse — it never returns the full default table', () => {
-    const shaped = shapeTuning({ strategy: 'balanced', bands: { inversion: [1, 3] }, thresholds: null })
+    const shaped = shapeTuning({
+      strategy: 'balanced',
+      bands: { inversion: [1, 3] },
+      thresholds: null,
+      studyScope: null,
+    })
     expect(Object.keys(shaped.bandOverrides)).toEqual(['inversion'])
   })
 })

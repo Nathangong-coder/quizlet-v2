@@ -15,7 +15,7 @@ export async function loadTuning(): Promise<ActionResult<TuningRow>> {
   const { prisma } = await import('@/lib/db')
   const row = await prisma.learnerTuning.findUnique({
     where: { userId: session.user.id },
-    select: { strategy: true, bands: true, thresholds: true },
+    select: { strategy: true, bands: true, thresholds: true, studyScope: true },
   })
   // SPARSE, deliberately: the panel shows "your override" next to "the shipped
   // default", so it needs to know which keys the learner actually edited.
@@ -87,7 +87,7 @@ export async function saveTuning(input: {
       version: TUNING_VERSION,
     },
     update: data,
-    select: { strategy: true, bands: true, thresholds: true },
+    select: { strategy: true, bands: true, thresholds: true, studyScope: true },
   })
 
   revalidatePath('/settings/ai')
