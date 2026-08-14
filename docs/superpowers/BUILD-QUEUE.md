@@ -158,7 +158,9 @@ feature "empty":**
 ### 4. 🔨 Spec 3C — learner dashboard & study scope — **IN PROGRESS, plan written 2026-08-14**
 
 Spec: `specs/2026-08-05-spec3c-learner-dashboard-design.md` — revised 2026-08-13 against shipped 3B, and **widened**: it now also carries a **saved study scope** setting (its §6), added at the user's request. §5 widened again 2026-08-14 to **four** empty causes.
-Plan: `plans/2026-08-14-stage8-spec3c-learner-dashboard.md` — 12 tasks.
+Plan: `plans/2026-08-14-stage8-spec3c-learner-dashboard.md` — 12 tasks + Task 4B.
+
+**Task 4B added 2026-08-14: uncategorized KLPs enter targeting.** Candidates walk `CardCategory` → card → live KLP, so a card with no category is in no topic and therefore in no candidate list, even though `KlpState` holds a real posterior for it. Only `readiness` is topic-derived, and `articulationGap` already treats null as "no articulation problem" — so the topic is load-bearing for the *query shape*, not the scoring. Uncategorized KLPs now rank; they do **not** get a topic-mastery row (a grab-bag is not a concept). This turns the 68-vs-4 empty dashboard from a thing to explain into a thing that works.
 
 The dashboard is the **first production caller of `getLearnerMetrics`**. It renders `ranked` in the order received — 3B already applied the learner's strategy, so a component that re-sorts is a defect, and a test asserts the DOM follows a reordered fixture.
 
@@ -173,6 +175,34 @@ The dashboard is the **first production caller of `getLearnerMetrics`**. It rend
 **Four empty causes, not one** (§5), two of which the 3B gate produced and which read as a broken page: no history at all; evidence below the learner's floor; **no card that is both categorized and has live KLPs** (the real library had 68 KLP-bearing cards and 4 categorized cards with zero overlap, which yields an empty dashboard however much the learner studies); and a valid-but-narrow saved scope. The last two must not be merged — both are "nothing is categorized", but the remedies are opposite (categorize vs. widen). Also worth telling the learner: categorizing an already-studied card works retroactively.
 
 **Do not hardcode 3 as the evidence floor** anywhere in the copy — it is `MetricThresholds.minObservations` per learner since 3B, and a learner who set it to 1 would be told they need evidence they already have.
+
+### 5. ⬜ Spec 4 — plan setup & readiness dashboard — **DESIGNED 2026-08-14, NOT STARTED. Do not build during 3C.**
+
+Belongs to Stage 8 Spec 4 (action plan & AI lessons). Designed with the user on 2026-08-14 and captured here so it survives; **no spec doc, no plan, no code.**
+
+**The gap.** `TrainingPlanPanel` is one button at the bottom of the quiz page that calls `generateTrainingPlan(setId)` blind — no scope, no preconditions, no idea whether the profile it is about to send is worth anything. Quiz setup exists; plan setup does not.
+
+**Shape.** Its own route, two states. *Setup*: scope pickers (prefilled from the saved study scope, overridable per plan) + readiness readout + generate. *Generated*: the plan, with setup collapsed to a one-line summary bar and a "Change" affordance that re-expands it.
+
+**Readiness readout — five components, and the aggregation rule is the design:**
+
+| Component | Reads | Why |
+| --- | --- | --- |
+| Breadth | in-scope cards with live KLPs / cards in scope | no KLPs, nothing to target |
+| Depth | KLPs clearing **the learner's** floor / KLPs with any evidence | the one the 3B gate showed dominates |
+| Recency | share of evidence in the last N days | a posterior from 3-month-old answers describes someone who no longer exists |
+| Mode balance | evidence weighted by mode | Spec 2a already prices this — SA .95 / MC .75 / TF .50. An all-TF corpus carries half the evidentiary value per answer and nothing currently says so |
+| Extraction | cards with `klpStatus: 'pending'` | distinguishes **wait** from **do something** |
+
+**The verdict is the MINIMUM of the components, never the average.** Averaging lets breadth mask zero depth — exactly the state the library was in at the 3B gate (plenty of KLPs, none measured), which an average would have called "moderate". Three bands (thin/usable/solid), **never a percentage**: a number invites comparisons it cannot support and hides which part is thin. Each band names what would move it up — the component that produced the minimum. Computed in TypeScript, never asked of the AI, same rule as significance and mastery.
+
+**Error states reuse Spec 3C's `diagnoseEmptyState`** (`src/lib/metrics/coverage.ts`) — the same four causes, plus a fifth: extraction pending. This is why `coverage.ts` is built as shared substrate in 3C rather than dashboard-private; two implementations would drift into disagreeing about whether the learner has enough data.
+
+**Per-category table** — cards / with KLPs / measured / answers / last studied / verdict, per category plus Uncategorized. The honest half of the feature: it shows *where* the data is thin instead of averaging it away, which is what lets the learner deselect a category or go extract KLPs for it.
+
+**Two decisions the user accepted:**
+- **Regeneration is explicit, never automatic on a settings change.** Changing scope updates the readiness readout live (pure local computation) and surfaces a "Regenerate with these settings" button. A plan that silently reshuffles under the learner destroys the thing that makes it a plan, and it spends an AI call per toggle.
+- **Store the inputs on the plan row** — `inputScope`, `inputCoverage`, and the thresholds in force. Cheap, and it is the difference between a plan artifact and an auditable recommendation: the plan can say what it was built from, and "your data has changed a lot since this plan" becomes computable.
 
 ## Where deferred issues are recorded
 

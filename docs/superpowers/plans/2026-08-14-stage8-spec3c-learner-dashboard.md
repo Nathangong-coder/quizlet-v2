@@ -238,6 +238,30 @@ export function resolveScopePrefill(input: {
 
 ---
 
+### Task 4B: Uncategorized KLPs enter targeting (added 2026-08-14)
+
+**Files:**
+- Modify: `src/lib/metrics/read.ts`
+- Test: `tests/metrics/read-populations.test.ts`
+
+Runs **before** Task 5 — it changes what "rankable" means, which is the count Task 5 reports and the empty state Task 7 renders.
+
+**The defect.** Candidates are assembled by walking `CardCategory` → card → live KLP (`read.ts:376`, `:236-259`). A card with no category assignment has no `CardCategory` row pointing at it, so its KLPs are in no topic and therefore in no candidate list — **even though `KlpState` holds a real posterior for them.** The evidence exists and is never reached. At the 3B gate this hid 68 cards behind 4.
+
+**Why it is a defect and not the concept-layer decision working as intended.** Of the four inputs to a candidate's score, only `readiness` is topic-derived; `pKnown` and `weight` are KLP-grain and `dueAt` is card-grain. And `articulationGap` already defines the null case — `readiness ?? 1`, i.e. unknown readiness is *no* articulation problem (`targeting.ts:51`). So an uncategorized candidate ranks correctly with `readiness: null`. The topic is load-bearing for the **query shape**, not for the scoring.
+
+Corroborating inconsistency: `UNCATEGORIZED_ID` is already a first-class bucket in `filterCardsByCategories`, `ScopeBar` and `buildCardScopeWhere` (`scope.ts:163-172`), but `buildCategoryQuery` filters `normalizedName: { in: categoryKeys }`, which matches no row for the sentinel.
+
+- [ ] **Step 1: Synthesize the bucket.** Query the learner's cards that have live KLPs and **no** category assignment, honouring the scope's set/card dimensions, and add them as one candidate group under `UNCATEGORIZED_ID` with `readiness: null`. Respect the scope's category dimension: include the bucket when `categoryKeys` is empty (everything) or explicitly contains `UNCATEGORIZED_ID`; exclude it when the learner scoped to named categories only.
+
+- [ ] **Step 2: Targeting only — NOT topic mastery.** The bucket enters `ranked`. It must **not** become a `LearnerTopicProfile` row. "Uncategorized" is a grab-bag, not a concept, and a knowledge rollup over it would invent a concept that does not exist and average across unrelated material. This is the line the concept-layer decision draws (CLAUDE.md, Stage 8), and it is the whole reason this task is safe.
+
+- [ ] **Step 3: Tests.** An uncategorized card with a measured KLP appears in `ranked`; the same KLP produces **no** topic row; scoping to a named category excludes it; scoping to `UNCATEGORIZED_ID` includes only it. **Mutation:** let the bucket through into `shapeTopicProfile` and confirm the "no topic row" test reddens.
+
+- [ ] **Step 4: Commit.**
+
+---
+
 ### Task 5: Coverage counts and the four-cause diagnosis
 
 **Files:**
