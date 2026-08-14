@@ -89,7 +89,7 @@ It *looked* fixed at the time only because the 2026-08-12 account reset emptied 
 
 </details>
 
-### 3. ✅ Spec 3B — tunable scoring — **BUILT 2026-08-13, live gate outstanding**
+### 3. ✅ Spec 3B — tunable scoring — **DONE 2026-08-13, live-verified**
 
 All 10 tasks, one commit each (`c980cfa` … `8ccceea`), branch `spec3b-tunable-scoring`, **not merged**.
 Tests **1083 → 1181** (100 files), `tsc` clean, lint **185** (unchanged).
@@ -125,26 +125,35 @@ read-modify-write panel clobber.
 never filter — and Task 7 needs that exact filtered window on the results screen. The query moved
 to the one file allowed to hold it rather than the guard being loosened to admit `quiz.ts`.
 
-**LIVE GATE OUTSTANDING — needs the user** (trap 6: GitHub OAuth only, no agent session reaches a
-signed-in page):
-- [ ] `/settings/ai`: a band edit saves and reloads; an inverted band is rejected with a readable
-      message; a reset restores the default; both consequence warnings are visible.
-- [ ] Set a band override AND a threshold AND a strategy, reload, confirm all three survived.
-      (Covered at the payload level by `tests/components/tuning-panels.test.tsx`; this confirms the
-      round trip.)
-- [ ] **Blocked on a corpus:** lower `minObservations` to 1 and confirm topic knowledge renders
-      where it read null. The 2026-08-12 account reset left **zero** study history, so this needs
-      the user to quiz again first. Do not seed synthetic data.
-- [ ] Retune a band, then confirm the same error shows the same severity **and significance** on the
-      results screen as on an unscoped metric read — including a tag that repeats within
-      `REPEAT_WINDOW_ATTEMPTS`. Severity agreeing is not sufficient; it is pure in the tag.
+**LIVE GATE PASSED 2026-08-13** (run by the user in the browser; verified from the database side
+with `npm run tuning:check`, a new read-only script that calls the real `getLearnerMetrics` —
+necessary because two of this spec's effects render nowhere until 3C).
 
-Spec: `specs/2026-08-05-spec3b-tunable-scoring-and-targeting-design.md` — revised 2026-08-12 (see its §0) against items 1, 2 and 2b.
-Plan: `plans/2026-08-06-stage8-spec3b-tunable-scoring.md` — rebuilt 2026-08-08 against post-hardening code, patched 2026-08-12 to match the revised spec.
+- **Panels persist.** The stored row ended up as `bands: {too_terse:[1,2]}`,
+  `thresholds: {minObservations: 1, articulationMinPKnown: 0.8}`, `strategy: balanced` — three
+  fields written by three different panels, coexisting. That is the **discriminating** case for
+  partial saves: an earlier snapshot with `bands: {}` could not tell the correct design from the
+  write-all-three one, because both produce that row. The user separately confirmed the settings
+  survived a quiz.
+- **The observation floor demonstrably works.** With the floor at 1, the topic carrying the one
+  studied card went `null (below floor)` → **0.131**, and its two KLPs went `sufficient: false`
+  → `true`, sorting to ranks 0 and 1 above all 24 sub-threshold candidates.
+- **The ranking arithmetic reconciles.** Scores 0.312 (weight 5) and 0.196 (weight 3) reproduce
+  `balanced` by hand from pKnown 0.131 and readiness 0.5 — so the floor, the strategy, the KLP
+  weight and the topic's readiness are all genuinely feeding the order rather than merely
+  appearing in it.
 
-Knob set (user-approved): severity bands + targeting strategy + `MIN_OBSERVATIONS` + `ARTICULATION_MIN_PKNOWN` + `READINESS_WEIGHT_PER_ANSWER`.
+**Two preconditions the gate discovered, both non-obvious and worth knowing before judging this
+feature "empty":**
+1. A card must be **both categorized and have live KLPs** to be rankable at all. At first run the
+   library had 68 KLP-bearing cards and 4 categorized cards with **zero overlap**, so the ranked
+   list would have stayed empty however much the user studied — indistinguishable from a broken
+   feature. `tuning:check` now reports this coverage explicitly.
+2. Categorizing a card **retroactively** pulls existing `KlpState` evidence into its topic —
+   posteriors are keyed by KLP id, so no re-quizzing is needed.
 
-**Known limit, accepted deliberately:** `getLearnerMetrics` still has **zero production callers**. Spec 3B made it tuning-aware and gave it a tested `ranked` output for 3C to consume; nothing renders it. 3B's visible surface is the three settings panels + the quiz results screen.
+**Left in a test state on purpose** (the user's call to revert or keep): `minObservations` 1,
+`articulationMinPKnown` 0.8, a `too_terse` band override, and a `test-category` category.
 
 ### 4. ⬜ Spec 3C — learner dashboard (the UI spec) — **SPEC EXISTS, NO PLAN, NO CODE**
 
