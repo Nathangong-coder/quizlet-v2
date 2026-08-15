@@ -52,23 +52,40 @@ export function ActivityTiles({ id, userId }: ActivityTileProps) {
       {TILES.map((tile) => {
         const isLocked = tile.requiresAuth && !userId;
 
+        // A locked tile is not a link. It used to render as one and then
+        // preventDefault into `alert()` — a blocking browser modal, announced
+        // to nobody, on an element that advertised itself as navigable.
+        if (isLocked) {
+          return (
+            <div
+              key={tile.label}
+              aria-disabled="true"
+              title="Sign in to use this activity"
+              className={cn(
+                "flex flex-col items-center justify-center p-6 rounded-xl border",
+                "opacity-60 grayscale cursor-not-allowed",
+                tile.color,
+              )}
+            >
+              <tile.icon size={40} className="mb-3" aria-hidden="true" />
+              <span className="font-semibold text-center">{tile.label}</span>
+              <span className="mt-1 text-xs font-normal">Sign in to use</span>
+            </div>
+          );
+        }
+
         return (
           <Link
             key={tile.label}
             href={tile.href(id)}
             className={cn(
               "flex flex-col items-center justify-center p-6 rounded-xl border transition-all group",
-              isLocked ? "opacity-60 cursor-not-allowed grayscale" : "hover:scale-105 hover:shadow-md",
+              "hover:scale-105 hover:shadow-md",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               tile.color
             )}
-            onClick={(e) => {
-              if (isLocked) {
-                e.preventDefault();
-                alert("Please sign in to access this activity.");
-              }
-            }}
           >
-            <tile.icon size={40} className="mb-3 group-hover:scale-110 transition-transform" />
+            <tile.icon size={40} className="mb-3 group-hover:scale-110 transition-transform" aria-hidden="true" />
             <span className="font-semibold text-center">{tile.label}</span>
           </Link>
         );
