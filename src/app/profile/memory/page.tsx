@@ -1,12 +1,11 @@
 'use client';
 
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, ArrowLeft } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import {
@@ -23,6 +22,7 @@ import {
 import { resetUserMemory } from '@/actions/user';
 import { EMPTY_SCOPE, parseScope, serializeScope, scopeToCard, type HistoryScope } from '@/lib/memory/scope';
 import ScopeBar, { SOURCE_LABELS } from '@/components/memory/ScopeBar';
+import ProfileNav from '@/components/profile/ProfileNav';
 import ScopeStats from '@/components/memory/ScopeStats';
 
 const NO_OPTIONS: MemoryFilterOptions = { sets: [], categories: [], cards: [] };
@@ -204,15 +204,14 @@ function MemoryHistoryContent() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-12 space-y-8">
       <div>
-        <Link href="/profile" className="text-sm text-muted-foreground hover:underline inline-flex items-center gap-1 mb-4">
-          <ArrowLeft className="w-4 h-4" /> Back to profile
-        </Link>
         <h1 className="text-3xl font-bold tracking-tight">Memory History</h1>
         <p className="text-muted-foreground mt-2">
           Every review and quiz answer that shaped your confidence scores. Filter by set or by
           category &mdash; categories span every set that uses the same name.
         </p>
       </div>
+
+      <ProfileNav />
 
       <ScopeBar options={options} scope={scope} onChange={setScope} />
 

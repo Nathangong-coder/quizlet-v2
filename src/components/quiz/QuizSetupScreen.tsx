@@ -10,14 +10,28 @@ import { UNCATEGORIZED_ID } from "@/lib/cards/categories";
 interface QuizSetupScreenProps {
   setId: string;
   availableCategories: { id: string; name: string; color?: string | null }[];
+  /**
+   * Spec 3C §6.5: categories pre-ticked from the learner's saved study scope,
+   * resolved server-side to THIS set's ids. A prefill, not a constraint — every
+   * toggle below still works and the learner can clear them.
+   */
+  initialCategoryIds?: string[];
+  /** Set true when this set sits outside the saved scope; renders a one-liner. */
+  outOfScope?: boolean;
   onStart: (setup: QuizSetup) => void;
 }
 
-export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSetupScreenProps) {
+export function QuizSetupScreen({
+  setId,
+  availableCategories,
+  initialCategoryIds,
+  outOfScope,
+  onStart,
+}: QuizSetupScreenProps) {
   const [setup, setSetup] = useState<QuizSetup>({
     questionMode: ["multiple-choice"],
     promptSide: "term",
-    categoryIds: [],
+    categoryIds: initialCategoryIds ?? [],
     starredOnly: false,
     failedOnly: false,
     printable: false,
@@ -49,6 +63,16 @@ export function QuizSetupScreen({ setId, availableCategories, onStart }: QuizSet
         <CardDescription>Configure your quiz parameters before starting.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {outOfScope && (
+          /* Said out loud rather than handled silently. Prefilling a set the
+             learner excluded would be confusing; blocking it would be
+             enforcement, which the scope deliberately is not. */
+          <p className="text-sm text-muted-foreground rounded-lg border border-dashed p-3">
+            This set is outside your saved study scope, so no categories were pre-selected.
+            You can still quiz on all of it.
+          </p>
+        )}
+
         <div className="space-y-2">
           <Label>Question Mode</Label>
           <div className="grid grid-cols-2 gap-2">

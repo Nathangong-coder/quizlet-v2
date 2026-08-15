@@ -9,6 +9,7 @@ import { SearchBar } from '@/components/search/SearchBar'
 import { Suspense } from 'react'
 import { cn } from '@/lib/utils'
 import { SignInButton } from '@/components/auth/SignInButton'
+import { loadSetStudySummaries } from '@/lib/sets/study-summary'
 
 export default async function SetsPage({
   searchParams,
@@ -61,6 +62,15 @@ export default async function SetsPage({
     },
   })
 
+  // One query for every set on the page rather than one per card. The list
+  // could not previously answer "what should I open?" — it showed a title, a
+  // card count and a creation date, none of which is study state.
+  const summaries = await loadSetStudySummaries(
+    prisma,
+    session.user.id,
+    sets.map((s) => s.id),
+  )
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -112,7 +122,7 @@ export default async function SetsPage({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {sets.map((set) => (
-            <SetCard key={set.id} set={set} />
+            <SetCard key={set.id} set={set} summary={summaries[set.id]} />
           ))}
         </div>
       )}

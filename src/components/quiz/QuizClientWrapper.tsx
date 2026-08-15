@@ -10,10 +10,15 @@ export function QuizClientWrapper({
   setId,
   cards,
   categories,
+  initialCategoryIds,
+  outOfScope,
 }: {
   setId: string
   cards: any[]
   categories: { id: string; name: string; color?: string | null }[]
+  /** Resolved server-side from the saved study scope — see `resolveScopePrefill`. */
+  initialCategoryIds?: string[]
+  outOfScope?: boolean
 }) {
   const [setup, setSetup] = useState<any>(null);
 
@@ -22,6 +27,8 @@ export function QuizClientWrapper({
       <QuizSetupScreen
         setId={setId}
         availableCategories={categories}
+        initialCategoryIds={initialCategoryIds}
+        outOfScope={outOfScope}
         onStart={(s) => setSetup(s)}
       />
     );

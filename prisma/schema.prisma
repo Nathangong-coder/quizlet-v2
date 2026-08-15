@@ -608,6 +608,26 @@ model LearnerTuning {
   strategy   String   @default("balanced")
   bands      Json?
   thresholds Json?
+  /// Spec 3C §6: which sets and categories the learner is working on now.
+  /// `{ setIds: string[], categoryKeys: string[] }` — the same two dimensions
+  /// as HistoryScope, deliberately, so the stored value converts to a scope
+  /// with no translation layer and no second vocabulary to drift.
+  ///
+  /// Sets by id; categories by `normalizedName`. Not symmetric and not an
+  /// oversight: a CardCategory row is SET-SCOPED, so "accounting" is three
+  /// different rows across three sets, and storing ids would make a scope
+  /// meaning one set's accounting only.
+  ///
+  /// Empty arrays mean EVERYTHING, matching EMPTY_SCOPE — so the settings
+  /// checkbox is pure UI over the existing zero value with no tri-state to
+  /// persist. "Checked with nothing selected" is therefore unrepresentable
+  /// here and is blocked at the panel instead.
+  ///
+  /// SELECTS AND ORDERS WHAT IS OFFERED. Never a filter on a write path: a
+  /// scope that filtered the memory writes would silently discard evidence the
+  /// learner generated, and unlike a bad ordering that is not recoverable by
+  /// changing the setting back.
+  studyScope Json?
   version    Int      @default(1)
   updatedAt  DateTime @updatedAt
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)

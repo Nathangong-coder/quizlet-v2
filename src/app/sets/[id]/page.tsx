@@ -2,15 +2,11 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { Button, buttonVariants } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import StarButton from '@/components/sets/StarButton'
+import { buttonVariants } from '@/components/ui/button'
 import FlashcardSection from '@/components/flashcard/FlashcardSection'
 import DeleteSetForm from '@/components/sets/DeleteSetForm'
-import ConfidenceRate from '@/components/sets/ConfidenceRate'
 import { cn } from '@/lib/utils'
+import { loadSetStudySummaries } from '@/lib/sets/study-summary'
 import { TermsList } from '@/components/sets/TermsList'
 import { ActivityTiles } from '@/components/sets/ActivityTiles'
 import { readableSetWhere, toSetVisibility } from '@/lib/sets/visibility'
@@ -49,6 +45,12 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
   const isOwner = session?.user?.id === set.userId
   const progressByCardId = new Map(progressList.map((p) => [p.cardId, p]))
 
+  // Same helper the sets list uses, so the two surfaces cannot report a
+  // different number of due cards for the same set.
+  const summary = session?.user?.id
+    ? (await loadSetStudySummaries(prisma, session.user.id, [id]))[id]
+    : undefined
+
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-start justify-between mb-2">
@@ -71,7 +73,18 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
         )}
       </div>
 
-      <p className="text-sm text-muted-foreground mb-4">{set.cards.length} cards</p>
+      <p className="text-sm text-muted-foreground mb-4">
+        {set.cards.length} cards
+        {summary && summary.studiedCards > 0 && (
+          <>
+            {' · '}
+            {summary.studiedCards} studied
+            {summary.averageConfidence !== null &&
+              ` · confidence ${summary.averageConfidence.toFixed(1)}/10`}
+            {summary.dueCount > 0 && ` · ${summary.dueCount} due`}
+          </>
+        )}
+      </p>
 
       {isOwner ? (
         <div className="mb-6">

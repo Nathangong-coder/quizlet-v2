@@ -320,6 +320,26 @@ function parseList(raw: string | null): string[] {
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+/** Every key `serializeScope` writes. Kept beside it so the two cannot drift. */
+export const SCOPE_PARAM_KEYS = ["sets", "cats", "card", "source"] as const;
+
+/** `?scope=all` — an explicit "show me everything", distinct from no choice. */
+export const SCOPE_ALL_PARAM = "scope";
+
+/**
+ * Did the URL express a scope at all?
+ *
+ * Needed because `serializeScope(EMPTY_SCOPE)` is the empty string, so "the
+ * learner cleared the scope" and "the learner has not chosen one" are the SAME
+ * URL — and they must behave differently: the second gets the saved study
+ * scope as a default, the first must not be overridden by it. `?scope=all` is
+ * how clearing says so out loud.
+ */
+export function hasExplicitScope(params: URLSearchParams): boolean {
+  if (params.get(SCOPE_ALL_PARAM)) return true;
+  return SCOPE_PARAM_KEYS.some((key) => (params.get(key) ?? "").trim().length > 0);
+}
+
 export function parseScope(params: URLSearchParams): HistoryScope {
   return {
     setIds: parseList(params.get("sets")),

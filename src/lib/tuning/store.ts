@@ -3,12 +3,25 @@ import {
   resolveBands, resolveThresholds, shapeTuning,
   type MetricThresholds, type StrategyKey,
 } from '@/lib/tuning/schema'
+import type { StoredStudyScope } from '@/lib/tuning/study-scope'
 
 export interface ResolvedTuning {
   /** ALWAYS a complete table — see `resolveBands`. */
   bands: BandTable
   thresholds: MetricThresholds
   strategy: StrategyKey
+  /**
+   * STORED, not resolved — the one asymmetry in this interface, and deliberate.
+   *
+   * Bands and thresholds resolve against module-level constants, which costs
+   * nothing. A scope resolves against the learner's CURRENT sets and categories,
+   * which is a database read — and this function is on the hot path of every
+   * metrics computation, most of which do not care about the saved scope at all
+   * (they are handed an explicit one). Resolving here would put two queries
+   * behind every `getLearnerMetrics` call to serve the minority of callers that
+   * want a default. `resolveStudyScope` runs where that data is already loaded.
+   */
+  studyScope: StoredStudyScope
 }
 
 /**
@@ -30,12 +43,13 @@ export async function getUserTuning(userId: string): Promise<ResolvedTuning> {
   const { prisma } = await import('@/lib/db')
   const row = await prisma.learnerTuning.findUnique({
     where: { userId },
-    select: { strategy: true, bands: true, thresholds: true },
+    select: { strategy: true, bands: true, thresholds: true, studyScope: true },
   })
   const shaped = shapeTuning(row)
   return {
     bands: resolveBands(shaped.bandOverrides),
     thresholds: resolveThresholds(shaped.thresholdOverrides),
     strategy: shaped.strategy,
+    studyScope: shaped.studyScope,
   }
 }

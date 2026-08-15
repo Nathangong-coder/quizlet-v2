@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-13
+**Last updated:** 2026-08-14
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -89,7 +89,7 @@ It *looked* fixed at the time only because the 2026-08-12 account reset emptied 
 
 </details>
 
-### 3. ✅ Spec 3B — tunable scoring — **BUILT 2026-08-13, live gate outstanding**
+### 3. ✅ Spec 3B — tunable scoring — **DONE 2026-08-13, live-verified**
 
 All 10 tasks, one commit each (`c980cfa` … `8ccceea`), branch `spec3b-tunable-scoring`, **not merged**.
 Tests **1083 → 1181** (100 files), `tsc` clean, lint **185** (unchanged).
@@ -125,38 +125,125 @@ read-modify-write panel clobber.
 never filter — and Task 7 needs that exact filtered window on the results screen. The query moved
 to the one file allowed to hold it rather than the guard being loosened to admit `quiz.ts`.
 
-**LIVE GATE OUTSTANDING — needs the user** (trap 6: GitHub OAuth only, no agent session reaches a
-signed-in page):
-- [ ] `/settings/ai`: a band edit saves and reloads; an inverted band is rejected with a readable
-      message; a reset restores the default; both consequence warnings are visible.
-- [ ] Set a band override AND a threshold AND a strategy, reload, confirm all three survived.
-      (Covered at the payload level by `tests/components/tuning-panels.test.tsx`; this confirms the
-      round trip.)
-- [ ] **Blocked on a corpus:** lower `minObservations` to 1 and confirm topic knowledge renders
-      where it read null. The 2026-08-12 account reset left **zero** study history, so this needs
-      the user to quiz again first. Do not seed synthetic data.
-- [ ] Retune a band, then confirm the same error shows the same severity **and significance** on the
-      results screen as on an unscoped metric read — including a tag that repeats within
-      `REPEAT_WINDOW_ATTEMPTS`. Severity agreeing is not sufficient; it is pure in the tag.
+**LIVE GATE PASSED 2026-08-13** (run by the user in the browser; verified from the database side
+with `npm run tuning:check`, a new read-only script that calls the real `getLearnerMetrics` —
+necessary because two of this spec's effects render nowhere until 3C).
 
-Spec: `specs/2026-08-05-spec3b-tunable-scoring-and-targeting-design.md` — revised 2026-08-12 (see its §0) against items 1, 2 and 2b.
-Plan: `plans/2026-08-06-stage8-spec3b-tunable-scoring.md` — rebuilt 2026-08-08 against post-hardening code, patched 2026-08-12 to match the revised spec.
+- **Panels persist.** The stored row ended up as `bands: {too_terse:[1,2]}`,
+  `thresholds: {minObservations: 1, articulationMinPKnown: 0.8}`, `strategy: balanced` — three
+  fields written by three different panels, coexisting. That is the **discriminating** case for
+  partial saves: an earlier snapshot with `bands: {}` could not tell the correct design from the
+  write-all-three one, because both produce that row. The user separately confirmed the settings
+  survived a quiz.
+- **The observation floor demonstrably works.** With the floor at 1, the topic carrying the one
+  studied card went `null (below floor)` → **0.131**, and its two KLPs went `sufficient: false`
+  → `true`, sorting to ranks 0 and 1 above all 24 sub-threshold candidates.
+- **The ranking arithmetic reconciles.** Scores 0.312 (weight 5) and 0.196 (weight 3) reproduce
+  `balanced` by hand from pKnown 0.131 and readiness 0.5 — so the floor, the strategy, the KLP
+  weight and the topic's readiness are all genuinely feeding the order rather than merely
+  appearing in it.
 
-Knob set (user-approved): severity bands + targeting strategy + `MIN_OBSERVATIONS` + `ARTICULATION_MIN_PKNOWN` + `READINESS_WEIGHT_PER_ANSWER`.
+**Two preconditions the gate discovered, both non-obvious and worth knowing before judging this
+feature "empty":**
+1. A card must be **both categorized and have live KLPs** to be rankable at all. At first run the
+   library had 68 KLP-bearing cards and 4 categorized cards with **zero overlap**, so the ranked
+   list would have stayed empty however much the user studied — indistinguishable from a broken
+   feature. `tuning:check` now reports this coverage explicitly.
+2. Categorizing a card **retroactively** pulls existing `KlpState` evidence into its topic —
+   posteriors are keyed by KLP id, so no re-quizzing is needed.
 
-**Known limit, accepted deliberately:** `getLearnerMetrics` still has **zero production callers**. Spec 3B made it tuning-aware and gave it a tested `ranked` output for 3C to consume; nothing renders it. 3B's visible surface is the three settings panels + the quiz results screen.
+**Left in a test state on purpose** (the user's call to revert or keep): `minObservations` 1,
+`articulationMinPKnown` 0.8, a `too_terse` band override, and a `test-category` category.
 
-### 4. ⬜ Spec 3C — learner dashboard (the UI spec) — **SPEC EXISTS, NO PLAN, NO CODE**
+### 4. ✅ Spec 3C — learner dashboard & study scope — **BUILT 2026-08-14. LIVE GATE OUTSTANDING.**
 
-Spec: `specs/2026-08-05-spec3c-learner-dashboard-design.md`
+All 12 tasks + Task 4B, eight commits (`aa979da` … `fd4e670`), branch `spec3b-tunable-scoring`, **not merged**.
+Tests **1181 → 1286** (105 files), `tsc` clean, lint **185** (unchanged).
 
-Must also close **both** Spec 3 §14 follow-ups, which are still open and verified so on 2026-08-08:
+`/profile/learner` exists and is the first production caller of `getLearnerMetrics`. A fourth `LearnerTuning` blob holds the saved study scope, with a fourth `/settings/ai` panel and a quiz-setup prefill. Both Spec 3 §14 prompt-block defects are closed.
+
+**Verified live, headless:** Task 4B took the ranked list from **28 to 152 candidates** on the real library — 124 uncategorized KLPs that targeting could not previously see. `npm run tuning:check` now reports coverage from the same helper the page uses, and prints the diagnosis the dashboard would render.
+
+**Everything mutation-tested — 48 mutants, all killed.** Five of them only died after the *test* was fixed:
+- a `parseStudyScope` spread copied the array **references**, so one caller mutated the shared module constant. Caught by its own "returns a fresh object" test failing an unrelated assertion.
+- a `Uncategorized` mutant that only flipped `checked` rather than removing the option — invisible to every assertion.
+- a fixed 600-char topic reserve in `capBlock` that could be set to **zero** with no test noticing; removed rather than kept as a magic number.
+- a capBlock sweep that sampled one card-section size where the boundary happened not to bite (now sweeps 31).
+- an assertion for the `By topic:` header, which survives while the line beneath it is dropped.
+
+**Two type-level facts worth keeping:** `StoredStudyScope` must be a **type alias, not an interface** — TS infers an implicit index signature for aliases only, and Prisma's `InputJsonValue` requires one, so an interface needs a cast that defeats validating the blob. And making `studyScope` **required** on `shapeTuning`'s input is what made `tsc` name all three `select` clauses that needed it; optional would have compiled clean and handed `undefined` to the parser, which degrades silently to an empty scope — the setting would appear to save and then not exist.
+
+**HUMAN GATE STILL OWED** (trap 6 — no signed-in page is reachable from an agent session). See the plan's "Human gate" section: the four-panel partial-save proof, the saved-scope notice and "Show everything", the all-stale widening notice, the quiz prefill in and out of scope, and the empty-state copy quoting a floor of 1.
+
+<details>
+<summary>Superseded: the in-progress entry</summary>
+
+Spec: `specs/2026-08-05-spec3c-learner-dashboard-design.md` — revised 2026-08-13 against shipped 3B, and **widened**: it now also carries a **saved study scope** setting (its §6), added at the user's request. §5 widened again 2026-08-14 to **four** empty causes.
+Plan: `plans/2026-08-14-stage8-spec3c-learner-dashboard.md` — 12 tasks + Task 4B.
+
+**Task 4B added 2026-08-14: uncategorized KLPs enter targeting.** Candidates walk `CardCategory` → card → live KLP, so a card with no category is in no topic and therefore in no candidate list, even though `KlpState` holds a real posterior for it. Only `readiness` is topic-derived, and `articulationGap` already treats null as "no articulation problem" — so the topic is load-bearing for the *query shape*, not the scoring. Uncategorized KLPs now rank; they do **not** get a topic-mastery row (a grab-bag is not a concept). This turns the 68-vs-4 empty dashboard from a thing to explain into a thing that works.
+
+The dashboard is the **first production caller of `getLearnerMetrics`**. It renders `ranked` in the order received — 3B already applied the learner's strategy, so a component that re-sorts is a defect, and a test asserts the DOM follows a reordered fixture.
+
+**Saved study scope** (§6): a fourth panel on `/settings/ai`, a fourth sparse blob (`studyScope`) on the existing `LearnerTuning` row, riding the partial `saveTuning` that 3B built. Two checkbox groups — sets and categories. **Decided with the user:** it scopes the dashboard default and the ranked list, and **prefills** quiz setup's category selection, overridable; it is **not** an enforced filter, and it **never** touches what is recorded. Sets store ids, categories store `normalizedName` (a `CardCategory` row is set-scoped, so ids would mean one set's "accounting" only).
+
+**Must also close both Spec 3 §14 follow-ups** — still open, re-verified 2026-08-13:
 - `profileToPromptBlock`'s callers hardcode `topics: []` (`src/lib/ai/context.ts:155`, `src/actions/training-plan.ts:34`), so topic-grain data reaches **no prompt**.
 - `capBlock` truncates the topic section **first**, because the uncapped card section is concatenated ahead of it.
 
-**Fix both together or neither** — closing the first alone silently drops the topic signal the moment an active learner's card section fills `MAX_PROFILE_CHARS`.
+**Fix both together or neither** — closing the first alone silently drops the topic signal the moment an active learner's card section fills `MAX_PROFILE_CHARS`. Shipping a dashboard that shows topics while every prompt still sees `topics: []` would say plainly that the dashboard and the AI are looking at different learners.
 
----
+**Four empty causes, not one** (§5), two of which the 3B gate produced and which read as a broken page: no history at all; evidence below the learner's floor; **no card that is both categorized and has live KLPs** (the real library had 68 KLP-bearing cards and 4 categorized cards with zero overlap, which yields an empty dashboard however much the learner studies); and a valid-but-narrow saved scope. The last two must not be merged — both are "nothing is categorized", but the remedies are opposite (categorize vs. widen). Also worth telling the learner: categorizing an already-studied card works retroactively.
+
+**Do not hardcode 3 as the evidence floor** anywhere in the copy — it is `MetricThresholds.minObservations` per learner since 3B, and a learner who set it to 1 would be told they need evidence they already have.
+
+</details>
+
+### 5. ✅ Profile & sets UI overhaul — **BUILT 2026-08-14. LIVE GATE OUTSTANDING.**
+
+Plan: `plans/2026-08-14-profile-and-sets-ui-overhaul.md` (written from an audit — every task closes a named, checkable gap, not a taste call).
+Commits `70d5f35`, `17b31f7`, `6e103f5`, branch `spec3b-tunable-scoring`, **not merged**.
+Tests **1286 → 1311** (108 files), `tsc` clean, lint **185 → 178** — the 7 dead imports on the set detail page.
+
+**Profile area.** Three sibling pages had no navigation between them (Spec 3C created that by adding the third) and the parent was titled *"Your Learning Memory"* while a child was *"Memory History"*. Now one `ProfileNav` tab strip on all three — **Overview / Learner Profile / Memory History** — with **exact-match** `aria-current`; a `startsWith` test would mark Overview current on every child route. `/profile`'s "Performance by Mode" panel was **removed, not restyled**: a flat average score per quiz type beside a BKT posterior asks the reader to reconcile two numbers answering different questions. Attempt *counts* stayed — activity facts, not judgements. The full-route spinner is gone; header and nav render before the stats, so a learner waiting on `getUserStats` can still navigate.
+
+**Sets surfaces.** `SetCard` now shows a **Private/Shared badge** (visibility shipped in item 1 and appeared nowhere in the list), confidence, studied-of-total, a due badge, and last-studied in place of created. `loadSetStudySummaries` is one query for the page, shared with the set detail header so the two cannot disagree. The nested `<Button>` inside the card `<Link>` is gone — invalid HTML and a duplicate tab stop.
+
+**A convention bug caught before it shipped:** the first implementation treated a **null `dueAt` as NOT due**. `getDueCards` (`src/lib/memory/schedule.ts:185`) does the opposite — `OR: [{ dueAt: null }, { dueAt: { lte: now } }]` — and the schema comment says so. Null means never scheduled, which is a reason to review. Diverging would have made the sets list report fewer due cards than Review mode then offers, with nothing to tell the learner which surface was lying.
+
+**Mutation testing, 11 mutants, 10 killed and one deleted.** The null-average ternary (`count === 0 ? null : …`) turned out to be **unreachable** — a bucket only exists because a row created it — so it could be flipped to `? 0` with no test noticing. The branch was removed rather than kept; the real guarantee is that an unstudied set gets **no entry in the map at all**, which the test now pins. Same call as the 600-char reserve in Spec 3C Task 12.
+
+**Also worth knowing:** two component tests failed on **timezone**, not logic — `new Date('...T00:00:00.000Z')` formats to the previous day west of Greenwich. Date fixtures compared against `format` output must use local-time constructors (`new Date(2026, 6, 1)`).
+
+**HUMAN GATE STILL OWED** (trap 6): the nav appears on all three profile pages and marks the right tab; `/profile` renders header and nav before stats; `/sets` shows visibility on every card, study state on a studied set, and **neither a 0% nor a due count** on an unstudied one.
+
+### 6. ⬜ Spec 4 — plan setup & readiness dashboard — **DESIGNED 2026-08-14, NOT STARTED. Do not build during 3C.**
+
+Belongs to Stage 8 Spec 4 (action plan & AI lessons). Designed with the user on 2026-08-14 and captured here so it survives; **no spec doc, no plan, no code.**
+
+**The gap.** `TrainingPlanPanel` is one button at the bottom of the quiz page that calls `generateTrainingPlan(setId)` blind — no scope, no preconditions, no idea whether the profile it is about to send is worth anything. Quiz setup exists; plan setup does not.
+
+**Shape.** Its own route, two states. *Setup*: scope pickers (prefilled from the saved study scope, overridable per plan) + readiness readout + generate. *Generated*: the plan, with setup collapsed to a one-line summary bar and a "Change" affordance that re-expands it.
+
+**Readiness readout — five components, and the aggregation rule is the design:**
+
+| Component | Reads | Why |
+| --- | --- | --- |
+| Breadth | in-scope cards with live KLPs / cards in scope | no KLPs, nothing to target |
+| Depth | KLPs clearing **the learner's** floor / KLPs with any evidence | the one the 3B gate showed dominates |
+| Recency | share of evidence in the last N days | a posterior from 3-month-old answers describes someone who no longer exists |
+| Mode balance | evidence weighted by mode | Spec 2a already prices this — SA .95 / MC .75 / TF .50. An all-TF corpus carries half the evidentiary value per answer and nothing currently says so |
+| Extraction | cards with `klpStatus: 'pending'` | distinguishes **wait** from **do something** |
+
+**The verdict is the MINIMUM of the components, never the average.** Averaging lets breadth mask zero depth — exactly the state the library was in at the 3B gate (plenty of KLPs, none measured), which an average would have called "moderate". Three bands (thin/usable/solid), **never a percentage**: a number invites comparisons it cannot support and hides which part is thin. Each band names what would move it up — the component that produced the minimum. Computed in TypeScript, never asked of the AI, same rule as significance and mastery.
+
+**Error states reuse Spec 3C's `diagnoseEmptyState`** (`src/lib/metrics/coverage.ts`) — the same four causes, plus a fifth: extraction pending. This is why `coverage.ts` is built as shared substrate in 3C rather than dashboard-private; two implementations would drift into disagreeing about whether the learner has enough data.
+
+**Per-category table** — cards / with KLPs / measured / answers / last studied / verdict, per category plus Uncategorized. The honest half of the feature: it shows *where* the data is thin instead of averaging it away, which is what lets the learner deselect a category or go extract KLPs for it.
+
+**Two decisions the user accepted:**
+- **Regeneration is explicit, never automatic on a settings change.** Changing scope updates the readiness readout live (pure local computation) and surfaces a "Regenerate with these settings" button. A plan that silently reshuffles under the learner destroys the thing that makes it a plan, and it spends an AI call per toggle.
+- **Store the inputs on the plan row** — `inputScope`, `inputCoverage`, and the thresholds in force. Cheap, and it is the difference between a plan artifact and an auditable recommendation: the plan can say what it was built from, and "your data has changed a lot since this plan" becomes computable.
 
 ## Where deferred issues are recorded
 
@@ -166,7 +253,7 @@ Never in memory — always in a spec's own section.
 | --- | --- | --- |
 | `2026-08-03-answer-analysis-capture-design.md` (2a) | "Known drift risks, deliberately out of scope" | **All 3 resolved.** Two fixed 2026-08-08; the third (reset ↔ quiz history) was already true in code. |
 | `2026-08-04-answer-analysis-display-design.md` (2b) | "Explicitly NOT fixed" | **Resolved** — `startQuizAttempt` ownership, closed by the visibility work. |
-| `2026-08-05-metrics-substrate-learner-profile-design.md` (Spec 3) | **§14 follow-ups** | **BOTH STILL OPEN** — see queue item 4. |
+| `2026-08-05-metrics-substrate-learner-profile-design.md` (Spec 3) | **§14 follow-ups** | **BOTH CLOSED 2026-08-14** by Spec 3C Task 12. |
 | `2026-08-10-deletion-and-forgetting-design.md` | **§8 "Answers should not be resubmittable at all"** | **OPEN — decided 2026-08-10, not built.** Re-answering a graded question isn't evidence of knowledge, but every metric downstream treats it as though it were. The legitimate case (a missed high-weight KLP in short answer) is an AI-generated **follow-up question** with its own provenance — a different quiz type and UI, not a second pass. Remove the `replace` path in `createAnswerWithAnalysis` when that lands. |
 | `CLAUDE.md` | Future Considerations | Forget: **pruned 2026-08-11** (item 2 built). Visibility: still carries the stale pre-fix paragraph — **delete it when this branch merges**, as its own note says. |
 
@@ -192,8 +279,8 @@ Never in memory — always in a spec's own section.
 
 ### Still open — not bugs, but know them
 
-- **`getLearnerMetrics` has zero production callers** (tests only). An earlier memory claimed the hardening pass changed this; it had not. Re-verified 2026-08-08.
-- **Spec 3 §14's two prompt-block defects** — see queue item 4.
+- ~~`getLearnerMetrics` has zero production callers~~ — **CLOSED 2026-08-14.** `/profile/learner` and `safeProfileBlock` both call it now (Spec 3C).
+- ~~Spec 3 §14's two prompt-block defects~~ — **CLOSED 2026-08-14** by Spec 3C Task 12.
 - **`MIN_OBSERVATIONS = 3` hides every knowledge number.** Live DB has 19 answers, 1 user, every KLP seen exactly once, so **zero topics report non-null knowledge** and the signed verbosity index cannot go negative. Nothing is broken — the corpus is thin. **Do not seed synthetic study data**: the posterior is incremental and not self-correcting, so fabricated evidence does not cleanly come back out. Spec 3B makes the floor tunable, which is the real fix.
 
 ---
@@ -237,9 +324,9 @@ Never in memory — always in a spec's own section.
 
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-13, after Spec 3B)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-14, after item 5)
 
-- **Tests:** 100 files / **1181 passing** (excluding `cursor-agents`)
+- **Tests:** 108 files / **1311 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
-- **`npm run lint`:** **185 problems** (133 errors, 52 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B.)
+- **`npm run lint`:** **178 problems** (133 errors, 45 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports.)
 - Branch is **not merged**, but IS pushed to `origin` (as of 2026-08-11). A Vercel preview deployment tracks it.

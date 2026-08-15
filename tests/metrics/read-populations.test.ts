@@ -24,7 +24,12 @@ const h = vi.hoisted(() => ({
   attemptFindMany: vi.fn(),
   categoryFindMany: vi.fn(),
   progressFindMany: vi.fn(),
+  cardFindMany: vi.fn(),
   setFindUnique: vi.fn(),
+  // `buildLearnerProfile` looks up a single-set scope's title through
+  // findFirst (readability-guarded). Only reached once a test scopes to one
+  // set, which nothing here did before Task 4B.
+  setFindFirst: vi.fn(),
   tuningFindUnique: vi.fn(),
 }))
 
@@ -38,7 +43,8 @@ vi.mock('@/lib/db', () => ({
     quizAttempt: { findMany: h.attemptFindMany },
     cardCategory: { findMany: h.categoryFindMany },
     cardProgress: { findMany: h.progressFindMany },
-    set: { findUnique: h.setFindUnique },
+    card: { findMany: h.cardFindMany },
+    set: { findUnique: h.setFindUnique, findFirst: h.setFindFirst },
     learnerTuning: { findUnique: h.tuningFindUnique },
   },
 }))
@@ -52,10 +58,12 @@ beforeEach(() => {
   for (const fn of [
     h.tagFindMany, h.answerFindMany, h.klpStateFindMany, h.klpResultFindMany,
     h.eventFindMany, h.attemptFindMany, h.categoryFindMany, h.progressFindMany,
+    h.cardFindMany,
   ]) {
     fn.mockResolvedValue([])
   }
   h.setFindUnique.mockResolvedValue(null)
+  h.setFindFirst.mockResolvedValue(null)
   h.tuningFindUnique.mockResolvedValue(null)
   // One category holding two LIVE klps and one retired one, so the
   // live-only assertion below has something to catch.
@@ -223,5 +231,95 @@ describe('tuning is threaded all the way down (Spec 3B)', () => {
       userId: 'u1', scope: EMPTY_SCOPE, bands: resolveBands({ inversion: [1, 1] }),
     })
     expect(out).toBeDefined()
+  })
+})
+
+describe('Uncategorized KLPs enter TARGETING but not topic mastery (Task 4B)', () => {
+  const UNCATEGORIZED = '__uncategorized__'
+
+  /** A card with live key points and no category assignment at all. */
+  function uncategorizedCard() {
+    h.cardFindMany.mockResolvedValue([
+      { id: 'cardU', klps: [{ id: 'kU', weight: 4 }] },
+    ])
+  }
+
+  it('ranks a KLP whose card has no category', async () => {
+    // Before this, the walk started at CardCategory, so these KLPs were in no
+    // topic and therefore in no candidate list — even with a real posterior.
+    uncategorizedCard()
+    h.klpStateFindMany.mockResolvedValue([
+      { klpId: 'kU', pKnown: 0.2, observations: 5 },
+    ])
+    const out = await getLearnerMetrics({ userId: 'u1', scope: EMPTY_SCOPE })
+
+    const candidate = out.ranked.find((c) => c.klpId === 'kU')
+    expect(candidate).toBeDefined()
+    expect(candidate!.topicKey).toBe(UNCATEGORIZED)
+    // Its stored weight and posterior ride along like any other candidate's.
+    expect(candidate!.weight).toBe(4)
+    expect(candidate!.pKnown).toBeCloseTo(0.2)
+    expect(candidate!.observations).toBe(5)
+  })
+
+  it('gives it NO topic-mastery row', async () => {
+    // A grab-bag is not a concept. A knowledge rollup over it would invent one
+    // and average across unrelated material.
+    uncategorizedCard()
+    const out = await getLearnerMetrics({ userId: 'u1', scope: EMPTY_SCOPE })
+
+    expect(out.profile.topics.map((t) => t.key)).not.toContain(UNCATEGORIZED)
+    expect(out.profile.topics.map((t) => t.key)).toEqual(['valuation'])
+  })
+
+  it('carries a null readiness — there is no topic to have measured', async () => {
+    uncategorizedCard()
+    const out = await getLearnerMetrics({ userId: 'u1', scope: EMPTY_SCOPE })
+    expect(out.ranked.find((c) => c.klpId === 'kU')!.readiness).toBeNull()
+  })
+
+  it('is EXCLUDED when the scope names real categories', async () => {
+    // The learner asked for those topics specifically.
+    uncategorizedCard()
+    const out = await getLearnerMetrics({
+      userId: 'u1',
+      scope: { ...EMPTY_SCOPE, categoryKeys: ['valuation'] },
+    })
+    expect(h.cardFindMany).not.toHaveBeenCalled()
+    expect(out.ranked.map((c) => c.klpId)).not.toContain('kU')
+  })
+
+  it('is INCLUDED when the scope names the Uncategorized sentinel', async () => {
+    uncategorizedCard()
+    const out = await getLearnerMetrics({
+      userId: 'u1',
+      scope: { ...EMPTY_SCOPE, categoryKeys: [UNCATEGORIZED] },
+    })
+    expect(out.ranked.map((c) => c.klpId)).toContain('kU')
+  })
+
+  it('scopes the query to the owner and to live KLPs only', async () => {
+    // Card has no userId of its own; ownership runs through the set. Without
+    // this guard the ranked list can hand back another learner's propositions.
+    uncategorizedCard()
+    await getLearnerMetrics({ userId: 'u1', scope: { ...EMPTY_SCOPE, setIds: ['s1'] } })
+
+    const [args] = h.cardFindMany.mock.calls[0]
+    expect(args.where.set).toEqual({ userId: 'u1' })
+    expect(args.where.categoryAssignments).toEqual({ none: {} })
+    expect(args.where.klps).toEqual({ some: { supersededAt: null } })
+    expect(args.where.setId).toEqual({ in: ['s1'] })
+    expect(args.select.klps.where).toEqual({ supersededAt: null })
+  })
+
+  it('lets a card scope subsume the set scope', async () => {
+    uncategorizedCard()
+    await getLearnerMetrics({
+      userId: 'u1',
+      scope: { ...EMPTY_SCOPE, setIds: ['s1'], cardId: 'cardU' },
+    })
+    const [args] = h.cardFindMany.mock.calls[0]
+    expect(args.where.id).toBe('cardU')
+    expect(args.where).not.toHaveProperty('setId')
   })
 })

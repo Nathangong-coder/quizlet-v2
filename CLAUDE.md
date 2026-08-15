@@ -138,6 +138,8 @@ Frozen reference: `docs/ai/error-taxonomy.md`. **Supersedes Stage 7's plan once 
 
 **Concept layer decision:** existing user-authored **Categories are the concept nodes**; KLPs roll up to them. No AI-extracted concept graph — that stays a later bet (see below), because a bad cluster silently corrupts every downstream metric.
 
+**Known limit of that decision, raised 2026-08-14 — revisit before Spec 4's lessons.** A user-authored category is not necessarily a *concept*. It is whatever the learner found useful to label with, and in practice that is often a **format or modality** — "label the image", "talking", "vocabulary" — rather than a subject. A bio student may legitimately want a "label the image" category *and* still need the concept-grain rollup those cards belong to. Categories and concepts are therefore two different axes that the current model collapses into one, which is fine for filtering and wrong for mastery: a "label the image" mastery number aggregates across unrelated biology, and the concept it should have rolled up to has no node at all. The eventual answer is likely KLP-inherent topics living *beside* user categories, not replacing them — which is the concept-graph bet above, now with a concrete motivating case. **Consequence already in effect (Spec 3C):** uncategorized KLPs participate in **targeting** (KLP-grain, needs no concept) but not in **topic mastery** (concept-grain), rather than being dropped from both as they were before.
+
 **Beyond the roadmap:** `docs/vision/beyond-a-gpt-wrapper.md` argues the moat is the owned longitudinal learner model + concept graph + closed loop (not the prompts), and lists the next bets — error-type diagnosis, concept-graph extraction, source-grounded grading, cohort signal.
 
 ## Conventions

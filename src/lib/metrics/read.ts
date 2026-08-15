@@ -85,7 +85,7 @@ export async function getLearnerMetrics({
   // card, and source scoping the topic profile already does — a request
   // scoped to one set must not answer with the learner's entire cross-set
   // retention curve and misconception list sitting behind it.
-  const categoryIds = await resolveCategoryIds(prisma, userId, scope.categoryKeys)
+  const categoryIds = await resolveScopeCategoryIds(prisma, userId, scope.categoryKeys)
   const quizAnswerScopeWhere = buildQuizAnswerScopeWhere(userId, scope, categoryIds)
   const studyEventWhere = buildStudyEventWhere(userId, scope, categoryIds)
 
@@ -189,6 +189,20 @@ export async function getLearnerMetrics({
   const categoryRows = await loadCategoryRows(prisma, userId, scope)
   const topics = toTopicRows(categoryRows)
 
+  // Spec 3C Task 4B. Candidates are assembled category -> card -> live KLP, so
+  // before this a card with no category was in no topic and therefore in no
+  // candidate list — even though KlpState holds a real posterior for its KLPs.
+  // The 3B live gate found a library with 68 KLP-bearing cards and 4
+  // categorized ones, ZERO overlap: an empty study list however much the
+  // learner studied, indistinguishable from a broken feature.
+  //
+  // Safe because only ONE of the four score inputs is topic-derived
+  // (`readiness`), and `articulationGap` already reads null as "no articulation
+  // problem". The topic was load-bearing for the QUERY SHAPE, not the scoring.
+  const uncategorized = includeUncategorized(scope)
+    ? await loadUncategorizedCards(prisma, userId, scope)
+    : []
+
   // Weights and card ids for the candidates, built from the SAME rows
   // `toTopicRows` consumes so there is one query rather than two.
   const klpWeights: Record<string, number> = {}
@@ -199,6 +213,12 @@ export async function getLearnerMetrics({
         klpWeights[k.id] = k.weight
         klpCardIds[k.id] = a.card.id
       }
+    }
+  }
+  for (const card of uncategorized) {
+    for (const k of card.klps) {
+      klpWeights[k.id] = k.weight
+      klpCardIds[k.id] = card.id
     }
   }
 
@@ -238,13 +258,34 @@ export async function getLearnerMetrics({
     ;(liveKlpIdsByTopic[t.normalizedName] ??= []).push(...t.klpIds)
   }
 
+  // The Uncategorized bucket goes LAST and ONLY here. It is a targeting group,
+  // never a `LearnerTopicProfile` row: a grab-bag is not a concept, and a
+  // knowledge rollup over it would invent one and average across unrelated
+  // material. `readiness` is null because there is no topic to have measured.
+  //
+  // Last also matters mechanically — `toRankCandidates` gives a duplicate KLP
+  // to the FIRST topic claiming it, so a real category always wins attribution.
+  const uncategorizedGroup =
+    uncategorized.length > 0
+      ? [
+          {
+            key: UNCATEGORIZED_ID,
+            klpIds: uncategorized.flatMap((c) => c.klps.map((k) => k.id)),
+            readiness: null,
+          },
+        ]
+      : []
+
   const ranked = rankCandidates(
     toRankCandidates({
-      topics: shapedTopics.map((t) => ({
-        key: t.key,
-        klpIds: [...new Set(liveKlpIdsByTopic[t.key] ?? [])],
-        readiness: t.readiness,
-      })),
+      topics: [
+        ...shapedTopics.map((t) => ({
+          key: t.key,
+          klpIds: [...new Set(liveKlpIdsByTopic[t.key] ?? [])],
+          readiness: t.readiness,
+        })),
+        ...uncategorizedGroup,
+      ],
       klpWeights,
       knowledge,
       klpCardIds,
@@ -361,6 +402,54 @@ async function loadAnalyzedAnswerCounts(
 }
 
 /**
+ * Whether the Uncategorized targeting bucket belongs in this request.
+ *
+ * Pure and exported so the rule is tested directly: an empty `categoryKeys`
+ * means every category AND the uncategorized remainder, while a scope naming
+ * real categories deliberately excludes it — the learner asked for those
+ * topics. `UNCATEGORIZED_ID` opts it back in, matching `buildCardScopeWhere`,
+ * where the sentinel is already a first-class bucket.
+ */
+export function includeUncategorized(scope: HistoryScope): boolean {
+  return scope.categoryKeys.length === 0 || scope.categoryKeys.includes(UNCATEGORIZED_ID)
+}
+
+/**
+ * The learner's cards that have live KLPs and NO category, honouring the
+ * scope's card and set dimensions.
+ *
+ * Ownership runs through the set, exactly as `loadCategoryRows` does —
+ * `Card` has no userId of its own, and a missing `set: { userId }` here would
+ * hand another learner's propositions back as study targets.
+ *
+ * Live KLPs only, in both the filter and the select. A superseded KLP describes
+ * a version of the card the learner can no longer see.
+ */
+async function loadUncategorizedCards(
+  prisma: PrismaClient,
+  userId: string,
+  scope: HistoryScope,
+) {
+  const where: Record<string, unknown> = {
+    set: { userId },
+    categoryAssignments: { none: {} },
+    klps: { some: { supersededAt: null } },
+  }
+  // cardId is the narrowest scope and subsumes setIds, the same precedence
+  // every other builder in `@/lib/memory/scope` applies.
+  if (scope.cardId) where.id = scope.cardId
+  else if (scope.setIds.length > 0) where.setId = { in: scope.setIds }
+
+  return prisma.card.findMany({
+    where,
+    select: {
+      id: true,
+      klps: { where: { supersededAt: null }, select: { id: true, weight: true } },
+    },
+  })
+}
+
+/**
  * Query only — the shape mapping is `toTopicRows` and the scope shaping is
  * `buildCategoryQuery`, both tested.
  *
@@ -410,7 +499,7 @@ async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: His
  * decision (how UNCATEGORIZED_ID combines with named categories) lives in
  * the pure, tested `buildCardScopeWhere` inside `@/lib/memory/scope`.
  */
-async function resolveCategoryIds(
+export async function resolveScopeCategoryIds(
   prisma: PrismaClient,
   userId: string,
   categoryKeys: string[],

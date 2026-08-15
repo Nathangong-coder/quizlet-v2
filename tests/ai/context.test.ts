@@ -258,3 +258,93 @@ describe('Spec 3 profile block', () => {
     expect(topicLines).toEqual(['weakest', 'middling', 'strongest', 'no-data'])
   })
 })
+
+describe('the topic section survives a huge card section (Spec 3 §14, defect 2)', () => {
+  const topic = (key: string) => ({
+    key, name: key, color: null, klpCount: 3,
+    knowledge: 0.42, verbosityIndex: 0, knowledgeGapTerseness: 0, readiness: 0.7,
+  })
+
+  /** A card section that ALONE overruns the whole budget. */
+  const hugeCards = {
+    setId: null, setTitle: null, fading: [], strong: [], starred: [],
+    weak: Array.from({ length: 500 }, (_, i) => ({
+      term: `some-very-long-finance-term-name-number-${i}`,
+      confidence: 1, mastery: null, trend: 'declining' as const,
+    })),
+    recent: { byMode: [], graded: [], streakDays: 0 },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any
+
+  it('keeps a topic line when the card section overruns the budget', () => {
+    // THE test for this fix. Before it, the card section was concatenated
+    // first and capBlock truncated the tail, so the topic section was always
+    // what died — and every fixture with a small card section passed anyway.
+    const block = profileToPromptBlock({ cards: hugeCards, topics: [topic('valuation')] })
+
+    expect(block).toContain('By topic:')
+    expect(block).toContain('valuation')
+    expect(block.length).toBeLessThanOrEqual(MAX_PROFILE_CHARS)
+  })
+
+  it('still respects the overall cap with both sections large', () => {
+    const block = profileToPromptBlock({
+      cards: hugeCards,
+      topics: Array.from({ length: 200 }, (_, i) => topic(`topic-${i}`)),
+    })
+    expect(block.length).toBeLessThanOrEqual(MAX_PROFILE_CHARS)
+    expect(block).toContain('By topic:')
+  })
+
+  it('truncates the card section at LINE granularity, which is coarse here', () => {
+    // `capTo` cuts at LINE boundaries and the card section is a handful of
+    // very long lines (the whole `weak` list is one), so truncating it is
+    // nearly all-or-nothing. That is why the size of the reserve is not what
+    // rescues the topics — the ORDER is. Pinned because a reader who assumes
+    // otherwise will start tuning a number that changes nothing.
+    const block = profileToPromptBlock({ cards: hugeCards, topics: [topic('valuation')] })
+    const cardsOnly = block.split('\nBy topic:')[0]
+
+    expect(cardsOnly.split('\n').every((line) => line.length > 0)).toBe(true)
+    expect(block).toContain('By topic:')
+  })
+
+  it('caps the whole block when the TOPIC section alone overruns it', () => {
+    // topicLines bounds the topic COUNT, never the length of their names, so a
+    // learner with very long category names can overrun on topics alone. This
+    // is the input that makes the outer cap more than defence in depth.
+    const longName = 'a-really-quite-long-category-name-that-a-learner-typed'.repeat(6)
+    const block = profileToPromptBlock({
+      cards: hugeCards,
+      topics: Array.from({ length: 8 }, (_, i) => topic(`${longName}-${i}`)),
+    })
+    expect(block.length).toBeLessThanOrEqual(MAX_PROFILE_CHARS)
+  })
+
+  it('keeps the topic section at EVERY card-section size, not just huge ones', () => {
+    // The property, swept rather than sampled. A single fixture cannot pin
+    // this: `capTo` cuts at line boundaries, so whether the topic section
+    // survives depends on exactly where the card section's last newline falls
+    // relative to the budget. One hand-picked size passes for the wrong
+    // reason. Somewhere in this sweep the boundary lands such that reserving
+    // the topic section's own length is the only thing that saves it.
+    const topics = [topic('valuation')]
+    for (let n = 60; n <= 90; n += 1) {
+      const cards = {
+        setId: null, setTitle: null, fading: [], strong: [], starred: [],
+        weak: Array.from({ length: n }, (_, i) => ({
+          term: `finance-term-${i}`, confidence: 1, mastery: null, trend: 'declining' as const,
+        })),
+        recent: { byMode: [], graded: [], streakDays: 0 },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any
+      const block = profileToPromptBlock({ cards, topics })
+      expect(block.length, `n=${n}`).toBeLessThanOrEqual(MAX_PROFILE_CHARS)
+      // The topic LINE, not just the 'By topic:' header. At one size in this
+      // sweep an unreserved card section leaves exactly enough room for the
+      // header and then loses the line under it — a block that announces a
+      // topic section and contains none.
+      expect(block, `n=${n}`).toContain('- valuation: 42%')
+    }
+  })
+})

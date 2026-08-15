@@ -5,6 +5,7 @@ import TaskRoutingPanel from '@/components/settings/TaskRoutingPanel';
 import SeverityBandPanel from '@/components/settings/SeverityBandPanel';
 import TargetingStrategyPanel from '@/components/settings/TargetingStrategyPanel';
 import MetricThresholdPanel from '@/components/settings/MetricThresholdPanel';
+import StudyScopePanel from '@/components/settings/StudyScopePanel';
 
 export default async function AiSettingsPage() {
   const session = await auth();
@@ -38,6 +39,8 @@ export default async function AiSettingsPage() {
       <MetricThresholdPanel />
 
       <TargetingStrategyPanel />
+
+      <StudyScopePanel />
     </div>
   );
 }
