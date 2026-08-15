@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
 import { QuizClientWrapper } from '@/components/quiz/QuizClientWrapper';
 import { readableSetWhere } from '@/lib/sets/visibility';
+import { getUserTuning } from '@/lib/tuning/store';
+import { resolveScopePrefill } from '@/lib/quiz/setup';
 
 export default async function QuizPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,6 +32,16 @@ export default async function QuizPage({ params }: { params: Promise<{ id: strin
     select: { id: true },
   });
 
+  // Spec 3C §6.5. Resolved HERE rather than in a new action because this page
+  // already loads `set.categories` in full, so `normalizedName` is in hand —
+  // no extra query, and the scope never reaches the client as raw preferences.
+  const tuning = await getUserTuning(session.user.id);
+  const prefill = resolveScopePrefill({
+    setId: set.id,
+    scope: tuning.studyScope,
+    categories: set.categories,
+  });
+
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-3xl font-bold mb-8 text-center">{set.title} Quiz</h1>
@@ -44,6 +56,8 @@ export default async function QuizPage({ params }: { params: Promise<{ id: strin
           setId={set.id}
           cards={set.cards}
           categories={set.categories.map((c) => ({ id: c.id, name: c.name, color: c.color }))}
+          initialCategoryIds={prefill.categoryIds}
+          outOfScope={prefill.outOfScope}
         />
       )}
     </div>
