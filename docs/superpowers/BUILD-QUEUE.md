@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-13
+**Last updated:** 2026-08-14
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -155,7 +155,28 @@ feature "empty":**
 **Left in a test state on purpose** (the user's call to revert or keep): `minObservations` 1,
 `articulationMinPKnown` 0.8, a `too_terse` band override, and a `test-category` category.
 
-### 4. 🔨 Spec 3C — learner dashboard & study scope — **IN PROGRESS, plan written 2026-08-14**
+### 4. ✅ Spec 3C — learner dashboard & study scope — **BUILT 2026-08-14. LIVE GATE OUTSTANDING.**
+
+All 12 tasks + Task 4B, eight commits (`aa979da` … `fd4e670`), branch `spec3b-tunable-scoring`, **not merged**.
+Tests **1181 → 1286** (105 files), `tsc` clean, lint **185** (unchanged).
+
+`/profile/learner` exists and is the first production caller of `getLearnerMetrics`. A fourth `LearnerTuning` blob holds the saved study scope, with a fourth `/settings/ai` panel and a quiz-setup prefill. Both Spec 3 §14 prompt-block defects are closed.
+
+**Verified live, headless:** Task 4B took the ranked list from **28 to 152 candidates** on the real library — 124 uncategorized KLPs that targeting could not previously see. `npm run tuning:check` now reports coverage from the same helper the page uses, and prints the diagnosis the dashboard would render.
+
+**Everything mutation-tested — 48 mutants, all killed.** Five of them only died after the *test* was fixed:
+- a `parseStudyScope` spread copied the array **references**, so one caller mutated the shared module constant. Caught by its own "returns a fresh object" test failing an unrelated assertion.
+- a `Uncategorized` mutant that only flipped `checked` rather than removing the option — invisible to every assertion.
+- a fixed 600-char topic reserve in `capBlock` that could be set to **zero** with no test noticing; removed rather than kept as a magic number.
+- a capBlock sweep that sampled one card-section size where the boundary happened not to bite (now sweeps 31).
+- an assertion for the `By topic:` header, which survives while the line beneath it is dropped.
+
+**Two type-level facts worth keeping:** `StoredStudyScope` must be a **type alias, not an interface** — TS infers an implicit index signature for aliases only, and Prisma's `InputJsonValue` requires one, so an interface needs a cast that defeats validating the blob. And making `studyScope` **required** on `shapeTuning`'s input is what made `tsc` name all three `select` clauses that needed it; optional would have compiled clean and handed `undefined` to the parser, which degrades silently to an empty scope — the setting would appear to save and then not exist.
+
+**HUMAN GATE STILL OWED** (trap 6 — no signed-in page is reachable from an agent session). See the plan's "Human gate" section: the four-panel partial-save proof, the saved-scope notice and "Show everything", the all-stale widening notice, the quiz prefill in and out of scope, and the empty-state copy quoting a floor of 1.
+
+<details>
+<summary>Superseded: the in-progress entry</summary>
 
 Spec: `specs/2026-08-05-spec3c-learner-dashboard-design.md` — revised 2026-08-13 against shipped 3B, and **widened**: it now also carries a **saved study scope** setting (its §6), added at the user's request. §5 widened again 2026-08-14 to **four** empty causes.
 Plan: `plans/2026-08-14-stage8-spec3c-learner-dashboard.md` — 12 tasks + Task 4B.
@@ -175,6 +196,8 @@ The dashboard is the **first production caller of `getLearnerMetrics`**. It rend
 **Four empty causes, not one** (§5), two of which the 3B gate produced and which read as a broken page: no history at all; evidence below the learner's floor; **no card that is both categorized and has live KLPs** (the real library had 68 KLP-bearing cards and 4 categorized cards with zero overlap, which yields an empty dashboard however much the learner studies); and a valid-but-narrow saved scope. The last two must not be merged — both are "nothing is categorized", but the remedies are opposite (categorize vs. widen). Also worth telling the learner: categorizing an already-studied card works retroactively.
 
 **Do not hardcode 3 as the evidence floor** anywhere in the copy — it is `MetricThresholds.minObservations` per learner since 3B, and a learner who set it to 1 would be told they need evidence they already have.
+
+</details>
 
 ### 5. ⬜ Profile & sets UI overhaul — **USER'S CALL, 2026-08-14. Comes BEFORE Spec 4.**
 
@@ -216,7 +239,7 @@ Never in memory — always in a spec's own section.
 | --- | --- | --- |
 | `2026-08-03-answer-analysis-capture-design.md` (2a) | "Known drift risks, deliberately out of scope" | **All 3 resolved.** Two fixed 2026-08-08; the third (reset ↔ quiz history) was already true in code. |
 | `2026-08-04-answer-analysis-display-design.md` (2b) | "Explicitly NOT fixed" | **Resolved** — `startQuizAttempt` ownership, closed by the visibility work. |
-| `2026-08-05-metrics-substrate-learner-profile-design.md` (Spec 3) | **§14 follow-ups** | **BOTH STILL OPEN** — see queue item 4. |
+| `2026-08-05-metrics-substrate-learner-profile-design.md` (Spec 3) | **§14 follow-ups** | **BOTH CLOSED 2026-08-14** by Spec 3C Task 12. |
 | `2026-08-10-deletion-and-forgetting-design.md` | **§8 "Answers should not be resubmittable at all"** | **OPEN — decided 2026-08-10, not built.** Re-answering a graded question isn't evidence of knowledge, but every metric downstream treats it as though it were. The legitimate case (a missed high-weight KLP in short answer) is an AI-generated **follow-up question** with its own provenance — a different quiz type and UI, not a second pass. Remove the `replace` path in `createAnswerWithAnalysis` when that lands. |
 | `CLAUDE.md` | Future Considerations | Forget: **pruned 2026-08-11** (item 2 built). Visibility: still carries the stale pre-fix paragraph — **delete it when this branch merges**, as its own note says. |
 
@@ -242,8 +265,8 @@ Never in memory — always in a spec's own section.
 
 ### Still open — not bugs, but know them
 
-- **`getLearnerMetrics` has zero production callers** (tests only). An earlier memory claimed the hardening pass changed this; it had not. Re-verified 2026-08-08.
-- **Spec 3 §14's two prompt-block defects** — see queue item 4.
+- ~~`getLearnerMetrics` has zero production callers~~ — **CLOSED 2026-08-14.** `/profile/learner` and `safeProfileBlock` both call it now (Spec 3C).
+- ~~Spec 3 §14's two prompt-block defects~~ — **CLOSED 2026-08-14** by Spec 3C Task 12.
 - **`MIN_OBSERVATIONS = 3` hides every knowledge number.** Live DB has 19 answers, 1 user, every KLP seen exactly once, so **zero topics report non-null knowledge** and the signed verbosity index cannot go negative. Nothing is broken — the corpus is thin. **Do not seed synthetic study data**: the posterior is incremental and not self-correcting, so fabricated evidence does not cleanly come back out. Spec 3B makes the floor tunable, which is the real fix.
 
 ---
