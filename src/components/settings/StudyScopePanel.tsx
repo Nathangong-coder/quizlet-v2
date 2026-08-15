@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { SelectableChip } from '@/components/ui/selectable-chip';
 import { loadTuning, saveTuning } from '@/actions/learner-tuning';
 import { listMemoryFilterOptions, type MemoryFilterOptions } from '@/actions/memory';
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories';
@@ -14,50 +14,6 @@ const NO_OPTIONS: MemoryFilterOptions = { sets: [], categories: [], cards: [] };
 
 function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
-}
-
-/** A checkbox-shaped toggle. Not `<input type=checkbox>` so the colour dot fits. */
-function Choice({
-  checked,
-  onClick,
-  color,
-  label,
-  hint,
-}: {
-  checked: boolean;
-  onClick: () => void;
-  color?: string | null;
-  label: string;
-  hint?: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={onClick}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors',
-        checked
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-input bg-transparent hover:bg-muted',
-      )}
-    >
-      {color && (
-        <span
-          className="h-2 w-2 shrink-0 rounded-full ring-1 ring-black/10"
-          style={{ backgroundColor: color }}
-        />
-      )}
-      <span className="truncate max-w-[16rem]">{label}</span>
-      {hint !== undefined && (
-        <span className={cn('text-xs tabular-nums', checked ? 'opacity-80' : 'text-muted-foreground')}>
-          {hint}
-        </span>
-      )}
-    </button>
-  );
 }
 
 /**
@@ -144,9 +100,10 @@ export default function StudyScopePanel() {
         ) : (
           <>
             <div className="space-y-2">
-              <Choice
-                checked={limitSets}
-                onClick={() => setLimitSets((v) => !v)}
+              <SelectableChip
+                semantics="checkbox"
+                selected={limitSets}
+                onToggle={() => setLimitSets((v) => !v)}
                 label="Only test certain sets"
               />
               {limitSets && (
@@ -155,10 +112,11 @@ export default function StudyScopePanel() {
                     <p className="text-sm text-muted-foreground">You have no sets yet.</p>
                   ) : (
                     options.sets.map((s) => (
-                      <Choice
+                      <SelectableChip
                         key={s.id}
-                        checked={setIds.includes(s.id)}
-                        onClick={() => setSetIds((prev) => toggle(prev, s.id))}
+                        semantics="checkbox"
+                        selected={setIds.includes(s.id)}
+                        onToggle={() => setSetIds((prev) => toggle(prev, s.id))}
                         label={s.title}
                       />
                     ))
@@ -173,9 +131,10 @@ export default function StudyScopePanel() {
             </div>
 
             <div className="space-y-2">
-              <Choice
-                checked={limitCategories}
-                onClick={() => setLimitCategories((v) => !v)}
+              <SelectableChip
+                semantics="checkbox"
+                selected={limitCategories}
+                onToggle={() => setLimitCategories((v) => !v)}
                 label="Only test certain categories"
               />
               {limitCategories && (
@@ -183,21 +142,23 @@ export default function StudyScopePanel() {
                   {/* Categories span sets: the options are grouped on
                       normalizedName, which is the key this scope stores. */}
                   {options.categories.map((c) => (
-                    <Choice
+                    <SelectableChip
                       key={c.key}
-                      checked={categoryKeys.includes(c.key)}
-                      onClick={() => setCategoryKeys((prev) => toggle(prev, c.key))}
+                      semantics="checkbox"
+                      selected={categoryKeys.includes(c.key)}
+                      onToggle={() => setCategoryKeys((prev) => toggle(prev, c.key))}
                       color={c.color}
                       label={c.name}
-                      hint={String(c.cardCount)}
+                      count={c.cardCount}
                     />
                   ))}
                   {/* A real bucket in `filterCardsByCategories`, not a filler
                       option — and the only one a learner with no categories can
                       pick, which is exactly the library the 3B gate found. */}
-                  <Choice
-                    checked={categoryKeys.includes(UNCATEGORIZED_ID)}
-                    onClick={() => setCategoryKeys((prev) => toggle(prev, UNCATEGORIZED_ID))}
+                  <SelectableChip
+                    semantics="checkbox"
+                    selected={categoryKeys.includes(UNCATEGORIZED_ID)}
+                    onToggle={() => setCategoryKeys((prev) => toggle(prev, UNCATEGORIZED_ID))}
                     label="Uncategorized"
                   />
                 </div>

@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { SelectableChip } from '@/components/ui/selectable-chip';
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories';
 import { isConsolidated, type HistoryScope } from '@/lib/memory/scope';
 import type { MemoryFilterOptions } from '@/actions/memory';
@@ -16,47 +16,6 @@ export const SOURCE_LABELS: Record<string, string> = {
   matching: 'Matching Game',
   lesson: 'Lesson',
 };
-
-function Chip({
-  active,
-  onClick,
-  color,
-  children,
-  count,
-}: {
-  active: boolean;
-  onClick: () => void;
-  color?: string | null;
-  children: React.ReactNode;
-  count?: number;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors',
-        active
-          ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-input bg-transparent hover:bg-muted',
-      )}
-    >
-      {color && (
-        <span
-          className="h-2 w-2 shrink-0 rounded-full ring-1 ring-black/10"
-          style={{ backgroundColor: color }}
-        />
-      )}
-      <span className="truncate max-w-[14rem]">{children}</span>
-      {count !== undefined && (
-        <span className={cn('text-xs tabular-nums', active ? 'opacity-80' : 'text-muted-foreground')}>
-          {count}
-        </span>
-      )}
-    </button>
-  );
-}
 
 function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -109,19 +68,18 @@ export default function ScopeBar({
             <span className="text-xs font-medium text-muted-foreground">Sets</span>
             <div className="flex flex-wrap gap-2">
               {options.sets.map((set) => (
-                <Chip
+                <SelectableChip
                   key={set.id}
-                  active={scope.setIds.includes(set.id)}
-                  onClick={() => {
+                  label={set.title}
+                  selected={scope.setIds.includes(set.id)}
+                  onToggle={() => {
                     const setIds = toggle(scope.setIds, set.id);
                     // The card dropdown only exists for a single set, so any
                     // change that leaves one selected set invalidates it.
                     const keepCard = setIds.length === 1 && setIds[0] === soleSetId;
                     onChange({ ...scope, setIds, cardId: keepCard ? scope.cardId : undefined });
                   }}
-                >
-                  {set.title}
-                </Chip>
+                />
               ))}
             </div>
           </div>
@@ -134,12 +92,15 @@ export default function ScopeBar({
             </span>
             <div className="flex flex-wrap gap-2">
               {options.categories.map((category) => (
-                <Chip
+                <SelectableChip
                   key={category.key}
-                  active={scope.categoryKeys.includes(category.key)}
+                  // The name alone: the span below and the count are decoration
+                  // and should not be read as part of the control's name.
+                  label={category.name}
+                  selected={scope.categoryKeys.includes(category.key)}
                   color={category.color}
                   count={category.cardCount}
-                  onClick={() =>
+                  onToggle={() =>
                     onChange({ ...scope, categoryKeys: toggle(scope.categoryKeys, category.key) })
                   }
                 >
@@ -147,26 +108,24 @@ export default function ScopeBar({
                   {category.setIds.length > 1 && (
                     <span className="ml-1 text-xs opacity-70">· {category.setIds.length} sets</span>
                   )}
-                </Chip>
+                </SelectableChip>
               ))}
-              <Chip
-                active={scope.categoryKeys.includes(UNCATEGORIZED_ID)}
-                onClick={() =>
+              <SelectableChip
+                label="Uncategorized"
+                selected={scope.categoryKeys.includes(UNCATEGORIZED_ID)}
+                onToggle={() =>
                   onChange({ ...scope, categoryKeys: toggle(scope.categoryKeys, UNCATEGORIZED_ID) })
                 }
-              >
-                Uncategorized
-              </Chip>
+              />
               {orphanKeys.map((key) => (
-                <Chip
+                <SelectableChip
                   key={key}
-                  active
-                  onClick={() =>
+                  label={`${key} (removed)`}
+                  selected
+                  onToggle={() =>
                     onChange({ ...scope, categoryKeys: toggle(scope.categoryKeys, key) })
                   }
-                >
-                  {key} (removed)
-                </Chip>
+                />
               ))}
             </div>
           </div>

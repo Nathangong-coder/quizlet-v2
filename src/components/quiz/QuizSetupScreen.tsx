@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { QuizSetup, QuizSetupSchema } from "@/lib/quiz/setup";
 import { UNCATEGORIZED_ID } from "@/lib/cards/categories";
+import { SelectableChip } from "@/components/ui/selectable-chip";
 
 interface QuizSetupScreenProps {
   setId: string;
@@ -125,32 +126,22 @@ export function QuizSetupScreen({
         <div className="space-y-3">
           <Label>Categories</Label>
           <div className="flex flex-wrap gap-2">
+            {/* Was a `<div onClick>` wrapping a readOnly checkbox: not
+                focusable, no role, no announced state, and tinted with the
+                category's own colour when active. */}
             {[
               ...availableCategories,
               { id: UNCATEGORIZED_ID, name: "Uncategorized", color: null },
-            ].map((cat) => {
-              const active = setup.categoryIds.includes(cat.id);
-              return (
-                <div
-                  key={cat.id}
-                  className="flex items-center gap-2 rounded-full border px-3 py-1 cursor-pointer hover:bg-muted/50"
-                  style={
-                    active && cat.color
-                      ? { backgroundColor: `${cat.color}20`, borderColor: cat.color, color: cat.color }
-                      : undefined
-                  }
-                  onClick={() => toggleCategory(cat.id)}
-                >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-input"
-                    checked={active}
-                    readOnly
-                  />
-                  <span className="text-sm">{cat.name}</span>
-                </div>
-              );
-            })}
+            ].map((cat) => (
+              <SelectableChip
+                key={cat.id}
+                semantics="checkbox"
+                label={cat.name}
+                color={cat.color}
+                selected={setup.categoryIds.includes(cat.id)}
+                onToggle={() => toggleCategory(cat.id)}
+              />
+            ))}
           </div>
         </div>
 
