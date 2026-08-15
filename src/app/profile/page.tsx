@@ -12,18 +12,25 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export default function ProfilePage() {
-  const [stats, setStats] = useState<UserStats | null>(null);
-  const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
+  // Tagged with the request it answered, so "loading" is DERIVED rather than a
+  // second piece of state set synchronously inside the effect — which triggers
+  // cascading renders and is what `react-hooks` flags. Same shape
+  // /profile/memory already uses.
+  const [loaded, setLoaded] = useState<{ key: number; stats: UserStats | null } | null>(null);
+  const loading = loaded?.key !== reloadKey;
+  const stats = loaded?.stats ?? null;
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     getUserStats().then((result) => {
       if (cancelled) return;
-      if (result.success && result.data) setStats(result.data);
-      else toast.error(result.error || 'Failed to load profile stats');
-      setLoading(false);
+      if (result.success && result.data) {
+        setLoaded({ key: reloadKey, stats: result.data });
+      } else {
+        toast.error(result.error || 'Failed to load profile stats');
+        setLoaded({ key: reloadKey, stats: null });
+      }
     });
     return () => {
       cancelled = true;
