@@ -3,11 +3,19 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react'
 
 /**
- * Spec 3C §6. Three properties, each of which fails silently if untested:
- * the reveal (a list that never appears makes the setting unusable), the
- * blocked empty save (which would store the OPPOSITE of what the panel shows,
- * since `[]` means everything), and the one-field payload (Spec 3B §5's
- * partial-save contract, now at four panels).
+ * Spec 3C §6, revised by the 2026-08-15 scope redesign.
+ *
+ * The panel's "Only test certain sets" checkboxes are GONE, and with them the
+ * reveal and the blocked-empty-save this file used to cover. That behaviour was
+ * removed deliberately, not broken: `[]` on disk already means EVERYTHING, so
+ * ticked-and-empty had no representation and the panel had to detect it and
+ * refuse to save. A control whose only additional state is invalid should not
+ * exist.
+ *
+ * What still matters, and is covered here:
+ *  - empty means everything, and saves as `[]` rather than being blocked;
+ *  - the one-field payload (Spec 3B §5's partial-save contract, four panels on);
+ *  - categories store the cross-set key, never a per-set id.
  */
 
 // vitest.config.ts has no `globals: true`, so RTL never registers auto-cleanup.
@@ -67,141 +75,103 @@ beforeEach(() => {
 })
 
 const saveButton = () => screen.getByText('Save study scope')
+// Once a set is chosen the TRIGGER shows its name too, so a bare text query is
+// ambiguous. The options inside the popover are the only checkboxes.
+const option = (name: string) => screen.getByRole('checkbox', { name })
+const openSets = async () => {
+  fireEvent.click(await screen.findByText('All sets'))
+  return screen.findByRole('checkbox', { name: 'Accounting Interview Prep' })
+}
+const openCategories = async () => {
+  fireEvent.click(await screen.findByText('All categories'))
+  return screen.findByRole('checkbox', { name: 'accounting' })
+}
 
-describe('StudyScopePanel: the reveal', () => {
-  it('hides the set list until the box is ticked', async () => {
+describe('StudyScopePanel: empty means everything', () => {
+  it('shows both dimensions collapsed and unrestricted by default', async () => {
     render(<StudyScopePanel />)
-    await waitFor(() => screen.getByText('Only test certain sets'))
-
-    expect(screen.queryByText('Accounting Interview Prep')).toBeNull()
-    fireEvent.click(screen.getByText('Only test certain sets'))
-    expect(screen.getByText('Accounting Interview Prep')).toBeTruthy()
+    // The trigger states the scope without being opened — the whole point of
+    // collapsing it.
+    expect(await screen.findByText('All sets')).toBeTruthy()
+    expect(screen.getByText('All categories')).toBeTruthy()
+    expect(screen.getByText('Using your whole library.')).toBeTruthy()
   })
 
-  it('hides the category list until its own box is ticked, independently', async () => {
+  it('never blocks the save, because there is no un-savable state left', async () => {
     render(<StudyScopePanel />)
-    await waitFor(() => screen.getByText('Only test certain sets'))
+    await screen.findByText('All sets')
+    // The old panel disabled this whenever a box was ticked with nothing
+    // picked. That state cannot be expressed now.
+    expect((saveButton() as HTMLButtonElement).disabled).toBe(false)
 
-    fireEvent.click(screen.getByText('Only test certain sets'))
-    // Sets revealed must not reveal categories — they are two separate toggles.
-    expect(screen.queryByText('accounting')).toBeNull()
-
-    fireEvent.click(screen.getByText('Only test certain categories'))
-    expect(screen.getByText('accounting')).toBeTruthy()
+    fireEvent.click(saveButton())
+    await waitFor(() =>
+      expect(h.saveTuning).toHaveBeenCalledWith({ studyScope: { setIds: [], categoryKeys: [] } }),
+    )
   })
 
-  it('offers Uncategorized as a real bucket', async () => {
-    // The only option available to a learner with no categories — which is the
-    // library shape the 3B live gate actually found.
-    render(<StudyScopePanel />)
-    await waitFor(() => screen.getByText('Only test certain categories'))
-    fireEvent.click(screen.getByText('Only test certain categories'))
-    expect(screen.getByText('Uncategorized')).toBeTruthy()
-  })
-
-  it('starts ticked and populated when a scope is already stored', async () => {
+  it('reflects a stored scope on the trigger without being opened', async () => {
     h.loadTuning.mockResolvedValue(tuning({ setIds: ['set-a'], categoryKeys: [] }))
     render(<StudyScopePanel />)
-    // Derived from the stored value: a non-empty list is the only thing
-    // "limited" can mean, so there is no separate flag to fall out of sync.
     await waitFor(() => expect(screen.getByText('Accounting Interview Prep')).toBeTruthy())
-  })
-})
-
-describe('StudyScopePanel: the un-savable state', () => {
-  it('blocks the save when a box is ticked with nothing selected', async () => {
-    render(<StudyScopePanel />)
-    await waitFor(() => screen.getByText('Only test certain sets'))
-
-    fireEvent.click(screen.getByText('Only test certain sets'))
-    // `[]` on disk means EVERYTHING, so storing this state would persist the
-    // exact opposite of what the screen claims.
-    expect((saveButton() as HTMLButtonElement).disabled).toBe(true)
-    expect(screen.getByText(/Pick at least one set/)).toBeTruthy()
-
-    fireEvent.click(screen.getByText('Only test certain sets'))
-    expect((saveButton() as HTMLButtonElement).disabled).toBe(false)
+    expect(screen.getByText('Recommendations and prefills will use this slice of your library.')).toBeTruthy()
   })
 
-  it('re-enables the save once something is picked', async () => {
+  it('summarises a multi-selection by count rather than listing it', async () => {
+    h.loadTuning.mockResolvedValue(tuning({ setIds: ['set-a', 'set-b'], categoryKeys: [] }))
     render(<StudyScopePanel />)
-    await waitFor(() => screen.getByText('Only test certain sets'))
-
-    fireEvent.click(screen.getByText('Only test certain sets'))
-    fireEvent.click(screen.getByText('Accounting Interview Prep'))
-    expect((saveButton() as HTMLButtonElement).disabled).toBe(false)
-  })
-
-  it('blocks on an empty CATEGORY group even when the set group is valid', async () => {
-    render(<StudyScopePanel />)
-    await waitFor(() => screen.getByText('Only test certain sets'))
-
-    fireEvent.click(screen.getByText('Only test certain sets'))
-    fireEvent.click(screen.getByText('Accounting Interview Prep'))
-    fireEvent.click(screen.getByText('Only test certain categories'))
-
-    expect((saveButton() as HTMLButtonElement).disabled).toBe(true)
+    await waitFor(() => expect(screen.getByText('2 sets')).toBeTruthy())
   })
 })
 
 describe('StudyScopePanel: the payload', () => {
   it('sends ONLY studyScope, never the fields it loaded', async () => {
-    // The Spec 3B §5 invariant at four panels. This panel loads bands,
-    // thresholds and strategy along with its own field; echoing any of them
-    // back is the read-modify-write clobber partial saves exist to prevent.
+    // Spec 3B §5: `saveTuning` leaves absent fields unchanged. Sending the
+    // loaded strategy/bands/thresholds back would make this panel clobber the
+    // other three whenever they were edited in another tab.
     render(<StudyScopePanel />)
-    await waitFor(() => screen.getByText('Only test certain sets'))
-
-    fireEvent.click(screen.getByText('Only test certain sets'))
-    fireEvent.click(screen.getByText('Accounting Interview Prep'))
+    await openSets()
+    fireEvent.click(option('Accounting Interview Prep'))
     fireEvent.click(saveButton())
-    await waitFor(() => expect(h.saveTuning).toHaveBeenCalled())
 
+    await waitFor(() => expect(h.saveTuning).toHaveBeenCalled())
     const payload = h.saveTuning.mock.calls[0][0]
     expect(Object.keys(payload)).toEqual(['studyScope'])
-    expect(payload.studyScope).toEqual({ setIds: ['set-a'], categoryKeys: [] })
+    expect(payload.studyScope.setIds).toEqual(['set-a'])
   })
 
-  it('sends an EMPTY dimension when its box is unticked, not the stale selection', async () => {
-    // Unticking must clear. Sending the last selection because it is still in
-    // React state would make "use every set" impossible to express again.
-    h.loadTuning.mockResolvedValue(tuning({ setIds: ['set-a'], categoryKeys: ['accounting'] }))
+  it('stores categories by cross-set key, never by per-set id', async () => {
+    // A CardCategory row is set-scoped, so an id would mean one set's
+    // "accounting" only. `normalizedName` is what spans sets.
     render(<StudyScopePanel />)
-    await waitFor(() => screen.getByText('Accounting Interview Prep'))
-
-    fireEvent.click(screen.getByText('Only test certain sets'))
+    await openCategories()
+    fireEvent.click(option('accounting'))
     fireEvent.click(saveButton())
-    await waitFor(() => expect(h.saveTuning).toHaveBeenCalled())
 
-    expect(h.saveTuning.mock.calls[0][0].studyScope).toEqual({
-      setIds: [],
-      categoryKeys: ['accounting'],
-    })
+    await waitFor(() => expect(h.saveTuning).toHaveBeenCalled())
+    const { categoryKeys } = h.saveTuning.mock.calls[0][0].studyScope
+    expect(categoryKeys).toEqual(['accounting'])
+    expect(categoryKeys).not.toContain('c1')
   })
 
   it('stores the Uncategorized sentinel by key', async () => {
     render(<StudyScopePanel />)
-    await waitFor(() => screen.getByText('Only test certain categories'))
-
-    fireEvent.click(screen.getByText('Only test certain categories'))
-    fireEvent.click(screen.getByText('Uncategorized'))
+    await openCategories()
+    fireEvent.click(option('Uncategorized'))
     fireEvent.click(saveButton())
-    await waitFor(() => expect(h.saveTuning).toHaveBeenCalled())
 
+    await waitFor(() => expect(h.saveTuning).toHaveBeenCalled())
     expect(h.saveTuning.mock.calls[0][0].studyScope.categoryKeys).toEqual([UNCATEGORIZED_ID])
   })
 
-  it('stores categories by cross-set key, never by per-set id', async () => {
-    // A CardCategory row is set-scoped, so storing `c1` would mean one set's
-    // accounting only — the asymmetry the Prisma comment exists to protect.
+  it('drops a selection that is toggled back off', async () => {
     render(<StudyScopePanel />)
-    await waitFor(() => screen.getByText('Only test certain categories'))
-
-    fireEvent.click(screen.getByText('Only test certain categories'))
-    fireEvent.click(screen.getByText('accounting'))
+    await openSets()
+    fireEvent.click(option('Accounting Interview Prep'))
+    fireEvent.click(option('Accounting Interview Prep'))
     fireEvent.click(saveButton())
-    await waitFor(() => expect(h.saveTuning).toHaveBeenCalled())
 
-    expect(h.saveTuning.mock.calls[0][0].studyScope.categoryKeys).toEqual(['accounting'])
+    await waitFor(() => expect(h.saveTuning).toHaveBeenCalled())
+    expect(h.saveTuning.mock.calls[0][0].studyScope.setIds).toEqual([])
   })
 })

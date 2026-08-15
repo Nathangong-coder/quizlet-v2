@@ -5,8 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import ScopeBar from '@/components/memory/ScopeBar';
+import ScopeLine from '@/components/memory/ScopeLine';
 import ProfileNav from '@/components/profile/ProfileNav';
 import EmptyDashboard from '@/components/learner/EmptyDashboard';
 import TopicMastery from '@/components/learner/TopicMastery';
@@ -136,30 +135,22 @@ function LearnerDashboardContent() {
         </Card>
       )}
 
-      {d?.defaultApplied && (
-        <Card className="bg-muted/40">
-          <CardContent className="py-3 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              Showing your saved study scope.{' '}
-              <Link href="/settings/ai" className="text-primary hover:underline">
-                Change it
-              </Link>
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.replace(`${pathname}?${SCOPE_ALL_PARAM}=all`, { scroll: false })}
-            >
-              Show everything
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      <ScopeBar
+      {/* The saved-scope notice, the "Show everything" button and the scope
+          editor used to be three stacked affordances for one value. They are
+          now one line. The amber banner above stays separate on purpose: it is
+          an error state, not a control. */}
+      <ScopeLine
         options={options}
         scope={d?.appliedScope ?? { setIds: [], categoryKeys: [] }}
         onChange={setScope}
+        savedScope={
+          d?.defaultApplied
+            ? {
+                onShowEverything: () =>
+                  router.replace(`${pathname}?${SCOPE_ALL_PARAM}=all`, { scroll: false }),
+              }
+            : undefined
+        }
       />
 
       {loading ? (

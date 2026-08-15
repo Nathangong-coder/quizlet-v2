@@ -21,7 +21,8 @@ import {
 } from '@/actions/memory';
 import { resetUserMemory } from '@/actions/user';
 import { EMPTY_SCOPE, parseScope, serializeScope, scopeToCard, type HistoryScope } from '@/lib/memory/scope';
-import ScopeBar, { SOURCE_LABELS } from '@/components/memory/ScopeBar';
+import ScopeLine from '@/components/memory/ScopeLine';
+import { sourceLabel } from '@/lib/memory/source-labels';
 import ProfileNav from '@/components/profile/ProfileNav';
 import ScopeStats from '@/components/memory/ScopeStats';
 
@@ -213,9 +214,21 @@ function MemoryHistoryContent() {
 
       <ProfileNav />
 
-      <ScopeBar options={options} scope={scope} onChange={setScope} />
+      <ScopeLine
+        options={options}
+        scope={scope}
+        onChange={setScope}
+        summary={
+          stats?.value ? `${stats.value.totalEvents.toLocaleString()} answers` : undefined
+        }
+      />
 
-      <ScopeStats stats={stats?.value ?? null} loading={statsLoading} />
+      <ScopeStats
+        stats={stats?.value ?? null}
+        loading={statsLoading}
+        source={scope.source}
+        onSourceChange={(source) => setScope({ ...scope, source })}
+      />
 
       {(canForgetCard || canForgetSet) && (
         <Card className="border-destructive/50 bg-destructive/5">
@@ -276,7 +289,7 @@ function MemoryHistoryContent() {
                       {event.setTitle} &middot; {format(new Date(event.createdAt), 'MMM d, h:mm a')}
                     </span>
                   </div>
-                  <Badge variant="outline">{SOURCE_LABELS[event.source] ?? event.source}</Badge>
+                  <Badge variant="outline">{sourceLabel(event.source)}</Badge>
                   <span className="text-sm w-16 text-right">
                     {event.score !== null
                       ? `${event.score}%`

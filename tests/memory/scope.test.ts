@@ -398,9 +398,10 @@ describe("scopeToCard", () => {
   const card = { cardId: "c1", setId: "s1" };
 
   it("pins the card's own set, not whatever was selected", () => {
-    // ScopeBar disables its card <select> unless exactly one set is chosen.
-    // A cardId set alongside two sets renders as a disabled control showing a
-    // value the user can neither change nor clear.
+    // The scope line renders one chip per active narrowing, so a "Card: X"
+    // chip sitting beside two unrelated set chips would describe a filter
+    // that is not the one being applied — cardId subsumes them in
+    // buildStudyEventWhere.
     const scope = scopeToCard({ ...EMPTY_SCOPE, setIds: ["s7", "s9"] }, card);
     expect(scope.setIds).toEqual(["s1"]);
     expect(scope.cardId).toBe("c1");

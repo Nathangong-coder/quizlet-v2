@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import ProfileNav from '@/components/profile/ProfileNav';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
-export default function ProfilePage() {
+function ProfileOverview() {
   const [reloadKey, setReloadKey] = useState(0);
   // Tagged with the request it answered, so "loading" is DERIVED rather than a
   // second piece of state set synchronously inside the effect — which triggers
@@ -197,5 +197,24 @@ export default function ProfilePage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+/**
+ * `ProfileNav` reads the query string to carry the current scope across tabs,
+ * so everything rendering it needs a Suspense boundary — without one the build
+ * fails outright at prerender with a CSR-bailout error. The two sibling pages
+ * already had one; this page did not, because nothing on it used to touch
+ * `useSearchParams`.
+ */
+export default function ProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-5xl mx-auto px-4 py-12 text-sm text-muted-foreground">Loading…</div>
+      }
+    >
+      <ProfileOverview />
+    </Suspense>
   );
 }
