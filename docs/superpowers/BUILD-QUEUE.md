@@ -199,9 +199,23 @@ The dashboard is the **first production caller of `getLearnerMetrics`**. It rend
 
 </details>
 
-### 5. ⬜ Profile & sets UI overhaul — **USER'S CALL, 2026-08-14. Comes BEFORE Spec 4.**
+### 5. ✅ Profile & sets UI overhaul — **BUILT 2026-08-14. LIVE GATE OUTSTANDING.**
 
-The user wants to keep working on the Spec 3 family before starting Spec 4: specifically an overhaul of the existing **user profile** and **sets** UI. Not designed or specced yet — raised while 3C was being implemented, recorded so the queue order is not lost. **Do not jump from 3C to Spec 4.**
+Plan: `plans/2026-08-14-profile-and-sets-ui-overhaul.md` (written from an audit — every task closes a named, checkable gap, not a taste call).
+Commits `70d5f35`, `17b31f7`, `6e103f5`, branch `spec3b-tunable-scoring`, **not merged**.
+Tests **1286 → 1311** (108 files), `tsc` clean, lint **185 → 178** — the 7 dead imports on the set detail page.
+
+**Profile area.** Three sibling pages had no navigation between them (Spec 3C created that by adding the third) and the parent was titled *"Your Learning Memory"* while a child was *"Memory History"*. Now one `ProfileNav` tab strip on all three — **Overview / Learner Profile / Memory History** — with **exact-match** `aria-current`; a `startsWith` test would mark Overview current on every child route. `/profile`'s "Performance by Mode" panel was **removed, not restyled**: a flat average score per quiz type beside a BKT posterior asks the reader to reconcile two numbers answering different questions. Attempt *counts* stayed — activity facts, not judgements. The full-route spinner is gone; header and nav render before the stats, so a learner waiting on `getUserStats` can still navigate.
+
+**Sets surfaces.** `SetCard` now shows a **Private/Shared badge** (visibility shipped in item 1 and appeared nowhere in the list), confidence, studied-of-total, a due badge, and last-studied in place of created. `loadSetStudySummaries` is one query for the page, shared with the set detail header so the two cannot disagree. The nested `<Button>` inside the card `<Link>` is gone — invalid HTML and a duplicate tab stop.
+
+**A convention bug caught before it shipped:** the first implementation treated a **null `dueAt` as NOT due**. `getDueCards` (`src/lib/memory/schedule.ts:185`) does the opposite — `OR: [{ dueAt: null }, { dueAt: { lte: now } }]` — and the schema comment says so. Null means never scheduled, which is a reason to review. Diverging would have made the sets list report fewer due cards than Review mode then offers, with nothing to tell the learner which surface was lying.
+
+**Mutation testing, 11 mutants, 10 killed and one deleted.** The null-average ternary (`count === 0 ? null : …`) turned out to be **unreachable** — a bucket only exists because a row created it — so it could be flipped to `? 0` with no test noticing. The branch was removed rather than kept; the real guarantee is that an unstudied set gets **no entry in the map at all**, which the test now pins. Same call as the 600-char reserve in Spec 3C Task 12.
+
+**Also worth knowing:** two component tests failed on **timezone**, not logic — `new Date('...T00:00:00.000Z')` formats to the previous day west of Greenwich. Date fixtures compared against `format` output must use local-time constructors (`new Date(2026, 6, 1)`).
+
+**HUMAN GATE STILL OWED** (trap 6): the nav appears on all three profile pages and marks the right tab; `/profile` renders header and nav before stats; `/sets` shows visibility on every card, study state on a studied set, and **neither a 0% nor a due count** on an unstudied one.
 
 ### 6. ⬜ Spec 4 — plan setup & readiness dashboard — **DESIGNED 2026-08-14, NOT STARTED. Do not build during 3C.**
 
@@ -310,9 +324,9 @@ Never in memory — always in a spec's own section.
 
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-13, after Spec 3B)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-14, after item 5)
 
-- **Tests:** 100 files / **1181 passing** (excluding `cursor-agents`)
+- **Tests:** 108 files / **1311 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
-- **`npm run lint`:** **185 problems** (133 errors, 52 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B.)
+- **`npm run lint`:** **178 problems** (133 errors, 45 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports.)
 - Branch is **not merged**, but IS pushed to `origin` (as of 2026-08-11). A Vercel preview deployment tracks it.
