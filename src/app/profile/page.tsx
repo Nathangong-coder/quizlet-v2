@@ -50,9 +50,16 @@ export default function ProfilePage() {
         <div>
           <h1 className="text-4xl font-bold tracking-tight">Your Learning Memory</h1>
           <p className="text-muted-foreground mt-2">Track your progress and mastery across all sets.</p>
-          <Link href="/profile/memory" className="text-sm text-primary hover:underline inline-block mt-2">
-            View full memory history &rarr;
-          </Link>
+          {/* A page nothing links to does not exist — /profile/activity/[id]
+              shipped that way and had to be fixed later (b911ae4). */}
+          <div className="flex flex-wrap gap-4 mt-2">
+            <Link href="/profile/learner" className="text-sm text-primary hover:underline">
+              View your learner profile &rarr;
+            </Link>
+            <Link href="/profile/memory" className="text-sm text-primary hover:underline">
+              View full memory history &rarr;
+            </Link>
+          </div>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Activity className="w-4 h-4" />
