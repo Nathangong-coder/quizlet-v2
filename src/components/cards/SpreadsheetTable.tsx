@@ -12,7 +12,7 @@ interface SpreadsheetTableProps {
  */
 export function SpreadsheetTable({ rows, maxRows = 20, className = '' }: SpreadsheetTableProps) {
   if (!rows || rows.length === 0) {
-    return <div className="text-gray-400 text-sm italic">Empty spreadsheet</div>;
+    return <div className="text-muted-foreground text-sm italic">Empty spreadsheet</div>;
   }
 
   const displayRows = rows.slice(0, maxRows);
@@ -23,11 +23,11 @@ export function SpreadsheetTable({ rows, maxRows = 20, className = '' }: Spreads
       <table className="w-full border-collapse text-sm">
         <tbody>
           {displayRows.map((row, rowIdx) => (
-            <tr key={rowIdx} className="border-b border-gray-200 hover:bg-gray-50">
+            <tr key={rowIdx} className="border-b border-border hover:bg-muted/50">
               {row.map((cell, colIdx) => (
                 <td
                   key={colIdx}
-                  className="px-2 py-1 border-r border-gray-200 text-gray-700"
+                  className="px-2 py-1 border-r border-border text-foreground"
                   style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' }}
                 >
                   {cell}
@@ -38,7 +38,7 @@ export function SpreadsheetTable({ rows, maxRows = 20, className = '' }: Spreads
         </tbody>
       </table>
       {hasMoreRows && (
-        <div className="text-xs text-gray-400 p-2">
+        <div className="text-xs text-muted-foreground p-2">
           Showing {displayRows.length} of {rows.length} rows
         </div>
       )}

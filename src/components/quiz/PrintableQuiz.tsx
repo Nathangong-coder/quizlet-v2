@@ -55,27 +55,27 @@ function VideoThumb({ src, name }: { src: string; name?: string }) {
     return (
       <span className="inline-block">
         <img src={thumb} alt={name || "video frame"} className="max-h-48 rounded border" />
-        <span className="block text-xs text-gray-500 mt-1">🎬 {name} (video still)</span>
+        <span className="block text-xs text-muted-foreground mt-1">🎬 {name} (video still)</span>
       </span>
     );
   }
   if (failed) return <FileNotice name={name} url={src} label="video" />;
-  return <span className="text-xs text-gray-400">Capturing video frame…</span>;
+  return <span className="text-xs text-muted-foreground">Capturing video frame…</span>;
 }
 
 function FileNotice({ name, url, label = "file" }: { name?: string; url?: string; label?: string }) {
   return (
-    <span className="inline-flex flex-col gap-1 rounded border border-gray-300 bg-gray-50 p-3 text-sm">
+    <span className="inline-flex flex-col gap-1 rounded border border-input bg-muted/50 p-3 text-sm">
       <span className="flex items-center gap-2 font-medium">
         <FileText className="h-4 w-4" /> {name || label}
       </span>
-      <span className="text-xs text-gray-500">
+      <span className="text-xs text-muted-foreground">
         This {label} can’t be shown on paper — access it digitally
         {url ? (
           <>
             {" "}
             at{" "}
-            <a href={url} className="text-blue-600 underline break-all">
+            <a href={url} className="text-primary underline break-all">
               {url}
             </a>
           </>
@@ -114,7 +114,11 @@ function TestSection({ section }: { section: PrintSection }) {
               <div key={item.number} className="flex items-start gap-2">
                 <span className="font-bold w-6">{item.number}.</span>
                 <div className="flex-1"><Blocks blocks={item.promptBlocks} /></div>
-                <span className="w-10 border-b border-gray-400 text-center">&nbsp;</span>
+                {/* A ruled blank the learner writes on. Token-derived rather
+                    than a literal grey so it survives dark mode on screen; the
+                    print rules force a light ground, so it stays legible on
+                    paper either way. */}
+                <span className="w-10 border-b border-foreground/50 text-center">&nbsp;</span>
               </div>
             ))}
           </div>
@@ -139,7 +143,7 @@ function TestSection({ section }: { section: PrintSection }) {
                   <div className="grid grid-cols-1 gap-1.5 pl-2">
                     {q.options.map((opt, idx) => (
                       <div key={idx} className="flex items-start gap-2">
-                        <span className="inline-block h-4 w-4 rounded-full border border-gray-500 mt-0.5" />
+                        <span className="inline-block h-4 w-4 rounded-full border border-border mt-0.5" />
                         <span className="text-sm">
                           <span className="font-medium mr-1">{LETTERS[idx]}.</span>
                           {opt}
@@ -151,23 +155,23 @@ function TestSection({ section }: { section: PrintSection }) {
 
                 {section.mode === "short-answer" && (
                   <div className="space-y-3 pt-1">
-                    <div className="h-6 border-b border-gray-300" />
-                    <div className="h-6 border-b border-gray-300" />
-                    <div className="h-6 border-b border-gray-300" />
+                    <div className="h-6 border-b border-input" />
+                    <div className="h-6 border-b border-input" />
+                    <div className="h-6 border-b border-input" />
                   </div>
                 )}
 
                 {section.mode === "true-false" && (
                   <div className="space-y-2">
-                    <div className="rounded border bg-gray-50 p-2 text-sm">
+                    <div className="rounded border bg-muted/50 p-2 text-sm">
                       {q.statement && <Blocks blocks={q.statement} />}
                     </div>
                     <div className="flex gap-6 text-sm">
                       <span className="flex items-center gap-2">
-                        <span className="inline-block h-4 w-4 rounded-full border border-gray-500" /> True
+                        <span className="inline-block h-4 w-4 rounded-full border border-border" /> True
                       </span>
                       <span className="flex items-center gap-2">
-                        <span className="inline-block h-4 w-4 rounded-full border border-gray-500" /> False
+                        <span className="inline-block h-4 w-4 rounded-full border border-border" /> False
                       </span>
                     </div>
                   </div>
@@ -190,7 +194,7 @@ function AnswerSection({ section }: { section: PrintSection }) {
           {section.matchItems?.map((item) => (
             <div key={item.number} className="flex gap-2">
               <span className="font-bold w-6">{item.number}.</span>
-              <span className="font-medium text-green-700">{item.answerLabel}</span>
+              <span className="font-medium text-success">{item.answerLabel}</span>
             </div>
           ))}
         </div>
@@ -199,7 +203,7 @@ function AnswerSection({ section }: { section: PrintSection }) {
           {section.questions.map((q) => (
             <li key={q.number} className="flex gap-2">
               <span className="font-bold w-6">{q.number}.</span>
-              <span className="font-medium text-green-700">
+              <span className="font-medium text-success">
                 {section.mode === "multiple-choice" && q.correctOptionIndex !== undefined && q.correctOptionIndex >= 0
                   ? `${LETTERS[q.correctOptionIndex]}. ${q.answerText}`
                   : section.mode === "true-false"
@@ -241,7 +245,7 @@ export function PrintableQuiz({ test }: { test: PrintableTest }) {
       <div className="text-center mb-10">
         <h1 className="text-4xl font-bold mb-2">
           {test.title}
-          {view === "answers" && <span className="text-2xl font-normal text-gray-500"> — Answer Key</span>}
+          {view === "answers" && <span className="text-2xl font-normal text-muted-foreground"> — Answer Key</span>}
         </h1>
         {view === "test" && (
           <p className="text-muted-foreground">Name: __________________________ Date: __________</p>

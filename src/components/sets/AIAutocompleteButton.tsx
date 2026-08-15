@@ -52,7 +52,7 @@ export function AIAutocompleteButton({
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 w-64 p-2 bg-white border rounded-lg shadow-lg z-50">
+          <div className="absolute right-0 top-full mt-2 w-64 p-2 bg-popover text-popover-foreground border rounded-lg shadow-lg z-50">
             <div className="space-y-1">
               {suggestions.length === 0 && !isLoading && (
                 <p className="text-sm text-muted-foreground text-center py-2">No suggestions found.</p>

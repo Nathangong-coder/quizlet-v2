@@ -84,7 +84,13 @@ export default function ProfilePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-col items-center text-center pb-2">
-            <Trophy className="w-8 h-8 text-yellow-500 mb-2" />
+            {/* Colour marks the KNOWLEDGE quantity, and only that. These three
+                icons used to be yellow / blue / green — three hues carrying no
+                meaning, one per tile, none of them a token. Mastery is the only
+                one of the three that is a knowledge measure, so it is the only
+                one that gets the knowledge ramp; the other two are activity
+                counts and stay neutral. */}
+            <Trophy className="w-8 h-8 text-know-4 mb-2" />
             <CardTitle>Mastered Cards</CardTitle>
           </CardHeader>
           <CardContent>
@@ -95,7 +101,7 @@ export default function ProfilePage() {
 
         <Card>
           <CardHeader className="flex flex-col items-center text-center pb-2">
-            <History className="w-8 h-8 text-blue-500 mb-2" />
+            <History className="w-8 h-8 text-muted-foreground mb-2" />
             <CardTitle>Total Attempts</CardTitle>
           </CardHeader>
           <CardContent>
@@ -106,7 +112,7 @@ export default function ProfilePage() {
 
         <Card>
           <CardHeader className="flex flex-col items-center text-center pb-2">
-            <Activity className="w-8 h-8 text-green-500 mb-2" />
+            <Activity className="w-8 h-8 text-muted-foreground mb-2" />
             <CardTitle>Avg Performance</CardTitle>
           </CardHeader>
           <CardContent>

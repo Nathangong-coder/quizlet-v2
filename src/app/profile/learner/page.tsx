@@ -114,7 +114,7 @@ function LearnerDashboardContent() {
           did not choose on this visit — or a scope that quietly stopped working
           — is indistinguishable from a broken page. */}
       {d?.widened && (
-        <Card className="border-amber-500/50 bg-amber-500/5">
+        <Card className="border-warning/50 bg-warning/5">
           <CardContent className="py-4 space-y-1">
             <p className="text-sm font-medium">
               Your saved study scope no longer matches anything that exists — showing everything.

@@ -306,7 +306,7 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
             <input
               type="checkbox"
               id="enabled"
-              className="h-4 w-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-input"
               checked={enabled}
               onChange={(e) => setEnabled(e.target.checked)}
             />

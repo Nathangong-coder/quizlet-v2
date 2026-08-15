@@ -51,7 +51,7 @@ export function SectionNav({
       <span className="flex items-center gap-2 text-sm text-muted-foreground">
         Question {index + 1} of {total}
         <span className="inline-flex items-center gap-1 text-xs">
-          <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+          <CheckCircle2 className="w-3.5 h-3.5 text-success" />
           {answeredCount}/{total}
         </span>
       </span>

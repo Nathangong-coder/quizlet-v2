@@ -24,21 +24,25 @@ const TILES: Tile[] = [
     href: (id) => `/sets/${id}/match`,
     icon: Gamepad2,
     requiresAuth: false,
-    color: "bg-blue-50 text-blue-600 border-blue-100 hover:bg-blue-100",
+    // Three activities genuinely are three categories, so this is legitimate
+    // categorical colour — but it now comes from the chart tokens rather than
+    // three unrelated Tailwind palettes, and each tile also carries a distinct
+    // icon and label, so colour is never the sole signal.
+    color: "bg-chart-1/10 text-chart-1 border-chart-1/25 hover:bg-chart-1/20",
   },
   {
     label: "Review Mode",
     href: (id) => `/sets/${id}/review`,
     icon: RotateCcw,
     requiresAuth: true,
-    color: "bg-green-50 text-green-600 border-green-100 hover:bg-green-100",
+    color: "bg-chart-3/10 text-chart-3 border-chart-3/25 hover:bg-chart-3/20",
   },
   {
     label: "Quiz",
     href: (id) => `/sets/${id}/quiz`,
     icon: GraduationCap,
     requiresAuth: true,
-    color: "bg-purple-50 text-purple-600 border-purple-100 hover:bg-purple-100",
+    color: "bg-chart-4/10 text-chart-4 border-chart-4/25 hover:bg-chart-4/20",
   },
 ];
 

@@ -79,12 +79,12 @@ export function QuizSetupScreen({
             {["multiple-choice", "short-answer", "matching", "true-false"].map((mode) => (
               <div
                 key={mode}
-                className="flex items-center gap-2 rounded border p-2 cursor-pointer hover:bg-gray-50"
+                className="flex items-center gap-2 rounded border p-2 cursor-pointer hover:bg-muted/50"
                 onClick={() => toggleMode(mode as any)}
               >
                 <input
                   type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300"
+                  className="h-4 w-4 rounded border-input"
                   checked={setup.questionMode.includes(mode as any)}
                   readOnly
                 />
@@ -133,7 +133,7 @@ export function QuizSetupScreen({
               return (
                 <div
                   key={cat.id}
-                  className="flex items-center gap-2 rounded-full border px-3 py-1 cursor-pointer hover:bg-gray-50"
+                  className="flex items-center gap-2 rounded-full border px-3 py-1 cursor-pointer hover:bg-muted/50"
                   style={
                     active && cat.color
                       ? { backgroundColor: `${cat.color}20`, borderColor: cat.color, color: cat.color }
@@ -143,7 +143,7 @@ export function QuizSetupScreen({
                 >
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300"
+                    className="h-4 w-4 rounded border-input"
                     checked={active}
                     readOnly
                   />
@@ -159,7 +159,7 @@ export function QuizSetupScreen({
             <input
               type="checkbox"
               id="starredOnly"
-              className="h-4 w-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-input"
               checked={setup.starredOnly}
               onChange={(e) => setSetup(prev => ({ ...prev, starredOnly: e.target.checked }))}
             />
@@ -169,7 +169,7 @@ export function QuizSetupScreen({
             <input
               type="checkbox"
               id="failedOnly"
-              className="h-4 w-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-input"
               checked={setup.failedOnly}
               onChange={(e) => setSetup(prev => ({ ...prev, failedOnly: e.target.checked }))}
             />
@@ -181,7 +181,7 @@ export function QuizSetupScreen({
           <input
             type="checkbox"
             id="printable"
-            className="h-4 w-4 rounded border-gray-300"
+            className="h-4 w-4 rounded border-input"
             checked={setup.printable}
             onChange={(e) => setSetup(prev => ({ ...prev, printable: e.target.checked }))}
           />

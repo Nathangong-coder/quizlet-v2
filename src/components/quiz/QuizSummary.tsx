@@ -53,13 +53,13 @@ function GradeFactor({ title, data }: { title: string, data: { score: number, pr
       </div>
       <div className="grid grid-cols-2 gap-4 text-xs">
         <div className="space-y-1">
-          <span className="text-green-600 font-medium">Pros:</span>
+          <span className="text-success font-medium">Pros:</span>
           <ul className="list-disc pl-4 space-y-1">
             {data.pros.map((p, i) => <li key={i}>{p}</li>)}
           </ul>
         </div>
         <div className="space-y-1">
-          <span className="text-red-600 font-medium">Cons:</span>
+          <span className="text-destructive font-medium">Cons:</span>
           <ul className="list-disc pl-4 space-y-1">
             {data.cons.map((c, i) => <li key={i}>{c}</li>)}
           </ul>
@@ -82,14 +82,14 @@ function MultipleChoiceResult({ options, selectedOption, correctAnswer }: { opti
             key={index}
             className={cn(
               "p-3 rounded-md border text-sm transition-colors flex items-center justify-between",
-              isCorrect ? "bg-green-50 border-green-500 text-green-900 dark:bg-green-900/20 dark:text-green-100" :
-              isWrongSelection ? "bg-red-50 border-red-500 text-red-900 dark:bg-red-900/20 dark:text-red-100" :
+              isCorrect ? "bg-success-subtle border-success" :
+              isWrongSelection ? "bg-destructive-subtle border-destructive" :
               "bg-muted/50 border-transparent text-muted-foreground"
             )}
           >
             <span className="truncate">{option}</span>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {isCorrect && <Badge className="bg-green-600 hover:bg-green-600">Correct</Badge>}
+              {isCorrect && <Badge className="bg-success text-success-foreground hover:bg-success">Correct</Badge>}
               {isWrongSelection && <Badge variant="destructive">Your Answer</Badge>}
               {isSelected && isCorrect && <Badge variant="secondary">Your Answer</Badge>}
             </div>
@@ -127,11 +127,11 @@ function KlpChecklist({ results }: { results: any[] }) {
         {results.map((r, i) => (
           <li key={i} className="flex items-start gap-2 text-sm">
             {r.status === 'passed' ? (
-              <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
             ) : r.status === 'partial' ? (
-              <MinusCircle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
+              <MinusCircle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
             ) : (
-              <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <XCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
             )}
             <span>
               <span className="text-muted-foreground">{labelForKlpStatus(r.status)}:</span>{' '}
@@ -182,7 +182,7 @@ function MatchingReview({ answers }: { answers: any[] }) {
             <div className="flex-1">
               <div className={cn(
                 "p-2 rounded-md border text-sm",
-                answer.isCorrect ? "bg-green-50 border-green-500 text-green-900 dark:bg-green-900/20 dark:text-green-100" : "bg-red-50 border-red-500 text-red-900 dark:bg-red-900/20 dark:text-red-100"
+                answer.isCorrect ? "bg-success-subtle border-success" : "bg-destructive-subtle border-destructive"
               )}>
                 <ExpandableText text={answer.selectedOption || "No match"} />
               </div>
@@ -193,7 +193,7 @@ function MatchingReview({ answers }: { answers: any[] }) {
               )}
             </div>
             <div className="flex-shrink-0">
-              {answer.isCorrect ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <XCircle className="w-5 h-5 text-red-500" />}
+              {answer.isCorrect ? <CheckCircle2 className="w-5 h-5 text-success" /> : <XCircle className="w-5 h-5 text-destructive" />}
             </div>
           </CardContent>
         </Card>
@@ -256,7 +256,7 @@ function SessionRollupCard({
               <ul className="space-y-1">
                 {struggles.map((s) => (
                   <li key={s.klpId} className="text-sm flex items-start gap-2">
-                    <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                    <XCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                     <span>{s.text}</span>
                   </li>
                 ))}
@@ -335,7 +335,7 @@ export function QuizSummary({ score, setId, attemptId, canReset = false }: QuizS
       <Card>
         <CardHeader className="text-center">
           <div className="flex justify-center mb-2">
-            <Trophy className="w-12 h-12 text-yellow-500" />
+            <Trophy className="w-12 h-12 text-warning" />
           </div>
           <CardTitle className="text-3xl font-bold">Quiz Results</CardTitle>
           <div className="text-6xl font-bold text-primary mt-4">{correctCount}/{totalCount}</div>
@@ -418,7 +418,7 @@ export function QuizSummary({ score, setId, attemptId, canReset = false }: QuizS
                         <CardHeader>
                           <CardTitle className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
-                              {answer.isCorrect ? <CheckCircle2 className="text-green-500 shrink-0" /> : <XCircle className="text-red-500 shrink-0" />}
+                              {answer.isCorrect ? <CheckCircle2 className="text-success shrink-0" /> : <XCircle className="text-destructive shrink-0" />}
                               <span className="font-medium shrink-0">Question {index + 1}</span>
                             </div>
                             {answer.grade && (
@@ -484,8 +484,8 @@ export function QuizSummary({ score, setId, attemptId, canReset = false }: QuizS
                                 <h4 className="font-semibold text-sm">AI Summary</h4>
                                 <p className="text-sm text-muted-foreground">{answer.grade.summary}</p>
                               </div>
-                              <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/20 space-y-2">
-                                <h4 className="font-semibold text-sm text-blue-700 dark:text-blue-300">Targeted Improvement</h4>
+                              <div className="p-3 rounded-lg border bg-info-subtle space-y-2">
+                                <h4 className="font-semibold text-sm text-info">Targeted Improvement</h4>
                                 <p className="text-sm">{answer.grade.suggestedImprovement}</p>
                               </div>
                             </div>

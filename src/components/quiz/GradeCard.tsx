@@ -22,13 +22,13 @@ export function GradeCard({ grade }: GradeCardProps) {
       </div>
       <div className="grid grid-cols-2 gap-4 text-xs">
         <div className="space-y-1">
-          <span className="text-green-600 font-medium">Pros:</span>
+          <span className="text-success font-medium">Pros:</span>
           <ul className="list-disc pl-4 space-y-1">
             {data.pros.map((p, i) => <li key={i}>{p}</li>)}
           </ul>
         </div>
         <div className="space-y-1">
-          <span className="text-red-600 font-medium">Cons:</span>
+          <span className="text-destructive font-medium">Cons:</span>
           <ul className="list-disc pl-4 space-y-1">
             {data.cons.map((c, i) => <li key={i}>{c}</li>)}
           </ul>
@@ -57,8 +57,8 @@ export function GradeCard({ grade }: GradeCardProps) {
           <p className="text-sm text-muted-foreground">{grade.summary}</p>
         </div>
 
-        <div className="p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/20 space-y-2">
-          <h4 className="font-semibold text-sm text-blue-700 dark:text-blue-300">Targeted Improvement</h4>
+        <div className="p-3 rounded-lg border bg-info-subtle space-y-2">
+          <h4 className="font-semibold text-sm text-info">Targeted Improvement</h4>
           <p className="text-sm">{grade.suggestedImprovement}</p>
         </div>
       </CardContent>
