@@ -85,7 +85,7 @@ export async function getLearnerMetrics({
   // card, and source scoping the topic profile already does — a request
   // scoped to one set must not answer with the learner's entire cross-set
   // retention curve and misconception list sitting behind it.
-  const categoryIds = await resolveCategoryIds(prisma, userId, scope.categoryKeys)
+  const categoryIds = await resolveScopeCategoryIds(prisma, userId, scope.categoryKeys)
   const quizAnswerScopeWhere = buildQuizAnswerScopeWhere(userId, scope, categoryIds)
   const studyEventWhere = buildStudyEventWhere(userId, scope, categoryIds)
 
@@ -499,7 +499,7 @@ async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: His
  * decision (how UNCATEGORIZED_ID combines with named categories) lives in
  * the pure, tested `buildCardScopeWhere` inside `@/lib/memory/scope`.
  */
-async function resolveCategoryIds(
+export async function resolveScopeCategoryIds(
   prisma: PrismaClient,
   userId: string,
   categoryKeys: string[],

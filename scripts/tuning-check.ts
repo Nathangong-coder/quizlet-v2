@@ -25,8 +25,10 @@ import { PrismaNeon } from '@prisma/adapter-neon'
 import { getUserTuning } from '../src/lib/tuning/store'
 import { getLearnerMetrics } from '../src/lib/metrics/read'
 import { EMPTY_SCOPE } from '../src/lib/memory/scope'
+import { UNCATEGORIZED_ID } from '../src/lib/cards/categories'
 import { DEFAULT_THRESHOLDS } from '../src/lib/tuning/schema'
 import { DEFAULT_BANDS } from '../src/lib/errors/bands'
+import { loadCoverage, diagnoseEmptyState } from '../src/lib/metrics/coverage'
 
 async function main() {
   const connectionString = process.env.DATABASE_URL
@@ -64,58 +66,70 @@ async function main() {
       : `band overrides ${bandOverrides.map(([t, b]) => `${t}=[${b[0]},${b[1]}]`).join(', ')}`,
   )
 
-  // The raw evidence. A KLP below the floor cannot report knowledge, so this
-  // says whether the floor is what is hiding the numbers, or whether there is
-  // simply nothing to show yet.
-  const states = await prisma.klpState.findMany({ select: { observations: true } })
+  // Coverage comes from the SAME helper the dashboard uses, so the check that
+  // verifies this feature and the page the learner reads can never disagree
+  // about whether there is enough data. It is also owner-filtered, which the
+  // hand-written counts here previously were not — harmless with one user in
+  // the database, wrong the moment there are two.
   const floor = tuning.thresholds.minObservations
-  const clearing = states.filter((s) => s.observations >= floor).length
-  const maxObs = states.reduce((m, s) => Math.max(m, s.observations), 0)
+  const coverage = await loadCoverage(prisma, userId, EMPTY_SCOPE, [], floor)
+  const cause = diagnoseEmptyState(coverage, false, floor)
+
+  const maxObsRow = await prisma.klpState.findFirst({
+    where: { userId },
+    orderBy: { observations: 'desc' },
+    select: { observations: true },
+  })
+  const maxObs = maxObsRow?.observations ?? 0
 
   console.log('\n=== EVIDENCE ===')
-  console.log(`KlpState rows            ${states.length}`)
+  console.log(`KlpState rows            ${coverage.klpStates}`)
   console.log(`most-observed KLP        ${maxObs} observation(s)`)
-  console.log(`clearing your floor (${floor})  ${clearing}`)
-  if (states.length === 0) {
-    console.log(
-      '\n  No study history at all. Nothing below can be non-null.\n' +
-        '  Take a quiz first — and do NOT seed synthetic data: the posterior is\n' +
-        '  incremental and not self-correcting, so fabricated evidence does not\n' +
-        '  cleanly come back out.',
-    )
-  } else if (clearing === 0) {
-    console.log(
-      `\n  Every KLP is below your floor, so ZERO topics can report knowledge.\n` +
-        `  Lower "Evidence before an opinion" to ${maxObs} or less at /settings/ai\n` +
-        `  and re-run: topics should start reporting numbers. That is the knob's\n` +
-        `  whole purpose, and this is the check that proves it is wired up.`,
-    )
-  }
-
-  // Candidates are assembled category -> card -> LIVE KLP, so a card must be
-  // BOTH categorized and have key points to be rankable at all. A library where
-  // those two sets do not overlap produces an empty ranked list no matter how
-  // much studying happens, which looks identical to "the feature is broken".
-  const [liveKlps, cardsWithKlps, categorizedCards, rankable] = await Promise.all([
-    prisma.cardKlp.count({ where: { supersededAt: null } }),
-    prisma.card.count({ where: { klps: { some: { supersededAt: null } } } }),
-    prisma.card.count({ where: { categoryAssignments: { some: {} } } }),
-    prisma.card.count({
-      where: { categoryAssignments: { some: {} }, klps: { some: { supersededAt: null } } },
-    }),
-  ])
+  console.log(`clearing your floor (${floor})  ${coverage.klpStatesClearingFloor}`)
 
   console.log('\n=== CANDIDATE COVERAGE ===')
-  console.log(`live KLPs                        ${liveKlps}`)
-  console.log(`cards with live KLPs             ${cardsWithKlps}`)
-  console.log(`cards with a category            ${categorizedCards}`)
-  console.log(`cards with BOTH (rankable)       ${rankable}`)
-  if (rankable === 0) {
-    console.log(
-      '\n  No card is both categorized and has key points, so the ranked list\n' +
-        '  below will be empty however much you study. Categorize a card that has\n' +
-        '  KLPs (or add categories to the cards that do) before judging targeting.',
-    )
+  console.log(`cards with live KLPs             ${coverage.cardsWithLiveKlps}`)
+  console.log(`cards with a category            ${coverage.categorizedCards}`)
+  console.log(`cards with BOTH (topic-capable)  ${coverage.topicCapableCards}`)
+  console.log(`extraction still pending         ${coverage.pendingExtraction}`)
+
+  console.log('\n=== DIAGNOSIS (what the dashboard would say) ===')
+  if (!cause) {
+    console.log('nothing wrong — every section has something to render')
+  } else {
+    console.log(`${cause.kind}${cause.blocking ? '  (BLOCKING — the page is empty)' : '  (advisory)'}`)
+    switch (cause.kind) {
+      case 'no_klps':
+        console.log(
+          `  No card has key points yet; ${cause.pendingExtraction} still pending extraction.\n` +
+            '  Pending means WAIT — extraction is after()-triggered and self-healing.',
+        )
+        break
+      case 'no_history':
+        console.log(
+          '  Take a quiz — and do NOT seed synthetic data: the posterior is\n' +
+            '  incremental and not self-correcting, so fabricated evidence does not\n' +
+            '  cleanly come back out.',
+        )
+        break
+      case 'below_floor':
+        console.log(
+          `  ${cause.measured} KLPs measured, none at your floor of ${cause.floor}.\n` +
+            `  Lower "Evidence before an opinion" to ${maxObs} or less at /settings/ai\n` +
+            '  and re-run: topics should start reporting numbers.',
+        )
+        break
+      case 'nothing_categorized':
+        console.log(
+          `  ${cause.cardsWithLiveKlps} cards have key points but none is categorized, so no\n` +
+            '  TOPIC can report anything. Since Task 4B the ranked list below still\n' +
+            '  works — uncategorized KLPs are candidates. Categorizing is retroactive.',
+        )
+        break
+      case 'scope_too_narrow':
+        console.log('  Nothing inside the scope qualifies, though the library has candidates.')
+        break
+    }
   }
 
   const metrics = await getLearnerMetrics({ userId, scope: EMPTY_SCOPE })
@@ -135,7 +149,15 @@ async function main() {
     )
   }
 
+  // Split by topic bucket, because Task 4B's whole point is that the second
+  // number is no longer zero for a library whose KLP-bearing cards are
+  // uncategorized. Showing only the first 15 rows hides that entirely.
+  const uncategorizedRanked = metrics.ranked.filter((c) => c.topicKey === UNCATEGORIZED_ID).length
   console.log(`\n=== RANKED CANDIDATES (strategy: ${tuning.strategy}) ===`)
+  console.log(
+    `${metrics.ranked.length} total — ${metrics.ranked.length - uncategorizedRanked} in a category, ` +
+      `${uncategorizedRanked} uncategorized (Task 4B). Showing the first 15.`,
+  )
   if (metrics.ranked.length === 0) {
     console.log('(none)')
   } else {
