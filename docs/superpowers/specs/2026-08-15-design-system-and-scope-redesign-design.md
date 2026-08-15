@@ -1,7 +1,9 @@
 # Design system & scope-control redesign
 
 **Date:** 2026-08-15
-**Status:** Design — not built.
+**Status:** **BUILT 2026-08-15**, all five waves, one commit each (`20c865f` … `e80e88b`), branch
+`spec3b-tunable-scoring`, **not merged**. Tests **1311 → 1340** (108 → 112 files), `tsc` clean, lint
+**178 → 176**. **Human live gate still owed** — see §8.
 **Trigger:** The user's report that "all the filters under profile is way too complicated," widened
 at their request to the whole app's visual language.
 
@@ -230,7 +232,48 @@ confirmed functional bug (G-5) and could be pulled forward if that matters more 
 
 ---
 
-## 7. Out of scope
+## 7. What the build found that the design did not
+
+Four things worth more than the diff:
+
+1. **The card chip could still be hidden.** §5 said the card chip must survive the overflow cap; the
+   first implementation merely put it *last* and ran `slice(0, MAX_VISIBLE_CHIPS)`, which drops it
+   as soon as four other narrowings exist — hiding the narrowest scope, the one actually deciding
+   what the page shows. Caught by writing the test that was supposed to prove the claim. It is now
+   an explicit `pinned` flag, and reverting the pin reddens that test.
+
+2. **A guard that could not fail, again — the third in this repo.** `nextTheme`'s
+   `if (index === -1) return MODES[0]` was redundant: `(-1 + 1) % 3` is already `0`. Deleted rather
+   than kept, matching the calls made on Spec 3C's 600-char reserve and item 5's null-average
+   ternary. The lesson is now reliable enough to state as a rule: **when a mutant survives, check
+   whether the branch is reachable before concluding the test is weak.**
+
+3. **The build caught what review did not.** `ProfileNav` gaining `useSearchParams` made `/profile`
+   fail prerender with a CSR-bailout error. The two sibling pages already had a Suspense boundary;
+   this one had never needed one.
+
+4. **A test forced a real accessibility fix.** `MultiSelect` options announced as "accounting 12"
+   because the count was not `aria-hidden`. Found because a role-based query could not match the
+   option, not by inspection.
+
+## 8. Human gate still owed
+
+Trap 6: no signed-in page is reachable from an agent session. Everything below needs the browser.
+
+- **Dark mode.** Toggle through system → light → dark on `/sets`, a set detail page, a quiz, the
+  matching game, and all three profile pages. The 7 previously-hardcoded files are the risk.
+- **The scope line.** Both dropdowns open, filter, and collapse; the trigger reports the selection;
+  chips remove individually; `Clear` appears only when scoped.
+- **Scope survives a tab change** — narrow on Memory History, click Learner Profile, confirm the
+  same scope is applied and that Overview's link carries none.
+- **The by-mode chips filter the feed**, and clicking the active one clears it.
+- **`/settings/ai`** still saves each of the four panels independently (Spec 3B's partial-save
+  contract) now that Study scope has no checkbox.
+- **Print Test with filters on** — tick Starred Only plus a category, print, and confirm the test
+  contains only those cards. This is the one confirmed functional bug; the URL half is unit-tested,
+  the page half is a server component with no test.
+
+## 9. Out of scope
 
 - The set detail, review, and matching surfaces get token conversion in Wave 2 but no structural
   redesign. If they need one, audit them separately rather than folding it in here.

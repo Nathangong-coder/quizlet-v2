@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-14
+**Last updated:** 2026-08-15
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -217,7 +217,48 @@ Tests **1286 → 1311** (108 files), `tsc` clean, lint **185 → 178** — the 7
 
 **HUMAN GATE STILL OWED** (trap 6): the nav appears on all three profile pages and marks the right tab; `/profile` renders header and nav before stats; `/sets` shows visibility on every card, study state on a studied set, and **neither a 0% nor a due count** on an unstudied one.
 
-### 6. ⬜ Spec 4 — plan setup & readiness dashboard — **DESIGNED 2026-08-14, NOT STARTED. Do not build during 3C.**
+### 6. ✅ Design system & scope redesign — **BUILT 2026-08-15. LIVE GATE OUTSTANDING.**
+
+Spec: `specs/2026-08-15-design-system-and-scope-redesign-design.md` (audit first, design second).
+Five waves, one commit each (`20c865f` … `e80e88b`), branch `spec3b-tunable-scoring`, **not merged**.
+Tests **1311 → 1340** (108 → 112 files), `tsc` clean, lint **178 → 176**.
+
+Triggered by the user's report that "all the filters under profile is way too complicated", widened
+at their request to the whole app's visual language. **Do this before Spec 4** — Spec 4 adds a third
+scope picker (`inputScope`), and building it on the old model would have duplicated the mess again.
+
+**The root cause of "it doesn't look professional" was in the tokens.** Every value in `globals.css`
+was `oklch(L 0 0)` — zero chroma, including all five `--chart-*`; the only chromatic token was
+`--destructive`. That absence is why **149** raw Tailwind palette values had accumulated across
+`src/`. Now: one ink-indigo accent, a **sequential** `--know-0..4` ramp (mastery is an ordered
+quantity, not a category), an ordinal `--severity-*` scale on a distinct hue axis, five real chart
+hues, and Fraunces / IBM Plex Sans / IBM Plex Mono replacing Inter doing all three jobs.
+
+**Dark mode was fully written and unreachable** — `.dark` was complete, nothing ever applied the
+class, and the 7 files hardcoding `bg-gray-50` would have rendered broken if it were switched on.
+Now real, with a navbar toggle placed outside the auth branch.
+
+**Four chip implementations became one** (`SelectableChip`). Selection is an accent fill everywhere,
+never the category's own colour: two of the four used `${color}20` with that colour as the *text*,
+which a reachable dark mode turns unreadable. Identity survives as the dot; a check mark means
+selection is never colour alone.
+
+**The scope filter is one collapsed line.** The Card `<select>` is deleted (disabled unless exactly
+one set was selected, explained only in a `title`); `source` stopped being scope and the "By mode"
+chips *became* the control they used to sit uselessly beneath; the saved-scope notice, the "Show
+everything" button and the chip panel folded into one line. `ProfileNav` now carries scope across
+tabs — it was silently discarded before, though both pages parse the same `HistoryScope`.
+`StudyScopePanel` lost the checkbox whose only extra state was invalid, deleting the block logic.
+
+**One confirmed functional bug fixed:** Print Test built `?modes=&side=&count=` only while the print
+page typed exactly those keys and read every card — so Starred/Failed/Categories were silently
+dropped. Both halves fixed, the page now running the *same* `filterQuizCards` the quiz runs.
+
+**Four findings worth more than the diff** are in the spec's §7 — including a third
+guard-that-could-not-fail, and the card chip still being hideable despite the design saying it must
+not be. **Human gate is the spec's §8.**
+
+### 7. ⬜ Spec 4 — plan setup & readiness dashboard — **DESIGNED 2026-08-14, NOT STARTED.**
 
 Belongs to Stage 8 Spec 4 (action plan & AI lessons). Designed with the user on 2026-08-14 and captured here so it survives; **no spec doc, no plan, no code.**
 
@@ -324,9 +365,9 @@ Never in memory — always in a spec's own section.
 
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-14, after item 5)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-15, after item 6)
 
-- **Tests:** 108 files / **1311 passing** (excluding `cursor-agents`)
+- **Tests:** 112 files / **1340 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
-- **`npm run lint`:** **178 problems** (133 errors, 45 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports.)
+- **`npm run lint`:** **176 problems** (131 errors, 45 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts.)
 - Branch is **not merged**, but IS pushed to `origin` (as of 2026-08-11). A Vercel preview deployment tracks it.
