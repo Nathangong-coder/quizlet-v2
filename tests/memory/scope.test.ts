@@ -10,6 +10,8 @@ import {
   parseScope,
   isConsolidated,
   scopeToCard,
+  hasExplicitScope,
+  SCOPE_PARAM_KEYS,
   type HistoryScope,
 } from "../../src/lib/memory/scope";
 import { UNCATEGORIZED_ID, CATEGORY_PALETTE } from "../../src/lib/cards/categories";
@@ -439,3 +441,38 @@ describe("isConsolidated", () => {
     expect(isConsolidated({ ...EMPTY_SCOPE, source: "review" })).toBe(false);
   });
 });
+
+describe('hasExplicitScope (Spec 3C §2)', () => {
+  const q = (s: string) => new URLSearchParams(s)
+
+  it('is false for a bare URL — no instruction, so the saved default applies', () => {
+    expect(hasExplicitScope(q(''))).toBe(false)
+  })
+
+  it('is true for every key serializeScope writes', () => {
+    for (const key of SCOPE_PARAM_KEYS) {
+      expect(hasExplicitScope(q(`${key}=x`))).toBe(true)
+    }
+  })
+
+  it('is true for the explicit "everything" marker', () => {
+    // `serializeScope(EMPTY_SCOPE)` is the empty string, so without this
+    // marker "I cleared the scope" and "I have not chosen one" are the same
+    // URL — and the saved default must override only the second.
+    expect(hasExplicitScope(q('scope=all'))).toBe(true)
+  })
+
+  it('ignores a present-but-blank key', () => {
+    expect(hasExplicitScope(q('sets='))).toBe(false)
+    expect(hasExplicitScope(q('sets=%20'))).toBe(false)
+  })
+
+  it('covers exactly the keys serializeScope emits', () => {
+    // Drift guard: a new scope dimension that serializes but is missing here
+    // would be silently overridden by the saved default.
+    const emitted = new URLSearchParams(
+      serializeScope({ setIds: ['a'], categoryKeys: ['b'], cardId: 'c', source: 'review' }),
+    )
+    expect([...emitted.keys()].sort()).toEqual([...SCOPE_PARAM_KEYS].sort())
+  })
+})
