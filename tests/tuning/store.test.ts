@@ -24,7 +24,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   h.auth.mockResolvedValue({ user: { id: USER } })
   h.findUnique.mockResolvedValue(null)
-  h.upsert.mockResolvedValue({ strategy: 'balanced', bands: {}, thresholds: {} })
+  h.upsert.mockResolvedValue({
+    strategy: 'balanced', bands: {}, thresholds: {}, studyScope: null,
+  })
 })
 
 describe('getUserTuning', () => {
@@ -146,5 +148,95 @@ describe('saveTuning is PARTIAL (spec §5)', () => {
       success: false, error: 'Not signed in',
     })
     expect(h.upsert).not.toHaveBeenCalled()
+  })
+})
+
+describe('saveTuning: the study scope is the FOURTH partial field', () => {
+  it('writes only studyScope, naming none of the other three', async () => {
+    await saveTuning({ studyScope: { setIds: ['set-a'], categoryKeys: ['accounting'] } })
+    const [args] = h.upsert.mock.calls[0]
+    expect(args.update).toEqual({
+      studyScope: { setIds: ['set-a'], categoryKeys: ['accounting'] },
+      version: 1,
+    })
+    expect(args.update).not.toHaveProperty('bands')
+    expect(args.update).not.toHaveProperty('thresholds')
+    expect(args.update).not.toHaveProperty('strategy')
+  })
+
+  it('leaves the scope alone when ANOTHER panel saves', async () => {
+    // The discriminating case for the whole partial design, now at four fields.
+    // A write-everything action would put `studyScope: {}` in this update and
+    // silently un-scope a learner who only changed their strategy.
+    await saveTuning({ strategy: 'follow_forgetting' })
+    expect(h.upsert.mock.calls[0][0].update).not.toHaveProperty('studyScope')
+  })
+
+  it('treats an EMPTY scope as a real value — that is "study everything"', async () => {
+    // Distinct from absent. Clearing the scope must be expressible, or the
+    // learner can narrow but never widen again.
+    await saveTuning({ studyScope: { setIds: [], categoryKeys: [] } })
+    expect(h.upsert.mock.calls[0][0].update).toHaveProperty('studyScope', {
+      setIds: [], categoryKeys: [],
+    })
+  })
+
+  it('fills a missing dimension rather than rejecting the save', async () => {
+    await saveTuning({ studyScope: { setIds: ['set-a'] } })
+    expect(h.upsert.mock.calls[0][0].update.studyScope).toEqual({
+      setIds: ['set-a'], categoryKeys: [],
+    })
+  })
+
+  it('rejects a malformed scope and writes NOTHING', async () => {
+    // A save is an explicit user act, so it fails loudly — unlike a corrupt
+    // STORED blob, which degrades to "everything".
+    const res = await saveTuning({ studyScope: { setIds: 'set-a' } })
+    expect(res.success).toBe(false)
+    expect(h.upsert).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unknown key rather than storing a setting nothing reads', async () => {
+    const res = await saveTuning({ studyScope: { setIds: [], categoryKeys: [], cardIds: ['c'] } })
+    expect(res.success).toBe(false)
+    expect(h.upsert).not.toHaveBeenCalled()
+  })
+
+  it('creates the row with an explicit empty scope when none exists yet', async () => {
+    await saveTuning({ strategy: 'balanced' })
+    expect(h.upsert.mock.calls[0][0].create.studyScope).toEqual({
+      setIds: [], categoryKeys: [],
+    })
+  })
+})
+
+describe('getUserTuning returns the scope STORED, not resolved', () => {
+  it('hands back exactly what is on the row', async () => {
+    h.findUnique.mockResolvedValue({
+      strategy: 'balanced',
+      bands: null,
+      thresholds: null,
+      studyScope: { setIds: ['set-deleted'], categoryKeys: [] },
+    })
+    const out = await getUserTuning(USER)
+    // Deliberately NOT resolved here: a dead set id survives this call and is
+    // only judged by `resolveStudyScope`, where the learner's live sets are
+    // already loaded. Resolving here would put two queries behind every
+    // metrics computation, most of which are handed an explicit scope.
+    expect(out.studyScope).toEqual({ setIds: ['set-deleted'], categoryKeys: [] })
+  })
+
+  it('degrades a corrupt scope to empty without touching bands or thresholds', async () => {
+    h.findUnique.mockResolvedValue({
+      strategy: 'polish_near_ready',
+      bands: { inversion: [1, 2] },
+      thresholds: { minObservations: 1 },
+      studyScope: 'garbage',
+    })
+    const out = await getUserTuning(USER)
+    expect(out.studyScope).toEqual({ setIds: [], categoryKeys: [] })
+    expect(out.bands.inversion).toEqual([1, 2])
+    expect(out.thresholds.minObservations).toBe(1)
+    expect(out.strategy).toBe('polish_near_ready')
   })
 })

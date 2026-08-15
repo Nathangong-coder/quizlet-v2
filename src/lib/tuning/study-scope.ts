@@ -16,7 +16,15 @@ export const StudyScopeSchema = z
   })
   .strict()
 
-export interface StoredStudyScope {
+/**
+ * A TYPE ALIAS, not an interface, and that is load-bearing rather than style:
+ * TypeScript infers an implicit index signature for object type aliases but
+ * never for interfaces, and Prisma's `InputJsonValue` requires one. As an
+ * interface this cannot be assigned to the `studyScope` Json column without a
+ * cast — and a cast here would defeat the point of validating the blob.
+ * `BandOverrides` and `ThresholdOverrides` are both aliases for the same reason.
+ */
+export type StoredStudyScope = {
   setIds: string[]
   categoryKeys: string[]
 }

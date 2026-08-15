@@ -7,6 +7,7 @@ import {
   BandOverridesSchema, ThresholdOverridesSchema, parseStrategy, shapeTuning,
   TUNING_VERSION, type BandOverrides, type ThresholdOverrides, type TuningRow,
 } from '@/lib/tuning/schema'
+import { StudyScopeSchema, type StoredStudyScope } from '@/lib/tuning/study-scope'
 
 export async function loadTuning(): Promise<ActionResult<TuningRow>> {
   const session = await auth()
@@ -24,19 +25,25 @@ export async function loadTuning(): Promise<ActionResult<TuningRow>> {
 }
 
 /**
- * PARTIAL by design (spec §5). An ABSENT field means "leave unchanged"; a
- * present one is written. Three panels edit this one row, and a
- * write-all-three action forces each panel to echo back values it read at
+ * PARTIAL by design (spec 3B §5). An ABSENT field means "leave unchanged"; a
+ * present one is written. FOUR panels now edit this one row, and a
+ * write-everything action forces each panel to echo back values it read at
  * mount — so the ordinary sequence "change a threshold, change a band, save
  * both" reverts one of them. That bug is invisible to a single-panel test.
  *
+ * The fourth field (Spec 3C's study scope) needed no change to the other three
+ * precisely because this was built partial. That is the payoff of the 3B
+ * decision, collected.
+ *
  * `bandOverrides: {}` is NOT the same as absent: it is the global reset, and
- * it must stay expressible.
+ * it must stay expressible. The same holds for an empty `studyScope`, which
+ * means "study everything".
  */
 export async function saveTuning(input: {
   strategy?: string
   bandOverrides?: unknown
   thresholdOverrides?: unknown
+  studyScope?: unknown
 }): Promise<ActionResult<TuningRow>> {
   const session = await auth()
   if (!session?.user?.id) return { success: false, error: 'Not signed in' }
@@ -49,6 +56,7 @@ export async function saveTuning(input: {
     strategy?: string
     bands?: BandOverrides
     thresholds?: ThresholdOverrides
+    studyScope?: StoredStudyScope
     version: number
   } = { version: TUNING_VERSION }
 
@@ -72,6 +80,18 @@ export async function saveTuning(input: {
     }
     data.thresholds = thresholds.data as ThresholdOverrides
   }
+  if (input.studyScope !== undefined) {
+    const scope = StudyScopeSchema.safeParse(input.studyScope)
+    if (!scope.success) {
+      return {
+        success: false,
+        error: 'A study scope must be a list of set ids and a list of category names.',
+      }
+    }
+    // Normalized to the two named arrays rather than stored as parsed, so a
+    // future optional key cannot ride along into the blob unvalidated.
+    data.studyScope = { setIds: scope.data.setIds, categoryKeys: scope.data.categoryKeys }
+  }
   if (input.strategy !== undefined) data.strategy = parseStrategy(input.strategy)
 
   const { prisma } = await import('@/lib/db')
@@ -84,6 +104,9 @@ export async function saveTuning(input: {
       strategy: data.strategy ?? 'balanced',
       bands: data.bands ?? {},
       thresholds: data.thresholds ?? {},
+      // Empty arrays, not null — both mean "everything", but the explicit form
+      // says so to anyone reading the row.
+      studyScope: data.studyScope ?? { setIds: [], categoryKeys: [] },
       version: TUNING_VERSION,
     },
     update: data,
