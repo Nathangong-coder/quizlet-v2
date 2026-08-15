@@ -5,9 +5,7 @@ import { prisma } from '@/lib/db';
 import { generateJson, AiGenerationError } from '@/lib/ai/generate';
 import { TRAINING_PLAN_PROMPT } from '@/lib/ai/prompts/registry';
 import { TrainingPlanSchema } from '@/lib/ai/schemas';
-import { buildLearnerProfile } from '@/lib/memory/profile';
-import { EMPTY_SCOPE } from '@/lib/memory/scope';
-import { profileToPromptBlock } from '@/lib/ai/context';
+import { safeProfileBlock } from '@/lib/ai/context';
 import { ActionResult } from '@/types/action';
 
 export async function generateTrainingPlan(setId: string): Promise<ActionResult<{ plan: any }>> {
@@ -22,19 +20,10 @@ export async function generateTrainingPlan(setId: string): Promise<ActionResult<
     // src/lib/ai/prompts/training-plan.ts for why. Isolated in try/catch so
     // a profile-build failure degrades to no context rather than failing
     // plan generation outright (same pattern as recordStudyEvent).
-    let profileBlock: string | undefined;
-    try {
-      const profile = await buildLearnerProfile({
-        userId,
-        scope: { ...EMPTY_SCOPE, setIds: [setId] },
-      });
-      // Topic-grain data isn't wired into this call site yet (Spec 3 read API
-      // lives in lib/metrics/read.ts, not here) — an empty topics array keeps
-      // this producing the exact same block as before Task 17.
-      profileBlock = profileToPromptBlock({ cards: profile, topics: [] });
-    } catch (err) {
-      console.error('buildLearnerProfile failed for training plan:', err);
-    }
+    // Spec 3C Task 12: the second of the two `topics: []` call sites. Both are
+    // closed together — fixing one alone still leaves topic-grain data out of
+    // half the prompts, and this is the prompt that most needs it.
+    const profileBlock = await safeProfileBlock(userId, setId, 'training plan');
 
     // 2. Generate
     const prompt = TRAINING_PLAN_PROMPT.build({ profileBlock });

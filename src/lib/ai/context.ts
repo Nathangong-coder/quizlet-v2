@@ -14,7 +14,7 @@
  * memory-and-prompting.md's "Compact, ID-free AI context" global constraint.
  */
 
-import { buildLearnerProfile, type LearnerCardProfile, type Trend } from '@/lib/memory/profile'
+import type { LearnerCardProfile, Trend } from '@/lib/memory/profile'
 import type { LearnerProfile, LearnerTopicProfile } from '@/lib/memory/topic-profile'
 import { EMPTY_SCOPE } from '@/lib/memory/scope'
 
@@ -116,9 +116,9 @@ function topicLines(topics: LearnerTopicProfile[]): string[] {
 }
 
 /** Truncate at a line boundary so the block never ends mid-sentence. */
-function capBlock(text: string): string {
-  if (text.length <= MAX_PROFILE_CHARS) return text
-  const clipped = text.slice(0, MAX_PROFILE_CHARS)
+function capTo(text: string, limit: number): string {
+  if (text.length <= limit) return text
+  const clipped = text.slice(0, limit)
   const lastNewline = clipped.lastIndexOf('\n')
   return lastNewline > 0 ? clipped.slice(0, lastNewline) : clipped
 }
@@ -129,7 +129,26 @@ export function profileToPromptBlock(profile: LearnerProfile): string {
   const lines = topicLines(profile.topics)
   const topicSection = lines.length === 0 ? '' : `\nBy topic:\n${lines.join('\n')}`
 
-  return capBlock(`${cardSection}${topicSection}`)
+  // Spec 3 §14, defect 2. The card section is capped BEFORE the two are joined,
+  // so the topic section is no longer sitting in the tail that gets clipped.
+  // Previously they were concatenated first and the whole thing truncated from
+  // the end, which meant an active learner whose card section alone reached
+  // MAX_PROFILE_CHARS silently lost every topic line — the exact signal this
+  // block was extended to carry, and invisible to every fixture with a small
+  // card section.
+  //
+  // The reserve is exactly what the topics need, not a tuned constant. An
+  // earlier draft held back a fixed 600 characters; mutation testing showed
+  // that number could be set to zero without a single test noticing, because
+  // `capTo` cuts at LINE boundaries and the card section is a handful of very
+  // long lines (the whole `weak` list is one). A magic number no test can
+  // justify is one a future reader will tune in the belief that it matters.
+  const cappedCards = capTo(cardSection, Math.max(0, MAX_PROFILE_CHARS - topicSection.length))
+
+  // Still capped as a whole: `topicLines` bounds the COUNT of topics but not
+  // the length of their names, so a learner with very long category names can
+  // overrun on the topic section alone.
+  return capTo(`${cappedCards}${topicSection}`, MAX_PROFILE_CHARS)
 }
 
 /**
@@ -145,14 +164,19 @@ export async function safeProfileBlock(
   label: string,
 ): Promise<string | undefined> {
   try {
-    const cards = await buildLearnerProfile({
+    // Spec 3 §14, defect 1. This used to pass `topics: []`, so topic-grain data
+    // reached NO prompt however well the substrate computed it.
+    //
+    // Sourced from `getLearnerMetrics` rather than reassembled here, and that
+    // is the whole point: the dashboard reads the same function, so the page
+    // and the AI cannot end up describing different learners. It is the
+    // heavier call, and it is the one that stays honest.
+    const { getLearnerMetrics } = await import('@/lib/metrics/read')
+    const metrics = await getLearnerMetrics({
       userId,
       scope: { ...EMPTY_SCOPE, setIds: [setId] },
     })
-    // Topic-grain data isn't wired into this call site yet (Spec 3 read API
-    // lives in lib/metrics/read.ts, not here) — an empty topics array keeps
-    // this producing the exact same block as before Task 17.
-    return profileToPromptBlock({ cards, topics: [] })
+    return profileToPromptBlock(metrics.profile)
   } catch (err) {
     console.error(`buildLearnerProfile failed for ${label}:`, err)
     return undefined
