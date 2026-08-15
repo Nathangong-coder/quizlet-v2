@@ -3,11 +3,11 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import ScopeBar from '@/components/memory/ScopeBar';
+import ProfileNav from '@/components/profile/ProfileNav';
 import EmptyDashboard from '@/components/learner/EmptyDashboard';
 import TopicMastery from '@/components/learner/TopicMastery';
 import StudyNext from '@/components/learner/StudyNext';
@@ -101,18 +101,14 @@ function LearnerDashboardContent() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-12 space-y-8">
       <div>
-        <Link
-          href="/profile"
-          className="text-sm text-muted-foreground hover:underline inline-flex items-center gap-1 mb-4"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to profile
-        </Link>
         <h1 className="text-3xl font-bold tracking-tight">Learner Profile</h1>
         <p className="text-muted-foreground mt-2">
           What the app has actually learned about you, and what it would put in front of you next.
           Every number here comes from answers you have given.
         </p>
       </div>
+
+      <ProfileNav />
 
       {/* Both notices are required, not decorative. A filtered view the learner
           did not choose on this visit — or a scope that quietly stopped working

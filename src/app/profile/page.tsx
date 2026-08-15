@@ -3,20 +3,22 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { buttonVariants } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Trophy, History, Activity } from 'lucide-react';
 import { getUserStats, type UserStats } from '@/actions/user';
+import ProfileNav from '@/components/profile/ProfileNav';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 export default function ProfilePage() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     getUserStats().then((result) => {
       if (cancelled) return;
       if (result.success && result.data) setStats(result.data);
@@ -26,46 +28,51 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
+
+  // The header and nav render IMMEDIATELY. A full-route spinner hid the
+  // navigation that is the whole point of having it — a learner waiting on
+  // `getUserStats` could not leave for the page that would have answered them.
+  const chrome = (
+    <div>
+      <h1 className="text-4xl font-bold tracking-tight">Profile</h1>
+      <p className="text-muted-foreground mt-2">
+        Your activity at a glance. The learner profile is where the app says what it thinks you
+        know.
+      </p>
+    </div>
+  );
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="max-w-5xl mx-auto px-4 py-12 space-y-8">
+        {chrome}
+        <ProfileNav />
+        <p className="text-sm text-muted-foreground text-center py-12">Loading your activity…</p>
       </div>
     );
   }
 
   if (!stats) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Failed to load your profile.</p>
+      <div className="max-w-5xl mx-auto px-4 py-12 space-y-8">
+        {chrome}
+        <ProfileNav />
+        <div className="text-center py-12 space-y-3">
+          <p className="text-muted-foreground">Could not load your activity.</p>
+          {/* A dead end before: no retry, and no navigation to anywhere else. */}
+          <Button variant="outline" onClick={() => setReloadKey((n) => n + 1)}>
+            Try again
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12 space-y-12">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-bold tracking-tight">Your Learning Memory</h1>
-          <p className="text-muted-foreground mt-2">Track your progress and mastery across all sets.</p>
-          {/* A page nothing links to does not exist — /profile/activity/[id]
-              shipped that way and had to be fixed later (b911ae4). */}
-          <div className="flex flex-wrap gap-4 mt-2">
-            <Link href="/profile/learner" className="text-sm text-primary hover:underline">
-              View your learner profile &rarr;
-            </Link>
-            <Link href="/profile/memory" className="text-sm text-primary hover:underline">
-              View full memory history &rarr;
-            </Link>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Activity className="w-4 h-4" />
-          <span>Real-time Progress Tracking</span>
-        </div>
-      </div>
+    <div className="max-w-5xl mx-auto px-4 py-12 space-y-8">
+      {chrome}
+      <ProfileNav />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
@@ -105,27 +112,28 @@ export default function ProfilePage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* This slot used to hold "Performance by Mode" — a flat average score
+            per quiz type. It was removed rather than restyled: since Spec 3,
+            the learner page answers "how am I doing?" from the same answers
+            using knowledge, articulation and retention, and two pages
+            answering that question with different numbers is how a learner
+            stops trusting both. Attempt COUNTS stay above, because those are
+            activity facts rather than judgements. */}
         <Card>
           <CardHeader>
-            <CardTitle>Performance by Mode</CardTitle>
-            <CardDescription>Your average score and activity per quiz type.</CardDescription>
+            <CardTitle>What you know</CardTitle>
+            <CardDescription>
+              Scores say how a quiz went. The learner profile says what you actually know, how well
+              you can express it, and what to study next.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {stats.modeStats.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">No quiz attempts yet. Start studying!</p>
-            ) : (
-              stats.modeStats.map((s) => (
-                <div key={s.mode} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                  <div className="flex flex-col">
-                    <span className="font-medium capitalize">{s.mode.replace('-', ' ')}</span>
-                    <span className="text-xs text-muted-foreground">{s.count} attempts</span>
-                  </div>
-                  <Badge variant="outline" className="text-lg px-3 py-1">
-                    {s.averageScore === null ? '—' : `${s.averageScore}%`}
-                  </Badge>
-                </div>
-              ))
-            )}
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Built from every answer you have given — per key point, not per quiz.
+            </p>
+            <Link href="/profile/learner" className={cn(buttonVariants({ variant: 'outline' }))}>
+              Open your learner profile
+            </Link>
           </CardContent>
         </Card>
 
