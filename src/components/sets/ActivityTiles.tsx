@@ -24,21 +24,25 @@ const TILES: Tile[] = [
     href: (id) => `/sets/${id}/match`,
     icon: Gamepad2,
     requiresAuth: false,
-    color: "bg-blue-50 text-blue-600 border-blue-100 hover:bg-blue-100",
+    // Three activities genuinely are three categories, so this is legitimate
+    // categorical colour — but it now comes from the chart tokens rather than
+    // three unrelated Tailwind palettes, and each tile also carries a distinct
+    // icon and label, so colour is never the sole signal.
+    color: "bg-chart-1/10 text-chart-1 border-chart-1/25 hover:bg-chart-1/20",
   },
   {
     label: "Review Mode",
     href: (id) => `/sets/${id}/review`,
     icon: RotateCcw,
     requiresAuth: true,
-    color: "bg-green-50 text-green-600 border-green-100 hover:bg-green-100",
+    color: "bg-chart-3/10 text-chart-3 border-chart-3/25 hover:bg-chart-3/20",
   },
   {
     label: "Quiz",
     href: (id) => `/sets/${id}/quiz`,
     icon: GraduationCap,
     requiresAuth: true,
-    color: "bg-purple-50 text-purple-600 border-purple-100 hover:bg-purple-100",
+    color: "bg-chart-4/10 text-chart-4 border-chart-4/25 hover:bg-chart-4/20",
   },
 ];
 
@@ -48,23 +52,40 @@ export function ActivityTiles({ id, userId }: ActivityTileProps) {
       {TILES.map((tile) => {
         const isLocked = tile.requiresAuth && !userId;
 
+        // A locked tile is not a link. It used to render as one and then
+        // preventDefault into `alert()` — a blocking browser modal, announced
+        // to nobody, on an element that advertised itself as navigable.
+        if (isLocked) {
+          return (
+            <div
+              key={tile.label}
+              aria-disabled="true"
+              title="Sign in to use this activity"
+              className={cn(
+                "flex flex-col items-center justify-center p-6 rounded-xl border",
+                "opacity-60 grayscale cursor-not-allowed",
+                tile.color,
+              )}
+            >
+              <tile.icon size={40} className="mb-3" aria-hidden="true" />
+              <span className="font-semibold text-center">{tile.label}</span>
+              <span className="mt-1 text-xs font-normal">Sign in to use</span>
+            </div>
+          );
+        }
+
         return (
           <Link
             key={tile.label}
             href={tile.href(id)}
             className={cn(
               "flex flex-col items-center justify-center p-6 rounded-xl border transition-all group",
-              isLocked ? "opacity-60 cursor-not-allowed grayscale" : "hover:scale-105 hover:shadow-md",
+              "hover:scale-105 hover:shadow-md",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               tile.color
             )}
-            onClick={(e) => {
-              if (isLocked) {
-                e.preventDefault();
-                alert("Please sign in to access this activity.");
-              }
-            }}
           >
-            <tile.icon size={40} className="mb-3 group-hover:scale-110 transition-transform" />
+            <tile.icon size={40} className="mb-3 group-hover:scale-110 transition-transform" aria-hidden="true" />
             <span className="font-semibold text-center">{tile.label}</span>
           </Link>
         );

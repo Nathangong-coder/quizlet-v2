@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge';
 import type { ForgettingCurve } from '@/lib/metrics/forgetting';
 import type { Misconception } from '@/lib/metrics/misconceptions';
-import { SOURCE_LABELS } from '@/components/memory/ScopeBar';
+import { sourceLabel } from '@/lib/memory/source-labels';
 
 export interface PaceRow {
   cardId: string;
@@ -84,7 +84,7 @@ export function RetentionPanel({
                     that mode's OWN baseline, so a figure without its mode is
                     not comparable to the one beside it. */}
                 <span className="flex items-center gap-2 shrink-0">
-                  <Badge variant="outline">{SOURCE_LABELS[p.mode] ?? p.mode}</Badge>
+                  <Badge variant="outline">{sourceLabel(p.mode)}</Badge>
                   <span className="tabular-nums text-muted-foreground">
                     {p.index.toFixed(1)}× your usual
                   </span>

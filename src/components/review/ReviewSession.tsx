@@ -223,14 +223,14 @@ export default function ReviewSession({ cards, setId }: ReviewSessionProps) {
       <div className="grid grid-cols-2 gap-4">
         <Button
           variant="outline"
-          className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+          className="border-destructive/40 text-destructive hover:bg-destructive-subtle hover:border-destructive"
           onClick={() => handleAnswer(false)}
           disabled={isPending || !flipped}
         >
           Don't Know
         </Button>
         <Button
-          className="bg-green-600 hover:bg-green-700 text-white"
+          className="bg-success text-success-foreground hover:bg-success/90"
           onClick={() => handleAnswer(true)}
           disabled={isPending || !flipped}
         >

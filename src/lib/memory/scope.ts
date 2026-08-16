@@ -33,15 +33,15 @@ export const EMPTY_SCOPE: HistoryScope = { setIds: [], categoryKeys: [] };
 
 /**
  * Narrow a scope to a single card — what clicking a term in the activity feed
- * does, and the only path to "Forget this card" that does not require the user
- * to first guess that they must select exactly one set.
+ * does, and now the ONLY way into card scope. The card `<select>` that used to
+ * sit beside it was deleted: it was disabled unless exactly one set happened
+ * to be selected, and said so only in a `title` attribute.
  *
  * `setIds` is pinned to that card's own set even though the query does not
  * need it: `buildStudyEventWhere` returns early on `cardId`, subsuming
- * set/category. The UI needs it, because `ScopeBar` disables its card
- * `<select>` unless exactly one set is chosen — a `cardId` set while two sets
- * are selected renders as a disabled control showing a value the user can
- * neither change nor clear.
+ * set/category. It is kept for the READER, not the query — the scope line
+ * renders a chip per active narrowing, and a lone "Card: X" chip beside two
+ * unrelated set chips describes a filter that is not what is being applied.
  *
  * `categoryKeys` are dropped for the mirror-image reason: they are inert
  * against the query once `cardId` is set, so leaving the chips up would

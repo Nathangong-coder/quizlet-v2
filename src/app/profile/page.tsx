@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import ProfileNav from '@/components/profile/ProfileNav';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
-export default function ProfilePage() {
+function ProfileOverview() {
   const [reloadKey, setReloadKey] = useState(0);
   // Tagged with the request it answered, so "loading" is DERIVED rather than a
   // second piece of state set synchronously inside the effect — which triggers
@@ -84,7 +84,13 @@ export default function ProfilePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-col items-center text-center pb-2">
-            <Trophy className="w-8 h-8 text-yellow-500 mb-2" />
+            {/* Colour marks the KNOWLEDGE quantity, and only that. These three
+                icons used to be yellow / blue / green — three hues carrying no
+                meaning, one per tile, none of them a token. Mastery is the only
+                one of the three that is a knowledge measure, so it is the only
+                one that gets the knowledge ramp; the other two are activity
+                counts and stay neutral. */}
+            <Trophy className="w-8 h-8 text-know-4 mb-2" />
             <CardTitle>Mastered Cards</CardTitle>
           </CardHeader>
           <CardContent>
@@ -95,7 +101,7 @@ export default function ProfilePage() {
 
         <Card>
           <CardHeader className="flex flex-col items-center text-center pb-2">
-            <History className="w-8 h-8 text-blue-500 mb-2" />
+            <History className="w-8 h-8 text-muted-foreground mb-2" />
             <CardTitle>Total Attempts</CardTitle>
           </CardHeader>
           <CardContent>
@@ -106,7 +112,7 @@ export default function ProfilePage() {
 
         <Card>
           <CardHeader className="flex flex-col items-center text-center pb-2">
-            <Activity className="w-8 h-8 text-green-500 mb-2" />
+            <Activity className="w-8 h-8 text-muted-foreground mb-2" />
             <CardTitle>Avg Performance</CardTitle>
           </CardHeader>
           <CardContent>
@@ -191,5 +197,24 @@ export default function ProfilePage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+/**
+ * `ProfileNav` reads the query string to carry the current scope across tabs,
+ * so everything rendering it needs a Suspense boundary — without one the build
+ * fails outright at prerender with a CSR-bailout error. The two sibling pages
+ * already had one; this page did not, because nothing on it used to touch
+ * `useSearchParams`.
+ */
+export default function ProfilePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-5xl mx-auto px-4 py-12 text-sm text-muted-foreground">Loading…</div>
+      }
+    >
+      <ProfileOverview />
+    </Suspense>
   );
 }

@@ -47,7 +47,7 @@ export default async function QuizPage({ params }: { params: Promise<{ id: strin
       <h1 className="text-3xl font-bold mb-8 text-center">{set.title} Quiz</h1>
 
       {!credential ? (
-        <div className="p-6 border rounded-lg bg-yellow-50 text-center space-y-4">
+        <div className="p-6 border border-warning/40 rounded-lg bg-warning-subtle text-center space-y-4">
           <p>You need an AI provider API key to access AI quizzing.</p>
           <a href="/settings/ai" className="text-primary font-medium hover:underline">Go to AI Settings</a>
         </div>

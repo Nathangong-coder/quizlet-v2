@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { SCOPE_PARAM_KEYS, SCOPE_ALL_PARAM } from '@/lib/memory/scope';
 
 /**
  * One navigation across the three profile pages.
@@ -30,8 +31,47 @@ export function isCurrentTab(pathname: string, href: string): boolean {
   return pathname === href;
 }
 
+/**
+ * The scope dimensions both scoped tabs understand, carried across a tab
+ * change. Narrowing to one set on Memory History and clicking Learner Profile
+ * used to discard the scope silently and land on the saved default — the two
+ * pages parse the SAME `HistoryScope` out of the query string, so there was
+ * never a reason for the scope not to survive the move.
+ *
+ * `/profile` takes no scope, so it never receives one: appending inert params
+ * to a URL that ignores them makes the link look scoped when it is not.
+ *
+ * `source` is deliberately included even though only Memory History renders a
+ * control for it — dropping a dimension the target page still *applies* would
+ * silently widen the data on arrival.
+ *
+ * Pure and exported so this is testable without a router.
+ */
+export function scopedHref(href: string, query: string): string {
+  if (!query) return href;
+  if (href === '/profile') return href;
+
+  const incoming = new URLSearchParams(query);
+  const carried = new URLSearchParams();
+  for (const key of SCOPE_PARAM_KEYS) {
+    const value = incoming.get(key)?.trim();
+    if (value) carried.set(key, value);
+  }
+
+  // An explicit "show everything" is a real choice and must survive too, or
+  // the destination falls back to the saved default and the tab change looks
+  // like it re-applied a filter the learner had just cleared.
+  const all = incoming.get(SCOPE_ALL_PARAM)?.trim();
+  if (all && ![...carried].length) carried.set(SCOPE_ALL_PARAM, all);
+
+  const qs = carried.toString();
+  return qs ? `${href}?${qs}` : href;
+}
+
 export default function ProfileNav() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const query = searchParams.toString();
 
   return (
     <nav aria-label="Profile sections" className="border-b">
@@ -41,7 +81,7 @@ export default function ProfileNav() {
           return (
             <li key={tab.href}>
               <Link
-                href={tab.href}
+                href={scopedHref(tab.href, query)}
                 aria-current={current ? 'page' : undefined}
                 title={tab.hint}
                 className={cn(

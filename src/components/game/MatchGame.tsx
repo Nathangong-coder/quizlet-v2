@@ -147,7 +147,7 @@ export function MatchGame({ setId, initialTiles }: MatchGameProps) {
 
       {gameFinished && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-8 rounded-lg shadow-xl text-center">
+          <div className="bg-card text-card-foreground p-8 rounded-lg shadow-xl text-center">
             <h3 className="text-3xl font-bold mb-4">Victory!</h3>
             <p className="mb-6 text-xl">Time: {
               gameState.finishedAt && gameState.startedAt
@@ -156,7 +156,7 @@ export function MatchGame({ setId, initialTiles }: MatchGameProps) {
             }</p>
             <button
               onClick={() => window.location.reload()}
-              className="bg-blue-600 text-white px-6 py-2 rounded-lg"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 transition-colors px-6 py-2 rounded-lg"
             >
               Play again
             </button>

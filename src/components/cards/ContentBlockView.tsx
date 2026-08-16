@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { ContentBlock } from '@/lib/cards/content';
 import { SpreadsheetTable } from './SpreadsheetTable';
-import { Download, ChevronDown } from 'lucide-react';
+import { Download, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import { parseSpreadsheet } from '@/lib/cards/spreadsheet';
 
 interface ContentBlockViewProps {
@@ -51,7 +51,7 @@ export function ContentBlockView({
   // Require assetUrl for non-text blocks
   if (!assetUrl) {
     return (
-      <div className={`text-gray-400 text-sm italic ${className}`}>
+      <div className={`text-muted-foreground text-sm italic ${className}`}>
         [{block.type} asset not available]
       </div>
     );
@@ -64,10 +64,10 @@ export function ContentBlockView({
       return (
         <div className={`${compact ? 'w-auto' : maxWidth} ${className}`}>
           {imageLoading && (
-            <div className={`bg-gray-100 rounded animate-pulse ${compact ? 'h-40' : 'h-64'}`} />
+            <div className={`bg-muted rounded animate-pulse ${compact ? 'h-40' : 'h-64'}`} />
           )}
           {imageError ? (
-            <div className="bg-gray-100 rounded p-4 text-center text-gray-500">
+            <div className="bg-muted rounded p-4 text-center text-muted-foreground">
               Failed to load image
             </div>
           ) : (
@@ -83,8 +83,8 @@ export function ContentBlockView({
               alt="card content"
               className={
                 compact
-                  ? 'rounded border border-gray-200 max-h-40 w-auto max-w-full object-contain mx-auto'
-                  : 'rounded border border-gray-200 max-w-full h-auto'
+                  ? 'rounded border border-border max-h-40 w-auto max-w-full object-contain mx-auto'
+                  : 'rounded border border-border max-w-full h-auto'
               }
               onLoad={() => setImageLoading(false)}
               onError={() => {
@@ -107,7 +107,7 @@ export function ContentBlockView({
             Your browser does not support the audio element.
           </audio>
           {assetOriginalName && (
-            <p className="text-xs text-gray-500 mt-1">{assetOriginalName}</p>
+            <p className="text-xs text-muted-foreground mt-1">{assetOriginalName}</p>
           )}
         </div>
       );
@@ -119,15 +119,15 @@ export function ContentBlockView({
             controls
             className={
               compact
-                ? 'rounded border border-gray-200 max-h-40 w-auto mx-auto'
-                : 'rounded border border-gray-200 w-full'
+                ? 'rounded border border-border max-h-40 w-auto mx-auto'
+                : 'rounded border border-border w-full'
             }
             src={assetUrl}
           >
             Your browser does not support the video element.
           </video>
           {assetOriginalName && (
-            <p className="text-xs text-gray-500 mt-1">{assetOriginalName}</p>
+            <p className="text-xs text-muted-foreground mt-1">{assetOriginalName}</p>
           )}
         </div>
       );
@@ -137,13 +137,15 @@ export function ContentBlockView({
       if (assetMimeType && assetMimeType.includes('spreadsheet')) {
         return (
           <div className={`${maxWidth} ${className}`}>
-            <div className="border border-gray-200 rounded">
+            <div className="border border-border rounded">
               <button
                 onClick={() => setSpreadsheetExpanded(!spreadsheetExpanded)}
-                className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition"
+                aria-expanded={spreadsheetExpanded}
+                className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted transition"
               >
-                <span className="text-sm font-semibold text-gray-700">
-                  📊 Spreadsheet: {assetOriginalName}
+                <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
+                  <FileSpreadsheet size={14} aria-hidden="true" />
+                  Spreadsheet: {assetOriginalName}
                 </span>
                 <ChevronDown
                   size={16}
@@ -153,7 +155,7 @@ export function ContentBlockView({
                 />
               </button>
               {spreadsheetExpanded && textExtract && (
-                <div className="p-3 bg-white overflow-x-auto border-t border-gray-200">
+                <div className="p-3 bg-card overflow-x-auto border-t border-border">
                   <SpreadsheetTable
                     rows={textExtract.split('\n').map((row) =>
                       row.split(',').map((cell) =>
@@ -170,7 +172,7 @@ export function ContentBlockView({
               <a
                 href={assetUrl}
                 download={assetOriginalName}
-                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
               >
                 <Download size={12} /> Download
               </a>
@@ -181,12 +183,13 @@ export function ContentBlockView({
       // PDF or other file types
       return (
         <div className={`${className}`}>
-          <div className="inline-flex items-center gap-2 bg-gray-50 border border-gray-200 rounded px-3 py-2">
-            <span className="text-sm text-gray-700">{assetOriginalName}</span>
+          <div className="inline-flex items-center gap-2 bg-muted/50 border border-border rounded px-3 py-2">
+            <span className="text-sm">{assetOriginalName}</span>
             <a
               href={assetUrl}
               download={assetOriginalName}
-              className="text-blue-600 hover:text-blue-700"
+              aria-label={`Download ${assetOriginalName ?? 'file'}`}
+              className="text-primary hover:text-primary/80"
             >
               <Download size={14} />
             </a>
@@ -196,17 +199,12 @@ export function ContentBlockView({
     }
 
     default:
+      // Every branch above returns, so this is the only unknown-type fallback.
+      // A second one used to sit after the switch, permanently unreachable.
       return (
-        <div className={`text-gray-400 text-sm italic ${className}`}>
-          [{blockType} asset]
+        <div className={`text-muted-foreground text-sm italic ${className}`}>
+          [{blockType || 'unknown'} asset]
         </div>
       );
   }
-
-  // Fallback for unknown types
-  return (
-    <div className={`text-gray-400 text-sm italic ${className}`}>
-      [{block.type || 'unknown'} asset]
-    </div>
-  );
 }

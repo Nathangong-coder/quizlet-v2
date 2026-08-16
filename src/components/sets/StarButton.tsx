@@ -24,8 +24,8 @@ export default function StarButton({ cardId, setId, starred }: StarButtonProps) 
       className={[
         'text-xl leading-none transition-colors disabled:opacity-50',
         starred
-          ? 'text-yellow-500'
-          : 'text-muted-foreground hover:text-yellow-400',
+          ? 'text-warning'
+          : 'text-muted-foreground hover:text-warning/80',
       ].join(' ')}
       aria-label={starred ? 'Unstar card' : 'Star card'}
     >

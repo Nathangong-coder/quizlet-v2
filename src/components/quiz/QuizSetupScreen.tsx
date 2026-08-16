@@ -6,6 +6,45 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { QuizSetup, QuizSetupSchema } from "@/lib/quiz/setup";
 import { UNCATEGORIZED_ID } from "@/lib/cards/categories";
+import { SelectableChip } from "@/components/ui/selectable-chip";
+import { Input } from "@/components/ui/input";
+
+type QuizMode = QuizSetup["questionMode"][number];
+type PromptSide = QuizSetup["promptSide"];
+
+/** The four modes and their labels, in one place instead of a nested ternary. */
+const MODES: { value: QuizMode; label: string }[] = [
+  { value: "multiple-choice", label: "Multiple Choice" },
+  { value: "short-answer", label: "Short Answer" },
+  { value: "matching", label: "Matching" },
+  { value: "true-false", label: "True/False" },
+];
+
+const SIDES: { value: PromptSide; label: string }[] = [
+  { value: "term", label: "Term" },
+  { value: "definition", label: "Definition" },
+  { value: "mixed", label: "Mixed" },
+];
+
+/**
+ * The print URL.
+ *
+ * Pure and exported so the filter carry-through is testable. It previously
+ * carried only modes/side/count, so Categories, Starred Only and Previously
+ * Failed were silently dropped and the learner got a test over the whole set.
+ */
+export function printQuizHref(setId: string, setup: QuizSetup): string {
+  const qs = new URLSearchParams({
+    modes: setup.questionMode.join(","),
+    side: setup.promptSide,
+    count: String(setup.questionCount),
+  });
+  if (setup.categoryIds.length > 0) qs.set("cats", setup.categoryIds.join(","));
+  // Only when true: `starred=0` in the URL reads as a filter that is set.
+  if (setup.starredOnly) qs.set("starred", "1");
+  if (setup.failedOnly) qs.set("failed", "1");
+  return `/sets/${setId}/print?${qs.toString()}`;
+}
 
 interface QuizSetupScreenProps {
   setId: string;
@@ -47,7 +86,7 @@ export function QuizSetupScreen({
     }));
   };
 
-  const toggleMode = (mode: "multiple-choice" | "short-answer" | "matching" | "true-false") => {
+  const toggleMode = (mode: QuizMode) => {
     setSetup((prev) => ({
       ...prev,
       questionMode: prev.questionMode.includes(mode)
@@ -55,6 +94,11 @@ export function QuizSetupScreen({
         : [...prev.questionMode, mode],
     }));
   };
+
+  // `QuizSetupSchema` already requires at least one mode; the screen let the
+  // learner reach an empty selection and press Start anyway, so the failure
+  // surfaced from the server instead of from the control that caused it.
+  const noModes = setup.questionMode.length === 0;
 
   return (
     <Card className="max-w-lg mx-auto">
@@ -75,49 +119,54 @@ export function QuizSetupScreen({
 
         <div className="space-y-2">
           <Label>Question Mode</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {["multiple-choice", "short-answer", "matching", "true-false"].map((mode) => (
-              <div
-                key={mode}
-                className="flex items-center gap-2 rounded border p-2 cursor-pointer hover:bg-gray-50"
-                onClick={() => toggleMode(mode as any)}
-              >
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300"
-                  checked={setup.questionMode.includes(mode as any)}
-                  readOnly
-                />
-                <Label className="text-sm cursor-pointer">
-                  {mode === "multiple-choice" ? "Multiple Choice" :
-                   mode === "short-answer" ? "Short Answer" :
-                   mode === "matching" ? "Matching" : "True/False"}
-                </Label>
-              </div>
+          {/* Was a `<div onClick>` wrapping a readOnly checkbox: not focusable,
+              no role, no announced state, and unusable by keyboard. */}
+          <div className="grid grid-cols-2 gap-2" role="group" aria-label="Question Mode">
+            {MODES.map((mode) => (
+              <SelectableChip
+                key={mode.value}
+                semantics="checkbox"
+                label={mode.label}
+                selected={setup.questionMode.includes(mode.value)}
+                onToggle={() => toggleMode(mode.value)}
+                className="justify-center rounded-lg"
+              />
             ))}
           </div>
+          {noModes && (
+            <p className="text-sm text-destructive">
+              Pick at least one question mode.
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
-          <Label>Prompt Side</Label>
+          <Label htmlFor="promptSide">Prompt Side</Label>
           <select
-            className="w-full rounded border p-2 text-sm"
+            id="promptSide"
+            className="h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             value={setup.promptSide}
-            onChange={(e) => setSetup(prev => ({ ...prev, promptSide: e.target.value as any }))}
+            onChange={(e) =>
+              setSetup((prev) => ({ ...prev, promptSide: e.target.value as PromptSide }))
+            }
           >
-            <option value="term">Term</option>
-            <option value="definition">Definition</option>
-            <option value="mixed">Mixed</option>
+            {SIDES.map((side) => (
+              <option key={side.value} value={side.value}>
+                {side.label}
+              </option>
+            ))}
           </select>
         </div>
 
         <div className="space-y-2">
-          <Label>Number of Questions</Label>
-          <input
+          <Label htmlFor="questionCount">Number of Questions</Label>
+          <Input
+            id="questionCount"
             type="number"
-            className="w-full rounded border p-2 text-sm"
             value={setup.questionCount}
-            onChange={(e) => setSetup(prev => ({ ...prev, questionCount: parseInt(e.target.value) || 1 }))}
+            onChange={(e) =>
+              setSetup((prev) => ({ ...prev, questionCount: parseInt(e.target.value) || 1 }))
+            }
             min={1}
           />
         </div>
@@ -125,32 +174,22 @@ export function QuizSetupScreen({
         <div className="space-y-3">
           <Label>Categories</Label>
           <div className="flex flex-wrap gap-2">
+            {/* Was a `<div onClick>` wrapping a readOnly checkbox: not
+                focusable, no role, no announced state, and tinted with the
+                category's own colour when active. */}
             {[
               ...availableCategories,
               { id: UNCATEGORIZED_ID, name: "Uncategorized", color: null },
-            ].map((cat) => {
-              const active = setup.categoryIds.includes(cat.id);
-              return (
-                <div
-                  key={cat.id}
-                  className="flex items-center gap-2 rounded-full border px-3 py-1 cursor-pointer hover:bg-gray-50"
-                  style={
-                    active && cat.color
-                      ? { backgroundColor: `${cat.color}20`, borderColor: cat.color, color: cat.color }
-                      : undefined
-                  }
-                  onClick={() => toggleCategory(cat.id)}
-                >
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300"
-                    checked={active}
-                    readOnly
-                  />
-                  <span className="text-sm">{cat.name}</span>
-                </div>
-              );
-            })}
+            ].map((cat) => (
+              <SelectableChip
+                key={cat.id}
+                semantics="checkbox"
+                label={cat.name}
+                color={cat.color}
+                selected={setup.categoryIds.includes(cat.id)}
+                onToggle={() => toggleCategory(cat.id)}
+              />
+            ))}
           </div>
         </div>
 
@@ -159,7 +198,7 @@ export function QuizSetupScreen({
             <input
               type="checkbox"
               id="starredOnly"
-              className="h-4 w-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-input"
               checked={setup.starredOnly}
               onChange={(e) => setSetup(prev => ({ ...prev, starredOnly: e.target.checked }))}
             />
@@ -169,7 +208,7 @@ export function QuizSetupScreen({
             <input
               type="checkbox"
               id="failedOnly"
-              className="h-4 w-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-input"
               checked={setup.failedOnly}
               onChange={(e) => setSetup(prev => ({ ...prev, failedOnly: e.target.checked }))}
             />
@@ -181,7 +220,7 @@ export function QuizSetupScreen({
           <input
             type="checkbox"
             id="printable"
-            className="h-4 w-4 rounded border-gray-300"
+            className="h-4 w-4 rounded border-input"
             checked={setup.printable}
             onChange={(e) => setSetup(prev => ({ ...prev, printable: e.target.checked }))}
           />
@@ -189,19 +228,15 @@ export function QuizSetupScreen({
         </div>
 
         <div className="flex gap-3">
-          <Button className="flex-1" onClick={() => onStart(setup)}>
+          {/* Both actions were enabled with zero modes selected, which starts a
+              quiz that cannot produce a question. */}
+          <Button className="flex-1" disabled={noModes} onClick={() => onStart(setup)}>
             Start Quiz
           </Button>
           <Button
             variant="outline"
-            onClick={() => {
-              const qs = new URLSearchParams({
-                modes: setup.questionMode.join(','),
-                side: setup.promptSide,
-                count: String(setup.questionCount),
-              });
-              window.open(`/sets/${setId}/print?${qs.toString()}`, '_blank');
-            }}
+            disabled={noModes}
+            onClick={() => window.open(printQuizHref(setId, setup), '_blank')}
           >
             Print Test
           </Button>

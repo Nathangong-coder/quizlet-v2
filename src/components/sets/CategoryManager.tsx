@@ -66,7 +66,7 @@ export function CategoryManager({
               <span className="text-xs text-muted-foreground tabular-nums">{count} card{count === 1 ? '' : 's'}</span>
               {editing === cat.name ? (
                 <button type="button" onClick={() => commitEdit(cat.name)} title="Save">
-                  <Check size={14} className="text-green-600" />
+                  <Check size={14} className="text-success" />
                 </button>
               ) : (
                 <button type="button" onClick={() => startEdit(cat.name)} title="Rename">

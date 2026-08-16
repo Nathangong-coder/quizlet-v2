@@ -11,14 +11,17 @@ export function MatchTileCard({ content, isSelected, isMatched, onClick }: Match
   const stateClasses = isMatched
     ? "bg-muted border-muted-foreground/50 text-muted-foreground opacity-100 cursor-default"
     : isSelected
-      ? "bg-blue-100 border-blue-500"
-      : "bg-white border-gray-300 hover:border-blue-300";
+      ? "bg-accent border-primary"
+      : "bg-card border-input hover:border-primary/50";
 
   return (
     <button
       className={`${baseClasses} ${stateClasses}`}
       onClick={onClick}
       disabled={isMatched}
+      // Selection was conveyed by colour alone; a screen reader had no way to
+      // tell a picked tile from an unpicked one.
+      aria-pressed={isSelected}
     >
       {content}
     </button>

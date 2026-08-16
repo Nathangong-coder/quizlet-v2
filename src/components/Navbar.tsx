@@ -4,6 +4,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { auth } from '@/auth'
 import { handleSignIn, handleSignOut } from '@/lib/actions/auth'
+import ThemeToggle from '@/components/theme/ThemeToggle'
 
 export default async function Navbar() {
   const session = await auth()
@@ -11,10 +12,13 @@ export default async function Navbar() {
   return (
     <nav className="border-b bg-background">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link href="/sets" className="font-bold text-lg tracking-tight">
+        <Link href="/sets" className="font-heading font-semibold text-xl tracking-tight">
           Quizlet v2
         </Link>
         <div className="flex items-center gap-2">
+          {/* Outside the auth branch: a signed-out visitor reading the landing
+              page needs the theme control just as much. */}
+          <ThemeToggle />
           {session ? (
             <>
               <Link href="/sets" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
