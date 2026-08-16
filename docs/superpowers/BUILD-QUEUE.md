@@ -217,7 +217,7 @@ Tests **1286 → 1311** (108 files), `tsc` clean, lint **185 → 178** — the 7
 
 **HUMAN GATE STILL OWED** (trap 6): the nav appears on all three profile pages and marks the right tab; `/profile` renders header and nav before stats; `/sets` shows visibility on every card, study state on a studied set, and **neither a 0% nor a due count** on an unstudied one.
 
-### 6. ✅ Design system & scope redesign — **BUILT 2026-08-15. LIVE GATE OUTSTANDING.**
+### 6. ✅ Design system & scope redesign — **BUILT 2026-08-15. LIVE GATE PASSED 2026-08-16.**
 
 Spec: `specs/2026-08-15-design-system-and-scope-redesign-design.md` (audit first, design second).
 Five waves, one commit each (`20c865f` … `e80e88b`), branch `spec3b-tunable-scoring`, **not merged**.
@@ -256,7 +256,17 @@ dropped. Both halves fixed, the page now running the *same* `filterQuizCards` th
 
 **Four findings worth more than the diff** are in the spec's §7 — including a third
 guard-that-could-not-fail, and the card chip still being hideable despite the design saying it must
-not be. **Human gate is the spec's §8.**
+not be.
+
+**LIVE GATE PASSED 2026-08-16** (run by the user — trap 6). The three load-bearing checks all
+worked: **dark mode**, **Print Test with filters**, and the **`/settings/ai` panel saves**. Those
+three were ranked risky for three different reasons — ~150 token substitutions are invisible to the
+suite (a wrong-but-valid token compiles and passes), the print page half is a server component with
+no test coverage in this repo, and the settings panel is the only one that **writes to the
+database**, where Spec 3B's partial-save contract could break with no mock noticing. The three
+cheap checks (scope line opening, scope surviving a tab change, by-mode chips) were **not separately
+confirmed** — all are unit-tested with killed mutants and inert-if-broken. Recorded as unconfirmed
+rather than assumed. Detail in the spec's §8.
 
 ### 7. ⬜ Spec 4 — plan setup & readiness dashboard — **DESIGNED 2026-08-14, NOT STARTED.**
 
