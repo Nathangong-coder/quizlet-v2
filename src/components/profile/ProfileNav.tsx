@@ -16,6 +16,12 @@ import { SCOPE_PARAM_KEYS, SCOPE_ALL_PARAM } from '@/lib/memory/scope';
  * Learning Memory" while one child was "Memory History" and the other "Learner
  * Profile" — a parent named after one of its children, and two children whose
  * names did not say which was which.
+ *
+ * The SECTION is now called "Learning", not "Profile" — your account (handle,
+ * email, theme) has its own page at `/account`, and calling both "Profile" is
+ * what left nowhere for account settings to live. The routes still start
+ * `/profile`; renaming them touches 23 call sites including `revalidatePath`
+ * strings and the scope query params, so it is deferred to its own change.
  */
 export const PROFILE_TABS = [
   { href: '/profile', label: 'Overview', hint: 'Activity and totals' },
@@ -74,7 +80,7 @@ export default function ProfileNav() {
   const query = searchParams.toString();
 
   return (
-    <nav aria-label="Profile sections" className="border-b">
+    <nav aria-label="Learning sections" className="border-b">
       <ul className="flex flex-wrap gap-1 -mb-px">
         {PROFILE_TABS.map((tab) => {
           const current = isCurrentTab(pathname, tab.href);

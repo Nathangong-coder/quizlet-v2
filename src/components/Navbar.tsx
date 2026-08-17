@@ -27,8 +27,15 @@ export default async function Navbar() {
               <Link href="/settings/ai" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
                 AI Settings
               </Link>
+              {/* "Learning", not "Profile". These three pages are about what
+                  you know and what you answered; the account itself now has its
+                  own page, and two things called Profile is how the old naming
+                  left nowhere for a handle or an email to live. */}
               <Link href="/profile" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-                Profile
+                Learning
+              </Link>
+              <Link href="/account" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+                Account
               </Link>
               <Link href="/sets/new" className={cn(buttonVariants({ size: 'sm' }))}>
                 + New Set
