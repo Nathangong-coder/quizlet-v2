@@ -322,6 +322,40 @@ activity picker filters the feed and its option counts **do not collapse** when 
 a feed row opens the right activity, and a row with no session renders unlinked; and the set page
 shows tiles where the visibility panel was, with no confidence or studied numbers anywhere.
 
+### 6c. ⬜ Sharing, collaboration & discovery — **DESIGNED 2026-08-17, NOT STARTED.**
+
+Design: `specs/2026-08-17-sharing-collaboration-and-discovery-design.md`. No plan, no code.
+
+Requested by the user while reviewing 6b. Four interlocking features: **collaborators**
+("Editable by"), **fork** ("make my own copy"), **public visibility + a browsable directory**
+crediting a handle, and a **real homepage** (Recents / For you / Your sets) in place of the
+current redirect to `/sets`.
+
+They all widen `src/lib/sets/visibility.ts` — the module that exists because a security pass
+found ten read-by-id exposures — which is why this was designed before any code.
+
+**Three decisions taken with the user 2026-08-17:** a fork is the forker's outright (they may
+publish it themselves, with carried attribution); "For you" ranks by the learner's weak
+categories via `getLearnerMetrics`; and creators are credited by a **separate handle**, never
+by `User.name`, which is the OAuth provider's real-name field.
+
+**Seven defects killed on paper** — see the design's §9. The two worth knowing before touching
+this: a fork that *shares* a `CardAsset` makes `/api/assets/[id]` **non-deterministic**, because
+it resolves permission through `contentBlocks[0].card.set` with `take: 1` and a shared asset now
+has blocks in two sets; and rendering fork attribution from the live FK **leaks the title of a
+set the author just made private**. Both forced real design changes (copy the blob; denormalize
+the credit and link it only when the viewer can read the source).
+
+**Weakest part, deliberately built last:** cross-user category matching for "For you" is a
+string match wearing a concept's clothing — `CLAUDE.md`'s 2026-08-14 note already records that
+user categories are often *format* labels ("label the image", "vocabulary"), so one account's
+`vocabulary` is Spanish and another's is finance. Mitigations in §7; do not let it write to the
+learner model.
+
+Build order is the design's §11: handles → `public` → directory → fork → homepage →
+collaborators → "For you". Steps 1–3 are one unit; collaborators and "For you" each want their
+own spec.
+
 ### 7. ⬜ Spec 4 — plan setup & readiness dashboard — **DESIGNED 2026-08-14, NOT STARTED.**
 
 Belongs to Stage 8 Spec 4 (action plan & AI lessons). Designed with the user on 2026-08-14 and captured here so it survives; **no spec doc, no plan, no code.**
