@@ -77,9 +77,16 @@ function scoreFor(c: RankCandidate, strategy: StrategyKey, now: Date): number {
  * Candidates below the learner's observation floor sort last under EVERY
  * strategy: an unmeasured proposition is not evidence of weakness, and
  * `polish_near_ready` in particular must not promote a KLP whose high pKnown
- * rests on one lucky answer. The floor is the LEARNER'S, not a constant —
- * on a thin corpus every candidate is sub-threshold and the order carries no
- * information until they lower it.
+ * rests on one lucky answer. The floor is the LEARNER'S, not a constant.
+ *
+ * WITHIN the sub-threshold group, the order is by OBSERVATIONS, not by score.
+ * Below the floor `score` is largely a function of the BKT prior — most of
+ * these candidates are tied at it — so ordering by score there ranks noise and
+ * presents it with the same authority as a measured recommendation. How much
+ * evidence a point already has is the one thing that genuinely differs between
+ * them, and it is also the useful order: two answers in is closer to being
+ * measurable than zero. Ties fall back to score, then to the input order, since
+ * `Array.prototype.sort` is stable.
  */
 export function rankCandidates(
   candidates: RankCandidate[],
@@ -97,6 +104,9 @@ export function rankCandidates(
     }))
     .sort((a, b) => {
       if (a.sufficient !== b.sufficient) return a.sufficient ? -1 : 1
+      if (!a.sufficient && a.observations !== b.observations) {
+        return b.observations - a.observations
+      }
       return b.score - a.score
     })
 }

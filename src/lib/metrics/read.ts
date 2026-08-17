@@ -39,10 +39,26 @@ export interface LearnerMetrics {
    * Sub-threshold candidates are present but sort last and carry
    * `sufficient: false` — see `rankCandidates`.
    *
-   * NOT RENDERED ANYWHERE YET. Spec 3C's dashboard is the intended consumer;
-   * until it exists this is a tested API with no UI behind it.
+   * Rendered by `/profile/learner` via `StudyNext`.
    */
   ranked: RankedCandidate[]
+  /**
+   * What each candidate SAYS, keyed by `klpId`.
+   *
+   * Separate from `ranked` rather than folded into it, so `targeting.ts` stays a
+   * scoring module with no prose in it. A missing entry is possible in
+   * principle — the map is built from the same rows the candidates are — and
+   * callers must fall back rather than render `undefined`.
+   */
+  candidateLabels: Record<string, CandidateLabel>
+}
+
+/** The human-readable half of a study candidate. */
+export interface CandidateLabel {
+  /** The KLP proposition itself. */
+  text: string
+  /** The term of the card it belongs to. */
+  term: string
 }
 
 /**
@@ -207,11 +223,16 @@ export async function getLearnerMetrics({
   // `toTopicRows` consumes so there is one query rather than two.
   const klpWeights: Record<string, number> = {}
   const klpCardIds: Record<string, string> = {}
+  // Display labels, gathered in the SAME walk rather than a second query. Kept
+  // out of `RankCandidate` deliberately: `targeting.ts` scores, and a module
+  // that scores should not carry prose it never reads.
+  const candidateLabels: Record<string, CandidateLabel> = {}
   for (const c of categoryRows) {
     for (const a of c.assignments) {
       for (const k of a.card.klps) {
         klpWeights[k.id] = k.weight
         klpCardIds[k.id] = a.card.id
+        candidateLabels[k.id] = { text: k.text, term: a.card.term }
       }
     }
   }
@@ -219,6 +240,7 @@ export async function getLearnerMetrics({
     for (const k of card.klps) {
       klpWeights[k.id] = k.weight
       klpCardIds[k.id] = card.id
+      candidateLabels[k.id] = { text: k.text, term: card.term }
     }
   }
 
@@ -303,6 +325,7 @@ export async function getLearnerMetrics({
     profile: composeLearnerProfile(cards, shapedTopics),
     misconceptions,
     ranked,
+    candidateLabels,
     // `StudyEvent.correct` is NULL for short-answer rows (they carry a
     // `score`, not a boolean) — mapping raw `correct` straight through would
     // drop every short-answer exposure from the curve AND break the pairing
@@ -444,7 +467,14 @@ async function loadUncategorizedCards(
     where,
     select: {
       id: true,
-      klps: { where: { supersededAt: null }, select: { id: true, weight: true } },
+      // `term` and `text` are LABELS, not inputs to any score. Without them the
+      // study list can only render "Key point" for every row — which on a
+      // library where most cards are uncategorized is the entire list.
+      term: true,
+      klps: {
+        where: { supersededAt: null },
+        select: { id: true, weight: true, text: true },
+      },
     },
   })
 }
@@ -474,9 +504,15 @@ async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: His
           card: {
             select: {
               id: true,
+              // LABELS, not score inputs — see `loadUncategorizedCards`.
+              term: true,
               // `weight` and `cardId` are for Spec 3B's ranking candidates;
               // `supersededAt` is what `toTopicRows` splits live from retired on.
-              klps: { select: { id: true, supersededAt: true, weight: true, cardId: true } },
+              klps: {
+                select: {
+                  id: true, supersededAt: true, weight: true, cardId: true, text: true,
+                },
+              },
             },
           },
         },

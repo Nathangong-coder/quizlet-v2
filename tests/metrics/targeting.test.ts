@@ -115,6 +115,69 @@ describe('the observation floor applies under every strategy', () => {
     expect(only.sufficient).toBe(false)
   })
 
+  it('orders the sub-threshold group by EVIDENCE, not by score', () => {
+    // Below the floor, `score` is mostly a function of the BKT prior, so
+    // ordering by it ranks noise. Observations are the one thing that really
+    // differs, and "closest to being measurable" is the useful order.
+    //
+    // The fixture is built so score and observations DISAGREE: `none` has the
+    // most attractive score under shore_up_weaknesses (lowest pKnown, top
+    // weight) but no evidence at all, so it must still sort last.
+    const ranked = rankCandidates(
+      [
+        cand({ klpId: 'none', observations: 0, pKnown: 0.01, weight: 5 }),
+        cand({ klpId: 'two', observations: 2, pKnown: 0.9, weight: 1 }),
+        cand({ klpId: 'one', observations: 1, pKnown: 0.5, weight: 3 }),
+      ],
+      'shore_up_weaknesses',
+      { now: NOW, thresholds: { ...DEFAULT_THRESHOLDS, minObservations: 5 } },
+    )
+    expect(ranked.every((c) => !c.sufficient)).toBe(true)
+    expect(idsInOrder(ranked)).toEqual(['two', 'one', 'none'])
+  })
+
+  it('orders sub-threshold candidates by evidence under EVERY strategy', () => {
+    for (const strategy of ALL_STRATEGIES) {
+      const ranked = rankCandidates(
+        [
+          cand({ klpId: 'none', observations: 0, pKnown: 0.01, weight: 5, dueAt: daysAgo(30), readiness: 0 }),
+          cand({ klpId: 'two', observations: 2, pKnown: 0.9, weight: 1, readiness: 1 }),
+        ],
+        strategy,
+        { now: NOW, thresholds: { ...DEFAULT_THRESHOLDS, minObservations: 5 } },
+      )
+      expect(idsInOrder(ranked), strategy).toEqual(['two', 'none'])
+    }
+  })
+
+  it('falls back to score when two sub-threshold candidates have equal evidence', () => {
+    const ranked = rankCandidates(
+      [
+        cand({ klpId: 'stronger', observations: 2, pKnown: 0.9, weight: 5 }),
+        cand({ klpId: 'weaker', observations: 2, pKnown: 0.1, weight: 5 }),
+      ],
+      'shore_up_weaknesses',
+      { now: NOW, thresholds: { ...DEFAULT_THRESHOLDS, minObservations: 5 } },
+    )
+    expect(idsInOrder(ranked)).toEqual(['weaker', 'stronger'])
+  })
+
+  it('does NOT reorder the measured group by evidence', () => {
+    // The evidence rule is scoped to the sub-threshold group. Applying it above
+    // the floor would override the learner's chosen strategy with a proxy for
+    // "how much have I answered this", which is not what any strategy means.
+    const ranked = rankCandidates(
+      [
+        cand({ klpId: 'many-answers-known', observations: 50, pKnown: 0.95, weight: 5 }),
+        cand({ klpId: 'few-answers-weak', observations: FLOOR, pKnown: 0.05, weight: 5 }),
+      ],
+      'shore_up_weaknesses',
+      { now: NOW },
+    )
+    expect(ranked.every((c) => c.sufficient)).toBe(true)
+    expect(idsInOrder(ranked)).toEqual(['few-answers-weak', 'many-answers-known'])
+  })
+
   it('honours a LOWERED floor from the learner, promoting a candidate the default demotes', () => {
     // Spec 3B's reason for exposing the knob: at the shipped floor of 3, a
     // corpus where every KLP has been seen once ranks everything as

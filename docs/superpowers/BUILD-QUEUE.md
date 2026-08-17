@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-17
+**Last updated:** 2026-08-17 (gates 4/5/6b/6d passed)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -155,7 +155,7 @@ feature "empty":**
 **Left in a test state on purpose** (the user's call to revert or keep): `minObservations` 1,
 `articulationMinPKnown` 0.8, a `too_terse` band override, and a `test-category` category.
 
-### 4. ✅ Spec 3C — learner dashboard & study scope — **BUILT 2026-08-14. LIVE GATE OUTSTANDING.**
+### 4. ✅ Spec 3C — learner dashboard & study scope — **BUILT 2026-08-14. LIVE GATE PASSED 2026-08-17.**
 
 All 12 tasks + Task 4B, eight commits (`aa979da` … `fd4e670`), branch `spec3b-tunable-scoring`, **not merged**.
 Tests **1181 → 1286** (105 files), `tsc` clean, lint **185** (unchanged).
@@ -173,7 +173,7 @@ Tests **1181 → 1286** (105 files), `tsc` clean, lint **185** (unchanged).
 
 **Two type-level facts worth keeping:** `StoredStudyScope` must be a **type alias, not an interface** — TS infers an implicit index signature for aliases only, and Prisma's `InputJsonValue` requires one, so an interface needs a cast that defeats validating the blob. And making `studyScope` **required** on `shapeTuning`'s input is what made `tsc` name all three `select` clauses that needed it; optional would have compiled clean and handed `undefined` to the parser, which degrades silently to an empty scope — the setting would appear to save and then not exist.
 
-**HUMAN GATE STILL OWED** (trap 6 — no signed-in page is reachable from an agent session). See the plan's "Human gate" section: the four-panel partial-save proof, the saved-scope notice and "Show everything", the all-stale widening notice, the quiz prefill in and out of scope, and the empty-state copy quoting a floor of 1.
+**GATE PASSED 2026-08-17**, run by the user in one session (trap 6 — no signed-in page is reachable from an agent session). Checked: the four-panel partial-save proof, the saved-scope notice and "Show everything", the all-stale widening notice, the quiz prefill in and out of scope, and the empty-state copy quoting a floor of 1.
 
 <details>
 <summary>Superseded: the in-progress entry</summary>
@@ -199,7 +199,7 @@ The dashboard is the **first production caller of `getLearnerMetrics`**. It rend
 
 </details>
 
-### 5. ✅ Profile & sets UI overhaul — **BUILT 2026-08-14. LIVE GATE OUTSTANDING.**
+### 5. ✅ Profile & sets UI overhaul — **BUILT 2026-08-14. LIVE GATE PASSED 2026-08-17.**
 
 Plan: `plans/2026-08-14-profile-and-sets-ui-overhaul.md` (written from an audit — every task closes a named, checkable gap, not a taste call).
 Commits `70d5f35`, `17b31f7`, `6e103f5`, branch `spec3b-tunable-scoring`, **not merged**.
@@ -215,7 +215,7 @@ Tests **1286 → 1311** (108 files), `tsc` clean, lint **185 → 178** — the 7
 
 **Also worth knowing:** two component tests failed on **timezone**, not logic — `new Date('...T00:00:00.000Z')` formats to the previous day west of Greenwich. Date fixtures compared against `format` output must use local-time constructors (`new Date(2026, 6, 1)`).
 
-**HUMAN GATE STILL OWED** (trap 6): the nav appears on all three profile pages and marks the right tab; `/profile` renders header and nav before stats; `/sets` shows visibility on every card.
+**GATE PASSED 2026-08-17** (trap 6): the nav appears on all three profile pages and marks the right tab; `/profile` renders header and nav before stats; `/sets` shows visibility on every card.
 
 > **PARTLY SUPERSEDED by item 6b (2026-08-16).** The rest of this gate — "study state on a studied
 > set, and neither a 0% nor a due count on an unstudied one" — **cannot be checked any more**: 6b
@@ -274,7 +274,7 @@ cheap checks (scope line opening, scope surviving a tab change, by-mode chips) w
 confirmed** — all are unit-tested with killed mutants and inert-if-broken. Recorded as unconfirmed
 rather than assumed. Detail in the spec's §8.
 
-### 6b. ✅ UI polish — set page, edit visibility, memory history table — **BUILT 2026-08-16. LIVE GATE OUTSTANDING.**
+### 6b. ✅ UI polish — set page, edit visibility, memory history table — **BUILT 2026-08-16. LIVE GATE PASSED 2026-08-17.**
 
 No spec — a direct list of user-reported changes after living with item 6. Branch `spec3b-tunable-scoring`, **not merged**.
 Tests **1340 → 1372** (112 → 114 files), `tsc` clean, `next build` clean, lint **176** (unchanged).
@@ -316,13 +316,13 @@ page to that card — the old click produced a filtered copy of the list you wer
 the activity picker rendering on the learner dashboard (where filtering a knowledge model by answer
 mode halves every posterior), `sources` dropped from `isConsolidated`, and the facet count above.
 
-**HUMAN GATE STILL OWED** (trap 6): every surface here is signed-in only. Check the edit-page
+**GATE PASSED 2026-08-17** (trap 6): every surface here is signed-in only. Checked: the edit-page
 visibility dropdown **persists and Copy link yields `/sets/<id>` not `/sets/<id>/edit`**; the
 activity picker filters the feed and its option counts **do not collapse** when one is selected;
 a feed row opens the right activity, and a row with no session renders unlinked; and the set page
 shows tiles where the visibility panel was, with no confidence or studied numbers anywhere.
 
-### 6d. ✅ Account page & the learning/account naming split — **BUILT 2026-08-17. LIVE GATE OUTSTANDING.**
+### 6d. ✅ Account page & the learning/account naming split — **BUILT 2026-08-17. LIVE GATE PASSED 2026-08-17.**
 
 No spec — a direct user request. Branch `spec3b-tunable-scoring`, **not merged**.
 Tests **1372 → 1404** (114 → 116 files), `tsc` clean, `next build` clean, lint **176** (unchanged).
@@ -370,16 +370,52 @@ and comparing the reserved list case-sensitively.
 touches **23 call sites** including `revalidatePath` strings and the memory-scope query params;
 it wants its own commit and its own verification, not a ride-along.
 
-**HUMAN GATE OWED** (trap 6): set a handle and confirm it persists; try a reserved one
+**GATE PASSED 2026-08-17** (trap 6): a handle set and persisted; a reserved one
 (`admin`) and a taken one; save and then **clear** a contact email; toggle email updates and
 reload; confirm the theme choice matches the navbar toggle; confirm the navbar shows both
 **Learning** and **Account**.
 
+### 6f. ✅ Study candidates say what they are — **BUILT 2026-08-17.**
+
+No spec — a direct user request after the gate run. Branch `spec3b-tunable-scoring`.
+Tests **1404 → 1412**, `tsc` clean, `next build` clean, lint **176** (unchanged).
+
+**`/profile/learner`'s study list rendered the literal words "Key point" for every row.**
+`StudyNextRow` has always accepted `text`, `term` and `topicName`, and the page populated only
+`topicName` — so the fallback in `CandidateRow` was the entire list. On a library where most
+cards are uncategorized (Task 4B put 124 such KLPs into targeting) that is a page of identical
+rows reading "Key point / Uncategorized".
+
+Fixed by widening the two loaders' selects — `CardKlp.text` and `Card.term` — and gathering the
+labels in the **same walk** that already builds `klpWeights`/`klpCardIds`, so no extra query.
+Exposed as `LearnerMetrics.candidateLabels`, a `klpId → { text, term }` map kept **beside**
+`ranked` rather than folded into it: `targeting.ts` scores, and a scoring module should not carry
+prose it never reads. The page merges labels exactly where it already merged `topicName`.
+
+**Two behaviour changes beyond the labels:**
+- **The sub-threshold group is now ordered by `observations`, not by score.** Below the floor,
+  `score` is largely a function of the BKT prior — most candidates are tied at it — so ordering
+  by score there ranks noise and presents it with a measured recommendation's authority.
+  Evidence is the one thing that genuinely differs, and "closest to being measurable" is the
+  useful order. Ties fall back to score, then to input order (`Array.sort` is stable). The rule
+  is scoped to the sub-threshold group: applying it above the floor would override the learner's
+  chosen strategy with a proxy for "how much have I answered this".
+- **The answer count renders on every row**, measured or not — it is the sub-threshold sort key,
+  and an order with its key hidden is not readable as an order. **`pKnown` stays gated on
+  `sufficient`**: "50% known" beside a single answer states a confidence the evidence cannot
+  support, which is the floor's whole purpose. Zero renders as "No answers yet", not "0 answers",
+  which on this list reads as a score rather than a state.
+
+**Five mutants introduced, five killed** — the evidence ordering (twice: single-strategy and
+all-strategy), the count hidden on unmeasured rows, and the proposition replaced by the literal
+fallback. Before these tests, **none of the three behaviours had any coverage**: the first full
+run after the change passed untouched.
+
 ### 6e. ⬜ Credentials auth — **DESIGNED 2026-08-17, NOT STARTED. THIS IS THE NEXT BUILD.**
 
 Design + task order: `specs/2026-08-17-credentials-auth-design.md`.
-**Blocked on:** the four outstanding gates passing and this branch merging (the user's chosen
-sequence, 2026-08-17).
+**Blocked on:** this branch merging. The four gates **passed 2026-08-17**; the merge is the only
+remaining step before this starts (the user's chosen sequence).
 
 Sign up and sign in with a username and password, alongside GitHub OAuth. Chosen over item 6c and
 item 7 for three reasons: a **public directory is for strangers and a stranger cannot sign up
@@ -552,9 +588,9 @@ Never in memory — always in a spec's own section.
 
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-17, after item 6d)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-17, after item 6f)
 
-- **Tests:** 116 files / **1404 passing** (excluding `cursor-agents`)
+- **Tests:** 116 files / **1412 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
-- **`npm run lint`:** **176 problems** (131 errors, 45 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b and 6d.)
+- **`npm run lint`:** **176 problems** (131 errors, 45 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b, 6d and 6f.)
 - Branch is **not merged**, but IS pushed to `origin` (as of 2026-08-11). A Vercel preview deployment tracks it.

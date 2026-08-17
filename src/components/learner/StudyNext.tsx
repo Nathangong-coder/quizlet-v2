@@ -83,8 +83,9 @@ export default function StudyNext({
                     a ranking invents a recommendation the evidence cannot
                     support. */}
                 <p className="text-xs text-muted-foreground pt-2 border-t">
-                  Not measured yet — fewer than {floor} answer{floor === 1 ? '' : 's'} each, so
-                  these are listed, not ranked.
+                  Not measured yet — fewer than {floor} answer{floor === 1 ? '' : 's'} each.
+                  Ordered by how much evidence they already have, so the ones closest to being
+                  measurable come first.
                 </p>
                 <ol className="space-y-2 opacity-70" data-testid="unmeasured-candidates">
                   {unmeasured.slice(0, MAX_UNMEASURED).map((c) => (
@@ -100,22 +101,44 @@ export default function StudyNext({
   );
 }
 
+/**
+ * How many answers this point has, in words.
+ *
+ * "0 answers" is worse than it looks on a list whose whole point is that these
+ * are unmeasured — it reads as a score. "No answers yet" says the same thing as
+ * a state. Pure and exported so both spellings are pinned.
+ */
+export function answerCountLabel(observations: number): string {
+  if (observations === 0) return 'No answers yet';
+  return `${observations} answer${observations === 1 ? '' : 's'}`;
+}
+
 function CandidateRow({ candidate }: { candidate: StudyNextRow }) {
   const uncategorized = candidate.topicKey === UNCATEGORIZED_ID;
 
   return (
     <li className="rounded-lg border p-3 space-y-1" data-klp-id={candidate.klpId}>
+      {/* The PROPOSITION leads. It is the thing you would actually study, and
+          for a library where most cards are uncategorized it used to be the
+          only row content — rendered as the literal words "Key point". */}
       <p className="text-sm">{candidate.text ?? candidate.term ?? 'Key point'}</p>
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <Badge variant="outline">
           {uncategorized ? 'Uncategorized' : (candidate.topicName ?? candidate.topicKey)}
         </Badge>
         {candidate.term && candidate.text && <span className="truncate">{candidate.term}</span>}
-        {candidate.sufficient && (
-          <span className="tabular-nums">
-            {Math.round(candidate.pKnown * 100)}% known · {candidate.observations} answers
-          </span>
-        )}
+        {/* The answer count shows on EVERY row, measured or not — it is what the
+            sub-threshold group is now ordered by, and an order with its own key
+            hidden is not readable as an order.
+
+            `pKnown` stays gated on `sufficient`: below the floor it is mostly
+            the BKT prior, and printing "50% known" next to a single answer
+            states a confidence the evidence does not support. That gate is the
+            floor's entire purpose. */}
+        <span className="tabular-nums">
+          {candidate.sufficient && `${Math.round(candidate.pKnown * 100)}% known · `}
+          {answerCountLabel(candidate.observations)}
+        </span>
       </div>
     </li>
   );

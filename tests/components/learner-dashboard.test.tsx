@@ -82,6 +82,86 @@ describe('StudyNext renders ranked in the order RECEIVED', () => {
     expect(renderedOrder()).toEqual(['k-mid', 'k-low', 'k-high'])
   })
 
+  it('renders the KLP proposition, not the words "Key point"', () => {
+    // The whole reason this row exists. Before labels were threaded through,
+    // every row rendered the literal fallback — and on a library where most
+    // cards are uncategorized, that was the entire list.
+    render(
+      <StudyNext
+        ranked={[
+          candidate({
+            klpId: 'k1',
+            text: 'Depreciation is a non-cash charge added back on the cash flow statement',
+            term: 'Depreciation',
+            topicName: 'Accounting',
+          }),
+        ]}
+        strategy="balanced"
+        floor={3}
+      />,
+    )
+    expect(screen.getByText(/Depreciation is a non-cash charge/)).toBeTruthy()
+    expect(screen.queryByText('Key point')).toBeNull()
+    // The card term and the topic both survive as context beside it.
+    expect(screen.getByText('Depreciation')).toBeTruthy()
+    expect(screen.getByText('Accounting')).toBeTruthy()
+  })
+
+  it('still renders something when a label could not be resolved', () => {
+    // `candidateLabels` is built from the same rows as the candidates, but a
+    // caller passing an unlabelled row must not render "undefined".
+    render(
+      <StudyNext
+        ranked={[candidate({ klpId: 'k1', text: undefined, term: undefined })]}
+        strategy="balanced"
+        floor={3}
+      />,
+    )
+    expect(screen.getByText('Key point')).toBeTruthy()
+  })
+
+  it('shows the answer count on UNMEASURED rows, which is what they are ordered by', () => {
+    // An order whose sort key is hidden is not readable as an order.
+    render(
+      <StudyNext
+        ranked={[
+          candidate({ klpId: 'k1', text: 'two answers', sufficient: false, observations: 2 }),
+          candidate({ klpId: 'k2', text: 'none yet', sufficient: false, observations: 0 }),
+        ]}
+        strategy="balanced"
+        floor={3}
+      />,
+    )
+    const list = within(screen.getByTestId('unmeasured-candidates'))
+    expect(list.getByText('2 answers')).toBeTruthy()
+    // Not "0 answers" — on a list that exists because these are unmeasured, a
+    // zero reads as a score rather than a state.
+    expect(list.getByText('No answers yet')).toBeTruthy()
+  })
+
+  it('withholds pKnown below the floor but shows it above', () => {
+    // The floor's entire purpose: "50% known" beside a single answer states a
+    // confidence the evidence cannot support.
+    render(
+      <StudyNext
+        ranked={[candidate({ klpId: 'k1', sufficient: false, observations: 1, pKnown: 0.5 })]}
+        strategy="balanced"
+        floor={3}
+      />,
+    )
+    expect(screen.queryByText(/% known/)).toBeNull()
+
+    cleanup()
+    render(
+      <StudyNext
+        ranked={[candidate({ klpId: 'k2', sufficient: true, observations: 9, pKnown: 0.5 })]}
+        strategy="balanced"
+        floor={3}
+      />,
+    )
+    expect(screen.getByText(/50% known/)).toBeTruthy()
+  })
+
   it('separates unmeasured candidates instead of interleaving them', () => {
     // On a thin corpus they are all tied at the prior; presenting that tie as a
     // ranking invents a recommendation.

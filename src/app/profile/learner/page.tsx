@@ -170,7 +170,16 @@ function LearnerDashboardContent() {
           {d.empty && <EmptyDashboard cause={d.empty} />}
 
           <StudyNext
-            ranked={d.metrics.ranked.map((c) => ({ ...c, topicName: topicNames[c.topicKey] }))}
+            // Labels are merged here rather than inside `getLearnerMetrics`, so
+            // the scoring pipeline keeps returning candidates with no prose on
+            // them. `topicName` already worked this way; `text` and `term` join
+            // it from the same read.
+            ranked={d.metrics.ranked.map((c) => ({
+              ...c,
+              topicName: topicNames[c.topicKey],
+              text: d.metrics.candidateLabels[c.klpId]?.text,
+              term: d.metrics.candidateLabels[c.klpId]?.term,
+            }))}
             strategy={d.strategy}
             floor={d.thresholds.minObservations}
           />
