@@ -6,6 +6,7 @@ import { X } from 'lucide-react'
 import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select'
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories'
 import { isConsolidated, type HistoryScope } from '@/lib/memory/scope'
+import { ORDERED_SOURCES, SOURCE_GROUPS, sourceLabel } from '@/lib/memory/source-labels'
 import type { MemoryFilterOptions } from '@/actions/memory'
 import { cn } from '@/lib/utils'
 
@@ -81,7 +82,33 @@ export function scopeChips(
     })
   }
 
+  for (const source of scope.sources) {
+    chips.push({
+      key: `src:${source}`,
+      label: sourceLabel(source),
+      onRemove: () =>
+        onChange({ ...scope, sources: scope.sources.filter((s) => s !== source) }),
+    })
+  }
+
   return chips
+}
+
+/**
+ * Options for the activity-type picker.
+ *
+ * Every source is listed whether or not the learner has one, with its count
+ * when known. A zero-count mode is information — "you have never done a
+ * True/False quiz" — and an option that silently disappears when the count hits
+ * zero is indistinguishable from a filter that has lost an option.
+ */
+export function activityOptions(counts?: Record<string, number>): MultiSelectOption[] {
+  return ORDERED_SOURCES.map((source) => ({
+    value: source,
+    label: sourceLabel(source),
+    count: counts?.[source] ?? 0,
+    dividerBefore: source === SOURCE_GROUPS.other[0],
+  }))
 }
 
 function RemovableChip({ chip }: { chip: ScopeChip }) {
@@ -120,6 +147,17 @@ export interface ScopeLineProps {
    * same scope — into this one line.
    */
   savedScope?: { onShowEverything: () => void }
+  /**
+   * Enables the activity-type picker, with per-source event counts for the
+   * option list.
+   *
+   * Opt-in per surface, and the learner dashboard deliberately does NOT pass
+   * it: filtering a knowledge model down to one answer mode silently halves
+   * every posterior it touches, which is a question nobody means to ask. On
+   * Memory History — a feed of what happened — it is exactly the right control,
+   * and it is the one that replaced the by-mode chips under the stat tiles.
+   */
+  activityFilter?: { counts?: Record<string, number> }
 }
 
 /**
@@ -139,6 +177,7 @@ export default function ScopeLine({
   onChange,
   summary,
   savedScope,
+  activityFilter,
 }: ScopeLineProps) {
   const consolidated = isConsolidated(scope)
   const chips = scopeChips(scope, options, onChange)
@@ -168,7 +207,7 @@ export default function ScopeLine({
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-card px-3 py-2.5">
-      <span className="text-sm text-muted-foreground">Showing</span>
+      <span className="text-sm text-muted-foreground">Filter by:</span>
 
       <MultiSelect
         noun="sets"
@@ -196,6 +235,16 @@ export default function ScopeLine({
         onChange={(categoryKeys) => onChange({ ...scope, categoryKeys })}
       />
 
+      {activityFilter && (
+        <MultiSelect
+          noun="activities"
+          allLabel="All activity"
+          options={activityOptions(activityFilter.counts)}
+          value={scope.sources}
+          onChange={(sources) => onChange({ ...scope, sources })}
+        />
+      )}
+
       {visible.map((chip) => (
         <RemovableChip key={chip.key} chip={chip} />
       ))}
@@ -206,7 +255,7 @@ export default function ScopeLine({
       {!consolidated && (
         <button
           type="button"
-          onClick={() => onChange({ setIds: [], categoryKeys: [] })}
+          onClick={() => onChange({ setIds: [], categoryKeys: [], sources: [] })}
           className="text-xs text-muted-foreground underline hover:text-foreground"
         >
           Clear

@@ -169,8 +169,32 @@ describe("buildStudyEventWhere", () => {
   });
 
   it("narrows by source", () => {
-    const where = buildStudyEventWhere(userId, { ...EMPTY_SCOPE, source: "quiz-sa" }, []);
-    expect(where).toEqual({ userId, source: "quiz-sa" });
+    const where = buildStudyEventWhere(userId, { ...EMPTY_SCOPE, sources: ["quiz-sa"] }, []);
+    expect(where).toEqual({ userId, source: { in: ["quiz-sa"] } });
+  });
+
+  it("ORs within the source dimension, so two modes select both", () => {
+    // The whole reason `source` became a list: "how did I do on the two
+    // written modes?" was unaskable while it was one-of.
+    const where = buildStudyEventWhere(
+      userId,
+      { ...EMPTY_SCOPE, sources: ["quiz-sa", "quiz-tf"] },
+      [],
+    );
+    expect(where).toEqual({ userId, source: { in: ["quiz-sa", "quiz-tf"] } });
+  });
+
+  it("ANDs source against the card dimensions rather than replacing them", () => {
+    const where = buildStudyEventWhere(
+      userId,
+      { ...EMPTY_SCOPE, setIds: ["s1"], sources: ["review"] },
+      [],
+    );
+    expect(where).toEqual({
+      userId,
+      source: { in: ["review"] },
+      card: { setId: { in: ["s1"] } },
+    });
   });
 
   it("matches nothing when a category scope resolves to no ids", () => {
@@ -252,24 +276,44 @@ describe("buildQuizAnswerScopeWhere", () => {
     // `HistoryScope.source` is a StudySource ('quiz-sa'); `QuizAnswer.mode` is
     // a QuizMode ('short-answer'). They are DIFFERENT vocabularies — comparing
     // one to the other matches zero rows, silently.
-    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-sa" }, []);
-    expect(where).toEqual({ userId, mode: "short-answer" });
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, sources: ["quiz-sa"] }, []);
+    expect(where).toEqual({ userId, mode: { in: ["short-answer"] } });
   });
 
   it("translates every quiz source, not just short answer", () => {
-    expect(buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-mc" }, []))
-      .toEqual({ userId, mode: "multiple-choice" });
-    expect(buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-tf" }, []))
-      .toEqual({ userId, mode: "true-false" });
-    expect(buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "matching" }, []))
-      .toEqual({ userId, mode: "matching" });
+    expect(buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, sources: ["quiz-mc"] }, []))
+      .toEqual({ userId, mode: { in: ["multiple-choice"] } });
+    expect(buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, sources: ["quiz-tf"] }, []))
+      .toEqual({ userId, mode: { in: ["true-false"] } });
+    expect(buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, sources: ["matching"] }, []))
+      .toEqual({ userId, mode: { in: ["matching"] } });
   });
 
   it("matches nothing for a source that no QuizAnswer can carry", () => {
     // 'review' is a StudySource with no quiz mode. Dropping the filter would
     // silently widen the query back to every mode.
-    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "review" }, []);
+    const where = buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, sources: ["review"] }, []);
     expect(where).toEqual({ userId, mode: { in: [] } });
+  });
+
+  it("keeps the quiz modes when a mixed selection also names a non-quiz source", () => {
+    // 'review' has no QuizMode. It must drop out WITHOUT taking the modes that
+    // do translate with it, and without widening to every mode.
+    const where = buildQuizAnswerScopeWhere(
+      userId,
+      { ...EMPTY_SCOPE, sources: ["review", "quiz-mc"] },
+      [],
+    );
+    expect(where).toEqual({ userId, mode: { in: ["multiple-choice"] } });
+  });
+
+  it("de-duplicates modes that two sources map onto", () => {
+    const where = buildQuizAnswerScopeWhere(
+      userId,
+      { ...EMPTY_SCOPE, sources: ["quiz-sa", "quiz-sa"] },
+      [],
+    );
+    expect(where).toEqual({ userId, mode: { in: ["short-answer"] } });
   });
 
   it("matches nothing when a category scope resolves to no ids", () => {
@@ -318,7 +362,7 @@ describe("buildCategoryQuery", () => {
 
   it("lets cardId subsume set and category scope, as the other builders do", () => {
     const q = buildCategoryQuery(userId, {
-      setIds: ["s1"], categoryKeys: ["valuation"], cardId: "card9",
+      setIds: ["s1"], categoryKeys: ["valuation"], cardId: "card9", sources: [],
     });
     expect(q.where).toEqual({
       set: { userId },
@@ -357,9 +401,9 @@ describe("buildExpressionAnswerWhere", () => {
     // Scoped to multiple choice: there is no such thing as an MC expression
     // answer, so the result must be zero rows, not "short answer after all".
     const where = buildExpressionAnswerWhere(
-      buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, source: "quiz-mc" }, []),
+      buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, sources: ["quiz-mc"] }, []),
     );
-    expect(where.mode).toBe("multiple-choice");
+    expect(where.mode).toEqual({ in: ["multiple-choice"] });
     expect(where.AND).toEqual([{ mode: "short-answer" }]);
   });
 });
@@ -370,7 +414,7 @@ describe("scope URL round-trip", () => {
       setIds: ["s1", "s2"],
       categoryKeys: ["valuation", UNCATEGORIZED_ID],
       cardId: "card9",
-      source: "quiz-sa",
+      sources: ["quiz-sa", "review"],
     };
     expect(parseScope(new URLSearchParams(serializeScope(scope)))).toEqual(scope);
   });
@@ -390,7 +434,13 @@ describe("scope URL round-trip", () => {
   it("treats missing optional fields as undefined, not empty string", () => {
     const parsed = parseScope(new URLSearchParams("sets=s1"));
     expect(parsed.cardId).toBeUndefined();
-    expect(parsed.source).toBeUndefined();
+    expect(parsed.sources).toEqual([]);
+  });
+
+  it("still parses a single-value `source` written by the old URL format", () => {
+    // Links and bookmarks predate `sources` being a list; comma-splitting a
+    // lone value has to yield exactly that one source, not drop it.
+    expect(parseScope(new URLSearchParams("source=quiz-sa")).sources).toEqual(["quiz-sa"]);
   });
 });
 
@@ -415,8 +465,8 @@ describe("scopeToCard", () => {
   });
 
   it("keeps the source filter, which still narrows within the card", () => {
-    const scope = scopeToCard({ ...EMPTY_SCOPE, source: "review" }, card);
-    expect(scope.source).toBe("review");
+    const scope = scopeToCard({ ...EMPTY_SCOPE, sources: ["review"] }, card);
+    expect(scope.sources).toEqual(["review"]);
   });
 
   it("re-targets cleanly when a different card is picked", () => {
@@ -439,7 +489,7 @@ describe("isConsolidated", () => {
     expect(isConsolidated({ ...EMPTY_SCOPE, setIds: ["s1"] })).toBe(false);
     expect(isConsolidated({ ...EMPTY_SCOPE, categoryKeys: ["v"] })).toBe(false);
     expect(isConsolidated({ ...EMPTY_SCOPE, cardId: "c1" })).toBe(false);
-    expect(isConsolidated({ ...EMPTY_SCOPE, source: "review" })).toBe(false);
+    expect(isConsolidated({ ...EMPTY_SCOPE, sources: ["review"] })).toBe(false);
   });
 });
 
@@ -472,7 +522,7 @@ describe('hasExplicitScope (Spec 3C §2)', () => {
     // Drift guard: a new scope dimension that serializes but is missing here
     // would be silently overridden by the saved default.
     const emitted = new URLSearchParams(
-      serializeScope({ setIds: ['a'], categoryKeys: ['b'], cardId: 'c', source: 'review' }),
+      serializeScope({ setIds: ['a'], categoryKeys: ['b'], cardId: 'c', sources: ['review'] }),
     )
     expect([...emitted.keys()].sort()).toEqual([...SCOPE_PARAM_KEYS].sort())
   })

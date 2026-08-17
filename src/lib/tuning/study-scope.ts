@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories'
-import { EMPTY_SCOPE, type HistoryScope } from '@/lib/memory/scope'
+import { type HistoryScope } from '@/lib/memory/scope'
 
 /**
  * Spec 3C §6. The learner's saved answer to "what am I working on right now?",
@@ -109,7 +109,10 @@ export function resolveStudyScope(
   const survivedAnything = setIds.length > 0 || categoryKeys.length > 0
 
   return {
-    scope: { ...EMPTY_SCOPE, setIds, categoryKeys },
+    // Fresh arrays for every field. `{ ...EMPTY_SCOPE }` would copy the module
+    // constant's `sources` array by REFERENCE — the same hazard `parseStudyScope`
+    // documents above, and the one a Spec 3C mutant exposed.
+    scope: { setIds, categoryKeys, sources: [] },
     staleSetIds,
     staleCategoryKeys,
     widened: storedAnything && !survivedAnything,

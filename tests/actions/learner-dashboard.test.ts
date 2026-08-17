@@ -123,7 +123,7 @@ describe('getLearnerDashboard: stale saved scopes', () => {
     storedScope({ setIds: ['set-deleted'], categoryKeys: ['merged-away'] })
     const res = await getLearnerDashboard(null)
 
-    expect(res.success && res.data.appliedScope).toEqual({ setIds: [], categoryKeys: [] })
+    expect(res.success && res.data.appliedScope).toEqual({ setIds: [], categoryKeys: [], sources: [] })
     // The flag, not just the widening. Widening in silence is the defect.
     expect(res.success && res.data.widened).toBe(true)
     expect(res.success && res.data.staleSetIds).toEqual(['set-deleted'])

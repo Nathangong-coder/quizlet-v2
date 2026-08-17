@@ -32,6 +32,17 @@ export interface StudyEventHistoryRow {
   score: number | null;
   confidenceAfter: number;
   createdAt: string;
+  /**
+   * The activity this answer belongs to, for the `/profile/activity/<id>`
+   * permalink the feed rows link to.
+   *
+   * NULLABLE, and rows really do come back null: `StudyEvent.sessionId` is
+   * `SetNull`, and events written before `StudySession` existed never had one.
+   * Such a row is still perfectly good history — it just has no activity to
+   * open, so the caller must render it as unlinked rather than as a link to
+   * `/profile/activity/null`.
+   */
+  sessionId: string | null;
 }
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -75,6 +86,7 @@ export async function getStudyEventHistory(
         score: true,
         confidenceAfter: true,
         createdAt: true,
+        sessionId: true,
         card: { select: { term: true, setId: true, set: { select: { title: true } } } },
       },
     });
@@ -93,6 +105,7 @@ export async function getStudyEventHistory(
       score: r.score,
       confidenceAfter: r.confidenceAfter,
       createdAt: r.createdAt.toISOString(),
+      sessionId: r.sessionId,
     }));
 
     return {
@@ -180,6 +193,17 @@ export interface ScopedMemoryStats {
   averageConfidence: number | null;
   cardsSeen: number;
   masteredCards: number;
+  /**
+   * Events per source, counted with the scope's OWN source filter removed.
+   *
+   * This is the option-count list for the activity picker, so it has to answer
+   * "how many of each type are there to pick?" — not "how many of each type did
+   * my current pick leave?". Counted under the full scope, selecting Multiple
+   * Choice would drive every other option to 0, which reads as those activities
+   * having been deleted rather than merely not selected. Set, category and card
+   * scope DO still apply: narrowing to one set should change what the picker
+   * says is available in it.
+   */
   bySource: { source: string; count: number }[];
 }
 
@@ -193,6 +217,13 @@ export async function getScopedMemoryStats(
   try {
     const categoryIds = await resolveCategoryIds(userId, scope.categoryKeys);
     const where = buildStudyEventWhere(userId, scope, categoryIds);
+    // See `bySource` on ScopedMemoryStats: the picker's own dimension is
+    // dropped so its option counts describe what is available to pick.
+    const whereAnySource = buildStudyEventWhere(
+      userId,
+      { ...scope, sources: [] },
+      categoryIds,
+    );
 
     // CardProgress carries no `source`, so mastery cannot be filtered by the
     // scope's `where` directly — copying only its card predicates would leave
@@ -226,7 +257,7 @@ export async function getScopedMemoryStats(
         }),
         prisma.studyEvent.groupBy({
           by: ['source'],
-          where,
+          where: whereAnySource,
           _count: { _all: true },
         }),
         // Bucketed in JS rather than counted in SQL: `masteryBucket` reads both

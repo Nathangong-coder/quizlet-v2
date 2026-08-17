@@ -24,7 +24,6 @@ interface SetCardProps {
 export function SetCard({ set, summary }: SetCardProps) {
   const cardCount = set._count?.cards ?? 0
   const shared = set.visibility !== undefined && toSetVisibility(set.visibility) !== 'private'
-  const studied = summary && summary.studiedCards > 0
 
   return (
     <Link href={`/sets/${set.id}`} className="block group">
@@ -56,26 +55,13 @@ export function SetCard({ set, summary }: SetCardProps) {
           </CardDescription>
         </CardHeader>
 
-        {/* Study signal. Rendered ONLY when something has been studied: an
-            unstudied set shows nothing rather than "0% · 0 due", which reads
-            as a judgement about material nobody has opened. */}
-        {studied && (
-          <div className="px-6 -mt-2 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            {summary.averageConfidence !== null && (
-              <span className="tabular-nums">
-                confidence {summary.averageConfidence.toFixed(1)}/10
-              </span>
-            )}
-            <span className="tabular-nums">
-              {summary.studiedCards} of {cardCount} studied
-            </span>
-            {summary.dueCount > 0 && (
-              <Badge variant="secondary" className="tabular-nums">
-                {summary.dueCount} due
-              </Badge>
-            )}
-          </div>
-        )}
+        {/*
+          The study-signal row — mean confidence, "N of M studied" and a due
+          badge — was removed deliberately, not lost. Scanning your own library
+          should not mean being scored on every set in it. `summary` is still
+          taken, and still drives the last-studied date below, which is an
+          activity fact rather than a judgement.
+        */}
 
         <CardFooter className="flex justify-between items-center text-xs text-muted-foreground">
           <div className="flex items-center gap-1">

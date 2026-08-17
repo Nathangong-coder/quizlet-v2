@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-15
+**Last updated:** 2026-08-16
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -268,6 +268,54 @@ cheap checks (scope line opening, scope surviving a tab change, by-mode chips) w
 confirmed** — all are unit-tested with killed mutants and inert-if-broken. Recorded as unconfirmed
 rather than assumed. Detail in the spec's §8.
 
+### 6b. ✅ UI polish — set page, edit visibility, memory history table — **BUILT 2026-08-16. LIVE GATE OUTSTANDING.**
+
+No spec — a direct list of user-reported changes after living with item 6. Branch `spec3b-tunable-scoring`, **not merged**.
+Tests **1340 → 1372** (112 → 114 files), `tsc` clean, `next build` clean, lint **176** (unchanged).
+
+**Set surfaces.** Category chips came off the flashcard carousel (the filter bar above is the one
+place category is a *control*), as did "Click card to flip" — and the flip target became a real
+`<button>`, since that text was the only thing announcing an affordance a `<div onClick>` offered to
+mouse users alone. `VisibilityToggle` is **deleted**; visibility is now a dropdown at the top of
+`/sets/[id]/edit` (`VisibilityMenu`), and the activity tiles moved up into the block it vacated,
+made small and given one shared surface instead of three chart hues. Confidence, studied-count and
+the due badge are gone from both the set page and `SetCard`.
+
+**Memory History.** "Showing" → "Filter by:", and the by-mode chip row under the stat tiles was
+**removed, not restyled** — it was a second filter surface sitting below the numbers it filtered.
+Its dimension became a third `MultiSelect` in the scope line beside sets and categories, which
+required `HistoryScope.source` (single) → **`sources` (list)**; "how did I do on the two written
+modes?" was previously unaskable. The feed is now a table (card / set / type / date / accuracy /
+confidence) and a row's primary click opens `/profile/activity/<sessionId>` instead of narrowing the
+page to that card — the old click produced a filtered copy of the list you were already reading.
+
+**Four things worth more than the diff:**
+- **The URL key did not change.** `sources` still serializes to `?source=`, comma-joined, so
+  `ProfileNav`'s `SCOPE_PARAM_KEYS` needed no edit and single-value URLs written by the old version
+  still parse. A test pins that.
+- **`bySource` had to stop being counted under its own filter.** It is the picker's option list, so
+  under the full scope, selecting Multiple Choice drove every other option to 0 — reading as those
+  activities having been deleted, on the exact interaction that reveals the counts. Now counted with
+  the source dimension removed and the others kept. This one had **no guard until one was written**;
+  it was the only mutant of five that survived.
+- **Moving the visibility control broke "Copy link" silently.** It used `window.location.href`,
+  which on `/sets/<id>/edit` copies an edit URL the recipient cannot open. Rebuilt from `setId`.
+- **The card-scope affordance had to be preserved deliberately.** Clicking a term was the ONLY route
+  into card scope, which is the only route to "Forget this card" — already lost once (`f4236d9`).
+  Reassigning the row click to the permalink would have lost it again, so it survives as its own
+  always-visible button (never hover-only: that would also put it out of reach on touch).
+
+**Five mutants introduced, five killed** (after the facet guard was written): truthy-`score` in
+`outcomeText` swallowing a real 0%, an unconditional permalink linking `/profile/activity/null`,
+the activity picker rendering on the learner dashboard (where filtering a knowledge model by answer
+mode halves every posterior), `sources` dropped from `isConsolidated`, and the facet count above.
+
+**HUMAN GATE STILL OWED** (trap 6): every surface here is signed-in only. Check the edit-page
+visibility dropdown **persists and Copy link yields `/sets/<id>` not `/sets/<id>/edit`**; the
+activity picker filters the feed and its option counts **do not collapse** when one is selected;
+a feed row opens the right activity, and a row with no session renders unlinked; and the set page
+shows tiles where the visibility panel was, with no confidence or studied numbers anywhere.
+
 ### 7. ⬜ Spec 4 — plan setup & readiness dashboard — **DESIGNED 2026-08-14, NOT STARTED.**
 
 Belongs to Stage 8 Spec 4 (action plan & AI lessons). Designed with the user on 2026-08-14 and captured here so it survives; **no spec doc, no plan, no code.**
@@ -375,9 +423,9 @@ Never in memory — always in a spec's own section.
 
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-15, after item 6)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-16, after item 6b)
 
-- **Tests:** 112 files / **1340 passing** (excluding `cursor-agents`)
+- **Tests:** 114 files / **1372 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
-- **`npm run lint`:** **176 problems** (131 errors, 45 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts.)
+- **`npm run lint`:** **176 problems** (131 errors, 45 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by item 6b.)
 - Branch is **not merged**, but IS pushed to `origin` (as of 2026-08-11). A Vercel preview deployment tracks it.

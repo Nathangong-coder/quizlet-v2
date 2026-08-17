@@ -3,6 +3,8 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { SetForm } from '@/components/sets/SetForm'
 import { notFound } from 'next/navigation'
+import VisibilityMenu from '@/components/sets/VisibilityMenu'
+import { toSetVisibility } from '@/lib/sets/visibility'
 
 interface EditSetPageProps {
   params: Promise<{ id: string }>
@@ -40,7 +42,17 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
 
   return (
     <div className="container max-w-4xl py-10">
-      <h1 className="text-3xl font-bold mb-8">Edit Study Set</h1>
+      {/*
+        Visibility sits at the top of Edit, beside the heading — it is a
+        property of the set, not of the card list below, and it saves on its own
+        the moment it changes. It used to occupy the block directly under the
+        set's title on the set page, where it was read far more often than it
+        was used.
+      */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
+        <h1 className="text-3xl font-bold">Edit Study Set</h1>
+        <VisibilityMenu setId={set.id} visibility={toSetVisibility(set.visibility)} />
+      </div>
       <SetForm
         mode="edit"
         setId={set.id}

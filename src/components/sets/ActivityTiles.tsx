@@ -15,8 +15,19 @@ interface Tile {
   href: (id: string) => string;
   icon: React.ElementType;
   requiresAuth: boolean;
-  color: string;
 }
+
+/**
+ * One shared surface for all three tiles.
+ *
+ * They used to carry three different chart hues. Three activities really are
+ * three categories, so that was defensible colour — but these sit at the top of
+ * the set page now, and three saturated blocks there read as three unrelated
+ * statuses rather than one row of things you can do. The icon and the label
+ * still tell them apart, which is what colour was doing anyway.
+ */
+const TILE_SURFACE =
+  "bg-muted/50 text-foreground border-border hover:bg-muted hover:border-primary/40";
 
 const TILES: Tile[] = [
   {
@@ -24,31 +35,24 @@ const TILES: Tile[] = [
     href: (id) => `/sets/${id}/match`,
     icon: Gamepad2,
     requiresAuth: false,
-    // Three activities genuinely are three categories, so this is legitimate
-    // categorical colour — but it now comes from the chart tokens rather than
-    // three unrelated Tailwind palettes, and each tile also carries a distinct
-    // icon and label, so colour is never the sole signal.
-    color: "bg-chart-1/10 text-chart-1 border-chart-1/25 hover:bg-chart-1/20",
   },
   {
     label: "Review Mode",
     href: (id) => `/sets/${id}/review`,
     icon: RotateCcw,
     requiresAuth: true,
-    color: "bg-chart-3/10 text-chart-3 border-chart-3/25 hover:bg-chart-3/20",
   },
   {
     label: "Quiz",
     href: (id) => `/sets/${id}/quiz`,
     icon: GraduationCap,
     requiresAuth: true,
-    color: "bg-chart-4/10 text-chart-4 border-chart-4/25 hover:bg-chart-4/20",
   },
 ];
 
 export function ActivityTiles({ id, userId }: ActivityTileProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-6">
       {TILES.map((tile) => {
         const isLocked = tile.requiresAuth && !userId;
 
@@ -62,14 +66,14 @@ export function ActivityTiles({ id, userId }: ActivityTileProps) {
               aria-disabled="true"
               title="Sign in to use this activity"
               className={cn(
-                "flex flex-col items-center justify-center p-6 rounded-xl border",
-                "opacity-60 grayscale cursor-not-allowed",
-                tile.color,
+                "flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm",
+                "opacity-60 cursor-not-allowed",
+                TILE_SURFACE,
               )}
             >
-              <tile.icon size={40} className="mb-3" aria-hidden="true" />
-              <span className="font-semibold text-center">{tile.label}</span>
-              <span className="mt-1 text-xs font-normal">Sign in to use</span>
+              <tile.icon size={16} className="shrink-0" aria-hidden="true" />
+              <span className="font-medium truncate">{tile.label}</span>
+              <span className="text-xs text-muted-foreground">(sign in)</span>
             </div>
           );
         }
@@ -79,14 +83,13 @@ export function ActivityTiles({ id, userId }: ActivityTileProps) {
             key={tile.label}
             href={tile.href(id)}
             className={cn(
-              "flex flex-col items-center justify-center p-6 rounded-xl border transition-all group",
-              "hover:scale-105 hover:shadow-md",
+              "flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              tile.color
+              TILE_SURFACE,
             )}
           >
-            <tile.icon size={40} className="mb-3 group-hover:scale-110 transition-transform" aria-hidden="true" />
-            <span className="font-semibold text-center">{tile.label}</span>
+            <tile.icon size={16} className="shrink-0" aria-hidden="true" />
+            <span className="font-medium truncate">{tile.label}</span>
           </Link>
         );
       })}

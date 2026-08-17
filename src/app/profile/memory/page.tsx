@@ -4,10 +4,8 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'reac
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
 import {
   getScopedMemoryStats,
   getStudyEventHistory,
@@ -22,9 +20,9 @@ import {
 import { resetUserMemory } from '@/actions/user';
 import { EMPTY_SCOPE, parseScope, serializeScope, scopeToCard, type HistoryScope } from '@/lib/memory/scope';
 import ScopeLine from '@/components/memory/ScopeLine';
-import { sourceLabel } from '@/lib/memory/source-labels';
 import ProfileNav from '@/components/profile/ProfileNav';
 import ScopeStats from '@/components/memory/ScopeStats';
+import ActivityTable from '@/components/memory/ActivityTable';
 
 const NO_OPTIONS: MemoryFilterOptions = { sets: [], categories: [], cards: [] };
 
@@ -197,6 +195,16 @@ function MemoryHistoryContent() {
     }
   }
 
+  // Counts for the activity picker's options. Held from the LAST successful
+  // stats load rather than cleared while a new one is in flight: the picker is
+  // what triggers the reload, so zeroing every count mid-request makes the
+  // options flicker to 0 on the exact interaction that reads them.
+  const sourceCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const row of stats?.value?.bySource ?? []) counts[row.source] = row.count;
+    return counts;
+  }, [stats?.value?.bySource]);
+
   const canForgetCard = Boolean(scope.cardId);
   const canForgetSet = scope.setIds.length === 1 && !scope.cardId;
   const scopedCardTerm = options.cards.find((c) => c.id === scope.cardId)?.term ?? 'this card';
@@ -221,14 +229,13 @@ function MemoryHistoryContent() {
         summary={
           stats?.value ? `${stats.value.totalEvents.toLocaleString()} answers` : undefined
         }
+        // The activity picker lives here, next to sets and categories — one
+        // filter surface, three dimensions. It replaces the by-mode chip row
+        // that used to sit under the stat tiles below.
+        activityFilter={{ counts: sourceCounts }}
       />
 
-      <ScopeStats
-        stats={stats?.value ?? null}
-        loading={statsLoading}
-        source={scope.source}
-        onSourceChange={(source) => setScope({ ...scope, source })}
-      />
+      <ScopeStats stats={stats?.value ?? null} loading={statsLoading} />
 
       {(canForgetCard || canForgetSet) && (
         <Card className="border-destructive/50 bg-destructive/5">
@@ -260,7 +267,9 @@ function MemoryHistoryContent() {
       <Card>
         <CardHeader>
           <CardTitle>Activity</CardTitle>
-          <CardDescription>Newest first.</CardDescription>
+          <CardDescription>
+            Newest first. Select a card to open the activity it came from.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
           {loading ? (
@@ -271,46 +280,11 @@ function MemoryHistoryContent() {
             <p className="text-sm text-muted-foreground text-center py-8">No history matches this scope.</p>
           ) : (
             <>
-              {feed!.events.map((event) => (
-                <div key={event.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors gap-3">
-                  <div className="flex flex-col min-w-0">
-                    {/* The only discoverable route to "Forget this card":
-                        otherwise you must know to pick exactly one set before
-                        the card filter un-disables. */}
-                    <button
-                      type="button"
-                      className="font-medium truncate text-left hover:underline"
-                      title={`Show only "${event.term}"`}
-                      onClick={() => setScope(scopeToCard(scope, event))}
-                    >
-                      {event.term}
-                    </button>
-                    <span className="text-xs text-muted-foreground truncate">
-                      {event.setTitle} &middot; {format(new Date(event.createdAt), 'MMM d, h:mm a')}
-                    </span>
-                  </div>
-                  <Badge variant="outline">{sourceLabel(event.source)}</Badge>
-                  <span className="text-sm w-16 text-right">
-                    {event.score !== null
-                      ? `${event.score}%`
-                      : event.correct === null
-                        ? '—'
-                        : event.correct
-                          ? 'Correct'
-                          : 'Wrong'}
-                  </span>
-                  <span className="text-sm w-20 text-right text-muted-foreground">conf {event.confidenceAfter}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    aria-label={`Delete ${event.term} entry`}
-                    onClick={() => handleDeleteEvent(event.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
+              <ActivityTable
+                events={feed!.events}
+                onScopeToCard={(event) => setScope(scopeToCard(scope, event))}
+                onDelete={handleDeleteEvent}
+              />
               {feed!.cursor && (
                 <div className="pt-2 text-center">
                   <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={loadingMore}>

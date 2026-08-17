@@ -385,11 +385,11 @@ export async function buildLearnerProfile({
     const card = buildCardScopeWhere(scope, categoryIds)
     if (Object.keys(card).length > 0) progressWhere.card = card
   }
-  if (scope.source) {
+  if (scope.sources.length > 0) {
     const card = (progressWhere.card ?? {}) as Record<string, unknown>
     progressWhere.card = {
       ...card,
-      studyEvents: { some: { userId, source: scope.source } },
+      studyEvents: { some: { userId, source: { in: scope.sources } } },
     }
   }
 

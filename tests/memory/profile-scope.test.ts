@@ -83,9 +83,9 @@ describe('the card-grain profile honours every scope dimension (B4)', () => {
   })
 
   it('narrows by source, so a review-scoped streak is not a whole-library streak', async () => {
-    const w = await wheres({ scope: scope({ source: 'review' }) })
+    const w = await wheres({ scope: scope({ sources: ['review'] }) })
 
-    expect(w.events.source).toBe('review')
+    expect(w.events.source).toEqual({ in: ['review'] })
     // CardProgress has no source column of its own — it is a per-card
     // aggregate — so it reaches one through the card's events.
     expect(JSON.stringify(w.progress)).toContain('review')

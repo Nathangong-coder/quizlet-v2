@@ -55,7 +55,7 @@ describe('resolveStudyScope', () => {
     // The distinction that keeps every new user from being told a setting they
     // never touched has broken.
     const result = resolveStudyScope(EMPTY_STUDY_SCOPE, AVAILABLE)
-    expect(result.scope).toEqual({ setIds: [], categoryKeys: [] })
+    expect(result.scope).toEqual({ setIds: [], categoryKeys: [], sources: [] })
     expect(result.widened).toBe(false)
     expect(result.staleSetIds).toEqual([])
     expect(result.staleCategoryKeys).toEqual([])
@@ -91,7 +91,7 @@ describe('resolveStudyScope', () => {
       { setIds: ['set-deleted'], categoryKeys: ['merged-away'] },
       AVAILABLE,
     )
-    expect(result.scope).toEqual({ setIds: [], categoryKeys: [] })
+    expect(result.scope).toEqual({ setIds: [], categoryKeys: [], sources: [] })
     // The flag is the point. A silent widening is the defect: the learner sees
     // recommendations from decks they excluded with no way to know why.
     expect(result.widened).toBe(true)
@@ -126,9 +126,18 @@ describe('resolveStudyScope', () => {
 
   it('resolves to an EMPTY_SCOPE-shaped object, not a partial one', () => {
     // The result is handed straight to `getLearnerMetrics`, whose scope
-    // builders read `cardId` and `source` as well.
+    // builders read `cardId` and `sources` as well.
     const result = resolveStudyScope({ setIds: ['set-accounting'], categoryKeys: [] }, AVAILABLE)
     expect(result.scope.cardId).toBeUndefined()
-    expect(result.scope.source).toBeUndefined()
+    expect(result.scope.sources).toEqual([])
+  })
+
+  it('gives each result its OWN sources array, not the module constant', () => {
+    // `{ ...EMPTY_SCOPE }` would share the constant's array by reference, so
+    // one caller mutating its scope would corrupt every later one. Same hazard
+    // `parseStudyScope` guards against.
+    const a = resolveStudyScope({ setIds: [], categoryKeys: [] }, AVAILABLE)
+    const b = resolveStudyScope({ setIds: [], categoryKeys: [] }, AVAILABLE)
+    expect(a.scope.sources).not.toBe(b.scope.sources)
   })
 })

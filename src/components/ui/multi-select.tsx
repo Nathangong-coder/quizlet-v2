@@ -11,6 +11,15 @@ export interface MultiSelectOption {
   label: string
   color?: string | null
   count?: number
+  /**
+   * Draw a rule above this option, splitting the list into groups.
+   *
+   * A plain rule rather than a labelled section: the groups here (graded
+   * question modes vs. everything else) are obvious once seen and a heading for
+   * two items each costs more height than it explains. Suppressed when a search
+   * filter is active, where a divider would land in an arbitrary place.
+   */
+  dividerBefore?: boolean
 }
 
 export interface MultiSelectProps {
@@ -113,6 +122,10 @@ export function MultiSelect({
             visible.map((option) => {
               const selected = value.includes(option.value)
               return (
+                <React.Fragment key={option.value}>
+                  {option.dividerBefore && !query.trim() && (
+                    <div className="my-1 border-t" role="presentation" />
+                  )}
                 <button
                   key={option.value}
                   type="button"
@@ -153,6 +166,7 @@ export function MultiSelect({
                     </span>
                   )}
                 </button>
+                </React.Fragment>
               )
             })
           )}

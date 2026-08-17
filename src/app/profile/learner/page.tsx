@@ -141,8 +141,11 @@ function LearnerDashboardContent() {
           an error state, not a control. */}
       <ScopeLine
         options={options}
-        scope={d?.appliedScope ?? { setIds: [], categoryKeys: [] }}
+        scope={d?.appliedScope ?? { setIds: [], categoryKeys: [], sources: [] }}
         onChange={setScope}
+        // No `activityFilter` here, deliberately: this page renders a knowledge
+        // model, and narrowing it to one answer mode silently halves every
+        // posterior it touches. See ScopeLineProps.
         savedScope={
           d?.defaultApplied
             ? {
