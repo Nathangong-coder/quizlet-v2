@@ -4,12 +4,18 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ContentBlock } from '@/lib/cards/content'
 import { ContentBlockView } from '@/components/cards/ContentBlockView'
-import { CategoryChip } from '@/components/cards/CategoryChip'
 
 interface FlashcardCarouselCard {
   id: string
   term: string
   definition: string
+  /**
+   * Read by the PARENT's filter bar, not rendered here.
+   *
+   * The chips used to repeat under every card, restating what the filter bar
+   * above already shows and pushing the navigation below the fold. The filter
+   * bar is the one place category is a control rather than decoration.
+   */
   categories?: { name: string; color?: string | null }[]
   contentBlocks?: ContentBlock[]
 }
@@ -38,8 +44,18 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
 
   return (
     <div className="space-y-4">
-      <div
-        className="relative h-64 cursor-pointer select-none"
+      {/*
+        A real <button>, not a clickable <div>. The visible "Click card to flip"
+        hint below this used to be the only thing announcing the affordance, and
+        it announced it to sighted mouse users only — the div took no focus and
+        no key press. Now the hint is unnecessary rather than merely absent:
+        the control names itself, and Enter/Space flip it.
+      */}
+      <button
+        type="button"
+        aria-label={flipped ? 'Show term' : 'Show definition'}
+        aria-pressed={flipped}
+        className="relative block h-64 w-full select-none text-left rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         style={{ perspective: '1000px' }}
         onClick={() => setFlipped((f) => !f)}
       >
@@ -94,15 +110,7 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
             )}
           </div>
         </div>
-      </div>
-
-      {card.categories && card.categories.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-1">
-          {card.categories.map((c) => (
-            <CategoryChip key={c.name} name={c.name} color={c.color} />
-          ))}
-        </div>
-      )}
+      </button>
 
       <div className="flex items-center justify-center gap-4">
         <Button variant="outline" size="sm" onClick={prev} disabled={cards.length <= 1}>
@@ -115,8 +123,6 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
           →
         </Button>
       </div>
-
-      <p className="text-center text-xs text-muted-foreground">Click card to flip</p>
     </div>
   )
 }

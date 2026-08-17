@@ -239,7 +239,7 @@ describe('Retention and misconceptions', () => {
         paceOutliers={[{ cardId: 'c1', mode: 'quiz-sa', index: 2.4, term: 'WACC' }]}
       />,
     )
-    expect(screen.getByText('Quiz (Short Answer)')).toBeTruthy()
+    expect(screen.getByText('Short Answer')).toBeTruthy()
     expect(screen.getByText(/2\.4× your usual/)).toBeTruthy()
   })
 

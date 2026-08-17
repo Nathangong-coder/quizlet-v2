@@ -45,38 +45,43 @@ describe('SetCard visibility', () => {
   })
 })
 
-describe('SetCard study signal', () => {
-  it('shows confidence, progress and due count for a studied set', () => {
+describe('SetCard reports no study score', () => {
+  // The card used to carry mean confidence, "N of M studied" and a due badge.
+  // All three were removed deliberately: scanning your own library should not
+  // mean being scored on every set in it. These tests pin the REMOVAL, so
+  // reinstating any of them is a deliberate act rather than a silent one.
+
+  it('shows no confidence number even for a fully populated summary', () => {
     render(<SetCard set={SET} summary={summary({ dueCount: 3 })} />)
-    expect(screen.getByText('confidence 6.5/10')).toBeTruthy()
-    expect(screen.getByText('6 of 24 studied')).toBeTruthy()
-    expect(screen.getByText('3 due')).toBeTruthy()
+    expect(screen.queryByText(/confidence/i)).toBeNull()
   })
 
-  it('shows NOTHING for an unstudied set — not a zero', () => {
-    // "confidence 0.0/10 · 0 of 24 studied" reads as a judgement about
-    // material nobody has opened. Absent is the honest rendering.
+  it('shows no studied-count even for a fully populated summary', () => {
+    render(<SetCard set={SET} summary={summary({ dueCount: 3 })} />)
+    expect(screen.queryByText(/studied \d|\d+ of \d+/)).toBeNull()
+  })
+
+  it('shows no due badge even when cards are due', () => {
+    render(<SetCard set={SET} summary={summary({ dueCount: 3 })} />)
+    expect(screen.queryByText(/\bdue\b/)).toBeNull()
+  })
+
+  it('still shows nothing for an unstudied set', () => {
     render(<SetCard set={SET} summary={undefined} />)
-    expect(screen.queryByText(/confidence/)).toBeNull()
-    expect(screen.queryByText(/studied/)).toBeNull()
-    expect(screen.queryByText(/due/)).toBeNull()
+    expect(screen.queryByText(/confidence/i)).toBeNull()
+    expect(screen.queryByText(/\bdue\b/)).toBeNull()
   })
 
-  it('shows nothing when a summary exists but nothing was studied', () => {
+  it('keeps the card count, which is a fact about the set, not about you', () => {
+    render(<SetCard set={SET} summary={summary({ dueCount: 3 })} />)
+    expect(screen.getByText('24 cards')).toBeTruthy()
+  })
+
+  it('still accepts a summary — it feeds the last-studied date', () => {
+    // The prop was NOT dropped. `EMPTY_SET_SUMMARY` stays imported and used, so
+    // this asserts the component keeps reading the summary it is given.
     render(<SetCard set={SET} summary={EMPTY_SET_SUMMARY} />)
-    expect(screen.queryByText(/confidence/)).toBeNull()
-  })
-
-  it('hides the due badge at zero rather than rendering "0 due"', () => {
-    render(<SetCard set={SET} summary={summary({ dueCount: 0 })} />)
-    expect(screen.getByText('6 of 24 studied')).toBeTruthy()
-    expect(screen.queryByText(/due/)).toBeNull()
-  })
-
-  it('omits confidence when it is null but cards were counted', () => {
-    render(<SetCard set={SET} summary={summary({ averageConfidence: null })} />)
-    expect(screen.queryByText(/confidence/)).toBeNull()
-    expect(screen.getByText('6 of 24 studied')).toBeTruthy()
+    expect(screen.getByText(SET.title)).toBeTruthy()
   })
 })
 

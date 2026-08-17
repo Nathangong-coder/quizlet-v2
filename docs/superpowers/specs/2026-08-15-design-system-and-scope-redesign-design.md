@@ -256,9 +256,23 @@ Four things worth more than the diff:
    because the count was not `aria-hidden`. Found because a role-based query could not match the
    option, not by inspection.
 
-## 8. Human gate still owed
+## 8. Human gate — the three load-bearing checks PASSED 2026-08-16
 
-Trap 6: no signed-in page is reachable from an agent session. Everything below needs the browser.
+Trap 6: no signed-in page is reachable from an agent session, so this was run by the user.
+
+**PASSED:** dark mode, Print Test with filters, and the `/settings/ai` panel saves. Those were the
+three ranked as actually risky, and they were risky for different reasons: dark mode because ~150
+token substitutions are invisible to the suite (a wrong-but-valid token compiles and passes every
+test), Print Test because the page half is a server component with no test coverage in this repo,
+and the settings panel because it is the only one of the three that **writes to the database**,
+where Spec 3B's partial-save contract could be violated without any mock noticing.
+
+**Not separately confirmed**, and deliberately not chased: the scope line opening/filtering, scope
+surviving a Memory History → Learner Profile click, and the by-mode chips filtering the feed. All
+three are unit-tested with killed mutants, and all three are inert-if-broken rather than
+destructive. Recorded as unconfirmed rather than assumed.
+
+The original list, for reference:
 
 - **Dark mode.** Toggle through system → light → dark on `/sets`, a set detail page, a quiz, the
   matching game, and all three profile pages. The 7 previously-hardcoded files are the risk.

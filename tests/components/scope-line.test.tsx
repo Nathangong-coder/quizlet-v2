@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
-import ScopeLine, { scopeChips, MAX_VISIBLE_CHIPS } from '@/components/memory/ScopeLine'
+import ScopeLine, {
+  scopeChips,
+  activityOptions,
+  MAX_VISIBLE_CHIPS,
+} from '@/components/memory/ScopeLine'
 import { triggerLabel } from '@/components/ui/multi-select'
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories'
 import type { HistoryScope } from '@/lib/memory/scope'
@@ -19,12 +23,12 @@ const OPTIONS = {
   cards: [{ id: 'card1', term: 'WACC' }],
 }
 
-const EMPTY: HistoryScope = { setIds: [], categoryKeys: [] }
+const EMPTY: HistoryScope = { setIds: [], categoryKeys: [], sources: [] }
 
 describe('scopeChips', () => {
   it('renders one chip per active narrowing, across both dimensions', () => {
     const chips = scopeChips(
-      { setIds: ['s1'], categoryKeys: ['dcf'] },
+      { ...EMPTY, setIds: ['s1'], categoryKeys: ['dcf'] },
       OPTIONS,
       () => {},
     )
@@ -38,7 +42,7 @@ describe('scopeChips', () => {
     // narrowings, leaving the learner on one card's history with nothing on
     // screen saying so.
     const chips = scopeChips(
-      { setIds: ['s1', 's2'], categoryKeys: ['dcf'], cardId: 'card1' },
+      { ...EMPTY, setIds: ['s1', 's2'], categoryKeys: ['dcf'], cardId: 'card1' },
       OPTIONS,
       () => {},
     )
@@ -65,24 +69,110 @@ describe('scopeChips', () => {
     // behind would apply a narrowing with nothing on screen explaining it.
     const onChange = vi.fn()
     const chips = scopeChips(
-      { setIds: ['s1'], categoryKeys: [], cardId: 'card1' },
+      { ...EMPTY, setIds: ['s1'], categoryKeys: [], cardId: 'card1' },
       OPTIONS,
       onChange,
     )
     chips.find((c) => c.key === 'set:s1')!.onRemove()
-    expect(onChange).toHaveBeenCalledWith({ setIds: [], categoryKeys: [], cardId: undefined })
+    expect(onChange).toHaveBeenCalledWith({
+      setIds: [],
+      categoryKeys: [],
+      sources: [],
+      cardId: undefined,
+    })
   })
 
   it('removes only the chip asked for', () => {
     const onChange = vi.fn()
     const chips = scopeChips(
-      { setIds: ['s1', 's2'], categoryKeys: ['dcf'] },
+      { ...EMPTY, setIds: ['s1', 's2'], categoryKeys: ['dcf'] },
       OPTIONS,
       onChange,
     )
     chips.find((c) => c.key === 'set:s1')!.onRemove()
     expect(onChange.mock.calls[0][0].setIds).toEqual(['s2'])
     expect(onChange.mock.calls[0][0].categoryKeys).toEqual(['dcf'])
+  })
+})
+
+describe('activityOptions', () => {
+  it('lists the four graded question modes before the rest', () => {
+    expect(activityOptions().map((o) => o.value)).toEqual([
+      'quiz-mc',
+      'quiz-sa',
+      'quiz-tf',
+      'matching',
+      'review',
+      'lesson',
+    ])
+  })
+
+  it('splits the two groups with exactly one divider, on the first non-question', () => {
+    const opts = activityOptions()
+    expect(opts.filter((o) => o.dividerBefore).map((o) => o.value)).toEqual(['review'])
+  })
+
+  it('offers every mode even at zero, so an option never vanishes', () => {
+    // Data-driven options — what the by-mode chips did — meant a mode you had
+    // not tried yet was simply absent, which reads as a broken filter rather
+    // than an empty shelf.
+    const opts = activityOptions({ 'quiz-mc': 42 })
+    expect(opts).toHaveLength(6)
+    expect(opts.find((o) => o.value === 'quiz-mc')?.count).toBe(42)
+    expect(opts.find((o) => o.value === 'lesson')?.count).toBe(0)
+  })
+
+  it('labels each option with its short name', () => {
+    const labels = activityOptions().map((o) => o.label)
+    expect(labels).toContain('Multiple Choice')
+    expect(labels).toContain('Matching')
+    expect(labels).not.toContain('Matching Game')
+  })
+})
+
+describe('ScopeLine activity picker is opt-in per surface', () => {
+  it('renders the picker when a surface asks for it', () => {
+    render(
+      <ScopeLine options={OPTIONS} scope={EMPTY} onChange={() => {}} activityFilter={{}} />,
+    )
+    expect(screen.getByText('All activity')).toBeTruthy()
+  })
+
+  it('renders NO picker without it — the learner dashboard must not filter by mode', () => {
+    // Narrowing a knowledge model to one answer mode silently halves every
+    // posterior it touches, so that page deliberately omits the prop.
+    render(<ScopeLine options={OPTIONS} scope={EMPTY} onChange={() => {}} />)
+    expect(screen.queryByText('All activity')).toBeNull()
+  })
+
+  it('reports a selected source on the trigger and as a removable chip', () => {
+    const onChange = vi.fn()
+    render(
+      <ScopeLine
+        options={OPTIONS}
+        scope={{ ...EMPTY, sources: ['quiz-sa'] }}
+        onChange={onChange}
+        activityFilter={{}}
+      />,
+    )
+    // Both the collapsed trigger and the chip row name it, so the filter is
+    // legible whether or not the menu is open.
+    expect(screen.getAllByText('Short Answer').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByLabelText('Remove Short Answer from scope'))
+    expect(onChange).toHaveBeenCalledWith({ ...EMPTY, sources: [] })
+  })
+
+  it('counts a source scope as a narrowing, so Clear is offered', () => {
+    render(
+      <ScopeLine
+        options={OPTIONS}
+        scope={{ ...EMPTY, sources: ['review'] }}
+        onChange={() => {}}
+        activityFilter={{}}
+      />,
+    )
+    expect(screen.getByText('Clear')).toBeTruthy()
   })
 })
 
@@ -120,7 +210,7 @@ describe('ScopeLine caps the chip list', () => {
     render(
       <ScopeLine
         options={many}
-        scope={{ setIds: many.sets.map((s) => s.id), categoryKeys: [] }}
+        scope={{ ...EMPTY, setIds: many.sets.map((s) => s.id) }}
         onChange={() => {}}
       />,
     )
@@ -140,7 +230,7 @@ describe('ScopeLine caps the chip list', () => {
     render(
       <ScopeLine
         options={many}
-        scope={{ setIds: many.sets.map((s) => s.id), categoryKeys: [], cardId: 'card1' }}
+        scope={{ ...EMPTY, setIds: many.sets.map((s) => s.id), cardId: 'card1' }}
         onChange={() => {}}
       />,
     )
@@ -160,11 +250,11 @@ describe('ScopeLine caps the chip list', () => {
     rerender(
       <ScopeLine
         options={OPTIONS}
-        scope={{ setIds: ['s1'], categoryKeys: [] }}
+        scope={{ ...EMPTY, setIds: ['s1'] }}
         onChange={onChange}
       />,
     )
     fireEvent.click(screen.getByText('Clear'))
-    expect(onChange).toHaveBeenCalledWith({ setIds: [], categoryKeys: [] })
+    expect(onChange).toHaveBeenCalledWith({ setIds: [], categoryKeys: [], sources: [] })
   })
 })

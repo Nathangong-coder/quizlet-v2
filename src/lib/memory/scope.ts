@@ -26,10 +26,22 @@ export interface HistoryScope {
   /** Normalized category names; may include UNCATEGORIZED_ID. */
   categoryKeys: string[];
   cardId?: string;
-  source?: string;
+  /**
+   * `StudyEvent.source` values to include; empty means every activity.
+   *
+   * A LIST, not a single value. It was `source?: string` while the control was
+   * a row of by-mode chips that could only ever be one-of, which made "how did
+   * I do on the two written modes?" — the question a learner actually has —
+   * unaskable. Same OR-within-a-dimension semantics as `setIds` and
+   * `categoryKeys`, and it AND-combines with them like every other dimension.
+   *
+   * Serializes to the same `source` URL key as before, comma-joined, so links
+   * and saved URLs written against the single-value version still parse.
+   */
+  sources: string[];
 }
 
-export const EMPTY_SCOPE: HistoryScope = { setIds: [], categoryKeys: [] };
+export const EMPTY_SCOPE: HistoryScope = { setIds: [], categoryKeys: [], sources: [] };
 
 /**
  * Narrow a scope to a single card — what clicking a term in the activity feed
@@ -45,8 +57,8 @@ export const EMPTY_SCOPE: HistoryScope = { setIds: [], categoryKeys: [] };
  *
  * `categoryKeys` are dropped for the mirror-image reason: they are inert
  * against the query once `cardId` is set, so leaving the chips up would
- * advertise a filter that is not filtering. `source` is kept — it still
- * narrows *within* the card.
+ * advertise a filter that is not filtering. `sources` are kept — they still
+ * narrow *within* the card.
  */
 export function scopeToCard(
   scope: HistoryScope,
@@ -60,7 +72,7 @@ export function isConsolidated(scope: HistoryScope): boolean {
     scope.setIds.length === 0 &&
     scope.categoryKeys.length === 0 &&
     !scope.cardId &&
-    !scope.source
+    scope.sources.length === 0
   );
 }
 
@@ -187,7 +199,7 @@ export function buildStudyEventWhere(
 ): Record<string, unknown> {
   const where: Record<string, unknown> = { userId };
 
-  if (scope.source) where.source = scope.source;
+  if (scope.sources.length > 0) where.source = { in: scope.sources };
 
   // A specific card is the narrowest scope — it subsumes set/category filters.
   if (scope.cardId) {
@@ -210,11 +222,11 @@ export function buildStudyEventWhere(
  * `mode` stands in for StudyEvent's `source`, and QuizAnswer's own scalar
  * `cardId` is the same narrowest-scope-subsumes-the-rest case.
  *
- * `mode` is NOT the same vocabulary as `source`, however: `HistoryScope.source`
- * holds a `StudySource` (`quiz-sa`) while `QuizAnswer.mode` holds a `QuizMode`
- * (`short-answer`). Assigning one to the other matches ZERO rows — silently,
- * because a scoped view with no tags reads as "no expression problems at all"
- * rather than as an error. `toQuizMode` is the single bridge.
+ * `mode` is NOT the same vocabulary as `source`, however: `HistoryScope.sources`
+ * holds `StudySource` values (`quiz-sa`) while `QuizAnswer.mode` holds a
+ * `QuizMode` (`short-answer`). Assigning one to the other matches ZERO rows —
+ * silently, because a scoped view with no tags reads as "no expression problems
+ * at all" rather than as an error. `toQuizMode` is the single bridge.
  */
 export function buildQuizAnswerScopeWhere(
   userId: string,
@@ -223,11 +235,16 @@ export function buildQuizAnswerScopeWhere(
 ): Record<string, unknown> {
   const where: Record<string, unknown> = { userId };
 
-  if (scope.source) {
-    const mode = toQuizMode(scope.source);
-    // A source with no quiz mode (`review`, `lesson`) or an unknown string
-    // must match nothing, not fall through to every mode.
-    where.mode = mode ?? { in: [] };
+  if (scope.sources.length > 0) {
+    // Sources with no quiz mode (`review`, `lesson`) or an unknown string drop
+    // out rather than widening. If EVERY selected source drops out the result
+    // is an empty `in`, which matches nothing — the same answer the
+    // single-value version gave for a review-only scope, and the right one:
+    // "review answers, as quiz answers" is a contradiction, not "all of them".
+    const modes = scope.sources
+      .map((source) => toQuizMode(source))
+      .filter((mode): mode is QuizMode => mode !== null);
+    where.mode = { in: Array.from(new Set(modes)) };
   }
 
   if (scope.cardId) {
@@ -311,7 +328,7 @@ export function serializeScope(scope: HistoryScope): string {
   if (scope.setIds.length > 0) params.set("sets", scope.setIds.join(","));
   if (scope.categoryKeys.length > 0) params.set("cats", scope.categoryKeys.join(","));
   if (scope.cardId) params.set("card", scope.cardId);
-  if (scope.source) params.set("source", scope.source);
+  if (scope.sources.length > 0) params.set("source", scope.sources.join(","));
   return params.toString();
 }
 
@@ -345,6 +362,8 @@ export function parseScope(params: URLSearchParams): HistoryScope {
     setIds: parseList(params.get("sets")),
     categoryKeys: parseList(params.get("cats")),
     cardId: params.get("card")?.trim() || undefined,
-    source: params.get("source")?.trim() || undefined,
+    // `parseList` handles the single-value form unchanged, so a URL written by
+    // the pre-multi-select version still resolves to exactly that one source.
+    sources: parseList(params.get("source")),
   };
 }

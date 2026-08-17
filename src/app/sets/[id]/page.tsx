@@ -6,11 +6,9 @@ import { buttonVariants } from '@/components/ui/button'
 import FlashcardSection from '@/components/flashcard/FlashcardSection'
 import DeleteSetForm from '@/components/sets/DeleteSetForm'
 import { cn } from '@/lib/utils'
-import { loadSetStudySummaries } from '@/lib/sets/study-summary'
 import { TermsList } from '@/components/sets/TermsList'
 import { ActivityTiles } from '@/components/sets/ActivityTiles'
-import { readableSetWhere, toSetVisibility } from '@/lib/sets/visibility'
-import VisibilityToggle from '@/components/sets/VisibilityToggle'
+import { readableSetWhere } from '@/lib/sets/visibility'
 
 export default async function SetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -45,12 +43,6 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
   const isOwner = session?.user?.id === set.userId
   const progressByCardId = new Map(progressList.map((p) => [p.cardId, p]))
 
-  // Same helper the sets list uses, so the two surfaces cannot report a
-  // different number of due cards for the same set.
-  const summary = session?.user?.id
-    ? (await loadSetStudySummaries(prisma, session.user.id, [id]))[id]
-    : undefined
-
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-start justify-between mb-2">
@@ -73,24 +65,23 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
         )}
       </div>
 
-      <p className="text-sm text-muted-foreground mb-4">
-        {set.cards.length} cards
-        {summary && summary.studiedCards > 0 && (
-          <>
-            {' · '}
-            {summary.studiedCards} studied
-            {summary.averageConfidence !== null &&
-              ` · confidence ${summary.averageConfidence.toFixed(1)}/10`}
-            {summary.dueCount > 0 && ` · ${summary.dueCount} due`}
-          </>
-        )}
-      </p>
+      {/*
+        Card count only. The studied-count and mean confidence that used to
+        trail it were a score reported back at the learner every time they
+        opened their own material; the same numbers live on the profile, where
+        looking at them is a choice.
+      */}
+      <p className="text-sm text-muted-foreground mb-4">{set.cards.length} cards</p>
 
-      {isOwner ? (
-        <div className="mb-6">
-          <VisibilityToggle setId={id} visibility={toSetVisibility(set.visibility)} />
-        </div>
-      ) : (
+      {/*
+        The activities sit here, where the visibility panel used to. Visibility
+        is a setting you change rarely and it occupied the most valuable block
+        on the page; it now lives at the top of the Edit screen. What belongs
+        directly under a set's title is what you came to do with it.
+      */}
+      <ActivityTiles id={id} userId={session?.user?.id} />
+
+      {!isOwner && (
         // Study writes are keyed (userId, cardId), so a viewer's confidence,
         // events and quiz history genuinely never touch the owner's. True, but
         // not something anyone should have to infer before they start studying
@@ -119,8 +110,6 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
           }))}
         />
       )}
-
-      <ActivityTiles id={id} userId={session?.user?.id} />
 
       <TermsList
         cards={set.cards.map((c) => ({
