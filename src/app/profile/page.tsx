@@ -42,10 +42,16 @@ function ProfileOverview() {
   // `getUserStats` could not leave for the page that would have answered them.
   const chrome = (
     <div>
-      <h1 className="text-4xl font-bold tracking-tight">Profile</h1>
+      {/* "Learning", not "Profile". Your account — handle, email, theme —
+          lives at /account; this section is about what you study. */}
+      <h1 className="text-4xl font-bold tracking-tight">Learning</h1>
       <p className="text-muted-foreground mt-2">
         Your activity at a glance. The learner profile is where the app says what it thinks you
-        know.
+        know. Account settings live on the{' '}
+        <a href="/account" className="underline hover:text-foreground">
+          Account
+        </a>{' '}
+        page.
       </p>
     </div>
   );

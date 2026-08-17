@@ -9,9 +9,36 @@ datasource db {
 model User {
   id               String            @id @default(cuid())
   name             String?
+  /// The ACCOUNT email, from the OAuth provider. Identity, not preference —
+  /// it is how the account is recognised, and once password reset exists it
+  /// becomes the recovery address. Deliberately NOT editable from the account
+  /// page: letting it be changed without a verification round trip is an
+  /// account-takeover vector. Use `contactEmail` for "where do we write to you".
   email            String            @unique
   emailVerified    DateTime?
   image            String?
+
+  /// Public display handle, e.g. "Alice_NG". Rules live in
+  /// src/lib/users/handle.ts — import them rather than re-deriving.
+  ///
+  /// NOT `name`: that arrives from OAuth and is usually a real full name, which
+  /// publishing a set must not quietly attach to a browsable page.
+  handle           String?           @unique
+  /// Lowercased `handle`, and the real uniqueness key — a @unique on the display
+  /// form alone lets `Alice` and `alice` coexist and then race for one URL.
+  /// Same pattern as CardCategory.normalizedName. Always written together with
+  /// `handle`; `checkHandle` returns both so a caller cannot persist one alone.
+  normalizedHandle String?           @unique
+
+  /// Optional "write to me here" address, separate from `email` above.
+  /// Separate BECAUSE it is safe to change: a contact address cannot be used to
+  /// take over an account, so it needs no verification round trip to be edited.
+  contactEmail     String?
+  /// Opt-in for product email. Nothing sends yet — Stage 7 deferred delivery and
+  /// there is no mail provider configured (RESEND_API_KEY is gone from .env).
+  /// Recording the preference is the "schema-ready" half of that deferral.
+  emailUpdates     Boolean           @default(false)
+
   accounts         Account[]
   sessions         Session[]
   sets             Set[]

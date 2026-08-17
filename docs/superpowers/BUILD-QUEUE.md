@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-16
+**Last updated:** 2026-08-17
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -215,7 +215,13 @@ Tests **1286 → 1311** (108 files), `tsc` clean, lint **185 → 178** — the 7
 
 **Also worth knowing:** two component tests failed on **timezone**, not logic — `new Date('...T00:00:00.000Z')` formats to the previous day west of Greenwich. Date fixtures compared against `format` output must use local-time constructors (`new Date(2026, 6, 1)`).
 
-**HUMAN GATE STILL OWED** (trap 6): the nav appears on all three profile pages and marks the right tab; `/profile` renders header and nav before stats; `/sets` shows visibility on every card, study state on a studied set, and **neither a 0% nor a due count** on an unstudied one.
+**HUMAN GATE STILL OWED** (trap 6): the nav appears on all three profile pages and marks the right tab; `/profile` renders header and nav before stats; `/sets` shows visibility on every card.
+
+> **PARTLY SUPERSEDED by item 6b (2026-08-16).** The rest of this gate — "study state on a studied
+> set, and neither a 0% nor a due count on an unstudied one" — **cannot be checked any more**: 6b
+> removed confidence, studied-count and the due badge from `SetCard` outright at the user's request.
+> The `SetCard` tests now pin their ABSENCE. Only the visibility badge and the last-studied date
+> remain from this item's sets work.
 
 ### 6. ✅ Design system & scope redesign — **BUILT 2026-08-15. LIVE GATE PASSED 2026-08-16.**
 
@@ -315,6 +321,129 @@ visibility dropdown **persists and Copy link yields `/sets/<id>` not `/sets/<id>
 activity picker filters the feed and its option counts **do not collapse** when one is selected;
 a feed row opens the right activity, and a row with no session renders unlinked; and the set page
 shows tiles where the visibility panel was, with no confidence or studied numbers anywhere.
+
+### 6d. ✅ Account page & the learning/account naming split — **BUILT 2026-08-17. LIVE GATE OUTSTANDING.**
+
+No spec — a direct user request. Branch `spec3b-tunable-scoring`, **not merged**.
+Tests **1372 → 1404** (114 → 116 files), `tsc` clean, `next build` clean, lint **176** (unchanged).
+**Migration `20260817000000_user_handle_and_contact` is APPLIED to the dev database**, verified
+by a follow-up `migrate diff` reporting an empty migration.
+
+`/account` exists: handle, account email (read-only), contact email, email-updates opt-in,
+theme, and a sign-in section. The three `/profile/*` pages are now the **Learning** section —
+navbar link, `/profile` `<h1>` and the `ProfileNav` landmark all renamed, with cross-links
+both ways. This is **step 1 of item 6c's build order**: `User.handle` + `normalizedHandle`
+ship here, so the sharing work starts at step 2.
+
+**Two of the six requested items were deliberately NOT built, each for a stated reason** —
+both decisions taken with the user:
+- **Language** — the app has no i18n whatsoever (no library, no catalogue, every string a
+  literal). A selector with one entry is a promise it cannot keep.
+- **Password** — half of credentials auth, not a settings field. It ships with the login page
+  or not at all. See the `wants-credentials-login` memory; note it would also close **trap 6**,
+  since an agent could then sign in and run its own live gates.
+
+**Three design points worth keeping:**
+- **`contactEmail` is a separate column from `email`.** `email` is identity and the future
+  password-reset address, so editing it needs a verification round trip it does not have —
+  making it editable would be an account-takeover vector. A contact address cannot recover an
+  account, so it is safe to edit freely. That split is what makes "add your email" buildable
+  today.
+- **One action per field**, not one `saveAccount(partial)`. The structural version of the
+  `/settings/ai` partial-save contract — a clobber is unrepresentable here rather than merely
+  tested for.
+- **Handle collisions are resolved by the P2002 constraint violation, not a pre-flight SELECT.**
+  A check-then-write is a TOCTOU bug, and the collision is ordinary use (two people want the
+  same name), not an edge case.
+
+**A dead reservation the tests caught:** `me` was in `RESERVED_HANDLES` but is 2 characters, so
+`too_short` returns before the reserved check ever runs — protection that could not fire.
+Removed, and an invariant test now pins that every reserved entry would otherwise be a *valid*
+handle, which is what makes the "every reserved name is rejected as reserved" test a real claim.
+Same call as the unreachable ternary in item 5 and the 600-char reserve in Spec 3C.
+
+**Three mutants introduced, three killed:** writing `handle` without `normalizedHandle`
+(leaving the uniqueness key null for that row), treating any database error as "already taken",
+and comparing the reserved list case-sensitively.
+
+**Deferred deliberately:** the routes are still `/profile/*`. Renaming them to `/learning/*`
+touches **23 call sites** including `revalidatePath` strings and the memory-scope query params;
+it wants its own commit and its own verification, not a ride-along.
+
+**HUMAN GATE OWED** (trap 6): set a handle and confirm it persists; try a reserved one
+(`admin`) and a taken one; save and then **clear** a contact email; toggle email updates and
+reload; confirm the theme choice matches the navbar toggle; confirm the navbar shows both
+**Learning** and **Account**.
+
+### 6e. ⬜ Credentials auth — **DESIGNED 2026-08-17, NOT STARTED. THIS IS THE NEXT BUILD.**
+
+Design + task order: `specs/2026-08-17-credentials-auth-design.md`.
+**Blocked on:** the four outstanding gates passing and this branch merging (the user's chosen
+sequence, 2026-08-17).
+
+Sign up and sign in with a username and password, alongside GitHub OAuth. Chosen over item 6c and
+item 7 for three reasons: a **public directory is for strangers and a stranger cannot sign up
+today**, so 6c is close to blocked on this; it **closes trap 6**, which is why four gates are
+currently queued on the user rather than runnable by an agent; and the user asked for it.
+
+**Two facts that make this much smaller than it looks.** `session: { strategy: "jwt" }` is
+**already set** in `src/auth.ts` — the usual blocker, since Auth.js refuses Credentials with the
+database session strategy and converting would invalidate every existing login. And
+`User.handle`/`normalizedHandle` shipped in item 6d, so the username half exists with validation
+and a reserved list.
+
+**One fact that makes it dangerous.** `src/middleware.ts` imports `authConfig` and runs on the
+**edge runtime**. Adding the Credentials provider to `auth.config.ts` bundles a hashing library
+into edge middleware and breaks every protected route **at request time** — `tsc` and the unit
+suite both pass straight over it, the same class of failure as trap 8. The provider goes in
+`src/auth.ts` only, and a test must assert `auth.config.ts` imports nothing from the hashing
+module.
+
+**Six defects anticipated on paper** — see the design's §8. Beyond the edge trap: JWT sessions
+cannot be revoked, so a password change is theatre without a `sessionVersion` claim; and
+short-circuiting on an unknown email leaks which addresses have accounts, through timing as well
+as wording.
+
+**Needs a decision before Task 4 (§10):** ship credentials sign-up publicly *without* password
+reset — which has no home, since there is no mail provider — or behind a flag. Behind a flag gets
+the trap-6 win immediately at almost no risk, and is the recommendation.
+
+**Includes `scripts/seed-dev-user.ts`** (Task 8), which is the piece that actually ends the
+human-gate bottleneck. Build it in the same pass, not "later".
+
+### 6c. ⬜ Sharing, collaboration & discovery — **DESIGNED 2026-08-17, NOT STARTED.**
+
+Design: `specs/2026-08-17-sharing-collaboration-and-discovery-design.md`. No plan, no code.
+
+Requested by the user while reviewing 6b. Four interlocking features: **collaborators**
+("Editable by"), **fork** ("make my own copy"), **public visibility + a browsable directory**
+crediting a handle, and a **real homepage** (Recents / For you / Your sets) in place of the
+current redirect to `/sets`.
+
+They all widen `src/lib/sets/visibility.ts` — the module that exists because a security pass
+found ten read-by-id exposures — which is why this was designed before any code.
+
+**Three decisions taken with the user 2026-08-17:** a fork is the forker's outright (they may
+publish it themselves, with carried attribution); "For you" ranks by the learner's weak
+categories via `getLearnerMetrics`; and creators are credited by a **separate handle**, never
+by `User.name`, which is the OAuth provider's real-name field.
+
+**Seven defects killed on paper** — see the design's §9. The two worth knowing before touching
+this: a fork that *shares* a `CardAsset` makes `/api/assets/[id]` **non-deterministic**, because
+it resolves permission through `contentBlocks[0].card.set` with `take: 1` and a shared asset now
+has blocks in two sets; and rendering fork attribution from the live FK **leaks the title of a
+set the author just made private**. Both forced real design changes (copy the blob; denormalize
+the credit and link it only when the viewer can read the source).
+
+**Weakest part, deliberately built last:** cross-user category matching for "For you" is a
+string match wearing a concept's clothing — `CLAUDE.md`'s 2026-08-14 note already records that
+user categories are often *format* labels ("label the image", "vocabulary"), so one account's
+`vocabulary` is Spanish and another's is finance. Mitigations in §7; do not let it write to the
+learner model.
+
+Build order is the design's §11: handles → `public` → directory → fork → homepage →
+collaborators → "For you". Steps 1–3 are one unit; collaborators and "For you" each want their
+own spec.
 
 ### 7. ⬜ Spec 4 — plan setup & readiness dashboard — **DESIGNED 2026-08-14, NOT STARTED.**
 
@@ -423,9 +552,9 @@ Never in memory — always in a spec's own section.
 
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-16, after item 6b)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-17, after item 6d)
 
-- **Tests:** 114 files / **1372 passing** (excluding `cursor-agents`)
+- **Tests:** 116 files / **1404 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
-- **`npm run lint`:** **176 problems** (131 errors, 45 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by item 6b.)
+- **`npm run lint`:** **176 problems** (131 errors, 45 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b and 6d.)
 - Branch is **not merged**, but IS pushed to `origin` (as of 2026-08-11). A Vercel preview deployment tracks it.
