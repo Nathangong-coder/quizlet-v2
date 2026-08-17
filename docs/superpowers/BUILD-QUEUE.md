@@ -375,6 +375,42 @@ it wants its own commit and its own verification, not a ride-along.
 reload; confirm the theme choice matches the navbar toggle; confirm the navbar shows both
 **Learning** and **Account**.
 
+### 6e. ⬜ Credentials auth — **DESIGNED 2026-08-17, NOT STARTED. THIS IS THE NEXT BUILD.**
+
+Design + task order: `specs/2026-08-17-credentials-auth-design.md`.
+**Blocked on:** the four outstanding gates passing and this branch merging (the user's chosen
+sequence, 2026-08-17).
+
+Sign up and sign in with a username and password, alongside GitHub OAuth. Chosen over item 6c and
+item 7 for three reasons: a **public directory is for strangers and a stranger cannot sign up
+today**, so 6c is close to blocked on this; it **closes trap 6**, which is why four gates are
+currently queued on the user rather than runnable by an agent; and the user asked for it.
+
+**Two facts that make this much smaller than it looks.** `session: { strategy: "jwt" }` is
+**already set** in `src/auth.ts` — the usual blocker, since Auth.js refuses Credentials with the
+database session strategy and converting would invalidate every existing login. And
+`User.handle`/`normalizedHandle` shipped in item 6d, so the username half exists with validation
+and a reserved list.
+
+**One fact that makes it dangerous.** `src/middleware.ts` imports `authConfig` and runs on the
+**edge runtime**. Adding the Credentials provider to `auth.config.ts` bundles a hashing library
+into edge middleware and breaks every protected route **at request time** — `tsc` and the unit
+suite both pass straight over it, the same class of failure as trap 8. The provider goes in
+`src/auth.ts` only, and a test must assert `auth.config.ts` imports nothing from the hashing
+module.
+
+**Six defects anticipated on paper** — see the design's §8. Beyond the edge trap: JWT sessions
+cannot be revoked, so a password change is theatre without a `sessionVersion` claim; and
+short-circuiting on an unknown email leaks which addresses have accounts, through timing as well
+as wording.
+
+**Needs a decision before Task 4 (§10):** ship credentials sign-up publicly *without* password
+reset — which has no home, since there is no mail provider — or behind a flag. Behind a flag gets
+the trap-6 win immediately at almost no risk, and is the recommendation.
+
+**Includes `scripts/seed-dev-user.ts`** (Task 8), which is the piece that actually ends the
+human-gate bottleneck. Build it in the same pass, not "later".
+
 ### 6c. ⬜ Sharing, collaboration & discovery — **DESIGNED 2026-08-17, NOT STARTED.**
 
 Design: `specs/2026-08-17-sharing-collaboration-and-discovery-design.md`. No plan, no code.
