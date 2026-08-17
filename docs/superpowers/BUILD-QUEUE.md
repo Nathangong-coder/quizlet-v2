@@ -215,7 +215,13 @@ Tests **1286 → 1311** (108 files), `tsc` clean, lint **185 → 178** — the 7
 
 **Also worth knowing:** two component tests failed on **timezone**, not logic — `new Date('...T00:00:00.000Z')` formats to the previous day west of Greenwich. Date fixtures compared against `format` output must use local-time constructors (`new Date(2026, 6, 1)`).
 
-**HUMAN GATE STILL OWED** (trap 6): the nav appears on all three profile pages and marks the right tab; `/profile` renders header and nav before stats; `/sets` shows visibility on every card, study state on a studied set, and **neither a 0% nor a due count** on an unstudied one.
+**HUMAN GATE STILL OWED** (trap 6): the nav appears on all three profile pages and marks the right tab; `/profile` renders header and nav before stats; `/sets` shows visibility on every card.
+
+> **PARTLY SUPERSEDED by item 6b (2026-08-16).** The rest of this gate — "study state on a studied
+> set, and neither a 0% nor a due count on an unstudied one" — **cannot be checked any more**: 6b
+> removed confidence, studied-count and the due badge from `SetCard` outright at the user's request.
+> The `SetCard` tests now pin their ABSENCE. Only the visibility badge and the last-studied date
+> remain from this item's sets work.
 
 ### 6. ✅ Design system & scope redesign — **BUILT 2026-08-15. LIVE GATE PASSED 2026-08-16.**
 
