@@ -86,6 +86,7 @@ describe('signUp', () => {
   it('rejects a short password', async () => {
     const res = await signUp({ ...VALID, password: 'short' })
     expect(res.success).toBe(false)
+    expect(h.hashPassword).not.toHaveBeenCalled()
     expect(h.create).not.toHaveBeenCalled()
   })
 
