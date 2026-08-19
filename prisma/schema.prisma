@@ -39,6 +39,26 @@ model User {
   /// Recording the preference is the "schema-ready" half of that deferral.
   emailUpdates     Boolean           @default(false)
 
+  /// bcrypt hash of the user's password, or null for an OAuth-only account.
+  ///
+  /// Nullable PERMANENTLY, not as a migration step. An account created through
+  /// GitHub has no password and never needs one; an account created with a
+  /// password may later link GitHub. Both states are legitimate forever, so
+  /// code must never treat null as "not migrated yet".
+  passwordHash     String?
+  /// When the password was last set or changed. Displayed on /account; also the
+  /// only record that a credentials account exists at all.
+  passwordSetAt    DateTime?
+
+  /// Bumped to invalidate every outstanding JWT for this user.
+  ///
+  /// Sessions are JWT (see src/auth.ts), which means there is no session row to
+  /// delete — a token stays valid until it expires. Without this column
+  /// "change my password" would not sign out an attacker already holding one,
+  /// i.e. it would be theatre. The value is embedded in the token and compared
+  /// on every session resolution; see src/lib/auth/session.ts.
+  sessionVersion   Int               @default(0)
+
   accounts         Account[]
   sessions         Session[]
   sets             Set[]
