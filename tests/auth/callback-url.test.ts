@@ -64,4 +64,32 @@ describe('safeCallbackUrl', () => {
       expect(new URL(result, 'https://this-site.example').origin).toBe('https://this-site.example')
     })
   })
+
+  // Round two's escape class: parsing the INPUT against the sentinel isn't
+  // enough, because dot-segments can normalise away against the sentinel's
+  // root so the parsed pathname itself comes back starting with "//" — which
+  // the real sink (next/navigation's router) re-parses as protocol-relative
+  // and leaves the site. safeCallbackUrl must re-parse its own OUTPUT through
+  // the same parser before returning it.
+  describe('escapes the parsed-input-only guard via dot-segment normalisation', () => {
+    it.each([
+      ['/..//evil.com', '/sets'],
+      ['/.//\\evil.com', '/sets'],
+      ['/a/..//evil.com', '/sets'],
+      ['/%2e%2e//evil.com', '/sets'],
+      ['/..//evil.com:8080', '/sets'],
+      ['/..//user:pass@evil.com', '/sets'],
+    ])('resolves %s to a same-origin value, never to evil.com', (payload, expected) => {
+      const result = safeCallbackUrl(payload)
+      expect(result).toBe(expected)
+      expect(new URL(result, 'https://this-site.example').origin).toBe('https://this-site.example')
+    })
+
+    // The fix must not overcorrect into rejecting every dot-segment: a
+    // legitimate same-origin path that merely contains ".." and normalises
+    // back to itself should still resolve, not fall back to /sets.
+    it('resolves a legitimate dot-segment path instead of rejecting it outright', () => {
+      expect(safeCallbackUrl('/sets/../sets/abc')).toBe('/sets/abc')
+    })
+  })
 })
