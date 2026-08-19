@@ -38,9 +38,25 @@ describe('checkPassword', () => {
     expect(checkPassword('a'.repeat(PASSWORD_MAX_BYTES))).toEqual({ ok: true })
   })
 
-  it('does NOT trim — leading and trailing spaces are part of the password', () => {
+  it('does NOT trim — padding counts toward length, so a below-minimum core is still accepted', () => {
     // Handles are trimmed; passwords must not be. Trimming would silently
     // change what the user typed and make a stored password unenterable.
+    //
+    // The discriminating fixture: a 10-char core (2 below the minimum) with
+    // 2 spaces of padding on each side, for a 14-char total. A correct,
+    // non-trimming implementation measures the whole 14-char string against
+    // the minimum and accepts it ({ ok: true }). An implementation that
+    // trims first would measure only the 10-char core, see it fall below
+    // the minimum, and reject it ({ ok: false, reason: 'too_short' }) —
+    // that divergence is what makes this case able to fail.
+    const padded = '  ' + 'a'.repeat(10) + '  '
+    expect(checkPassword(padded)).toEqual({ ok: true })
+  })
+
+  it('does NOT trim — a padded password at the minimum core length is still accepted', () => {
+    // Companion case: padding around an already-valid core should not be
+    // rejected either. This alone can't prove trimming didn't happen (see
+    // the case above for that), but it shows padding isn't penalized.
     const padded = '  ' + 'a'.repeat(PASSWORD_MIN_LENGTH) + '  '
     expect(checkPassword(padded)).toEqual({ ok: true })
   })
@@ -75,7 +91,15 @@ describe('hashPassword / verifyPassword', () => {
   it('returns false rather than throwing on a malformed hash', async () => {
     // A row with a corrupt or truncated hash must fail closed, not 500 the
     // login route.
+    //
+    // Two different corrupt shapes, both real: a too-short string that
+    // bcryptjs short-circuits on length alone (never reaches a try/catch,
+    // so this alone doesn't prove one exists), and a 60-character string
+    // that passes the length check but is structurally invalid, which
+    // bcryptjs actually throws on ("Invalid salt version") — only this
+    // second case exercises the catch.
     expect(await verifyPassword('anything', 'not-a-bcrypt-hash')).toBe(false)
+    expect(await verifyPassword('anything', 'x'.repeat(60))).toBe(false)
   })
 })
 
