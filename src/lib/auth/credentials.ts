@@ -36,6 +36,12 @@ export async function authorizeCredentials(input: {
   const password = input.password
   if (typeof identifier !== 'string' || typeof password !== 'string') return null
 
+  // No early return for identifier === ''. It still issues a DB query, and
+  // that is harmless: `email` is non-null so `{ email: '' }` cannot match a
+  // real row, and Prisma equality never matches a null `normalizedHandle`, so
+  // `{ normalizedHandle: '' }` cannot either — both OR branches miss. Do NOT
+  // "optimize" this with an early return: that would reintroduce exactly the
+  // fast, no-bcrypt path the dummy compare below exists to close.
   const user = await prisma.user.findFirst({
     where: identifierWhere(identifier),
     select: { id: true, email: true, name: true, image: true, passwordHash: true },

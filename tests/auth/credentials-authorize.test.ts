@@ -57,11 +57,30 @@ describe('authorizeCredentials', () => {
   it('runs a dummy comparison when no user matches, instead of returning early', async () => {
     // The defect this closes: an early return answers in ~1ms where a real
     // account takes ~250ms, which tells an attacker which addresses exist.
+    // A mock that merely resolves (even asynchronously) cannot tell an AWAITED
+    // dummy compare from a fire-and-forget `void verifyAgainstDummy(...)`
+    // followed by an immediate `return null` — both call the mock, and both
+    // would satisfy a plain `toHaveBeenCalledWith`. So this test backs the
+    // mock with a deferred promise it controls by hand, and asserts that
+    // `authorizeCredentials` has NOT settled while that promise is still
+    // outstanding — which only holds if the implementation actually awaits it.
+    let releaseDummy: (() => void) | undefined
+    h.verifyAgainstDummy.mockImplementation(
+      () => new Promise<false>((resolve) => { releaseDummy = () => resolve(false) }),
+    )
     h.findFirst.mockResolvedValue(null)
 
-    const result = await authorizeCredentials({ identifier: 'nobody', password: 'a'.repeat(12) })
+    let settled = false
+    const pending = authorizeCredentials({ identifier: 'nobody', password: 'a'.repeat(12) })
+    pending.then(() => { settled = true })
 
-    expect(result).toBeNull()
+    // Flush the microtask queue so a synchronous (non-awaited) `return null`
+    // would already have settled `pending` by this point.
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(settled, 'authorize resolved before the dummy comparison finished').toBe(false)
+
+    releaseDummy!()
+    expect(await pending).toBeNull()
     expect(h.verifyAgainstDummy).toHaveBeenCalledWith('a'.repeat(12))
   })
 
