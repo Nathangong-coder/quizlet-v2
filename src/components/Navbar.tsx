@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { auth } from '@/auth'
-import { handleSignIn, handleSignOut } from '@/lib/actions/auth'
+import { handleSignOut } from '@/lib/actions/auth'
 import ThemeToggle from '@/components/theme/ThemeToggle'
 
 export default async function Navbar() {
@@ -47,11 +47,9 @@ export default async function Navbar() {
               </form>
             </>
           ) : (
-            <form action={handleSignIn}>
-              <button className={cn(buttonVariants({ size: 'sm' }))}>
-                Sign in with GitHub
-              </button>
-            </form>
+            <Link href="/login" className={cn(buttonVariants({ size: 'sm' }))}>
+              Sign in
+            </Link>
           )}
         </div>
       </div>
