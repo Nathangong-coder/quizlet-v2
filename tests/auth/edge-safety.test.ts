@@ -27,13 +27,33 @@ const FORBIDDEN = [
 /** The two entry points that are bundled for the edge runtime. */
 const EDGE_ENTRY_POINTS = ['src/auth.config.ts', 'src/middleware.ts']
 
-function readImports(file: string): string[] {
-  const source = readFileSync(file, 'utf8')
+/** Split out from `readImports` so the pattern is testable without the disk. */
+function parseImports(source: string): string[] {
   const specifiers: string[] = []
-  const pattern = /(?:from\s+|import\s+|require\()\s*['"]([^'"]+)['"]/g
+  // `import\s*\(` is NOT redundant with `import\s+`: the latter requires
+  // whitespace, so a DYNAMIC `await import('@/lib/db')` matched nothing at all.
+  // That is the idiomatic way someone tries to "fix" a bundling error in the
+  // edge half — i.e. the guard would have stayed green through the exact
+  // mistake it exists to catch.
+  const pattern = /(?:from\s+|import\s*\(|import\s+|require\()\s*['"]([^'"]+)['"]/g
   let match: RegExpExecArray | null
   while ((match = pattern.exec(source)) !== null) specifiers.push(match[1])
   return specifiers
+}
+
+function readImports(file: string): string[] {
+  return parseImports(readFileSync(file, 'utf8'))
+}
+
+/**
+ * A specifier is forbidden if it IS a forbidden module or lives inside one.
+ *
+ * Exact matching let `@prisma/client/edge`, `bcryptjs/dist/bcrypt` and any
+ * future `@/lib/auth/tokens` through — subpaths of a banned module are the
+ * same module.
+ */
+function isForbidden(specifier: string): boolean {
+  return FORBIDDEN.some((f) => specifier === f || specifier.startsWith(`${f}/`))
 }
 
 /** Resolve a specifier to a file in this repo, or null if it is a package. */
@@ -81,7 +101,7 @@ describe('the edge bundle', () => {
   // Same class of invisible failure as trap 8's $queryRaw.
   it.each(EDGE_ENTRY_POINTS)('%s reaches no Node-only module, at any depth', (entry) => {
     const reached = transitiveImports(entry)
-    const violations = reached.filter((r) => FORBIDDEN.includes(r.specifier))
+    const violations = reached.filter((r) => isForbidden(r.specifier))
     expect(violations).toEqual([])
   })
 
@@ -91,6 +111,31 @@ describe('the edge bundle', () => {
     const reached = transitiveImports('src/middleware.ts')
     expect(reached.map((r) => r.specifier)).toContain('@/auth.config')
     expect(reached.some((r) => r.via.endsWith('auth.config.ts'))).toBe(true)
+  })
+
+  // The two tests below cover the scanner itself. Both close a hole the guard
+  // had while looking green: a scanner that misses a specifier reports no
+  // violations, which is indistinguishable from a clean graph.
+  it('sees a DYNAMIC import, not only a static one', () => {
+    // A lazy `await import(...)` is how someone "fixes" a bundling error in
+    // the edge half — and it bundles the module just the same.
+    expect(parseImports(`async function f() { const db = await import('@/lib/db') }`)).toEqual([
+      '@/lib/db',
+    ])
+    expect(parseImports(`const { prisma } = require("@/lib/db")`)).toEqual(['@/lib/db'])
+    expect(parseImports(`import 'server-only'`)).toEqual(['server-only'])
+    expect(parseImports(`import { a } from "./x"`)).toEqual(['./x'])
+  })
+
+  it('treats a SUBPATH of a forbidden module as forbidden', () => {
+    expect(isForbidden('@prisma/client/edge')).toBe(true)
+    expect(isForbidden('bcryptjs/dist/bcrypt')).toBe(true)
+    expect(isForbidden('@/lib/auth/password')).toBe(true)
+    // Prefix matching must not over-reach: a sibling that merely shares a
+    // leading string is a different module.
+    expect(isForbidden('@/lib/auth/identifier')).toBe(false)
+    expect(isForbidden('@/lib/dbutils')).toBe(false)
+    expect(isForbidden('next-auth')).toBe(false)
   })
 
   it('the Credentials provider is wired in src/auth.ts, not auth.config.ts', () => {
