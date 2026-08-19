@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import LoginForm from '@/components/auth/LoginForm'
 import { isSignupOpen } from '@/lib/auth/signup-flag'
+import { safeCallbackUrl } from '@/lib/auth/callback-url'
 
 /**
  * The real sign-in page, replacing Auth.js's built-in one.
@@ -23,9 +24,10 @@ export default async function LoginPage({
 
   const params = await searchParams
   // Relative paths only: an absolute callbackUrl from the query string is an
-  // open-redirect straight off the sign-in page.
-  const raw = params.callbackUrl ?? '/sets'
-  const callbackUrl = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/sets'
+  // open-redirect straight off the sign-in page. safeCallbackUrl parses with
+  // the WHATWG URL parser rather than string-testing the raw value — see its
+  // doc comment for why a string test alone is bypassable.
+  const callbackUrl = safeCallbackUrl(params.callbackUrl)
 
   return (
     <div className="max-w-md mx-auto px-4 py-12">
