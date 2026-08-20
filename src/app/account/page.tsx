@@ -80,8 +80,9 @@ export default async function AccountPage() {
               what "add your email" should mean.
             */}
             <p className="text-xs text-muted-foreground">
-              From your GitHub account. It identifies you here, so it can&apos;t be edited
-              directly yet.
+              {account.hasGithub
+                ? "From your GitHub account. It identifies you here, so it can't be edited directly yet."
+                : "The address you signed up with. It identifies you here, so it can't be edited directly yet."}
             </p>
           </div>
 
@@ -114,14 +115,14 @@ export default async function AccountPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <p className="text-sm">
-            <span className="font-medium">GitHub</span>
+            <span className="font-medium">{account.hasGithub ? 'GitHub' : 'Password'}</span>
             <span className="text-muted-foreground"> — {account.email}</span>
           </p>
           <div className="space-y-2 border-t pt-4">
             <p className="text-sm font-medium">
               {account.hasPassword ? 'Password' : 'Add a password'}
             </p>
-            <PasswordPanel hasPassword={account.hasPassword} />
+            <PasswordPanel hasPassword={account.hasPassword} hasGithub={account.hasGithub} />
           </div>
         </CardContent>
       </Card>

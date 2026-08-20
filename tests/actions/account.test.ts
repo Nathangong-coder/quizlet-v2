@@ -149,6 +149,7 @@ describe('getAccountSettings', () => {
       contactEmail: null,
       emailUpdates: false,
       passwordHash: null,
+      accounts: [{ provider: 'github' }],
     })
     const res = await getAccountSettings()
     expect(res.success).toBe(true)
@@ -170,6 +171,7 @@ describe('getAccountSettings', () => {
       contactEmail: null,
       emailUpdates: false,
       passwordHash: '$2b$12$secret',
+      accounts: [{ provider: 'github' }],
     })
     const res = await getAccountSettings()
     expect(res.success).toBe(true)
@@ -185,10 +187,61 @@ describe('getAccountSettings', () => {
       contactEmail: null,
       emailUpdates: false,
       passwordHash: null,
+      accounts: [{ provider: 'github' }],
     })
     const res = await getAccountSettings()
     expect(res.success).toBe(true)
     if (!res.success) return
     expect(res.data.hasPassword).toBe(false)
+  })
+
+  it('reports hasGithub true when a github account row exists', async () => {
+    h.userFindUnique.mockResolvedValue({
+      handle: 'alice',
+      email: 'alice@github.example',
+      contactEmail: null,
+      emailUpdates: false,
+      passwordHash: '$2b$12$secret',
+      accounts: [{ provider: 'github' }],
+    })
+    const res = await getAccountSettings()
+    expect(res.success).toBe(true)
+    if (!res.success) return
+    expect(res.data.hasGithub).toBe(true)
+  })
+
+  it('reports hasGithub false for a credentials-only account with no linked accounts', async () => {
+    h.userFindUnique.mockResolvedValue({
+      handle: 'dev_user',
+      email: 'dev@localhost.test',
+      contactEmail: null,
+      emailUpdates: false,
+      passwordHash: '$2b$12$secret',
+      accounts: [],
+    })
+    const res = await getAccountSettings()
+    expect(res.success).toBe(true)
+    if (!res.success) return
+    expect(res.data.hasGithub).toBe(false)
+  })
+
+  it('never returns the accounts array itself, github-linked or not', async () => {
+    // Same shape as the hash-never-returned assertion above: `accounts` is
+    // selected only to derive `hasGithub` and must not leak onto the wire.
+    // (Email deliberately avoids the substring "github" here so the
+    // provider-leak check below can't pass by accident.)
+    h.userFindUnique.mockResolvedValue({
+      handle: 'alice',
+      email: 'alice@example.com',
+      contactEmail: null,
+      emailUpdates: false,
+      passwordHash: null,
+      accounts: [{ provider: 'github' }],
+    })
+    const res = await getAccountSettings()
+    expect(res.success).toBe(true)
+    if (!res.success) return
+    expect(res.data).not.toHaveProperty('accounts')
+    expect(JSON.stringify(res.data)).not.toContain('github')
   })
 })

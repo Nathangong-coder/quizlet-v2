@@ -414,7 +414,7 @@ run after the change passed untouched.
 ### 6e. ✅ Credentials auth — **BUILT 2026-08-18/19. LIVE GATE PASSED 2026-08-19 — the first live gate in this project run by an agent, not handed to the human. Closes trap 6.**
 
 Design + task order: `specs/2026-08-17-credentials-auth-design.md`. Plan: `plans/2026-08-18-credentials-auth.md`. Ledger: `.superpowers/sdd/2026-08-18-credentials-auth/progress.md`. Task 10 report: `.superpowers/sdd/2026-08-18-credentials-auth/task-10-report.md`.
-18 commits (`0ac83d6` … `4c335e4`), branch `spec3b-tunable-scoring`, **not merged**.
+21 commits (`fdb6c42` … `a428515`), branch `spec3b-tunable-scoring`, **not merged**.
 Tests **1412 → 1517** (116 → 127 files), `tsc` clean, `next build` clean, lint **176 → 175** (131 errors, 44 warnings — one below the baseline this queue has tracked since item 6b).
 
 Sign up and sign in with a username-or-email plus password, alongside GitHub OAuth. Chosen over item 6c and item 7 because a public directory is for strangers and a stranger cannot sign up today, and because it closes trap 6. **Two facts made it smaller than it looked:** `session: { strategy: "jwt" }` was already set in `src/auth.ts`, and `User.handle`/`normalizedHandle` from item 6d meant the username half needed no new validation. **One fact made it dangerous:** `src/middleware.ts` imports `auth.config.ts` on the **edge runtime**, so the Credentials provider had to live in `src/auth.ts` only — enforced by a guard that walks the transitive import graph, not a string search.

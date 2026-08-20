@@ -8,7 +8,13 @@ import { Input } from '@/components/ui/input'
 import { savePassword } from '@/actions/password'
 import { PASSWORD_MIN_LENGTH } from '@/lib/auth/password'
 
-export function PasswordPanel({ hasPassword }: { hasPassword: boolean }) {
+export function PasswordPanel({
+  hasPassword,
+  hasGithub,
+}: {
+  hasPassword: boolean
+  hasGithub: boolean
+}) {
   const router = useRouter()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
@@ -111,7 +117,9 @@ export function PasswordPanel({ hasPassword }: { hasPassword: boolean }) {
       <p className="text-xs text-muted-foreground">
         At least {PASSWORD_MIN_LENGTH} characters. Saving this signs you out everywhere,
         including this device, so you&apos;ll need to sign in again right after. There is no
-        password reset yet — if you forget it, GitHub is the only way back in.
+        password reset yet — {hasGithub
+          ? 'if you forget it, GitHub is your way back in.'
+          : 'if you forget it, there is no way back into this account.'}
       </p>
     </form>
   )

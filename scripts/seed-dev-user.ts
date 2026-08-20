@@ -52,10 +52,13 @@ async function main() {
   const passwordHash = await hashPassword(password)
 
   // Upsert, so re-running it resets the password of an account that already
-  // exists rather than failing on the unique constraint.
+  // exists rather than failing on the unique constraint. sessionVersion is
+  // bumped on the update branch too, matching the one production password
+  // write (src/actions/password.ts) — otherwise a re-seed leaves any old
+  // token still valid against a password that is no longer the account's.
   const user = await prisma.user.upsert({
     where: { email },
-    update: { passwordHash, passwordSetAt: new Date() },
+    update: { passwordHash, passwordSetAt: new Date(), sessionVersion: { increment: 1 } },
     create: {
       email,
       handle: handle.handle,

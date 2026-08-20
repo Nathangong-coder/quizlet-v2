@@ -60,6 +60,9 @@ describe('LoginForm', () => {
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent(/already/i)
     expect(alert).not.toHaveTextContent('OAuthAccountNotLinked')
+    // There is no account-linking UI anywhere in this app and none is
+    // planned, so the copy must not promise one.
+    expect(alert).not.toHaveTextContent(/link github later/i)
   })
 
   it('offers the GitHub route as well', async () => {

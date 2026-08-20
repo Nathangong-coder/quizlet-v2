@@ -8,9 +8,12 @@ import { verifyPassword, verifyAgainstDummy } from '@/lib/auth/password'
  * Telling them apart is a user-enumeration oracle, and the usability gain is
  * small: a person who cannot sign in tries the other password either way.
  *
- * (The user-facing string itself lives in the login form, a client
- * component, not here — importing this module from the browser bundle would
- * drag Prisma in with it.)
+ * The user-facing string (`GENERIC_FAILURE`) is defined once, in
+ * `src/components/auth/LoginForm.tsx` — a client component, not here.
+ * Importing this module from the browser bundle would drag Prisma in with
+ * it, so the constant cannot live here even though this is where the
+ * behavior it describes is decided. Keep the two in sync by hand; nothing
+ * enforces it.
  */
 
 export interface AuthorizedUser {

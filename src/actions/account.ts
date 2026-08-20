@@ -16,6 +16,8 @@ export interface AccountSettings {
   emailUpdates: boolean
   /** Whether a password is set. The hash itself never leaves the server. */
   hasPassword: boolean
+  /** Whether a GitHub account is linked. The accounts array itself never leaves the server. */
+  hasGithub: boolean
 }
 
 /**
@@ -44,12 +46,18 @@ export async function getAccountSettings(): Promise<ActionResult<AccountSettings
         // Selected as a boolean-producing field, never returned raw: a hash in
         // a server-component payload is a hash on the wire.
         passwordHash: true,
+        // Same treatment as passwordHash: selected only to derive a boolean.
+        // The account can now exist with a password and no GitHub link at
+        // all (scripts/seed-dev-user.ts, the flag-on /signup path), so the
+        // UI must ask rather than assume — never return this array raw.
+        accounts: { select: { provider: true } },
       },
     })
     if (!user) return { success: false, error: 'Account not found' }
 
-    const { passwordHash, ...rest } = user
-    return { success: true, data: { ...rest, hasPassword: passwordHash !== null } }
+    const { passwordHash, accounts, ...rest } = user
+    const hasGithub = accounts.some((a) => a.provider === 'github')
+    return { success: true, data: { ...rest, hasPassword: passwordHash !== null, hasGithub } }
   } catch (error) {
     console.error('Get account settings error:', error)
     return { success: false, error: 'Failed to load your account' }

@@ -21,7 +21,7 @@ const GENERIC_FAILURE = 'Email or password is incorrect.'
 const ERROR_COPY: Record<string, string> = {
   CredentialsSignin: GENERIC_FAILURE,
   OAuthAccountNotLinked:
-    'That email already has an account here. Sign in with your password instead, then link GitHub later.',
+    'That email already has an account here. Sign in with your password instead.',
 }
 
 function messageFor(code: string): string {
