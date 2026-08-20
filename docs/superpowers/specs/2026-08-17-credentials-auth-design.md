@@ -1,8 +1,52 @@
 # Credentials auth — design & implementation plan
 
 **Date:** 2026-08-17
-**Status:** DESIGNED, NOT STARTED.
+**Status:** BUILT 2026-08-19.
 **Build after:** the four outstanding gates pass and `spec3b-tunable-scoring` merges.
+
+## What changed from the design
+
+- **§10 was decided.** The user chose the middle option — behind a flag — on 2026-08-18:
+  `CREDENTIALS_SIGNUP_ENABLED`, off unless the env var is exactly the string `"true"`
+  (`src/lib/auth/signup-flag.ts`). Sign-up is gated; **sign-in is never gated**, since sign-in is
+  the half that closes trap 6. `/signup` 404s outright (`notFound()`) when the flag is off, rather
+  than a "coming soon" page.
+- **The `jwt` callback fallback was speculative and unnecessary.** §1/§2 assumed returning `null`
+  from the `jwt` callback to force sign-out on a `sessionVersion` mismatch might not be honoured by
+  every Auth.js code path, and specified a fallback for that case. It turned out to be fully
+  supported: all five Auth.js runtime call sites that read the token honour a `null` return,
+  including both sign-in branches, so nothing extra was built. Traced end to end during Task 4's
+  review and confirmed live in the Task 10 gate (see the queue's item 6e, point 7): changing the
+  password bounced the very next request, no healing path, no leftover access.
+- **A 72-byte password ceiling was added; the design had none.** `bcryptjs` silently truncates
+  input past 72 bytes — everything after that point is ignored during hashing, so a password's
+  tail can look like it's protecting the account while contributing nothing. §3/§4 specified a
+  12-character *minimum* only; `src/lib/auth/password.ts` now also rejects anything over 72 bytes
+  (not 72 *characters* — multi-byte UTF-8 input can exceed the byte ceiling well under 72
+  characters), so no account can ever end up with a longer, unverifiable tail.
+- **`safeCallbackUrl` (`src/lib/auth/callback-url.ts`) exists and is not mentioned anywhere in this
+  design.** §5 only says "point `pages.signIn` at `/login`"; it does not mention that
+  `?callbackUrl=` needs its own open-redirect guard at all. It took **three fix rounds** and a
+  ~700,000-input adversarial fuzz across 11 attack classes to get right, and was the **only
+  Critical-severity defect this plan shipped** (the queue's item 6e "Three real defects" list,
+  first bullet):
+  - a string test (`raw.startsWith('/') && !raw.startsWith('//')`) was defeated because the real
+    sinks (`next/navigation`'s router, `@auth/core`'s redirect callback) run the value through the
+    WHATWG URL parser first, which folds backslashes into slashes and strips control characters
+    *before* the guard ever sees them;
+  - parsing the input instead was defeated by dot-segment normalisation — `/..//evil.com`
+    resolves with the input's origin intact, but its serialised pathname comes back starting with
+    `//`, which a sink re-parses as protocol-relative and off-origin;
+  - parsing the *output* closed that, but against the same sentinel origin it was parsed with —
+    which is blind to an escape that lands back on that exact sentinel's own host. The function now
+    parses the input against one origin and validates the output against a different one.
+
+  **The lesson worth stating plainly:** the plan excused this logic from testing because it lived
+  in a server component with no test harness — and it was the one Critical defect that shipped
+  anyway. The fix was never a fake test bolted onto untestable code; it was moving the logic into
+  `src/lib/auth/callback-url.ts`, a plain function with no framework dependency, where it could be
+  tested like anything else. "No harness here" is a reason to relocate logic, not a reason to skip
+  verifying it.
 
 Sign up and sign in with a username and password, alongside the existing GitHub OAuth.
 

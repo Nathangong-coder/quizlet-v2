@@ -29,7 +29,16 @@ A redesigned Quizlet-style study app with first-class **short-answer** practice 
 
 - **Framework:** Next.js (App Router) + React + TypeScript, Tailwind CSS. API routes / server actions for the backend. Target deploy: Vercel.
 - **Database / ORM:** Postgres (Neon or Supabase) via Prisma.
-- **Auth:** Auth.js (NextAuth). Accounts are required for starring/confidence memory, saved quiz history, and (later) multiplayer.
+- **Auth:** Auth.js (NextAuth), JWT sessions. Two providers: GitHub OAuth and **Credentials**
+  (handle or email + password, bcryptjs cost 12). The Credentials provider lives in `src/auth.ts`
+  and **must never** be added to `src/auth.config.ts` — `src/middleware.ts` bundles that file for
+  the **edge runtime**, where a hashing library breaks every protected route at request time,
+  invisibly to `tsc` and to the test suite. `tests/auth/edge-safety.test.ts` walks the transitive
+  import graph to enforce it. Sign-up is gated by `CREDENTIALS_SIGNUP_ENABLED` (off unless exactly
+  `"true"`) because there is **no password reset** — no mail provider exists. Signing in is never
+  gated. JWTs cannot be revoked, so `User.sessionVersion` is compared on every session resolution
+  and bumped on password change; without it a password change is theatre. Accounts are required
+  for starring/confidence memory, saved quiz history, and (later) multiplayer.
 - **AI access:** Each user stores their own AI provider credentials (`AiCredential`, many per user) in settings; all AI calls on their behalf run against those credentials. See "AI integration" below.
 - **Multiplayer:** Single-player first; live vs-friends matching is a later add-on (Supabase Realtime or WebSockets when built).
 

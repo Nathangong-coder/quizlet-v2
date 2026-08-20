@@ -34,15 +34,25 @@
  * the site's real origin.
  *
  * Round four: parse the input against one sentinel, but validate the output
- * against a DIFFERENT one that the output has no way to legitimately name.
- * The output must be off-origin-safe against an origin it cannot possibly
- * reference — that is the property a same-sentinel check cannot test, because
- * a same-sentinel check can always be satisfied by an escape that resolves
- * back to the sentinel itself. Belt and braces: also require the output to
- * start with "/" and not "//" — sound here, unlike v1, because this is a
- * check of the OUTPUT the sink will receive, not the raw input — which also
- * catches `blob:` (and other opaque-path schemes) where the "output" the
- * parser hands back is an absolute URL, not a path at all.
+ * against a DIFFERENT one (CHECK_ORIGIN) than the one used to parse the
+ * input (PARSE_ORIGIN). Belt and braces: also require the output to start
+ * with "/" and not "//" — sound here, unlike v1, because this is a check of
+ * the OUTPUT the sink will receive, not the raw input.
+ *
+ * The two checks are not symmetric. `startsWith` is the PRIMARY guard — it
+ * alone rejects every payload this file's tests exercise, including the
+ * same-sentinel escape from round three ("/..//x.invalid" -> "//x.invalid").
+ * Swap CHECK_ORIGIN back to PARSE_ORIGIN and no test reddens, because
+ * `startsWith` independently catches what the origin re-check was built to
+ * catch. The origin re-check is DEPTH, not load: what it is actually for is
+ * an output that starts with a single "/" — so `startsWith` waves it
+ * through — yet still changes origin once the sink re-parses it, e.g. a
+ * pathname literally containing "/\evil.com". No such output is currently
+ * reachable from `u.pathname`, because the parser that produced it already
+ * folds a backslash into a forward slash before `pathname` is read. The
+ * re-check stays anyway because "not reachable" is a claim about PARSER
+ * BEHAVIOUR, and each of the three rounds above died from exactly that kind
+ * of claim turning out to be wrong.
  */
 const PARSE_ORIGIN = 'https://x.invalid'
 const CHECK_ORIGIN = 'https://y.invalid' // deliberately DIFFERENT from PARSE_ORIGIN
@@ -57,16 +67,23 @@ export function safeCallbackUrl(raw: string | undefined): string {
     // the parse origin's root can turn a same-origin-looking input into a
     // pathname that starts with "//", which a sink re-parses as
     // protocol-relative and off-origin. Checked against CHECK_ORIGIN, not
-    // PARSE_ORIGIN, so an escape that resolves back to the parse sentinel
-    // itself cannot slip through disguised as a match.
+    // PARSE_ORIGIN — not because a same-sentinel check would let something
+    // through here (it wouldn't: `startsWith` below independently catches
+    // every same-sentinel escape this file's tests exercise), but as depth
+    // against a parser-behaviour claim this file has already been wrong
+    // about three times.
     if (new URL(out, CHECK_ORIGIN).origin !== CHECK_ORIGIN) return '/sets'
-    // Belt and braces on the OUTPUT: catches opaque-path schemes (e.g.
-    // "blob:https://x.invalid/uuid") where the parser hands back an
-    // absolute URL rather than a path at all. Also the only check that
-    // stays airtight if an escape ever targets CHECK_ORIGIN's own host
-    // name (e.g. "/..//y.invalid") — the origin recheck above would pass
-    // that by construction, since CHECK_ORIGIN is itself just another
-    // nameable string once someone can read this file.
+    // This is the PRIMARY guard, sound here (unlike v1) because it checks
+    // the OUTPUT the sink will receive, not the raw input. Opaque-path
+    // schemes like "blob:https://x.invalid/uuid" never actually reach this
+    // line to be caught by it — their pathname is the whole embedded
+    // absolute URL, so the origin recheck above already rejects them one
+    // check earlier (its re-parsed origin is never CHECK_ORIGIN). What DOES
+    // reach this line, and is the one thing only this check catches, is an
+    // escape that targets CHECK_ORIGIN's own host name (e.g.
+    // "/..//y.invalid") — the origin recheck above passes that by
+    // construction, since CHECK_ORIGIN is itself just another nameable
+    // string once someone can read this file.
     if (!out.startsWith('/') || out.startsWith('//')) return '/sets'
     return out
   } catch {

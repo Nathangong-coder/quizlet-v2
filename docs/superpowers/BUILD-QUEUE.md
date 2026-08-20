@@ -572,7 +572,14 @@ Never in memory — always in a spec's own section.
    ```
    then write it to `prisma/migrations/<timestamp>_<name>/migration.sql` and `npx prisma migrate deploy`. Re-run the diff afterwards — "This is an empty migration" means zero residual drift. Note `--from-schema-datasource` was **removed** in this Prisma version; the flag is now `--from-config-datasource` (a `prisma.config.ts` exists).
 
-6. **No signed-in page is reachable from an agent session.** Auth is GitHub OAuth only (`src/auth.config.ts`) and `.env` has no `GITHUB_ID`/`GITHUB_SECRET`, so `NEXTAUTH_SECRET=dev-only` gets the server up but not past the login wall. Any plan step of the form "take a quiz and check X" must be handed to the human — write it as an explicit gate rather than discovering it mid-task.
+6. **CLOSED 2026-08-19 by item 6e (credentials auth) — a signed-in session IS now reachable from an agent session.** This trap is no longer true as originally written below, and reading the old text would wrongly hand a future agent's own live gates to the human. Run:
+   ```bash
+   NEXTAUTH_SECRET=dev-only AUTH_SECRET=dev-only npm run dev
+   npm run seed:dev-user
+   ```
+   then sign in at `/login` with the seeded `dev_user` (or `dev@localhost.test`) credentials — either identifier resolves against the real database. `seed:dev-user` refuses to run against a production `DATABASE_URL`, and re-running it is safe (upsert). This is how item 6e's own live gate ran end to end with no human in the loop — the first gate in this project an agent ran itself.
+
+   **Still true, and still a real hole: GitHub OAuth specifically remains unreachable.** `.env` has no `GITHUB_ID`/`GITHUB_SECRET`; clicking "Continue with GitHub" produces no server-side request at all (confirmed against the dev server log), not merely a failed one. So the `OAuthAccountNotLinked` copy check (Task 7 of the credentials-auth plan) is still owed to the human — it needs a real GitHub account whose email collides with an existing password account, which nothing in this environment can produce. Any plan step that specifically needs OAuth (as opposed to any signed-in page) still goes to the human as an explicit gate.
 
 7. **A client component that gains a server-action import breaks every jsdom test that renders it.** A `'use server'` module pulls `next-auth` into the browser environment and the test file dies at load with `Cannot find module next/server` — before any test runs, so the failure looks unrelated to the change. Mock the action module (see `tests/components/QuizSummary.test.tsx`).
 
