@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-17 (gates 4/5/6b/6d passed)
+**Last updated:** 2026-08-19 (item 6e built and live-gated — first agent-run live gate in this project)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -411,41 +411,35 @@ all-strategy), the count hidden on unmeasured rows, and the proposition replaced
 fallback. Before these tests, **none of the three behaviours had any coverage**: the first full
 run after the change passed untouched.
 
-### 6e. ⬜ Credentials auth — **DESIGNED 2026-08-17, NOT STARTED. THIS IS THE NEXT BUILD.**
+### 6e. ✅ Credentials auth — **BUILT 2026-08-18/19. LIVE GATE PASSED 2026-08-19 — the first live gate in this project run by an agent, not handed to the human. Closes trap 6.**
 
-Design + task order: `specs/2026-08-17-credentials-auth-design.md`.
-**Blocked on:** this branch merging. The four gates **passed 2026-08-17**; the merge is the only
-remaining step before this starts (the user's chosen sequence).
+Design + task order: `specs/2026-08-17-credentials-auth-design.md`. Plan: `plans/2026-08-18-credentials-auth.md`. Ledger: `.superpowers/sdd/2026-08-18-credentials-auth/progress.md`. Task 10 report: `.superpowers/sdd/2026-08-18-credentials-auth/task-10-report.md`.
+18 commits (`0ac83d6` … `4c335e4`), branch `spec3b-tunable-scoring`, **not merged**.
+Tests **1412 → 1517** (116 → 127 files), `tsc` clean, `next build` clean, lint **176 → 175** (131 errors, 44 warnings — one below the baseline this queue has tracked since item 6b).
 
-Sign up and sign in with a username and password, alongside GitHub OAuth. Chosen over item 6c and
-item 7 for three reasons: a **public directory is for strangers and a stranger cannot sign up
-today**, so 6c is close to blocked on this; it **closes trap 6**, which is why four gates are
-currently queued on the user rather than runnable by an agent; and the user asked for it.
+Sign up and sign in with a username-or-email plus password, alongside GitHub OAuth. Chosen over item 6c and item 7 because a public directory is for strangers and a stranger cannot sign up today, and because it closes trap 6. **Two facts made it smaller than it looked:** `session: { strategy: "jwt" }` was already set in `src/auth.ts`, and `User.handle`/`normalizedHandle` from item 6d meant the username half needed no new validation. **One fact made it dangerous:** `src/middleware.ts` imports `auth.config.ts` on the **edge runtime**, so the Credentials provider had to live in `src/auth.ts` only — enforced by a guard that walks the transitive import graph, not a string search.
 
-**Two facts that make this much smaller than it looks.** `session: { strategy: "jwt" }` is
-**already set** in `src/auth.ts` — the usual blocker, since Auth.js refuses Credentials with the
-database session strategy and converting would invalidate every existing login. And
-`User.handle`/`normalizedHandle` shipped in item 6d, so the username half exists with validation
-and a reserved list.
+**Sign-up sits behind `CREDENTIALS_SIGNUP_ENABLED`, off by default — the user's call, confirmed live on 2026-08-18/19.** The design's recommendation (public sign-up with no password reset carries more risk than the trap-6 win justifies) became the shipped behaviour. Sign-in is **never** gated — that is the entire point, since sign-in is what closes trap 6. **Includes `scripts/seed-dev-user.ts`** (Task 9), the piece that actually ends the human-gate bottleneck: it upserts `dev_user` / `dev@localhost.test` and refuses to run against a production `DATABASE_URL`.
 
-**One fact that makes it dangerous.** `src/middleware.ts` imports `authConfig` and runs on the
-**edge runtime**. Adding the Credentials provider to `auth.config.ts` bundles a hashing library
-into edge middleware and breaks every protected route **at request time** — `tsc` and the unit
-suite both pass straight over it, the same class of failure as trap 8. The provider goes in
-`src/auth.ts` only, and a test must assert `auth.config.ts` imports nothing from the hashing
-module.
+**Three real defects found during build, none of them anticipated on paper:**
+- **Task 7 shipped a Critical: the callback-URL open redirect was bypassable**, and closing it took three review rounds. `raw.startsWith('/') && !raw.startsWith('//')` validated a string the WHATWG URL parser then rewrites (folding backslashes, stripping control characters), so `?callbackUrl=/\evil.com` passed the guard and resolved off-origin through both `router.push` and `@auth/core`'s default redirect callback. Round 2 closed every reported payload but left a dot-segment class (`/..//evil.com`) that still resolved off-origin; round 3 parses the callback against one sentinel and validates the *output* against a different one, and a ~700,000-input fuzz across 11 attack classes then found zero escapes.
+- **Task 4's edge-safety guard had a gap that would have hidden its own defeat.** The import-graph walk missed `await import(...)` dynamic imports and matched forbidden subpaths by exact string only, so `@prisma/client/edge` slipped straight through a check written to catch `@prisma/client`. Fixed by extracting `parseImports`/`isForbidden` as pure functions with their own tests.
+- **Task 8's password-change action passed all nine of its tests while hashing the wrong field.** `hashPassword`/`verifyPassword` were mocked and no test inspected their *arguments*, so a mutant that called `hashPassword(input.current)` — locking the account to the OLD password on every change — was indistinguishable from correct. The seventh could-not-fail guard this plan produced.
 
-**Six defects anticipated on paper** — see the design's §8. Beyond the edge trap: JWT sessions
-cannot be revoked, so a password change is theatre without a `sessionVersion` claim; and
-short-circuiting on an unknown email leaks which addresses have accounts, through timing as well
-as wording.
+**One design point worth keeping, because Task 10's gate depended on it:** revocation was traced end to end during Task 4's review and genuinely works. `jwtCallback`'s no-user branch returns the token unchanged on a `sessionVersion` match and `null` on mismatch, with **no healing path** — `sv` is only re-stamped at a fresh sign-in. But **the RSC `auth()` path discards the clearing `Set-Cookie` header** (`next-auth` `json()`s the response before returning it), so the cookie can outlive the session it names; eviction happens only on `/api/auth/session`, API routes and middleware. Recorded as Ruling R8 specifically so Task 10 would assert *denied access*, not a vanished cookie.
 
-**Needs a decision before Task 4 (§10):** ship credentials sign-up publicly *without* password
-reset — which has no home, since there is no mail provider — or behind a flag. Behind a flag gets
-the trap-6 win immediately at almost no risk, and is the recommendation.
+**LIVE GATE, run 2026-08-19 against `npm run dev` (secrets passed to the process — `.env` still carries neither) and the real dev database:**
+1. **Suite/types/build/lint** — 127 files / 1517 tests passed, `tsc --noEmit` silent, `next build` compiled clean, lint **175** (131 errors, 44 warnings).
+2. **Handle sign-in** — `dev_user` + password → `/sets`, navbar shows Learning / Account / Sign out. **This is the trap-6 close.**
+3. **Email sign-in** — `dev@localhost.test` + the same password → identical result, proving the either-identifier lookup runs against the real database, not a mock.
+4. **Failure message is identical for both misses** — a wrong password on the real account and a fully unknown identifier both rendered the exact string `Email or password is incorrect.`, byte for byte. No enumeration oracle.
+5. **Protected-route round trip** — signed out, `/sets/<id>/quiz` → redirected to `/login?callbackUrl=%2Fsets%2F<id>%2Fquiz`; signing in landed on the quiz page itself, not `/sets`. (`dev_user` started with zero sets; one was created through the UI to get a real id to redirect to.)
+6. **The flag gates sign-up, not sign-in** — restarted the server without `CREDENTIALS_SIGNUP_ENABLED`: `/signup` 404s, `/login` shows no "Create an account" link, and signing in with the existing password still worked.
+7. **Revocation denies access, exactly as Ruling R8 predicted** — changed the password at `/account`; the very next request to `/account` itself bounced to `/login?callbackUrl=%2Faccount`, and a fresh request to `/sets` rendered the signed-out "Sign in to see your sets" state. Denied access without a vanished cookie — the RSC-discards-`Set-Cookie` behaviour Task 4 flagged, observed live rather than assumed. Signed in with the new password to confirm it worked, then ran `npm run seed:dev-user` to restore the original password and confirmed that signs in too.
 
-**Includes `scripts/seed-dev-user.ts`** (Task 8), which is the piece that actually ends the
-human-gate bottleneck. Build it in the same pass, not "later".
+**Two things this gate could not run, and why — owed to the human:**
+- **GitHub OAuth.** `.env` has no `GITHUB_ID`/`GITHUB_SECRET`. Clicking "Continue with GitHub" produced no server-side request at all (confirmed against the dev server log) — the provider is unreachable, not merely untested.
+- **The `OAuthAccountNotLinked` copy** (Task 7) needs a real GitHub account whose email matches an existing password account — not producible from this environment.
 
 ### 6c. ⬜ Sharing, collaboration & discovery — **DESIGNED 2026-08-17, NOT STARTED.**
 
