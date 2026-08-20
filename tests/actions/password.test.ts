@@ -42,6 +42,10 @@ describe('savePassword', () => {
     const res = await savePassword({ next: NEW })
     expect(res.success).toBe(true)
     expect(h.verifyPassword).not.toHaveBeenCalled()
+    // Hashes the NEW password, not `current` (which is undefined here) — a
+    // mutant that hashes `input.current` instead would hash `undefined` and
+    // this pins the actual argument, not just that hashPassword ran.
+    expect(h.hashPassword).toHaveBeenCalledWith(NEW)
     expect(h.update.mock.calls[0][0].data.passwordHash).toBe('$2b$12$new')
   })
 
@@ -71,6 +75,14 @@ describe('savePassword', () => {
     await savePassword({ current: 'o'.repeat(12), next: NEW })
 
     expect(h.update.mock.calls[0][0].data.sessionVersion).toBe(3)
+    // Verifies the SUPPLIED current password against the STORED hash — not
+    // against some other hash. A mutant that checks `input.current` against
+    // `DUMMY_PASSWORD_HASH` (or any hash but the caller's own) would mean
+    // nobody could ever change a password, yet none of the tests above would
+    // notice since they only assert the boolean outcome.
+    expect(h.verifyPassword).toHaveBeenCalledWith('o'.repeat(12), '$2b$12$old')
+    // And hashes the NEW password (not `current`) for the write.
+    expect(h.hashPassword).toHaveBeenCalledWith(NEW)
   })
 
   it('bumps on a FIRST password too', async () => {

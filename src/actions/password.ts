@@ -1,6 +1,5 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import {
@@ -61,6 +60,10 @@ export async function savePassword(input: {
     },
   })
 
-  revalidatePath('/account')
+  // No revalidatePath here, deliberately. sessionVersion just moved past the
+  // acting token too — this device is signed out along with every other one,
+  // so there is nothing on /account left to revalidate for this caller.
+  // Calling it anyway raced the redirect from the now-stale session against
+  // the success toast; the panel navigates to /login instead.
   return { success: true, data: undefined }
 }

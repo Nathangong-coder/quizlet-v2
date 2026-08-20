@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +9,7 @@ import { savePassword } from '@/actions/password'
 import { PASSWORD_MIN_LENGTH } from '@/lib/auth/password'
 
 export function PasswordPanel({ hasPassword }: { hasPassword: boolean }) {
+  const router = useRouter()
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -29,9 +31,14 @@ export function PasswordPanel({ hasPassword }: { hasPassword: boolean }) {
       setCurrent('')
       setNext('')
       setConfirm('')
-      // Stated plainly: the bump signs every other session out, and a person
-      // who is not told that will read it as a bug.
-      toast.success('Password saved. Other devices have been signed out.')
+      // Stated plainly, and true: raising sessionVersion invalidates the
+      // acting token too, not just other devices. There is no session-update
+      // round trip in this design to re-stamp it, so signing everyone out
+      // including this tab is the safer default with no password reset to
+      // fall back on. The action deliberately skips revalidatePath('/account')
+      // for the same reason — we navigate away instead of racing a redirect.
+      toast.success('Password saved. You have been signed out everywhere, including here.')
+      router.push('/login?callbackUrl=%2Faccount')
     })
   }
 
@@ -93,13 +100,18 @@ export function PasswordPanel({ hasPassword }: { hasPassword: boolean }) {
         </p>
       ) : null}
 
-      <Button type="submit" size="sm" disabled={isPending || next.length === 0}>
+      <Button
+        type="submit"
+        size="sm"
+        disabled={isPending || next.length === 0 || confirm.length === 0}
+      >
         {isPending ? 'Saving…' : hasPassword ? 'Change password' : 'Set password'}
       </Button>
 
       <p className="text-xs text-muted-foreground">
-        At least {PASSWORD_MIN_LENGTH} characters. There is no password reset yet — if you
-        forget it, GitHub is the only way back in.
+        At least {PASSWORD_MIN_LENGTH} characters. Saving this signs you out everywhere,
+        including this device, so you&apos;ll need to sign in again right after. There is no
+        password reset yet — if you forget it, GitHub is the only way back in.
       </p>
     </form>
   )
