@@ -15,7 +15,7 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
   const session = await auth()
 
   if (!session) {
-    redirect('/auth/signin')
+    redirect('/login?callbackUrl=' + encodeURIComponent(`/sets/${id}/edit`))
   }
 
   const set = await prisma.set.findUnique({

@@ -19,7 +19,7 @@ export default async function ReviewPage({
   const { id } = await params
   const { cat } = await searchParams
   const session = await auth()
-  if (!session?.user?.id) redirect('/api/auth/signin')
+  if (!session?.user?.id) redirect('/login?callbackUrl=' + encodeURIComponent(`/sets/${id}/review`))
 
   // Sign-in stays required — reviewing writes study memory keyed to a userId.
   const set = await prisma.set.findFirst({

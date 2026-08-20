@@ -13,7 +13,8 @@
     "db:studio": "prisma studio",
     "tuning:check": "tsx --env-file=.env scripts/tuning-check.ts",
     "backfill:klp-state": "tsx --env-file=.env scripts/backfill-klp-state.ts",
-    "backfill:study-event-link": "tsx --env-file=.env scripts/backfill-study-event-answer-link.ts"
+    "backfill:study-event-link": "tsx --env-file=.env scripts/backfill-study-event-answer-link.ts",
+    "seed:dev-user": "tsx --env-file=.env scripts/seed-dev-user.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.22",
@@ -28,6 +29,7 @@
     "@prisma/client": "^7.8.0",
     "@vercel/blob": "^2.5.0",
     "ai": "^7.0.37",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",

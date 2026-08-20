@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-17
+**Last updated:** 2026-08-19 (item 6e built and live-gated — first agent-run live gate in this project)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -155,7 +155,7 @@ feature "empty":**
 **Left in a test state on purpose** (the user's call to revert or keep): `minObservations` 1,
 `articulationMinPKnown` 0.8, a `too_terse` band override, and a `test-category` category.
 
-### 4. ✅ Spec 3C — learner dashboard & study scope — **BUILT 2026-08-14. LIVE GATE OUTSTANDING.**
+### 4. ✅ Spec 3C — learner dashboard & study scope — **BUILT 2026-08-14. LIVE GATE PASSED 2026-08-17.**
 
 All 12 tasks + Task 4B, eight commits (`aa979da` … `fd4e670`), branch `spec3b-tunable-scoring`, **not merged**.
 Tests **1181 → 1286** (105 files), `tsc` clean, lint **185** (unchanged).
@@ -173,7 +173,7 @@ Tests **1181 → 1286** (105 files), `tsc` clean, lint **185** (unchanged).
 
 **Two type-level facts worth keeping:** `StoredStudyScope` must be a **type alias, not an interface** — TS infers an implicit index signature for aliases only, and Prisma's `InputJsonValue` requires one, so an interface needs a cast that defeats validating the blob. And making `studyScope` **required** on `shapeTuning`'s input is what made `tsc` name all three `select` clauses that needed it; optional would have compiled clean and handed `undefined` to the parser, which degrades silently to an empty scope — the setting would appear to save and then not exist.
 
-**HUMAN GATE STILL OWED** (trap 6 — no signed-in page is reachable from an agent session). See the plan's "Human gate" section: the four-panel partial-save proof, the saved-scope notice and "Show everything", the all-stale widening notice, the quiz prefill in and out of scope, and the empty-state copy quoting a floor of 1.
+**GATE PASSED 2026-08-17**, run by the user in one session (trap 6 — no signed-in page is reachable from an agent session). Checked: the four-panel partial-save proof, the saved-scope notice and "Show everything", the all-stale widening notice, the quiz prefill in and out of scope, and the empty-state copy quoting a floor of 1.
 
 <details>
 <summary>Superseded: the in-progress entry</summary>
@@ -199,7 +199,7 @@ The dashboard is the **first production caller of `getLearnerMetrics`**. It rend
 
 </details>
 
-### 5. ✅ Profile & sets UI overhaul — **BUILT 2026-08-14. LIVE GATE OUTSTANDING.**
+### 5. ✅ Profile & sets UI overhaul — **BUILT 2026-08-14. LIVE GATE PASSED 2026-08-17.**
 
 Plan: `plans/2026-08-14-profile-and-sets-ui-overhaul.md` (written from an audit — every task closes a named, checkable gap, not a taste call).
 Commits `70d5f35`, `17b31f7`, `6e103f5`, branch `spec3b-tunable-scoring`, **not merged**.
@@ -215,7 +215,7 @@ Tests **1286 → 1311** (108 files), `tsc` clean, lint **185 → 178** — the 7
 
 **Also worth knowing:** two component tests failed on **timezone**, not logic — `new Date('...T00:00:00.000Z')` formats to the previous day west of Greenwich. Date fixtures compared against `format` output must use local-time constructors (`new Date(2026, 6, 1)`).
 
-**HUMAN GATE STILL OWED** (trap 6): the nav appears on all three profile pages and marks the right tab; `/profile` renders header and nav before stats; `/sets` shows visibility on every card.
+**GATE PASSED 2026-08-17** (trap 6): the nav appears on all three profile pages and marks the right tab; `/profile` renders header and nav before stats; `/sets` shows visibility on every card.
 
 > **PARTLY SUPERSEDED by item 6b (2026-08-16).** The rest of this gate — "study state on a studied
 > set, and neither a 0% nor a due count on an unstudied one" — **cannot be checked any more**: 6b
@@ -274,7 +274,7 @@ cheap checks (scope line opening, scope surviving a tab change, by-mode chips) w
 confirmed** — all are unit-tested with killed mutants and inert-if-broken. Recorded as unconfirmed
 rather than assumed. Detail in the spec's §8.
 
-### 6b. ✅ UI polish — set page, edit visibility, memory history table — **BUILT 2026-08-16. LIVE GATE OUTSTANDING.**
+### 6b. ✅ UI polish — set page, edit visibility, memory history table — **BUILT 2026-08-16. LIVE GATE PASSED 2026-08-17.**
 
 No spec — a direct list of user-reported changes after living with item 6. Branch `spec3b-tunable-scoring`, **not merged**.
 Tests **1340 → 1372** (112 → 114 files), `tsc` clean, `next build` clean, lint **176** (unchanged).
@@ -316,13 +316,13 @@ page to that card — the old click produced a filtered copy of the list you wer
 the activity picker rendering on the learner dashboard (where filtering a knowledge model by answer
 mode halves every posterior), `sources` dropped from `isConsolidated`, and the facet count above.
 
-**HUMAN GATE STILL OWED** (trap 6): every surface here is signed-in only. Check the edit-page
+**GATE PASSED 2026-08-17** (trap 6): every surface here is signed-in only. Checked: the edit-page
 visibility dropdown **persists and Copy link yields `/sets/<id>` not `/sets/<id>/edit`**; the
 activity picker filters the feed and its option counts **do not collapse** when one is selected;
 a feed row opens the right activity, and a row with no session renders unlinked; and the set page
 shows tiles where the visibility panel was, with no confidence or studied numbers anywhere.
 
-### 6d. ✅ Account page & the learning/account naming split — **BUILT 2026-08-17. LIVE GATE OUTSTANDING.**
+### 6d. ✅ Account page & the learning/account naming split — **BUILT 2026-08-17. LIVE GATE PASSED 2026-08-17.**
 
 No spec — a direct user request. Branch `spec3b-tunable-scoring`, **not merged**.
 Tests **1372 → 1404** (114 → 116 files), `tsc` clean, `next build` clean, lint **176** (unchanged).
@@ -370,46 +370,78 @@ and comparing the reserved list case-sensitively.
 touches **23 call sites** including `revalidatePath` strings and the memory-scope query params;
 it wants its own commit and its own verification, not a ride-along.
 
-**HUMAN GATE OWED** (trap 6): set a handle and confirm it persists; try a reserved one
+**GATE PASSED 2026-08-17** (trap 6): a handle set and persisted; a reserved one
 (`admin`) and a taken one; save and then **clear** a contact email; toggle email updates and
 reload; confirm the theme choice matches the navbar toggle; confirm the navbar shows both
 **Learning** and **Account**.
 
-### 6e. ⬜ Credentials auth — **DESIGNED 2026-08-17, NOT STARTED. THIS IS THE NEXT BUILD.**
+### 6f. ✅ Study candidates say what they are — **BUILT 2026-08-17.**
 
-Design + task order: `specs/2026-08-17-credentials-auth-design.md`.
-**Blocked on:** the four outstanding gates passing and this branch merging (the user's chosen
-sequence, 2026-08-17).
+No spec — a direct user request after the gate run. Branch `spec3b-tunable-scoring`.
+Tests **1404 → 1412**, `tsc` clean, `next build` clean, lint **176** (unchanged).
 
-Sign up and sign in with a username and password, alongside GitHub OAuth. Chosen over item 6c and
-item 7 for three reasons: a **public directory is for strangers and a stranger cannot sign up
-today**, so 6c is close to blocked on this; it **closes trap 6**, which is why four gates are
-currently queued on the user rather than runnable by an agent; and the user asked for it.
+**`/profile/learner`'s study list rendered the literal words "Key point" for every row.**
+`StudyNextRow` has always accepted `text`, `term` and `topicName`, and the page populated only
+`topicName` — so the fallback in `CandidateRow` was the entire list. On a library where most
+cards are uncategorized (Task 4B put 124 such KLPs into targeting) that is a page of identical
+rows reading "Key point / Uncategorized".
 
-**Two facts that make this much smaller than it looks.** `session: { strategy: "jwt" }` is
-**already set** in `src/auth.ts` — the usual blocker, since Auth.js refuses Credentials with the
-database session strategy and converting would invalidate every existing login. And
-`User.handle`/`normalizedHandle` shipped in item 6d, so the username half exists with validation
-and a reserved list.
+Fixed by widening the two loaders' selects — `CardKlp.text` and `Card.term` — and gathering the
+labels in the **same walk** that already builds `klpWeights`/`klpCardIds`, so no extra query.
+Exposed as `LearnerMetrics.candidateLabels`, a `klpId → { text, term }` map kept **beside**
+`ranked` rather than folded into it: `targeting.ts` scores, and a scoring module should not carry
+prose it never reads. The page merges labels exactly where it already merged `topicName`.
 
-**One fact that makes it dangerous.** `src/middleware.ts` imports `authConfig` and runs on the
-**edge runtime**. Adding the Credentials provider to `auth.config.ts` bundles a hashing library
-into edge middleware and breaks every protected route **at request time** — `tsc` and the unit
-suite both pass straight over it, the same class of failure as trap 8. The provider goes in
-`src/auth.ts` only, and a test must assert `auth.config.ts` imports nothing from the hashing
-module.
+**Two behaviour changes beyond the labels:**
+- **The sub-threshold group is now ordered by `observations`, not by score.** Below the floor,
+  `score` is largely a function of the BKT prior — most candidates are tied at it — so ordering
+  by score there ranks noise and presents it with a measured recommendation's authority.
+  Evidence is the one thing that genuinely differs, and "closest to being measurable" is the
+  useful order. Ties fall back to score, then to input order (`Array.sort` is stable). The rule
+  is scoped to the sub-threshold group: applying it above the floor would override the learner's
+  chosen strategy with a proxy for "how much have I answered this".
+- **The answer count renders on every row**, measured or not — it is the sub-threshold sort key,
+  and an order with its key hidden is not readable as an order. **`pKnown` stays gated on
+  `sufficient`**: "50% known" beside a single answer states a confidence the evidence cannot
+  support, which is the floor's whole purpose. Zero renders as "No answers yet", not "0 answers",
+  which on this list reads as a score rather than a state.
 
-**Six defects anticipated on paper** — see the design's §8. Beyond the edge trap: JWT sessions
-cannot be revoked, so a password change is theatre without a `sessionVersion` claim; and
-short-circuiting on an unknown email leaks which addresses have accounts, through timing as well
-as wording.
+**Five mutants introduced, five killed** — the evidence ordering (twice: single-strategy and
+all-strategy), the count hidden on unmeasured rows, and the proposition replaced by the literal
+fallback. Before these tests, **none of the three behaviours had any coverage**: the first full
+run after the change passed untouched.
 
-**Needs a decision before Task 4 (§10):** ship credentials sign-up publicly *without* password
-reset — which has no home, since there is no mail provider — or behind a flag. Behind a flag gets
-the trap-6 win immediately at almost no risk, and is the recommendation.
+### 6e. ✅ Credentials auth — **BUILT 2026-08-18/19. LIVE GATE PASSED 2026-08-19 — the first live gate in this project run by an agent, not handed to the human. Closes trap 6.**
 
-**Includes `scripts/seed-dev-user.ts`** (Task 8), which is the piece that actually ends the
-human-gate bottleneck. Build it in the same pass, not "later".
+Design + task order: `specs/2026-08-17-credentials-auth-design.md`. Plan: `plans/2026-08-18-credentials-auth.md`. Ledger: `.superpowers/sdd/2026-08-18-credentials-auth/progress.md`. Task 10 report: `.superpowers/sdd/2026-08-18-credentials-auth/task-10-report.md`.
+22 commits (`fdb6c42` … `2d50cca`), branch `spec3b-tunable-scoring`, **not merged**.
+Tests **1412 → 1522** (116 → 127 files), `tsc` clean, `next build` clean, lint **176 → 175** (131 errors, 44 warnings — one below the baseline this queue has tracked since item 6b).
+
+**The final whole-feature review found one thing eleven task reviews could not, and it is the argument for running one.** Three separate strings told a password-only account it had GitHub: `/account` named GitHub as the sign-in method *and* as the source of the account email, and the password panel said GitHub was "the only way back in" — for an account Auth.js will refuse with `OAuthAccountNotLinked`. With no password reset, that last one is the difference between "keep this safe" and "you have a fallback". None of it was wrong when written; the app simply used to have exactly one way in, and the copy stated that as fact. It fell between tasks because every task's own diff was correct. Closed in `2d50cca` by deriving `hasGithub` the same way `hasPassword` is derived — selected, never returned raw — and gating the copy on it.
+
+Sign up and sign in with a username-or-email plus password, alongside GitHub OAuth. Chosen over item 6c and item 7 because a public directory is for strangers and a stranger cannot sign up today, and because it closes trap 6. **Two facts made it smaller than it looked:** `session: { strategy: "jwt" }` was already set in `src/auth.ts`, and `User.handle`/`normalizedHandle` from item 6d meant the username half needed no new validation. **One fact made it dangerous:** `src/middleware.ts` imports `auth.config.ts` on the **edge runtime**, so the Credentials provider had to live in `src/auth.ts` only — enforced by a guard that walks the transitive import graph, not a string search.
+
+**Sign-up sits behind `CREDENTIALS_SIGNUP_ENABLED`, off by default — the user's call, confirmed live on 2026-08-18/19.** The design's recommendation (public sign-up with no password reset carries more risk than the trap-6 win justifies) became the shipped behaviour. Sign-in is **never** gated — that is the entire point, since sign-in is what closes trap 6. **Includes `scripts/seed-dev-user.ts`** (Task 9), the piece that actually ends the human-gate bottleneck: it upserts `dev_user` / `dev@localhost.test` and refuses to run against a production `DATABASE_URL`.
+
+**Three real defects found during build, none of them anticipated on paper:**
+- **Task 7 shipped a Critical: the callback-URL open redirect was bypassable**, and closing it took three review rounds. `raw.startsWith('/') && !raw.startsWith('//')` validated a string the WHATWG URL parser then rewrites (folding backslashes, stripping control characters), so `?callbackUrl=/\evil.com` passed the guard and resolved off-origin through both `router.push` and `@auth/core`'s default redirect callback. Round 2 closed every reported payload but left a dot-segment class (`/..//evil.com`) that still resolved off-origin; round 3 parses the callback against one sentinel and validates the *output* against a different one, and a ~700,000-input fuzz across 11 attack classes then found zero escapes.
+- **Task 4's edge-safety guard had a gap that would have hidden its own defeat.** The import-graph walk missed `await import(...)` dynamic imports and matched forbidden subpaths by exact string only, so `@prisma/client/edge` slipped straight through a check written to catch `@prisma/client`. Fixed by extracting `parseImports`/`isForbidden` as pure functions with their own tests.
+- **Task 8's password-change action passed all nine of its tests while hashing the wrong field.** `hashPassword`/`verifyPassword` were mocked and no test inspected their *arguments*, so a mutant that called `hashPassword(input.current)` — locking the account to the OLD password on every change — was indistinguishable from correct. The seventh could-not-fail guard this plan produced.
+
+**One design point worth keeping, because Task 10's gate depended on it:** revocation was traced end to end during Task 4's review and genuinely works. `jwtCallback`'s no-user branch returns the token unchanged on a `sessionVersion` match and `null` on mismatch, with **no healing path** — `sv` is only re-stamped at a fresh sign-in. But **the RSC `auth()` path discards the clearing `Set-Cookie` header** (`next-auth` `json()`s the response before returning it), so the cookie can outlive the session it names; eviction happens only on `/api/auth/session`, API routes and middleware. Recorded as Ruling R8 specifically so Task 10 would assert *denied access*, not a vanished cookie.
+
+**LIVE GATE, run 2026-08-19 against `npm run dev` (secrets passed to the process — `.env` still carries neither) and the real dev database:**
+1. **Suite/types/build/lint** — 127 files / 1517 tests passed, `tsc --noEmit` silent, `next build` compiled clean, lint **175** (131 errors, 44 warnings). (The final review's fix wave later took this to **1522**; the gate itself ran at 1517.)
+2. **Handle sign-in** — `dev_user` + password → `/sets`, navbar shows Learning / Account / Sign out. **This is the trap-6 close.**
+3. **Email sign-in** — `dev@localhost.test` + the same password → identical result, proving the either-identifier lookup runs against the real database, not a mock.
+4. **Failure message is identical for both misses** — a wrong password on the real account and a fully unknown identifier both rendered the exact string `Email or password is incorrect.`, byte for byte. No enumeration oracle.
+5. **Protected-route round trip** — signed out, `/sets/<id>/quiz` → redirected to `/login?callbackUrl=%2Fsets%2F<id>%2Fquiz`; signing in landed on the quiz page itself, not `/sets`. (`dev_user` started with zero sets; one was created through the UI to get a real id to redirect to.)
+6. **The flag gates sign-up, not sign-in** — restarted the server without `CREDENTIALS_SIGNUP_ENABLED`: `/signup` 404s, `/login` shows no "Create an account" link, and signing in with the existing password still worked.
+7. **Revocation denies access, exactly as Ruling R8 predicted** — changed the password at `/account`; the very next request to `/account` itself bounced to `/login?callbackUrl=%2Faccount`, and a fresh request to `/sets` rendered the signed-out "Sign in to see your sets" state. Denied access without a vanished cookie — the RSC-discards-`Set-Cookie` behaviour Task 4 flagged, observed live rather than assumed. Signed in with the new password to confirm it worked, then ran `npm run seed:dev-user` to restore the original password and confirmed that signs in too.
+
+**Two things this gate could not run, and why — owed to the human:**
+- **GitHub OAuth.** `.env` has no `GITHUB_ID`/`GITHUB_SECRET`. Clicking "Continue with GitHub" produced no server-side request at all (confirmed against the dev server log) — the provider is unreachable, not merely untested.
+- **The `OAuthAccountNotLinked` copy** (Task 7) needs a real GitHub account whose email matches an existing password account — not producible from this environment.
 
 ### 6c. ⬜ Sharing, collaboration & discovery — **DESIGNED 2026-08-17, NOT STARTED.**
 
@@ -542,7 +574,14 @@ Never in memory — always in a spec's own section.
    ```
    then write it to `prisma/migrations/<timestamp>_<name>/migration.sql` and `npx prisma migrate deploy`. Re-run the diff afterwards — "This is an empty migration" means zero residual drift. Note `--from-schema-datasource` was **removed** in this Prisma version; the flag is now `--from-config-datasource` (a `prisma.config.ts` exists).
 
-6. **No signed-in page is reachable from an agent session.** Auth is GitHub OAuth only (`src/auth.config.ts`) and `.env` has no `GITHUB_ID`/`GITHUB_SECRET`, so `NEXTAUTH_SECRET=dev-only` gets the server up but not past the login wall. Any plan step of the form "take a quiz and check X" must be handed to the human — write it as an explicit gate rather than discovering it mid-task.
+6. **CLOSED 2026-08-19 by item 6e (credentials auth) — a signed-in session IS now reachable from an agent session.** This trap is no longer true as originally written below, and reading the old text would wrongly hand a future agent's own live gates to the human. Run:
+   ```bash
+   NEXTAUTH_SECRET=dev-only AUTH_SECRET=dev-only npm run dev
+   npm run seed:dev-user
+   ```
+   then sign in at `/login` with the seeded `dev_user` (or `dev@localhost.test`) credentials — either identifier resolves against the real database. `seed:dev-user` refuses to run against a production `DATABASE_URL`, and re-running it is safe (upsert). This is how item 6e's own live gate ran end to end with no human in the loop — the first gate in this project an agent ran itself.
+
+   **Still true, and still a real hole: GitHub OAuth specifically remains unreachable.** `.env` has no `GITHUB_ID`/`GITHUB_SECRET`; clicking "Continue with GitHub" produces no server-side request at all (confirmed against the dev server log), not merely a failed one. So the `OAuthAccountNotLinked` copy check (Task 7 of the credentials-auth plan) is still owed to the human — it needs a real GitHub account whose email collides with an existing password account, which nothing in this environment can produce. Any plan step that specifically needs OAuth (as opposed to any signed-in page) still goes to the human as an explicit gate.
 
 7. **A client component that gains a server-action import breaks every jsdom test that renders it.** A `'use server'` module pulls `next-auth` into the browser environment and the test file dies at load with `Cannot find module next/server` — before any test runs, so the failure looks unrelated to the change. Mock the action module (see `tests/components/QuizSummary.test.tsx`).
 
@@ -552,9 +591,10 @@ Never in memory — always in a spec's own section.
 
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-17, after item 6d)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-19, after item 6e)
 
-- **Tests:** 116 files / **1404 passing** (excluding `cursor-agents`)
+- **Tests:** 127 files / **1522 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
-- **`npm run lint`:** **176 problems** (131 errors, 45 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b and 6d.)
-- Branch is **not merged**, but IS pushed to `origin` (as of 2026-08-11). A Vercel preview deployment tracks it.
+- **`next build`:** clean
+- **`npm run lint`:** **175 problems** (131 errors, 44 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b, 6d and 6f → 175 after item 6e.)
+- Branch is **not merged**. It was pushed to `origin` as of 2026-08-11, but **item 6e's 22 commits are NOT pushed** — the auto-push hook this file used to assume does not exist (`.git/hooks/` has no `post-commit`). Verify with `git status -sb` rather than trusting it.

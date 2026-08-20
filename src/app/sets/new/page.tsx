@@ -7,7 +7,7 @@ export default async function NewSetPage() {
   const session = await auth()
 
   if (!session) {
-    redirect('/auth/signin')
+    redirect('/login?callbackUrl=' + encodeURIComponent('/sets/new'))
   }
 
   return (

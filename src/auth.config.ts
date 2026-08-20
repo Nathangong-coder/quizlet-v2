@@ -8,4 +8,12 @@ export const authConfig = {
       clientSecret: process.env.GITHUB_SECRET,
     }),
   ],
+  // Auth.js's built-in generated sign-in page cannot offer a password field
+  // for a provider it does not know about — the Credentials provider lives in
+  // the Node half (src/auth.ts). Pointing at the real page makes the
+  // middleware redirect and any bare signIn() call land somewhere that can
+  // sign you in.
+  pages: {
+    signIn: '/login',
+  },
 } satisfies NextAuthConfig

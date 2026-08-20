@@ -11,7 +11,9 @@ export default NextAuth(authConfig).auth((req) => {
     req.nextUrl.pathname.startsWith("/settings/ai");
 
   if (isProtectedRoute && !req.auth) {
-    return Response.redirect(new URL("/api/auth/signin", req.nextUrl))
+    const url = new URL("/login", req.nextUrl)
+    url.searchParams.set("callbackUrl", req.nextUrl.pathname + req.nextUrl.search)
+    return Response.redirect(url)
   }
 })
 
