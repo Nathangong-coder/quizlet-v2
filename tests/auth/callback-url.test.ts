@@ -92,4 +92,46 @@ describe('safeCallbackUrl', () => {
       expect(safeCallbackUrl('/sets/../sets/abc')).toBe('/sets/abc')
     })
   })
+
+  // Round three's guard re-parsed the OUTPUT against the SAME sentinel it was
+  // built from, so it was structurally blind to escapes that land back on
+  // that exact sentinel host: "/..//x.invalid" produces output "//x.invalid",
+  // and "//x.invalid" re-parsed against "https://x.invalid" reports origin
+  // "https://x.invalid" — an exact match, so the same-sentinel check waved it
+  // through. This only worked by accident because ".invalid" is IANA-reserved
+  // and unregistrable; the guard becomes a genuine open redirect the moment
+  // the sentinel is pointed at a real (e.g. the site's own) origin. These
+  // exist because the sentinel host was previously invisible to its own
+  // guard — they would look arbitrary without that context. Fixed by
+  // validating the output against a DIFFERENT origin (CHECK_ORIGIN) than the
+  // one used to parse the input (PARSE_ORIGIN), plus a belt-and-braces
+  // startsWith check on the output that also catches opaque-path schemes
+  // like "blob:" where the "output" is an absolute URL, not a path.
+  describe('escapes the same-sentinel guard by landing back on the sentinel host', () => {
+    it.each([
+      ['/..//x.invalid', '/sets'],
+      ['..//x.invalid', '/sets'],
+      ['/..//x.invalid/p?q=1#f', '/sets'],
+      ['/..//X.INVALID', '/sets'],
+      ['blob:https://x.invalid/uuid', '/sets'],
+      ['blob:https://x.invalid/..//evil.com', '/sets'],
+    ])('resolves %s to a same-origin value, never to the sentinel host', (payload, expected) => {
+      const result = safeCallbackUrl(payload)
+      expect(result).toBe(expected)
+      expect(new URL(result, 'https://this-site.example').origin).toBe('https://this-site.example')
+    })
+
+    // The origin recheck above validates the output against CHECK_ORIGIN
+    // ("https://y.invalid"), not PARSE_ORIGIN — but CHECK_ORIGIN is itself
+    // just another string baked into the source, nameable by anyone who can
+    // read this file. A payload that targets CHECK_ORIGIN's own host would
+    // sail through the origin recheck by construction (its re-parsed origin
+    // IS CHECK_ORIGIN). Only the belt-and-braces startsWith("/") &&
+    // !startsWith("//") check on the output catches this, which is why that
+    // check is not optional decoration on top of the origin recheck — it is
+    // the one guard with no origin it can be tricked into agreeing with.
+    it('resolves a payload targeting CHECK_ORIGIN itself, not just PARSE_ORIGIN', () => {
+      expect(safeCallbackUrl('/..//y.invalid')).toBe('/sets')
+    })
+  })
 })
