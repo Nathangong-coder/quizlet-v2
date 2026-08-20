@@ -1,9 +1,16 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-19 (item 6e built and live-gated — first agent-run live gate in this project)
+**Last updated:** 2026-08-20 (item 6e live-gated; items 8 and 9 added from the post-build review with the user)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
+
+**Build order for what remains, decided with the user 2026-08-20 — the numbers do NOT sort into it:**
+
+1. **Item 8 — open the doors** (password reset + invite codes). Chosen next by the user over both alternatives. Until it ships the signup flag stays off and the app has one real user, which makes 6c largely moot.
+2. **Item 9 — surfacing missed KLPs / weak topics.** Blocked on two decisions named in its entry. Worth doing before Spec 4's lessons, so a plan has somewhere to point.
+3. **Item 7 — Spec 4**, plan setup + readiness + lesson generation. The biggest item; its lesson half now has its first design decision (see item 7's "LESSON OUTPUT TYPES").
+4. **Item 6c — sharing & discovery.** Designed and ready, but a public directory is for strangers and a stranger cannot sign up until item 8 lands.
 
 ---
 
@@ -505,6 +512,53 @@ Belongs to Stage 8 Spec 4 (action plan & AI lessons). Designed with the user on 
 - **Regeneration is explicit, never automatic on a settings change.** Changing scope updates the readiness readout live (pure local computation) and surfaces a "Regenerate with these settings" button. A plan that silently reshuffles under the learner destroys the thing that makes it a plan, and it spends an AI call per toggle.
 - **Store the inputs on the plan row** — `inputScope`, `inputCoverage`, and the thresholds in force. Cheap, and it is the difference between a plan artifact and an auditable recommendation: the plan can say what it was built from, and "your data has changed a lot since this plan" becomes computable.
 
+**LESSON OUTPUT TYPES — decided with the user 2026-08-20.** The readiness/setup half above was designed 2026-08-14; the *lesson generation* half had no design at all, and this is the first decision taken on it. A lesson may carry:
+- **Curated links to existing media** — the AI recommends video or reading that already exists (YouTube and similar) against a named weak KLP.
+- **Media the learner already has** — the Stage 5 `CardAsset`/Vercel Blob work is reused, so a lesson can surface an image or video already attached to a card rather than inventing one.
+
+The rule the user set is **"use existing media, if it exists"** — v1 curates and reuses, it does not synthesize. Two consequences to design around when this is specced: a curated link **rots** (the video is deleted or made private), so a lesson must degrade to its text without breaking, and a recommended link is an **unverified third-party claim** — the AI is asserting relevance to a KLP it cannot watch. Neither is a reason not to build it; both are reasons the lesson's own explanation must stand alone.
+
+**FUTURE BET, explicitly not v1 — generated video/audio.** Synthesizing narrated audio or video from a lesson. Recorded here at the user's request so it is not lost. It is gated on **Stage 4 (voice), which is unbuilt**: TTS is the same capability the voice-interview stage needs, so building it here first would either duplicate that work or pre-empt its design. It also carries per-minute generation cost against the user's own provider keys, plus rendering and storage nobody has sized. Revisit after Stage 4, not before.
+
+### 8. ⬜ Open the doors — password reset + invite codes — **THIS IS THE NEXT BUILD. Requested 2026-08-20, no design yet.**
+
+Not descended from any spec — it came out of reviewing item 6e with the user on 2026-08-20. **Chosen by the user over Spec 4 and over 6c.**
+
+**Password reset and invite codes are ONE item, not two.** Neither is worth shipping alone:
+- Reset without a cap means uncontrolled growth — the user's stated fear is "my backend will be fried."
+- Invite codes without reset means handing someone a code to an account they can permanently lose. Item 6e's design (§7) already records that a forgotten password is unrecoverable **today**; that is the single biggest reason sign-up ships gated.
+
+Together they are the thing that makes `CREDENTIALS_SIGNUP_ENABLED=true` a decision you can actually take. **Until this ships, the flag stays off and the app has exactly one real user.**
+
+**What it needs, none of which exists:**
+- **A mail provider.** `RESEND_API_KEY` is gone from `.env` and Stage 7 deferred delivery as "schema-ready" only. Reset is impossible without it. `contactEmail`/`emailUpdates` from item 6d are the beginning of that surface.
+- **A reset-token table** — single-use, expiring, and the token hashed at rest, since a token in a database is a bearer credential exactly like a password.
+- **An invite table** — this is the "waitlist" in practice. A finite set of codes caps growth *exactly*, which a rate limiter cannot do: a limiter slows a burst, it does not bound how many accounts exist.
+- Three screens: request reset, consume reset, redeem invite at sign-up.
+
+**Design constraints already known, carried from 6e:**
+- Requesting a reset must **not** reveal whether an address has an account — the same user-enumeration rule that makes sign-in return one message for every failure. Respond identically for a known and an unknown address.
+- Consuming a reset must **bump `User.sessionVersion`**. It is a password change; every outstanding token for that account must die, exactly as `savePassword` does today.
+- Rate limiting belongs at the **edge, not in the app** — serverless instances share no memory, so an in-process counter resets on every cold start and protects nothing. The one request worth limiting is the login POST, which costs ~250ms of CPU *by design* (bcrypt cost 12, and the unknown-account path deliberately does equal work so it cannot be timed). That makes it a CPU-amplification vector as well as a credential-stuffing one.
+- A **per-account lockout counter in Postgres** is the one in-app throttle that does work, because Postgres is shared state.
+
+**Deliberately NOT in this item:** hosting changes. The user asked whether moving to a free Oracle VM would reduce throttling; the answer recorded on 2026-08-20 is no — it relocates the ceiling rather than raising it, and trades a managed platform that scales to zero for a fixed box plus ops work. The live database at that date held **4 users, 6 sets, 80 cards, 6 quiz answers**. Move compute when there is a measured bill or a real 429, not before.
+
+### 9. ⬜ Surfacing missed KLPs and weak topics — **REQUESTED 2026-08-20. NEEDS TWO DECISIONS BEFORE IT CAN BE DESIGNED.**
+
+The user's words: "a better way of displaying the KLPs that they missed and/or topics (depending on what they flagged)."
+
+**What already exists, so this is a rework and not a greenfield build** — three surfaces that each hold part of the answer and none of which is "here is what you got wrong, and here is what to do about it":
+- the quiz results screen shows per-answer error analysis (Spec 2b);
+- `/profile/learner` shows topic mastery plus the ranked study list (Spec 3C, with item 6f making the rows say what they actually are instead of the literal words "Key point");
+- `/profile/memory` shows the raw event feed.
+
+**Open question 1 — what does "depending on what they flagged" mean?** Starred cards, the categories the learner authored, or both. These are different data paths: starring is `CardProgress.starred`, categories are `CardCategory`, and Spec 3C's saved study scope already filters by category.
+
+**Open question 2 — new surface, or a rework of `/profile/learner`?** That page already owns roughly this job. The user has only ever seen it against a very thin corpus (6 quiz answers on the whole account), so it is genuinely unclear whether it is *insufficient* or merely *unpopulated* — and those have opposite remedies. Spec 3C's `diagnoseEmptyState` exists precisely because "nothing here" has four different causes.
+
+**Sequencing note:** this makes item 7 better rather than competing with it — a plan needs somewhere to point when it says "you are weak here." Worth doing before Spec 4's lesson generation, not after.
+
 ## Where deferred issues are recorded
 
 Never in memory — always in a spec's own section.
@@ -597,4 +651,5 @@ Never in memory — always in a spec's own section.
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
 - **`next build`:** clean
 - **`npm run lint`:** **175 problems** (131 errors, 44 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b, 6d and 6f → 175 after item 6e.)
-- Branch is **not merged**. It was pushed to `origin` as of 2026-08-11, but **item 6e's 22 commits are NOT pushed** — the auto-push hook this file used to assume does not exist (`.git/hooks/` has no `post-commit`). Verify with `git status -sb` rather than trusting it.
+- Branch is **not merged**. `origin` carries item 6e's work as of 2026-08-20 (through `f5c4615`), pushed manually.
+- **There is NO auto-push hook**, despite what this file assumed for several items — `.git/hooks/` contains nothing but samples. Every earlier entry that says "a commit hook pushes automatically, so `origin` tracks HEAD" was wrong. Check `git status -sb` before believing the remote is current.
