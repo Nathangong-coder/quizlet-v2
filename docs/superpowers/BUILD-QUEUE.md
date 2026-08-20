@@ -414,8 +414,10 @@ run after the change passed untouched.
 ### 6e. ✅ Credentials auth — **BUILT 2026-08-18/19. LIVE GATE PASSED 2026-08-19 — the first live gate in this project run by an agent, not handed to the human. Closes trap 6.**
 
 Design + task order: `specs/2026-08-17-credentials-auth-design.md`. Plan: `plans/2026-08-18-credentials-auth.md`. Ledger: `.superpowers/sdd/2026-08-18-credentials-auth/progress.md`. Task 10 report: `.superpowers/sdd/2026-08-18-credentials-auth/task-10-report.md`.
-21 commits (`fdb6c42` … `a428515`), branch `spec3b-tunable-scoring`, **not merged**.
-Tests **1412 → 1517** (116 → 127 files), `tsc` clean, `next build` clean, lint **176 → 175** (131 errors, 44 warnings — one below the baseline this queue has tracked since item 6b).
+22 commits (`fdb6c42` … `2d50cca`), branch `spec3b-tunable-scoring`, **not merged**.
+Tests **1412 → 1522** (116 → 127 files), `tsc` clean, `next build` clean, lint **176 → 175** (131 errors, 44 warnings — one below the baseline this queue has tracked since item 6b).
+
+**The final whole-feature review found one thing eleven task reviews could not, and it is the argument for running one.** Three separate strings told a password-only account it had GitHub: `/account` named GitHub as the sign-in method *and* as the source of the account email, and the password panel said GitHub was "the only way back in" — for an account Auth.js will refuse with `OAuthAccountNotLinked`. With no password reset, that last one is the difference between "keep this safe" and "you have a fallback". None of it was wrong when written; the app simply used to have exactly one way in, and the copy stated that as fact. It fell between tasks because every task's own diff was correct. Closed in `2d50cca` by deriving `hasGithub` the same way `hasPassword` is derived — selected, never returned raw — and gating the copy on it.
 
 Sign up and sign in with a username-or-email plus password, alongside GitHub OAuth. Chosen over item 6c and item 7 because a public directory is for strangers and a stranger cannot sign up today, and because it closes trap 6. **Two facts made it smaller than it looked:** `session: { strategy: "jwt" }` was already set in `src/auth.ts`, and `User.handle`/`normalizedHandle` from item 6d meant the username half needed no new validation. **One fact made it dangerous:** `src/middleware.ts` imports `auth.config.ts` on the **edge runtime**, so the Credentials provider had to live in `src/auth.ts` only — enforced by a guard that walks the transitive import graph, not a string search.
 
@@ -429,7 +431,7 @@ Sign up and sign in with a username-or-email plus password, alongside GitHub OAu
 **One design point worth keeping, because Task 10's gate depended on it:** revocation was traced end to end during Task 4's review and genuinely works. `jwtCallback`'s no-user branch returns the token unchanged on a `sessionVersion` match and `null` on mismatch, with **no healing path** — `sv` is only re-stamped at a fresh sign-in. But **the RSC `auth()` path discards the clearing `Set-Cookie` header** (`next-auth` `json()`s the response before returning it), so the cookie can outlive the session it names; eviction happens only on `/api/auth/session`, API routes and middleware. Recorded as Ruling R8 specifically so Task 10 would assert *denied access*, not a vanished cookie.
 
 **LIVE GATE, run 2026-08-19 against `npm run dev` (secrets passed to the process — `.env` still carries neither) and the real dev database:**
-1. **Suite/types/build/lint** — 127 files / 1517 tests passed, `tsc --noEmit` silent, `next build` compiled clean, lint **175** (131 errors, 44 warnings).
+1. **Suite/types/build/lint** — 127 files / 1517 tests passed, `tsc --noEmit` silent, `next build` compiled clean, lint **175** (131 errors, 44 warnings). (The final review's fix wave later took this to **1522**; the gate itself ran at 1517.)
 2. **Handle sign-in** — `dev_user` + password → `/sets`, navbar shows Learning / Account / Sign out. **This is the trap-6 close.**
 3. **Email sign-in** — `dev@localhost.test` + the same password → identical result, proving the either-identifier lookup runs against the real database, not a mock.
 4. **Failure message is identical for both misses** — a wrong password on the real account and a fully unknown identifier both rendered the exact string `Email or password is incorrect.`, byte for byte. No enumeration oracle.
@@ -589,9 +591,10 @@ Never in memory — always in a spec's own section.
 
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-17, after item 6f)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-19, after item 6e)
 
-- **Tests:** 116 files / **1412 passing** (excluding `cursor-agents`)
+- **Tests:** 127 files / **1522 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
-- **`npm run lint`:** **176 problems** (131 errors, 45 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b, 6d and 6f.)
-- Branch is **not merged**, but IS pushed to `origin` (as of 2026-08-11). A Vercel preview deployment tracks it.
+- **`next build`:** clean
+- **`npm run lint`:** **175 problems** (131 errors, 44 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b, 6d and 6f → 175 after item 6e.)
+- Branch is **not merged**. It was pushed to `origin` as of 2026-08-11, but **item 6e's 22 commits are NOT pushed** — the auto-push hook this file used to assume does not exist (`.git/hooks/` has no `post-commit`). Verify with `git status -sb` rather than trusting it.
