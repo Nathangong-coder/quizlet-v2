@@ -12,13 +12,23 @@
  */
 
 import { prisma } from '../src/lib/db'
-import { hashPassword, checkPassword } from '../src/lib/auth/password'
-import { checkHandle } from '../src/lib/users/handle'
+import { hashPassword, checkPassword, PASSWORD_REJECTION_MESSAGES } from '../src/lib/auth/password'
+import { checkHandle, HANDLE_REJECTION_MESSAGES } from '../src/lib/users/handle'
 
 async function main() {
-  // First line of the script, before anything is read or written. A seeded
-  // account with a known password in production is a back door, and "I was
-  // sure it was dev" is exactly how one gets created.
+  // The NODE_ENV check below is the first statement in main(), but not the
+  // first code the process runs: the `import { prisma } from '../src/lib/db'`
+  // above executes module-load side effects first — reading DATABASE_URL and
+  // constructing the Prisma client — before this function body even starts.
+  // That is safe: the Neon adapter connects lazily, so constructing the
+  // client issues no query. With DATABASE_URL unset you'll see "DATABASE_URL
+  // environment variable is not set" instead of the production-refusal
+  // message, but either way nothing reaches the database before the guard
+  // below runs. Do not read this as a write-before-check hole.
+  //
+  // First line of the function body, before anything is read or written. A
+  // seeded account with a known password in production is a back door, and
+  // "I was sure it was dev" is exactly how one gets created.
   if (process.env.NODE_ENV === 'production') {
     throw new Error('seed-dev-user refuses to run with NODE_ENV=production')
   }
@@ -32,11 +42,11 @@ async function main() {
   }
   const policy = checkPassword(password)
   if (!policy.ok) {
-    throw new Error(`DEV_USER_PASSWORD is rejected by the password policy: ${policy.reason}`)
+    throw new Error(`DEV_USER_PASSWORD is rejected: ${PASSWORD_REJECTION_MESSAGES[policy.reason]}`)
   }
   const handle = checkHandle(rawHandle)
   if (!handle.ok) {
-    throw new Error(`DEV_USER_HANDLE is rejected: ${handle.reason}`)
+    throw new Error(`DEV_USER_HANDLE is rejected: ${HANDLE_REJECTION_MESSAGES[handle.reason]}`)
   }
 
   const passwordHash = await hashPassword(password)
