@@ -14,6 +14,8 @@ export interface AccountSettings {
   /** Optional "write to me here" address. */
   contactEmail: string | null
   emailUpdates: boolean
+  /** Whether a password is set. The hash itself never leaves the server. */
+  hasPassword: boolean
 }
 
 /**
@@ -34,11 +36,20 @@ export async function getAccountSettings(): Promise<ActionResult<AccountSettings
   try {
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { handle: true, email: true, contactEmail: true, emailUpdates: true },
+      select: {
+        handle: true,
+        email: true,
+        contactEmail: true,
+        emailUpdates: true,
+        // Selected as a boolean-producing field, never returned raw: a hash in
+        // a server-component payload is a hash on the wire.
+        passwordHash: true,
+      },
     })
     if (!user) return { success: false, error: 'Account not found' }
 
-    return { success: true, data: user }
+    const { passwordHash, ...rest } = user
+    return { success: true, data: { ...rest, hasPassword: passwordHash !== null } }
   } catch (error) {
     console.error('Get account settings error:', error)
     return { success: false, error: 'Failed to load your account' }

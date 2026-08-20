@@ -148,6 +148,7 @@ describe('getAccountSettings', () => {
       email: 'alice@github.example',
       contactEmail: null,
       emailUpdates: false,
+      passwordHash: null,
     })
     const res = await getAccountSettings()
     expect(res.success).toBe(true)
@@ -160,5 +161,34 @@ describe('getAccountSettings', () => {
     h.userFindUnique.mockResolvedValue(null)
     const res = await getAccountSettings()
     expect(res.success).toBe(false)
+  })
+
+  it('reports whether a password exists without returning the hash', async () => {
+    h.userFindUnique.mockResolvedValue({
+      handle: 'alice',
+      email: 'alice@github.example',
+      contactEmail: null,
+      emailUpdates: false,
+      passwordHash: '$2b$12$secret',
+    })
+    const res = await getAccountSettings()
+    expect(res.success).toBe(true)
+    if (!res.success) return
+    expect(res.data.hasPassword).toBe(true)
+    expect(JSON.stringify(res.data)).not.toContain('$2b$12$secret')
+  })
+
+  it('reports hasPassword false for an OAuth-only account', async () => {
+    h.userFindUnique.mockResolvedValue({
+      handle: 'alice',
+      email: 'alice@github.example',
+      contactEmail: null,
+      emailUpdates: false,
+      passwordHash: null,
+    })
+    const res = await getAccountSettings()
+    expect(res.success).toBe(true)
+    if (!res.success) return
+    expect(res.data.hasPassword).toBe(false)
   })
 })

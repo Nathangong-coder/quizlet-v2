@@ -8,6 +8,7 @@ import {
   ContactEmailPanel,
   EmailUpdatesPanel,
 } from '@/components/account/AccountPanels'
+import { PasswordPanel } from '@/components/account/PasswordPanel'
 
 /**
  * Your ACCOUNT — who you are on this site.
@@ -20,9 +21,6 @@ import {
  * NOT here, and each for a stated reason:
  * - **Language** — the app has no i18n at all (no library, no catalogue, every
  *   string a literal). A selector with one entry is a promise it can't keep.
- * - **Password** — that is half of credentials auth, not a settings field. A
- *   stored password nobody can sign in with is a security-sensitive subsystem
- *   left at the halfway point. It ships with the login page or not at all.
  */
 export default async function AccountPage() {
   const session = await auth()
@@ -114,15 +112,17 @@ export default async function AccountPage() {
           <CardTitle>Sign-in</CardTitle>
           <CardDescription>How you get into this account.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-6">
           <p className="text-sm">
             <span className="font-medium">GitHub</span>
             <span className="text-muted-foreground"> — {account.email}</span>
           </p>
-          <p className="text-xs text-muted-foreground">
-            Signing in with a username and password is planned. It isn&apos;t built yet, so
-            there&apos;s no password to set here.
-          </p>
+          <div className="space-y-2 border-t pt-4">
+            <p className="text-sm font-medium">
+              {account.hasPassword ? 'Password' : 'Add a password'}
+            </p>
+            <PasswordPanel hasPassword={account.hasPassword} />
+          </div>
         </CardContent>
       </Card>
     </div>
