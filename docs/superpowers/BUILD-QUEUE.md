@@ -651,4 +651,5 @@ Never in memory — always in a spec's own section.
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
 - **`next build`:** clean
 - **`npm run lint`:** **175 problems** (131 errors, 44 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b, 6d and 6f → 175 after item 6e.)
-- Branch is **not merged**. It was pushed to `origin` as of 2026-08-11, but **item 6e's 22 commits are NOT pushed** — the auto-push hook this file used to assume does not exist (`.git/hooks/` has no `post-commit`). Verify with `git status -sb` rather than trusting it.
+- Branch is **not merged**. `origin` carries item 6e's work as of 2026-08-20 (through `f5c4615`), pushed manually.
+- **There is NO auto-push hook**, despite what this file assumed for several items — `.git/hooks/` contains nothing but samples. Every earlier entry that says "a commit hook pushes automatically, so `origin` tracks HEAD" was wrong. Check `git status -sb` before believing the remote is current.
