@@ -174,6 +174,7 @@ describe('consumeEmailVerification', () => {
     const res = await consumeEmailVerification('raw')
     expect(res).toEqual({ ok: false })
     expect(h.txUserUpdate).not.toHaveBeenCalled()
+    expect(h.invalidateTokens).not.toHaveBeenCalled()
   })
 
   it('refuses a REUSED token — the atomic claim is what decides', async () => {

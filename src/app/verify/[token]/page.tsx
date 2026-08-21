@@ -5,6 +5,21 @@ import ResendVerification from '@/components/auth/ResendVerification'
 import { consumeEmailVerification } from '@/actions/auth-verify'
 
 /**
+ * A hand-mangled or truncated link must land on the failure page, which offers
+ * a resend — not on Next's generic error boundary. decodeURIComponent throws
+ * URIError on malformed input like `%zz`, so an undecodable token is simply
+ * passed through: it will fail to resolve to a row and take the same path as
+ * any other dead token.
+ */
+function safeDecode(raw: string): string {
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
+
+/**
  * On success: redirect to /login?verified=1. Deliberately NOT an auto-sign-in
  * — see consumeEmailVerification.
  *
@@ -14,7 +29,7 @@ import { consumeEmailVerification } from '@/actions/auth-verify'
  */
 export default async function VerifyPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
-  const result = await consumeEmailVerification(decodeURIComponent(token))
+  const result = await consumeEmailVerification(safeDecode(token))
 
   // redirect() throws to unwind, so it must sit outside any try/catch. There
   // is none here on purpose.
