@@ -86,10 +86,10 @@ describe('redeemInviteCode — the gate', () => {
     expect(call.where.code).toBe('ABCDEFG234')
     expect(call.where.usesRemaining).toEqual({ gt: 0 })
     expect(call.where.revokedAt).toBeNull()
-    expect(call.where.OR).toEqual([
-      { expiresAt: null },
-      { expiresAt: { gt: expect.any(Date) } },
-    ])
+    expect(call.where.OR[0]).toEqual({ expiresAt: null })
+    // Tighter than `expect.any(Date)`: a mutant writing `{ gt: new Date(0) }`
+    // would make every expired code redeemable and still pass `any(Date)`.
+    expect(call.where.OR[1].expiresAt.gt.getTime()).toBeGreaterThan(Date.now() - 5_000)
     expect(call.data).toEqual({ usesRemaining: { decrement: 1 } })
   })
 

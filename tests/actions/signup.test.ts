@@ -6,6 +6,11 @@ const h = vi.hoisted(() => ({
   inviteFindUnique: vi.fn(),
   inviteUpdateMany: vi.fn(),
   inviteFindFirst: vi.fn(),
+  // Tracked (not a plain arrow function) so a test can assert order relative
+  // to $transaction ITSELF being called — comparing hashPassword only against
+  // inviteUpdateMany cannot tell "outside the transaction" from "first line
+  // inside the callback", since both precede updateMany either way.
+  transaction: vi.fn(),
   mintToken: vi.fn(),
   sendVerificationEmail: vi.fn(),
   afterTasks: [] as Promise<unknown>[],
@@ -26,13 +31,17 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     inviteCode: { findUnique: h.inviteFindUnique },
     user: {},
-    $transaction: (fn: (tx: unknown) => unknown) =>
-      fn({
-        inviteCode: { updateMany: h.inviteUpdateMany, findFirst: h.inviteFindFirst },
-        user: { create: h.create },
-      }),
+    $transaction: h.transaction,
   },
 }))
+// Set once, outside beforeEach: vi.clearAllMocks() clears .mock.calls but
+// preserves a mockImplementation, so this survives every test.
+h.transaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+  fn({
+    inviteCode: { updateMany: h.inviteUpdateMany, findFirst: h.inviteFindFirst },
+    user: { create: h.create },
+  }),
+)
 vi.mock('@/lib/auth/password', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/auth/password')>()
   return { ...actual, hashPassword: h.hashPassword }
@@ -158,13 +167,27 @@ describe('signUp', () => {
     expect(res.success).toBe(false)
     if (res.success) return
     expect(res.error).not.toMatch(/email/i)
+    expect(res.error).not.toMatch(/handle/i)
   })
 
   it('never runs a pre-flight uniqueness SELECT', async () => {
     // A check-then-write is a TOCTOU bug; the constraint is what decides.
-    // `prisma.user` is mocked with `create` alone, so any findFirst/findUnique
-    // call would throw rather than pass silently.
+    // `prisma.user` is mocked with no methods at all, so any findFirst,
+    // findUnique, or out-of-transaction create would throw rather than pass
+    // silently.
     await expect(signUp(VALID)).resolves.toMatchObject({ success: true })
+  })
+
+  it('hashes BEFORE opening the transaction, so bcrypt is not held across a connection', async () => {
+    // Holding a Postgres transaction open across ~250ms of bcrypt is how a
+    // serverless app exhausts its connection pool under any concurrency.
+    // Compared against $transaction's OWN call order, not inviteUpdateMany's:
+    // hashPassword moved to the first line INSIDE the callback would still
+    // precede inviteUpdateMany, so that comparison alone cannot see the move.
+    await signUp(VALID)
+    expect(h.hashPassword.mock.invocationCallOrder[0]).toBeLessThan(
+      h.transaction.mock.invocationCallOrder[0],
+    )
   })
 })
 
@@ -222,6 +245,7 @@ describe('invite redemption', () => {
     if (res.success) return
     // Neither field named, exactly as before.
     expect(res.error).not.toMatch(/email/i)
+    expect(res.error).not.toMatch(/handle/i)
     // And no compensating write: the transaction is what restores it.
     expect(h.inviteUpdateMany).toHaveBeenCalledTimes(1)
     expect(h.inviteUpdateMany.mock.calls[0][0].data).toEqual({ usesRemaining: { decrement: 1 } })

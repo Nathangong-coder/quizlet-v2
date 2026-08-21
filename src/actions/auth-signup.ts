@@ -116,8 +116,15 @@ export async function signUp(input: {
   // Fire and forget: the response is already decided, so the mail's couple of
   // hundred milliseconds are not observable from outside.
   after(async () => {
-    const token = await mintToken(prisma, { userId, purpose: 'email_verify' })
-    await sendVerificationEmail(email, token)
+    try {
+      const token = await mintToken(prisma, { userId, purpose: 'email_verify' })
+      await sendVerificationEmail(email, token)
+    } catch (error) {
+      // after() has no error boundary: an exception here is unhandled and
+      // kills the callback silently. The user still sees "check your inbox",
+      // so the resend control is their way out.
+      console.error('[mail] signUp verification send failed', error)
+    }
   })
 
   return { success: true, data: { email } }
