@@ -38,7 +38,6 @@ beforeEach(() => {
   h.auth.mockResolvedValue({ user: { id: 'u1' } })
   h.hashPassword.mockResolvedValue('$2b$12$new')
   h.update.mockResolvedValue({})
-  h.findUnique.mockResolvedValue({ passwordHash: null, sessionVersion: 2 })
   h.invalidateTokens.mockResolvedValue(undefined)
   h.findUnique.mockResolvedValue({ passwordHash: null, sessionVersion: 2, emailVerified: null })
 })
@@ -155,6 +154,13 @@ describe('savePassword also closes the reset hole', () => {
       sessionVersion: 3,
       emailVerified: original,
     })
+    // Explicit, not inherited: this test supplies `current` against a
+    // passwordHash, so it must pass the current-password check itself rather
+    // than relying on a mockResolvedValue(true) left behind by an earlier
+    // test — vi.clearAllMocks() clears call history but not implementations,
+    // so an order-dependent pass here would be silent until the file (or a
+    // `.only`) ran in a different order.
+    h.verifyPassword.mockResolvedValue(true)
     await savePassword({ current: 'old-password', next: 'a'.repeat(12) })
     expect(h.update.mock.calls[0][0].data.emailVerified).toBeUndefined()
   })
