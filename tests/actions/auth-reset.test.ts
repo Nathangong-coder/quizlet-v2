@@ -51,7 +51,12 @@ vi.mock('@/lib/auth/password', async (importOriginal) => {
 })
 vi.mock('@/lib/mail/send', () => ({ sendPasswordResetEmail: h.sendPasswordResetEmail }))
 
-import { requestPasswordReset, FORGOT_FIXED_MESSAGE } from '@/actions/auth-reset'
+import {
+  requestPasswordReset,
+  FORGOT_FIXED_MESSAGE,
+  peekResetToken,
+  completePasswordReset,
+} from '@/actions/auth-reset'
 
 const PASSWORD_USER = {
   id: 'u1',
@@ -146,5 +151,98 @@ describe('requestPasswordReset', () => {
 
   it('exports one fixed message that promises nothing about existence', () => {
     expect(FORGOT_FIXED_MESSAGE).toMatch(/if that account exists/i)
+  })
+})
+
+describe('peekResetToken', () => {
+  it('checks a PASSWORD_RESET token and consumes nothing', async () => {
+    h.peekToken.mockResolvedValue(true)
+    expect(await peekResetToken('raw')).toBe(true)
+    expect(h.peekToken).toHaveBeenCalledWith(expect.anything(), {
+      purpose: 'password_reset',
+      raw: 'raw',
+    })
+    expect(h.consumeToken).not.toHaveBeenCalled()
+  })
+})
+
+describe('completePasswordReset', () => {
+  beforeEach(() => {
+    h.consumeToken.mockResolvedValue({ ok: true, userId: 'u1' })
+    h.txUserFindUnique.mockResolvedValue({ sessionVersion: 4, emailVerified: null })
+    h.txUserUpdate.mockResolvedValue({ id: 'u1' })
+    h.invalidateTokens.mockResolvedValue(undefined)
+    h.hashPassword.mockResolvedValue('$2b$12$new')
+  })
+
+  const VALID = { token: 'raw', password: 'a'.repeat(12) }
+
+  it('rejects a password that fails policy BEFORE consuming the token', async () => {
+    // Burning the token on a too-short password would make the user request a
+    // whole new link to fix a typo.
+    const res = await completePasswordReset({ token: 'raw', password: 'short' })
+    expect(res.success).toBe(false)
+    expect(h.consumeToken).not.toHaveBeenCalled()
+  })
+
+  it('hashes OUTSIDE the transaction', async () => {
+    // Holding a Postgres transaction open across ~250ms of bcrypt is how a
+    // serverless app exhausts its connection pool.
+    await completePasswordReset(VALID)
+    expect(h.hashPassword.mock.invocationCallOrder[0]).toBeLessThan(
+      h.consumeToken.mock.invocationCallOrder[0],
+    )
+  })
+
+  it('consumes the token atomically and writes the new password', async () => {
+    const res = await completePasswordReset(VALID)
+    expect(res.success).toBe(true)
+    expect(h.consumeToken).toHaveBeenCalledWith(expect.anything(), {
+      purpose: 'password_reset',
+      raw: 'raw',
+    })
+    const data = h.txUserUpdate.mock.calls[0][0].data
+    expect(data.passwordHash).toBe('$2b$12$new')
+    expect(data.passwordSetAt).toBeInstanceOf(Date)
+  })
+
+  it('BUMPS sessionVersion — it is a password change, so every JWT must die', async () => {
+    await completePasswordReset(VALID)
+    expect(h.txUserUpdate.mock.calls[0][0].data.sessionVersion).toBe(5)
+  })
+
+  it('sets emailVerified when it was null — the inbox proved itself', async () => {
+    // This is what gives an unverified, locked-out user exactly one path back.
+    await completePasswordReset(VALID)
+    expect(h.txUserUpdate.mock.calls[0][0].data.emailVerified).toBeInstanceOf(Date)
+  })
+
+  it('does NOT move an emailVerified that already exists', async () => {
+    const original = new Date('2026-01-01T00:00:00.000Z')
+    h.txUserFindUnique.mockResolvedValue({ sessionVersion: 1, emailVerified: original })
+    await completePasswordReset(VALID)
+    expect(h.txUserUpdate.mock.calls[0][0].data.emailVerified).toBeUndefined()
+  })
+
+  it('invalidates the user’s other outstanding reset tokens', async () => {
+    await completePasswordReset(VALID)
+    expect(h.invalidateTokens).toHaveBeenCalledWith(expect.anything(), {
+      userId: 'u1',
+      purpose: 'password_reset',
+    })
+  })
+
+  it('refuses a used or expired token and writes nothing', async () => {
+    h.consumeToken.mockResolvedValue({ ok: false, reason: 'invalid_or_expired' })
+    const res = await completePasswordReset(VALID)
+    expect(res.success).toBe(false)
+    expect(h.txUserUpdate).not.toHaveBeenCalled()
+  })
+
+  it('refuses the SECOND use of the same link', async () => {
+    h.consumeToken.mockResolvedValueOnce({ ok: true, userId: 'u1' })
+    h.consumeToken.mockResolvedValueOnce({ ok: false, reason: 'invalid_or_expired' })
+    expect((await completePasswordReset(VALID)).success).toBe(true)
+    expect((await completePasswordReset(VALID)).success).toBe(false)
   })
 })
