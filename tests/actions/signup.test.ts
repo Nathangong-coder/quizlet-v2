@@ -184,6 +184,15 @@ describe('signUp', () => {
     // Compared against $transaction's OWN call order, not inviteUpdateMany's:
     // hashPassword moved to the first line INSIDE the callback would still
     // precede inviteUpdateMany, so that comparison alone cannot see the move.
+    //
+    // NOTE ON WHAT THIS CANNOT CATCH: invocationCallOrder records when
+    // hashPassword was CALLED, not when it was awaited. Holding the promise
+    // (`const p = hashPassword(...)`) and awaiting it inside the transaction
+    // passes this assertion while genuinely holding bcrypt across the open
+    // transaction. Catching that needs a resolution-time flag, which was
+    // deliberately not built: the mutant reads as obviously intentional in
+    // review, and the microtask machinery is a maintenance hazard a future
+    // "simplification" would silently re-break.
     await signUp(VALID)
     expect(h.hashPassword.mock.invocationCallOrder[0]).toBeLessThan(
       h.transaction.mock.invocationCallOrder[0],

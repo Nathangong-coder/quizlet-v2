@@ -80,6 +80,17 @@ export async function completePasswordReset(input: {
   token: string
   password: string
 }): Promise<ActionResult<void>> {
+  // A server action is a public POST endpoint: a malformed body (e.g. a
+  // missing/non-string `password`) must not reach checkPassword's
+  // `raw.length`, which would throw on `undefined` and 500 rather than
+  // return the ordinary failure result — same guard shape as peekResetToken.
+  if (typeof input.token !== 'string' || input.token.length === 0) {
+    return { success: false, error: RESET_FAILED_MESSAGE }
+  }
+  if (typeof input.password !== 'string') {
+    return { success: false, error: PASSWORD_REJECTION_MESSAGES.too_short }
+  }
+
   const policy = checkPassword(input.password)
   if (!policy.ok) return { success: false, error: PASSWORD_REJECTION_MESSAGES[policy.reason] }
 

@@ -10,6 +10,11 @@ const h = vi.hoisted(() => ({
   invalidateTokens: vi.fn(),
   txUserFindUnique: vi.fn(),
   txUserUpdate: vi.fn(),
+  // Tracked (not a plain arrow function) so a test can assert order relative
+  // to $transaction ITSELF being called — comparing hashPassword only against
+  // consumeToken cannot tell "outside the transaction" from "first line
+  // inside the callback", since both precede consumeToken either way.
+  transaction: vi.fn(),
   hashPassword: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
   afterTasks: [] as Array<() => unknown>,
@@ -31,10 +36,15 @@ vi.mock('next/server', () => ({
 vi.mock('@/lib/db', () => ({
   prisma: {
     user: { findFirst: h.findFirst },
-    $transaction: (fn: (tx: unknown) => unknown) =>
-      fn({ user: { findUnique: h.txUserFindUnique, update: h.txUserUpdate } }),
+    $transaction: h.transaction,
   },
 }))
+// Set once, outside beforeEach: vi.clearAllMocks() clears .mock.calls but
+// preserves a mockImplementation, so this must sit outside and survive every
+// test rather than being re-set in a beforeEach.
+h.transaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+  fn({ user: { findUnique: h.txUserFindUnique, update: h.txUserUpdate } }),
+)
 vi.mock('@/lib/auth/tokens', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/auth/tokens')>()
   return {
@@ -187,10 +197,22 @@ describe('completePasswordReset', () => {
 
   it('hashes OUTSIDE the transaction', async () => {
     // Holding a Postgres transaction open across ~250ms of bcrypt is how a
-    // serverless app exhausts its connection pool.
+    // serverless app exhausts its connection pool. Compared against
+    // $transaction's OWN call order, not consumeToken's: hashPassword moved
+    // to the first line INSIDE the callback would still precede consumeToken,
+    // so that comparison alone cannot see the move.
+    //
+    // NOTE ON WHAT THIS CANNOT CATCH: invocationCallOrder records when
+    // hashPassword was CALLED, not when it was awaited. Holding the promise
+    // (`const p = hashPassword(...)`) and awaiting it inside the transaction
+    // passes this assertion while genuinely holding bcrypt across the open
+    // transaction. Catching that needs a resolution-time flag, which was
+    // deliberately not built: the mutant reads as obviously intentional in
+    // review, and the microtask machinery is a maintenance hazard a future
+    // "simplification" would silently re-break.
     await completePasswordReset(VALID)
     expect(h.hashPassword.mock.invocationCallOrder[0]).toBeLessThan(
-      h.consumeToken.mock.invocationCallOrder[0],
+      h.transaction.mock.invocationCallOrder[0],
     )
   })
 
@@ -237,6 +259,33 @@ describe('completePasswordReset', () => {
     const res = await completePasswordReset(VALID)
     expect(res.success).toBe(false)
     expect(h.txUserUpdate).not.toHaveBeenCalled()
+  })
+
+  it('writes nothing when the claimed userId has no matching user row', async () => {
+    h.txUserFindUnique.mockResolvedValue(null)
+    const res = await completePasswordReset(VALID)
+    expect(res.success).toBe(false)
+    expect(h.txUserUpdate).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-string password without throwing — a server action is a public POST endpoint', async () => {
+    const res = await completePasswordReset({
+      token: 'raw',
+      // @ts-expect-error deliberately malformed body
+      password: undefined,
+    })
+    expect(res.success).toBe(false)
+    expect(h.consumeToken).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-string token without throwing', async () => {
+    const res = await completePasswordReset({
+      // @ts-expect-error deliberately malformed body
+      token: undefined,
+      password: VALID.password,
+    })
+    expect(res.success).toBe(false)
+    expect(h.consumeToken).not.toHaveBeenCalled()
   })
 
   it('refuses the SECOND use of the same link', async () => {

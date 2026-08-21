@@ -70,10 +70,21 @@ export async function consumeEmailVerification(rawToken: string): Promise<{ ok: 
     const claimed = await consumeToken(tx, { purpose: 'email_verify', raw: rawToken })
     if (!claimed.ok) return { ok: false }
 
-    await tx.user.update({
+    const user = await tx.user.findUnique({
       where: { id: claimed.userId },
-      data: { emailVerified: new Date() },
+      select: { emailVerified: true },
     })
+
+    // Only when null — never overwrite an existing verification stamp.
+    // completePasswordReset (src/actions/auth-reset.ts) honours the same
+    // rule: a password reset can already have stamped emailVerified, and an
+    // OLDER verify link clicked afterward must not rewrite that history.
+    if (!user?.emailVerified) {
+      await tx.user.update({
+        where: { id: claimed.userId },
+        data: { emailVerified: new Date() },
+      })
+    }
     // A second link in an older mail must not stay live after this one worked.
     await invalidateTokens(tx, { userId: claimed.userId, purpose: 'email_verify' })
     return { ok: true }

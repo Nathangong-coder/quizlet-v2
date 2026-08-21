@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   mintToken: vi.fn(),
   consumeToken: vi.fn(),
   invalidateTokens: vi.fn(),
+  txUserFindUnique: vi.fn(),
   txUserUpdate: vi.fn(),
   sendVerificationEmail: vi.fn(),
   afterTasks: [] as Array<() => unknown>,
@@ -30,7 +31,8 @@ vi.mock('next/server', () => ({
 vi.mock('@/lib/db', () => ({
   prisma: {
     user: { findFirst: h.findFirst },
-    $transaction: (fn: (tx: unknown) => unknown) => fn({ user: { update: h.txUserUpdate } }),
+    $transaction: (fn: (tx: unknown) => unknown) =>
+      fn({ user: { findUnique: h.txUserFindUnique, update: h.txUserUpdate } }),
   },
 }))
 vi.mock('@/lib/auth/tokens', async (importOriginal) => {
@@ -140,6 +142,7 @@ describe('resendVerification', () => {
 describe('consumeEmailVerification', () => {
   beforeEach(() => {
     h.consumeToken.mockResolvedValue({ ok: true, userId: 'u1' })
+    h.txUserFindUnique.mockResolvedValue({ emailVerified: null })
     h.txUserUpdate.mockResolvedValue({ id: 'u1' })
     h.invalidateTokens.mockResolvedValue(undefined)
   })
@@ -159,6 +162,17 @@ describe('consumeEmailVerification', () => {
       where: { id: 'u1' },
       data: { emailVerified: expect.any(Date) },
     })
+  })
+
+  it('does NOT move an emailVerified that already exists', async () => {
+    // A password reset (completePasswordReset in auth-reset.ts) can already
+    // have stamped emailVerified. An OLDER verify link, consumed afterward,
+    // must not rewrite that history.
+    const original = new Date('2026-01-01T00:00:00.000Z')
+    h.txUserFindUnique.mockResolvedValue({ emailVerified: original })
+    const res = await consumeEmailVerification('raw')
+    expect(res).toEqual({ ok: true })
+    expect(h.txUserUpdate).not.toHaveBeenCalled()
   })
 
   it('invalidates the user’s other outstanding verify links', async () => {
