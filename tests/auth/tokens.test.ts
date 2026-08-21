@@ -92,6 +92,12 @@ describe('mintToken', () => {
       where: { userId: 'u1', purpose: 'email_verify', usedAt: null },
       data: { usedAt: expect.any(Date) },
     })
+    // And the invalidate comes FIRST. If create ran first, the invalidate's
+    // `usedAt: null` where-clause would sweep up the row just minted, and
+    // every freshly issued link would be dead on arrival.
+    expect(db.userToken.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      db.userToken.create.mock.invocationCallOrder[0],
+    )
   })
 
   it('stores the HASH and never the raw token', async () => {
@@ -180,6 +186,24 @@ describe('peekToken', () => {
   it('is false for a token that does not resolve', async () => {
     const db = fakeDb()
     db.userToken.findUnique.mockResolvedValue(null)
+    expect(await peekToken(db, { purpose: 'password_reset', raw: 'r' })).toBe(false)
+  })
+
+  it('is false for a token that has already been used', async () => {
+    const db = fakeDb()
+    db.userToken.findUnique.mockResolvedValue({
+      usedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+    expect(await peekToken(db, { purpose: 'password_reset', raw: 'r' })).toBe(false)
+  })
+
+  it('is false for an expired token', async () => {
+    const db = fakeDb()
+    db.userToken.findUnique.mockResolvedValue({
+      usedAt: null,
+      expiresAt: new Date(Date.now() - 1),
+    })
     expect(await peekToken(db, { purpose: 'password_reset', raw: 'r' })).toBe(false)
   })
 })
