@@ -8,6 +8,7 @@ import {
   hashPassword,
   verifyPassword,
 } from '@/lib/auth/password'
+import { invalidateTokens } from '@/lib/auth/tokens'
 import type { ActionResult } from '@/types/action'
 
 /**
@@ -26,20 +27,22 @@ export async function savePassword(input: {
 }): Promise<ActionResult<void>> {
   const session = await auth()
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+  const userId = session.user.id
 
   const policy = checkPassword(input.next)
   if (!policy.ok) return { success: false, error: PASSWORD_REJECTION_MESSAGES[policy.reason] }
 
   const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { passwordHash: true, sessionVersion: true },
+    where: { id: userId },
+    select: { passwordHash: true, sessionVersion: true, emailVerified: true },
   })
   if (!user) return { success: false, error: 'Account not found' }
 
   if (user.passwordHash) {
     // Required, not optional. An unattended open session is otherwise enough
-    // to take the account permanently: there is no password reset to recover
-    // it with, so this check is the whole defence.
+    // to take the account permanently, and while /forgot can now recover a
+    // forgotten password, it cannot undo a takeover by someone sitting at an
+    // open session. This check is that defence.
     if (!input.current) {
       return { success: false, error: 'Enter your current password.' }
     }
@@ -47,17 +50,32 @@ export async function savePassword(input: {
     if (!ok) return { success: false, error: 'That current password is incorrect.' }
   }
 
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: {
-      passwordHash: await hashPassword(input.next),
-      passwordSetAt: new Date(),
-      // Invalidates every token already issued for this account, on this
-      // device and any other. Under the JWT strategy there is no session row to
-      // delete, so without this a password change would not actually lock
-      // anyone out — see src/lib/auth/session.ts.
-      sessionVersion: user.sessionVersion + 1,
-    },
+  const passwordHash = await hashPassword(input.next)
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash,
+        passwordSetAt: new Date(),
+        // Invalidates every token already issued for this account, on this
+        // device and any other. Under the JWT strategy there is no session row
+        // to delete, so without this a password change would not actually lock
+        // anyone out — see src/lib/auth/session.ts.
+        sessionVersion: user.sessionVersion + 1,
+        // A GitHub account created after the verification gate shipped has
+        // emailVerified: null; without this, setting a password here would
+        // lock the user out of password sign-in immediately. They are
+        // demonstrably signed in and in control, and there is no
+        // self-registered address to have typo'd.
+        ...(user.emailVerified ? {} : { emailVerified: new Date() }),
+      },
+    })
+
+    // An attacker requests a reset, the owner notices and changes their
+    // password from /account — without this, the attacker's emailed link stays
+    // live for the rest of the hour.
+    await invalidateTokens(tx, { userId, purpose: 'password_reset' })
   })
 
   // No revalidatePath here, deliberately. sessionVersion just moved past the

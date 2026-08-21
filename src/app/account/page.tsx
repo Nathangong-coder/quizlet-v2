@@ -74,9 +74,9 @@ export default async function AccountPage() {
             <p className="font-mono text-sm">{account.email}</p>
             {/*
               Read-only, and the reason is on screen. This address identifies
-              the account and will be its recovery address once password reset
-              exists; letting it be edited without a verification round trip is
-              an account-takeover vector. The editable contact address below is
+              the account and is its password-reset recovery address; letting
+              it be edited without a verification round trip is an
+              account-takeover vector. The editable contact address below is
               what "add your email" should mean.
             */}
             <p className="text-xs text-muted-foreground">
@@ -122,7 +122,7 @@ export default async function AccountPage() {
             <p className="text-sm font-medium">
               {account.hasPassword ? 'Password' : 'Add a password'}
             </p>
-            <PasswordPanel hasPassword={account.hasPassword} hasGithub={account.hasGithub} />
+            <PasswordPanel hasPassword={account.hasPassword} />
           </div>
         </CardContent>
       </Card>

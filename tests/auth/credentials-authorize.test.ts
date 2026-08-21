@@ -186,7 +186,14 @@ describe('the verification gate', () => {
     expect(JSON.stringify(res)).not.toContain('$2b$12$')
   })
 
-  it('selects emailVerified — a gate reading an unselected field is silently open', async () => {
+  it('selects emailVerified — a gate reading an unselected field fails CLOSED, not open', async () => {
+    // If `emailVerified` were left out of `select`, the field would come back
+    // `undefined` — falsy — so `if (!user.emailVerified)` would fire for
+    // EVERY user, verified or not, locking everyone out rather than letting
+    // anyone through. That failure mode is invisible to any behavioural test
+    // here: this mock ignores `select` and always returns the whole fixture
+    // regardless of what was asked for, so only a direct assertion on the
+    // query shape below can catch the omission.
     h.findFirst.mockResolvedValue(VERIFIED)
     h.verifyPassword.mockResolvedValue(true)
     await authorizeCredentials({ identifier: 'a', password: 'p' })
