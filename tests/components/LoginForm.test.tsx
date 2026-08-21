@@ -8,6 +8,11 @@ const h = vi.hoisted(() => ({ signIn: vi.fn(), push: vi.fn(), refresh: vi.fn() }
 
 vi.mock('next-auth/react', () => ({ signIn: h.signIn }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: h.push, refresh: h.refresh }) }))
+// Trap 7: without this the file dies at load, not at assertion time.
+vi.mock('@/actions/auth-verify', () => ({
+  resendVerification: vi.fn().mockResolvedValue({ success: true, data: undefined }),
+  RESEND_FIXED_MESSAGE: 'If that account exists, we’ve sent a link.',
+}))
 
 import LoginForm from '@/components/auth/LoginForm'
 
@@ -37,10 +42,13 @@ describe('LoginForm', () => {
     await waitFor(() => expect(h.push).toHaveBeenCalledWith('/sets/abc/quiz'))
   })
 
-  it('shows ONE generic message on a failed sign-in', async () => {
+  it('shows ONE generic message on a failed sign-in, with no resend control', async () => {
     // Distinguishing "no such account" from "wrong password" is a
     // user-enumeration oracle. This assertion is the UI half of that rule.
-    h.signIn.mockResolvedValue({ error: 'CredentialsSignin' })
+    // `code: 'credentials'` is the CredentialsSignin base class's own
+    // default (see @auth/core/errors.js) — every ordinary sign-in failure
+    // carries it, not just this mock.
+    h.signIn.mockResolvedValue({ error: 'CredentialsSignin', code: 'credentials' })
     render(<LoginForm callbackUrl="/sets" signupOpen={false} />)
     fill('alice', 'wrongwrongwrong')
     fireEvent.click(screen.getByRole('button', { name: /^sign in$/i }))
@@ -49,6 +57,33 @@ describe('LoginForm', () => {
     expect(alert).toHaveTextContent(/email or password is incorrect/i)
     expect(alert).not.toHaveTextContent(/no account|not found|unknown|no such/i)
     expect(h.push).not.toHaveBeenCalled()
+    // The asymmetry with the unverified case below is the feature: a plain
+    // wrong password must not be offered a resend, or "no resend shown"
+    // itself becomes a signal.
+    expect(screen.queryByRole('button', { name: /send another link/i })).toBeNull()
+  })
+
+  it('offers a resend when the account is unverified — Task 10 Step 6 confirmed the code survives', async () => {
+    // Empirically verified against a running dev server
+    // (next-auth@5.0.0-beta.31): Auth.js's CredentialsSignin redirect always
+    // sets `error` to the fixed class-level type string "CredentialsSignin"
+    // — the SUBCLASS signal rides on the separate `code` field
+    // (@auth/core/index.js: `if (error instanceof CredentialsSignin)
+    // params.set("code", error.code)`), which `next-auth/react`'s signIn()
+    // surfaces as `res.code`. LoginForm reads `res.code ?? res.error` for
+    // exactly this reason — reading `res.error` alone would never see
+    // "unverified".
+    h.signIn.mockResolvedValue({ error: 'CredentialsSignin', code: 'unverified' })
+    render(<LoginForm callbackUrl="/sets" signupOpen={false} />)
+    fill('dev@localhost.test', 'correct-password')
+    fireEvent.click(screen.getByRole('button', { name: /^sign in$/i }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/isn.t verified yet/i)
+    expect(h.push).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', { name: /send another link/i }),
+    ).toBeInTheDocument()
   })
 
   it('explains OAuthAccountNotLinked instead of showing the raw code', async () => {

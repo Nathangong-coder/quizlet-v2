@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import ResendVerification from '@/components/auth/ResendVerification'
 
 /** The one message every credentials failure produces. See lib/auth/credentials.ts. */
 const GENERIC_FAILURE = 'Email or password is incorrect.'
@@ -20,8 +21,21 @@ const GENERIC_FAILURE = 'Email or password is incorrect.'
  */
 const ERROR_COPY: Record<string, string> = {
   CredentialsSignin: GENERIC_FAILURE,
+  // `next-auth`'s CredentialsSignin base class defaults `error.code` to
+  // "credentials" — Auth.js only puts a `code` query param on the redirect
+  // AT ALL when the thrown error `instanceof CredentialsSignin`
+  // (@auth/core/index.js), and for THAT family `error` (the `type`, from a
+  // static class field) is always the fixed string "CredentialsSignin",
+  // never anything more specific. The *subclass* signal lives in `code`, not
+  // `error`. Confirmed empirically in Task 10 Step 6: signing in on an
+  // unverified account produced `?error=CredentialsSignin&code=unverified`.
+  // See `submit()` below, which looks up `res.code ?? res.error` for exactly
+  // this reason.
+  credentials: GENERIC_FAILURE,
   OAuthAccountNotLinked:
     'That email already has an account here. Sign in with your password instead.',
+  unverified:
+    'Your email address isn’t verified yet. Check your inbox for the link, or send another below.',
 }
 
 function messageFor(code: string): string {
@@ -52,7 +66,11 @@ export default function LoginForm({
       // navigation to Auth.js's own error page.
       const res = await signIn('credentials', { identifier, password, redirect: false })
       if (res?.error) {
-        setError(messageFor(res.error))
+        // `res.code` carries the CredentialsSignin subclass's specific code
+        // ("unverified", or the base class's default "credentials"); every
+        // other AuthError type (e.g. OAuthAccountNotLinked) never gets a
+        // `code`, so `res.error` (the fixed type string) is the fallback.
+        setError(messageFor(res.code ?? res.error))
         return
       }
       router.push(callbackUrl)
@@ -104,6 +122,15 @@ export default function LoginForm({
           {isPending ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
+
+      {/*
+       * MUST be a sibling of <form>, not a child of it: ResendVerification
+       * renders its own <form>, and HTML forbids a <form> descendant of
+       * another <form> — nesting them here produced a real React hydration
+       * error, caught empirically in Task 10 Step 6 via the dev overlay
+       * ("In HTML, <form> cannot be a descendant of <form>").
+       */}
+      {error === ERROR_COPY.unverified ? <ResendVerification defaultIdentifier={identifier} /> : null}
 
       <p className="text-sm text-muted-foreground">
         <Link href="/forgot" className="underline hover:text-foreground">

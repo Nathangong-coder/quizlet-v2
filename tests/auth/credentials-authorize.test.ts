@@ -20,6 +20,7 @@ const USER = {
   name: 'Alice',
   image: null,
   passwordHash: '$2b$12$hash',
+  emailVerified: new Date('2026-01-01'),
 }
 
 beforeEach(() => {
@@ -34,7 +35,10 @@ describe('authorizeCredentials', () => {
 
     const result = await authorizeCredentials({ identifier: 'alice', password: 'a'.repeat(12) })
 
-    expect(result).toEqual({ id: 'u1', email: 'alice@example.com', name: 'Alice', image: null })
+    expect(result).toEqual({
+      kind: 'ok',
+      user: { id: 'u1', email: 'alice@example.com', name: 'Alice', image: null },
+    })
   })
 
   it('NEVER returns the password hash to Auth.js', async () => {
@@ -44,14 +48,16 @@ describe('authorizeCredentials', () => {
 
     const result = await authorizeCredentials({ identifier: 'alice', password: 'a'.repeat(12) })
 
-    expect(result).not.toHaveProperty('passwordHash')
+    expect(JSON.stringify(result)).not.toContain('passwordHash')
   })
 
-  it('returns null on a wrong password', async () => {
+  it('returns rejected on a wrong password', async () => {
     h.findFirst.mockResolvedValue(USER)
     h.verifyPassword.mockResolvedValue(false)
 
-    expect(await authorizeCredentials({ identifier: 'alice', password: 'wrongwrongwrong' })).toBeNull()
+    expect(
+      await authorizeCredentials({ identifier: 'alice', password: 'wrongwrongwrong' }),
+    ).toEqual({ kind: 'rejected' })
   })
 
   it('runs a dummy comparison when no user matches, instead of returning early', async () => {
@@ -80,7 +86,7 @@ describe('authorizeCredentials', () => {
     expect(settled, 'authorize resolved before the dummy comparison finished').toBe(false)
 
     releaseDummy!()
-    expect(await pending).toBeNull()
+    expect(await pending).toEqual({ kind: 'rejected' })
     expect(h.verifyAgainstDummy).toHaveBeenCalledWith('a'.repeat(12))
   })
 
@@ -91,14 +97,18 @@ describe('authorizeCredentials', () => {
 
     const result = await authorizeCredentials({ identifier: 'alice', password: 'a'.repeat(12) })
 
-    expect(result).toBeNull()
+    expect(result).toEqual({ kind: 'rejected' })
     expect(h.verifyAgainstDummy).toHaveBeenCalled()
     expect(h.verifyPassword).not.toHaveBeenCalled()
   })
 
   it('rejects non-string input without touching the database', async () => {
-    expect(await authorizeCredentials({ identifier: undefined, password: 'a'.repeat(12) })).toBeNull()
-    expect(await authorizeCredentials({ identifier: 'alice', password: 123 })).toBeNull()
+    expect(await authorizeCredentials({ identifier: undefined, password: 'a'.repeat(12) })).toEqual({
+      kind: 'rejected',
+    })
+    expect(await authorizeCredentials({ identifier: 'alice', password: 123 })).toEqual({
+      kind: 'rejected',
+    })
     expect(h.findFirst).not.toHaveBeenCalled()
   })
 
@@ -122,6 +132,64 @@ describe('authorizeCredentials', () => {
 
     const result = await authorizeCredentials({ identifier: 'alice', password: 'short' })
 
-    expect(result).not.toBeNull()
+    expect(result).toEqual({ kind: 'ok', user: expect.any(Object) })
+  })
+})
+
+describe('the verification gate', () => {
+  const VERIFIED = { ...USER, emailVerified: new Date('2026-01-01') }
+  const UNVERIFIED = { ...USER, emailVerified: null }
+
+  it('returns unverified ONLY when the password was correct', async () => {
+    // The gate is enumeration-safe because of WHEN it fires. At this moment the
+    // caller already knows the account exists and knows its password, so
+    // telling them "verify your email" reveals nothing they did not supply.
+    h.findFirst.mockResolvedValue(UNVERIFIED)
+    h.verifyPassword.mockResolvedValue(true)
+    expect(await authorizeCredentials({ identifier: 'a', password: 'p' })).toEqual({
+      kind: 'unverified',
+    })
+  })
+
+  it('returns rejected — NOT unverified — for a WRONG password on an unverified account', async () => {
+    // Otherwise the gate becomes the oracle: "unverified" would confirm the
+    // account exists to someone who guessed nothing right.
+    h.findFirst.mockResolvedValue(UNVERIFIED)
+    h.verifyPassword.mockResolvedValue(false)
+    expect(await authorizeCredentials({ identifier: 'a', password: 'wrong' })).toEqual({
+      kind: 'rejected',
+    })
+  })
+
+  it('lets a verified account through', async () => {
+    h.findFirst.mockResolvedValue(VERIFIED)
+    h.verifyPassword.mockResolvedValue(true)
+    const res = await authorizeCredentials({ identifier: 'a', password: 'p' })
+    expect(res).toEqual({
+      kind: 'ok',
+      user: { id: 'u1', email: 'alice@example.com', name: 'Alice', image: null },
+    })
+  })
+
+  it('returns rejected for an unknown identifier, after a real dummy comparison', async () => {
+    h.findFirst.mockResolvedValue(null)
+    expect(await authorizeCredentials({ identifier: 'nobody', password: 'p' })).toEqual({
+      kind: 'rejected',
+    })
+    expect(h.verifyAgainstDummy).toHaveBeenCalled()
+  })
+
+  it('never returns the password hash in the ok payload', async () => {
+    h.findFirst.mockResolvedValue(VERIFIED)
+    h.verifyPassword.mockResolvedValue(true)
+    const res = await authorizeCredentials({ identifier: 'a', password: 'p' })
+    expect(JSON.stringify(res)).not.toContain('$2b$12$')
+  })
+
+  it('selects emailVerified — a gate reading an unselected field is silently open', async () => {
+    h.findFirst.mockResolvedValue(VERIFIED)
+    h.verifyPassword.mockResolvedValue(true)
+    await authorizeCredentials({ identifier: 'a', password: 'p' })
+    expect(h.findFirst.mock.calls[0][0].select.emailVerified).toBe(true)
   })
 })
