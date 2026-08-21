@@ -1,22 +1,73 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const h = vi.hoisted(() => ({ create: vi.fn(), hashPassword: vi.fn() }))
+const h = vi.hoisted(() => ({
+  create: vi.fn(),
+  hashPassword: vi.fn(),
+  inviteFindUnique: vi.fn(),
+  inviteUpdateMany: vi.fn(),
+  inviteFindFirst: vi.fn(),
+  mintToken: vi.fn(),
+  sendVerificationEmail: vi.fn(),
+  afterTasks: [] as Promise<unknown>[],
+}))
 
-vi.mock('@/lib/db', () => ({ prisma: { user: { create: h.create } } }))
+// after() runs its callback out of band in production. The tests need to be
+// able to await it, so the mock records the promise instead of dropping it.
+vi.mock('next/server', () => ({
+  after: (fn: () => unknown) => {
+    h.afterTasks.push(Promise.resolve().then(fn))
+  },
+}))
+
+// `prisma.user` deliberately exposes NO create: the only legitimate create is
+// on the transaction client, so a version that writes outside the transaction
+// throws rather than passing silently.
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    inviteCode: { findUnique: h.inviteFindUnique },
+    user: {},
+    $transaction: (fn: (tx: unknown) => unknown) =>
+      fn({
+        inviteCode: { updateMany: h.inviteUpdateMany, findFirst: h.inviteFindFirst },
+        user: { create: h.create },
+      }),
+  },
+}))
 vi.mock('@/lib/auth/password', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/auth/password')>()
   return { ...actual, hashPassword: h.hashPassword }
 })
+vi.mock('@/lib/auth/tokens', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/auth/tokens')>()
+  return { ...actual, mintToken: h.mintToken }
+})
+vi.mock('@/lib/mail/send', () => ({ sendVerificationEmail: h.sendVerificationEmail }))
 
 import { signUp } from '@/actions/auth-signup'
 
-const VALID = { handle: 'alice_ng', email: 'alice@example.com', password: 'a'.repeat(12) }
+const VALID = {
+  handle: 'alice_ng',
+  email: 'alice@example.com',
+  password: 'a'.repeat(12),
+  inviteCode: 'ABCDE-FG234',
+}
+
+async function drainAfter() {
+  const tasks = h.afterTasks.splice(0)
+  await Promise.all(tasks)
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
+  h.afterTasks.length = 0
   process.env.CREDENTIALS_SIGNUP_ENABLED = 'true'
   h.hashPassword.mockResolvedValue('$2b$12$hashed')
   h.create.mockResolvedValue({ id: 'u1' })
+  h.inviteFindUnique.mockResolvedValue({ usesRemaining: 3, revokedAt: null, expiresAt: null })
+  h.inviteUpdateMany.mockResolvedValue({ count: 1 })
+  h.inviteFindFirst.mockResolvedValue({ id: 'inv1' })
+  h.mintToken.mockResolvedValue('raw-token')
+  h.sendVerificationEmail.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -114,5 +165,86 @@ describe('signUp', () => {
     // `prisma.user` is mocked with `create` alone, so any findFirst/findUnique
     // call would throw rather than pass silently.
     await expect(signUp(VALID)).resolves.toMatchObject({ success: true })
+  })
+})
+
+describe('invite redemption', () => {
+  it('records which code let the account in, and creates it UNVERIFIED', async () => {
+    const res = await signUp(VALID)
+    expect(res.success).toBe(true)
+    const data = h.create.mock.calls[0][0].data
+    expect(data.invitedByCodeId).toBe('inv1')
+    expect(data.emailVerified).toBeNull()
+  })
+
+  it('refuses a dead code BEFORE spending a bcrypt round', async () => {
+    // /signup would otherwise be a CPU amplifier anyone can fire with random
+    // codes: ~250ms of hashing per request, before any account exists.
+    h.inviteFindUnique.mockResolvedValue({ usesRemaining: 0, revokedAt: null, expiresAt: null })
+    const res = await signUp(VALID)
+    expect(res.success).toBe(false)
+    if (res.success) return
+    expect(res.error).toMatch(/invite code/i)
+    expect(h.hashPassword).not.toHaveBeenCalled()
+    expect(h.create).not.toHaveBeenCalled()
+  })
+
+  it('refuses an unknown code', async () => {
+    h.inviteFindUnique.mockResolvedValue(null)
+    const res = await signUp(VALID)
+    expect(res.success).toBe(false)
+    expect(h.create).not.toHaveBeenCalled()
+  })
+
+  it('refuses when the last slot is taken between the pre-check and the decrement', async () => {
+    // The pre-check passes, the atomic update claims nothing. This is the race
+    // the counter exists for, and the pre-check cannot see it.
+    h.inviteUpdateMany.mockResolvedValue({ count: 0 })
+    const res = await signUp(VALID)
+    expect(res.success).toBe(false)
+    if (res.success) return
+    expect(res.error).toMatch(/invite code/i)
+  })
+
+  it('decrements and creates on the SAME transaction client', async () => {
+    // `prisma.user` has no `create` in the mock, so a create outside the
+    // transaction throws. That is the structural guarantee that a P2002
+    // rollback also restores the invite use — a typo must not burn a code.
+    await signUp(VALID)
+    expect(h.inviteUpdateMany).toHaveBeenCalledTimes(1)
+    expect(h.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('restores the invite use on a duplicate account, via the rollback', async () => {
+    h.create.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }))
+    const res = await signUp(VALID)
+    expect(res.success).toBe(false)
+    if (res.success) return
+    // Neither field named, exactly as before.
+    expect(res.error).not.toMatch(/email/i)
+    // And no compensating write: the transaction is what restores it.
+    expect(h.inviteUpdateMany).toHaveBeenCalledTimes(1)
+    expect(h.inviteUpdateMany.mock.calls[0][0].data).toEqual({ usesRemaining: { decrement: 1 } })
+  })
+})
+
+describe('verification mail', () => {
+  it('mints an email_verify token and sends it, in after()', async () => {
+    await signUp(VALID)
+    // Nothing sent yet — the response was already returned.
+    expect(h.sendVerificationEmail).not.toHaveBeenCalled()
+    await drainAfter()
+    expect(h.mintToken).toHaveBeenCalledWith(expect.anything(), {
+      userId: 'u1',
+      purpose: 'email_verify',
+    })
+    expect(h.sendVerificationEmail).toHaveBeenCalledWith('alice@example.com', 'raw-token')
+  })
+
+  it('sends nothing when the account was not created', async () => {
+    h.create.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }))
+    await signUp(VALID)
+    await drainAfter()
+    expect(h.sendVerificationEmail).not.toHaveBeenCalled()
   })
 })

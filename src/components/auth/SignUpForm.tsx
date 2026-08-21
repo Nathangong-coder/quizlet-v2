@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { signUp } from '@/actions/auth-signup'
@@ -11,6 +10,7 @@ import { PASSWORD_MIN_LENGTH } from '@/lib/auth/password'
 
 export default function SignUpForm() {
   const router = useRouter()
+  const [inviteCode, setInviteCode] = useState('')
   const [handle, setHandle] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -21,32 +21,25 @@ export default function SignUpForm() {
   function submit() {
     setError(null)
     // Checked on the client only — the server does not need it. The two fields
-    // exist to catch a typo in something the user cannot recover if it is
-    // wrong, since there is no password reset.
+    // exist to catch a typo in the password before it is stored — cheaper than
+    // a reset round trip.
     if (password !== confirm) {
       setError('Those passwords do not match.')
       return
     }
 
     startTransition(async () => {
-      const res = await signUp({ handle, email, password })
+      const res = await signUp({ handle, email, password, inviteCode })
       if (!res.success) {
         setError(res.error)
         return
       }
-      // Straight in. Making someone type the password they just chose into a
-      // second form is a step with no purpose.
-      const signedIn = await signIn('credentials', {
-        identifier: res.data.email,
-        password,
-        redirect: false,
-      })
-      if (signedIn?.error) {
-        setError('Your account was created, but signing in failed. Try signing in.')
-        return
-      }
-      router.push('/sets')
-      router.refresh()
+      // No auto-sign-in any more: the account is unverified, and
+      // authorizeCredentials refuses an unverified credentials account. Send
+      // them to the screen that shows the address they typed instead — that is
+      // the primary typo defence, and it works better than the email itself,
+      // because they see `me@gmial.com` while they still remember typing it.
+      router.push(`/signup/check-email?email=${encodeURIComponent(res.data.email)}`)
     })
   }
 
@@ -58,6 +51,22 @@ export default function SignUpForm() {
       }}
       className="space-y-4"
     >
+      <div className="space-y-1">
+        <label htmlFor="signup-invite" className="text-sm font-medium">
+          Invite code
+        </label>
+        <Input
+          id="signup-invite"
+          value={inviteCode}
+          onChange={(e) => setInviteCode(e.target.value)}
+          autoComplete="off"
+          placeholder="ABCDE-FG234"
+        />
+        <p className="text-xs text-muted-foreground">
+          Hyphens, spaces and letter case do not matter.
+        </p>
+      </div>
+
       <div className="space-y-1">
         <label htmlFor="signup-handle" className="text-sm font-medium">
           Handle
