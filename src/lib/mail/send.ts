@@ -1,6 +1,6 @@
 import { appOrigin } from '@/lib/mail/origin'
 import { consoleTransport, resendTransport, type MailTransport } from '@/lib/mail/transport'
-import { passwordResetTemplate, verifyEmailTemplate } from '@/lib/mail/templates'
+import { passwordResetTemplate, verifyEmailTemplate, type MailBody } from '@/lib/mail/templates'
 
 const DEFAULT_FROM = 'Quizlet <onboarding@resend.dev>'
 
@@ -22,23 +22,33 @@ function transport(): MailTransport {
  * whatever else that callback was doing. It logs with a distinctive `[mail]`
  * prefix instead.
  *
+ * `build` is a thunk, not a pre-built body, so that template construction
+ * (and `appOrigin()`) happens *inside* the try — not as an argument
+ * expression evaluated before this function is ever entered. Nothing in
+ * those calls throws today, but "MUST NEVER THROW" has to cover the whole
+ * call, not just the network hop, or the promise this function's name makes
+ * is false.
+ *
  * The cost, stated plainly: a broken mail configuration is QUIET. A user whose
  * message bounced sees "check your inbox" and nothing arrives. The console
  * transport and the live gate are what cover that; there is no bounce handling
  * and no in-app delivery dashboard.
  */
-async function sendQuietly(to: string, body: { subject: string; text: string; html: string }) {
+async function sendQuietly(to: string, build: () => MailBody) {
+  let subject = '(template not built)'
   try {
+    const body = build()
+    subject = body.subject
     await transport().send({ to, ...body })
   } catch (error) {
-    console.error('[mail] delivery failed', { to, subject: body.subject, error })
+    console.error('[mail] delivery failed', { to, subject, error })
   }
 }
 
 export async function sendVerificationEmail(to: string, token: string): Promise<void> {
-  await sendQuietly(to, verifyEmailTemplate({ origin: appOrigin(), token }))
+  await sendQuietly(to, () => verifyEmailTemplate({ origin: appOrigin(), token }))
 }
 
 export async function sendPasswordResetEmail(to: string, token: string): Promise<void> {
-  await sendQuietly(to, passwordResetTemplate({ origin: appOrigin(), token }))
+  await sendQuietly(to, () => passwordResetTemplate({ origin: appOrigin(), token }))
 }
