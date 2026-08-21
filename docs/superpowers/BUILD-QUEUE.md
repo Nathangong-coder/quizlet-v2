@@ -1,16 +1,16 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-20 (item 6e live-gated; items 8 and 9 added from the post-build review with the user)
+**Last updated:** 2026-08-21 (item 8 built and live-gated — the agent-runnable half; two human gates still owed)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
 
 **Build order for what remains, decided with the user 2026-08-20 — the numbers do NOT sort into it:**
 
-1. **Item 8 — open the doors** (password reset + invite codes). Chosen next by the user over both alternatives. Until it ships the signup flag stays off and the app has one real user, which makes 6c largely moot.
+1. ~~**Item 8 — open the doors**~~ **DONE 2026-08-21** — see its entry below. `CREDENTIALS_SIGNUP_ENABLED` itself is still off; flipping it is a separate human decision, not blocked on any remaining code.
 2. **Item 9 — surfacing missed KLPs / weak topics.** Blocked on two decisions named in its entry. Worth doing before Spec 4's lessons, so a plan has somewhere to point.
 3. **Item 7 — Spec 4**, plan setup + readiness + lesson generation. The biggest item; its lesson half now has its first design decision (see item 7's "LESSON OUTPUT TYPES").
-4. **Item 6c — sharing & discovery.** Designed and ready, but a public directory is for strangers and a stranger cannot sign up until item 8 lands.
+4. **Item 6c — sharing & discovery.** Designed and ready — item 8 landing removes the "a stranger cannot sign up" blocker, though the flag itself is still off.
 
 ---
 
@@ -520,29 +520,65 @@ The rule the user set is **"use existing media, if it exists"** — v1 curates a
 
 **FUTURE BET, explicitly not v1 — generated video/audio.** Synthesizing narrated audio or video from a lesson. Recorded here at the user's request so it is not lost. It is gated on **Stage 4 (voice), which is unbuilt**: TTS is the same capability the voice-interview stage needs, so building it here first would either duplicate that work or pre-empt its design. It also carries per-minute generation cost against the user's own provider keys, plus rendering and storage nobody has sized. Revisit after Stage 4, not before.
 
-### 8. ⬜ Open the doors — password reset + invite codes — **THIS IS THE NEXT BUILD. Requested 2026-08-20, no design yet.**
+### 8. ✅ Open the doors — password reset + invite codes — **BUILT 2026-08-20/21. LIVE GATE PASSED 2026-08-21 (agent-runnable half).**
+
+Design: `docs/superpowers/specs/2026-08-20-open-the-doors-design.md`. Plan: `docs/superpowers/plans/2026-08-20-open-the-doors.md`. 12 tasks, commit range `8cb51dd..fb8a851`.
 
 Not descended from any spec — it came out of reviewing item 6e with the user on 2026-08-20. **Chosen by the user over Spec 4 and over 6c.**
 
-**Password reset and invite codes are ONE item, not two.** Neither is worth shipping alone:
-- Reset without a cap means uncontrolled growth — the user's stated fear is "my backend will be fried."
-- Invite codes without reset means handing someone a code to an account they can permanently lose. Item 6e's design (§7) already records that a forgotten password is unrecoverable **today**; that is the single biggest reason sign-up ships gated.
+**Password reset and invite codes shipped as ONE item, not two**, per the original reasoning: reset without a cap means uncontrolled growth, invite codes without reset means handing someone a code to an account they can permanently lose. Together they are what makes `CREDENTIALS_SIGNUP_ENABLED=true` a decision the user can actually take — the flag itself did **not** flip as part of this work; that stays a deliberate human call (§8 of the design).
 
-Together they are the thing that makes `CREDENTIALS_SIGNUP_ENABLED=true` a decision you can actually take. **Until this ships, the flag stays off and the app has exactly one real user.**
+**What shipped:** `UserToken` (purpose-bound `sha256(purpose + ':' + raw)` hash, single-use, atomic consume) and `InviteCode` (Crockford Base32, `maxUses`/`usesRemaining`, expiry, `--revoke`) tables; `src/lib/mail/` (raw `fetch` to Resend, no `resend` package, console-transport fallback when `RESEND_API_KEY` is absent); `/signup` now requires an invite code and redemption is atomic with account creation; `/signup/check-email`, `/verify/[token]`, `/forgot`, `/reset/[token]`; the sign-in gate refuses an unverified address; `savePassword`/reset both bump `User.sessionVersion` and invalidate sibling tokens; `scripts/mint-invite.ts` / `npm run invite`.
 
-**What it needs, none of which exists:**
-- **A mail provider.** `RESEND_API_KEY` is gone from `.env` and Stage 7 deferred delivery as "schema-ready" only. Reset is impossible without it. `contactEmail`/`emailUpdates` from item 6d are the beginning of that surface.
-- **A reset-token table** — single-use, expiring, and the token hashed at rest, since a token in a database is a bearer credential exactly like a password.
-- **An invite table** — this is the "waitlist" in practice. A finite set of codes caps growth *exactly*, which a rate limiter cannot do: a limiter slows a burst, it does not bound how many accounts exist.
-- Three screens: request reset, consume reset, redeem invite at sign-up.
+**New baselines (this branch, 2026-08-21, after item 8):**
+- **Tests:** 140 files / **1655 passing** (excluding `cursor-agents`)
+- **`tsc --noEmit`:** clean (excluding `cursor-agents`)
+- **`next build`:** clean
+- **`npm run lint`:** **175 problems** (131 errors, 44 warnings) — unchanged from the item 6e baseline. Do not fix unrelated ones.
 
-**Design constraints already known, carried from 6e:**
-- Requesting a reset must **not** reveal whether an address has an account — the same user-enumeration rule that makes sign-in return one message for every failure. Respond identically for a known and an unknown address.
-- Consuming a reset must **bump `User.sessionVersion`**. It is a password change; every outstanding token for that account must die, exactly as `savePassword` does today.
-- Rate limiting belongs at the **edge, not in the app** — serverless instances share no memory, so an in-process counter resets on every cold start and protects nothing. The one request worth limiting is the login POST, which costs ~250ms of CPU *by design* (bcrypt cost 12, and the unknown-account path deliberately does equal work so it cannot be timed). That makes it a CPU-amplification vector as well as a credential-stuffing one.
-- A **per-account lockout counter in Postgres** is the one in-app throttle that does work, because Postgres is shared state.
+**Live gate (spec §12, steps 1-8, run by an agent against a local dev server with `CREDENTIALS_SIGNUP_ENABLED=true` set on the process only, no `.env` change, `RESEND_API_KEY` unset so links print to the server log):**
 
-**Deliberately NOT in this item:** hosting changes. The user asked whether moving to a free Oracle VM would reduce throttling; the answer recorded on 2026-08-20 is no — it relocates the ceiling rather than raising it, and trades a managed platform that scales to zero for a fixed box plus ops work. The live database at that date held **4 users, 6 sets, 80 cards, 6 quiz answers**. Move compute when there is a measured bill or a real 429, not before.
+| # | Step | Observed result |
+| --- | --- | --- |
+| 1 | Mint `--uses 1` code, sign up with it | Signed up with `72EPZ-WPAA8`; redirected to `/signup/check-email`; verification link printed to server log |
+| 2 | Sign in before verifying | Refused: "Your email address isn't verified yet. Check your inbox for the link, or send another below." |
+| 3 | Follow verify link | Redirected to `/login?verified=1` ("Your email is verified. Sign in below."); sign-in then succeeded, landing on `/sets` |
+| 4 | Reuse the same verify link | Rejected: "That link didn't work. Verification links expire after 24 hours and can only be used once." |
+| 5 | Sign up again with the now-exhausted code | After a second signup exhausted `72EPZ-WPAA8` (2 of 2 used), a third attempt was refused: "That invite code isn't valid, has expired, or has been used up." |
+| 5b | P2002 rollback: fresh `--uses 1` code, duplicate email, then same code + fresh email | Duplicate attempt (`dev@localhost.test`) refused: "Those details can't be used. Try something different, or sign in instead." — invite stayed at 0 of 1 used (verified via `npm run invite -- --list`), i.e. the failed transaction did **not** burn the invite. Retried with the same code and a fresh email → succeeded, and the invite then correctly showed 1 of 1 used. |
+| 6 | `/forgot` for a real account vs. `nobody@example.invalid` | Byte-identical rendered text for both: "If that account exists, we've sent a link to its email address." Server log confirmed a reset mail was queued only for the real account. |
+| 7 | Follow reset link, set new password | Reset succeeded; a tab with an active session for that account, refreshed after the reset, showed "Sign in to see your sets" — the old session was dead on the next request |
+| 8 | Reuse the reset link | Rejected: "That link didn't work. Reset links expire after an hour and can only be used once." |
+
+All nine steps (1 through 8, plus 5b) passed as designed — no deviations found in the live gate itself. The dev server was stopped afterward and `npm run seed:dev-user` restored the seeded account; sign-in with it was re-verified.
+
+**Human gates still owed (spec §12, steps 9-10 — not producible from an agent session):**
+1. **A real Resend delivery** — `RESEND_API_KEY` set against a verified sending domain, a message arriving in a real inbox, and its link working against the deployed origin.
+2. **The Vercel Firewall rules** (runbook below) configured in the dashboard, and a burst of logins actually throttled.
+
+**§14 known limits, carried verbatim:**
+- A mail failure is silent to the user. `send.ts` swallows to protect the `after()` callback, so a user whose mail bounced sees "check your inbox" and nothing arrives. There is no bounce handling and no delivery dashboard in-app. Resend's own dashboard is the only place to see it.
+- No account deletion, still. Invite codes cap how many accounts *are created*, not how many exist. A pool that has been fully redeemed cannot be reclaimed.
+- `invitedByCodeId` is `SetNull`, so deleting an `InviteCode` erases the audit trail for accounts that used it. Prefer `--revoke`, which preserves the row.
+- 50 bits of code entropy assumes the Firewall rule exists. Without §10's `POST /signup` limit, a determined attacker with a botnet has a materially better chance than the number suggests.
+- The stale comment in `credentials.ts` ("unrecoverable with no password reset", justifying no password-policy check on sign-in) becomes half-false once this ships. The *behaviour* should not change — rejecting a legacy password at sign-in is still bad — but the comment needs rewording so the next reader does not act on a premise that no longer holds. **Closed:** Task 10 already reworded it; Task 12 re-verified with `grep -rniE "no password reset|no way back into this account|once password reset exists" src/` → clean.
+- No admin UI. Minting, listing, and revoking are terminal-only. Revisit when handing out codes is frequent enough to be annoying, not before.
+
+**Vercel Firewall rules — operator action, owed to the human. No code, no test.**
+
+| Path | Limit | Why this path |
+| --- | --- | --- |
+| `POST /api/auth/callback/credentials` | 10/min/IP | The ~250ms bcrypt burner. CPU amplification as well as credential stuffing — and by design the unknown-account path costs the same, so an attacker does not even need real addresses. |
+| `POST /signup` | 5/min/IP | Also the invite-code brute-force surface. 50 bits of code entropy assumes this rule exists. |
+| `POST /forgot` | 5/min/IP | Mail-send amplification; someone else pays for the sends. |
+| `POST /reset/*` | 10/min/IP | Token brute force. |
+
+Server Actions POST to their own page's path carrying a `Next-Action` header, so path-based
+rules do reach them.
+
+**Per-account lockout is deliberately NOT built.** A hard lockout is itself an attack — anyone
+who knows an address can lock its owner out on purpose, and there is no support desk to undo it.
+Revisit only on evidence of real credential stuffing.
 
 ### 9. ⬜ Surfacing missed KLPs and weak topics — **REQUESTED 2026-08-20. NEEDS TWO DECISIONS BEFORE IT CAN BE DESIGNED.**
 
@@ -645,11 +681,11 @@ Never in memory — always in a spec's own section.
 
 ---
 
-## Baselines (branch `spec3b-tunable-scoring`, 2026-08-19, after item 6e)
+## Baselines (branch `spec3b-tunable-scoring`, 2026-08-21, after item 8)
 
-- **Tests:** 127 files / **1522 passing** (excluding `cursor-agents`)
+- **Tests:** 140 files / **1655 passing** (excluding `cursor-agents`)
 - **`tsc --noEmit`:** clean (excluding `cursor-agents`)
 - **`next build`:** clean
-- **`npm run lint`:** **175 problems** (131 errors, 44 warnings) — all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b, 6d and 6f → 175 after item 6e.)
-- Branch is **not merged**. `origin` carries item 6e's work as of 2026-08-20 (through `f5c4615`), pushed manually.
-- **There is NO auto-push hook**, despite what this file assumed for several items — `.git/hooks/` contains nothing but samples. Every earlier entry that says "a commit hook pushes automatically, so `origin` tracks HEAD" was wrong. Check `git status -sb` before believing the remote is current.
+- **`npm run lint`:** **175 problems** (131 errors, 44 warnings) — unchanged from the item 6e baseline; all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b, 6d, 6f and 8 → 175 after item 6e.)
+- Branch is **not merged**. `origin` carries item 6e's work as of 2026-08-20 (through `f5c4615`), pushed manually; item 8 (through `fb8a851` plus this doc commit) has **not yet been pushed** — `git status -sb` showed `ahead 24` of `origin/spec3b-tunable-scoring` at the time this was written. Check `git status -sb` before believing the remote is current.
+- **There is NO auto-push hook**, despite what this file assumed for several items — `.git/hooks/` contains nothing but samples. Every earlier entry that says "a commit hook pushes automatically, so `origin` tracks HEAD" was wrong.

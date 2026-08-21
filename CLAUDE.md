@@ -34,11 +34,19 @@ A redesigned Quizlet-style study app with first-class **short-answer** practice 
   and **must never** be added to `src/auth.config.ts` — `src/middleware.ts` bundles that file for
   the **edge runtime**, where a hashing library breaks every protected route at request time,
   invisibly to `tsc` and to the test suite. `tests/auth/edge-safety.test.ts` walks the transitive
-  import graph to enforce it. Sign-up is gated by `CREDENTIALS_SIGNUP_ENABLED` (off unless exactly
-  `"true"`) because there is **no password reset** — no mail provider exists. Signing in is never
-  gated. JWTs cannot be revoked, so `User.sessionVersion` is compared on every session resolution
-  and bumped on password change; without it a password change is theatre. Accounts are required
-  for starring/confidence memory, saved quiz history, and (later) multiplayer.
+  import graph to enforce it. Sign-up requires an **invite code** (`InviteCode`, a bearer code with
+  `maxUses` + expiry, minted by `npm run invite`) and a **verified email address** — `emailVerified`
+  is null for a new credentials account and `authorizeCredentials` refuses sign-in until it is set.
+  `CREDENTIALS_SIGNUP_ENABLED` survives as a **master kill switch** (off unless exactly `"true"`),
+  not as the growth control; invite codes are the cap. Password reset exists (`/forgot`,
+  `/reset/[token]`) on one `UserToken` table whose `tokenHash` is `sha256(purpose + ':' + raw)` —
+  the purpose is bound into the hash so a verification token cannot be presented at the reset
+  endpoint. Mail goes through `src/lib/mail/` (raw `fetch` to Resend; **no `resend` package**),
+  and with `RESEND_API_KEY` absent it falls back to a console transport that prints links to the
+  server log. Signing in is never gated. JWTs cannot be revoked, so `User.sessionVersion` is
+  compared on every session resolution and bumped on password change **and on reset**; without it
+  a password change is theatre. Accounts are required for starring/confidence memory, saved quiz
+  history, and (later) multiplayer.
 - **AI access:** Each user stores their own AI provider credentials (`AiCredential`, many per user) in settings; all AI calls on their behalf run against those credentials. See "AI integration" below.
 - **Multiplayer:** Single-player first; live vs-friends matching is a later add-on (Supabase Realtime or WebSockets when built).
 
@@ -162,6 +170,8 @@ Frozen reference: `docs/ai/error-taxonomy.md`. **Supersedes Stage 7's plan once 
 `.env` is gitignored — keep it that way and never commit real keys. Use `.env.example` (placeholders only) for documenting required variables.
 
 **Corrected 2026-08-09:** this note previously said `.env` holds live `GOOGLE_API_KEY` and `RESEND_API_KEY`. It no longer does — the local file contains **only `DATABASE_URL`**. A consequence worth knowing before debugging: `NEXTAUTH_SECRET` is absent, so `auth()` throws `MissingSecret` and the app misbehaves locally in confusing ways. See `docs/superpowers/BUILD-QUEUE.md` for the workaround.
+
+**Updated 2026-08-20:** `.env` may now optionally carry `RESEND_API_KEY` and `MAIL_FROM` (see `.env.example`). Absent, `src/lib/mail/` falls back to a console transport — verification and reset links print to the server log instead of being emailed, which is what makes the invite/verify/reset flow agent-runnable end to end with no real inbox.
 
 `GOOGLE_KEY_ENCRYPTION_SECRET` now encrypts `AiCredential` rows for **every** provider, not just Google — the name is kept deliberately. Renaming it, or changing the `v1:<iv>:<tag>:<ciphertext>` payload format, makes every already-stored credential permanently undecryptable. A golden-vector test (`tests/security/api-key.test.ts`) pins the current format against a fixed plaintext/secret/output; if it fails, either revert or ship a re-encryption migration before deploying.
 
