@@ -44,7 +44,7 @@ vi.mock('@/lib/auth/tokens', async (importOriginal) => {
 })
 vi.mock('@/lib/mail/send', () => ({ sendVerificationEmail: h.sendVerificationEmail }))
 
-import { resendVerification, RESEND_FIXED_MESSAGE } from '@/actions/auth-verify'
+import { resendVerification, RESEND_FIXED_MESSAGE, consumeEmailVerification } from '@/actions/auth-verify'
 
 async function drainAfter() {
   return Promise.all(h.afterTasks.splice(0).map((fn) => fn()))
@@ -134,5 +134,60 @@ describe('resendVerification', () => {
 
   it('exports the fixed message so the UI cannot invent a second one', () => {
     expect(RESEND_FIXED_MESSAGE).toMatch(/if that account/i)
+  })
+})
+
+describe('consumeEmailVerification', () => {
+  beforeEach(() => {
+    h.consumeToken.mockResolvedValue({ ok: true, userId: 'u1' })
+    h.txUserUpdate.mockResolvedValue({ id: 'u1' })
+    h.invalidateTokens.mockResolvedValue(undefined)
+  })
+
+  it('consumes an EMAIL_VERIFY token — never a reset one', async () => {
+    await consumeEmailVerification('raw')
+    expect(h.consumeToken).toHaveBeenCalledWith(expect.anything(), {
+      purpose: 'email_verify',
+      raw: 'raw',
+    })
+  })
+
+  it('stamps emailVerified and reports success', async () => {
+    const res = await consumeEmailVerification('raw')
+    expect(res).toEqual({ ok: true })
+    expect(h.txUserUpdate).toHaveBeenCalledWith({
+      where: { id: 'u1' },
+      data: { emailVerified: expect.any(Date) },
+    })
+  })
+
+  it('invalidates the user’s other outstanding verify links', async () => {
+    await consumeEmailVerification('raw')
+    expect(h.invalidateTokens).toHaveBeenCalledWith(expect.anything(), {
+      userId: 'u1',
+      purpose: 'email_verify',
+    })
+  })
+
+  it('refuses an invalid or expired token WITHOUT writing anything', async () => {
+    h.consumeToken.mockResolvedValue({ ok: false, reason: 'invalid_or_expired' })
+    const res = await consumeEmailVerification('raw')
+    expect(res).toEqual({ ok: false })
+    expect(h.txUserUpdate).not.toHaveBeenCalled()
+  })
+
+  it('refuses a REUSED token — the atomic claim is what decides', async () => {
+    h.consumeToken.mockResolvedValueOnce({ ok: true, userId: 'u1' })
+    h.consumeToken.mockResolvedValueOnce({ ok: false, reason: 'invalid_or_expired' })
+    expect(await consumeEmailVerification('raw')).toEqual({ ok: true })
+    expect(await consumeEmailVerification('raw')).toEqual({ ok: false })
+  })
+
+  it('does NOT sign the user in', async () => {
+    // The token is in a URL, which lands in browser history and in whatever
+    // proxy logged the request. Verification proves the inbox; it is not a
+    // credential.
+    const mod = await import('@/actions/auth-verify')
+    expect(Object.keys(mod)).not.toContain('signIn')
   })
 })

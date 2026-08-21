@@ -3,7 +3,7 @@
 import { after } from 'next/server'
 import { prisma } from '@/lib/db'
 import { identifierWhere } from '@/lib/auth/identifier'
-import { mintToken } from '@/lib/auth/tokens'
+import { mintToken, consumeToken, invalidateTokens } from '@/lib/auth/tokens'
 import { sendVerificationEmail } from '@/lib/mail/send'
 import type { ActionResult } from '@/types/action'
 
@@ -48,4 +48,34 @@ export async function resendVerification(input: {
   })
 
   return { success: true, data: undefined }
+}
+
+/**
+ * Turn a verification link into a verified address.
+ *
+ * Does NOT sign the user in. The token sits in a URL, which lands in browser
+ * history, in the referrer of anything the page loads, and in whatever proxy
+ * logged the request — proving control of an inbox is not the same as holding
+ * a credential.
+ *
+ * KNOWN AND ACCEPTED: this consumes on a GET, so a mail-scanning link
+ * prefetcher can burn the token before the human clicks it. The failure page
+ * therefore always offers a resend rather than a dead end, which is what makes
+ * that recoverable instead of fatal.
+ */
+export async function consumeEmailVerification(rawToken: string): Promise<{ ok: boolean }> {
+  if (typeof rawToken !== 'string' || rawToken.length === 0) return { ok: false }
+
+  return prisma.$transaction(async (tx) => {
+    const claimed = await consumeToken(tx, { purpose: 'email_verify', raw: rawToken })
+    if (!claimed.ok) return { ok: false }
+
+    await tx.user.update({
+      where: { id: claimed.userId },
+      data: { emailVerified: new Date() },
+    })
+    // A second link in an older mail must not stay live after this one worked.
+    await invalidateTokens(tx, { userId: claimed.userId, purpose: 'email_verify' })
+    return { ok: true }
+  })
 }
