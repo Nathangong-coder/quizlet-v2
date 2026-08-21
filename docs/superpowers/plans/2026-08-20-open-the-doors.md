@@ -4038,6 +4038,12 @@ With **no `RESEND_API_KEY` set**, so links print to the server log. Set `CREDENT
 3. Follow the verify link → sign in **succeeds**.
 4. Reuse the same verify link → **rejected** as already used.
 5. Sign up again with the same now-exhausted code → **refused** with the invite message.
+5b. **The P2002 rollback restores the invite use.** Mint a fresh `--uses 1` code. Sign up with it
+   using an email that ALREADY exists (the seeded `dev@localhost.test` will do) → refused with the
+   duplicate-details message. Then sign up again with the **same code** and a fresh email → it must
+   **succeed**. Added after the Task 5 review observed that the mocked tests prove only the
+   precondition (one decrement, no compensating write) and never that Postgres actually restores
+   the count — a typo burning someone's invite would otherwise ship unobserved.
 6. `/forgot` for the real account and for `nobody@example.invalid` → **byte-identical** responses (compare the rendered text exactly).
 7. Follow the reset link, set a new password → the old session is **dead on the next request**.
 8. Reuse the reset link → **rejected**.
