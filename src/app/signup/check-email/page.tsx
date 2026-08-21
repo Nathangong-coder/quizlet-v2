@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import ResendVerification from '@/components/auth/ResendVerification'
 
 /**
  * Shows the address AS TYPED. This is the primary typo defence, and it beats
@@ -38,9 +39,9 @@ export default async function CheckEmailPage({
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            The link works for 24 hours. If the address above is wrong, sign up again with the
-            correct one.
+            The link works for 24 hours. Nothing arrived? Check spam, then send another.
           </p>
+          <ResendVerification defaultIdentifier={email} />
           <p className="text-sm text-muted-foreground">
             <Link href="/login" className="underline hover:text-foreground">
               Back to sign in
