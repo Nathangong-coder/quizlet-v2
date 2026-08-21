@@ -38,4 +38,17 @@ describe('ResendVerification', () => {
     render(<ResendVerification />)
     expect(screen.queryByRole('status')).toBeNull()
   })
+
+  it('renders the SAME fixed message even when the action rejects, and never a second one', async () => {
+    // The guard against re-introducing the enumeration oracle. A component that
+    // rendered anything distinguishable on failure would tell a caller which
+    // addresses have accounts — which is the whole thing the action prevents.
+    h.resendVerification.mockRejectedValue(new Error('transport exploded'))
+    render(<ResendVerification defaultIdentifier="me@example.com" />)
+    fireEvent.click(screen.getByRole('button', { name: /send another link/i }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/if that account exists/i)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+  })
 })

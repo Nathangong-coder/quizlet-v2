@@ -123,6 +123,7 @@ describe('resendVerification', () => {
     expect(h.findFirst.mock.calls[0][0].where).toEqual({
       OR: [{ email: 'alice_ng' }, { normalizedHandle: 'alice_ng' }],
     })
+    expect(h.sendVerificationEmail).toHaveBeenCalledWith('a@example.com', 'raw-token')
   })
 
   it('never lets a mail failure escape into the after() callback', async () => {
