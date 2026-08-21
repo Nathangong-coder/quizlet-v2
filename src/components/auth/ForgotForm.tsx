@@ -27,8 +27,21 @@ export default function ForgotForm() {
       onSubmit={(e) => {
         e.preventDefault()
         startTransition(async () => {
-          await requestPasswordReset({ identifier })
-          setSent(true)
+          // Swallow-and-finally, not catch-and-render: the response must be
+          // identical for every input AND every outcome. There is deliberately
+          // no error state — a second, distinct message would rebuild exactly
+          // the enumeration oracle this form exists to avoid, and a transport
+          // failure is not information the caller is entitled to.
+          // NOTE: a bare try/finally (no catch) does NOT swallow the rejection
+          // — it re-throws after finally, which crashes this transition and
+          // unmounts the tree. The catch below is required and must stay empty.
+          try {
+            await requestPasswordReset({ identifier })
+          } catch {
+            // deliberately empty — see note above
+          } finally {
+            setSent(true)
+          }
         })
       }}
       className="space-y-4"

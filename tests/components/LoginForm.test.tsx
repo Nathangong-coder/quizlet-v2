@@ -73,6 +73,14 @@ describe('LoginForm', () => {
     )
   })
 
+  it('links to /forgot', () => {
+    render(<LoginForm callbackUrl="/sets" signupOpen={false} />)
+    expect(screen.getByRole('link', { name: /forgot your password/i })).toHaveAttribute(
+      'href',
+      '/forgot',
+    )
+  })
+
   it('hides the sign-up link when sign-up is closed, and shows it when open', () => {
     // A link to a route that 404s is worse than no link.
     const { unmount } = render(<LoginForm callbackUrl="/sets" signupOpen={false} />)
