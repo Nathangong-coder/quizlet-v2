@@ -15,6 +15,14 @@ model User {
   /// page: letting it be changed without a verification round trip is an
   /// account-takeover vector. Use `contactEmail` for "where do we write to you".
   email            String            @unique
+  /// Owned by the Auth.js adapter, but load-bearing for us too: for a
+  /// CREDENTIALS account, null means password sign-in is REFUSED.
+  ///
+  /// GitHub sign-in is NOT gated by it and must never be. The check lives in
+  /// authorizeCredentials (src/lib/auth/credentials.ts) and nowhere else, so
+  /// an OAuth account with emailVerified: null signs in exactly as it does
+  /// today. GitHub's verification of its own users is GitHub's business; this
+  /// column governs the addresses *we* let people self-register.
   emailVerified    DateTime?
   image            String?
 
@@ -59,8 +67,19 @@ model User {
   /// on every session resolution; see src/lib/auth/session.ts.
   sessionVersion   Int               @default(0)
 
+  /// Which invite let this account in, or null for GitHub accounts, the seeded
+  /// dev user, and everything predating invite codes. Nullable permanently.
+  /// This is the audit trail — "who came in on which code" — for one FK.
+  ///
+  /// SetNull on delete, so deleting an InviteCode erases the audit trail for
+  /// accounts that used it. Prefer `npm run invite -- --revoke`, which
+  /// preserves the row.
+  invitedByCodeId  String?
+  invitedByCode    InviteCode?       @relation(fields: [invitedByCodeId], references: [id], onDelete: SetNull)
+
   accounts         Account[]
   sessions         Session[]
+  userTokens       UserToken[]
   sets             Set[]
   cardProgress     CardProgress[]
   confidenceEvents ConfidenceEvent[]
@@ -678,4 +697,58 @@ model LearnerTuning {
   version    Int      @default(1)
   updatedAt  DateTime @updatedAt
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// sha256(purpose + ':' + rawToken), hex. NEVER the raw token — a token in a
+  /// database is a bearer credential exactly like a password.
+  ///
+  /// The purpose is mixed into the hash on purpose. It makes a verification
+  /// token unable to hash to a reset row's value, so forgetting the `purpose`
+  /// clause in a `where` fails closed instead of opening a confused-deputy
+  /// hole. See src/lib/auth/tokens.ts.
+  tokenHash String    @unique
+
+  /// Vocabulary: TOKEN_PURPOSES in src/lib/auth/tokens.ts
+  /// ('password_reset' | 'email_verify'). String column + shared const,
+  /// matching src/lib/cards/klp-status.ts; this schema has no Prisma enums.
+  purpose   String
+
+  expiresAt DateTime
+  /// Single-use. Enforced by an atomic conditional update asserting
+  /// count === 1, never by read-then-write.
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  /// Supports "invalidate every other outstanding token of this purpose".
+  @@index([userId, purpose])
+}
+
+model InviteCode {
+  id            String    @id @default(cuid())
+
+  /// Normalised Crockford Base32, stored in PLAINTEXT — deliberately. A leaked
+  /// reset token is account takeover; a leaked invite costs one signup slot
+  /// from a pool that is already bounded, and the operator genuinely needs to
+  /// read codes back out. See the design's §6.
+  code          String    @unique
+  /// Free text for the operator: "discord launch", "study group A".
+  label         String?
+
+  /// Immutable, for display: "3 of 5 used".
+  maxUses       Int
+  /// The atomic gate. Counts DOWN, because Prisma cannot compare two columns
+  /// in a `where` — a `usesCount < maxUses` gate would need raw SQL, while a
+  /// decrement toward zero is a plain conditional update.
+  usesRemaining Int
+
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  redeemedBy    User[]
 }
