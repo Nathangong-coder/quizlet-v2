@@ -1385,7 +1385,7 @@ Implements spec §7.1. **The second security-core task — review this hardest.*
 - Create: `src/lib/invites/redeem.ts`
 - Create: `src/app/signup/check-email/page.tsx` (minimal; Task 6 adds the resend control)
 - Modify: `src/actions/auth-signup.ts`, `src/components/auth/SignUpForm.tsx`, `src/app/signup/page.tsx`
-- Test: `tests/invites/redeem.test.ts`, `tests/actions/signup.test.ts` (extend)
+- Test: `tests/invites/redeem.test.ts`, `tests/actions/signup.test.ts` (extend), `tests/components/SignUpForm.test.tsx` (**update — this task breaks two of its tests**)
 
 **Interfaces:**
 - Consumes: `mintToken` (Task 2), `sendVerificationEmail` (Task 3), `normalizeInviteCode` (Task 4).
@@ -1928,7 +1928,11 @@ In `src/components/auth/SignUpForm.tsx`:
 
 Also delete the now-unused `import { signIn } from 'next-auth/react'`.
 
-4. Add the field as the **first** input in the form, above Handle:
+4. **Reword the stale comment at the top of `submit()`.** It currently ends "…since there is no
+password reset." That becomes false in this feature. Replace that sentence with: "The two fields
+exist to catch a typo in the password before it is stored — cheaper than a reset round trip."
+
+5. Add the field as the **first** input in the form, above Handle:
 
 ```tsx
       <div className="space-y-1">
@@ -1947,6 +1951,52 @@ Also delete the now-unused `import { signIn } from 'next-auth/react'`.
         </p>
       </div>
 ```
+
+- [ ] **Step 8b: Update `tests/components/SignUpForm.test.tsx` — this task breaks two of its tests**
+
+Both failures are deliberate behaviour changes, so **update, never delete** — a deleted test leaves
+the new navigation unguarded.
+
+1. Widen the `fill()` helper's parameter type with `invite?: string` and add, as its first branch:
+
+```ts
+  if (values.invite !== undefined)
+    fireEvent.change(screen.getByLabelText(/invite code/i), { target: { value: values.invite } })
+```
+
+Pass `invite: 'ABCDE-FG234'` in every `fill({...})` call in the file.
+
+2. In "submits handle, email and password when they match", add `inviteCode: 'ABCDE-FG234'` to the
+   expected call object and rename it to "submits the invite code alongside handle, email and password".
+
+3. **Replace** the test named "signs the new account straight in rather than leaving them at a form"
+   with:
+
+```tsx
+  it('sends them to check-email rather than signing an UNVERIFIED account in', async () => {
+    // The account has emailVerified: null, and authorizeCredentials refuses
+    // that — an auto-sign-in here would fail every time. The check-email screen
+    // showing the address as typed is the typo defence that replaces it.
+    render(<SignUpForm />)
+    fill({
+      invite: 'ABCDE-FG234',
+      handle: 'alice',
+      email: 'alice@example.com',
+      password: 'a'.repeat(12),
+      confirm: 'a'.repeat(12),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() =>
+      expect(h.push).toHaveBeenCalledWith('/signup/check-email?email=alice%40example.com'),
+    )
+    expect(h.signIn).not.toHaveBeenCalled()
+  })
+```
+
+4. In "shows the action's error and does NOT sign in", leave the assertions alone — they still hold.
+
+Run `npx vitest run tests/components/SignUpForm.test.tsx` and confirm every test passes.
 
 - [ ] **Step 9: Create the minimal `check-email` page**
 
@@ -3345,7 +3395,7 @@ Implements spec §7.6. **Contains one flagged unknown that must be resolved empi
 
 **Files:**
 - Modify: `src/lib/auth/credentials.ts`, `src/auth.ts`, `src/components/auth/LoginForm.tsx`
-- Test: `tests/auth/credentials-authorize.test.ts` (rewrite the assertions — the return type changes)
+- Test: `tests/auth/credentials-authorize.test.ts` (rewrite the assertions — the return type changes), `tests/components/LoginForm.test.tsx` (**must gain a mock or it dies at load — see Step 5b**)
 
 **Interfaces:**
 - Consumes: nothing new.
@@ -3555,6 +3605,29 @@ and render the resend control when that error is showing, immediately after the 
 
 with `import ResendVerification from '@/components/auth/ResendVerification'` at the top.
 
+- [ ] **Step 5b: Keep `tests/components/LoginForm.test.tsx` alive — BUILD-QUEUE trap 7**
+
+`LoginForm` now imports `ResendVerification`, which imports the server action `@/actions/auth-verify`.
+That pulls `next-auth` into the jsdom environment and **the test file dies at load with
+`Cannot find module next/server`, before any test runs** — so the failure reads as unrelated to this
+change. Add to that file's mock block, beside the existing `next-auth/react` mock:
+
+```ts
+// Trap 7: without this the file dies at load, not at assertion time.
+vi.mock('@/actions/auth-verify', () => ({
+  resendVerification: vi.fn().mockResolvedValue({ success: true, data: undefined }),
+  RESEND_FIXED_MESSAGE: 'If that account exists, we’ve sent a link.',
+}))
+```
+
+Then add one test pinning whichever branch Step 6 selects — write it AFTER Step 6, not before:
+
+- **If the `code` carries:** assert that a `signIn` rejection with `error: 'unverified'` renders the
+  verification copy *and* the resend control, and that a `CredentialsSignin` error renders the
+  generic message with **no** resend control (that asymmetry is the feature).
+- **If it does not carry:** assert the resend block renders **unconditionally**, present before any
+  submit — that unconditionality is what stops it being an oracle.
+
 - [ ] **Step 6: RESOLVE THE FLAGGED UNKNOWN EMPIRICALLY — do not assume**
 
 Whether `code: 'unverified'` survives `signIn('credentials', { redirect: false })` in `next-auth@5.0.0-beta.31` is **unverified**. Establish it now:
@@ -3612,7 +3685,7 @@ git commit -m "feat(auth): refuse password sign-in until the email is verified"
 Implements spec §7.7.
 
 **Files:**
-- Modify: `src/actions/password.ts`
+- Modify: `src/actions/password.ts`, `src/components/account/PasswordPanel.tsx`, `src/app/account/page.tsx`
 - Test: `tests/actions/password.test.ts` (extend)
 
 **Interfaces:**
@@ -3795,10 +3868,50 @@ Apply each, confirm the suite reddens, revert:
 1. Delete the `invalidateTokens` call. → the first new test must fail.
 2. Change `...(user.emailVerified ? {} : { emailVerified: new Date() })` to `emailVerified: new Date()`. → the "does NOT move" test must fail.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5b: Fix the account-surface copy this feature falsifies**
+
+Three strings on the account surface state, as fact, that there is no password reset. They were
+true when written; this feature makes them false. This is the same defect class the item 6e final
+review caught — copy that fell between tasks because each task's own diff was correct.
+
+1. **`src/components/account/PasswordPanel.tsx` (~lines 117-121) — USER-VISIBLE, and the most
+   important of the three.** It currently reads "There is no password reset yet — {hasGithub ? 'if
+   you forget it, GitHub is your way back in.' : 'if you forget it, there is no way back into this
+   account.'}". Replace the whole "There is no password reset yet — …" clause with:
+
+```tsx
+        Forgot it later? You can reset it by email from the sign-in page.
+```
+
+   Delete the now-unused `hasGithub` branch **only if** `hasGithub` has no other use in the file;
+   check first — item 6e added it deliberately and other copy may still need it.
+
+2. **`src/components/account/PasswordPanel.tsx` (~line 43)**, a comment ending "…is the safer
+   default with no password reset to fall back on." Reword the tail to "…is the safer default; a
+   forgotten password is now recoverable at /forgot, but an attacker holding a live token is not
+   something we want to wait out."
+
+3. **`src/actions/password.ts` (~line 41)**, the comment justifying the required current password:
+   "…there is no password reset to recover it with, so this check is the whole defence." Reword to
+   "…and while /forgot can now recover a forgotten password, it cannot undo a takeover by someone
+   sitting at an open session. This check is that defence."
+
+4. **`src/app/account/page.tsx` (~lines 76-77)**, the comment "…will be its recovery address once
+   password reset exists". Reword to "…is its password-reset recovery address".
+
+**Behaviour must not change in any of the four.** These are copy and comments only.
+
+- [ ] **Step 6: Verify and commit**
 
 ```bash
-git add src/actions/password.ts tests/actions/password.test.ts
+npx vitest run --exclude "**/cursor-agents/**" --exclude "**/node_modules/**"
+npx tsc --noEmit 2>&1 | grep -v "^cursor-agents"
+```
+Expected: green; `tsc` silent. (A component test renders `PasswordPanel` — if it asserts the old
+copy, update that assertion to the new string rather than reverting the copy.)
+
+```bash
+git add src/actions/password.ts src/components/account/PasswordPanel.tsx src/app/account/page.tsx tests/
 git commit -m "fix(account): a password change kills live reset links and verifies the address"
 ```
 
@@ -3852,12 +3965,18 @@ Its current text says the flag is off *because there is no password reset*, whic
 
 - [ ] **Step 3: Reword the stale comment in `credentials.ts`**
 
-The note justifying no password-policy check on sign-in ends "unrecoverable with no password reset", which is now half-false. The **behaviour must not change** — rejecting a legacy password at sign-in is still wrong. Task 10 Step 3 already rewrote it; confirm the file no longer contains the string `no password reset`:
+The note justifying no password-policy check on sign-in ended "unrecoverable with no password reset", which this work makes false. The **behaviour must not change** — rejecting a legacy password at sign-in is still wrong. Task 10 Step 3 already rewrote it.
+
+This step is a **verification**, not a fix: seven sites carried that claim and six are owned by
+earlier tasks (Task 5 → `SignUpForm.tsx` and `signup/page.tsx`; Task 10 → `credentials.ts`;
+Task 11 → `password.ts`, `PasswordPanel.tsx`, `account/page.tsx`; Task 12 Step 2 →
+`signup-flag.ts`). Confirm none survives:
 
 ```bash
-grep -rn "no password reset" src/ || echo "clean"
+grep -rniE "no password reset|no way back into this account|once password reset exists" src/ || echo "clean"
 ```
-Expected: `clean`. If anything is left (check `src/app/signup/page.tsx` and `src/components/auth/`), reword it.
+Expected: `clean`. The bare words "password reset" legitimately remain in true sentences — do not
+grep for those. If a site IS left, reword it here and note in the commit which task missed it.
 
 - [ ] **Step 4: Update `CLAUDE.md`'s auth paragraph**
 
