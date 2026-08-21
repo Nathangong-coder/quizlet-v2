@@ -105,6 +105,12 @@ export default function LoginForm({
         </Button>
       </form>
 
+      <p className="text-sm text-muted-foreground">
+        <Link href="/forgot" className="underline hover:text-foreground">
+          Forgot your password?
+        </Link>
+      </p>
+
       <div className="flex items-center gap-3">
         <span className="h-px flex-1 bg-border" />
         <span className="text-xs text-muted-foreground">or</span>
