@@ -58,13 +58,24 @@ async function main() {
   // token still valid against a password that is no longer the account's.
   const user = await prisma.user.upsert({
     where: { email },
-    update: { passwordHash, passwordSetAt: new Date(), sessionVersion: { increment: 1 } },
+    update: {
+      passwordHash,
+      passwordSetAt: new Date(),
+      sessionVersion: { increment: 1 },
+      emailVerified: new Date(),
+    },
     create: {
       email,
       handle: handle.handle,
       normalizedHandle: handle.normalized,
       passwordHash,
       passwordSetAt: new Date(),
+      // The migration's grandfather UPDATE only covers rows that existed when
+      // it ran. An account created after it is born unverified, and
+      // authorizeCredentials refuses that — which would lock an agent out of
+      // every live gate on a fresh database. A locally seeded address needs no
+      // proving.
+      emailVerified: new Date(),
     },
     select: { id: true, email: true, handle: true },
   })

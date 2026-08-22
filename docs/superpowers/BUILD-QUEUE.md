@@ -572,9 +572,14 @@ All nine steps (1 through 8, plus 5b) passed as designed — no deviations found
 | `POST /signup` | 5/min/IP | Also the invite-code brute-force surface. 50 bits of code entropy assumes this rule exists. |
 | `POST /forgot` | 5/min/IP | Mail-send amplification; someone else pays for the sends. |
 | `POST /reset/*` | 10/min/IP | Token brute force. |
+| `POST /login` | 5/min/IP | `resendVerification` is mail-send amplification, same profile as `/forgot`; `/signup/check-email` takes the identifier from a query parameter. |
+| `POST /verify/*` | 5/min/IP | `resendVerification` is mail-send amplification, same profile as `/forgot`; `/signup/check-email` takes the identifier from a query parameter. |
+| `POST /signup/check-email` | 5/min/IP | `resendVerification` is mail-send amplification, same profile as `/forgot`; `/signup/check-email` takes the identifier from a query parameter. |
 
-Server Actions POST to their own page's path carrying a `Next-Action` header, so path-based
-rules do reach them.
+Server Actions dispatch on a `Next-Action` header and an action ID, not on the path, so a crafted
+POST can invoke any action from any route. Path rules bound the browser flow only — pair them with
+a broad `POST /*` limit if the invite pool is the thing being protected. **Verify this against
+Vercel's current Server Actions dispatch behaviour before relying on it.**
 
 **Per-account lockout is deliberately NOT built.** A hard lockout is itself an attack — anyone
 who knows an address can lock its owner out on purpose, and there is no support desk to undo it.

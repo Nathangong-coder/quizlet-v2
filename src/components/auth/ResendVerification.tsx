@@ -35,8 +35,12 @@ export default function ResendVerification({
           // catch below is required, not optional, and must stay empty.
           try {
             await resendVerification({ identifier })
-          } catch {
-            // deliberately empty — see note above
+          } catch (error) {
+            // deliberately empty — see note above. Logged locally only,
+            // never surfaced in the UI: a browser console.error leaks
+            // nothing to a remote caller, but a genuine client bug here
+            // would otherwise fail silently.
+            console.error('[resend] request failed', error)
           } finally {
             setSent(true)
           }

@@ -10,8 +10,8 @@ model User {
   id               String            @id @default(cuid())
   name             String?
   /// The ACCOUNT email, from the OAuth provider. Identity, not preference —
-  /// it is how the account is recognised, and once password reset exists it
-  /// becomes the recovery address. Deliberately NOT editable from the account
+  /// it is how the account is recognised, and is its password-reset recovery
+  /// address. Deliberately NOT editable from the account
   /// page: letting it be changed without a verification round trip is an
   /// account-takeover vector. Use `contactEmail` for "where do we write to you".
   email            String            @unique
@@ -42,9 +42,9 @@ model User {
   /// Separate BECAUSE it is safe to change: a contact address cannot be used to
   /// take over an account, so it needs no verification round trip to be edited.
   contactEmail     String?
-  /// Opt-in for product email. Nothing sends yet — Stage 7 deferred delivery and
-  /// there is no mail provider configured (RESEND_API_KEY is gone from .env).
-  /// Recording the preference is the "schema-ready" half of that deferral.
+  /// Opt-in for product email. Nothing sends yet — there is a mail transport
+  /// now (src/lib/mail/), but nothing sends product updates — Stage 7 deferred
+  /// that. Recording the preference is the "schema-ready" half of that deferral.
   emailUpdates     Boolean           @default(false)
 
   /// bcrypt hash of the user's password, or null for an OAuth-only account.

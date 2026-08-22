@@ -86,7 +86,7 @@ async function main() {
     },
   })
 
-  console.log('Invite code (printed once — it is not shown again by --list in this form):')
+  console.log('Invite code:')
   console.log(`  ${formatInviteCode(code)}`)
   console.log(`  uses:    ${uses}`)
   console.log(`  expires: ${days === undefined ? 'never' : `${days} days`}`)

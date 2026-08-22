@@ -3,6 +3,8 @@
 **Date:** 2026-08-17
 **Status:** BUILT 2026-08-19.
 **Build after:** the four outstanding gates pass and `spec3b-tunable-scoring` merges.
+**Superseded in part by `2026-08-20-open-the-doors-design.md`** — §7's "no password reset" and
+"no email verification" limits are closed.
 
 ## What changed from the design
 

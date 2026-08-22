@@ -70,7 +70,7 @@ export async function consumeEmailVerification(rawToken: string): Promise<{ ok: 
     })
 
     // Only when null — never overwrite an existing verification stamp.
-    // completePasswordReset (src/actions/auth-reset.ts) honours the same
+    // completePasswordReset (src/actions/auth-reset.server.ts) honours the same
     // rule: a password reset can already have stamped emailVerified, and an
     // OLDER verify link clicked afterward must not rewrite that history.
     if (!user?.emailVerified) {

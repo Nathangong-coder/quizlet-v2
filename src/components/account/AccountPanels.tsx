@@ -147,8 +147,9 @@ export function EmailUpdatesPanel({ initial }: { initial: boolean }) {
         <span className="text-sm">Email me product updates</span>
       </label>
       {/*
-        Stated plainly rather than implied. Nothing sends yet — Stage 7 deferred
-        delivery and no mail provider is configured — so a checkbox with no note
+        Stated plainly rather than implied. Nothing sends yet — there is a mail
+        transport now (src/lib/mail/), but nothing sends product updates — Stage 7
+        deferred that — so a checkbox with no note
         would be a promise the app does not keep. Recording the preference now
         is still worth doing: it is the half of that deferral the schema can
         honestly hold.
