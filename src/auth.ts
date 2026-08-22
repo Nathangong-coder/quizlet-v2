@@ -1,10 +1,26 @@
-import NextAuth from "next-auth"
+import NextAuth, { CredentialsSignin } from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/db"
 import { authConfig } from "@/auth.config"
 import { authorizeCredentials } from "@/lib/auth/credentials"
 import { jwtCallback, sessionCallback } from "@/lib/auth/session"
+
+/**
+ * Thrown when the password was right but the address is not verified.
+ *
+ * RESOLVED empirically (Task 10 Step 6, against a running dev server on
+ * next-auth@5.0.0-beta.31): the code DOES survive `signIn('credentials',
+ * { redirect: false })` — but not on `res.error`, which Auth.js fixes to the
+ * class-level string "CredentialsSignin" for every CredentialsSignin
+ * subclass. The subclass signal rides on the separate `res.code` field
+ * (@auth/core sets `code` on the redirect URL only `if (error instanceof
+ * CredentialsSignin)`, using `error.code`). `src/components/auth/LoginForm.tsx`
+ * reads `res.code ?? res.error` for exactly this reason.
+ */
+class UnverifiedEmailError extends CredentialsSignin {
+  code = 'unverified'
+}
 
 /**
  * The NODE-runtime half of auth. The Credentials provider lives HERE and
@@ -31,7 +47,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         identifier: { label: "Email or handle", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      authorize: (raw) => authorizeCredentials(raw ?? {}),
+      authorize: async (raw) => {
+        const outcome = await authorizeCredentials(raw ?? {})
+        if (outcome.kind === 'ok') return outcome.user
+        if (outcome.kind === 'unverified') throw new UnverifiedEmailError()
+        // `rejected` -> null -> Auth.js's generic CredentialsSignin, which the
+        // login form renders as its one byte-identical failure message.
+        return null
+      },
     }),
   ],
   callbacks: {

@@ -17,7 +17,7 @@ import { safeCallbackUrl } from '@/lib/auth/callback-url'
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string; error?: string }>
+  searchParams: Promise<{ callbackUrl?: string; error?: string; verified?: string; reset?: string }>
 }) {
   const session = await auth()
   if (session?.user?.id) redirect('/sets')
@@ -37,6 +37,16 @@ export default async function LoginPage({
           <CardDescription>Use your password, or continue with GitHub.</CardDescription>
         </CardHeader>
         <CardContent>
+          {params.verified === '1' ? (
+            <p className="mb-4 text-sm text-foreground" role="status">
+              Your email is verified. Sign in below.
+            </p>
+          ) : null}
+          {params.reset === '1' ? (
+            <p className="mb-4 text-sm text-foreground" role="status">
+              Your password has been changed. Sign in with the new one.
+            </p>
+          ) : null}
           <LoginForm
             callbackUrl={callbackUrl}
             signupOpen={isSignupOpen()}

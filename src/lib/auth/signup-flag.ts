@@ -1,19 +1,19 @@
 /**
  * Is public credentials sign-up open?
  *
- * Off unless explicitly `true`. Decided with the user 2026-08-18, resolving
- * §10 of the design: there is **no password reset**, because there is no mail
- * provider — so a user who forgets their password is locked out permanently.
- * Behind a flag, the provider exists for a seeded dev account (which is what
- * lets an agent run its own live gates — BUILD-QUEUE trap 6) without offering
- * strangers an account they can lose forever.
+ * A MASTER KILL SWITCH, not the primary control. Invite codes are the cap on
+ * how many accounts can exist (src/lib/invites/); this flag is how you close
+ * the door entirely without a deploy.
  *
- * Flip it by setting CREDENTIALS_SIGNUP_ENABLED=true once email delivery
- * exists and reset is built.
+ * Off unless explicitly `true`. Its original reason — "there is no password
+ * reset" — no longer holds: /forgot and /reset/[token] exist, and sign-up now
+ * requires an invite code and a verified email address. Flipping it to `true`
+ * is a deliberate human decision about opening the app to strangers, not a
+ * missing feature.
  *
- * Note what this does NOT gate: signing IN. A seeded account must be able to
- * log in with the flag off, and an existing password user must not be locked
- * out by a config change.
+ * Note what this does NOT gate: signing IN, resetting a password, or verifying
+ * an address. A seeded account must be able to log in with the flag off, and an
+ * existing user must never be locked out by a config change.
  */
 export function isSignupOpen(): boolean {
   return process.env.CREDENTIALS_SIGNUP_ENABLED === 'true'

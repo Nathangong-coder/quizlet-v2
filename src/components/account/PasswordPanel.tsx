@@ -10,10 +10,8 @@ import { PASSWORD_MIN_LENGTH } from '@/lib/auth/password'
 
 export function PasswordPanel({
   hasPassword,
-  hasGithub,
 }: {
   hasPassword: boolean
-  hasGithub: boolean
 }) {
   const router = useRouter()
   const [current, setCurrent] = useState('')
@@ -40,9 +38,11 @@ export function PasswordPanel({
       // Stated plainly, and true: raising sessionVersion invalidates the
       // acting token too, not just other devices. There is no session-update
       // round trip in this design to re-stamp it, so signing everyone out
-      // including this tab is the safer default with no password reset to
-      // fall back on. The action deliberately skips revalidatePath('/account')
-      // for the same reason — we navigate away instead of racing a redirect.
+      // including this tab is the safer default; a forgotten password is now
+      // recoverable at /forgot, but an attacker holding a live token is not
+      // something we want to wait out. The action deliberately skips
+      // revalidatePath('/account') for the same reason — we navigate away
+      // instead of racing a redirect.
       toast.success('Password saved. You have been signed out everywhere, including here.')
       router.push('/login?callbackUrl=%2Faccount')
     })
@@ -116,10 +116,8 @@ export function PasswordPanel({
 
       <p className="text-xs text-muted-foreground">
         At least {PASSWORD_MIN_LENGTH} characters. Saving this signs you out everywhere,
-        including this device, so you&apos;ll need to sign in again right after. There is no
-        password reset yet — {hasGithub
-          ? 'if you forget it, GitHub is your way back in.'
-          : 'if you forget it, there is no way back into this account.'}
+        including this device, so you&apos;ll need to sign in again right after. Forgot it later?
+        You can reset it by email from the sign-in page.
       </p>
     </form>
   )

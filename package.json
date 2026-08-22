@@ -14,7 +14,8 @@
     "tuning:check": "tsx --env-file=.env scripts/tuning-check.ts",
     "backfill:klp-state": "tsx --env-file=.env scripts/backfill-klp-state.ts",
     "backfill:study-event-link": "tsx --env-file=.env scripts/backfill-study-event-answer-link.ts",
-    "seed:dev-user": "tsx --env-file=.env scripts/seed-dev-user.ts"
+    "seed:dev-user": "tsx --env-file=.env scripts/seed-dev-user.ts",
+    "invite": "tsx --env-file=.env scripts/mint-invite.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.22",

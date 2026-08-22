@@ -17,7 +17,15 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import SignUpForm from '@/components/auth/SignUpForm'
 
-function fill(values: { handle?: string; email?: string; password?: string; confirm?: string }) {
+function fill(values: {
+  invite?: string
+  handle?: string
+  email?: string
+  password?: string
+  confirm?: string
+}) {
+  if (values.invite !== undefined)
+    fireEvent.change(screen.getByLabelText(/invite code/i), { target: { value: values.invite } })
   if (values.handle !== undefined)
     fireEvent.change(screen.getByLabelText(/handle/i), { target: { value: values.handle } })
   if (values.email !== undefined)
@@ -38,6 +46,7 @@ describe('SignUpForm', () => {
   it('refuses to submit when the two passwords differ, without calling the action', async () => {
     render(<SignUpForm />)
     fill({
+      invite: 'ABCDE-FG234',
       handle: 'alice',
       email: 'alice@example.com',
       password: 'a'.repeat(12),
@@ -49,9 +58,10 @@ describe('SignUpForm', () => {
     expect(h.signUp).not.toHaveBeenCalled()
   })
 
-  it('submits handle, email and password when they match', async () => {
+  it('submits the invite code alongside handle, email and password', async () => {
     render(<SignUpForm />)
     fill({
+      invite: 'ABCDE-FG234',
       handle: 'alice',
       email: 'alice@example.com',
       password: 'a'.repeat(12),
@@ -64,13 +74,18 @@ describe('SignUpForm', () => {
         handle: 'alice',
         email: 'alice@example.com',
         password: 'a'.repeat(12),
+        inviteCode: 'ABCDE-FG234',
       }),
     )
   })
 
-  it('signs the new account straight in rather than leaving them at a form', async () => {
+  it('sends them to check-email rather than signing an UNVERIFIED account in', async () => {
+    // The account has emailVerified: null, and authorizeCredentials refuses
+    // that — an auto-sign-in here would fail every time. The check-email screen
+    // showing the address as typed is the typo defence that replaces it.
     render(<SignUpForm />)
     fill({
+      invite: 'ABCDE-FG234',
       handle: 'alice',
       email: 'alice@example.com',
       password: 'a'.repeat(12),
@@ -79,19 +94,16 @@ describe('SignUpForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /create account/i }))
 
     await waitFor(() =>
-      expect(h.signIn).toHaveBeenCalledWith('credentials', {
-        identifier: 'alice@example.com',
-        password: 'a'.repeat(12),
-        redirect: false,
-      }),
+      expect(h.push).toHaveBeenCalledWith('/signup/check-email?email=alice%40example.com'),
     )
-    await waitFor(() => expect(h.push).toHaveBeenCalledWith('/sets'))
+    expect(h.signIn).not.toHaveBeenCalled()
   })
 
   it('shows the action’s error and does NOT sign in', async () => {
     h.signUp.mockResolvedValue({ success: false, error: 'Those details can’t be used.' })
     render(<SignUpForm />)
     fill({
+      invite: 'ABCDE-FG234',
       handle: 'alice',
       email: 'alice@example.com',
       password: 'a'.repeat(12),

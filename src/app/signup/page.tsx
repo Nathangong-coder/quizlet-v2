@@ -25,7 +25,7 @@ export default async function SignUpPage() {
         <CardHeader>
           <CardTitle>Create an account</CardTitle>
           <CardDescription>
-            There is no password reset yet — keep your password somewhere safe.
+            You need an invite code. We will email you a link to confirm your address.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
