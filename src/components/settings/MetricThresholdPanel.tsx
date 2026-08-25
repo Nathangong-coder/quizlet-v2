@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { loadTuning, saveTuning } from '@/actions/learner-tuning';
 import { DEFAULT_THRESHOLDS, type MetricThresholds } from '@/lib/tuning/schema';
+import { MAX_KLTS_PER_KLP } from '@/lib/ai/schemas';
 
 type FieldKey = keyof MetricThresholds;
 
@@ -44,6 +45,14 @@ const FIELDS: {
     valid: (n) => Number.isFinite(n) && n > 0 && n <= 100,
     error: 'Readiness weight must be above 0 and at most 100.',
   },
+  {
+    key: 'masteryTopicRanks',
+    label: 'Topics counted per learning point',
+    copy:
+      "Each learning point is filed under up to three topics, most central first. This is how many of them count toward a topic's mastery score. At 3, a broad topic gathers evidence quickly, but one wrong answer can mark several topics weak at once. At 1, each point counts exactly once under its main topic — a sharper diagnosis that takes longer to fill in.",
+    valid: (n) => Number.isInteger(n) && n >= 1 && n <= MAX_KLTS_PER_KLP,
+    error: `Topics counted must be a whole number from 1 to ${MAX_KLTS_PER_KLP}.`,
+  },
 ];
 
 type Draft = Record<FieldKey, string>;
@@ -56,6 +65,9 @@ function draftFrom(overrides: Partial<MetricThresholds>): Draft {
     ),
     readinessWeightPerAnswer: String(
       overrides.readinessWeightPerAnswer ?? DEFAULT_THRESHOLDS.readinessWeightPerAnswer,
+    ),
+    masteryTopicRanks: String(
+      overrides.masteryTopicRanks ?? DEFAULT_THRESHOLDS.masteryTopicRanks,
     ),
   };
 }

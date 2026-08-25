@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { DEFAULT_BANDS, type BandTable, type SeverityBand } from '@/lib/errors/bands'
 import { ACCURACY_TYPES, CLARITY_TYPES, CONCISENESS_TYPES } from '@/lib/errors/taxonomy'
 import { MIN_OBSERVATIONS } from '@/lib/metrics/bkt'
+import { MAX_KLTS_PER_KLP } from '@/lib/ai/schemas'
 import { parseStudyScope, type StoredStudyScope } from '@/lib/tuning/study-scope'
 
 /** Bump when either stored blob's shape changes incompatibly. */
@@ -74,6 +75,20 @@ export interface MetricThresholds {
   articulationMinPKnown: number
   /** Average per-answer expression weight at which readiness reaches 0. */
   readinessWeightPerAnswer: number
+  /**
+   * How many of a KLP's ranked KLTs count toward TOPIC MASTERY.
+   *
+   * A KLP carries up to `MAX_KLTS_PER_KLP` topics, ranked, and every rank
+   * feeds mastery by default — the user's call. The cost is smearing: one
+   * failed answer can mark up to three topics weak (spec §9.1). Narrowing this
+   * to 1 counts each KLP exactly once, under its primary topic, at the price
+   * of broad topics accumulating evidence more slowly.
+   *
+   * A knob rather than a constant because that trade-off depends on how thick
+   * the learner's corpus is, which is a judgement about their situation and
+   * not a universal truth — the same reasoning as `minObservations`.
+   */
+  masteryTopicRanks: number
 }
 
 /**
@@ -102,10 +117,18 @@ export const READINESS_WEIGHT_PER_ANSWER = 12
  * the equality so a change to either side is a build failure rather than a
  * silent divergence between "the default" and "the constant".
  */
+/**
+ * Every rank counts, shipped default. Chosen by the user over the narrower
+ * rank-1-only option: a broad topic accumulates evidence faster, which matters
+ * on a thin corpus. See spec §9.1 for the accepted cost.
+ */
+export const DEFAULT_MASTERY_TOPIC_RANKS = MAX_KLTS_PER_KLP
+
 export const DEFAULT_THRESHOLDS: MetricThresholds = {
   minObservations: MIN_OBSERVATIONS,
   articulationMinPKnown: ARTICULATION_MIN_PKNOWN,
   readinessWeightPerAnswer: READINESS_WEIGHT_PER_ANSWER,
+  masteryTopicRanks: DEFAULT_MASTERY_TOPIC_RANKS,
 }
 
 /**
@@ -122,6 +145,10 @@ export const ThresholdOverridesSchema = z
     minObservations: z.number().int().min(1).max(50).optional(),
     articulationMinPKnown: z.number().min(0).max(1).optional(),
     readinessWeightPerAnswer: z.number().positive().max(100).optional(),
+    // Bounded by correctness at BOTH ends: 0 would mean no rank counts, so no
+    // topic could ever report knowledge; above the cap is unreachable, since
+    // no KLP carries that many topics.
+    masteryTopicRanks: z.number().int().min(1).max(MAX_KLTS_PER_KLP).optional(),
   })
   .strict()
 
