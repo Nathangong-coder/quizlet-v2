@@ -67,7 +67,7 @@ describe('KLT tree schema', () => {
       join(process.cwd(), 'prisma/migrations/20260825000000_klt_tree/migration.sql'),
       'utf8',
     )
-    expect(sql).toMatch(/USING GIN \("ancestorIds"\)/)
+    expect(sql).toMatch(/USING GIN \("ancestorIds"(?: array_ops)?\)/)
   })
 
   it('documents rank as centrality, not breadth', () => {
