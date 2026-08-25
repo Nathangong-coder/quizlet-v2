@@ -1,14 +1,14 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-21 (item 8 built and live-gated — the agent-runnable half; two human gates still owed)
+**Last updated:** 2026-08-24 (item 9 designed as the KLT topic layer; item 8's two human gates reported PASSED by the user 2026-08-24)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
 
 **Build order for what remains, decided with the user 2026-08-20 — the numbers do NOT sort into it:**
 
-1. ~~**Item 8 — open the doors**~~ **DONE 2026-08-21** — see its entry below. `CREDENTIALS_SIGNUP_ENABLED` itself is still off; flipping it is a separate human decision, not blocked on any remaining code.
-2. **Item 9 — surfacing missed KLPs / weak topics.** Blocked on two decisions named in its entry. Worth doing before Spec 4's lessons, so a plan has somewhere to point.
+1. ~~**Item 8 — open the doors**~~ **FULLY DONE.** Built and agent-gated 2026-08-21; the two human gates (real Resend delivery, Vercel Firewall) were reported PASSED by the user on 2026-08-24, and **`CREDENTIALS_SIGNUP_ENABLED` is now ON** — set via a deployed env var, not in `.env`. Nothing outstanding.
+2. **Item 9 — surfacing missed KLPs / weak topics.** **DESIGNED 2026-08-24** as the KLT topic layer (`specs/2026-08-24-klt-topic-layer-design.md`); both blocking decisions answered. Next action is an implementation plan. Still worth doing before Spec 4's lessons, so a plan has somewhere to point.
 3. **Item 7 — Spec 4**, plan setup + readiness + lesson generation. The biggest item; its lesson half now has its first design decision (see item 7's "LESSON OUTPUT TYPES").
 4. **Item 6c — sharing & discovery.** Designed and ready — item 8 landing removes the "a stranger cannot sign up" blocker, though the flag itself is still off.
 
@@ -585,7 +585,13 @@ Vercel's current Server Actions dispatch behaviour before relying on it.**
 who knows an address can lock its owner out on purpose, and there is no support desk to undo it.
 Revisit only on evidence of real credential stuffing.
 
-### 9. ⬜ Surfacing missed KLPs and weak topics — **REQUESTED 2026-08-20. NEEDS TWO DECISIONS BEFORE IT CAN BE DESIGNED.**
+### 9. ⬜ Surfacing missed KLPs and weak topics — **DESIGNED 2026-08-24 as the KLT topic layer. NOT STARTED.**
+
+Design: `specs/2026-08-24-klt-topic-layer-design.md`. No plan, no code. **Both open questions below are now answered** — kept for the reasoning that produced them.
+
+**Scope grew in design.** The request ("display missed KLPs/topics better") could not be met by a UI change alone: measured against the live corpus on 2026-08-24, KLPs run a **median of 16 words** (153 live rows, 69 cards), because a KLP is a *proposition* — the thing a distractor is corrupted from and a short answer is graded against. It cannot be shortened without breaking MC/TF generation. So the spec adds grains **above** it instead: a global `Klt` concept node and a short `CardKlp.label`, filled by an `after()`-triggered AI pass that mirrors KLP extraction.
+
+**The rule that matters most (spec §6):** the KLT pass may never delete or supersede a `CardKlp` row. `AnswerKlpResult.klp` is `onDelete: Cascade`, and `KlpState` keys on `klpId` — superseding would silently reset every learner's mastery, invisibly to `tsc` and to any test that only checks the label landed. Guards are mutation-tested.
 
 The user's words: "a better way of displaying the KLPs that they missed and/or topics (depending on what they flagged)."
 
@@ -594,9 +600,9 @@ The user's words: "a better way of displaying the KLPs that they missed and/or t
 - `/profile/learner` shows topic mastery plus the ranked study list (Spec 3C, with item 6f making the rows say what they actually are instead of the literal words "Key point");
 - `/profile/memory` shows the raw event feed.
 
-**Open question 1 — what does "depending on what they flagged" mean?** Starred cards, the categories the learner authored, or both. These are different data paths: starring is `CardProgress.starred`, categories are `CardCategory`, and Spec 3C's saved study scope already filters by category.
+**Open question 1 — ANSWERED: "flagged" means what they got WRONG**, not starred cards and not authored categories. Original framing: Starred cards, the categories the learner authored, or both. These are different data paths: starring is `CardProgress.starred`, categories are `CardCategory`, and Spec 3C's saved study scope already filters by category.
 
-**Open question 2 — new surface, or a rework of `/profile/learner`?** That page already owns roughly this job. The user has only ever seen it against a very thin corpus (6 quiz answers on the whole account), so it is genuinely unclear whether it is *insufficient* or merely *unpopulated* — and those have opposite remedies. Spec 3C's `diagnoseEmptyState` exists precisely because "nothing here" has four different causes.
+**Open question 2 — ANSWERED: a new panel at the top of `/profile/learner`**, with `TopicMastery`/`StudyNext`/`RetentionPanel` untouched below it. Original framing: That page already owns roughly this job. The user has only ever seen it against a very thin corpus (6 quiz answers on the whole account), so it is genuinely unclear whether it is *insufficient* or merely *unpopulated* — and those have opposite remedies. Spec 3C's `diagnoseEmptyState` exists precisely because "nothing here" has four different causes.
 
 **Sequencing note:** this makes item 7 better rather than competing with it — a plan needs somewhere to point when it says "you are weak here." Worth doing before Spec 4's lesson generation, not after.
 
