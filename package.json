@@ -14,6 +14,7 @@
     "tuning:check": "tsx --env-file=.env scripts/tuning-check.ts",
     "backfill:klp-state": "tsx --env-file=.env scripts/backfill-klp-state.ts",
     "backfill:study-event-link": "tsx --env-file=.env scripts/backfill-study-event-answer-link.ts",
+    "backfill:klts": "tsx --conditions=react-server --env-file=.env scripts/backfill-klts.ts",
     "seed:dev-user": "tsx --env-file=.env scripts/seed-dev-user.ts",
     "invite": "tsx --env-file=.env scripts/mint-invite.ts"
   },
@@ -41,6 +42,7 @@
     "prisma": "^7.8.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "server-only": "^0.0.1",
     "shadcn": "^4.11.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",

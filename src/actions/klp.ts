@@ -34,6 +34,12 @@ export interface ReadyKlp {
   text: string;
   weight: number;
   kind: string;
+  /**
+   * The short rendering, null until the KLT pass has run for this card.
+   * Callers fall back to `text` — the summarizer is never a hard dependency
+   * of anything that displays a KLP.
+   */
+  label: string | null;
 }
 
 /**
@@ -213,11 +219,21 @@ interface KlpRowInput {
  * Reads the next version and commits the new KLP rows for one card,
  * atomically.
  *
- * THE ONLY MUTATION PATH FOR CardKlp. AI extraction and user edits both come
- * through here, so `CardKlp` stays append-only: historical
- * `QuizQuestion.targetKlpIds` must keep pointing at rows whose text is what
- * the question was actually built from. An in-place `update` anywhere else
- * silently rewrites history.
+ * THE ONLY MUTATION PATH FOR CardKlp'S PROPOSITION. AI extraction and user
+ * edits both come through here, so `CardKlp` stays append-only with respect to
+ * MEANING: historical `QuizQuestion.targetKlpIds` must keep pointing at rows
+ * whose text is what the question was actually built from. An in-place
+ * `update` to `text`, `weight`, `kind`, `index`, `version`, `sourceHash`,
+ * `promptVersion`, `source` or `supersededAt` anywhere else silently rewrites
+ * history.
+ *
+ * ONE EXCEPTION, added with the KLT layer (spec §6.1): `label` is a derived
+ * display annotation carrying no semantic content, and `src/actions/klt.ts`
+ * updates it in place. That cannot rewrite history — the proposition a
+ * question was built from is unchanged. It is deliberately NOT routed through
+ * here, because superseding a row to attach a label would mint new `klpId`s
+ * and orphan every `KlpState` posterior and `AnswerKlpResult` row keyed on the
+ * old ones: a silent, total mastery reset.
  *
  * The version read and the write MUST be in the same transaction: `after()`
  * extraction on set save and `ensureKlpsReady`'s on-demand extraction (Task
@@ -265,6 +281,12 @@ async function writeKlpVersion(
           klpVersion: version,
           klpSourceHash: hash,
           klpError: null,
+          // A new KLP version has NEW ids, so its labels and topics do not
+          // exist yet. Leaving this 'ready' would serve the previous version's
+          // topics against propositions the card no longer teaches — the same
+          // staleness `klpSourceHash` exists to catch one level up.
+          kltStatus: 'pending' satisfies CardKlpStatus,
+          kltError: null,
         },
       });
     });
@@ -325,7 +347,7 @@ export async function ensureKlpsReady(userId: string, cardId: string): Promise<R
     prisma.cardKlp.findMany({
       where: { cardId, supersededAt: null },
       orderBy: { index: 'asc' },
-      select: { id: true, index: true, text: true, weight: true, kind: true },
+      select: { id: true, index: true, text: true, weight: true, kind: true, label: true },
     });
 
   const existing = await live();
@@ -383,25 +405,36 @@ export async function ensureKlpsReady(userId: string, cardId: string): Promise<R
  */
 export async function getCardKlps(
   cardId: string,
-): Promise<ActionResult<{ status: CardKlpStatus; klps: ReadyKlp[] }>> {
+): Promise<
+  ActionResult<{ status: CardKlpStatus; kltStatus: CardKlpStatus; klps: ReadyKlp[] }>
+> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
 
   const card = await prisma.card.findFirst({
     where: { id: cardId, set: { userId: session.user.id } },
-    select: { klpStatus: true },
+    select: { klpStatus: true, kltStatus: true },
   });
   if (!card) return { success: false, error: 'Card not found' };
 
   const klps = await prisma.cardKlp.findMany({
     where: { cardId, supersededAt: null },
     orderBy: { index: 'asc' },
-    select: { id: true, index: true, text: true, weight: true, kind: true },
+    select: { id: true, index: true, text: true, weight: true, kind: true, label: true },
   });
 
-  // Narrowed at the DB boundary, so `KlpEditor`'s four status comparisons are
-  // type-checked rather than string-vs-string.
-  return { success: true, data: { status: toCardKlpStatus(card.klpStatus), klps } };
+  // Both narrowed at the DB boundary, so `KlpEditor`'s status comparisons are
+  // type-checked rather than string-vs-string. They are SEPARATE statuses: a
+  // card can have good KLPs and a failed topic pass, and conflating them would
+  // offer the wrong retry.
+  return {
+    success: true,
+    data: {
+      status: toCardKlpStatus(card.klpStatus),
+      kltStatus: toCardKlpStatus(card.kltStatus),
+      klps,
+    },
+  };
 }
 
 /**

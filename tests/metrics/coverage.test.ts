@@ -11,6 +11,7 @@ const HEALTHY: DashboardCoverage = {
   categorizedCards: 25,
   topicCapableCards: 25,
   pendingExtraction: 0,
+  pendingKltSummarization: 0,
 }
 
 const FLOOR = 3
@@ -93,6 +94,7 @@ describe('diagnoseEmptyState', () => {
         klpStates: 0, klpStatesClearingFloor: 0, cardsWithLiveKlps: 0,
         cardsWithLiveKlpsInScope: 0, categorizedCards: 4, topicCapableCards: 0,
         pendingExtraction: 0,
+      pendingKltSummarization: 0,
       },
       true,
       FLOOR,
@@ -108,6 +110,7 @@ describe('diagnoseEmptyState', () => {
         klpStates: 26, klpStatesClearingFloor: 2, cardsWithLiveKlps: 68,
         cardsWithLiveKlpsInScope: 68, categorizedCards: 4, topicCapableCards: 0,
         pendingExtraction: 0,
+      pendingKltSummarization: 0,
       },
       false,
       1,

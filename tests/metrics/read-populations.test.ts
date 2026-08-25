@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
   eventFindMany: vi.fn(),
   attemptFindMany: vi.fn(),
   categoryFindMany: vi.fn(),
+  kltFindMany: vi.fn(),
   progressFindMany: vi.fn(),
   cardFindMany: vi.fn(),
   setFindUnique: vi.fn(),
@@ -42,6 +43,10 @@ vi.mock('@/lib/db', () => ({
     studyEvent: { findMany: h.eventFindMany },
     quizAttempt: { findMany: h.attemptFindMany },
     cardCategory: { findMany: h.categoryFindMany },
+    // The KLT axis. Empty by default: these suites are about the CATEGORY
+    // axis, and `getLearnerMetrics` short-circuits `kltTopics` to [] when no
+    // topic rows come back, so no further KLT query is reached.
+    klt: { findMany: h.kltFindMany },
     cardProgress: { findMany: h.progressFindMany },
     card: { findMany: h.cardFindMany },
     set: { findUnique: h.setFindUnique, findFirst: h.setFindFirst },
@@ -67,6 +72,7 @@ beforeEach(() => {
   h.tuningFindUnique.mockResolvedValue(null)
   // One category holding two LIVE klps and one retired one, so the
   // live-only assertion below has something to catch.
+  h.kltFindMany.mockResolvedValue([])
   h.categoryFindMany.mockResolvedValue([{
     normalizedName: 'valuation',
     name: 'Valuation',

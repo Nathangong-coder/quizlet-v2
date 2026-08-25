@@ -15,6 +15,8 @@ const h = vi.hoisted(() => ({
   tuningFindUnique: vi.fn(),
   setFindMany: vi.fn(),
   categoryFindMany: vi.fn(),
+  kltFindMany: vi.fn(),
+  missedFindMany: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -23,6 +25,13 @@ vi.mock('@/lib/db', () => ({
     learnerTuning: { findUnique: h.tuningFindUnique },
     set: { findMany: h.setFindMany },
     cardCategory: { findMany: h.categoryFindMany },
+    // The KLT axis. Empty by default: these suites are about the CATEGORY
+    // axis, and `getLearnerMetrics` short-circuits `kltTopics` to [] when no
+    // topic rows come back, so no further KLT query is reached.
+    klt: { findMany: h.kltFindMany },
+    // Backs `loadMissedWork`. Empty by default: it short-circuits with no
+    // further queries when the learner has missed nothing.
+    answerKlpResult: { findMany: h.missedFindMany },
   },
 }))
 vi.mock('@/lib/metrics/read', async (importOriginal) => ({
@@ -53,6 +62,8 @@ beforeEach(() => {
   h.auth.mockResolvedValue({ user: { id: 'u1' } })
   h.tuningFindUnique.mockResolvedValue(null)
   h.setFindMany.mockResolvedValue([{ id: 'set-a' }])
+  h.kltFindMany.mockResolvedValue([])
+  h.missedFindMany.mockResolvedValue([])
   h.categoryFindMany.mockResolvedValue([{ normalizedName: 'accounting' }])
   h.loadCoverage.mockResolvedValue(HEALTHY_COVERAGE)
   h.getLearnerMetrics.mockResolvedValue({

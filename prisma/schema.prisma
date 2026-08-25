@@ -7,14 +7,14 @@ datasource db {
 }
 
 model User {
-  id               String            @id @default(cuid())
-  name             String?
+  id            String    @id @default(cuid())
+  name          String?
   /// The ACCOUNT email, from the OAuth provider. Identity, not preference —
   /// it is how the account is recognised, and is its password-reset recovery
   /// address. Deliberately NOT editable from the account
   /// page: letting it be changed without a verification round trip is an
   /// account-takeover vector. Use `contactEmail` for "where do we write to you".
-  email            String            @unique
+  email         String    @unique
   /// Owned by the Auth.js adapter, but load-bearing for us too: for a
   /// CREDENTIALS account, null means password sign-in is REFUSED.
   ///
@@ -23,29 +23,29 @@ model User {
   /// an OAuth account with emailVerified: null signs in exactly as it does
   /// today. GitHub's verification of its own users is GitHub's business; this
   /// column governs the addresses *we* let people self-register.
-  emailVerified    DateTime?
-  image            String?
+  emailVerified DateTime?
+  image         String?
 
   /// Public display handle, e.g. "Alice_NG". Rules live in
   /// src/lib/users/handle.ts — import them rather than re-deriving.
   ///
   /// NOT `name`: that arrives from OAuth and is usually a real full name, which
   /// publishing a set must not quietly attach to a browsable page.
-  handle           String?           @unique
+  handle           String? @unique
   /// Lowercased `handle`, and the real uniqueness key — a @unique on the display
   /// form alone lets `Alice` and `alice` coexist and then race for one URL.
   /// Same pattern as CardCategory.normalizedName. Always written together with
   /// `handle`; `checkHandle` returns both so a caller cannot persist one alone.
-  normalizedHandle String?           @unique
+  normalizedHandle String? @unique
 
   /// Optional "write to me here" address, separate from `email` above.
   /// Separate BECAUSE it is safe to change: a contact address cannot be used to
   /// take over an account, so it needs no verification round trip to be edited.
-  contactEmail     String?
+  contactEmail String?
   /// Opt-in for product email. Nothing sends yet — there is a mail transport
   /// now (src/lib/mail/), but nothing sends product updates — Stage 7 deferred
   /// that. Recording the preference is the "schema-ready" half of that deferral.
-  emailUpdates     Boolean           @default(false)
+  emailUpdates Boolean @default(false)
 
   /// bcrypt hash of the user's password, or null for an OAuth-only account.
   ///
@@ -53,10 +53,10 @@ model User {
   /// GitHub has no password and never needs one; an account created with a
   /// password may later link GitHub. Both states are legitimate forever, so
   /// code must never treat null as "not migrated yet".
-  passwordHash     String?
+  passwordHash  String?
   /// When the password was last set or changed. Displayed on /account; also the
   /// only record that a credentials account exists at all.
-  passwordSetAt    DateTime?
+  passwordSetAt DateTime?
 
   /// Bumped to invalidate every outstanding JWT for this user.
   ///
@@ -65,7 +65,7 @@ model User {
   /// "change my password" would not sign out an attacker already holding one,
   /// i.e. it would be theatre. The value is embedded in the token and compared
   /// on every session resolution; see src/lib/auth/session.ts.
-  sessionVersion   Int               @default(0)
+  sessionVersion Int @default(0)
 
   /// Which invite let this account in, or null for GitHub accounts, the seeded
   /// dev user, and everything predating invite codes. Nullable permanently.
@@ -74,8 +74,8 @@ model User {
   /// SetNull on delete, so deleting an InviteCode erases the audit trail for
   /// accounts that used it. Prefer `npm run invite -- --revoke`, which
   /// preserves the row.
-  invitedByCodeId  String?
-  invitedByCode    InviteCode?       @relation(fields: [invitedByCodeId], references: [id], onDelete: SetNull)
+  invitedByCodeId String?
+  invitedByCode   InviteCode? @relation(fields: [invitedByCodeId], references: [id], onDelete: SetNull)
 
   accounts         Account[]
   sessions         Session[]
@@ -98,9 +98,9 @@ model User {
 }
 
 model Set {
-  id           String         @id @default(cuid())
-  title        String
-  description  String?
+  id            String         @id @default(cuid())
+  title         String
+  description   String?
   /// Vocabulary: SET_VISIBILITIES in src/lib/sets/visibility.ts (private|link).
   /// Import that const rather than writing a literal — this is a String
   /// column, so a typo compiles and never matches.
@@ -108,16 +108,16 @@ model Set {
   /// Defaults to `private`, so the migration makes every EXISTING set private
   /// too. That is the intent: sets were readable by anyone holding the id, and
   /// this closes that rather than grandfathering it.
-  visibility   String         @default("private")
-  userId       String
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cards        Card[]
-  quizAttempts QuizAttempt[]
-  categories   CardCategory[]
-  assets       CardAsset[]
+  visibility    String         @default("private")
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards         Card[]
+  quizAttempts  QuizAttempt[]
+  categories    CardCategory[]
+  assets        CardAsset[]
   studySessions StudySession[]
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([userId])
 }
@@ -146,6 +146,11 @@ model Card {
   klpVersion          Int                      @default(0)
   klpSourceHash       String?
   klpError            String?                  @db.Text
+  /// Stage 8 item 9: TOPIC summarization status, same vocabulary as klpStatus
+  /// (CARD_KLP_STATUSES). Separate from klpStatus because the two passes fail
+  /// independently — a card can have perfectly good KLPs and no topics yet.
+  kltStatus           String                   @default("pending")
+  kltError            String?                  @db.Text
   klps                CardKlp[]
   quizQuestions       QuizQuestion[]
 
@@ -160,23 +165,34 @@ model Card {
 /// pointing at the version that was actually asked, so a July session summary
 /// renders July's KLPs. Live reads filter `supersededAt: null`.
 model CardKlp {
-  id            String    @id @default(cuid())
-  cardId        String
-  version       Int
-  index         Int
-  text          String    @db.Text
-  weight        Int       // 1-5 centrality -> significance.relevance
-  kind          String    // definition|mechanism|causal|condition|quantitative|contrast|example
-  sourceHash    String
-  promptVersion Int
-  source        String    @default("ai") // ai | user
-  supersededAt  DateTime?
-  createdAt     DateTime  @default(now())
-  card          Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  id                 String            @id @default(cuid())
+  cardId             String
+  version            Int
+  index              Int
+  text               String            @db.Text
+  weight             Int // 1-5 centrality -> significance.relevance
+  kind               String // definition|mechanism|causal|condition|quantitative|contrast|example
+  sourceHash         String
+  promptVersion      Int
+  source             String            @default("ai") // ai | user
+  /// Stage 8 item 9: a 3-6 word rendering of `text`, for reading in a list.
+  ///
+  /// NULLABLE and staying that way — a KLP whose topic pass has not run,
+  /// failed, or was skipped for want of a credential must still render, with
+  /// callers falling back to `text`. A NOT NULL constraint would make the
+  /// summarizer a hard dependency of the study list.
+  ///
+  /// The ONE column a writer other than `writeKlpVersion` may update in place;
+  /// see that function's doc comment and spec section 6.1.
+  label              String?           @db.Text
+  supersededAt       DateTime?
+  createdAt          DateTime          @default(now())
+  card               Card              @relation(fields: [cardId], references: [id], onDelete: Cascade)
   answerResults      AnswerKlpResult[]
-  errorTags          AnswerErrorTag[] @relation("ErrorTagKlp")
-  secondaryErrorTags AnswerErrorTag[] @relation("ErrorTagSecondaryKlp")
+  errorTags          AnswerErrorTag[]  @relation("ErrorTagKlp")
+  secondaryErrorTags AnswerErrorTag[]  @relation("ErrorTagSecondaryKlp")
   states             KlpState[]
+  topics             KlpTopic[]
 
   @@unique([cardId, version, index])
   @@index([cardId, supersededAt])
@@ -196,18 +212,56 @@ model CardKlp {
 /// correction in src/lib/metrics/cache.ts (commit 00f0aef). Read as an
 /// instruction, this would have added a pointless replay to every tuning save.
 model KlpState {
-  id              String   @id @default(cuid())
-  userId          String
-  klpId           String
-  pKnown          Float
-  observations    Int
-  lastObservedAt  DateTime
-  updatedAt       DateTime @updatedAt
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  klp             CardKlp  @relation(fields: [klpId], references: [id], onDelete: Cascade)
+  id             String   @id @default(cuid())
+  userId         String
+  klpId          String
+  pKnown         Float
+  observations   Int
+  lastObservedAt DateTime
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  klp            CardKlp  @relation(fields: [klpId], references: [id], onDelete: Cascade)
 
   @@unique([userId, klpId])
   @@index([userId, pKnown])
+}
+
+/// Stage 8 item 9: a general concept a KLP is about — "WACC", "bankruptcy".
+///
+/// GLOBAL, not per-user and not per-set: `normalizedName` is unique across the
+/// whole install, so "WACC" is ONE node for every learner. That is the
+/// precondition for cross-user comparison, and it is a deliberate difference
+/// from `CardCategory`, which is `@@unique([setId, normalizedName])`.
+///
+/// Never garbage-collected. A Klt with zero live links is simply not
+/// displayed; deleting it would churn ids that history points at, for no
+/// storage saving worth naming.
+model Klt {
+  id             String     @id @default(cuid())
+  name           String
+  normalizedName String     @unique
+  createdAt      DateTime   @default(now())
+  links          KlpTopic[]
+}
+
+/// KLP -> KLT, ranked 1..3 (1 = primary).
+///
+/// Rows for SUPERSEDED KLPs are KEPT. `shapeTopicProfile` separates live KLPs
+/// (which drive knowledge) from attributable ones (live + superseded, which
+/// attribute historical error tags). Deleting old links would empty
+/// readiness's numerator on a card edit while its answers stayed in the
+/// denominator — the exact bug that split exists to fix.
+model KlpTopic {
+  id    String  @id @default(cuid())
+  klpId String
+  kltId String
+  rank  Int
+  klp   CardKlp @relation(fields: [klpId], references: [id], onDelete: Cascade)
+  klt   Klt     @relation(fields: [kltId], references: [id], onDelete: Cascade)
+
+  @@unique([klpId, kltId])
+  @@index([kltId])
+  @@index([klpId, rank])
 }
 
 model CardCategory {
@@ -236,17 +290,17 @@ model CardCategoryAssignment {
 }
 
 model CardContentBlock {
-  id          String      @id @default(cuid())
-  cardId      String
-  side        String      // "term" | "definition"
-  type        String      // "text" | "image" | "video" | "file"
-  text        String?     @db.Text
-  assetId     String?
-  position    Int
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  card        Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  asset       CardAsset?  @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  id        String     @id @default(cuid())
+  cardId    String
+  side      String // "term" | "definition"
+  type      String // "text" | "image" | "video" | "file"
+  text      String?    @db.Text
+  assetId   String?
+  position  Int
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  card      Card       @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  asset     CardAsset? @relation(fields: [assetId], references: [id], onDelete: SetNull)
 
   @@index([cardId, side, position])
 }
@@ -260,8 +314,8 @@ model CardAsset {
   originalName  String
   mimeType      String
   sizeBytes     Int
-  kind          String             @default("file")  // "image"|"audio"|"video"|"spreadsheet"|"pdf"|"file"
-  textExtract   String?            @db.Text          // Preview text: first N CSV rows, or file description
+  kind          String             @default("file") // "image"|"audio"|"video"|"spreadsheet"|"pdf"|"file"
+  textExtract   String?            @db.Text // Preview text: first N CSV rows, or file description
   createdAt     DateTime           @default(now())
   user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   set           Set?               @relation(fields: [setId], references: [id], onDelete: Cascade)
@@ -358,18 +412,18 @@ model StudyEvent {
   id              String   @id @default(cuid())
   userId          String
   cardId          String
-  source          String   // "review" | "quiz-mc" | "quiz-sa" | "quiz-tf" | "matching" | "lesson"
+  source          String // "review" | "quiz-mc" | "quiz-sa" | "quiz-tf" | "matching" | "lesson"
   correct         Boolean?
-  score           Int?     // 0-100 scale, for graded outcomes (e.g. short-answer overall * 10)
+  score           Int? // 0-100 scale, for graded outcomes (e.g. short-answer overall * 10)
   confidenceAfter Int
   latencyMs       Int?
   createdAt       DateTime @default(now())
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   card            Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
-  sessionId       String?
+  sessionId        String?
   confidenceBefore Int?
-  session         StudySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  session          StudySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   // One graded answer produces at most one memory event, hence @unique. The FK
   // lives here so deleting a QuizAnswer cascades the event away in the
@@ -393,7 +447,7 @@ model StudySession {
   id          String       @id @default(cuid())
   userId      String
   setId       String
-  kind        String       // "quiz" | "matching" | "confidence"
+  kind        String // "quiz" | "matching" | "confidence"
   startedAt   DateTime     @default(now())
   endedAt     DateTime?
   // Denormalized rather than derived from endedAt - startedAt: the activity
@@ -401,8 +455,8 @@ model StudySession {
   // index use and is undefined for a session that was never closed.
   durationMs  Int?
   itemCount   Int          @default(0)
-  categoryIds Json?        // what the session was scoped to at launch
-  insight     Json?        // persisted SessionInsight (src/lib/memory/insight.ts)
+  categoryIds Json? // what the session was scoped to at launch
+  insight     Json? // persisted SessionInsight (src/lib/memory/insight.ts)
   insightAt   DateTime?
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   set         Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
@@ -420,11 +474,11 @@ model AiCredential {
   label           String          @default("Default")
   encryptedApiKey String          @db.Text
   keyHint         String
-  baseUrl         String?         // required for openrouter + custom
+  baseUrl         String? // required for openrouter + custom
   defaultModel    String          @default("gemini-3.6-flash")
   role            String          @default("primary") // primary|backup
   enabled         Boolean         @default(true)
-  lastUsedAt      DateTime?       // last ATTEMPT (stamped before the call, not after success); drives LRU rotation in lib/ai/key-pool.ts
+  lastUsedAt      DateTime? // last ATTEMPT (stamped before the call, not after success); drives LRU rotation in lib/ai/key-pool.ts
   lastErrorAt     DateTime?
   lastErrorKind   String?
   verifiedAt      DateTime?
@@ -440,7 +494,7 @@ model AiCredential {
 model AiTaskRouting {
   id           String        @id @default(cuid())
   userId       String
-  task         String        // grade|plan|distractors|autocomplete
+  task         String // grade|plan|distractors|autocomplete
   credentialId String?
   model        String?
   createdAt    DateTime      @default(now())
@@ -466,25 +520,25 @@ model QuizOptionCache {
 }
 
 model QuizAttempt {
-  id              String       @id @default(cuid())
+  id              String         @id @default(cuid())
   userId          String
   setId           String
   mode            String
   score           Int?
   selectedCardIds Json?
   // Quiz setup options
-  questionMode    Json?        // Changed from String? to Json to support arrays
-  questionCount   Int?         // Requested total number of questions (across all sections)
-  promptSide      String?      // 'term', 'definition', 'mixed'
-  categoryIds     Json?        // Array of category IDs
-  starredOnly     Boolean      @default(false)
-  failedOnly      Boolean      @default(false)
-  printable       Boolean      @default(false)
-  createdAt       DateTime     @default(now())
-  sessionId       String?      @unique
-  session         StudySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  set             Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
+  questionMode    Json? // Changed from String? to Json to support arrays
+  questionCount   Int? // Requested total number of questions (across all sections)
+  promptSide      String? // 'term', 'definition', 'mixed'
+  categoryIds     Json? // Array of category IDs
+  starredOnly     Boolean        @default(false)
+  failedOnly      Boolean        @default(false)
+  printable       Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  sessionId       String?        @unique
+  session         StudySession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  set             Set            @relation(fields: [setId], references: [id], onDelete: Cascade)
   answers         QuizAnswer[]
   questions       QuizQuestion[]
 
@@ -493,35 +547,35 @@ model QuizAttempt {
 }
 
 model QuizAnswer {
-  id            String      @id @default(cuid())
-  attemptId     String
-  userId        String
-  cardId        String
-  mode          String
-  prompt        String      @db.Text
-  answer        String?     @db.Text
-  correctAnswer String      @db.Text
-  selectedOption String?    @db.Text
-  isCorrect     Boolean?
-  grade         Json?
-  score         Int?
-  latencyMs     Int?
-  feedback      String?     @db.Text
-  annotations   Annotation[]
-  createdAt     DateTime    @default(now())
-  attempt       QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  card          Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  id             String       @id @default(cuid())
+  attemptId      String
+  userId         String
+  cardId         String
+  mode           String
+  prompt         String       @db.Text
+  answer         String?      @db.Text
+  correctAnswer  String       @db.Text
+  selectedOption String?      @db.Text
+  isCorrect      Boolean?
+  grade          Json?
+  score          Int?
+  latencyMs      Int?
+  feedback       String?      @db.Text
+  annotations    Annotation[]
+  createdAt      DateTime     @default(now())
+  attempt        QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card           Card         @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   // Why this answer has the tags it has — or has none. A relational tag table
   // cannot distinguish "analyzed and clean" from "could not analyze": both are
   // zero rows. Spec 3's rate denominators filter on 'analyzed'.
-  analysisStatus   String?  // analyzed | no_provenance | no_klps | failed
-  analysisVersion  Int?     // which analysis contract produced these rows
-  analysisWarnings Json?    // [{ reason, value }] — non-fatal losses
+  analysisStatus   String? // analyzed | no_provenance | no_klps | failed
+  analysisVersion  Int? // which analysis contract produced these rows
+  analysisWarnings Json? // [{ reason, value }] — non-fatal losses
   klpResults       AnswerKlpResult[]
   errorTags        AnswerErrorTag[]
-  studyEvent    StudyEvent?
+  studyEvent       StudyEvent?
 
   @@index([userId, cardId])
   @@index([userId, createdAt])
@@ -539,9 +593,9 @@ model AnswerKlpResult {
   id           String     @id @default(cuid())
   quizAnswerId String
   klpId        String
-  status       String     // passed | partial | failed
-  credit       Float      // 0-1, computed: status credit x evidence strength
-  mode         String     // StudySource form: quiz-mc | quiz-sa | quiz-tf
+  status       String // passed | partial | failed
+  credit       Float // 0-1, computed: status credit x evidence strength
+  mode         String // StudySource form: quiz-mc | quiz-sa | quiz-tf
   evidence     String?    @db.Text
   createdAt    DateTime   @default(now())
   quizAnswer   QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
@@ -570,16 +624,16 @@ model AnswerKlpResult {
 model AnswerErrorTag {
   id             String     @id @default(cuid())
   quizAnswerId   String
-  dimension      String     // accuracy | clarity | conciseness
-  type           String     // closed vocabulary per dimension
-  klpId          String?    // null means the target is the whole answer
-  secondaryKlpId String?    // conflation only: the concept confused WITH
-  relevance      Int        // CardKlp.weight AS OF THIS ANSWER
-  severity       Int        // 1-5, derived from the type band + magnitude
-  magnitude      Int?       // 1-10 instance magnitude; NULL means a legacy row
-  mode           String?    // StudySource at answer time; NULL means a legacy row
-  starred        Boolean    // CardProgress.starred AT ANSWER TIME
-  significance   Int        // computed; excludes repeatBonus
+  dimension      String // accuracy | clarity | conciseness
+  type           String // closed vocabulary per dimension
+  klpId          String? // null means the target is the whole answer
+  secondaryKlpId String? // conflation only: the concept confused WITH
+  relevance      Int // CardKlp.weight AS OF THIS ANSWER
+  severity       Int // 1-5, derived from the type band + magnitude
+  magnitude      Int? // 1-10 instance magnitude; NULL means a legacy row
+  mode           String? // StudySource at answer time; NULL means a legacy row
+  starred        Boolean // CardProgress.starred AT ANSWER TIME
+  significance   Int // computed; excludes repeatBonus
   quote          String?    @db.Text
   createdAt      DateTime   @default(now())
   quizAnswer     QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
@@ -603,13 +657,13 @@ model QuizQuestion {
   id           String      @id @default(cuid())
   attemptId    String
   cardId       String
-  mode         String      // multiple-choice | true-false
+  mode         String // multiple-choice | true-false
   statement    String?     @db.Text // TF: the (possibly corrupted) statement shown
-  isTrue       Boolean?    // TF answer key. NEVER serialized to the client
-  corruption   String?     // TF: how the target KLP was corrupted. null for the
-                           // true variant and the generation-failure fallback.
-                           // MC keeps its per-option corruption inside `options`.
-  options      Json?       // MC: [{text, correct, sourceKlpId?, corruption?}]
+  isTrue       Boolean? // TF answer key. NEVER serialized to the client
+  corruption   String? // TF: how the target KLP was corrupted. null for the
+  // true variant and the generation-failure fallback.
+  // MC keeps its per-option corruption inside `options`.
+  options      Json? // MC: [{text, correct, sourceKlpId?, corruption?}]
   targetKlpIds Json
   klpVersion   Int
   createdAt    DateTime    @default(now())
@@ -621,27 +675,27 @@ model QuizQuestion {
 }
 
 model Annotation {
-  id        String   @id @default(cuid())
+  id           String     @id @default(cuid())
   quizAnswerId String
-  type      String   // 'bold' | 'underline' | 'highlight'
-  text      String   // The text segment to annotate
-  startIndex Int
-  endIndex   Int
-  comment   String?  // Optional AI comment for this annotation
-  quizAnswer QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
+  type         String // 'bold' | 'underline' | 'highlight'
+  text         String // The text segment to annotate
+  startIndex   Int
+  endIndex     Int
+  comment      String? // Optional AI comment for this annotation
+  quizAnswer   QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
 }
 
 model TrainingPlan {
   id                 String   @id @default(cuid())
   userId             String
-  sourceSetId         String?
+  sourceSetId        String?
   title              String
   summary            String   @db.Text
-  focusAreas          Json
-  recommendedCardIds  Json
-  generatedQuestions  Json
-  promptVersion       Int?
-  createdAt           DateTime @default(now())
+  focusAreas         Json
+  recommendedCardIds Json
+  generatedQuestions Json
+  promptVersion      Int?
+  createdAt          DateTime @default(now())
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
@@ -700,9 +754,9 @@ model LearnerTuning {
 }
 
 model UserToken {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   /// sha256(purpose + ':' + rawToken), hex. NEVER the raw token — a token in a
   /// database is a bearer credential exactly like a password.
@@ -711,12 +765,12 @@ model UserToken {
   /// token unable to hash to a reset row's value, so forgetting the `purpose`
   /// clause in a `where` fails closed instead of opening a confused-deputy
   /// hole. See src/lib/auth/tokens.ts.
-  tokenHash String    @unique
+  tokenHash String @unique
 
   /// Vocabulary: TOKEN_PURPOSES in src/lib/auth/tokens.ts
   /// ('password_reset' | 'email_verify'). String column + shared const,
   /// matching src/lib/cards/klp-status.ts; this schema has no Prisma enums.
-  purpose   String
+  purpose String
 
   expiresAt DateTime
   /// Single-use. Enforced by an atomic conditional update asserting
@@ -729,15 +783,15 @@ model UserToken {
 }
 
 model InviteCode {
-  id            String    @id @default(cuid())
+  id String @id @default(cuid())
 
   /// Normalised Crockford Base32, stored in PLAINTEXT — deliberately. A leaked
   /// reset token is account takeover; a leaked invite costs one signup slot
   /// from a pool that is already bounded, and the operator genuinely needs to
   /// read codes back out. See the design's §6.
-  code          String    @unique
+  code  String  @unique
   /// Free text for the operator: "discord launch", "study group A".
-  label         String?
+  label String?
 
   /// Immutable, for display: "3 of 5 used".
   maxUses       Int
@@ -746,9 +800,9 @@ model InviteCode {
   /// decrement toward zero is a plain conditional update.
   usesRemaining Int
 
-  expiresAt     DateTime?
-  revokedAt     DateTime?
-  createdAt     DateTime  @default(now())
+  expiresAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
 
-  redeemedBy    User[]
+  redeemedBy User[]
 }

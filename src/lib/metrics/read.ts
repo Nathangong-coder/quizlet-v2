@@ -5,7 +5,10 @@ import type { ForgettingCurve } from '@/lib/metrics/forgetting'
 import { deriveTagScores, toStoredTags } from '@/lib/errors/derive'
 import { deriveMisconceptions, computeCleanStreaks, toConflationTags } from '@/lib/metrics/misconceptions'
 import { buildForgettingCurve, toRecallPairs } from '@/lib/metrics/forgetting'
-import { shapeTopicProfile, composeLearnerProfile, toTopicRows } from '@/lib/memory/topic-profile'
+import {
+  shapeTopicProfile, composeLearnerProfile, toTopicRows, kltRowsToTopicRows,
+  type RawKltRow, type LearnerTopicProfile,
+} from '@/lib/memory/topic-profile'
 import { buildLearnerProfile } from '@/lib/memory/profile'
 import { eventRecalled, type StudySource } from '@/lib/memory/scoring'
 import { paceOutliers as computePaceOutliers } from '@/lib/metrics/pace'
@@ -42,6 +45,21 @@ export interface LearnerMetrics {
    * Rendered by `/profile/learner` via `StudyNext`.
    */
   ranked: RankedCandidate[]
+  /**
+   * The AI-derived topic axis (KLTs), scored by the SAME `shapeTopicProfile`
+   * as the user-authored category axis in `profile.topics`.
+   *
+   * Computed HERE rather than in a module of its own so both axes read the
+   * identical `derived` tags, `knowledge` map and thresholds. A second module
+   * would have to rebuild the whole tag-derivation pipeline, and two copies of
+   * it would drift into disagreeing about what "weak" means on one screen.
+   *
+   * Lives BESIDE `profile.topics`, never replacing it — a user category and an
+   * AI topic answer different questions and `CLAUDE.md`'s 2026-08-14 note is
+   * why: a category is often a FORMAT label ("label the image"), which makes a
+   * poor concept node but a perfectly good filter.
+   */
+  kltTopics: LearnerTopicProfile[]
   /**
    * What each candidate SAYS, keyed by `klpId`.
    *
@@ -272,6 +290,21 @@ export async function getLearnerMetrics({
     thresholds: tuning.thresholds,
   })
 
+  // The KLT axis, from the same inputs. `masteryTopicRanks` decides how many
+  // of a KLP's ranked topics count — 3 by default, so one point can move
+  // several topics (spec §9.1).
+  const kltRows = await loadKltRows(prisma, userId, scope, categoryIds)
+  const kltTopicRows = kltRowsToTopicRows(kltRows, tuning.thresholds.masteryTopicRanks)
+  const kltTopics = kltTopicRows.length === 0 ? [] : shapeTopicProfile({
+    topics: kltTopicRows,
+    knowledge,
+    tags: derived,
+    analyzedAnswersByTopic: await loadAnalyzedAnswerCountsByKlt(
+      prisma, quizAnswerScopeWhere, tuning.thresholds.masteryTopicRanks,
+    ),
+    thresholds: tuning.thresholds,
+  })
+
   // LIVE ids only. `supersededKlpIds` exists for TAG ATTRIBUTION — a historical
   // tag names the version that was asked — and must never become a study
   // target: that KLP describes a version of the card the learner cannot see.
@@ -325,6 +358,7 @@ export async function getLearnerMetrics({
     profile: composeLearnerProfile(cards, shapedTopics),
     misconceptions,
     ranked,
+    kltTopics,
     candidateLabels,
     // `StudyEvent.correct` is NULL for short-answer rows (they carry a
     // `score`, not a boolean) — mapping raw `correct` straight through would
@@ -492,6 +526,83 @@ async function loadUncategorizedCards(
  * numerator while its answers stayed in the denominator, so readiness jumped
  * toward 1.0 on a card edit, with no change in the learner's behaviour.
  */
+/**
+ * KLT rows for the cards in scope.
+ *
+ * The `links` filter repeats the card scope on purpose. Without it a topic
+ * that qualifies through ONE in-scope card drags in its links from every other
+ * card in the database — including other users' — and the topic's knowledge
+ * would be averaged over KLPs this learner has never seen.
+ */
+async function loadKltRows(
+  prisma: PrismaClient,
+  userId: string,
+  scope: HistoryScope,
+  categoryIds: string[],
+): Promise<RawKltRow[]> {
+  const card: Record<string, unknown> = scope.cardId
+    ? { id: scope.cardId, set: { userId } }
+    : { ...buildCardScopeWhere(scope, categoryIds), set: { userId } }
+
+  return prisma.klt.findMany({
+    where: { links: { some: { klp: { card } } } },
+    select: {
+      normalizedName: true,
+      name: true,
+      links: {
+        where: { klp: { card } },
+        select: { rank: true, klp: { select: { id: true, supersededAt: true, cardId: true } } },
+      },
+    },
+  })
+}
+
+/**
+ * Analyzed-answer counts per KLT — readiness's DENOMINATOR on that axis.
+ *
+ * Counted from answers, never from tags, for the reason spelled out on
+ * `loadAnalyzedAnswerCounts`: a clean answer produces no tags and is exactly
+ * the positive evidence readiness needs, so deriving this from tags would make
+ * every learner look maximally unready.
+ */
+async function loadAnalyzedAnswerCountsByKlt(
+  prisma: PrismaClient,
+  quizAnswerScopeWhere: Record<string, unknown>,
+  maxRank: number,
+): Promise<Record<string, number>> {
+  const answers = await prisma.quizAnswer.findMany({
+    where: buildExpressionAnswerWhere(quizAnswerScopeWhere),
+    select: {
+      card: {
+        select: {
+          klps: {
+            where: { supersededAt: null },
+            select: {
+              topics: {
+                where: { rank: { lte: maxRank } },
+                select: { klt: { select: { normalizedName: true } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+
+  const counts: Record<string, number> = {}
+  for (const a of answers) {
+    // One answer counts ONCE per topic, however many of the card's KLPs carry
+    // it — otherwise a card whose five KLPs all sit under "DCF" would inflate
+    // that topic's denominator fivefold and crush its readiness.
+    const seen = new Set<string>()
+    for (const klp of a.card?.klps ?? []) {
+      for (const t of klp.topics) seen.add(t.klt.normalizedName)
+    }
+    for (const key of seen) counts[key] = (counts[key] ?? 0) + 1
+  }
+  return counts
+}
+
 async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: HistoryScope) {
   const { where, assignmentWhere } = buildCategoryQuery(userId, scope)
   return prisma.cardCategory.findMany({
