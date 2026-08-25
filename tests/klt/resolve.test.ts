@@ -5,7 +5,7 @@ const ids = ['klp-a', 'klp-b']
 
 describe('resolveKltWrites', () => {
   it('maps refs to klp ids by position', () => {
-    expect(resolveKltWrites([{ ref: 1, label: 'Second point', topics: ['WACC'] }], ids)).toEqual([
+    expect(resolveKltWrites([{ ref: 1, label: 'Second point', concepts: ['WACC'] }], ids)).toEqual([
       {
         klpId: 'klp-b',
         label: 'Second point',
@@ -17,50 +17,54 @@ describe('resolveKltWrites', () => {
   it('DROPS a hallucinated ref rather than writing it onto another KLP', () => {
     const out = resolveKltWrites(
       [
-        { ref: 7, label: 'Nowhere', topics: ['WACC'] },
-        { ref: 0, label: 'Real', topics: [] },
+        { ref: 7, label: 'Nowhere', concepts: ['WACC'] },
+        { ref: 0, label: 'Real', concepts: [] },
       ],
       ids,
     )
     expect(out.map((w) => w.klpId)).toEqual(['klp-a'])
   })
 
-  it('ranks topics by the order the model gave them', () => {
-    const out = resolveKltWrites(
-      [{ ref: 0, label: 'x', topics: ['WACC', 'Tax Shield', 'Bankruptcy'] }],
-      ids,
-    )
-    expect(out[0].topics.map((t) => t.rank)).toEqual([1, 2, 3])
+  it('ranks concepts by the order the model gave them', () => {
+    const out = resolveKltWrites([{ ref: 0, label: 'x', concepts: ['WACC', 'Tax Shield'] }], ids)
+    expect(out[0].topics.map((t) => t.rank)).toEqual([1, 2])
   })
 
   it('drops an invalid topic and RE-RANKS so ranks stay contiguous from 1', () => {
     // A gap would make rank mean two different things depending on what the
     // model happened to return, and masteryTopicRanks reads rank as a cutoff.
     const out = resolveKltWrites(
-      [{ ref: 0, label: 'x', topics: ['the weighted average cost of capital', 'Bankruptcy'] }],
+      [{ ref: 0, label: 'x', concepts: ['the weighted average cost of capital', 'Bankruptcy'] }],
       ids,
     )
     expect(out[0].topics).toEqual([{ name: 'Bankruptcy', normalizedName: 'bankruptcy', rank: 1 }])
   })
 
-  it('dedupes topics that normalize to the same key, keeping the best rank', () => {
-    const out = resolveKltWrites([{ ref: 0, label: 'x', topics: ['WACC', 'wacc', 'Bankruptcy'] }], ids)
-    expect(out[0].topics).toEqual([
-      { name: 'WACC', normalizedName: 'wacc', rank: 1 },
-      { name: 'Bankruptcy', normalizedName: 'bankruptcy', rank: 2 },
-    ])
+  it('dedupes concepts that normalize to the same key, keeping the best rank', () => {
+    // Two after dedup, which is the cap — the duplicate is what makes this a
+    // realistic reply rather than an over-cap one.
+    const out = resolveKltWrites([{ ref: 0, label: 'x', concepts: ['WACC', 'wacc'] }], ids)
+    expect(out[0].topics).toEqual([{ name: 'WACC', normalizedName: 'wacc', rank: 1 }])
+  })
+
+  it('does NOT itself cap concept count — the schema does', () => {
+    // resolveKltWrites is pure and receives already-validated input, so it
+    // deliberately has no cap of its own. If this ever needs to change, the
+    // schema is the place to look first.
+    const out = resolveKltWrites([{ ref: 0, label: 'x', concepts: ['A', 'B', 'C'] }], ids)
+    expect(out[0].topics.map((t) => t.rank)).toEqual([1, 2, 3])
   })
 
   it('keeps a KLP whose topics were ALL invalid — the label still lands', () => {
     const out = resolveKltWrites(
-      [{ ref: 0, label: 'Still useful', topics: ['a sentence that is far too long to be a topic'] }],
+      [{ ref: 0, label: 'Still useful', concepts: ['a sentence that is far too long to be a topic'] }],
       ids,
     )
     expect(out).toEqual([{ klpId: 'klp-a', label: 'Still useful', topics: [] }])
   })
 
   it('keeps the topics when the label is blank — the two grains fail apart', () => {
-    const out = resolveKltWrites([{ ref: 0, label: '   ', topics: ['WACC'] }], ids)
+    const out = resolveKltWrites([{ ref: 0, label: '   ', concepts: ['WACC'] }], ids)
     expect(out).toEqual([
       { klpId: 'klp-a', label: null, topics: [{ name: 'WACC', normalizedName: 'wacc', rank: 1 }] },
     ])
@@ -69,8 +73,8 @@ describe('resolveKltWrites', () => {
   it('keeps only the first entry when the model repeats a ref', () => {
     const out = resolveKltWrites(
       [
-        { ref: 0, label: 'First', topics: [] },
-        { ref: 0, label: 'Second', topics: [] },
+        { ref: 0, label: 'First', concepts: [] },
+        { ref: 0, label: 'Second', concepts: [] },
       ],
       ids,
     )
@@ -78,7 +82,7 @@ describe('resolveKltWrites', () => {
   })
 
   it('collapses internal whitespace in a label', () => {
-    expect(resolveKltWrites([{ ref: 0, label: ' Debt   impact ', topics: [] }], ids)[0].label).toBe(
+    expect(resolveKltWrites([{ ref: 0, label: ' Debt   impact ', concepts: [] }], ids)[0].label).toBe(
       'Debt impact',
     )
   })
@@ -96,41 +100,41 @@ describe('resolveKltWrites — label validation', () => {
     // The failure this guard exists for: a model that ignores "3 to 6 words"
     // and returns the KLP text verbatim. Persisting it makes the label layer
     // pointless — the row reads exactly as it did before the KLT layer existed.
-    const out = resolveKltWrites([{ ref: 0, label: PROPOSITION, topics: ['Bankruptcy'] }], ids)
+    const out = resolveKltWrites([{ ref: 0, label: PROPOSITION, concepts: ['Bankruptcy'] }], ids)
     expect(out[0].label).toBeNull()
   })
 
   it('keeps the TOPICS when only the label was unusable', () => {
-    const out = resolveKltWrites([{ ref: 0, label: PROPOSITION, topics: ['Bankruptcy'] }], ids)
+    const out = resolveKltWrites([{ ref: 0, label: PROPOSITION, concepts: ['Bankruptcy'] }], ids)
     expect(out[0].topics).toEqual([
       { name: 'Bankruptcy', normalizedName: 'bankruptcy', rank: 1 },
     ])
   })
 
   it('accepts a label at the length the prompt actually asks for', () => {
-    const out = resolveKltWrites([{ ref: 0, label: 'Debt impact on WACC', topics: [] }], ids)
+    const out = resolveKltWrites([{ ref: 0, label: 'Debt impact on WACC', concepts: [] }], ids)
     expect(out[0].label).toBe('Debt impact on WACC')
   })
 
   it('NEVER truncates — a half-sentence headline is worse than none', () => {
-    const out = resolveKltWrites([{ ref: 0, label: PROPOSITION, topics: ['Bankruptcy'] }], ids)
+    const out = resolveKltWrites([{ ref: 0, label: PROPOSITION, concepts: ['Bankruptcy'] }], ids)
     expect(out[0].label).toBeNull()
     expect(JSON.stringify(out)).not.toContain('Taking on excessive')
   })
 
   it('drops the whole entry when the label is unusable AND there are no topics', () => {
     // Writing it would only cost an UPDATE setting label to the null it is.
-    expect(resolveKltWrites([{ ref: 0, label: PROPOSITION, topics: [] }], ids)).toEqual([])
+    expect(resolveKltWrites([{ ref: 0, label: PROPOSITION, concepts: [] }], ids)).toEqual([])
   })
 
   it('accepts a label right at the cap but not one word past it', () => {
     const eight = 'One two three four five six seven eight'
-    expect(resolveKltWrites([{ ref: 0, label: eight, topics: [] }], ids)[0].label).toBe(eight)
-    expect(resolveKltWrites([{ ref: 0, label: `${eight} nine`, topics: [] }], ids)).toEqual([])
+    expect(resolveKltWrites([{ ref: 0, label: eight, concepts: [] }], ids)[0].label).toBe(eight)
+    expect(resolveKltWrites([{ ref: 0, label: `${eight} nine`, concepts: [] }], ids)).toEqual([])
   })
 
   it('keeps a KLP whose LABEL was unusable — the topics still land', () => {
-    const out = resolveKltWrites([{ ref: 0, label: PROPOSITION, topics: ['WACC'] }], ids)
+    const out = resolveKltWrites([{ ref: 0, label: PROPOSITION, concepts: ['WACC'] }], ids)
     expect(out).toEqual([
       { klpId: 'klp-a', label: null, topics: [{ name: 'WACC', normalizedName: 'wacc', rank: 1 }] },
     ])

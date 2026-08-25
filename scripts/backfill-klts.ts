@@ -7,7 +7,9 @@ import {
   type KltGenerator,
 } from '../src/lib/klt/summarize'
 import { KLT_BATCH_SIZE } from '../src/lib/cards/klt-batch'
-import { KltSummarySchema } from '../src/lib/ai/schemas'
+import { KltSummarySchema, KltPlacementSchema } from '../src/lib/ai/schemas'
+import { placeUnparentedConcepts, type KltPlacer } from '../src/lib/klt/place'
+import { summarizeTreeHealth, MAX_BRANCHING } from '../src/lib/klt/health'
 
 /**
  * `--direct` runs against a raw `GOOGLE_API_KEY` instead of the user's stored
@@ -41,6 +43,29 @@ function directGenerator(): KltGenerator {
 }
 
 /**
+ * `--direct` equivalent of `directGenerator`, for Phase B (placement). Same
+ * rationale: bypasses the stored, encrypted `AiCredential` pool and hits a raw
+ * `GOOGLE_API_KEY` directly, writing nothing to `AiCredential`.
+ */
+function directPlacer(): KltPlacer {
+  const apiKey = process.env.GOOGLE_API_KEY
+  if (!apiKey) throw new Error('--direct needs GOOGLE_API_KEY in the environment')
+  const google = createGoogle({ apiKey })
+  const model = process.env.KLT_DIRECT_MODEL ?? 'gemini-3.6-flash'
+
+  return async ({ prompt }) => {
+    // generateObject does not exist in AI SDK v7; structured output is
+    // generateText + Output.object.
+    const res = await generateText({
+      model: google(model),
+      prompt,
+      output: Output.object({ schema: KltPlacementSchema }),
+    })
+    return res.output
+  }
+}
+
+/**
  * One-time backfill for cards whose KLPs predate the KLT layer.
  *
  * IDEMPOTENT AND RESUMABLE. It selects only cards that are not already
@@ -54,6 +79,9 @@ function directGenerator(): KltGenerator {
  */
 async function main() {
   const direct = process.argv.includes('--direct')
+  // Re-summarize cards that are already 'ready'. Needed after a prompt change:
+  // the normal run skips them, so a new prompt would never reach the corpus.
+  const force = process.argv.includes('--force')
   const generate = direct ? directGenerator() : defaultKltGenerator
   if (direct) {
     console.log('[backfill:klts] --direct: using GOOGLE_API_KEY, bypassing stored credentials')
@@ -67,7 +95,7 @@ async function main() {
       where: {
         set: { userId: owner.id },
         klps: { some: { supersededAt: null } },
-        kltStatus: { not: 'ready' },
+        ...(force ? {} : { kltStatus: { not: 'ready' } }),
       },
       select: { id: true },
     })
@@ -81,6 +109,21 @@ async function main() {
       processed += batch.length
       console.log(`[backfill:klts]   ${processed} cards processed`)
     }
+  }
+
+  // Phase B. Runs ONCE for the whole install, not per owner: the tree is
+  // global, and placing one owner's concepts at a time would show the model a
+  // partial tree and invite it to mint duplicates of nodes another owner's run
+  // is about to create.
+  //
+  // Unconditional on `force`: unplaced concepts are unplaced either way, and
+  // guarded on `owners.length` rather than defaulting a missing first owner's
+  // id to an empty string — an empty userId would still reach `generateJson`
+  // and fail credential resolution in a confusing way instead of skipping
+  // cleanly, the way every other empty-database path in this script does.
+  if (owners.length > 0) {
+    console.log('[backfill:klts] placing unparented concepts…')
+    await placeUnparentedConcepts(owners[0].id, direct ? directPlacer() : undefined)
   }
 
   const [topics, links, labels, stillPending] = await Promise.all([
@@ -106,13 +149,49 @@ async function main() {
       `[backfill:klts] WARNING: only ${labels} of ${liveKlps} live key points got a usable short label. The rest were discarded for being too long — study lists will show the full proposition instead.`,
     )
   }
-  // A topic count approaching the card count means the reconciler is minting
-  // one topic per card instead of converging, which is the fragmentation this
-  // design exists to prevent. Worth an operator's eye, not an exception.
-  if (topics > 0 && processed > 0 && topics > processed * 0.6) {
-    console.warn(
-      `[backfill:klts] WARNING: ${topics} topics for ${processed} cards — the vocabulary may be fragmenting. Inspect it before trusting topic mastery.`,
-    )
+  // Health is tree-shaped: structural invariants (reported loudly, never
+  // swallowed), a depth histogram, concepts still unparented, nodes whose
+  // branching factor means a rung is probably missing beneath them, and
+  // LEAF concepts covering exactly one key point — the sign a leaf is being
+  // minted per card instead of reused. All of it is computed by the pure
+  // `summarizeTreeHealth`; this function only fetches and prints.
+  await reportTreeHealth()
+}
+
+async function reportTreeHealth() {
+  const rows = await prisma.klt.findMany({
+    select: { id: true, name: true, normalizedName: true, parentKltId: true, depth: true, ancestorIds: true },
+  })
+  const linkRows = await prisma.klpTopic.groupBy({ by: ['kltId'], _count: true })
+  const linkCounts = new Map(linkRows.map((l) => [l.kltId, l._count]))
+
+  const health = summarizeTreeHealth(rows, linkCounts)
+
+  if (health.violations.length > 0) {
+    console.error(`[backfill:klts] STRUCTURAL VIOLATIONS: ${health.violations.length}`)
+    for (const v of health.violations.slice(0, 10)) console.error(`  ${v.kind} ${v.kltId}: ${v.detail}`)
+  }
+
+  console.log('[backfill:klts] nodes by depth: ' +
+    health.nodesByDepth.map(({ depth, count }) => `${depth}:${count}`).join(' '))
+
+  if (health.unplaced.length > 0) {
+    console.warn(`[backfill:klts] ${health.unplaced.length} concept(s) still unparented — they report ` +
+      `mastery as their own node but do not roll up: ${health.unplaced.slice(0, 8).map((u) => u.name).join(', ')}`)
+  }
+
+  if (health.overloaded.length > 0) {
+    console.warn(`[backfill:klts] ${health.overloaded.length} node(s) exceed ${MAX_BRANCHING} direct ` +
+      `children — a rung is probably missing beneath them: ` +
+      health.overloaded.map((o) => `${o.name} (${o.children})`).join(', '))
+  }
+
+  if (health.linkedConcepts > 0) {
+    console.log(`[backfill:klts] concepts with exactly one key point: ${health.singletonConcepts}/${health.linkedConcepts}`)
+    if (health.singletonConcepts > health.linkedConcepts * 0.5) {
+      console.warn('[backfill:klts] WARNING: over half of concepts cover a single key point. ' +
+        'Leaves are being minted per card instead of reused — nothing will aggregate.')
+    }
   }
 }
 

@@ -240,11 +240,37 @@ model Klt {
   id             String     @id @default(cuid())
   name           String
   normalizedName String     @unique
+  parentKltId    String?
+  parent         Klt?       @relation("KltTree", fields: [parentKltId], references: [id], onDelete: Restrict)
+  children       Klt[]      @relation("KltTree")
+  /// 0 at a subject root. Denormalized; `child.depth = parent.depth + 1` is a
+  /// TESTED invariant, not an assumption — see src/lib/klt/invariants.ts.
+  depth          Int        @default(0)
+  /// Every ancestor id, root-first, EXCLUDING self.
+  ///
+  /// Denormalized so "everything under `accounting`" is one indexed array
+  /// containment query rather than a recursive CTE — the rollup runs on every
+  /// dashboard load. A stale array silently changes which key points roll up
+  /// where, so an invariant test asserts it matches a real parent walk.
+  ancestorIds    String[]
   createdAt      DateTime   @default(now())
   links          KlpTopic[]
+
+  @@index([parentKltId])
+  @@index([depth])
+  @@index([ancestorIds(ops: ArrayOps)], type: Gin)
 }
 
-/// KLP -> KLT, ranked 1..3 (1 = primary).
+/// KLP -> KLT, ranked 1..2 by CENTRALITY, not breadth.
+///
+/// 1 = the concept this point is chiefly about ("net income adjustments"),
+/// 2 = a second concept it honestly also covers.
+///
+/// Breadth is no longer encoded here — it comes from the tree, by walking
+/// `Klt.parentKltId`/`ancestorIds` up from whichever concept a rank points at.
+/// `MetricThresholds.masteryTopicRanks` reads as "how central must a concept
+/// be to this point to count toward that concept's mastery" — rank 1 only,
+/// or rank 1 and 2.
 ///
 /// Rows for SUPERSEDED KLPs are KEPT. `shapeTopicProfile` separates live KLPs
 /// (which drive knowledge) from attributable ones (live + superseded, which
@@ -255,6 +281,8 @@ model KlpTopic {
   id    String  @id @default(cuid())
   klpId String
   kltId String
+  /// CENTRALITY, not breadth: 1 = the concept this point is chiefly about,
+  /// 2 = a second concept it honestly also covers. Breadth comes from the tree.
   rank  Int
   klp   CardKlp @relation(fields: [klpId], references: [id], onDelete: Cascade)
   klt   Klt     @relation(fields: [kltId], references: [id], onDelete: Cascade)

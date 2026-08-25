@@ -8,8 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { loadTuning, saveTuning } from '@/actions/learner-tuning';
-import { DEFAULT_THRESHOLDS, type MetricThresholds } from '@/lib/tuning/schema';
-import { MAX_KLTS_PER_KLP } from '@/lib/ai/schemas';
+import { DEFAULT_THRESHOLDS, MASTERY_TOPIC_RANKS_MAX, type MetricThresholds } from '@/lib/tuning/schema';
 
 type FieldKey = keyof MetricThresholds;
 
@@ -49,9 +48,9 @@ const FIELDS: {
     key: 'masteryTopicRanks',
     label: 'Topics counted per learning point',
     copy:
-      "Each learning point is filed under up to three topics, most central first. This is how many of them count toward a topic's mastery score. At 3, a broad topic gathers evidence quickly, but one wrong answer can mark several topics weak at once. At 1, each point counts exactly once under its main topic — a sharper diagnosis that takes longer to fill in.",
-    valid: (n) => Number.isInteger(n) && n >= 1 && n <= MAX_KLTS_PER_KLP,
-    error: `Topics counted must be a whole number from 1 to ${MAX_KLTS_PER_KLP}.`,
+      "Each learning point is filed under one or two concepts, most central first. This is how many of them count toward a topic's mastery score. At 2, a point can mark both its concepts weak on a single wrong answer. At 1, each point counts exactly once under its main concept — a sharper diagnosis that takes longer to fill in.",
+    valid: (n) => Number.isInteger(n) && n >= 1 && n <= MASTERY_TOPIC_RANKS_MAX,
+    error: `Topics counted must be a whole number from 1 to ${MASTERY_TOPIC_RANKS_MAX}.`,
   },
 ];
 

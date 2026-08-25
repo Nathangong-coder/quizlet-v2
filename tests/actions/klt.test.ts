@@ -89,8 +89,8 @@ beforeEach(() => {
   }))
   h.generateJson.mockResolvedValue({
     klps: [
-      { ref: 0, label: 'Market value weighting', topics: ['WACC'] },
-      { ref: 1, label: 'Tax shield on debt', topics: ['Tax Shield', 'WACC'] },
+      { ref: 0, label: 'Market value weighting', concepts: ['WACC'] },
+      { ref: 1, label: 'Tax shield on debt', concepts: ['Tax Shield', 'WACC'] },
     ],
   })
 })
@@ -223,7 +223,7 @@ describe('summarizeKltsForCards', () => {
 
   it('writes no links for a KLP whose topics were all invalid, but keeps its label', async () => {
     h.generateJson.mockResolvedValue({
-      klps: [{ ref: 0, label: 'Still useful', topics: ['a name far too long to be a valid topic'] }],
+      klps: [{ ref: 0, label: 'Still useful', concepts: ['a name far too long to be a valid topic'] }],
     })
     await summarizeKltsForCards(OWNER, ['card-1'])
     expect(h.klpUpdate).toHaveBeenCalledWith({

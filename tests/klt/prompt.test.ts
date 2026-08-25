@@ -23,7 +23,7 @@ describe('SUMMARIZE_KLTS_PROMPT', () => {
   })
 
   it('carries a version so a wording change and its version stay in lockstep', () => {
-    expect(SUMMARIZE_KLTS_PROMPT.version).toBe(2)
+    expect(SUMMARIZE_KLTS_PROMPT.version).toBe(4)
   })
 
   it('addresses KLPs by ref and never leaks a cuid', () => {
@@ -50,31 +50,37 @@ describe('SUMMARIZE_KLTS_PROMPT', () => {
     expect(SUMMARIZE_KLTS_PROMPT.build(input)).toContain(`1 to ${MAX_KLTS_PER_KLP}`)
   })
 
-  it('tells the model an empty topic list beats a wrong one', () => {
-    // The prompt half of "degradation never fabricates" — the resolver drops
-    // bad topics, but it is cheaper not to generate them.
-    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toMatch(/empty list is acceptable/i)
+  it('asks for specific concepts and explicitly NOT for broader categories', () => {
+    // The tree supplies breadth. Asking for it here reintroduces the depth
+    // inconsistency the tree exists to remove.
+    const out = SUMMARIZE_KLTS_PROMPT.build(input)
+    expect(out).toMatch(/Do NOT give broader categories/)
+    expect(out).toMatch(/not where it belongs/)
   })
 
-  it('accepts a well-formed reply, including an empty topic list', () => {
+  it('states the reusability rule that guards against leaf proliferation', () => {
+    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toMatch(/a DIFFERENT card could also be about/)
+  })
+
+  it('accepts a well-formed reply, including an empty concept list', () => {
     const parsed = KltSummarySchema.safeParse({
       klps: [
-        { ref: 0, label: 'Market value weighting', topics: ['WACC'] },
-        { ref: 1, label: 'Tax shield on debt', topics: [] },
+        { ref: 0, label: 'Market value weighting', concepts: ['WACC'] },
+        { ref: 1, label: 'Tax shield on debt', concepts: [] },
       ],
     })
     expect(parsed.success).toBe(true)
   })
 
-  it('rejects more topics than the cap', () => {
+  it('rejects more concepts than the cap', () => {
     const parsed = KltSummarySchema.safeParse({
-      klps: [{ ref: 0, label: 'x', topics: ['a', 'b', 'c', 'd'] }],
+      klps: [{ ref: 0, label: 'x', concepts: ['a', 'b', 'c', 'd'] }],
     })
     expect(parsed.success).toBe(false)
   })
 
   it('rejects a negative ref', () => {
-    expect(KltSummarySchema.safeParse({ klps: [{ ref: -1, label: 'x', topics: [] }] }).success).toBe(
+    expect(KltSummarySchema.safeParse({ klps: [{ ref: -1, label: 'x', concepts: [] }] }).success).toBe(
       false,
     )
   })
@@ -89,7 +95,7 @@ describe('SUMMARIZE_KLTS_PROMPT — stated limits match enforced ones', () => {
   })
 
   it('quotes the topic cap that parseKltName actually applies', () => {
-    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toContain(`At most ${MAX_KLT_WORDS} words`)
+    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toContain(`At most ${MAX_KLT_WORDS} words each`)
   })
 
   it('warns against the specific failure mode that shipped', () => {

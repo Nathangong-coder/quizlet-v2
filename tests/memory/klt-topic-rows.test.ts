@@ -9,7 +9,10 @@ const link = (klpId: string, rank: number, supersededAt: Date | null = null) => 
 describe('kltRowsToTopicRows', () => {
   it('splits live from superseded KLPs, as category rows do', () => {
     const [row] = kltRowsToTopicRows(
-      [{ normalizedName: 'wacc', name: 'WACC', links: [link('a', 1), link('b', 1, new Date())] }],
+      [{
+        normalizedName: 'wacc', name: 'WACC', depth: 2,
+        links: [link('a', 1), link('b', 1, new Date())],
+      }],
       3,
     )
     expect(row.klpIds).toEqual(['a'])
@@ -18,7 +21,7 @@ describe('kltRowsToTopicRows', () => {
 
   it('includes every rank at the default maxRank', () => {
     const [row] = kltRowsToTopicRows(
-      [{ normalizedName: 'wacc', name: 'WACC', links: [link('a', 1), link('b', 3)] }],
+      [{ normalizedName: 'wacc', name: 'WACC', depth: 2, links: [link('a', 1), link('b', 3)] }],
       3,
     )
     expect([...row.klpIds].sort()).toEqual(['a', 'b'])
@@ -26,7 +29,7 @@ describe('kltRowsToTopicRows', () => {
 
   it('drops ranks above maxRank when the knob is narrowed', () => {
     const [row] = kltRowsToTopicRows(
-      [{ normalizedName: 'wacc', name: 'WACC', links: [link('a', 1), link('b', 2)] }],
+      [{ normalizedName: 'wacc', name: 'WACC', depth: 2, links: [link('a', 1), link('b', 2)] }],
       1,
     )
     expect(row.klpIds).toEqual(['a'])
@@ -36,7 +39,7 @@ describe('kltRowsToTopicRows', () => {
     // no_thesis / rambling tags carry no klpId; without cardIds they would be
     // dropped and a learner whose every answer rambles would score perfectly.
     const [row] = kltRowsToTopicRows(
-      [{ normalizedName: 'wacc', name: 'WACC', links: [link('a', 1)] }],
+      [{ normalizedName: 'wacc', name: 'WACC', depth: 2, links: [link('a', 1)] }],
       3,
     )
     expect(row.cardIds).toEqual(['card-a'])
@@ -45,7 +48,7 @@ describe('kltRowsToTopicRows', () => {
   it('never emits a topic whose links are all superseded', () => {
     expect(
       kltRowsToTopicRows(
-        [{ normalizedName: 'dead', name: 'Dead', links: [link('a', 1, new Date())] }],
+        [{ normalizedName: 'dead', name: 'Dead', depth: 2, links: [link('a', 1, new Date())] }],
         3,
       ),
     ).toEqual([])
@@ -53,7 +56,7 @@ describe('kltRowsToTopicRows', () => {
 
   it('has no colour — KLTs are AI-derived, only categories are user-coloured', () => {
     const [row] = kltRowsToTopicRows(
-      [{ normalizedName: 'wacc', name: 'WACC', links: [link('a', 1)] }],
+      [{ normalizedName: 'wacc', name: 'WACC', depth: 2, links: [link('a', 1)] }],
       3,
     )
     expect(row.color).toBeNull()
@@ -61,7 +64,7 @@ describe('kltRowsToTopicRows', () => {
 
   it('dedupes a KLP linked twice at different ranks', () => {
     const [row] = kltRowsToTopicRows(
-      [{ normalizedName: 'wacc', name: 'WACC', links: [link('a', 1), link('a', 2)] }],
+      [{ normalizedName: 'wacc', name: 'WACC', depth: 2, links: [link('a', 1), link('a', 2)] }],
       3,
     )
     expect(row.klpIds).toEqual(['a'])
@@ -71,7 +74,7 @@ describe('kltRowsToTopicRows', () => {
     // The whole point of reusing TopicRow: knowledge/readiness/verbosity come
     // from one implementation, not two that can drift.
     const rows = kltRowsToTopicRows(
-      [{ normalizedName: 'wacc', name: 'WACC', links: [link('a', 1), link('b', 2)] }],
+      [{ normalizedName: 'wacc', name: 'WACC', depth: 2, links: [link('a', 1), link('b', 2)] }],
       3,
     )
     const [topic] = shapeTopicProfile({
@@ -92,5 +95,57 @@ describe('kltRowsToTopicRows', () => {
     expect(topic.name).toBe('WACC')
     expect(topic.klpCount).toBe(2)
     expect(topic.knowledge).toBeCloseTo(0.6)
+  })
+})
+
+describe('kltRowsToTopicRows — subtree rollup', () => {
+  it('counts a descendant’s key points toward an ancestor', () => {
+    // `accounting` holds no links directly; every key point sits on leaves
+    // beneath it. Without rollup it reports nothing at all.
+    const [row] = kltRowsToTopicRows(
+      [{
+        normalizedName: 'accounting', name: 'accounting', depth: 1,
+        links: [link('a', 1), link('b', 1)],
+      }],
+      3,
+    )
+    expect([...row.klpIds].sort()).toEqual(['a', 'b'])
+  })
+
+  it('carries depth through so the display can group by level', () => {
+    const [row] = kltRowsToTopicRows(
+      [{ normalizedName: 'accounting', name: 'accounting', depth: 1, links: [link('a', 1)] }],
+      3,
+    )
+    expect(row.depth).toBe(1)
+  })
+})
+
+describe('shapeTopicProfile — depth (R2)', () => {
+  it('reports the KLT axis’ depth on the shaped profile', () => {
+    const rows = kltRowsToTopicRows(
+      [{ normalizedName: 'wacc', name: 'WACC', depth: 2, links: [link('a', 1)] }],
+      3,
+    )
+    const [topic] = shapeTopicProfile({
+      topics: rows,
+      knowledge: {},
+      tags: [],
+      analyzedAnswersByTopic: {},
+    })
+    expect(topic.depth).toBe(2)
+  })
+
+  it('reports null depth for a category topic, which has no tree position', () => {
+    const [topic] = shapeTopicProfile({
+      topics: [{
+        normalizedName: 'valuation', displayName: 'Valuation', color: null,
+        klpIds: ['a'], supersededKlpIds: [], cardIds: ['cardA'],
+      }],
+      knowledge: {},
+      tags: [],
+      analyzedAnswersByTopic: {},
+    })
+    expect(topic.depth).toBeNull()
   })
 })

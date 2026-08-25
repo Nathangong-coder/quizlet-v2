@@ -46,3 +46,31 @@ describe('KLT schema', () => {
     expect(body).toMatch(/klt\s+Klt\s+@relation\(.*onDelete: Cascade\)/)
   })
 })
+
+describe('KLT tree schema', () => {
+  it('gives Klt a self-relation with Restrict, never SetNull', () => {
+    // SetNull would silently orphan an entire subtree on delete — every key
+    // point beneath it vanishes from every rollup above it, with nothing raised.
+    expect(model('Klt')).toMatch(/parent\s+Klt\?\s+@relation\("KltTree".*onDelete: Restrict\)/)
+  })
+
+  it('carries denormalized depth and ancestorIds', () => {
+    const body = model('Klt')
+    expect(body).toMatch(/depth\s+Int\s+@default\(0\)/)
+    expect(body).toMatch(/ancestorIds\s+String\[\]/)
+  })
+
+  it('indexes ancestorIds with GIN in the migration', () => {
+    // The rollup reads this array on every dashboard load; without the index
+    // it is a sequential scan of every concept in the install.
+    const sql = readFileSync(
+      join(process.cwd(), 'prisma/migrations/20260825000000_klt_tree/migration.sql'),
+      'utf8',
+    )
+    expect(sql).toMatch(/USING GIN \("ancestorIds"(?: array_ops)?\)/)
+  })
+
+  it('documents rank as centrality, not breadth', () => {
+    expect(model('KlpTopic')).toMatch(/CENTRALITY, not breadth/)
+  })
+})

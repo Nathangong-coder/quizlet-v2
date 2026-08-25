@@ -41,6 +41,7 @@ export default function TopicMastery({
   floor,
   heading = 'Topic mastery',
   blurb,
+  breadcrumbs,
 }: {
   topics: LearnerTopicProfile[];
   floor: number;
@@ -48,6 +49,13 @@ export default function TopicMastery({
   heading?: string;
   /** Replaces the default explanation; the floor sentence is always appended. */
   blurb?: string;
+  /**
+   * Ancestor display names for each topic, keyed by `LearnerTopicProfile.key`
+   * (root first, excluding self). OPTIONAL and KLT-axis only — the
+   * user-authored category axis has no tree position and passes nothing here,
+   * so its rows are unaffected.
+   */
+  breadcrumbs?: Record<string, string[]>;
 }) {
   return (
     <Card>
@@ -64,32 +72,43 @@ export default function TopicMastery({
         {topics.length === 0 ? (
           <p className="text-sm text-muted-foreground">No topics in this view.</p>
         ) : (
-          topics.map((topic) => (
-            <div
-              key={topic.key}
-              className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border p-3"
-            >
-              <div className="flex items-center gap-2 min-w-[10rem]">
-                {topic.color && (
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/10"
-                    style={{ backgroundColor: topic.color }}
-                    data-testid={`topic-color-${topic.key}`}
-                  />
-                )}
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{topic.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {topic.klpCount} key point{topic.klpCount === 1 ? '' : 's'}
-                  </p>
+          topics.map((topic) => {
+            const breadcrumb = breadcrumbs?.[topic.key];
+            return (
+              <div
+                key={topic.key}
+                className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border p-3"
+              >
+                <div className="flex items-center gap-2 min-w-[10rem]">
+                  {topic.color && (
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-black/10"
+                      style={{ backgroundColor: topic.color }}
+                      data-testid={`topic-color-${topic.key}`}
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{topic.name}</p>
+                    {breadcrumb && breadcrumb.length > 0 && (
+                      <p
+                        className="text-xs text-muted-foreground truncate"
+                        data-testid={`topic-breadcrumb-${topic.key}`}
+                      >
+                        {breadcrumb.join(' › ')}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {topic.klpCount} key point{topic.klpCount === 1 ? '' : 's'}
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <Metric value={topic.knowledge} label="Knowledge" />
-              <Metric value={topic.readiness} label="Articulation" />
-              <Verbosity topic={topic} />
-            </div>
-          ))
+                <Metric value={topic.knowledge} label="Knowledge" />
+                <Metric value={topic.readiness} label="Articulation" />
+                <Verbosity topic={topic} />
+              </div>
+            );
+          })
         )}
       </CardContent>
     </Card>

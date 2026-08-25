@@ -55,7 +55,7 @@ interface BatchCard {
 }
 
 /**
- * Summarizes each card's live KLPs into a short `label` plus 1-3 topics.
+ * Summarizes each card's live KLPs into a short `label` plus 1-2 concepts.
  *
  * OWNER-SCOPED and NEVER THROWS, for the same reasons as
  * `extractKlpsForCards` — it runs inside `after()`, where an exception
