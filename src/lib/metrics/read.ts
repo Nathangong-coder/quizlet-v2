@@ -77,6 +77,16 @@ export interface CandidateLabel {
   text: string
   /** The term of the card it belongs to. */
   term: string
+  /**
+   * The short headline, null until the KLT pass has run for this card.
+   *
+   * Carried SEPARATELY from `text` rather than replacing it: the row shows the
+   * headline, the proposition stays available underneath, and a KLP with no
+   * usable label still renders. Without this field the ranked list shows the
+   * full ~16-word proposition on every row — which is the wall of sentences the
+   * KLT layer exists to remove.
+   */
+  label: string | null
 }
 
 /**
@@ -250,7 +260,7 @@ export async function getLearnerMetrics({
       for (const k of a.card.klps) {
         klpWeights[k.id] = k.weight
         klpCardIds[k.id] = a.card.id
-        candidateLabels[k.id] = { text: k.text, term: a.card.term }
+        candidateLabels[k.id] = { text: k.text, term: a.card.term, label: k.label }
       }
     }
   }
@@ -258,7 +268,7 @@ export async function getLearnerMetrics({
     for (const k of card.klps) {
       klpWeights[k.id] = k.weight
       klpCardIds[k.id] = card.id
-      candidateLabels[k.id] = { text: k.text, term: card.term }
+      candidateLabels[k.id] = { text: k.text, term: card.term, label: k.label }
     }
   }
 
@@ -507,7 +517,7 @@ async function loadUncategorizedCards(
       term: true,
       klps: {
         where: { supersededAt: null },
-        select: { id: true, weight: true, text: true },
+        select: { id: true, weight: true, text: true, label: true },
       },
     },
   })
@@ -622,6 +632,7 @@ async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: His
               klps: {
                 select: {
                   id: true, supersededAt: true, weight: true, cardId: true, text: true,
+                  label: true,
                 },
               },
             },

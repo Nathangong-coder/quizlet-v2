@@ -183,6 +183,7 @@ function LearnerDashboardContent() {
             ranked={d.metrics.ranked.map((c) => ({
               ...c,
               topicName: topicNames[c.topicKey],
+              label: d.metrics.candidateLabels[c.klpId]?.label,
               text: d.metrics.candidateLabels[c.klpId]?.text,
               term: d.metrics.candidateLabels[c.klpId]?.term,
             }))}

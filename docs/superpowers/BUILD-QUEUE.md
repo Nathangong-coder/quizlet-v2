@@ -602,11 +602,17 @@ set `supersededAt` turns 4 tests red, and removing the `isOwner` check turns the
 test red.
 
 **TWO STEPS STILL OWED, both blocked on secrets an agent cannot supply:**
-1. **The vocabulary has never been generated.** `GOOGLE_KEY_ENCRYPTION_SECRET` is commented out
-   in local `.env`, so the two stored `AiCredential` rows cannot be decrypted — the backfill
+1. **The vocabulary has never been generated. ROOT CAUSE FOUND 2026-08-24:
+   `GOOGLE_KEY_ENCRYPTION_SECRET` in local `.env` is a 22-character passphrase, not a base64
+   32-byte key.** Every attempt dies with "must be exactly 32 bytes when decoded from base64"
+   (`src/lib/security/api-key.ts:19`), so no credential decrypts and the backfill
    marked all 69 cards `kltStatus: 'failed'` with "All 2 AI attempts failed". That is the
    CORRECT classification (attempts were made, so not `skipped`), but it means **zero `Klt` rows
-   and zero labels exist**, and the §9.4 fragmentation risk is entirely unmeasured. Re-run
+   and zero labels exist**. **Do not simply generate a new secret** — the stored credentials were
+   encrypted with a DIFFERENT, valid secret (almost certainly the one in Vercel's env vars).
+   Copy that exact value in; generating a fresh one strands all three `AiCredential` rows
+   permanently and they must be deleted and re-entered. `.env.example` documents the format:
+   `openssl rand -base64 32`, 44 characters, and the §9.4 fragmentation risk is entirely unmeasured. Re-run
    `npm run backfill:klts` with the secret present, then inspect the resulting topic list by
    hand before trusting topic mastery. The script warns on its own if topics exceed 60% of cards.
 2. **The panel has never been seen with data.** `/profile/learner` loads clean (200, no runtime
