@@ -13,6 +13,37 @@ export const MAX_KLT_WORDS = 4
 export const MAX_KLT_CHARS = 40
 
 /**
+ * Caps for `CardKlp.label`, the short headline.
+ *
+ * The prompt asks for 3-6 words. These are the ENFORCEMENT, deliberately a
+ * little looser so a good 7-word headline survives while a proposition cannot:
+ * live KLP text runs a median of 16 words (measured 2026-08-24, 153 rows), so
+ * anything past this is the model echoing the proposition back rather than
+ * summarising it.
+ *
+ * Without this the label layer silently does nothing — a row renders exactly
+ * as it did before KLTs existed, and there is no way to tell a real headline
+ * from a copied sentence once it is stored.
+ */
+export const MAX_LABEL_WORDS = 8
+export const MAX_LABEL_CHARS = 60
+
+/**
+ * Validate a model-supplied label. Returns null when unusable.
+ *
+ * NEVER truncates. A sentence cut off at 60 characters is a worse headline
+ * than no headline, and callers already fall back to the full proposition,
+ * which is at least complete and true.
+ */
+export function parseKltLabel(raw: string): string | null {
+  const label = raw.trim().replace(/\s+/g, ' ')
+  if (label.length === 0) return null
+  if (label.length > MAX_LABEL_CHARS) return null
+  if (label.split(' ').length > MAX_LABEL_WORDS) return null
+  return label
+}
+
+/**
  * The dedup key.
  *
  * `Klt.normalizedName` is GLOBALLY unique, so this function alone decides

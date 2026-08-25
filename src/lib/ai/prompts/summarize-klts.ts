@@ -1,4 +1,5 @@
 import { KltSummarySchema, MAX_KLTS_PER_KLP } from '@/lib/ai/schemas';
+import { MAX_LABEL_WORDS, MAX_KLT_WORDS } from '@/lib/klt/normalize';
 
 export interface SummarizeKltsBuildInput {
   setTitle: string;
@@ -24,7 +25,7 @@ export interface SummarizeKltsBuildInput {
  */
 export const SUMMARIZE_KLTS_PROMPT = {
   id: 'summarize-klts',
-  version: 1,
+  version: 2,
   schema: KltSummarySchema,
 
   build(input: SummarizeKltsBuildInput): string {
@@ -47,14 +48,18 @@ ${klps}
 For each KLP, produce two things.
 
 1. "label" — a SHORT headline for that point, 3 to 6 words, so it can be read at a glance in a list.
+   It is a TITLE, not a sentence. Never a full clause, never a verb phrase describing the whole claim.
    GOOD: "Debt impact on WACC"
    GOOD: "Add back non-cash charges"
+   GOOD: "Bankruptcy risk and interest rates"
    BAD:  "WACC" (that is the topic, not this specific point)
-   BAD:  "Debt is cheaper than equity because interest is tax-deductible" (that is the full proposition again)
+   BAD:  "Debt is cheaper than equity because interest is tax-deductible" (a sentence, not a headline)
+   BAD:  copying or lightly rewording the KLP text above (that is the single most common mistake here)
+   HARD LIMIT: ${MAX_LABEL_WORDS} words. A label longer than that is DISCARDED and the point loses its headline entirely.
 
 2. "topics" — 1 to ${MAX_KLTS_PER_KLP} general subject areas this point belongs to, most central first.
    A topic is a CONCEPT NAME a textbook chapter might carry: "WACC", "bankruptcy", "terminal value", "working capital".
-   - At most 4 words. Never a sentence, never a proper noun, never anything specific to one company or one study set.
+   - At most ${MAX_KLT_WORDS} words. Never a sentence, never a proper noun, never anything specific to one company or one study set.
    - Give FEWER topics rather than padding. An empty list is acceptable and is better than a wrong topic.
    - The same concept must always get the same name, so reuse the vocabulary below rather than inventing a synonym for it.
 

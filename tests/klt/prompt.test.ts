@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { SUMMARIZE_KLTS_PROMPT } from '@/lib/ai/prompts/summarize-klts'
 import { PROMPT_REGISTRY } from '@/lib/ai/prompts/registry'
 import { KltSummarySchema, MAX_KLTS_PER_KLP } from '@/lib/ai/schemas'
+import { MAX_LABEL_WORDS, MAX_KLT_WORDS } from '@/lib/klt/normalize'
 
 const input = {
   setTitle: 'Valuation',
@@ -22,7 +23,7 @@ describe('SUMMARIZE_KLTS_PROMPT', () => {
   })
 
   it('carries a version so a wording change and its version stay in lockstep', () => {
-    expect(SUMMARIZE_KLTS_PROMPT.version).toBe(1)
+    expect(SUMMARIZE_KLTS_PROMPT.version).toBe(2)
   })
 
   it('addresses KLPs by ref and never leaks a cuid', () => {
@@ -76,5 +77,22 @@ describe('SUMMARIZE_KLTS_PROMPT', () => {
     expect(KltSummarySchema.safeParse({ klps: [{ ref: -1, label: 'x', topics: [] }] }).success).toBe(
       false,
     )
+  })
+})
+
+describe('SUMMARIZE_KLTS_PROMPT — stated limits match enforced ones', () => {
+  it('quotes the label cap that parseKltLabel actually applies', () => {
+    // Drift here is invisible and expensive: the model is told one limit and
+    // judged against another, so labels are silently discarded at a rate
+    // nobody can explain from the prompt.
+    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toContain(`HARD LIMIT: ${MAX_LABEL_WORDS} words`)
+  })
+
+  it('quotes the topic cap that parseKltName actually applies', () => {
+    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toContain(`At most ${MAX_KLT_WORDS} words`)
+  })
+
+  it('warns against the specific failure mode that shipped', () => {
+    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toMatch(/copying or lightly rewording/)
   })
 })
