@@ -86,6 +86,31 @@ export function buildAncestorClosureByName(
 }
 
 /**
+ * For every node, its ancestors' DISPLAY names, root first, EXCLUDING self —
+ * the breadcrumb shown under a topic name on `/profile/learner` (Task 8).
+ *
+ * Deliberately separate from `buildAncestorClosureByName`: that map is
+ * normalizedName self+ancestors, built for a SCORING fold (readiness's
+ * denominator), where self must be included and a normalized key is what the
+ * rest of the pipeline joins on. This map is DISPLAY `name`s, ancestors only,
+ * for a human-facing label — a root topic (`depth === 0`) correctly gets an
+ * empty array here, since it has no ancestors to show.
+ */
+export function buildAncestorBreadcrumbByName(
+  rows: Pick<KltNodeRow, 'id' | 'normalizedName' | 'name' | 'ancestorIds'>[],
+): Map<string, string[]> {
+  const nameById = new Map(rows.map((r) => [r.id, r.name]))
+  const breadcrumbs = new Map<string, string[]>()
+  for (const row of rows) {
+    breadcrumbs.set(
+      row.normalizedName,
+      row.ancestorIds.map((id) => nameById.get(id)).filter((n): n is string => n !== undefined),
+    )
+  }
+  return breadcrumbs
+}
+
+/**
  * Fold each answer's DIRECT topics up through `ancestorClosureByName`, then
  * count each resulting name ONCE PER ANSWER — this is readiness's DENOMINATOR
  * fold, the counterpart to `rollUpKltLinks` (the numerator's).

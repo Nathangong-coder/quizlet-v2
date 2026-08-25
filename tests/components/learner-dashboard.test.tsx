@@ -254,6 +254,40 @@ describe('TopicMastery keeps null distinct from zero', () => {
   })
 })
 
+describe('TopicMastery breadcrumb (Task 8)', () => {
+  it('renders the ancestor path under the topic name when supplied', () => {
+    render(
+      <TopicMastery
+        topics={[topic({ key: 'dcf', name: 'DCF' })]}
+        floor={3}
+        breadcrumbs={{ dcf: ['Finance', 'Valuation'] }}
+      />,
+    )
+    expect(screen.getByText('Finance › Valuation')).toBeTruthy()
+  })
+
+  it('renders nothing extra for a topic with an empty breadcrumb (a root topic)', () => {
+    render(
+      <TopicMastery
+        topics={[topic({ key: 'finance', name: 'Finance' })]}
+        floor={3}
+        breadcrumbs={{ finance: [] }}
+      />,
+    )
+    // A depth-0 topic has no ancestors — the breadcrumb element itself must
+    // not render at all, not render empty.
+    expect(screen.queryByTestId('topic-breadcrumb-finance')).toBeNull()
+  })
+
+  it('leaves the category axis unaffected when no breadcrumbs prop is passed', () => {
+    // The category axis call site never passes `breadcrumbs` — this is the
+    // guard that a missing prop does not throw or render a stray breadcrumb.
+    render(<TopicMastery topics={[topic({ key: 'accounting', name: 'Accounting' })]} floor={3} />)
+    expect(screen.getByText('Accounting')).toBeTruthy()
+    expect(screen.queryByTestId('topic-breadcrumb-accounting')).toBeNull()
+  })
+})
+
 describe('EmptyDashboard names WHICH cause', () => {
   const CASES: { cause: EmptyCause; expect: RegExp }[] = [
     { cause: { kind: 'no_klps', blocking: true, pendingExtraction: 0 }, expect: /no key points yet/i },

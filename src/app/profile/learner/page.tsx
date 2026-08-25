@@ -205,6 +205,7 @@ function LearnerDashboardContent() {
               floor={d.thresholds.minObservations}
               heading="Topic mastery (auto-detected)"
               blurb="Topics the app derived from your cards' key points, rather than from the categories you wrote. Scored exactly the same way."
+              breadcrumbs={d.metrics.kltBreadcrumbs}
             />
           )}
 

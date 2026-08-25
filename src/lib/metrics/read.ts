@@ -13,8 +13,10 @@ import { buildLearnerProfile } from '@/lib/memory/profile'
 import { eventRecalled, type StudySource } from '@/lib/memory/scoring'
 import { paceOutliers as computePaceOutliers } from '@/lib/metrics/pace'
 import {
-  rollUpKltLinks, buildAncestorClosureByName, countAnalyzedAnswersByTopic,
+  rollUpKltLinks, buildAncestorClosureByName, buildAncestorBreadcrumbByName,
+  countAnalyzedAnswersByTopic,
 } from '@/lib/metrics/klt-rollup'
+import { selectDisplayDepth } from '@/lib/metrics/klt-depth'
 import {
   buildStudyEventWhere, buildQuizAnswerScopeWhere, buildExpressionAnswerWhere,
   buildCategoryQuery, buildCardScopeWhere,
@@ -63,6 +65,28 @@ export interface LearnerMetrics {
    * poor concept node but a perfectly good filter.
    */
   kltTopics: LearnerTopicProfile[]
+  /**
+   * Which tree depth `kltTopics` is showing (0 at a subject root), chosen by
+   * `selectDisplayDepth` — the DEEPEST level where at least
+   * `MIN_TOPICS_AT_DEPTH` topics clear the observation floor, falling back to
+   * the shallowest populated level when none do. `null` only when the learner
+   * has no KLT tree at all, in which case `kltTopics` is also empty.
+   *
+   * Showing every depth at once was the wall of "not measured" rows that
+   * motivated this task — see the doc comment on `klt-depth.ts`.
+   */
+  displayDepth: number | null
+  /**
+   * Ancestor display names (root first, excluding self) for each entry in
+   * `kltTopics`, keyed by `LearnerTopicProfile.key`. Built from the same
+   * `Klt` fetch `kltTopics` is derived from, restricted to the topics actually
+   * shown — a topic at another depth has no row here since it never renders.
+   *
+   * Empty array (never absent) for a depth-0 topic, which has no ancestors —
+   * `TopicMastery` treats an empty breadcrumb as "nothing to show" rather than
+   * distinguishing the two, so either shape renders identically.
+   */
+  kltBreadcrumbs: Record<string, string[]>
   /**
    * What each candidate SAYS, keyed by `klpId`.
    *
@@ -306,10 +330,10 @@ export async function getLearnerMetrics({
   // The KLT axis, from the same inputs. `masteryTopicRanks` decides how many
   // of a KLP's ranked topics count — 3 by default, so one point can move
   // several topics (spec §9.1).
-  const { topics: kltRows, ancestorClosureByName } =
+  const { topics: kltRows, ancestorClosureByName, breadcrumbByName } =
     await loadKltRows(prisma, userId, scope, categoryIds)
   const kltTopicRows = kltRowsToTopicRows(kltRows, tuning.thresholds.masteryTopicRanks)
-  const kltTopics = kltTopicRows.length === 0 ? [] : shapeTopicProfile({
+  const kltTopicsAll = kltTopicRows.length === 0 ? [] : shapeTopicProfile({
     topics: kltTopicRows,
     knowledge,
     tags: derived,
@@ -318,6 +342,33 @@ export async function getLearnerMetrics({
     ),
     thresholds: tuning.thresholds,
   })
+
+  // Task 8: pick ONE depth to show rather than the whole tree at once — a
+  // library with 68 leaf topics all reading "not measured" on a thin corpus
+  // is the exact complaint this exists to answer. `depth` is null only for
+  // the user-authored CATEGORY axis (a different array, `shapedTopics`,
+  // never this one) — `kltRowsToTopicRows` always sets it for a KLT row, so
+  // the `continue` below is a defensive skip, not a real path today.
+  const measuredByDepth = new Map<number, number>()
+  const populatedDepths: number[] = []
+  for (const t of kltTopicsAll) {
+    if (t.depth === null) continue
+    populatedDepths.push(t.depth)
+    if (t.knowledge !== null) {
+      measuredByDepth.set(t.depth, (measuredByDepth.get(t.depth) ?? 0) + 1)
+    }
+  }
+  const displayDepth = selectDisplayDepth(measuredByDepth, populatedDepths)
+  const kltTopics = displayDepth === null
+    ? []
+    : kltTopicsAll.filter((t) => t.depth === displayDepth)
+
+  // Breadcrumbs only for the topics actually shown — a topic at a depth that
+  // lost the selection never renders, so it never needs an ancestor path.
+  const kltBreadcrumbs: Record<string, string[]> = {}
+  for (const t of kltTopics) {
+    kltBreadcrumbs[t.key] = breadcrumbByName.get(t.key) ?? []
+  }
 
   // LIVE ids only. `supersededKlpIds` exists for TAG ATTRIBUTION — a historical
   // tag names the version that was asked — and must never become a study
@@ -373,6 +424,8 @@ export async function getLearnerMetrics({
     misconceptions,
     ranked,
     kltTopics,
+    displayDepth,
+    kltBreadcrumbs,
     candidateLabels,
     // `StudyEvent.correct` is NULL for short-answer rows (they carry a
     // `score`, not a boolean) — mapping raw `correct` straight through would
@@ -563,13 +616,21 @@ async function loadUncategorizedCards(
  * ancestor fold the links (its numerator) already get; see
  * `buildAncestorClosureByName`'s doc comment for why (review finding,
  * 2026-08-25).
+ *
+ * And `breadcrumbByName` — every node's ancestors as DISPLAY names — from the
+ * same fetch again, for Task 8's breadcrumb. Three derived maps from one query
+ * rather than three queries.
  */
 async function loadKltRows(
   prisma: PrismaClient,
   userId: string,
   scope: HistoryScope,
   categoryIds: string[],
-): Promise<{ topics: RawKltRow[]; ancestorClosureByName: Map<string, string[]> }> {
+): Promise<{
+  topics: RawKltRow[]
+  ancestorClosureByName: Map<string, string[]>
+  breadcrumbByName: Map<string, string[]>
+}> {
   const card: Record<string, unknown> = scope.cardId
     ? { id: scope.cardId, set: { userId } }
     : { ...buildCardScopeWhere(scope, categoryIds), set: { userId } }
@@ -588,7 +649,11 @@ async function loadKltRows(
     },
   })
 
-  return { topics: rollUpKltLinks(rows), ancestorClosureByName: buildAncestorClosureByName(rows) }
+  return {
+    topics: rollUpKltLinks(rows),
+    ancestorClosureByName: buildAncestorClosureByName(rows),
+    breadcrumbByName: buildAncestorBreadcrumbByName(rows),
+  }
 }
 
 /**
