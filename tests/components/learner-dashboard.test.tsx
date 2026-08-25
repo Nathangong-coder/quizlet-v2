@@ -341,3 +341,41 @@ describe('Retention and misconceptions', () => {
     expect(screen.getByText(/they are the same thing/)).toBeTruthy()
   })
 })
+
+describe('StudyNext prefers the short label over the proposition', () => {
+  const PROPOSITION =
+    'Taking on excessive debt increases financial distress and bankruptcy risk, driving debt holders to demand higher interest rates.'
+
+  it('renders the label as the row, not the full proposition', () => {
+    // The wall-of-sentences problem the KLT layer exists to fix. A ranked list
+    // of twelve 16-word propositions is not a shortlist.
+    render(
+      <StudyNext
+        ranked={[
+          candidate({
+            klpId: 'k1',
+            label: 'Bankruptcy risk raises debt cost',
+            text: PROPOSITION,
+            term: 'Cost of debt',
+          }),
+        ]}
+        strategy="balanced"
+        floor={3}
+      />,
+    )
+    expect(screen.getByText('Bankruptcy risk raises debt cost')).toBeTruthy()
+    expect(screen.queryByText(PROPOSITION)).toBeNull()
+  })
+
+  it('falls back to the proposition when the label is null', () => {
+    // Summarization is never a hard dependency of the study list.
+    render(
+      <StudyNext
+        ranked={[candidate({ klpId: 'k1', label: null, text: PROPOSITION, term: 'Cost of debt' })]}
+        strategy="balanced"
+        floor={3}
+      />,
+    )
+    expect(screen.getByText(PROPOSITION)).toBeTruthy()
+  })
+})

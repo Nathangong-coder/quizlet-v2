@@ -19,6 +19,13 @@ const MAX_SUFFICIENT = 12;
 const MAX_UNMEASURED = 8;
 
 export interface StudyNextRow extends RankedCandidate {
+  /**
+   * The SHORT headline, when one exists. Leads the row.
+   *
+   * Null or absent until the KLT pass has run — and deliberately not required,
+   * so summarization is never a hard dependency of the study list.
+   */
+  label?: string | null
   /** The proposition itself, when the page could resolve it. */
   text?: string;
   /** The card it belongs to. */
@@ -118,15 +125,24 @@ function CandidateRow({ candidate }: { candidate: StudyNextRow }) {
 
   return (
     <li className="rounded-lg border p-3 space-y-1" data-klp-id={candidate.klpId}>
-      {/* The PROPOSITION leads. It is the thing you would actually study, and
-          for a library where most cards are uncategorized it used to be the
-          only row content — rendered as the literal words "Key point". */}
-      <p className="text-sm">{candidate.text ?? candidate.term ?? 'Key point'}</p>
+      {/* The SHORT LABEL leads, falling back to the proposition and then to the
+          card term. A ranked list of twelve ~16-word propositions is a wall,
+          not a shortlist — that is the whole reason the label grain exists.
+          The fallbacks matter as much as the preference: before labels were
+          threaded through at all, an uncategorized library rendered every row
+          as the literal words "Key point". */}
+      <p className="text-sm">
+        {candidate.label ?? candidate.text ?? candidate.term ?? 'Key point'}
+      </p>
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <Badge variant="outline">
           {uncategorized ? 'Uncategorized' : (candidate.topicName ?? candidate.topicKey)}
         </Badge>
         {candidate.term && candidate.text && <span className="truncate">{candidate.term}</span>}
+        {/* The proposition is deliberately NOT shown when a label led. Putting
+            it back as a secondary line rebuilds the wall of sentences this
+            grain exists to remove; the card term already gives context, and
+            the full statement is one click away on the card itself. */}
         {/* The answer count shows on EVERY row, measured or not — it is what the
             sub-threshold group is now ordered by, and an order with its own key
             hidden is not readable as an order.
