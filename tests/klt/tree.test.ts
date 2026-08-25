@@ -43,6 +43,21 @@ describe('renderTreeForPrompt', () => {
     expect(out).toContain('finance')
     expect(out).toContain('biology')
   })
+
+  it('orders siblings alphabetically, so prompt output is stable across runs', () => {
+    // Inserted in reverse alphabetical order on purpose: without the sort this
+    // renders in insertion order and the assertion fails. The prompt built from
+    // this string is cached, so unstable ordering is churn nobody can see.
+    const rows: TreeNodeRow[] = [
+      node('r', 'root', null, 0, []),
+      node('z', 'zebra', 'r', 1, ['r']),
+      node('m', 'mango', 'r', 1, ['r']),
+      node('a', 'apple', 'r', 1, ['r']),
+    ]
+    expect(renderTreeForPrompt(rows)).toBe(
+      ['root', '  apple', '  mango', '  zebra'].join('\n'),
+    )
+  })
 })
 
 describe('wouldCycle', () => {
@@ -57,6 +72,16 @@ describe('wouldCycle', () => {
 
   it('allows a legitimate move', () => {
     expect(wouldCycle('c', 'a', byId)).toBe(false)
+  })
+
+  it('terminates on an ALREADY cyclic map instead of looping forever', () => {
+    // Not reachable through the writers, but a corrupted row or a bad manual
+    // edit would produce it — and without the `seen` guard this call never
+    // returns, hanging whatever requested it rather than failing.
+    const a = node('a', 'a', 'b', 1, ['b'])
+    const b = node('b', 'b', 'a', 1, ['a'])
+    const corrupt = new Map([['a', a], ['b', b]])
+    expect(wouldCycle('zzz', 'a', corrupt)).toBe(true)
   })
 })
 
