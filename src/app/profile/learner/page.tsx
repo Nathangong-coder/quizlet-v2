@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import ScopeLine from '@/components/memory/ScopeLine';
 import ProfileNav from '@/components/profile/ProfileNav';
 import EmptyDashboard from '@/components/learner/EmptyDashboard';
+import MissedWork from '@/components/learner/MissedWork';
 import TopicMastery from '@/components/learner/TopicMastery';
 import StudyNext from '@/components/learner/StudyNext';
 import { RetentionPanel, MisconceptionList } from '@/components/learner/RetentionPanel';
@@ -169,6 +170,11 @@ function LearnerDashboardContent() {
               working study list and empty topic sections. */}
           {d.empty && <EmptyDashboard cause={d.empty} />}
 
+          {/* Spec §8. Leads the page: "what am I getting wrong" is the
+              question a learner arrives with, and every panel below answers a
+              narrower one. The existing panels are untouched. */}
+          <MissedWork topics={d.missed} floor={d.thresholds.minObservations} />
+
           <StudyNext
             // Labels are merged here rather than inside `getLearnerMetrics`, so
             // the scoring pipeline keeps returning candidates with no prose on
@@ -188,6 +194,18 @@ function LearnerDashboardContent() {
             topics={d.metrics.profile.topics}
             floor={d.thresholds.minObservations}
           />
+
+          {/* The AI-derived axis, BESIDE the category axis rather than
+              replacing it — a category is often a format label, which filters
+              well and rolls up to a concept badly. */}
+          {d.metrics.kltTopics.length > 0 && (
+            <TopicMastery
+              topics={d.metrics.kltTopics}
+              floor={d.thresholds.minObservations}
+              heading="Topic mastery (auto-detected)"
+              blurb="Topics the app derived from your cards' key points, rather than from the categories you wrote. Scored exactly the same way."
+            />
+          )}
 
           <MisconceptionList misconceptions={d.metrics.misconceptions} />
 

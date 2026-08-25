@@ -39,17 +39,23 @@ function Metric({ value, label }: { value: number | null; label: string }) {
 export default function TopicMastery({
   topics,
   floor,
+  heading = 'Topic mastery',
+  blurb,
 }: {
   topics: LearnerTopicProfile[];
   floor: number;
+  /** Overridden by the auto-detected (KLT) axis, which renders the same rows. */
+  heading?: string;
+  /** Replaces the default explanation; the floor sentence is always appended. */
+  blurb?: string;
 }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Topic mastery</CardTitle>
+        <CardTitle>{heading}</CardTitle>
         <CardDescription>
-          What you know, and how well you can say it. Kept apart on purpose — knowing a topic and
-          being able to articulate it under pressure are different problems with different fixes.
+          {blurb ??
+            'What you know, and how well you can say it. Kept apart on purpose — knowing a topic and being able to articulate it under pressure are different problems with different fixes.'}{' '}
           A topic reports knowledge once {floor} answer{floor === 1 ? '' : 's'} have landed on one
           of its key points.
         </CardDescription>
