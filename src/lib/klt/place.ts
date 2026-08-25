@@ -291,14 +291,21 @@ async function applyPlacement(
     byNormalized.set(created.normalizedName, created)
     byId.set(created.id, created)
   }
-  if (parent) {
-    const placedNode: TreeNodeRow = {
-      ...node,
-      parentKltId: parent.id,
-      depth: parent.depth + 1,
-      ancestorIds: [...parent.ancestorIds, parent.id],
-    }
-    byNormalized.set(node.normalizedName, placedNode)
-    byId.set(node.id, placedNode)
-  }
+  const placedNode: TreeNodeRow = parent
+    ? {
+        ...node,
+        parentKltId: parent.id,
+        depth: parent.depth + 1,
+        ancestorIds: [...parent.ancestorIds, parent.id],
+      }
+    : { ...node } // Placed as a ROOT (round 2 review, residual I2 hole): still
+      // must be merged in, unconditionally -- otherwise a root placed here is
+      // invisible to BOTH byNormalized (never merged before this fix) and
+      // unplacedByNormalized (already deleted by the caller on success). A
+      // later placement in this run proposing a NEW ancestor above this root
+      // would then upsert-adopt it via its unique normalizedName instead of
+      // matching it, silently stranding the new ancestor as a parentless,
+      // childless orphan.
+  byNormalized.set(node.normalizedName, placedNode)
+  byId.set(node.id, placedNode)
 }

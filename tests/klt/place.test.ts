@@ -105,6 +105,15 @@ describe('resolvePlacementPath', () => {
     // last valid depth. Refused whole, never truncated to the first segment.
     expect(resolvePlacementPath(['deep', 'new1', 'new2'], anchored)).toBeNull()
   })
+
+  it('allows a root-anchored path of exactly MAX_TREE_DEPTH segments (the LENGTH cap boundary)', () => {
+    // A root-anchored path of exactly MAX_TREE_DEPTH segments lands at depth
+    // MAX_TREE_DEPTH-1, which is legal. Pins the boundary against an off-by-one
+    // that would silently refuse every deepest legal path.
+    expect(
+      resolvePlacementPath(Array.from({ length: MAX_TREE_DEPTH }, (_, i) => `n${i}`), new Map()),
+    ).not.toBeNull()
+  })
 })
 
 describe('placeUnparentedConcepts', () => {
@@ -244,6 +253,10 @@ describe('placeUnparentedConcepts', () => {
       where: { id: 'x' },
       data: { parentKltId: 'klt-finance', depth: 1, ancestorIds: ['klt-finance'] },
     })
+    // Don't re-enter a DB transaction for a concept already placed this run.
+    // Relying on the C1 guard to throw from inside the transaction would make
+    // an exception the control flow for an ordinary duplicate.
+    expect(h.transaction).toHaveBeenCalledTimes(1)
   })
 
   it('places a shorter-path ancestor before a longer-path descendant that names it, regardless of reply order', async () => {
@@ -356,5 +369,106 @@ describe('placeUnparentedConcepts', () => {
       where: { id: 'cr' },
       data: { parentKltId: 'klt-finance', depth: 1, ancestorIds: ['klt-finance'] },
     })
+  })
+
+  it('merges a ROOT placement into the shared maps so a later placement cannot orphan a new ancestor above it', async () => {
+    // 'valuation' is placed FIRST as a pure root (path length 1, no parent).
+    // If that root is not merged into byNormalized/byId, it is invisible to
+    // BOTH guards: byNormalized never saw it, and unplacedByNormalized
+    // already dropped it on success. A later placement proposing a brand-new
+    // ancestor ABOVE it ('finance' > 'valuation' > 'dcf model') would then
+    // upsert-adopt the now-real 'valuation' row via its unique normalizedName
+    // (a no-op `update: {}`, never actually re-parenting it), stranding
+    // 'finance' as a parentless, childless orphan that renderTreeForPrompt
+    // would emit as a bogus root in every future prompt.
+    h.kltFindMany.mockResolvedValue([
+      node('v', 'valuation', null, 0),
+      node('dcf', 'dcf model', null, 0),
+    ])
+    const generate: KltPlacer = vi.fn().mockResolvedValue({
+      placements: [
+        { concept: 'valuation', path: ['valuation'] },
+        { concept: 'dcf model', path: ['finance', 'valuation', 'dcf model'] },
+      ],
+    })
+    // Simulates a real Prisma upsert matching valuation's now-real (root) row
+    // and taking the `update: {}` no-op branch — same technique as the
+    // earlier collision test.
+    h.kltUpsert.mockImplementation(
+      async ({ where, create }: { where: { normalizedName: string }; create: Record<string, unknown> }) => {
+        if (where.normalizedName === 'valuation') {
+          return { id: 'v', name: 'valuation', normalizedName: 'valuation', parentKltId: null, depth: 0, ancestorIds: [] }
+        }
+        return {
+          id: `klt-${where.normalizedName}`,
+          name: create.name,
+          normalizedName: where.normalizedName,
+          parentKltId: create.parentKltId ?? null,
+          depth: create.depth,
+          ancestorIds: create.ancestorIds,
+        }
+      },
+    )
+
+    await placeUnparentedConcepts('user-1', generate)
+
+    // 'valuation' becomes a real root (one update). 'dcf model' must be
+    // refused outright — with 'valuation' correctly visible as an existing
+    // match, inserting 'finance' ABOVE it is a match-after-creation
+    // (re-parenting), which resolvePlacementPath already refuses — rather
+    // than silently stranding a new, childless 'finance'.
+    expect(h.kltUpdate).toHaveBeenCalledTimes(1)
+    expect(h.kltUpdate).toHaveBeenCalledWith({
+      where: { id: 'v' },
+      data: { parentKltId: null, depth: 0, ancestorIds: [] },
+    })
+    expect(h.kltUpsert).not.toHaveBeenCalled()
+  })
+
+  it('refuses a placement whose newly-upserted ancestor was concurrently adopted from a row that already descends from the node being placed', async () => {
+    // Simulates a stale snapshot: this run's `findMany` predates a concurrent
+    // run that already made 'liquidity ratios' a real child of 'quick ratio'
+    // (finance > quick ratio > liquidity ratios). This run is unaware of
+    // 'liquidity ratios' at all and proposes placing 'quick ratio' UNDER it
+    // (finance > liquidity ratios > quick ratio) — a genuine 2-hop cycle if
+    // honoured. `wouldCycle`'s walk (not just the immediate self-id check)
+    // is what catches this: the adopted ancestor's OWN parentKltId points
+    // back at the node currently being placed.
+    h.kltFindMany.mockResolvedValue([
+      node('f', 'finance', null, 0),
+      node('a', 'accounting', 'f', 1), // gives 'finance' a real child, so it is a genuine root, not itself unplaced
+      node('qr', 'quick ratio', null, 0),
+    ])
+    const generate: KltPlacer = vi.fn().mockResolvedValue({
+      placements: [{ concept: 'quick ratio', path: ['finance', 'liquidity ratios', 'quick ratio'] }],
+    })
+    h.kltUpsert.mockImplementation(
+      async ({ where, create }: { where: { normalizedName: string }; create: Record<string, unknown> }) => {
+        if (where.normalizedName === 'liquidity ratios') {
+          // The row a concurrent run already wrote: for real, it is 'quick
+          // ratio's child, not its ancestor.
+          return {
+            id: 'lr-real',
+            name: 'liquidity ratios',
+            normalizedName: 'liquidity ratios',
+            parentKltId: 'qr',
+            depth: 1,
+            ancestorIds: ['qr'],
+          }
+        }
+        return {
+          id: `klt-${where.normalizedName}`,
+          name: create.name,
+          normalizedName: where.normalizedName,
+          parentKltId: create.parentKltId ?? null,
+          depth: create.depth,
+          ancestorIds: create.ancestorIds,
+        }
+      },
+    )
+
+    await placeUnparentedConcepts('user-1', generate)
+
+    expect(h.kltUpdate).not.toHaveBeenCalled()
   })
 })
