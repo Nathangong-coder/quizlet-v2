@@ -6,6 +6,8 @@ import type { HistoryScope } from '@/lib/memory/scope'
 
 import { getLearnerMetrics, resolveScopeCategoryIds, type LearnerMetrics } from '@/lib/metrics/read'
 import { loadCoverage, diagnoseEmptyState, type DashboardCoverage, type EmptyCause } from '@/lib/metrics/coverage'
+import { loadMissedWork } from '@/lib/metrics/klt-read'
+import type { MissedTopic } from '@/lib/metrics/missed'
 import { getUserTuning } from '@/lib/tuning/store'
 import { resolveStudyScope } from '@/lib/tuning/study-scope'
 import type { MetricThresholds, StrategyKey } from '@/lib/tuning/schema'
@@ -30,6 +32,16 @@ export interface LearnerDashboard {
   thresholds: MetricThresholds
   /** So the ordering control can name the strategy without re-reading it. */
   strategy: StrategyKey
+  /**
+   * Spec §8 — what the learner actually got wrong, grouped by topic, each
+   * entry carrying the specific recent misses that produced it.
+   *
+   * Separate from `metrics.ranked`: that answers "what should I study next"
+   * under a chosen strategy, this answers "what have I been getting wrong".
+   * A learner can have a full study list and nothing here (they have never
+   * missed anything) or the reverse.
+   */
+  missed: MissedTopic[]
 }
 
 /**
@@ -98,9 +110,10 @@ export async function getLearnerDashboard(
       appliedScope.categoryKeys,
     )
 
-    const [metrics, coverage] = await Promise.all([
+    const [metrics, coverage, missed] = await Promise.all([
       getLearnerMetrics({ userId, scope: appliedScope }),
       loadCoverage(prisma, userId, appliedScope, categoryIds, floor),
+      loadMissedWork(prisma, userId, appliedScope, categoryIds, tuning.thresholds),
     ])
 
     const scoped =
@@ -121,6 +134,7 @@ export async function getLearnerDashboard(
         staleCategoryKeys,
         thresholds: tuning.thresholds,
         strategy: tuning.strategy,
+        missed,
       },
     }
   } catch (error) {

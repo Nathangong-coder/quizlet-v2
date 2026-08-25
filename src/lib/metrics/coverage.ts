@@ -35,6 +35,15 @@ export interface DashboardCoverage {
   topicCapableCards: number
   /** Cards whose KLP extraction has not finished. Means WAIT, not act. */
   pendingExtraction: number
+  /**
+   * Cards WITH live KLPs whose TOPIC summarization has not finished or failed.
+   *
+   * A fifth cause of a thin panel, and like `pendingExtraction` it means WAIT
+   * rather than act. Kept separate because the remedies differ: no KLPs means
+   * there is nothing to test, whereas no topics means the points exist and are
+   * testable but have no concept to roll up to yet.
+   */
+  pendingKltSummarization: number
 }
 
 /**
@@ -63,6 +72,7 @@ export async function loadCoverage(
     categorizedCards,
     topicCapableCards,
     pendingExtraction,
+    pendingKltSummarization,
   ] = await Promise.all([
     prisma.klpState.count({ where: { userId } }),
     prisma.klpState.count({ where: { userId, observations: { gte: floor } } }),
@@ -73,6 +83,12 @@ export async function loadCoverage(
       where: { ...owned, ...liveKlps, categoryAssignments: { some: {} } },
     }),
     prisma.card.count({ where: { ...owned, klpStatus: 'pending' } }),
+    // Live KLPs required: a card with no KLPs yet is already counted by
+    // `pendingExtraction`, and counting it twice would make the panel report
+    // two separate things to wait for when there is only one.
+    prisma.card.count({
+      where: { ...owned, ...liveKlps, kltStatus: { in: ['pending', 'failed'] } },
+    }),
   ])
 
   return {
@@ -83,6 +99,7 @@ export async function loadCoverage(
     categorizedCards,
     topicCapableCards,
     pendingExtraction,
+    pendingKltSummarization,
   }
 }
 
