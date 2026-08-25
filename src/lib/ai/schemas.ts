@@ -191,3 +191,16 @@ export const KltSummarySchema = z.object({
 });
 
 export type KltSummary = z.infer<typeof KltSummarySchema>;
+
+export const KltPlacementSchema = z.object({
+  placements: z.array(
+    z.object({
+      /** The concept being placed, echoed back exactly as given. */
+      concept: z.string().min(1),
+      /** Root-first path INCLUDING the concept itself as the last element. */
+      path: z.array(z.string().min(1)).min(1),
+    }),
+  ),
+});
+
+export type KltPlacement = z.infer<typeof KltPlacementSchema>;

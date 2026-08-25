@@ -49,6 +49,9 @@ export type { TrueFalseBuildInput } from './true-false';
 export { SUMMARIZE_KLTS_PROMPT } from './summarize-klts';
 export type { SummarizeKltsBuildInput } from './summarize-klts';
 
+export { PLACE_KLTS_PROMPT } from './place-klts';
+export type { PlaceKltsBuildInput } from './place-klts';
+
 import { MULTIPLE_CHOICE_PROMPT } from './multiple-choice';
 import { GRADE_SHORT_ANSWER_PROMPT } from './grade-short-answer';
 import { ANNOTATION_PROMPT } from './annotation';
@@ -59,6 +62,7 @@ import { SESSION_INSIGHT_PROMPT } from './session-insight';
 import { EXTRACT_KLPS_PROMPT } from './extract-klps';
 import { TRUE_FALSE_PROMPT } from './true-false';
 import { SUMMARIZE_KLTS_PROMPT } from './summarize-klts';
+import { PLACE_KLTS_PROMPT } from './place-klts';
 
 /** All registry entries keyed by `id`, for introspection/tooling. */
 export const PROMPT_REGISTRY = {
@@ -72,4 +76,5 @@ export const PROMPT_REGISTRY = {
   [EXTRACT_KLPS_PROMPT.id]: EXTRACT_KLPS_PROMPT,
   [TRUE_FALSE_PROMPT.id]: TRUE_FALSE_PROMPT,
   [SUMMARIZE_KLTS_PROMPT.id]: SUMMARIZE_KLTS_PROMPT,
+  [PLACE_KLTS_PROMPT.id]: PLACE_KLTS_PROMPT,
 } as const;
