@@ -368,6 +368,15 @@ Phase 1 alone is honest but shallow; Phase 2 makes it correctable; Phase 3 makes
 own. **Stopping after Phase 2 is a legitimate outcome** if the seeded tree turns out good enough —
 Phase 3 is the one whose value is least certain in advance.
 
+**This order was questioned and deliberately kept (2026-08-25).** Placing leaves before the tree is
+seeded means those placements are shallow by construction (§12.1), and seeding in Phase 2 makes
+most of them worth redoing — so Phase 1 buys one full placement run that is largely discarded. The
+alternative considered was moving leaf naming and the designer into Phase 1 and deferring placement.
+The user chose to keep this order **to see the feature working end to end before any UI exists**,
+and thereby to judge whether the designer is needed at all. That is the trade: one discarded
+placement run, in exchange for an early honest answer about whether Phase 2 earns its keep. Do not
+"fix" the ordering without revisiting that reasoning.
+
 ---
 
 ## 14. Out of scope
