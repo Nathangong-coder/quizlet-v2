@@ -76,13 +76,15 @@ export interface MetricThresholds {
   /** Average per-answer expression weight at which readiness reaches 0. */
   readinessWeightPerAnswer: number
   /**
-   * How many of a KLP's ranked KLTs count toward TOPIC MASTERY.
+   * How BROAD a topic may be and still report mastery.
    *
-   * A KLP carries up to `MAX_KLTS_PER_KLP` topics, ranked, and every rank
-   * feeds mastery by default — the user's call. The cost is smearing: one
-   * failed answer can mark up to three topics weak (spec §9.1). Narrowing this
-   * to 1 counts each KLP exactly once, under its primary topic, at the price
-   * of broad topics accumulating evidence more slowly.
+   * A KLP carries up to `MAX_KLTS_PER_KLP` topics as a ladder from specific
+   * (rank 1) to broad (rank 3), so this is a breadth cutoff, not a count of
+   * "how many opinions to trust". Every rung counts by default — the user's
+   * call. The cost is smearing: one failed answer marks the narrow concept,
+   * its area AND its discipline weak (spec §9.1), and a rank-3 topic is an
+   * umbrella by construction. Narrowing this to 1 scores only the specific
+   * grain, which is the most actionable and the slowest to fill in.
    *
    * A knob rather than a constant because that trade-off depends on how thick
    * the learner's corpus is, which is a judgement about their situation and

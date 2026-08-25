@@ -244,7 +244,17 @@ model Klt {
   links          KlpTopic[]
 }
 
-/// KLP -> KLT, ranked 1..3 (1 = primary).
+/// KLP -> KLT, ranked 1..3 as a BREADTH TIER, not a confidence order.
+///
+/// 1 = the narrow concept the point is about ("net income adjustments"),
+/// 2 = the area it belongs to ("income statement"),
+/// 3 = the discipline ("accounting").
+///
+/// This is what keeps tier 1 a usable mastery grain. When rank meant "most
+/// central first" the model returned three equally-broad peers and one umbrella
+/// term ("financial analysis") covered a third of the corpus, which reports a
+/// number nobody can act on. `MetricThresholds.masteryTopicRanks` therefore
+/// reads as "how broad may a topic be and still report mastery".
 ///
 /// Rows for SUPERSEDED KLPs are KEPT. `shapeTopicProfile` separates live KLPs
 /// (which drive knowledge) from attributable ones (live + superseded, which

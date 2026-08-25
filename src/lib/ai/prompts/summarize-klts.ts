@@ -25,7 +25,7 @@ export interface SummarizeKltsBuildInput {
  */
 export const SUMMARIZE_KLTS_PROMPT = {
   id: 'summarize-klts',
-  version: 2,
+  version: 3,
   schema: KltSummarySchema,
 
   build(input: SummarizeKltsBuildInput): string {
@@ -57,11 +57,33 @@ For each KLP, produce two things.
    BAD:  copying or lightly rewording the KLP text above (that is the single most common mistake here)
    HARD LIMIT: ${MAX_LABEL_WORDS} words. A label longer than that is DISCARDED and the point loses its headline entirely.
 
-2. "topics" — 1 to ${MAX_KLTS_PER_KLP} general subject areas this point belongs to, most central first.
-   A topic is a CONCEPT NAME a textbook chapter might carry: "WACC", "bankruptcy", "terminal value", "working capital".
-   - At most ${MAX_KLT_WORDS} words. Never a sentence, never a proper noun, never anything specific to one company or one study set.
-   - Give FEWER topics rather than padding. An empty list is acceptable and is better than a wrong topic.
-   - The same concept must always get the same name, so reuse the vocabulary below rather than inventing a synonym for it.
+2. "topics" — a LADDER of 1 to ${MAX_KLTS_PER_KLP} subject areas, ordered from SPECIFIC to BROAD.
+   Build the first one out of the key words in the KLP itself, then step outward.
+   - Topic 1: the narrow concept this point is actually about. Take it from the KLP's own wording.
+   - Topic 2: the area that concept belongs to.
+   - Topic 3: the discipline it sits in.
+
+   Worked example (finance):
+     KLP: "Minority interest is added back to net income when calculating Enterprise Value."
+     topics: ["net income adjustments", "income statement", "accounting"]
+
+   Worked example (biology):
+     KLP: "Chlorophyll absorbs light most strongly in the blue and red wavelengths."
+     topics: ["chlorophyll", "photosynthesis", "biology"]
+
+   Worked example (history):
+     KLP: "The Treaty of Versailles imposed reparations that destabilised the Weimar economy."
+     topics: ["war reparations", "interwar treaties", "modern history"]
+
+   Rules:
+   - Topic 1 must NEVER be a vague umbrella. Words like "analysis", "concepts", "fundamentals",
+     "reporting", "statements", "management" and "principles" describe a shelf, not an idea.
+     If topic 1 could apply to half the cards in this set, it is too broad — go narrower.
+   - At most ${MAX_KLT_WORDS} words each. Never a sentence, never a proper noun, never anything
+     specific to one company, one person or one study set.
+   - REUSE an existing topic from the vocabulary below whenever one fits, at any rung. The same
+     concept must always get the same name — never invent a synonym for something already there.
+   - Fewer rungs is fine. OMIT a level rather than inventing a vague one to fill it.
 
 ${vocabulary}
 

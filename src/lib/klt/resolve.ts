@@ -21,7 +21,10 @@ export interface KltWrite {
  * - An invalid topic name is DROPPED and the survivors RE-RANKED, so ranks are
  *   always contiguous from 1. A gap would make rank mean two different things
  *   depending on what the model returned, and `masteryTopicRanks` reads rank
- *   as a cutoff.
+ *   as a cutoff. Re-ranking is right even though rank is a BREADTH TIER: if the
+ *   model's narrow rung was unusable, the next one up becomes the narrowest
+ *   this KLP actually has, and pretending otherwise would leave a topic the
+ *   mastery cutoff silently skips.
  * - A KLP whose topics were all invalid still gets its label, and a KLP whose
  *   LABEL was unusable still gets its topics. The two grains fail
  *   independently, and half a result beats none.

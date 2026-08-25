@@ -23,7 +23,7 @@ describe('SUMMARIZE_KLTS_PROMPT', () => {
   })
 
   it('carries a version so a wording change and its version stay in lockstep', () => {
-    expect(SUMMARIZE_KLTS_PROMPT.version).toBe(2)
+    expect(SUMMARIZE_KLTS_PROMPT.version).toBe(3)
   })
 
   it('addresses KLPs by ref and never leaks a cuid', () => {
@@ -50,10 +50,35 @@ describe('SUMMARIZE_KLTS_PROMPT', () => {
     expect(SUMMARIZE_KLTS_PROMPT.build(input)).toContain(`1 to ${MAX_KLTS_PER_KLP}`)
   })
 
-  it('tells the model an empty topic list beats a wrong one', () => {
+  it('tells the model to omit a rung rather than invent a vague one', () => {
     // The prompt half of "degradation never fabricates" — the resolver drops
     // bad topics, but it is cheaper not to generate them.
-    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toMatch(/empty list is acceptable/i)
+    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toMatch(/OMIT a level rather than inventing/)
+  })
+
+  it('asks for a specific-to-broad ladder, not three peers', () => {
+    // Rank means BREADTH TIER. Without the ladder the model returns three
+    // equally-broad umbrella terms and topic 1 stops being a usable grain.
+    const out = SUMMARIZE_KLTS_PROMPT.build(input)
+    expect(out).toMatch(/SPECIFIC to BROAD/)
+    expect(out).toMatch(/net income adjustments.*income statement.*accounting/)
+  })
+
+  it('bans the umbrella words that wrecked the first real run', () => {
+    // "financial analysis" covered a third of the corpus. Naming the offenders
+    // is what stops the model reaching for a shelf instead of an idea.
+    const out = SUMMARIZE_KLTS_PROMPT.build(input)
+    for (const w of ['analysis', 'concepts', 'fundamentals', 'reporting']) {
+      expect(out).toContain(`"${w}"`)
+    }
+  })
+
+  it('carries worked examples from more than one subject', () => {
+    // The rule has to be subject-agnostic; one finance example would teach the
+    // model finance rather than the ladder.
+    const out = SUMMARIZE_KLTS_PROMPT.build(input)
+    expect(out).toMatch(/biology/)
+    expect(out).toMatch(/history/)
   })
 
   it('accepts a well-formed reply, including an empty topic list', () => {
@@ -89,7 +114,7 @@ describe('SUMMARIZE_KLTS_PROMPT — stated limits match enforced ones', () => {
   })
 
   it('quotes the topic cap that parseKltName actually applies', () => {
-    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toContain(`At most ${MAX_KLT_WORDS} words`)
+    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toContain(`At most ${MAX_KLT_WORDS} words each`)
   })
 
   it('warns against the specific failure mode that shipped', () => {
