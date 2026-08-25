@@ -25,12 +25,9 @@ describe('resolveKltWrites', () => {
     expect(out.map((w) => w.klpId)).toEqual(['klp-a'])
   })
 
-  it('ranks topics by the order the model gave them', () => {
-    const out = resolveKltWrites(
-      [{ ref: 0, label: 'x', concepts: ['WACC', 'Tax Shield', 'Bankruptcy'] }],
-      ids,
-    )
-    expect(out[0].topics.map((t) => t.rank)).toEqual([1, 2, 3])
+  it('ranks concepts by the order the model gave them', () => {
+    const out = resolveKltWrites([{ ref: 0, label: 'x', concepts: ['WACC', 'Tax Shield'] }], ids)
+    expect(out[0].topics.map((t) => t.rank)).toEqual([1, 2])
   })
 
   it('drops an invalid topic and RE-RANKS so ranks stay contiguous from 1', () => {
@@ -43,12 +40,19 @@ describe('resolveKltWrites', () => {
     expect(out[0].topics).toEqual([{ name: 'Bankruptcy', normalizedName: 'bankruptcy', rank: 1 }])
   })
 
-  it('dedupes topics that normalize to the same key, keeping the best rank', () => {
-    const out = resolveKltWrites([{ ref: 0, label: 'x', concepts: ['WACC', 'wacc', 'Bankruptcy'] }], ids)
-    expect(out[0].topics).toEqual([
-      { name: 'WACC', normalizedName: 'wacc', rank: 1 },
-      { name: 'Bankruptcy', normalizedName: 'bankruptcy', rank: 2 },
-    ])
+  it('dedupes concepts that normalize to the same key, keeping the best rank', () => {
+    // Two after dedup, which is the cap — the duplicate is what makes this a
+    // realistic reply rather than an over-cap one.
+    const out = resolveKltWrites([{ ref: 0, label: 'x', concepts: ['WACC', 'wacc'] }], ids)
+    expect(out[0].topics).toEqual([{ name: 'WACC', normalizedName: 'wacc', rank: 1 }])
+  })
+
+  it('does NOT itself cap concept count — the schema does', () => {
+    // resolveKltWrites is pure and receives already-validated input, so it
+    // deliberately has no cap of its own. If this ever needs to change, the
+    // schema is the place to look first.
+    const out = resolveKltWrites([{ ref: 0, label: 'x', concepts: ['A', 'B', 'C'] }], ids)
+    expect(out[0].topics.map((t) => t.rank)).toEqual([1, 2, 3])
   })
 
   it('keeps a KLP whose topics were ALL invalid — the label still lands', () => {

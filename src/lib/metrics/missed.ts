@@ -84,7 +84,7 @@ export function shapeMissedWork(input: ShapeMissedWorkInput): MissedTopic[] {
       observations: k?.observations ?? 0,
     }
 
-    // A KLP carries up to three topics and appears under EACH: one point can
+    // A KLP carries up to two concepts and appears under EACH: one point can
     // honestly belong to several subjects, and hiding it under only the first
     // would make the other topics look cleaner than they are.
     const keys = klp.topicKeys.length > 0 ? klp.topicKeys : [UNTOPICED_KEY]
