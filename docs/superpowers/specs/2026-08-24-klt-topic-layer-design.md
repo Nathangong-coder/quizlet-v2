@@ -170,6 +170,16 @@ So a corrupted *posterior* is repairable. A destroyed *evidence row* is not — 
 
 An in-place `label` update is safe precisely because it changes neither `id` nor `version`. Superseding instead would mint new `klpId`s and orphan every accumulated posterior — a silent, total mastery reset, invisible to `tsc` and to any test that only checks the label landed.
 
+### 6.1 Amendment — narrowing the append-only invariant
+
+`writeKlpVersion` (`src/actions/klp.ts`) documents itself as **"THE ONLY MUTATION PATH FOR CardKlp"**, so that `CardKlp` stays append-only and `QuizQuestion.targetKlpIds` keeps pointing at rows whose text is what the question was built from. An in-place `label` update is a second writer, and taken literally the existing comment forbids it.
+
+Resolved by **narrowing the invariant rather than breaking it**, because the alternative (superseding to write a label) is the catastrophic path §6 exists to prevent:
+
+> `CardKlp` is append-only **with respect to the proposition**. `text`, `weight`, `kind`, `index`, `version`, `sourceHash`, `promptVersion`, `source` and `supersededAt` may only ever be written by `writeKlpVersion`. `label` is a derived display annotation carrying no semantic content, and is the sole column a second writer may update in place.
+
+Rewriting a label cannot rewrite history: the proposition a question was built from is unchanged, so nothing downstream of `targetKlpIds` moves. Task 5 updates `writeKlpVersion`'s doc comment to state the narrowed rule, and adds a guard asserting the KLT writer's update touches `label` and no other column.
+
 **Three layers:**
 
 1. **Prevention** — the write surface above, and nothing else.
