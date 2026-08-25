@@ -9,7 +9,7 @@ import {
 import { KLT_BATCH_SIZE } from '../src/lib/cards/klt-batch'
 import { KltSummarySchema, KltPlacementSchema } from '../src/lib/ai/schemas'
 import { placeUnparentedConcepts, type KltPlacer } from '../src/lib/klt/place'
-import { checkTreeInvariants } from '../src/lib/klt/invariants'
+import { summarizeTreeHealth, MAX_BRANCHING } from '../src/lib/klt/health'
 
 /**
  * `--direct` runs against a raw `GOOGLE_API_KEY` instead of the user's stored
@@ -149,56 +149,46 @@ async function main() {
       `[backfill:klts] WARNING: only ${labels} of ${liveKlps} live key points got a usable short label. The rest were discarded for being too long — study lists will show the full proposition instead.`,
     )
   }
-  // Health is now tree-shaped, not tier-shaped: fragmentation is measured on
-  // the DISCIPLINE/root tier only, and concentration on LEAVES. A global
-  // topic count or an unqualified per-node share both cry wolf on a healthy
-  // run — see `reportTreeHealth`.
+  // Health is tree-shaped: structural invariants (reported loudly, never
+  // swallowed), a depth histogram, concepts still unparented, nodes whose
+  // branching factor means a rung is probably missing beneath them, and
+  // LEAF concepts covering exactly one key point — the sign a leaf is being
+  // minted per card instead of reused. All of it is computed by the pure
+  // `summarizeTreeHealth`; this function only fetches and prints.
   await reportTreeHealth()
 }
-
-/** Direct children above which a node has absorbed distinctions it should delegate. */
-const MAX_BRANCHING = 7
 
 async function reportTreeHealth() {
   const rows = await prisma.klt.findMany({
     select: { id: true, name: true, normalizedName: true, parentKltId: true, depth: true, ancestorIds: true },
   })
+  const linkRows = await prisma.klpTopic.groupBy({ by: ['kltId'], _count: true })
+  const linkCounts = new Map(linkRows.map((l) => [l.kltId, l._count]))
 
-  const violations = checkTreeInvariants(rows)
-  if (violations.length > 0) {
-    console.error(`[backfill:klts] STRUCTURAL VIOLATIONS: ${violations.length}`)
-    for (const v of violations.slice(0, 10)) console.error(`  ${v.kind} ${v.kltId}: ${v.detail}`)
+  const health = summarizeTreeHealth(rows, linkCounts)
+
+  if (health.violations.length > 0) {
+    console.error(`[backfill:klts] STRUCTURAL VIOLATIONS: ${health.violations.length}`)
+    for (const v of health.violations.slice(0, 10)) console.error(`  ${v.kind} ${v.kltId}: ${v.detail}`)
   }
 
-  const byDepth = new Map<number, number>()
-  for (const r of rows) byDepth.set(r.depth, (byDepth.get(r.depth) ?? 0) + 1)
   console.log('[backfill:klts] nodes by depth: ' +
-    [...byDepth.entries()].sort((a, b) => a[0] - b[0]).map(([d, n]) => `${d}:${n}`).join(' '))
+    health.nodesByDepth.map(({ depth, count }) => `${depth}:${count}`).join(' '))
 
-  const unplaced = rows.filter((r) => r.parentKltId === null &&
-    !rows.some((o) => o.parentKltId === r.id))
-  if (unplaced.length > 0) {
-    console.warn(`[backfill:klts] ${unplaced.length} concept(s) still unparented — they report ` +
-      `mastery as their own node but do not roll up: ${unplaced.slice(0, 8).map((u) => u.name).join(', ')}`)
+  if (health.unplaced.length > 0) {
+    console.warn(`[backfill:klts] ${health.unplaced.length} concept(s) still unparented — they report ` +
+      `mastery as their own node but do not roll up: ${health.unplaced.slice(0, 8).map((u) => u.name).join(', ')}`)
   }
 
-  const childCount = new Map<string, number>()
-  for (const r of rows) {
-    if (r.parentKltId) childCount.set(r.parentKltId, (childCount.get(r.parentKltId) ?? 0) + 1)
-  }
-  const overloaded = [...childCount.entries()]
-    .filter(([, n]) => n > MAX_BRANCHING)
-    .map(([id, n]) => `${rows.find((r) => r.id === id)?.name} (${n})`)
-  if (overloaded.length > 0) {
-    console.warn(`[backfill:klts] ${overloaded.length} node(s) exceed ${MAX_BRANCHING} direct ` +
-      `children — a rung is probably missing beneath them: ${overloaded.join(', ')}`)
+  if (health.overloaded.length > 0) {
+    console.warn(`[backfill:klts] ${health.overloaded.length} node(s) exceed ${MAX_BRANCHING} direct ` +
+      `children — a rung is probably missing beneath them: ` +
+      health.overloaded.map((o) => `${o.name} (${o.children})`).join(', '))
   }
 
-  const linked = await prisma.klpTopic.groupBy({ by: ['kltId'], _count: true })
-  const singletons = linked.filter((l) => l._count === 1).length
-  if (linked.length > 0) {
-    console.log(`[backfill:klts] concepts with exactly one key point: ${singletons}/${linked.length}`)
-    if (singletons > linked.length * 0.5) {
+  if (health.linkedConcepts > 0) {
+    console.log(`[backfill:klts] concepts with exactly one key point: ${health.singletonConcepts}/${health.linkedConcepts}`)
+    if (health.singletonConcepts > health.linkedConcepts * 0.5) {
       console.warn('[backfill:klts] WARNING: over half of concepts cover a single key point. ' +
         'Leaves are being minted per card instead of reused — nothing will aggregate.')
     }
