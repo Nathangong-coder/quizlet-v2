@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-24 (item 9 designed as the KLT topic layer; item 8's two human gates reported PASSED by the user 2026-08-24)
+**Last updated:** 2026-08-24 (item 9 BUILT as the KLT topic layer, two verification steps owed; item 8's two human gates reported PASSED by the user 2026-08-24)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -8,7 +8,7 @@ This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirror
 **Build order for what remains, decided with the user 2026-08-20 — the numbers do NOT sort into it:**
 
 1. ~~**Item 8 — open the doors**~~ **FULLY DONE.** Built and agent-gated 2026-08-21; the two human gates (real Resend delivery, Vercel Firewall) were reported PASSED by the user on 2026-08-24, and **`CREDENTIALS_SIGNUP_ENABLED` is now ON** — set via a deployed env var, not in `.env`. Nothing outstanding.
-2. **Item 9 — surfacing missed KLPs / weak topics.** **DESIGNED 2026-08-24** as the KLT topic layer (`specs/2026-08-24-klt-topic-layer-design.md`); both blocking decisions answered. Next action is an implementation plan. Still worth doing before Spec 4's lessons, so a plan has somewhere to point.
+2. **Item 9 — surfacing missed KLPs / weak topics.** **BUILT 2026-08-24** as the KLT topic layer (`specs/2026-08-24-klt-topic-layer-design.md`). Two verification steps owed — see its entry. Next action after those is item 7.
 3. **Item 7 — Spec 4**, plan setup + readiness + lesson generation. The biggest item; its lesson half now has its first design decision (see item 7's "LESSON OUTPUT TYPES").
 4. **Item 6c — sharing & discovery.** Designed and ready — item 8 landing removes the "a stranger cannot sign up" blocker, though the flag itself is still off.
 
@@ -585,9 +585,49 @@ Vercel's current Server Actions dispatch behaviour before relying on it.**
 who knows an address can lock its owner out on purpose, and there is no support desk to undo it.
 Revisit only on evidence of real credential stuffing.
 
-### 9. ⬜ Surfacing missed KLPs and weak topics — **DESIGNED 2026-08-24 as the KLT topic layer. NOT STARTED.**
+### 9. 🟡 Surfacing missed KLPs and weak topics — **BUILT 2026-08-24 as the KLT topic layer. TWO VERIFICATION STEPS OWED (see below).**
 
-Design: `specs/2026-08-24-klt-topic-layer-design.md`. No plan, no code. **Both open questions below are now answered** — kept for the reasoning that produced them.
+Design: `specs/2026-08-24-klt-topic-layer-design.md`. Plan: `plans/2026-08-24-klt-topic-layer.md`. 14 tasks, commit range `7015788..HEAD`. **Both open questions below are now answered** — kept for the reasoning that produced them.
+
+**New baselines (this branch, 2026-08-24, after item 9):**
+- **Tests:** 153 files / **1780 passing** (was 140 / 1655) — excluding `cursor-agents`
+- **`tsc --noEmit`:** clean · **`next build`:** clean · **`npm run lint`:** **175 problems** — unchanged from the item 8 baseline
+- **Schema drift:** zero (`migrate diff` reports an empty migration)
+
+**VERIFIED LIVE, against the real database — the guarantee this whole item hangs on.** The
+summarization pass ran over all 69 KLP-bearing cards and afterwards
+`supersededKlps=0`, `klpStates=5` (unchanged), `liveKlps=153` (unchanged). §6 holds in
+Postgres, not just in mocks. Both safety guards were also mutation-tested: making the writer
+set `supersededAt` turns 4 tests red, and removing the `isOwner` check turns the stranger-card
+test red.
+
+**TWO STEPS STILL OWED, both blocked on secrets an agent cannot supply:**
+1. **The vocabulary has never been generated.** `GOOGLE_KEY_ENCRYPTION_SECRET` is commented out
+   in local `.env`, so the two stored `AiCredential` rows cannot be decrypted — the backfill
+   marked all 69 cards `kltStatus: 'failed'` with "All 2 AI attempts failed". That is the
+   CORRECT classification (attempts were made, so not `skipped`), but it means **zero `Klt` rows
+   and zero labels exist**, and the §9.4 fragmentation risk is entirely unmeasured. Re-run
+   `npm run backfill:klts` with the secret present, then inspect the resulting topic list by
+   hand before trusting topic mastery. The script warns on its own if topics exceed 60% of cards.
+2. **The panel has never been seen with data.** `/profile/learner` loads clean (200, no runtime
+   error, `getLearnerDashboard` 2.7s), but the seeded `dev_user` owns no cards, so
+   `diagnoseEmptyState`'s blocking `no_klps` branch renders instead of the panel. The library
+   with 68 cards belongs to a different account. Component tests cover the panel's rendering
+   (9 tests incl. expand, label fallback, null-never-zero); what is unverified is the panel
+   **on the page, with real rows**.
+
+**One thing found and fixed during implementation, worth knowing.** `summarizeKltsForCards` was
+first written into `src/actions/klt.ts`. Exported from a `'use server'` file it became a
+client-callable RPC endpoint **taking a `userId` as its first argument** — owner-scoped
+internally by `readableSetWhere`, but with no business being reachable at all. It now lives in
+`src/lib/klt/summarize.ts`; the action keeps only the retry. **`extractKlpsForCards` has the
+identical shape and is still exported from `src/actions/klp.ts`** — same latent issue, not
+touched here because it is out of this item's scope. Worth a follow-up.
+
+**Also:** `server-only` is now a declared dependency and scripts that reach `generateJson` must
+pass `--conditions=react-server` (see `backfill:klts`). Next resolves that condition internally;
+plain `tsx` does not, so without it the import throws "cannot be imported from a Client
+Component".
 
 **Scope grew in design.** The request ("display missed KLPs/topics better") could not be met by a UI change alone: measured against the live corpus on 2026-08-24, KLPs run a **median of 16 words** (153 live rows, 69 cards), because a KLP is a *proposition* — the thing a distractor is corrupted from and a short answer is graded against. It cannot be shortened without breaking MC/TF generation. So the spec adds grains **above** it instead: a global `Klt` concept node and a short `CardKlp.label`, filled by an `after()`-triggered AI pass that mirrors KLP extraction.
 
