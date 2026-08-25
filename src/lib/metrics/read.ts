@@ -12,7 +12,9 @@ import {
 import { buildLearnerProfile } from '@/lib/memory/profile'
 import { eventRecalled, type StudySource } from '@/lib/memory/scoring'
 import { paceOutliers as computePaceOutliers } from '@/lib/metrics/pace'
-import { rollUpKltLinks } from '@/lib/metrics/klt-rollup'
+import {
+  rollUpKltLinks, buildAncestorClosureByName, countAnalyzedAnswersByTopic,
+} from '@/lib/metrics/klt-rollup'
 import {
   buildStudyEventWhere, buildQuizAnswerScopeWhere, buildExpressionAnswerWhere,
   buildCategoryQuery, buildCardScopeWhere,
@@ -304,14 +306,15 @@ export async function getLearnerMetrics({
   // The KLT axis, from the same inputs. `masteryTopicRanks` decides how many
   // of a KLP's ranked topics count — 3 by default, so one point can move
   // several topics (spec §9.1).
-  const kltRows = await loadKltRows(prisma, userId, scope, categoryIds)
+  const { topics: kltRows, ancestorClosureByName } =
+    await loadKltRows(prisma, userId, scope, categoryIds)
   const kltTopicRows = kltRowsToTopicRows(kltRows, tuning.thresholds.masteryTopicRanks)
   const kltTopics = kltTopicRows.length === 0 ? [] : shapeTopicProfile({
     topics: kltTopicRows,
     knowledge,
     tags: derived,
     analyzedAnswersByTopic: await loadAnalyzedAnswerCountsByKlt(
-      prisma, quizAnswerScopeWhere, tuning.thresholds.masteryTopicRanks,
+      prisma, quizAnswerScopeWhere, tuning.thresholds.masteryTopicRanks, ancestorClosureByName,
     ),
     thresholds: tuning.thresholds,
   })
@@ -552,13 +555,21 @@ async function loadUncategorizedCards(
  * node that qualifies through ONE in-scope card drags in its links from every
  * other card in the database — including other users' — and the topic's
  * knowledge would be averaged over KLPs this learner has never seen.
+ *
+ * Also returns `ancestorClosureByName` — every node's normalizedName plus its
+ * ancestors' — built from this SAME fetch and threaded into
+ * `loadAnalyzedAnswerCountsByKlt` rather than re-querying the whole `Klt`
+ * table a second time there. Readiness's denominator needs the identical
+ * ancestor fold the links (its numerator) already get; see
+ * `buildAncestorClosureByName`'s doc comment for why (review finding,
+ * 2026-08-25).
  */
 async function loadKltRows(
   prisma: PrismaClient,
   userId: string,
   scope: HistoryScope,
   categoryIds: string[],
-): Promise<RawKltRow[]> {
+): Promise<{ topics: RawKltRow[]; ancestorClosureByName: Map<string, string[]> }> {
   const card: Record<string, unknown> = scope.cardId
     ? { id: scope.cardId, set: { userId } }
     : { ...buildCardScopeWhere(scope, categoryIds), set: { userId } }
@@ -577,7 +588,7 @@ async function loadKltRows(
     },
   })
 
-  return rollUpKltLinks(rows)
+  return { topics: rollUpKltLinks(rows), ancestorClosureByName: buildAncestorClosureByName(rows) }
 }
 
 /**
@@ -587,11 +598,23 @@ async function loadKltRows(
  * `loadAnalyzedAnswerCounts`: a clean answer produces no tags and is exactly
  * the positive evidence readiness needs, so deriving this from tags would make
  * every learner look maximally unready.
+ *
+ * `ancestorClosureByName` folds each direct topic up to its ancestors — the
+ * SAME rollup `rollUpKltLinks` gives the numerator (links) — so an interior
+ * node whose evidence lives only on descendant leaves gets a non-zero
+ * denominator instead of being permanently stuck at `analyzedAnswers === 0`
+ * (which pins readiness to `null` regardless of how much evidence its
+ * subtree actually carries). Threaded in from `loadKltRows`'s fetch rather
+ * than queried again here (review finding, 2026-08-25). The fold and the
+ * "once per answer" dedup rule itself live in `countAnalyzedAnswersByTopic`,
+ * a pure function, so they are tested directly rather than only indirectly
+ * through this DB shell.
  */
 async function loadAnalyzedAnswerCountsByKlt(
   prisma: PrismaClient,
   quizAnswerScopeWhere: Record<string, unknown>,
   maxRank: number,
+  ancestorClosureByName: Map<string, string[]>,
 ): Promise<Record<string, number>> {
   const answers = await prisma.quizAnswer.findMany({
     where: buildExpressionAnswerWhere(quizAnswerScopeWhere),
@@ -612,18 +635,12 @@ async function loadAnalyzedAnswerCountsByKlt(
     },
   })
 
-  const counts: Record<string, number> = {}
-  for (const a of answers) {
-    // One answer counts ONCE per topic, however many of the card's KLPs carry
-    // it — otherwise a card whose five KLPs all sit under "DCF" would inflate
-    // that topic's denominator fivefold and crush its readiness.
-    const seen = new Set<string>()
-    for (const klp of a.card?.klps ?? []) {
-      for (const t of klp.topics) seen.add(t.klt.normalizedName)
-    }
-    for (const key of seen) counts[key] = (counts[key] ?? 0) + 1
-  }
-  return counts
+  return countAnalyzedAnswersByTopic(
+    answers.map((a) => ({
+      topicNames: (a.card?.klps ?? []).flatMap((klp) => klp.topics.map((t) => t.klt.normalizedName)),
+    })),
+    ancestorClosureByName,
+  )
 }
 
 async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: HistoryScope) {

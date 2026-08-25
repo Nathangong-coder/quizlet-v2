@@ -56,3 +56,60 @@ export function rollUpKltLinks(rows: KltNodeRow[]): RawKltRow[] {
     links: rolled.get(row.id) ?? [],
   }))
 }
+
+/**
+ * For every node, the normalizedNames of itself PLUS every ancestor —
+ * readiness's DENOMINATOR needs the same fold `rollUpKltLinks` gives the
+ * numerator (links), or every interior node's analyzed-answer count stays 0
+ * forever and `computeArticulation`'s `analyzedAnswers === 0` branch pins its
+ * readiness to `null` no matter how much evidence its descendant leaves carry
+ * — the exact "interior node reports nothing" bug this task exists to fix,
+ * recreated for readiness alone (found in review, 2026-08-25).
+ *
+ * Takes the SAME rows `rollUpKltLinks` does (one query, threaded through
+ * rather than re-fetched) — `ancestorIds` is a list of ids, so translating it
+ * to normalizedNames needs the whole tree's id -> normalizedName map, which
+ * is exactly what's already in hand at the `loadKltRows` call site.
+ */
+export function buildAncestorClosureByName(
+  rows: Pick<KltNodeRow, 'id' | 'normalizedName' | 'ancestorIds'>[],
+): Map<string, string[]> {
+  const nameById = new Map(rows.map((r) => [r.id, r.normalizedName]))
+  const closure = new Map<string, string[]>()
+  for (const row of rows) {
+    const ancestorNames = row.ancestorIds
+      .map((id) => nameById.get(id))
+      .filter((n): n is string => n !== undefined)
+    closure.set(row.normalizedName, [row.normalizedName, ...ancestorNames])
+  }
+  return closure
+}
+
+/**
+ * Fold each answer's DIRECT topics up through `ancestorClosureByName`, then
+ * count each resulting name ONCE PER ANSWER — this is readiness's DENOMINATOR
+ * fold, the counterpart to `rollUpKltLinks` (the numerator's).
+ *
+ * The existing "one answer counts once per topic" rule must survive the
+ * fold, not just be preserved for a topic named directly: a card whose five
+ * KLPs all sit under "DCF" must not inflate "DCF"'s count fivefold, AND a
+ * card whose two KLPs sit under two DIFFERENT leaves that share one ancestor
+ * must not inflate the ANCESTOR'S count twice for what is still one answer.
+ * Both are enforced by the same per-answer `Set` — closure names collapse
+ * into it exactly like direct names always did.
+ */
+export function countAnalyzedAnswersByTopic(
+  answers: { topicNames: string[] }[],
+  ancestorClosureByName: Map<string, string[]>,
+): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const a of answers) {
+    const seen = new Set<string>()
+    for (const name of a.topicNames) {
+      const closure = ancestorClosureByName.get(name) ?? [name]
+      for (const n of closure) seen.add(n)
+    }
+    for (const key of seen) counts[key] = (counts[key] ?? 0) + 1
+  }
+  return counts
+}
