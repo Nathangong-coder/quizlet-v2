@@ -83,12 +83,28 @@ describe('computeSubtreeUpdates', () => {
   })
 
   it(`refuses a move that would push the subtree past depth ${MAX_TREE_DEPTH}`, () => {
-    // A chain already at the cap cannot be pushed deeper.
-    const deep: TreeNodeRow[] = []
-    for (let i = 0; i <= MAX_TREE_DEPTH; i++) {
-      deep.push(node(`n${i}`, `n${i}`, i === 0 ? null : `n${i - 1}`, i,
+    // A separate subtree moved under a chain that is already at depth 7: the
+    // moved node would land at 8. Deliberately NOT a cycle — `m0` is nowhere
+    // in `n7`'s ancestry — so this exercises the depth guard and only that.
+    const rows: TreeNodeRow[] = []
+    for (let i = 0; i <= MAX_TREE_DEPTH - 1; i++) {
+      rows.push(node(`n${i}`, `n${i}`, i === 0 ? null : `n${i - 1}`, i,
         Array.from({ length: i }, (_, j) => `n${j}`)))
     }
-    expect(() => computeSubtreeUpdates('n1', `n${MAX_TREE_DEPTH}`, deep)).toThrow(/depth/i)
+    rows.push(node('m0', 'm0', null, 0, []))
+    rows.push(node('m1', 'm1', 'm0', 1, ['m0']))
+    expect(() => computeSubtreeUpdates('m0', `n${MAX_TREE_DEPTH - 1}`, rows)).toThrow(/depth/i)
+  })
+
+  it('reports a CYCLE, not a depth error, when moving under a descendant', () => {
+    // The two guards must stay distinguishable: a cycle makes the subtree walk
+    // non-terminating, so it has to be named as a cycle rather than mislabelled
+    // as depth by a check that happens to fire first.
+    const rows: TreeNodeRow[] = []
+    for (let i = 0; i <= MAX_TREE_DEPTH; i++) {
+      rows.push(node(`n${i}`, `n${i}`, i === 0 ? null : `n${i - 1}`, i,
+        Array.from({ length: i }, (_, j) => `n${j}`)))
+    }
+    expect(() => computeSubtreeUpdates('n1', `n${MAX_TREE_DEPTH}`, rows)).toThrow(/cycle/i)
   })
 })

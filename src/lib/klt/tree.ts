@@ -89,22 +89,15 @@ export function computeSubtreeUpdates(
   const byId = new Map(rows.map((r) => [r.id, r]))
   const node = byId.get(nodeId)
   if (!node) throw new Error(`unknown node ${nodeId}`)
+  if (newParentId !== null && wouldCycle(nodeId, newParentId, byId)) {
+    throw new Error(`moving ${nodeId} under ${newParentId} would create a cycle`)
+  }
 
   const parent = newParentId === null ? null : byId.get(newParentId)
   if (newParentId !== null && !parent) throw new Error(`unknown parent ${newParentId}`)
 
   const baseDepth = parent ? parent.depth + 1 : 0
   const baseAncestors = parent ? [...parent.ancestorIds, parent.id] : []
-
-  // Check depth constraint before cycles — depth violation is checked
-  // eagerly to fail fast on the fundamental constraint
-  if (baseDepth >= MAX_TREE_DEPTH) {
-    throw new Error(`move would exceed max depth ${MAX_TREE_DEPTH}`)
-  }
-
-  if (newParentId !== null && wouldCycle(nodeId, newParentId, byId)) {
-    throw new Error(`moving ${nodeId} under ${newParentId} would create a cycle`)
-  }
 
   const childrenOf = new Map<string, TreeNodeRow[]>()
   for (const r of rows) {
