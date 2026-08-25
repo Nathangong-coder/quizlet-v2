@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { DEFAULT_BANDS, type BandTable, type SeverityBand } from '@/lib/errors/bands'
 import { ACCURACY_TYPES, CLARITY_TYPES, CONCISENESS_TYPES } from '@/lib/errors/taxonomy'
 import { MIN_OBSERVATIONS } from '@/lib/metrics/bkt'
-import { MAX_KLTS_PER_KLP } from '@/lib/ai/schemas'
 import { parseStudyScope, type StoredStudyScope } from '@/lib/tuning/study-scope'
 
 /** Bump when either stored blob's shape changes incompatibly. */
@@ -76,19 +75,22 @@ export interface MetricThresholds {
   /** Average per-answer expression weight at which readiness reaches 0. */
   readinessWeightPerAnswer: number
   /**
-   * How BROAD a topic may be and still report mastery.
+   * How many ranked concepts (by centrality, rank 1 = most central) count
+   * toward a topic's mastery, out of the (currently 2) a KLP may carry.
    *
-   * A KLP carries up to `MAX_KLTS_PER_KLP` topics as a ladder from specific
-   * (rank 1) to broad (rank 3), so this is a breadth cutoff, not a count of
-   * "how many opinions to trust". Every rung counts by default — the user's
-   * call. The cost is smearing: one failed answer marks the narrow concept,
-   * its area AND its discipline weak (spec §9.1), and a rank-3 topic is an
-   * umbrella by construction. Narrowing this to 1 scores only the specific
-   * grain, which is the most actionable and the slowest to fill in.
+   * NOT tied to `MAX_CONCEPTS_PER_KLP`: this bound is `MASTERY_TOPIC_RANKS_MAX`
+   * (see `ThresholdOverridesSchema` below), a separately-owned constant fixed
+   * at 3. A user's stored `masteryTopicRanks` is read back through this same
+   * bound on every load, so narrowing it to track the concept cap would
+   * invalidate any settings row that already has 3 saved — that value simply
+   * becomes a harmless no-op once only ranks 1-2 exist to count.
    *
-   * A knob rather than a constant because that trade-off depends on how thick
-   * the learner's corpus is, which is a judgement about their situation and
-   * not a universal truth — the same reasoning as `minObservations`.
+   * At 1, only the single most-central concept counts — the sharpest
+   * diagnosis, slowest to fill in. At 2 (all concepts a KLP can carry today),
+   * a failed answer can mark both of a point's concepts weak. A knob rather
+   * than a constant because that trade-off depends on how thick the learner's
+   * corpus is, which is a judgement about their situation and not a universal
+   * truth — the same reasoning as `minObservations`.
    */
   masteryTopicRanks: number
 }
@@ -114,17 +116,22 @@ export const ARTICULATION_MIN_PKNOWN = 0.6
 export const READINESS_WEIGHT_PER_ANSWER = 12
 
 /**
- * DERIVED from the shipped constants, never a second copy of the numbers —
- * the same rule `guessRate` follows against `EVIDENCE_STRENGTH`. A test pins
- * the equality so a change to either side is a build failure rather than a
- * silent divergence between "the default" and "the constant".
+ * The upper bound on `masteryTopicRanks`, owned here rather than derived from
+ * `MAX_CONCEPTS_PER_KLP` — see the field's doc comment on `MetricThresholds`
+ * for why the two must NOT be tied together. Fixed at 3 because that is the
+ * highest rank any stored settings row has ever been able to hold; it is not
+ * expected to change when the concept cap does.
  */
+export const MASTERY_TOPIC_RANKS_MAX = 3
+
 /**
  * Every rank counts, shipped default. Chosen by the user over the narrower
  * rank-1-only option: a broad topic accumulates evidence faster, which matters
- * on a thin corpus. See spec §9.1 for the accepted cost.
+ * on a thin corpus. See spec §9.1 for the accepted cost. Equal to
+ * `MASTERY_TOPIC_RANKS_MAX` (not derived from `MAX_CONCEPTS_PER_KLP`, which
+ * is smaller) so a fresh install and a stored `3` behave identically.
  */
-export const DEFAULT_MASTERY_TOPIC_RANKS = MAX_KLTS_PER_KLP
+export const DEFAULT_MASTERY_TOPIC_RANKS = MASTERY_TOPIC_RANKS_MAX
 
 export const DEFAULT_THRESHOLDS: MetricThresholds = {
   minObservations: MIN_OBSERVATIONS,
@@ -147,10 +154,15 @@ export const ThresholdOverridesSchema = z
     minObservations: z.number().int().min(1).max(50).optional(),
     articulationMinPKnown: z.number().min(0).max(1).optional(),
     readinessWeightPerAnswer: z.number().positive().max(100).optional(),
-    // Bounded by correctness at BOTH ends: 0 would mean no rank counts, so no
-    // topic could ever report knowledge; above the cap is unreachable, since
-    // no KLP carries that many topics.
-    masteryTopicRanks: z.number().int().min(1).max(MAX_KLTS_PER_KLP).optional(),
+    // Bounded by correctness at the low end: 0 would mean no rank counts, so
+    // no topic could ever report knowledge. The high end is a LITERAL 3, not
+    // MAX_CONCEPTS_PER_KLP (2) — deliberately decoupled, since narrowing it to
+    // track the concept cap would fail parsing on a stored `masteryTopicRanks:
+    // 3` and, because a corrupt/invalid blob here degrades to {} (ALL
+    // overrides discarded, not just this field), would silently drop a user's
+    // other threshold overrides too. A stored 3 is a harmless no-op once only
+    // ranks 1-2 exist.
+    masteryTopicRanks: z.number().int().min(1).max(MASTERY_TOPIC_RANKS_MAX).optional(),
   })
   .strict()
 

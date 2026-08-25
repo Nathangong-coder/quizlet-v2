@@ -23,7 +23,7 @@ describe('SUMMARIZE_KLTS_PROMPT', () => {
   })
 
   it('carries a version so a wording change and its version stay in lockstep', () => {
-    expect(SUMMARIZE_KLTS_PROMPT.version).toBe(3)
+    expect(SUMMARIZE_KLTS_PROMPT.version).toBe(4)
   })
 
   it('addresses KLPs by ref and never leaks a cuid', () => {
@@ -50,56 +50,37 @@ describe('SUMMARIZE_KLTS_PROMPT', () => {
     expect(SUMMARIZE_KLTS_PROMPT.build(input)).toContain(`1 to ${MAX_KLTS_PER_KLP}`)
   })
 
-  it('tells the model to omit a rung rather than invent a vague one', () => {
-    // The prompt half of "degradation never fabricates" — the resolver drops
-    // bad topics, but it is cheaper not to generate them.
-    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toMatch(/OMIT a level rather than inventing/)
-  })
-
-  it('asks for a specific-to-broad ladder, not three peers', () => {
-    // Rank means BREADTH TIER. Without the ladder the model returns three
-    // equally-broad umbrella terms and topic 1 stops being a usable grain.
+  it('asks for specific concepts and explicitly NOT for broader categories', () => {
+    // The tree supplies breadth. Asking for it here reintroduces the depth
+    // inconsistency the tree exists to remove.
     const out = SUMMARIZE_KLTS_PROMPT.build(input)
-    expect(out).toMatch(/SPECIFIC to BROAD/)
-    expect(out).toMatch(/net income adjustments.*income statement.*accounting/)
+    expect(out).toMatch(/Do NOT give broader categories/)
+    expect(out).toMatch(/not where it belongs/)
   })
 
-  it('bans the umbrella words that wrecked the first real run', () => {
-    // "financial analysis" covered a third of the corpus. Naming the offenders
-    // is what stops the model reaching for a shelf instead of an idea.
-    const out = SUMMARIZE_KLTS_PROMPT.build(input)
-    for (const w of ['analysis', 'concepts', 'fundamentals', 'reporting']) {
-      expect(out).toContain(`"${w}"`)
-    }
+  it('states the reusability rule that guards against leaf proliferation', () => {
+    expect(SUMMARIZE_KLTS_PROMPT.build(input)).toMatch(/a DIFFERENT card could also be about/)
   })
 
-  it('carries worked examples from more than one subject', () => {
-    // The rule has to be subject-agnostic; one finance example would teach the
-    // model finance rather than the ladder.
-    const out = SUMMARIZE_KLTS_PROMPT.build(input)
-    expect(out).toMatch(/biology/)
-    expect(out).toMatch(/history/)
-  })
-
-  it('accepts a well-formed reply, including an empty topic list', () => {
+  it('accepts a well-formed reply, including an empty concept list', () => {
     const parsed = KltSummarySchema.safeParse({
       klps: [
-        { ref: 0, label: 'Market value weighting', topics: ['WACC'] },
-        { ref: 1, label: 'Tax shield on debt', topics: [] },
+        { ref: 0, label: 'Market value weighting', concepts: ['WACC'] },
+        { ref: 1, label: 'Tax shield on debt', concepts: [] },
       ],
     })
     expect(parsed.success).toBe(true)
   })
 
-  it('rejects more topics than the cap', () => {
+  it('rejects more concepts than the cap', () => {
     const parsed = KltSummarySchema.safeParse({
-      klps: [{ ref: 0, label: 'x', topics: ['a', 'b', 'c', 'd'] }],
+      klps: [{ ref: 0, label: 'x', concepts: ['a', 'b', 'c', 'd'] }],
     })
     expect(parsed.success).toBe(false)
   })
 
   it('rejects a negative ref', () => {
-    expect(KltSummarySchema.safeParse({ klps: [{ ref: -1, label: 'x', topics: [] }] }).success).toBe(
+    expect(KltSummarySchema.safeParse({ klps: [{ ref: -1, label: 'x', concepts: [] }] }).success).toBe(
       false,
     )
   })

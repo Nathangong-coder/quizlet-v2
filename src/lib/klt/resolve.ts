@@ -18,13 +18,14 @@ export interface KltWrite {
  *   to occupy that position would attach one point's topics to another's —
  *   the same hazard `extractOneBatch` guards with its `if (!card) continue`.
  * - A repeated ref keeps only the first entry.
- * - An invalid topic name is DROPPED and the survivors RE-RANKED, so ranks are
- *   always contiguous from 1. A gap would make rank mean two different things
- *   depending on what the model returned, and `masteryTopicRanks` reads rank
- *   as a cutoff. Re-ranking is right even though rank is a BREADTH TIER: if the
- *   model's narrow rung was unusable, the next one up becomes the narrowest
- *   this KLP actually has, and pretending otherwise would leave a topic the
- *   mastery cutoff silently skips.
+ * - Rank is CENTRALITY: 1 is the concept the point is chiefly about, 2 a
+ *   second it honestly also covers. Breadth comes from the concept tree
+ *   (`Klt.parentKltId`), not from rank. Invalid names are dropped and
+ *   survivors RE-RANKED, so ranks stay contiguous from 1 — a gap would make
+ *   rank mean two different things depending on what the model returned, and
+ *   `masteryTopicRanks` reads rank as a cutoff. If the model's most-central
+ *   concept was unusable, the next one becomes rank 1, and pretending
+ *   otherwise would leave a concept the mastery cutoff silently skips.
  * - A KLP whose topics were all invalid still gets its label, and a KLP whose
  *   LABEL was unusable still gets its topics. The two grains fail
  *   independently, and half a result beats none.
@@ -51,7 +52,7 @@ export function resolveKltWrites(entries: KltSummary['klps'], klpIds: string[]):
 
     const seen = new Set<string>()
     const topics: KltWrite['topics'] = []
-    for (const raw of entry.topics) {
+    for (const raw of entry.concepts) {
       const parsed = parseKltName(raw)
       if (parsed === null) continue
       if (seen.has(parsed.normalizedName)) continue
