@@ -12,6 +12,7 @@ import {
 import { buildLearnerProfile } from '@/lib/memory/profile'
 import { eventRecalled, type StudySource } from '@/lib/memory/scoring'
 import { paceOutliers as computePaceOutliers } from '@/lib/metrics/pace'
+import { rollUpKltLinks } from '@/lib/metrics/klt-rollup'
 import {
   buildStudyEventWhere, buildQuizAnswerScopeWhere, buildExpressionAnswerWhere,
   buildCategoryQuery, buildCardScopeWhere,
@@ -537,12 +538,20 @@ async function loadUncategorizedCards(
  * toward 1.0 on a card edit, with no change in the learner's behaviour.
  */
 /**
- * KLT rows for the cards in scope.
+ * KLT rows for the cards in scope, rolled up over the concept TREE.
  *
- * The `links` filter repeats the card scope on purpose. Without it a topic
- * that qualifies through ONE in-scope card drags in its links from every other
- * card in the database — including other users' — and the topic's knowledge
- * would be averaged over KLPs this learner has never seen.
+ * `Klt` is GLOBAL (one row per concept for the whole install — see the model
+ * comment in `schema.prisma`), so this fetches the WHOLE tree — small enough
+ * to hold in memory, per `renderTreeForPrompt`'s "fits in a prompt" — rather
+ * than filtering to nodes with a direct link. A `where` that tried to mean
+ * "linked directly, OR has a descendant that is" does not express in Prisma;
+ * see `rollUpKltLinks` for why this is one query + one TypeScript fold instead
+ * (controller ruling R3, 2026-08-25).
+ *
+ * The nested `links` filter repeats the card scope on purpose. Without it a
+ * node that qualifies through ONE in-scope card drags in its links from every
+ * other card in the database — including other users' — and the topic's
+ * knowledge would be averaged over KLPs this learner has never seen.
  */
 async function loadKltRows(
   prisma: PrismaClient,
@@ -554,17 +563,21 @@ async function loadKltRows(
     ? { id: scope.cardId, set: { userId } }
     : { ...buildCardScopeWhere(scope, categoryIds), set: { userId } }
 
-  return prisma.klt.findMany({
-    where: { links: { some: { klp: { card } } } },
+  const rows = await prisma.klt.findMany({
     select: {
+      id: true,
       normalizedName: true,
       name: true,
+      depth: true,
+      ancestorIds: true,
       links: {
         where: { klp: { card } },
         select: { rank: true, klp: { select: { id: true, supersededAt: true, cardId: true } } },
       },
     },
   })
+
+  return rollUpKltLinks(rows)
 }
 
 /**

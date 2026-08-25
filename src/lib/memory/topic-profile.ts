@@ -38,12 +38,27 @@ export interface TopicRow {
    * whose every answer rambles scores perfect readiness.
    */
   cardIds: string[]
+  /**
+   * Tree depth (0 at a subject root), KLT axis only.
+   *
+   * OPTIONAL — controller ruling R2 (2026-08-25): `TopicRow` is SHARED with
+   * `toTopicRows`, which flattens user-authored CATEGORY rows. Categories have
+   * no tree and no depth; a required field here would force every category
+   * fixture to invent one to satisfy the type checker.
+   */
+  depth?: number
 }
 
 export interface LearnerTopicProfile {
   key: string
   name: string
   color: string | null
+  /**
+   * Tree depth (0 at a subject root), KLT axis only. `null` for a
+   * user-authored category — see `TopicRow.depth` (controller ruling R2,
+   * 2026-08-25): a category has no tree position to report.
+   */
+  depth: number | null
   klpCount: number
   /**
    * Mean pKnown across KLPs clearing the learner's observation floor
@@ -144,6 +159,10 @@ export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicPr
       // Most common display name wins, matching groupCategoriesByName.
       name: mostCommonName(rows),
       color: rows.find((r) => r.color !== null)?.color ?? null,
+      // KLT rows carry depth; category rows never do (`TopicRow.depth` is
+      // optional for exactly that reason) — `null` says "no tree position",
+      // not "root".
+      depth: rows.find((r) => r.depth !== undefined)?.depth ?? null,
       klpCount: klpIds.length,
       knowledge,
       verbosityIndex: articulation.verbosityIndex,
@@ -213,10 +232,21 @@ export function toTopicRows(rows: RawCategoryRow[]): TopicRow[] {
   })
 }
 
-/** A `Klt` row as Prisma returns it, with its links and their KLPs joined. */
+/**
+ * A `Klt` row, with its links and their KLPs joined.
+ *
+ * `links` arrives ALREADY INCLUDING descendants' links — the rollup is done
+ * by the read shell (`src/lib/metrics/klt-rollup.ts`), over `ancestorIds`, not
+ * here, so this function stays a pure shaper. A node's own links alone would
+ * report nothing for every interior node, since key points only ever attach
+ * to leaves — `accounting` holds none of its own; every one sits on a leaf
+ * far beneath it.
+ */
 export interface RawKltRow {
   normalizedName: string
   name: string
+  /** 0 at a subject root. Passed through so the UI can group by level. */
+  depth: number
   links: { rank: number; klp: { id: string; supersededAt: Date | null; cardId: string } }[]
 }
 
@@ -249,6 +279,7 @@ export function kltRowsToTopicRows(rows: RawKltRow[], maxRank: number): TopicRow
       displayName: row.name,
       // KLTs are AI-derived; only user-authored categories carry a colour.
       color: null,
+      depth: row.depth,
       klpIds,
       supersededKlpIds: [
         ...new Set(inRank.filter((l) => l.klp.supersededAt !== null).map((l) => l.klp.id)),

@@ -39,6 +39,7 @@ function topic(over: Partial<LearnerTopicProfile> & { key: string }): LearnerTop
   return {
     name: over.key,
     color: null,
+    depth: null,
     klpCount: 4,
     knowledge: 0.6,
     verbosityIndex: 0,
