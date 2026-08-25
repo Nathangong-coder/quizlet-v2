@@ -212,3 +212,49 @@ export function toTopicRows(rows: RawCategoryRow[]): TopicRow[] {
     }
   })
 }
+
+/** A `Klt` row as Prisma returns it, with its links and their KLPs joined. */
+export interface RawKltRow {
+  normalizedName: string
+  name: string
+  links: { rank: number; klp: { id: string; supersededAt: Date | null; cardId: string } }[]
+}
+
+/**
+ * Flatten KLT rows into the SAME `TopicRow` shape category rows produce, so
+ * `shapeTopicProfile` computes knowledge, readiness and verbosity for both
+ * axes with one implementation. A KLT topic and a category topic differ in
+ * where they came from, not in how they are scored — and two implementations
+ * would drift into disagreeing about what "weak" means on one screen.
+ *
+ * `maxRank` is `MetricThresholds.masteryTopicRanks`. Links above it are
+ * excluded from MASTERY only; callers wanting the full associative graph
+ * (browse, "related topics") query `KlpTopic` directly rather than here.
+ *
+ * The live/superseded split is load-bearing and mirrors `toTopicRows`: live
+ * KLPs drive knowledge, superseded ones still attribute historical error tags.
+ * A topic whose links are ALL superseded is dropped rather than emitted with
+ * an empty numerator — it describes a card version nobody studies any more.
+ */
+export function kltRowsToTopicRows(rows: RawKltRow[], maxRank: number): TopicRow[] {
+  const out: TopicRow[] = []
+  for (const row of rows) {
+    const inRank = row.links.filter((l) => l.rank <= maxRank)
+    const klpIds = [
+      ...new Set(inRank.filter((l) => l.klp.supersededAt === null).map((l) => l.klp.id)),
+    ]
+    if (klpIds.length === 0) continue
+    out.push({
+      normalizedName: row.normalizedName,
+      displayName: row.name,
+      // KLTs are AI-derived; only user-authored categories carry a colour.
+      color: null,
+      klpIds,
+      supersededKlpIds: [
+        ...new Set(inRank.filter((l) => l.klp.supersededAt !== null).map((l) => l.klp.id)),
+      ],
+      cardIds: [...new Set(inRank.map((l) => l.klp.cardId))],
+    })
+  }
+  return out
+}
