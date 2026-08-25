@@ -39,11 +39,13 @@ Taken with the user on 2026-08-25.
 | 2 | **A key point links to its LEAF concept only.** Ancestors are derived by walking up. | ~153 links instead of ~1,200, and per-level mastery becomes a subtree query rather than a generation. Directly answers the user's token-cost concern: reporting at every layer costs **zero** extra AI calls. |
 | 3 | **`rank` returns to meaning CENTRALITY** (primary leaf vs secondary), not breadth. | Breadth now lives in the tree, so rank is free to mean what it originally did. This restores the user's original "all ranks count toward mastery" decision to the meaning they gave it under, and `masteryTopicRanks` keeps working unchanged. |
 | 4 | **Two-phase generation.** Phase A names the label + leaf; Phase B places new leaves in the tree. | Naming a leaf from the KLP's own words is what the model is reliably good at. Deciding where it hangs is the compounding error, and it wants the whole tree in view — not one batch. Phase B runs only for genuinely new concepts, so it amortises toward zero. |
-| 5 | **The AI builds the entire chain. Nobody hand-authors a skeleton.** | No curated taxonomy, no cold-start burden on the user, and it stays domain-agnostic. |
+| 5 | **The top of a subject tree is SEEDED, either by the user or by the AI on request.** | The model reliably collapses middle rungs (§10.1). Anchoring the top removes the least reliable task rather than trying to prompt around it. NOT the hardcoded finance taxonomy rejected in the previous spec: this is per-user, optional, authored in the editor, and the AI-seeded path keeps the zero-setup property for anyone who does not want to author one. |
 | 6 | **Depth is not uniform and is never padded.** Hard cap 8. | Forcing a rung count reproduces the padded-KLP failure the extraction prompt already warns against — the model will invent `statements → financial statements → statement analysis` to hit a target. |
 | 7 | **Display depth is auto-selected, with manual override.** | The deepest level whose topics clear the learner's observation floor. Thin corpus shows broad topics; the view sharpens as evidence accumulates, instead of showing 60 leaf topics reading "not measured". |
 | 8 | **A tree editor UI ships with the feature**, gated by a `KLT_EDITORS` allowlist. | The user chose a UI over an operator script. The gate reconciles it with the previous spec's Decision 8 ("users cannot edit the global vocabulary"): the tree is shared, so an unrestricted editor would let one account move everyone's mastery. |
 | 9 | **Verification runs in both directions** — structural invariants in TypeScript, semantic audits by AI. | The user's requirement. Structural tests pass happily on a perfectly-shaped nonsense tree, so neither alone is sufficient. |
+| 10 | **Depth is DISCOVERED, never demanded.** A shallow chain is accepted; a refinement pass deepens it later. | Asking for eight rungs produces eight, including invented filler that then becomes permanent structure. Branching factor tells us *where* a rung is missing; splitting an overloaded node is a clustering task the model is good at, unlike inventing a deep path from cold. Same principle as the concentration check that fixed prompt v3. |
+| 11 | **`technicals` is one rung, a sibling of `behaviorals` / `market knowledge` / `brain teasers`.** | The user's correction. `core concepts` and `fundamentals` are *children* of technicals, not competing names for it — an error in the previous draft. |
 
 ---
 
@@ -93,7 +95,7 @@ model KlpTopic {
 
 `ancestorIds` needs a GIN index, added in the migration SQL by hand — Prisma does not express it.
 
-**`onDelete: Restrict` is deliberate.** Prisma defaults an optional self-relation to `SetNull`, which would silently orphan an entire subtree on a delete — every key point beneath it would vanish from every rollup above it, with nothing raised. The editor refuses the delete too (§8), but the database is the guard that cannot be bypassed by a script or a future call site.
+**`onDelete: Restrict` is deliberate.** Prisma defaults an optional self-relation to `SetNull`, which would silently orphan an entire subtree on a delete — every key point beneath it would vanish from every rollup above it, with nothing raised. The editor refuses the delete too (§9), but the database is the guard that cannot be bypassed by a script or a future call site.
 
 ---
 
@@ -135,7 +137,81 @@ TypeScript then reconciles: match each path segment against `normalizedName`, cr
 
 ---
 
-## 5. Mastery rollup
+## 5. Seeding the top of a subject
+
+The model collapses middle rungs, so the tree gets its shape from an anchor rather than from a
+deeper prompt. Two ways in, and a subject may use either.
+
+### 5.1 User-authored
+
+The tree editor (§9) doubles as the seeding surface: create a root, add children, drag to
+re-parent. The user already knows their own taxonomy precisely — the worked example below came
+from them in one message — so this is minutes of work, once per subject, and it is the highest-
+quality anchor available.
+
+### 5.2 AI-seeded, on request
+
+A button in the editor: *"suggest a starting structure for this subject"*. One call, given the
+subject name and the leaf concepts already extracted from the user's cards, returns a proposed
+top **2–3 rungs only** — never leaves. The user accepts, edits, or discards it before anything is
+written. Nothing is auto-applied: an unreviewed skeleton is the structure every later placement
+inherits, so a wrong one is expensive and silent.
+
+This keeps the zero-setup property for a learner who does not want to author a taxonomy, while
+leaving the anchor a deliberate act rather than a side effect.
+
+### 5.3 The worked example, from the user
+
+```
+finance
+├── technicals
+│   ├── accounting
+│   │   └── financial statements
+│   │       ├── cash flow statement
+│   │       │   └── operating activities
+│   │       │       └── non-cash charges
+│   │       │           └── depreciation add-back
+│   │       ├── balance sheet
+│   │       │   └── liquidity
+│   │       │       └── liquidity ratios
+│   │       │           └── quick ratio
+│   │       └── income statement
+│   └── valuation
+│       └── dcf
+│           └── wacc
+├── behaviorals
+├── market knowledge
+└── brain teasers
+```
+
+Both leaf paths are exactly 8 rungs, which is the depth cap. Seeding covers `finance → technicals
+→ accounting`; Phase B places the leaf; §6 fills the middle.
+
+---
+
+## 6. Refinement — filling the middle
+
+Placement produces short chains. Rather than prompt harder for depth, the tree reports where a
+rung is **missing** and a separate pass inserts it.
+
+**The signal is branching factor.** A node whose direct children exceed `MAX_BRANCHING` (7) is a
+level that has absorbed distinctions it should have delegated: fifteen leaves hanging off
+`cash flow statement` means `operating activities` and `non-cash charges` do not exist yet.
+
+**The pass** takes one overloaded node and its children and asks for intermediate groupings —
+never new leaves, never a re-root. TypeScript inserts the proposed nodes between parent and
+children, recomputing `depth` and `ancestorIds` for the moved subtree in one transaction.
+
+Grouping named siblings is a task models do well, and it is bounded: the failure mode is a poor
+grouping of things that are already correctly under one parent, not a mis-rooted concept. Contrast
+with cold-start path invention, where an error puts a concept in the wrong branch entirely.
+
+**Refinement is proposed, never auto-applied**, for the same reason as §5.2: it rewrites structure
+that mastery aggregates over.
+
+---
+
+## 7. Mastery rollup
 
 Mastery at node *N* aggregates every key point linked to *N* **or to any descendant of *N***:
 
@@ -145,11 +221,11 @@ klpIds where KlpTopic.klt.id = N OR N = ANY(KlpTopic.klt.ancestorIds)
 
 Those key point ids feed the existing `kltRowsToTopicRows` → `shapeTopicProfile` path unchanged, so knowledge, readiness and verbosity are computed by the same code as the category axis. **No second scoring implementation.**
 
-`masteryTopicRanks` keeps its original meaning — how many of a key point's *leaf* concepts (rank 1, or 1 and 2) count. It is no longer a depth cutoff; depth is chosen by §6.
+`masteryTopicRanks` keeps its original meaning — how many of a key point's *leaf* concepts (rank 1, or 1 and 2) count. It is no longer a depth cutoff; depth is chosen by §8.
 
 ---
 
-## 6. Display
+## 8. Display
 
 **Auto-selected depth.** Compute, for each depth level, how many topics at that level clear the learner's `minObservations` floor. Show the **deepest** level where that count is at least `MIN_TOPICS_AT_DEPTH` (3). Fall back to the shallowest populated level when none qualifies.
 
@@ -163,9 +239,24 @@ Every level stays queryable regardless of what is displayed.
 
 ---
 
-## 7. Verification
+## 9. Tree editor
 
-### 7.1 Structural invariants — TypeScript, in CI
+A screen listing the tree, gated by `KLT_EDITORS` (comma-separated user ids). Not in the allowlist: the route 404s, same posture as any other owner check.
+
+Operations: **re-parent**, **rename**, **merge**, **delete**.
+
+- Re-parent recomputes `depth` and `ancestorIds` for the moved node **and its whole subtree**, in one transaction, and refuses cycles.
+- Delete is refused while the node has children — orphaning a subtree is the silent failure this editor exists to fix.
+- Merge re-points links and children, then deletes the emptied node.
+- Every operation is `KLT_EDITORS`-gated **server-side**, not merely hidden in the UI.
+
+**This is a global structure.** A re-parent moves every account's mastery, which is why the allowlist exists and why §10.2's audit output lands here rather than in an automatic job.
+
+---
+
+## 10. Verification
+
+### 10.1 Structural invariants — TypeScript, in CI
 
 Absolute, cheap, and run on every build:
 
@@ -179,7 +270,7 @@ Absolute, cheap, and run on every build:
 
 Each is mutation-tested: break the invariant, confirm the test goes red, restore.
 
-### 7.2 Semantic audits — AI, sampled, after a build
+### 10.2 Semantic audits — AI, sampled, after a build
 
 Structural tests pass happily on a perfectly-shaped nonsense tree. Both directions are needed because they catch different errors:
 
@@ -190,22 +281,7 @@ Output is a **report for a human**, never an automatic re-placement. Letting the
 
 ---
 
-## 8. Tree editor
-
-A screen listing the tree, gated by `KLT_EDITORS` (comma-separated user ids). Not in the allowlist: the route 404s, same posture as any other owner check.
-
-Operations: **re-parent**, **rename**, **merge**, **delete**.
-
-- Re-parent recomputes `depth` and `ancestorIds` for the moved node **and its whole subtree**, in one transaction, and refuses cycles.
-- Delete is refused while the node has children — orphaning a subtree is the silent failure this editor exists to fix.
-- Merge re-points links and children, then deletes the emptied node.
-- Every operation is `KLT_EDITORS`-gated **server-side**, not merely hidden in the UI.
-
-**This is a global structure.** A re-parent moves every account's mastery, which is why the allowlist exists and why §7.2's audit output lands here rather than in an automatic job.
-
----
-
-## 9. Migration
+## 11. Migration
 
 **Delete every `Klt` and `KlpTopic` row and re-run both phases.**
 
@@ -217,34 +293,87 @@ They are derived data holding nothing user-authored, the current 72 topics are f
 
 ---
 
-## 10. Known limits and risks
+## 12. Known limits and risks
 
-### 10.1 A wrong parent silently moves a subtree's mastery
+### 12.1 The model collapses middle rungs — the defining constraint
 
-The compounding error, and the reason `CLAUDE.md` deferred the concept graph. Mitigations: Phase B sees the whole tree; newly created intermediate nodes are logged for review; §7.2 audits both directions; §8 makes a correction one row rather than a regeneration. **A bad placement is cheap to fix and expensive to miss** — the audit is what converts the second into the first.
+Asked to place `depreciation add-back`, a model reliably returns
+`finance → accounting → cash flow statement → depreciation add-back`: four rungs, not eight. It
+skips `technicals`, `financial statements`, `operating activities` and `non-cash charges` — not
+because they are wrong, but because nothing makes them necessary. Models produce the shortest
+defensible path.
 
-### 10.2 Middle rungs are the least stable
+Demonstrated the hard way: an earlier draft of this design used exactly that collapsed chain as
+its own worked example, written by hand, and the user caught it. If it is the natural output for a
+careful writer, it is the natural output for the model.
+
+**Everything in §5 and §6 exists because of this.** Seeding anchors the top, refinement fills the
+middle, and placement is asked only for the part it is reliable at. Prompting harder for depth is
+not on the table — demanding a rung count produces filler, which then becomes permanent structure
+every later placement inherits.
+
+### 12.2 A wrong parent silently moves a subtree's mastery
+
+The compounding error, and the reason `CLAUDE.md` deferred the concept graph. Mitigations: Phase B sees the whole tree; newly created intermediate nodes are logged for review; §10.2 audits both directions; §8 makes a correction one row rather than a regeneration. **A bad placement is cheap to fix and expensive to miss** — the audit is what converts the second into the first.
+
+### 12.3 Middle rungs are the least stable
 
 `technicals` is a study-culture term, not a taxonomy term; expect it to compete with `core concepts` and `fundamentals`. Leaves (anchored by the KLP's words) and roots (few subjects exist) are stable. The middle is where invented rungs cluster, and it is what the editor will mostly be used on.
 
-### 10.3 One global tree spans every subject
+### 12.4 One global tree spans every subject
 
 Roots are subjects, so a biology leaf must never hang under `finance`. Placement is shown existing roots explicitly. Mis-rooting is the most visible failure mode, which is preferable to a subtle one.
 
-### 10.4 Leaf proliferation
+### 12.5 Leaf proliferation
 
 If every key point mints its own leaf, nothing aggregates and the tree is a list with extra steps. The §4.1 leaf rule is the guard; the **singleton-leaf rate** (leaves covering exactly one key point) is reported by the backfill alongside concentration and fragmentation.
 
-### 10.5 Health checks must stay tier-aware
+### 12.6 A single-parent tree cannot express a concept with two homes
+
+`depreciation` genuinely belongs under both the income statement and the cash flow statement. One
+parent forces a choice, and whichever is picked, the other branch under-counts it.
+
+Surfaced by the user's own example, so this corpus will hit it. Accepted anyway: a DAG makes every
+rollup ambiguous — a key point reachable by two paths could be counted twice under a shared
+ancestor — and every aggregation in §7 assumes a tree. Revisit only if mis-homing distorts real
+numbers, not on principle.
+
+### 12.7 Health checks must stay tier-aware
 
 The v3 lesson: a global topic count is meaningless once topics form a hierarchy. Concentration is measured on **leaves**, fragmentation on **roots**. A check that fires on a healthy tree trains the operator to ignore it.
 
 ---
 
-## 11. Out of scope
+## 13. Build order
+
+Three phases, each producing working software and taking its own implementation plan. The design
+stays one document because the pieces only make sense together; the build splits because they do
+not have to land together.
+
+**Phase 1 — the substrate.** Schema and migration, Phase A/B generation, structural invariants,
+subtree rollup, health metrics (branching factor, singleton leaves, concentration, fragmentation),
+and enough display to keep `/profile/learner` honest: auto-selected depth plus a breadcrumb, no
+zoom control. Ends with a real tree over the live corpus — shallow in the middle, and measurably
+so rather than invisibly so.
+
+**Phase 2 — the editor and seeding.** The tree screen behind `KLT_EDITORS`: view, re-parent,
+rename, merge, delete, plus both seeding paths (§5). This is what turns a bad placement into a
+one-row fix and lets the user impose the taxonomy they already hold. Depends on Phase 1.
+
+**Phase 3 — refinement and audits.** Branching-factor-driven rung insertion (§6) and the
+two-direction semantic audits (§10.2), both reporting proposals *into* the Phase 2 editor rather
+than applying themselves. Depends on both.
+
+Phase 1 alone is honest but shallow; Phase 2 makes it correctable; Phase 3 makes it improve on its
+own. **Stopping after Phase 2 is a legitimate outcome** if the seeded tree turns out good enough —
+Phase 3 is the one whose value is least certain in advance.
+
+---
+
+## 14. Out of scope
 
 - **Multiple parents / a real graph.** A node has one parent. Cross-links are a genuinely different data structure and every rollup here assumes a tree.
-- **Per-user trees or copy-on-write overrides.** The tree stays global; §8's allowlist is the answer to edit rights for now.
-- **Automatic re-placement from audit findings** — §7.2.
+- **Per-user trees or copy-on-write overrides.** The tree stays global; §9's allowlist is the answer to edit rights for now.
+- **Automatic re-placement from audit findings** — §10.2.
 - **Changing `CardKlp` in any way** beyond what already shipped. Labels stay, the proposition stays, the §6 mastery guards stay.
 - **A public/browsable concept directory.** Related to item 6c, not this.

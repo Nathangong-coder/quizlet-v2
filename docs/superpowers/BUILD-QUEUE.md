@@ -596,6 +596,17 @@ turns per-level mastery into a subtree query — zero extra AI calls, which answ
 token-cost concern. It supersedes §10 of the 2026-08-24 spec and takes the concept-graph bet
 `CLAUDE.md` deferred.
 
+**Built in THREE phases, each with its own plan** (spec §13): (1) substrate — schema, generation,
+invariants, rollup, minimal display; (2) editor + seeding — the tree UI behind `KLT_EDITORS`, with
+both user-authored and AI-suggested skeletons; (3) refinement + semantic audits. Stopping after
+phase 2 is a legitimate outcome.
+
+**The constraint that shapes the whole design (spec §12.1): the model collapses middle rungs.**
+Asked to place `depreciation add-back` it returns four rungs, not eight — skipping `technicals`,
+`financial statements`, `operating activities`, `non-cash charges`. An earlier draft of the spec
+made exactly that mistake by hand and the user caught it. Hence seeding the top and refining the
+middle, rather than prompting harder for depth.
+
 Design: `specs/2026-08-24-klt-topic-layer-design.md`. Plan: `plans/2026-08-24-klt-topic-layer.md`. 14 tasks, commit range `7015788..HEAD`. **Both open questions below are now answered** — kept for the reasoning that produced them.
 
 **New baselines (this branch, 2026-08-24, after item 9):**
