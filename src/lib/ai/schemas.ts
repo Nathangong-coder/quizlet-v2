@@ -164,3 +164,30 @@ export const TrueFalseStatementSchema = z.object({
 });
 
 export type TrueFalseStatement = z.infer<typeof TrueFalseStatementSchema>;
+
+/**
+ * How many topics one KLP may carry. The cap is the containment for spec §9.1:
+ * every rank feeds mastery by default, so an uncapped list would let a single
+ * failed answer mark an unbounded number of topics weak — the opposite of the
+ * specificity this layer exists to add.
+ */
+export const MAX_KLTS_PER_KLP = 3;
+
+export const KltSummarySchema = z.object({
+  klps: z.array(
+    z.object({
+      // Index into the batch, never a cuid — the model must never see raw ids.
+      ref: z.number().int().min(0),
+      /** 3-6 word rendering of the proposition, e.g. "Debt impact on WACC". */
+      label: z.string().min(1),
+      /**
+       * Topic names, most central first. May be EMPTY: a KLP with no good
+       * topic is better untopiced than fitted to a wrong one, and it still
+       * earns its label.
+       */
+      topics: z.array(z.string().min(1)).max(MAX_KLTS_PER_KLP),
+    }),
+  ),
+});
+
+export type KltSummary = z.infer<typeof KltSummarySchema>;
