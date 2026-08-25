@@ -17,7 +17,7 @@
 import { prisma } from '@/lib/db';
 import { generateJson, AiGenerationError } from '@/lib/ai/generate';
 import { SUMMARIZE_KLTS_PROMPT } from '@/lib/ai/prompts/summarize-klts';
-import { KltSummarySchema } from '@/lib/ai/schemas';
+import { KltSummarySchema, type KltSummary } from '@/lib/ai/schemas';
 import { KLT_BATCH_SIZE } from '@/lib/cards/klt-batch';
 import { assembleCandidates } from '@/lib/klt/candidates';
 import { resolveKltWrites, type KltWrite } from '@/lib/klt/resolve';
@@ -31,6 +31,22 @@ import { readableSetWhere } from '@/lib/sets/visibility';
 function isNoUsableCredential(err: unknown): boolean {
   return err instanceof AiGenerationError && (err.detail.attempts?.length ?? 0) === 0;
 }
+
+/**
+ * How one batch's summary is obtained.
+ *
+ * A seam, not a strategy. Production always uses `defaultKltGenerator`, which
+ * goes through the user's own credential pool. It exists so an operator can run
+ * the pipeline against a raw `GOOGLE_API_KEY` when the stored credentials
+ * cannot be decrypted locally — the `--direct` path in
+ * `scripts/backfill-klts.ts`. Without it, a mis-set
+ * `GOOGLE_KEY_ENCRYPTION_SECRET` makes the whole feature unrunnable outside
+ * production, which is exactly when you most need to look at its output.
+ */
+export type KltGenerator = (input: { userId: string; prompt: string }) => Promise<KltSummary>;
+
+export const defaultKltGenerator: KltGenerator = ({ userId, prompt }) =>
+  generateJson({ userId, task: 'autocomplete', prompt, schema: KltSummarySchema });
 
 interface BatchCard {
   id: string;
@@ -60,6 +76,7 @@ export async function summarizeKltsForCards(
   userId: string,
   cardIds: string[],
   isOwner: boolean = true,
+  generate: KltGenerator = defaultKltGenerator,
 ): Promise<void> {
   if (cardIds.length === 0) return;
 
@@ -95,7 +112,7 @@ export async function summarizeKltsForCards(
     // the rows earlier entries already committed.
     const succeeded: string[] = [];
     try {
-      await summarizeOneBatch(userId, batch, succeeded);
+      await summarizeOneBatch(userId, batch, succeeded, generate);
     } catch (err) {
       const failedIds = batch.map((c) => c.id).filter((id) => !succeeded.includes(id));
       if (failedIds.length > 0 && isOwner) {
@@ -109,6 +126,7 @@ async function summarizeOneBatch(
   userId: string,
   batch: BatchCard[],
   succeeded: string[],
+  generate: KltGenerator,
 ): Promise<void> {
   // One flat list of KLPs across the whole batch; `ref` indexes into it.
   const flat = batch.flatMap((card) => card.klps.map((k) => ({ ...k, cardId: card.id })));
@@ -135,15 +153,13 @@ async function summarizeOneBatch(
     klpTexts: flat.map((k) => k.text),
   });
 
-  const result = await generateJson({
+  const result = await generate({
     userId,
-    task: 'autocomplete',
     prompt: SUMMARIZE_KLTS_PROMPT.build({
       setTitle: batch[0].set.title,
       klps: flat.map((k, ref) => ({ ref, text: k.text, kind: k.kind })),
       candidates,
     }),
-    schema: KltSummarySchema,
   });
 
   const writes = resolveKltWrites(result.klps, klpIds);
