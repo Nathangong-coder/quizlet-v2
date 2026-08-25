@@ -7,7 +7,9 @@ import {
   type KltGenerator,
 } from '../src/lib/klt/summarize'
 import { KLT_BATCH_SIZE } from '../src/lib/cards/klt-batch'
-import { KltSummarySchema } from '../src/lib/ai/schemas'
+import { KltSummarySchema, KltPlacementSchema } from '../src/lib/ai/schemas'
+import { placeUnparentedConcepts, type KltPlacer } from '../src/lib/klt/place'
+import { checkTreeInvariants } from '../src/lib/klt/invariants'
 
 /**
  * `--direct` runs against a raw `GOOGLE_API_KEY` instead of the user's stored
@@ -35,6 +37,29 @@ function directGenerator(): KltGenerator {
       model: google(model),
       prompt,
       output: Output.object({ schema: KltSummarySchema }),
+    })
+    return res.output
+  }
+}
+
+/**
+ * `--direct` equivalent of `directGenerator`, for Phase B (placement). Same
+ * rationale: bypasses the stored, encrypted `AiCredential` pool and hits a raw
+ * `GOOGLE_API_KEY` directly, writing nothing to `AiCredential`.
+ */
+function directPlacer(): KltPlacer {
+  const apiKey = process.env.GOOGLE_API_KEY
+  if (!apiKey) throw new Error('--direct needs GOOGLE_API_KEY in the environment')
+  const google = createGoogle({ apiKey })
+  const model = process.env.KLT_DIRECT_MODEL ?? 'gemini-3.6-flash'
+
+  return async ({ prompt }) => {
+    // generateObject does not exist in AI SDK v7; structured output is
+    // generateText + Output.object.
+    const res = await generateText({
+      model: google(model),
+      prompt,
+      output: Output.object({ schema: KltPlacementSchema }),
     })
     return res.output
   }
@@ -86,6 +111,21 @@ async function main() {
     }
   }
 
+  // Phase B. Runs ONCE for the whole install, not per owner: the tree is
+  // global, and placing one owner's concepts at a time would show the model a
+  // partial tree and invite it to mint duplicates of nodes another owner's run
+  // is about to create.
+  //
+  // Unconditional on `force`: unplaced concepts are unplaced either way, and
+  // guarded on `owners.length` rather than defaulting a missing first owner's
+  // id to an empty string — an empty userId would still reach `generateJson`
+  // and fail credential resolution in a confusing way instead of skipping
+  // cleanly, the way every other empty-database path in this script does.
+  if (owners.length > 0) {
+    console.log('[backfill:klts] placing unparented concepts…')
+    await placeUnparentedConcepts(owners[0].id, direct ? directPlacer() : undefined)
+  }
+
   const [topics, links, labels, stillPending] = await Promise.all([
     prisma.klt.count(),
     prisma.klpTopic.count(),
@@ -109,79 +149,59 @@ async function main() {
       `[backfill:klts] WARNING: only ${labels} of ${liveKlps} live key points got a usable short label. The rest were discarded for being too long — study lists will show the full proposition instead.`,
     )
   }
-  // Fragmentation is measured on the DISCIPLINE tier only.
-  //
-  // A total-topic count is meaningless once topics form a specific->broad
-  // ladder: many rank-1 topics is the goal, not a symptom. It is rank 3 that
-  // must stay small — a corpus with as many "disciplines" as cards has no
-  // rollup at all. The first ladder run produced 68/33/14 across the three
-  // tiers, which the old global check wrongly flagged as fragmenting.
-  await reportFragmentation(processed)
-
-  await reportConcentration(liveKlps)
+  // Health is now tree-shaped, not tier-shaped: fragmentation is measured on
+  // the DISCIPLINE/root tier only, and concentration on LEAVES. A global
+  // topic count or an unqualified per-node share both cry wolf on a healthy
+  // run — see `reportTreeHealth`.
+  await reportTreeHealth()
 }
 
-/** Share of key points one NARROW topic may cover before it is a shelf. */
-const CONCENTRATION_LIMIT = 0.25
+/** Direct children above which a node has absorbed distinctions it should delegate. */
+const MAX_BRANCHING = 7
 
-/** Distinct rank-3 topics, as a share of cards, above which rollup is lost. */
-const DISCIPLINE_LIMIT = 0.25
-
-async function reportFragmentation(cards: number) {
-  if (cards === 0) return
-  const tiers = await Promise.all(
-    [1, 2, 3].map((rank) =>
-      prisma.klpTopic
-        .groupBy({ by: ['kltId'], where: { rank, klp: { supersededAt: null } } })
-        .then((r) => r.length),
-    ),
-  )
-  console.log(
-    `[backfill:klts] distinct topics by tier — narrow ${tiers[0]}, area ${tiers[1]}, discipline ${tiers[2]}`,
-  )
-  if (tiers[2] > cards * DISCIPLINE_LIMIT) {
-    console.warn(
-      `[backfill:klts] WARNING: ${tiers[2]} distinct DISCIPLINE topics for ${cards} cards. The broad tier is meant to be a handful; this many means the ladder is not rolling up and topic mastery has nothing to aggregate over.`,
-    )
-  }
-}
-
-/**
- * The OPPOSITE failure to fragmentation, and the one the first real run hit:
- * too few topics, each covering too much. One umbrella term ("financial
- * analysis") held 15% of the corpus at rank 1 under the v2 prompt.
- *
- * Measured on rank 1 ONLY. Rank 3 is the discipline and is an umbrella BY
- * DESIGN — warning about it would cry wolf on every healthy run. Rank 1 is the
- * grain that has to stay specific for the study list to be worth reading.
- */
-async function reportConcentration(liveKlps: number) {
-  if (liveKlps === 0) return
-
+async function reportTreeHealth() {
   const rows = await prisma.klt.findMany({
-    select: {
-      name: true,
-      _count: { select: { links: { where: { rank: 1, klp: { supersededAt: null } } } } },
-    },
+    select: { id: true, name: true, normalizedName: true, parentKltId: true, depth: true, ancestorIds: true },
   })
-  const ranked = rows
-    .map((r) => ({ name: r.name, share: r._count.links / liveKlps }))
-    .filter((r) => r.share > 0)
-    .sort((a, b) => b.share - a.share)
 
-  console.log('')
-  console.log('[backfill:klts] most concentrated NARROW (rank 1) topics:')
-  for (const r of ranked.slice(0, 8)) {
-    console.log(`  ${(r.share * 100).toFixed(1).padStart(5)}%  ${r.name}`)
+  const violations = checkTreeInvariants(rows)
+  if (violations.length > 0) {
+    console.error(`[backfill:klts] STRUCTURAL VIOLATIONS: ${violations.length}`)
+    for (const v of violations.slice(0, 10)) console.error(`  ${v.kind} ${v.kltId}: ${v.detail}`)
   }
 
-  const tooBroad = ranked.filter((r) => r.share > CONCENTRATION_LIMIT)
-  if (tooBroad.length > 0) {
-    console.warn(
-      `[backfill:klts] WARNING: ${tooBroad.length} narrow topic(s) cover more than ${CONCENTRATION_LIMIT * 100}% of key points each: ` +
-        tooBroad.map((r) => `"${r.name}" ${(r.share * 100).toFixed(0)}%`).join(', ') +
-        `. A rank-1 topic that broad is a shelf, not an idea — mastery on it will not tell the learner what to study.`,
-    )
+  const byDepth = new Map<number, number>()
+  for (const r of rows) byDepth.set(r.depth, (byDepth.get(r.depth) ?? 0) + 1)
+  console.log('[backfill:klts] nodes by depth: ' +
+    [...byDepth.entries()].sort((a, b) => a[0] - b[0]).map(([d, n]) => `${d}:${n}`).join(' '))
+
+  const unplaced = rows.filter((r) => r.parentKltId === null &&
+    !rows.some((o) => o.parentKltId === r.id))
+  if (unplaced.length > 0) {
+    console.warn(`[backfill:klts] ${unplaced.length} concept(s) still unparented — they report ` +
+      `mastery as their own node but do not roll up: ${unplaced.slice(0, 8).map((u) => u.name).join(', ')}`)
+  }
+
+  const childCount = new Map<string, number>()
+  for (const r of rows) {
+    if (r.parentKltId) childCount.set(r.parentKltId, (childCount.get(r.parentKltId) ?? 0) + 1)
+  }
+  const overloaded = [...childCount.entries()]
+    .filter(([, n]) => n > MAX_BRANCHING)
+    .map(([id, n]) => `${rows.find((r) => r.id === id)?.name} (${n})`)
+  if (overloaded.length > 0) {
+    console.warn(`[backfill:klts] ${overloaded.length} node(s) exceed ${MAX_BRANCHING} direct ` +
+      `children — a rung is probably missing beneath them: ${overloaded.join(', ')}`)
+  }
+
+  const linked = await prisma.klpTopic.groupBy({ by: ['kltId'], _count: true })
+  const singletons = linked.filter((l) => l._count === 1).length
+  if (linked.length > 0) {
+    console.log(`[backfill:klts] concepts with exactly one key point: ${singletons}/${linked.length}`)
+    if (singletons > linked.length * 0.5) {
+      console.warn('[backfill:klts] WARNING: over half of concepts cover a single key point. ' +
+        'Leaves are being minted per card instead of reused — nothing will aggregate.')
+    }
   }
 }
 

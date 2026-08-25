@@ -23,10 +23,33 @@ describe('backfill-klts', () => {
     expect(script).not.toMatch(/^await /m)
   })
 
-  it('warns when the vocabulary looks fragmented instead of failing silently', () => {
-    // Near-one-topic-per-card is the §9.4 failure mode, and it is invisible
-    // unless something says so.
-    expect(script).toMatch(/fragmenting/)
+  it('runs placement after summarization', () => {
+    expect(script).toMatch(/placeUnparentedConcepts/)
+    expect(script.indexOf('summarizeKltsForCards')).toBeLessThan(
+      script.indexOf('placeUnparentedConcepts'),
+    )
+  })
+
+  it('guards placement against an empty owners table', () => {
+    // R4: `owners[0]?.id ?? ''` would still reach `placeUnparentedConcepts` ->
+    // `generateJson` with an empty userId and fail credential resolution in a
+    // confusing way, instead of skipping cleanly like every other
+    // empty-database path in this script.
+    expect(script).not.toMatch(/owners\[0\]\?\.id\s*\?\?\s*''/)
+    expect(script).toMatch(/owners\.length > 0/)
+  })
+
+  it('checks structural invariants and reports violations loudly', () => {
+    expect(script).toMatch(/checkTreeInvariants/)
+    expect(script).toMatch(/STRUCTURAL VIOLATIONS/)
+  })
+
+  it('warns on overloaded nodes — the signal a rung is missing', () => {
+    expect(script).toMatch(/MAX_BRANCHING/)
+  })
+
+  it('warns on leaf proliferation', () => {
+    expect(script).toMatch(/single key point/)
   })
 
   it('is registered as an npm script', () => {
