@@ -65,7 +65,7 @@ vi.mock('@/lib/ai/generate', () => ({
 vi.mock('@/auth', () => ({ auth: h.auth }))
 vi.mock('next/cache', () => ({ revalidatePath: h.revalidatePath }))
 
-import { summarizeKltsForCards } from '@/actions/klt'
+import { summarizeKltsForCards } from '@/lib/klt/summarize'
 import { AiGenerationError } from '@/lib/ai/generate'
 
 const OWNER = 'user-owner'

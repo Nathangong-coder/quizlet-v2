@@ -1,5 +1,5 @@
 import { prisma } from '../src/lib/db'
-import { summarizeKltsForCards } from '../src/actions/klt'
+import { summarizeKltsForCards } from '../src/lib/klt/summarize'
 import { KLT_BATCH_SIZE } from '../src/lib/cards/klt-batch'
 
 /**

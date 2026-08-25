@@ -12,7 +12,7 @@ import { ContentBlock } from '@/lib/cards/content';
 import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categories'
 import { reconcileCards } from '@/lib/cards/reconcile'
 import { extractKlpsForCards } from '@/actions/klp'
-import { summarizeKltsForCards } from '@/actions/klt'
+import { summarizeKltsForCards } from '@/lib/klt/summarize'
 import { selectRefreshableStaleCardIds } from '@/lib/cards/stale'
 import { rescoreSetAttempts } from '@/lib/quiz/rescore'
 import type { CardKlpStatus } from '@/lib/cards/klp-status'
