@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { KLP_KINDS } from '@/lib/ai/schemas'
 import { getCardKlps, saveCardKlp, retryKlpExtraction } from '@/actions/klp'
+import { retryKltSummarization } from '@/actions/klt'
 import type { CardKlpStatus } from '@/lib/cards/klp-status'
 import { toast } from 'sonner'
 
@@ -14,6 +15,8 @@ interface Klp {
   text: string
   weight: number
   kind: string
+  /** The short rendering; null until the topic pass has run. */
+  label: string | null
 }
 
 /**
@@ -26,6 +29,9 @@ export function KlpEditor({ cardId }: { cardId: string }) {
   // which affordance renders, and a misspelling in a bare string comparison
   // fails silently by showing nothing.
   const [status, setStatus] = useState<CardKlpStatus | null>(null)
+  // SEPARATE from `status`: the KLP and topic passes fail independently, and
+  // one shared value would offer the wrong retry for the wrong failure.
+  const [kltStatus, setKltStatus] = useState<CardKlpStatus | null>(null)
   const [klps, setKlps] = useState<Klp[]>([])
   const [busy, setBusy] = useState(false)
 
@@ -38,6 +44,7 @@ export function KlpEditor({ cardId }: { cardId: string }) {
       return
     }
     setStatus(res.data.status)
+    setKltStatus(res.data.kltStatus)
     setKlps(res.data.klps)
   }
 
@@ -72,6 +79,19 @@ export function KlpEditor({ cardId }: { cardId: string }) {
     // `revalidatePath` cannot fix that: it does not reset a client component's
     // useState, and `toggle()` only calls `load()` while `status === null`.
     // `load()` owns its own busy flag and clears it on both arms.
+    await load()
+  }
+
+  async function retryTopics() {
+    setBusy(true)
+    const res = await retryKltSummarization(cardId)
+    // Early return, not `if (res.success && ...)`: ActionResult is a
+    // discriminated union, so `res.error` only narrows inside the failure arm.
+    if (!res.success) {
+      setBusy(false)
+      toast.error(res.error || 'Failed to summarize topics')
+      return
+    }
     await load()
   }
 
@@ -117,10 +137,33 @@ export function KlpEditor({ cardId }: { cardId: string }) {
             </div>
           )}
 
+          {!busy && status === 'ready' && kltStatus === 'pending' && (
+            <p className="text-sm text-muted-foreground">Summarizing topics…</p>
+          )}
+
+          {!busy && status === 'ready' && kltStatus === 'skipped' && (
+            <p className="text-sm text-muted-foreground">
+              Add an AI key in Settings to summarize this card&rsquo;s topics.
+            </p>
+          )}
+
+          {!busy && status === 'ready' && kltStatus === 'failed' && (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm text-destructive">Topic summary failed for this card.</p>
+              <Button type="button" variant="outline" size="sm" onClick={retryTopics}>
+                Retry topics
+              </Button>
+            </div>
+          )}
+
           {!busy &&
             status === 'ready' &&
             klps.map((klp) => (
-              <div key={klp.id} className="flex flex-wrap items-center gap-2">
+              <div key={klp.id} className="space-y-1">
+                {klp.label && (
+                  <p className="text-xs font-medium text-muted-foreground">{klp.label}</p>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
                 <Input
                   value={klp.text}
                   onChange={(e) => patch(klp.id, { text: e.target.value })}
@@ -152,6 +195,7 @@ export function KlpEditor({ cardId }: { cardId: string }) {
                 <Button type="button" variant="outline" size="sm" onClick={() => save(klp)}>
                   Save
                 </Button>
+                </div>
               </div>
             ))}
         </div>

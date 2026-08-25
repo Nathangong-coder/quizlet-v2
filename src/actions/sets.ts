@@ -12,6 +12,7 @@ import { ContentBlock } from '@/lib/cards/content';
 import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categories'
 import { reconcileCards } from '@/lib/cards/reconcile'
 import { extractKlpsForCards } from '@/actions/klp'
+import { summarizeKltsForCards } from '@/actions/klt'
 import { selectRefreshableStaleCardIds } from '@/lib/cards/stale'
 import { rescoreSetAttempts } from '@/lib/quiz/rescore'
 import type { CardKlpStatus } from '@/lib/cards/klp-status'
@@ -224,7 +225,13 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
         where: { setId: set.id },
         select: { id: true },
       })
-      after(() => extractKlpsForCards(session.user.id, created.map((c) => c.id)))
+      // Chained, not parallel: summarization reads the KLPs extraction just
+      // wrote, so racing them would summarize an empty set.
+      after(async () => {
+        const ids = created.map((c) => c.id)
+        await extractKlpsForCards(session.user.id, ids)
+        await summarizeKltsForCards(session.user.id, ids)
+      })
     } catch (klpErr) {
       // Nothing more to do — see comment above — but log so an operator can
       // see extraction was never even scheduled for this set.
@@ -352,11 +359,20 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
     if (stale.length > 0) {
       await prisma.card.updateMany({
         where: { setId: id, id: { in: stale } },
-        data: { klpStatus: 'pending' satisfies CardKlpStatus },
+        // kltStatus too: the live labels and topics describe pre-edit
+        // propositions just as the KLPs do, and leaving them 'ready' is the
+        // same dishonesty this write exists to prevent.
+        data: {
+          klpStatus: 'pending' satisfies CardKlpStatus,
+          kltStatus: 'pending' satisfies CardKlpStatus,
+        },
       })
     }
 
-    after(() => extractKlpsForCards(session.user.id, stale))
+    after(async () => {
+      await extractKlpsForCards(session.user.id, stale)
+      await summarizeKltsForCards(session.user.id, stale)
+    })
 
     revalidatePath('/sets')
     revalidatePath(`/sets/${id}`)
