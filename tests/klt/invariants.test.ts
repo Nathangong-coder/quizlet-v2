@@ -65,4 +65,14 @@ describe('checkTreeInvariants', () => {
     const rows = [node('a', 'b', 1, ['b']), node('b', 'a', 1, ['a'])]
     expect(() => checkTreeInvariants(rows)).not.toThrow()
   })
+
+  it('names the ANCESTOR that is missing, not the parent that exists', () => {
+    // c's parent b exists; b's parent 'ghost' does not. Reporting "parent b
+    // does not exist" would send an operator to a node that is right there.
+    const rows = [node('b', 'ghost', 1, ['ghost']), node('c', 'b', 2, ['ghost', 'b'])]
+    const orphans = checkTreeInvariants(rows).filter((v) => v.kind === 'orphan')
+    const forC = orphans.find((v) => v.kltId === 'c')
+    expect(forC?.detail).toContain('ghost')
+    expect(forC?.detail).not.toMatch(/parent b does not exist/)
+  })
 })

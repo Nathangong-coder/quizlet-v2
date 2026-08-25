@@ -35,6 +35,7 @@ export function checkTreeInvariants(rows: TreeNodeRow[]): InvariantViolation[] {
     let cursor = row.parentKltId
     let cyclic = false
     let orphaned = false
+    let missingId: string | null = null
 
     while (cursor !== null) {
       if (seen.has(cursor)) {
@@ -44,6 +45,7 @@ export function checkTreeInvariants(rows: TreeNodeRow[]): InvariantViolation[] {
       const parent = byId.get(cursor)
       if (!parent) {
         orphaned = true
+        missingId = cursor
         break
       }
       seen.add(cursor)
@@ -59,7 +61,10 @@ export function checkTreeInvariants(rows: TreeNodeRow[]): InvariantViolation[] {
       out.push({
         kind: 'orphan',
         kltId: row.id,
-        detail: `parent ${row.parentKltId} does not exist`,
+        detail:
+          missingId === row.parentKltId
+            ? `parent ${missingId} does not exist`
+            : `ancestor ${missingId} does not exist (reached via parent ${row.parentKltId})`,
       })
       continue
     }
@@ -82,7 +87,7 @@ export function checkTreeInvariants(rows: TreeNodeRow[]): InvariantViolation[] {
       out.push({
         kind: 'too_deep',
         kltId: row.id,
-        detail: `${walked.length} ancestors exceeds cap ${MAX_TREE_DEPTH}`,
+        detail: `${walked.length} ancestors reaches or exceeds cap ${MAX_TREE_DEPTH}`,
       })
     }
   }
