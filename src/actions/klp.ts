@@ -213,11 +213,21 @@ interface KlpRowInput {
  * Reads the next version and commits the new KLP rows for one card,
  * atomically.
  *
- * THE ONLY MUTATION PATH FOR CardKlp. AI extraction and user edits both come
- * through here, so `CardKlp` stays append-only: historical
- * `QuizQuestion.targetKlpIds` must keep pointing at rows whose text is what
- * the question was actually built from. An in-place `update` anywhere else
- * silently rewrites history.
+ * THE ONLY MUTATION PATH FOR CardKlp'S PROPOSITION. AI extraction and user
+ * edits both come through here, so `CardKlp` stays append-only with respect to
+ * MEANING: historical `QuizQuestion.targetKlpIds` must keep pointing at rows
+ * whose text is what the question was actually built from. An in-place
+ * `update` to `text`, `weight`, `kind`, `index`, `version`, `sourceHash`,
+ * `promptVersion`, `source` or `supersededAt` anywhere else silently rewrites
+ * history.
+ *
+ * ONE EXCEPTION, added with the KLT layer (spec §6.1): `label` is a derived
+ * display annotation carrying no semantic content, and `src/actions/klt.ts`
+ * updates it in place. That cannot rewrite history — the proposition a
+ * question was built from is unchanged. It is deliberately NOT routed through
+ * here, because superseding a row to attach a label would mint new `klpId`s
+ * and orphan every `KlpState` posterior and `AnswerKlpResult` row keyed on the
+ * old ones: a silent, total mastery reset.
  *
  * The version read and the write MUST be in the same transaction: `after()`
  * extraction on set save and `ensureKlpsReady`'s on-demand extraction (Task
@@ -265,6 +275,12 @@ async function writeKlpVersion(
           klpVersion: version,
           klpSourceHash: hash,
           klpError: null,
+          // A new KLP version has NEW ids, so its labels and topics do not
+          // exist yet. Leaving this 'ready' would serve the previous version's
+          // topics against propositions the card no longer teaches — the same
+          // staleness `klpSourceHash` exists to catch one level up.
+          kltStatus: 'pending' satisfies CardKlpStatus,
+          kltError: null,
         },
       });
     });
