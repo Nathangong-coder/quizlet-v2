@@ -1,6 +1,44 @@
+import { createGoogle } from '@ai-sdk/google'
+import { generateText, Output } from 'ai'
 import { prisma } from '../src/lib/db'
-import { summarizeKltsForCards } from '../src/lib/klt/summarize'
+import {
+  summarizeKltsForCards,
+  defaultKltGenerator,
+  type KltGenerator,
+} from '../src/lib/klt/summarize'
 import { KLT_BATCH_SIZE } from '../src/lib/cards/klt-batch'
+import { KltSummarySchema } from '../src/lib/ai/schemas'
+
+/**
+ * `--direct` runs against a raw `GOOGLE_API_KEY` instead of the user's stored
+ * credentials.
+ *
+ * For one situation only: `GOOGLE_KEY_ENCRYPTION_SECRET` locally is not the
+ * secret those credentials were encrypted with, so every decrypt throws and the
+ * feature cannot be exercised at all. This bypasses the credential pool, and
+ * therefore also bypasses rotation, per-user billing and failure classification
+ * — so it is an operator tool, never a code path the app uses.
+ *
+ * It writes NOTHING to `AiCredential`, so it leaves no row that production
+ * would later fail to decrypt.
+ */
+function directGenerator(): KltGenerator {
+  const apiKey = process.env.GOOGLE_API_KEY
+  if (!apiKey) throw new Error('--direct needs GOOGLE_API_KEY in the environment')
+  const google = createGoogle({ apiKey })
+  const model = process.env.KLT_DIRECT_MODEL ?? 'gemini-3.6-flash'
+
+  return async ({ prompt }) => {
+    // generateObject does not exist in AI SDK v7; structured output is
+    // generateText + Output.object.
+    const res = await generateText({
+      model: google(model),
+      prompt,
+      output: Output.object({ schema: KltSummarySchema }),
+    })
+    return res.output
+  }
+}
 
 /**
  * One-time backfill for cards whose KLPs predate the KLT layer.
@@ -15,6 +53,12 @@ import { KLT_BATCH_SIZE } from '../src/lib/cards/klt-batch'
  * credentials and scopes its reads to what that user may see.
  */
 async function main() {
+  const direct = process.argv.includes('--direct')
+  const generate = direct ? directGenerator() : defaultKltGenerator
+  if (direct) {
+    console.log('[backfill:klts] --direct: using GOOGLE_API_KEY, bypassing stored credentials')
+  }
+
   const owners = await prisma.user.findMany({ select: { id: true } })
   let processed = 0
 
@@ -33,7 +77,7 @@ async function main() {
 
     for (let i = 0; i < cards.length; i += KLT_BATCH_SIZE) {
       const batch = cards.slice(i, i + KLT_BATCH_SIZE).map((c) => c.id)
-      await summarizeKltsForCards(owner.id, batch)
+      await summarizeKltsForCards(owner.id, batch, true, generate)
       processed += batch.length
       console.log(`[backfill:klts]   ${processed} cards processed`)
     }
