@@ -7,11 +7,11 @@
  * result: matching path segments against existing nodes, creating only what
  * is missing, and refusing anything unsafe.
  */
-import { generateJson, AiGenerationError } from '@/lib/ai/generate'
+import { generateJson } from '@/lib/ai/generate'
 import { PLACE_KLTS_PROMPT } from '@/lib/ai/prompts/place-klts'
 import { KltPlacementSchema, type KltPlacement } from '@/lib/ai/schemas'
 import { parseKltName } from '@/lib/klt/normalize'
-import { renderTreeForPrompt, MAX_TREE_DEPTH, type TreeNodeRow } from '@/lib/klt/tree'
+import { renderTreeForPrompt, wouldCycle, MAX_TREE_DEPTH, type TreeNodeRow } from '@/lib/klt/tree'
 
 export type KltPlacer = (input: { userId: string; prompt: string }) => Promise<KltPlacement>
 
@@ -35,8 +35,12 @@ export interface ResolvedPlacement {
  *   re-parenting an existing node — moving it and its whole subtree, and every
  *   key point's mastery with it — as a side effect of placing an unrelated
  *   concept. Refusing leaves the concept unplaced, which is recoverable.
- * - A path past the cap is refused WHOLE. Truncating attaches the concept
- *   under the wrong parent, which is worse than leaving it unplaced.
+ * - A path past the LENGTH cap is refused WHOLE. Truncating attaches the
+ *   concept under the wrong parent, which is worse than leaving it unplaced.
+ * - A path whose RESULTING depth would reach the cap is also refused whole,
+ *   even when the path itself is short — a short path anchored deep in the
+ *   tree (via a matched prefix) can still land past the cap. Path length
+ *   alone only bounds a path anchored at the root.
  * - A repeated name is refused: it is a cycle expressed as a path.
  * - Any segment failing `parseKltName` refuses the path, rather than dropping
  *   the segment — dropping a middle rung silently changes what the path means.
@@ -64,6 +68,19 @@ export function resolvePlacementPath(
       toCreate.push(n)
     }
   }
+
+  // The depth the LAST created node (the concept itself, always the final
+  // `toCreate` entry) would land at. `toCreate` is never empty here: the
+  // concept's own row can never already be a member of `byNormalized` (a
+  // normalizedName is globally unique, and callers exclude the concept's own
+  // row from the map precisely so this branch is reachable — see the
+  // `placed` comment in `placeUnparentedConcepts`).
+  if (toCreate.length > 0) {
+    const anchorDepth = matched.length > 0 ? matched[matched.length - 1].depth + 1 : 0
+    const resultingDepth = anchorDepth + toCreate.length - 1
+    if (resultingDepth >= MAX_TREE_DEPTH) return null
+  }
+
   return { matched, toCreate }
 }
 
@@ -129,15 +146,31 @@ export async function placeUnparentedConcepts(
         concepts: unplaced.map((n) => n.name),
       }),
     })
-  } catch (err) {
-    if (!(err instanceof AiGenerationError)) throw err
-    return // Unplaced is a valid state; leave them and let a retry try again.
+  } catch {
+    // NEVER THROWS. This runs inside `after()`, where an escaped exception
+    // surfaces as an unhandled rejection long after the response went out —
+    // and `generateJson` can throw more than `AiGenerationError` (raw Prisma
+    // errors from `resolveCandidates`/`flagFailures`, for instance). Any
+    // failure here means "no placements this round"; unplaced is always a
+    // valid, honest resting state and a later run tries again.
+    return
   }
 
   const byNormalized = new Map(placed.map((n) => [n.normalizedName, n]))
+  const byId = new Map(placed.map((n) => [n.id, n]))
   const unplacedByNormalized = new Map(unplaced.map((n) => [n.normalizedName, n]))
 
-  for (const placement of result.placements) {
+  // Shortest path first. A concept's own path is generally no longer than a
+  // descendant's path that names it as an ancestor, so this tends to place
+  // ancestors before the descendants that reference them — letting the
+  // descendant's own resolution find a REAL match in `byNormalized` instead
+  // of trying to create an ancestor whose name collides with a still-unplaced
+  // row (see the collision check below, which is the backstop for when
+  // sorting alone doesn't fully order things — e.g. an ancestor concept the
+  // model never returned its own placement for).
+  const sorted = [...result.placements].sort((a, b) => a.path.length - b.path.length)
+
+  for (const placement of sorted) {
     const target = parseKltName(placement.concept)
     if (!target) continue
     const node = unplacedByNormalized.get(target.normalizedName)
@@ -151,8 +184,29 @@ export async function placeUnparentedConcepts(
     const resolved = resolvePlacementPath(placement.path, byNormalized)
     if (!resolved) continue
 
+    // A `toCreate` ancestor whose name collides with a concept that is STILL
+    // unplaced this run must not be upserted into: `Klt.normalizedName` is
+    // globally unique, so the upsert would match that existing (parentless)
+    // row and take its `update: {}` no-op branch instead of truly creating a
+    // child of `parent` — silently stranding the row exactly where it was
+    // while our in-memory map wrongly believes it was just re-parented.
+    // Skipping leaves this placement unplaced this round, which a later run
+    // (once that other concept has its own real parent) resolves correctly.
+    const ancestorSpecs = resolved.toCreate.slice(0, -1)
+    if (ancestorSpecs.some((spec) => unplacedByNormalized.has(spec.normalizedName))) continue
+
     try {
-      await applyPlacement(prisma, node, resolved, byNormalized)
+      await applyPlacement(prisma, node, resolved, byNormalized, byId)
+      // Removed only on SUCCESS, and only here: this is what makes the
+      // "Hallucinated concept, or one already placed this run" comment above
+      // true. Without it, the SAME concept named twice in one AI reply would
+      // be looked up and processed a second time — by then `byNormalized`
+      // holds this concept's own just-written row, so the second pass would
+      // resolve a path that "matches" the concept against itself. That is
+      // exactly the self-parent case `applyPlacement`'s own guard (see C1 in
+      // the Task 6 review) refuses — this removal is the fix at the source;
+      // the guard there is kept anyway as a backstop.
+      unplacedByNormalized.delete(target.normalizedName)
     } catch {
       // One bad placement must not abandon the rest of the batch.
     }
@@ -162,17 +216,24 @@ export async function placeUnparentedConcepts(
 /**
  * Create the missing chain and attach the concept, in one transaction.
  *
- * `byNormalized` is updated in place so later placements in the same run reuse
- * nodes this one created — without it, two concepts sharing a new ancestor
- * would each mint their own copy and the tree would fork on its first run.
+ * `byNormalized`/`byId` are updated in place, but only AFTER the transaction
+ * resolves — mutating them from inside the callback would let a ROLLED BACK
+ * transaction leave phantom nodes that a later placement in this run could
+ * "match" against rows that were never actually written. Updating them at
+ * all (rather than not bothering) is what lets a later placement in the same
+ * run reuse a node this one created — without it, two concepts sharing a new
+ * ancestor would each mint their own copy and the tree would fork on its
+ * first run.
  */
 async function applyPlacement(
   prisma: (typeof import('@/lib/db'))['prisma'],
   node: TreeNodeRow,
   resolved: ResolvedPlacement,
   byNormalized: Map<string, TreeNodeRow>,
+  byId: Map<string, TreeNodeRow>,
 ): Promise<void> {
   const parentChain = resolved.toCreate.slice(0, -1) // last entry IS the node
+  const createdInTx: TreeNodeRow[] = []
   let parent = resolved.matched[resolved.matched.length - 1] ?? null
 
   await prisma.$transaction(async (tx) => {
@@ -192,8 +253,26 @@ async function applyPlacement(
           parentKltId: true, depth: true, ancestorIds: true,
         },
       })
-      byNormalized.set(created.normalizedName, created)
+      createdInTx.push(created)
       parent = created
+    }
+
+    // Belt-and-braces (Task 6 review, C1): refuse to write a self-parent or a
+    // cycle, checked against the FINAL parent this placement would use — the
+    // one just-created ancestors included. `unplacedByNormalized.delete` on
+    // success (in the caller) already closes the one reachable path to this
+    // in normal operation (the same concept named twice in one AI reply); this
+    // is the backstop for if that ever regresses, checked right before the
+    // write it would corrupt.
+    if (parent) {
+      const localById = new Map(byId)
+      for (const created of createdInTx) localById.set(created.id, created)
+      localById.set(node.id, node)
+      if (parent.id === node.id || wouldCycle(node.id, parent.id, localById)) {
+        throw new Error(
+          `refusing to attach ${node.id} under ${parent.id}: would self-parent or create a cycle`,
+        )
+      }
     }
 
     await tx.klt.update({
@@ -206,12 +285,20 @@ async function applyPlacement(
     })
   })
 
+  // Only merged in once the transaction has actually committed — see the
+  // doc comment above.
+  for (const created of createdInTx) {
+    byNormalized.set(created.normalizedName, created)
+    byId.set(created.id, created)
+  }
   if (parent) {
-    byNormalized.set(node.normalizedName, {
+    const placedNode: TreeNodeRow = {
       ...node,
       parentKltId: parent.id,
       depth: parent.depth + 1,
       ancestorIds: [...parent.ancestorIds, parent.id],
-    })
+    }
+    byNormalized.set(node.normalizedName, placedNode)
+    byId.set(node.id, placedNode)
   }
 }

@@ -89,6 +89,22 @@ describe('resolvePlacementPath', () => {
   it('rejects a path that repeats a name', () => {
     expect(resolvePlacementPath(['finance', 'finance'], byNormalized)).toBeNull()
   })
+
+  it('rejects a path whose RESULTING depth reaches the cap, even though the path itself is short', () => {
+    // Anchored two levels above the cap via a matched prefix, not via path
+    // length: a plain `path.length > MAX_TREE_DEPTH` check would miss this,
+    // since this path is only 2-3 segments long.
+    const deepAnchor = node('deep', 'deep', 'parent-id', MAX_TREE_DEPTH - 2)
+    const anchored = new Map<string, TreeNodeRow>([['deep', deepAnchor]])
+
+    // One new segment lands the concept exactly AT depth MAX_TREE_DEPTH - 1:
+    // the last valid depth. Allowed.
+    expect(resolvePlacementPath(['deep', 'new1'], anchored)).not.toBeNull()
+
+    // Two new segments would land the concept AT MAX_TREE_DEPTH: one past the
+    // last valid depth. Refused whole, never truncated to the first segment.
+    expect(resolvePlacementPath(['deep', 'new1', 'new2'], anchored)).toBeNull()
+  })
 })
 
 describe('placeUnparentedConcepts', () => {
@@ -115,6 +131,18 @@ describe('placeUnparentedConcepts', () => {
   it('never throws when generation fails', async () => {
     h.kltFindMany.mockResolvedValue([node('x', 'quick ratio', null, 0)])
     const generate: KltPlacer = vi.fn().mockRejectedValue(new AiGenerationError({ attempts: [] } as never))
+    await expect(placeUnparentedConcepts('user-1', generate)).resolves.toBeUndefined()
+    expect(h.kltUpdate).not.toHaveBeenCalled()
+  })
+
+  it('never throws on a plain, non-AiGenerationError failure from the generator', async () => {
+    // The documented NEVER THROWS contract is reachable failing here:
+    // `generateJson` can throw raw Prisma errors (from `resolveCandidates` or
+    // `flagFailures`), not just `AiGenerationError`. This runs inside
+    // `after()`, where an escaped exception surfaces as an unhandled
+    // rejection long after the response went out.
+    h.kltFindMany.mockResolvedValue([node('x', 'quick ratio', null, 0)])
+    const generate: KltPlacer = vi.fn().mockRejectedValue(new Error('boom'))
     await expect(placeUnparentedConcepts('user-1', generate)).resolves.toBeUndefined()
     expect(h.kltUpdate).not.toHaveBeenCalled()
   })
@@ -192,6 +220,141 @@ describe('placeUnparentedConcepts', () => {
     expect(h.kltUpdate).toHaveBeenCalledWith({
       where: { id: 'cr' },
       data: { parentKltId: 'klt-liquidity', depth: 2, ancestorIds: ['klt-finance', 'klt-liquidity'] },
+    })
+  })
+
+  it('does not self-parent or double-write a concept the AI names twice in one reply', async () => {
+    // Once 'quick ratio' is placed, its real (now-parented) row is merged
+    // into byNormalized so LATER placements can reuse it as an ancestor. If
+    // the AI names the SAME concept a second time in the same reply, that
+    // second pass must not re-resolve against the concept's own just-written
+    // row — which would either self-parent it (if the whole path now
+    // "matches") or otherwise duplicate the write.
+    h.kltFindMany.mockResolvedValue([node('x', 'quick ratio', null, 0)])
+    const generate: KltPlacer = vi.fn().mockResolvedValue({
+      placements: [
+        { concept: 'quick ratio', path: ['finance', 'quick ratio'] },
+        { concept: 'quick ratio', path: ['finance', 'quick ratio'] },
+      ],
+    })
+    await placeUnparentedConcepts('user-1', generate)
+
+    expect(h.kltUpdate).toHaveBeenCalledTimes(1)
+    expect(h.kltUpdate).toHaveBeenCalledWith({
+      where: { id: 'x' },
+      data: { parentKltId: 'klt-finance', depth: 1, ancestorIds: ['klt-finance'] },
+    })
+  })
+
+  it('places a shorter-path ancestor before a longer-path descendant that names it, regardless of reply order', async () => {
+    // The AI lists the descendant ('quick ratio') BEFORE the ancestor
+    // ('liquidity ratios') it depends on. Processing in reply order would
+    // try to create 'liquidity ratios' as a byproduct of placing 'quick
+    // ratio' while it is still a distinct, unplaced concept in its own
+    // right. Sorting shortest-path-first places 'liquidity ratios' as its
+    // own target first, so 'quick ratio' then finds a REAL match for it.
+    h.kltFindMany.mockResolvedValue([
+      node('qr', 'quick ratio', null, 0),
+      node('lr', 'liquidity ratios', null, 0),
+    ])
+    const generate: KltPlacer = vi.fn().mockResolvedValue({
+      placements: [
+        { concept: 'quick ratio', path: ['finance', 'liquidity ratios', 'quick ratio'] },
+        { concept: 'liquidity ratios', path: ['finance', 'liquidity ratios'] },
+      ],
+    })
+    await placeUnparentedConcepts('user-1', generate)
+
+    // 'finance' is only ever upserted once (created while placing 'liquidity
+    // ratios'); 'liquidity ratios' itself is never upserted at all — it is
+    // the pre-existing node being directly `update`d, not created via upsert.
+    const financeUpserts = h.kltUpsert.mock.calls.filter(([a]) => a.where.normalizedName === 'finance')
+    const liquidityUpserts = h.kltUpsert.mock.calls.filter(([a]) => a.where.normalizedName === 'liquidity ratios')
+    expect(financeUpserts).toHaveLength(1)
+    expect(liquidityUpserts).toHaveLength(0)
+
+    expect(h.kltUpdate).toHaveBeenCalledTimes(2)
+    expect(h.kltUpdate).toHaveBeenCalledWith({
+      where: { id: 'lr' },
+      data: { parentKltId: 'klt-finance', depth: 1, ancestorIds: ['klt-finance'] },
+    })
+    expect(h.kltUpdate).toHaveBeenCalledWith({
+      where: { id: 'qr' },
+      data: { parentKltId: 'lr', depth: 2, ancestorIds: ['klt-finance', 'lr'] },
+    })
+  })
+
+  it('skips a placement whose ancestor name collides with a concept still unplaced this run', async () => {
+    // 'liquidity ratios' is unplaced and the AI never returns its own
+    // placement for it this round. Upserting an ANCESTOR named 'liquidity
+    // ratios' would hit the pre-existing (parentless) row's unique
+    // `normalizedName` and take the no-op `update: {}` branch instead of
+    // truly creating a child of 'finance' — silently stranding it exactly
+    // where it was while the pipeline wrongly believes it just re-parented
+    // it. The whole placement must be skipped instead.
+    h.kltFindMany.mockResolvedValue([
+      node('qr', 'quick ratio', null, 0),
+      node('lr', 'liquidity ratios', null, 0),
+    ])
+    // Simulates what a REAL Prisma upsert does when `where` matches an
+    // existing row: it takes the `update: {}` no-op branch and returns the
+    // row exactly as it already was, ignoring `create` entirely. The
+    // default beforeEach mock (used for every other test in this file)
+    // always simulates the create branch, which cannot exercise this bug.
+    h.kltUpsert.mockImplementation(
+      async ({ where, create }: { where: { normalizedName: string }; create: Record<string, unknown> }) => {
+        if (where.normalizedName === 'liquidity ratios') {
+          return { id: 'lr', name: 'liquidity ratios', normalizedName: 'liquidity ratios', parentKltId: null, depth: 0, ancestorIds: [] }
+        }
+        return {
+          id: `klt-${where.normalizedName}`,
+          name: create.name,
+          normalizedName: where.normalizedName,
+          parentKltId: create.parentKltId ?? null,
+          depth: create.depth,
+          ancestorIds: create.ancestorIds,
+        }
+      },
+    )
+    const generate: KltPlacer = vi.fn().mockResolvedValue({
+      placements: [{ concept: 'quick ratio', path: ['finance', 'liquidity ratios', 'quick ratio'] }],
+    })
+    await placeUnparentedConcepts('user-1', generate)
+
+    expect(h.kltUpsert).not.toHaveBeenCalled()
+    expect(h.kltUpdate).not.toHaveBeenCalled()
+  })
+
+  it('does not treat a node created during a rolled-back transaction as real for a later placement', async () => {
+    // The FIRST placement's own final write fails (e.g. a DB constraint
+    // violation), so its whole transaction rolls back — but only AFTER it
+    // already upserted a brand-new 'finance' ancestor earlier in that SAME
+    // transaction. If the shared map were updated from inside the
+    // transaction callback (rather than only after it resolves), that
+    // 'finance' row would look real to the SECOND placement even though the
+    // database never actually kept it.
+    h.kltFindMany.mockResolvedValue([
+      node('qr', 'quick ratio', null, 0),
+      node('cr', 'current ratio', null, 0),
+    ])
+    const generate: KltPlacer = vi.fn().mockResolvedValue({
+      placements: [
+        { concept: 'quick ratio', path: ['finance', 'quick ratio'] },
+        { concept: 'current ratio', path: ['finance', 'current ratio'] },
+      ],
+    })
+    h.kltUpdate.mockRejectedValueOnce(new Error('constraint violation'))
+
+    await placeUnparentedConcepts('user-1', generate)
+
+    // The second placement must re-create 'finance' from scratch — it must
+    // NOT find a phantom 'finance' left over in memory from the rolled-back
+    // first attempt.
+    const financeUpserts = h.kltUpsert.mock.calls.filter(([a]) => a.where.normalizedName === 'finance')
+    expect(financeUpserts).toHaveLength(2)
+    expect(h.kltUpdate).toHaveBeenCalledWith({
+      where: { id: 'cr' },
+      data: { parentKltId: 'klt-finance', depth: 1, ancestorIds: ['klt-finance'] },
     })
   })
 })
