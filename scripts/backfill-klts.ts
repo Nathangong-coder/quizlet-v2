@@ -39,17 +39,29 @@ async function main() {
     }
   }
 
-  const [topics, links, stillPending] = await Promise.all([
+  const [topics, links, labels, stillPending] = await Promise.all([
     prisma.klt.count(),
     prisma.klpTopic.count(),
+    prisma.cardKlp.count({ where: { supersededAt: null, label: { not: null } } }),
     prisma.card.count({
       where: { klps: { some: { supersededAt: null } }, kltStatus: { not: 'ready' } },
     }),
   ])
 
+  const liveKlps = await prisma.cardKlp.count({ where: { supersededAt: null } })
   console.log(
-    `[backfill:klts] done — ${processed} cards, ${topics} topics, ${links} links, ${stillPending} still not ready`,
+    `[backfill:klts] done — ${processed} cards, ${topics} topics, ${links} links, ${labels}/${liveKlps} labelled, ${stillPending} still not ready`,
   )
+
+  // A low label yield means the model is returning propositions instead of
+  // headlines and `parseKltLabel` is discarding them. Silent otherwise: every
+  // row just falls back to the full KLP text, which looks like the feature was
+  // never built rather than like a generation problem.
+  if (liveKlps > 0 && labels < liveKlps * 0.5) {
+    console.warn(
+      `[backfill:klts] WARNING: only ${labels} of ${liveKlps} live key points got a usable short label. The rest were discarded for being too long — study lists will show the full proposition instead.`,
+    )
+  }
   // A topic count approaching the card count means the reconciler is minting
   // one topic per card instead of converging, which is the fragmentation this
   // design exists to prevent. Worth an operator's eye, not an exception.

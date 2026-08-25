@@ -590,7 +590,7 @@ Revisit only on evidence of real credential stuffing.
 Design: `specs/2026-08-24-klt-topic-layer-design.md`. Plan: `plans/2026-08-24-klt-topic-layer.md`. 14 tasks, commit range `7015788..HEAD`. **Both open questions below are now answered** — kept for the reasoning that produced them.
 
 **New baselines (this branch, 2026-08-24, after item 9):**
-- **Tests:** 153 files / **1780 passing** (was 140 / 1655) — excluding `cursor-agents`
+- **Tests:** 153 files / **1790 passing** (was 140 / 1655) — excluding `cursor-agents`
 - **`tsc --noEmit`:** clean · **`next build`:** clean · **`npm run lint`:** **175 problems** — unchanged from the item 8 baseline
 - **Schema drift:** zero (`migrate diff` reports an empty migration)
 
@@ -615,6 +615,18 @@ test red.
    with 68 cards belongs to a different account. Component tests cover the panel's rendering
    (9 tests incl. expand, label fallback, null-never-zero); what is unverified is the panel
    **on the page, with real rows**.
+
+**DEFECT FOUND AND FIXED 2026-08-24, after the build.** The user reported "the KLTs are
+outputting the same things as the KLPs". Investigation showed they were NOT seeing KLT output at
+all — `Klt=0`, `KlpTopic=0`, `labelledKlps=0`, so every surface was falling back through
+`label ?? text` to the raw proposition. But it surfaced a real asymmetry: **topic names were
+validated in TypeScript and labels were not.** A model that echoes the proposition back as its
+`label` would have persisted, making the row read exactly as it did before the layer existed —
+the whole feature silently doing nothing. `parseKltLabel` now drops anything over 8 words / 60
+chars (never truncates), label and topics fail independently, the prompt interpolates the
+enforced caps so it cannot drift from them, and the backfill warns when label yield is under 50%.
+Guard mutation-tested: removing the caps turns 5 tests red. Baselines after the fix: **153 files
+/ 1790 passing**, lint still 175.
 
 **One thing found and fixed during implementation, worth knowing.** `summarizeKltsForCards` was
 first written into `src/actions/klt.ts`. Exported from a `'use server'` file it became a

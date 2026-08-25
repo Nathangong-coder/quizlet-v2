@@ -59,8 +59,11 @@ describe('resolveKltWrites', () => {
     expect(out).toEqual([{ klpId: 'klp-a', label: 'Still useful', topics: [] }])
   })
 
-  it('drops an entry whose label is blank — a blank row would render as empty', () => {
-    expect(resolveKltWrites([{ ref: 0, label: '   ', topics: ['WACC'] }], ids)).toEqual([])
+  it('keeps the topics when the label is blank — the two grains fail apart', () => {
+    const out = resolveKltWrites([{ ref: 0, label: '   ', topics: ['WACC'] }], ids)
+    expect(out).toEqual([
+      { klpId: 'klp-a', label: null, topics: [{ name: 'WACC', normalizedName: 'wacc', rank: 1 }] },
+    ])
   })
 
   it('keeps only the first entry when the model repeats a ref', () => {
@@ -82,5 +85,54 @@ describe('resolveKltWrites', () => {
 
   it('returns nothing for an empty reply', () => {
     expect(resolveKltWrites([], ids)).toEqual([])
+  })
+})
+
+describe('resolveKltWrites — label validation', () => {
+  const PROPOSITION =
+    'Taking on excessive debt increases financial distress and bankruptcy risk, driving debt holders to demand higher interest rates.'
+
+  it('DROPS a label that is just the proposition echoed back', () => {
+    // The failure this guard exists for: a model that ignores "3 to 6 words"
+    // and returns the KLP text verbatim. Persisting it makes the label layer
+    // pointless — the row reads exactly as it did before the KLT layer existed.
+    const out = resolveKltWrites([{ ref: 0, label: PROPOSITION, topics: ['Bankruptcy'] }], ids)
+    expect(out[0].label).toBeNull()
+  })
+
+  it('keeps the TOPICS when only the label was unusable', () => {
+    const out = resolveKltWrites([{ ref: 0, label: PROPOSITION, topics: ['Bankruptcy'] }], ids)
+    expect(out[0].topics).toEqual([
+      { name: 'Bankruptcy', normalizedName: 'bankruptcy', rank: 1 },
+    ])
+  })
+
+  it('accepts a label at the length the prompt actually asks for', () => {
+    const out = resolveKltWrites([{ ref: 0, label: 'Debt impact on WACC', topics: [] }], ids)
+    expect(out[0].label).toBe('Debt impact on WACC')
+  })
+
+  it('NEVER truncates — a half-sentence headline is worse than none', () => {
+    const out = resolveKltWrites([{ ref: 0, label: PROPOSITION, topics: ['Bankruptcy'] }], ids)
+    expect(out[0].label).toBeNull()
+    expect(JSON.stringify(out)).not.toContain('Taking on excessive')
+  })
+
+  it('drops the whole entry when the label is unusable AND there are no topics', () => {
+    // Writing it would only cost an UPDATE setting label to the null it is.
+    expect(resolveKltWrites([{ ref: 0, label: PROPOSITION, topics: [] }], ids)).toEqual([])
+  })
+
+  it('accepts a label right at the cap but not one word past it', () => {
+    const eight = 'One two three four five six seven eight'
+    expect(resolveKltWrites([{ ref: 0, label: eight, topics: [] }], ids)[0].label).toBe(eight)
+    expect(resolveKltWrites([{ ref: 0, label: `${eight} nine`, topics: [] }], ids)).toEqual([])
+  })
+
+  it('keeps a KLP whose LABEL was unusable — the topics still land', () => {
+    const out = resolveKltWrites([{ ref: 0, label: PROPOSITION, topics: ['WACC'] }], ids)
+    expect(out).toEqual([
+      { klpId: 'klp-a', label: null, topics: [{ name: 'WACC', normalizedName: 'wacc', rank: 1 }] },
+    ])
   })
 })
