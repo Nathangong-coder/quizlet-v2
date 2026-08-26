@@ -72,7 +72,7 @@ const NOT_FOUND: ActionResult<never> = { success: false, error: 'Not found' };
  * appears once rather than at five call sites — a concept placed in another
  * set can never be reached, let alone matched or moved.
  */
-async function loadSetTree(setId: string): Promise<TreeNodeRow[]> {
+export async function loadSetTree(setId: string): Promise<TreeNodeRow[]> {
   const rows = await prisma.setKltNode.findMany({ where: { setId }, select: SET_NODE_SELECT });
   return rows.map((r) => ({
     id: r.id,
@@ -299,6 +299,18 @@ export async function reparentConcept(
  * no other set's hierarchy, and no learner's mastery, moves. The editor's
  * copy says exactly this rather than leaving it to be discovered.
  *
+ * NARROWED per the controller ruling on this task: renaming the shared
+ * vocabulary is itself a cross-set-visible write (every set that shows this
+ * concept's name sees the new one), which reads as exactly the multi-set
+ * edit Decision 4 forbids for an ordinary owner. So a non-allowlisted caller
+ * may rename ONLY when the concept is not reachable from any set they do not
+ * own — every `SetKltNode` placing it, and every `KlpTopic` citing it via
+ * `klp -> card -> set`, must belong to a set THEY own. When some other set
+ * also places or cites it, the name is genuinely shared and only an operator
+ * (`viaAllowlist`) may change it; the failure says so rather than pretending
+ * the concept does not exist, since the caller already proved they may see
+ * it (it is in their own set).
+ *
  * Still gated per set, and still requires the concept to be IN this set
  * (placed, or cited by its cards) — an owner may rename what their own deck
  * uses, never an arbitrary concept out of the global registry.
@@ -317,6 +329,17 @@ export async function renameConcept(
   const inSet = await isConceptInSet(access.setId, kltId);
   if (!inSet) return { success: false, error: 'Concept not found in this set' };
 
+  if (!access.viaAllowlist) {
+    const sharedElsewhere = await isConceptUsedOutsideOwnedSets(access.userId, kltId);
+    if (sharedElsewhere) {
+      return {
+        success: false,
+        error:
+          'This concept name is shared with a set you do not own. An operator can rename it from the admin editor.',
+      };
+    }
+  }
+
   const collision = await prisma.klt.findFirst({
     where: { normalizedName: parsed.normalizedName, NOT: { id: kltId } },
     select: { id: true },
@@ -331,6 +354,30 @@ export async function renameConcept(
   });
 
   return { success: true, data: null };
+}
+
+/**
+ * Does any set THIS CALLER DOES NOT OWN place or cite `kltId`?
+ *
+ * Two independent reach paths, checked with `NOT: { userId }` (not `userId:
+ * { not: userId }` against a nullable column — `Set.userId` is required, so
+ * either form is safe here, but `NOT` on the relation keeps this readable
+ * next to `isConceptInSet`'s shape): a `SetKltNode` placing the concept in
+ * another owner's set, or a `KlpTopic` citing it via that set's own cards.
+ * Either one existing means the concept is not this caller's alone to rename.
+ */
+async function isConceptUsedOutsideOwnedSets(userId: string, kltId: string): Promise<boolean> {
+  const [nodeElsewhere, linkElsewhere] = await Promise.all([
+    prisma.setKltNode.findFirst({
+      where: { kltId, set: { NOT: { userId } } },
+      select: { id: true },
+    }),
+    prisma.klpTopic.findFirst({
+      where: { kltId, klp: { card: { set: { NOT: { userId } } } } },
+      select: { id: true },
+    }),
+  ]);
+  return nodeElsewhere !== null || linkElsewhere !== null;
 }
 
 /**
@@ -433,13 +480,21 @@ export async function mergeConcepts(
     const targetKlpIds = new Set(targetLinks.map((l) => l.klpId));
 
     for (const link of sourceLinks) {
-      // Skip: re-pointing this one would duplicate an existing
-      // (klpId, targetKltId) pair, and the target already carries that link.
-      // The source row is LEFT ALONE rather than deleted — deleting a
-      // `KlpTopic` would strip a key point's topic from a set that still
-      // wants it, and nothing here needs it gone: only the placement is
-      // being removed, not the concept.
-      if (targetKlpIds.has(link.klpId)) continue;
+      // This link's key point already cites the TARGET (a separate KlpTopic
+      // row for the same klpId exists there), so re-pointing this row would
+      // duplicate the (klpId, targetKltId) pair `@@unique` rejects. DELETE
+      // the source row rather than leaving it in place: the fact it recorded
+      // — "this key point cites this concept" — already exists via the
+      // target's own row, so nothing is lost. Leaving it behind was the
+      // bug: the source `SetKltNode` is deleted below, but this dangling
+      // `KlpTopic` row still cites `sourceKltId` in this set, so
+      // `listConceptTree` reads it back as an unplaced link and the
+      // merged-away concept resurrects in the "Unplaced" section as though
+      // the merge never happened.
+      if (targetKlpIds.has(link.klpId)) {
+        await tx.klpTopic.delete({ where: { id: link.id } });
+        continue;
+      }
       await tx.klpTopic.update({ where: { id: link.id }, data: { kltId: targetKltId } });
     }
 

@@ -31,6 +31,7 @@ function rowFor(name: string): HTMLElement {
 // module next/server" — before any test runs. See tests/components/QuizSummary.test.tsx.
 vi.mock('@/actions/klt-tree', () => ({
   listConceptTree: vi.fn(),
+  createConcept: vi.fn(),
   reparentConcept: vi.fn(),
   renameConcept: vi.fn(),
   mergeConcepts: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import {
   listConceptTree,
+  createConcept,
   reparentConcept,
   renameConcept,
   mergeConcepts,
@@ -55,6 +57,7 @@ import { suggestSkeleton, applySkeleton } from '@/actions/klt-seed'
 // QuizSummary.test.tsx's "canReset opt-in" block) — `any` here is a
 // no-explicit-any lint error and would raise the lint baseline.
 const mockListConceptTree = listConceptTree as unknown as ReturnType<typeof vi.fn>
+const mockCreateConcept = createConcept as unknown as ReturnType<typeof vi.fn>
 const mockReparentConcept = reparentConcept as unknown as ReturnType<typeof vi.fn>
 const mockRenameConcept = renameConcept as unknown as ReturnType<typeof vi.fn>
 const mockMergeConcepts = mergeConcepts as unknown as ReturnType<typeof vi.fn>
@@ -62,8 +65,12 @@ const mockDeleteConcept = deleteConcept as unknown as ReturnType<typeof vi.fn>
 const mockSuggestSkeleton = suggestSkeleton as unknown as ReturnType<typeof vi.fn>
 const mockApplySkeleton = applySkeleton as unknown as ReturnType<typeof vi.fn>
 
+const SET_ID = 'set-1'
+const SET_TITLE = 'Finance 101'
+
 interface NodeOverrides {
   id: string
+  kltId?: string
   name: string
   parentKltId?: string | null
   depth?: number
@@ -75,6 +82,7 @@ interface NodeOverrides {
 function node(o: NodeOverrides) {
   return {
     id: o.id,
+    kltId: o.kltId ?? o.id,
     name: o.name,
     normalizedName: o.name,
     parentKltId: o.parentKltId ?? null,
@@ -85,17 +93,26 @@ function node(o: NodeOverrides) {
   }
 }
 
+function unplaced(kltId: string, name: string, linkCount = 1) {
+  return { kltId, name, normalizedName: name, linkCount }
+}
+
+function mockTree(nodes: ReturnType<typeof node>[], unplacedList: ReturnType<typeof unplaced>[] = []) {
+  mockListConceptTree.mockResolvedValue({
+    success: true,
+    data: { setId: SET_ID, setTitle: SET_TITLE, nodes, unplaced: unplacedList },
+  })
+}
+
+function renderTree() {
+  return render(<ConceptTree setId={SET_ID} setTitle={SET_TITLE} />)
+}
+
 describe('ConceptTree', () => {
   it('renders the tree indented by depth', async () => {
-    mockListConceptTree.mockResolvedValue({
-      success: true,
-      data: [
-        node({ id: 'f', name: 'finance', depth: 0 }),
-        node({ id: 'a', name: 'accounting', parentKltId: 'f', depth: 1, ancestorIds: ['f'] }),
-      ],
-    })
+    mockTree([node({ id: 'f', name: 'finance', depth: 0 }), node({ id: 'a', name: 'accounting', parentKltId: 'f', depth: 1, ancestorIds: ['f'] })])
 
-    render(<ConceptTree />)
+    renderTree()
 
     const financeRow = await waitFor(() => rowFor('finance'))
     const accountingRow = rowFor('accounting')
@@ -104,37 +121,30 @@ describe('ConceptTree', () => {
   })
 
   it("disables Delete for a node with children, and says why", async () => {
-    mockListConceptTree.mockResolvedValue({
-      success: true,
-      data: [
-        node({ id: 'f', name: 'finance', depth: 0, childCount: 1 }),
-        node({ id: 'a', name: 'accounting', parentKltId: 'f', depth: 1, ancestorIds: ['f'] }),
-      ],
-    })
+    mockTree([
+      node({ id: 'f', name: 'finance', depth: 0, childCount: 1 }),
+      node({ id: 'a', name: 'accounting', parentKltId: 'f', depth: 1, ancestorIds: ['f'] }),
+    ])
 
-    render(<ConceptTree />)
+    renderTree()
     await waitFor(() => rowFor('finance'))
 
     const financeRow = rowFor('finance')
     expect(within(financeRow).getByRole('button', { name: /^delete$/i })).toBeDisabled()
     expect(within(financeRow).getByText(/has 1 child/i)).toBeInTheDocument()
 
-    // The childless node is NOT disabled and carries no reason text.
     const accountingRow = rowFor('accounting')
     expect(within(accountingRow).getByRole('button', { name: /^delete$/i })).not.toBeDisabled()
   })
 
   it('does not offer a node itself as its own new parent, nor a descendant of itself', async () => {
-    mockListConceptTree.mockResolvedValue({
-      success: true,
-      data: [
-        node({ id: 'f', name: 'finance', depth: 0 }),
-        node({ id: 'a', name: 'accounting', parentKltId: 'f', depth: 1, ancestorIds: ['f'] }),
-        node({ id: 'v', name: 'valuation', depth: 0 }),
-      ],
-    })
+    mockTree([
+      node({ id: 'f', name: 'finance', depth: 0 }),
+      node({ id: 'a', name: 'accounting', parentKltId: 'f', depth: 1, ancestorIds: ['f'] }),
+      node({ id: 'v', name: 'valuation', depth: 0 }),
+    ])
 
-    render(<ConceptTree />)
+    renderTree()
     await waitFor(() => rowFor('finance'))
 
     const financeRow = rowFor('finance')
@@ -142,88 +152,102 @@ describe('ConceptTree', () => {
     const optionLabels = Array.from(moveSelect.options).map((o) => o.textContent)
 
     expect(optionLabels).not.toContain('finance')
-    // 'accounting' is a descendant of 'finance' — offering it would let a
-    // move make 'finance' its own ancestor.
     expect(optionLabels).not.toContain('accounting')
-    // 'valuation' is unrelated and must remain offered.
     expect(optionLabels).toContain('valuation')
   })
 
-  it('shows the suggested skeleton as a preview and writes nothing until Apply', async () => {
-    mockListConceptTree.mockResolvedValue({ success: true, data: [] })
-    mockSuggestSkeleton.mockResolvedValue({
-      success: true,
-      data: { paths: [['finance', 'accounting']] },
-    })
-    mockApplySkeleton.mockResolvedValue({ success: true, data: { created: 2, skipped: 0 } })
+  it('moving a node shows an impact preview, and only calls reparentConcept after confirming', async () => {
+    // finance(root) -> accounting -> ratios. Moving 'accounting' under
+    // 'valuation' moves it AND its child 'ratios': 2 concepts.
+    mockTree([
+      node({ id: 'f', name: 'finance', depth: 0 }),
+      node({ id: 'a', name: 'accounting', parentKltId: 'f', depth: 1, ancestorIds: ['f'] }),
+      node({ id: 'r', name: 'ratios', parentKltId: 'a', depth: 2, ancestorIds: ['f', 'a'] }),
+      node({ id: 'v', name: 'valuation', depth: 0 }),
+    ])
+    mockReparentConcept.mockResolvedValue({ success: true, data: null })
 
-    render(<ConceptTree />)
-    await waitFor(() => screen.getByLabelText(/subject/i))
+    renderTree()
+    await waitFor(() => rowFor('accounting'))
 
-    fireEvent.change(screen.getByLabelText(/subject/i), { target: { value: 'finance' } })
-    fireEvent.click(screen.getByRole('button', { name: /suggest a starting structure/i }))
+    const accountingRow = rowFor('accounting')
+    const moveSelect = within(accountingRow).getByLabelText(/move accounting under/i)
+    fireEvent.change(moveSelect, { target: { value: 'v' } })
 
-    await waitFor(() => screen.getByText('accounting'))
-    expect(mockApplySkeleton).not.toHaveBeenCalled()
+    expect(mockReparentConcept).not.toHaveBeenCalled()
+    await waitFor(() => within(accountingRow).getByText(/moves 2 concepts/i))
 
-    fireEvent.click(screen.getByRole('button', { name: /^apply$/i }))
-    await waitFor(() => expect(mockApplySkeleton).toHaveBeenCalledWith([['finance', 'accounting']]))
+    fireEvent.click(within(accountingRow).getByRole('button', { name: /confirm move/i }))
+    await waitFor(() => expect(mockReparentConcept).toHaveBeenCalledWith(SET_ID, 'a', 'v'))
   })
 
-  it('discarding a suggested skeleton also writes nothing', async () => {
-    mockListConceptTree.mockResolvedValue({ success: true, data: [] })
-    mockSuggestSkeleton.mockResolvedValue({
-      success: true,
-      data: { paths: [['finance', 'accounting']] },
-    })
+  it('moving a node calls reparentConcept with null for "(make a root)", after confirming', async () => {
+    mockTree([
+      node({ id: 'f', name: 'finance', depth: 0 }),
+      node({ id: 'a', name: 'accounting', parentKltId: 'f', depth: 1, ancestorIds: ['f'] }),
+    ])
+    mockReparentConcept.mockResolvedValue({ success: true, data: null })
 
-    render(<ConceptTree />)
-    await waitFor(() => screen.getByLabelText(/subject/i))
-    fireEvent.change(screen.getByLabelText(/subject/i), { target: { value: 'finance' } })
-    fireEvent.click(screen.getByRole('button', { name: /suggest a starting structure/i }))
-    await waitFor(() => screen.getByText('accounting'))
+    renderTree()
+    await waitFor(() => rowFor('accounting'))
 
-    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
-    expect(mockApplySkeleton).not.toHaveBeenCalled()
-    expect(screen.queryByText('accounting')).not.toBeInTheDocument()
+    const accountingRow = rowFor('accounting')
+    const moveSelect = within(accountingRow).getByLabelText(/move accounting under/i)
+    fireEvent.change(moveSelect, { target: { value: '' } })
+
+    fireEvent.click(await within(accountingRow).findByRole('button', { name: /confirm move/i }))
+    await waitFor(() => expect(mockReparentConcept).toHaveBeenCalledWith(SET_ID, 'a', null))
+  })
+
+  it('renames a node via the inline input, keyed on kltId not the row id', async () => {
+    mockTree([node({ id: 'row-f', kltId: 'klt-f', name: 'finance', depth: 0 })])
+    mockRenameConcept.mockResolvedValue({ success: true, data: null })
+
+    renderTree()
+    await waitFor(() => rowFor('finance'))
+
+    const financeRow = rowFor('finance')
+    const renameInput = within(financeRow).getByLabelText(/rename finance/i)
+    fireEvent.change(renameInput, { target: { value: 'financial statements' } })
+    fireEvent.click(within(financeRow).getByRole('button', { name: /^rename$/i }))
+
+    await waitFor(() => expect(mockRenameConcept).toHaveBeenCalledWith(SET_ID, 'klt-f', 'financial statements'))
+  })
+
+  it('deleting a childless node calls deleteConcept with the concept id, not the row id', async () => {
+    mockTree([node({ id: 'row-f', kltId: 'klt-f', name: 'finance', depth: 0, childCount: 0 })])
+    mockDeleteConcept.mockResolvedValue({ success: true, data: null })
+
+    renderTree()
+    await waitFor(() => rowFor('finance'))
+
+    fireEvent.click(within(rowFor('finance')).getByRole('button', { name: /^delete$/i }))
+
+    await waitFor(() => expect(mockDeleteConcept).toHaveBeenCalledWith(SET_ID, 'klt-f'))
   })
 
   it('requires a confirm before merging, since merge deletes the source', async () => {
-    mockListConceptTree.mockResolvedValue({
-      success: true,
-      data: [
-        node({ id: 'f', name: 'finance', depth: 0 }),
-        node({ id: 'v', name: 'valuation', depth: 0 }),
-      ],
-    })
+    mockTree([node({ id: 'f', name: 'finance', depth: 0 }), node({ id: 'v', name: 'valuation', depth: 0 })])
     mockMergeConcepts.mockResolvedValue({ success: true, data: null })
 
-    render(<ConceptTree />)
+    renderTree()
     await waitFor(() => rowFor('finance'))
 
     const financeRow = rowFor('finance')
     const mergeSelect = within(financeRow).getByLabelText(/merge finance into/i) as HTMLSelectElement
     fireEvent.change(mergeSelect, { target: { value: 'v' } })
 
-    // Selecting a target alone must NOT merge — a confirm step is required
-    // because merge deletes the source node.
     expect(mockMergeConcepts).not.toHaveBeenCalled()
     await waitFor(() => screen.getByRole('button', { name: /confirm merge/i }))
 
     fireEvent.click(screen.getByRole('button', { name: /confirm merge/i }))
-    await waitFor(() => expect(mockMergeConcepts).toHaveBeenCalledWith('f', 'v'))
+    await waitFor(() => expect(mockMergeConcepts).toHaveBeenCalledWith(SET_ID, 'f', 'v'))
   })
 
   it('canceling the merge confirm never calls mergeConcepts', async () => {
-    mockListConceptTree.mockResolvedValue({
-      success: true,
-      data: [
-        node({ id: 'f', name: 'finance', depth: 0 }),
-        node({ id: 'v', name: 'valuation', depth: 0 }),
-      ],
-    })
+    mockTree([node({ id: 'f', name: 'finance', depth: 0 }), node({ id: 'v', name: 'valuation', depth: 0 })])
 
-    render(<ConceptTree />)
+    renderTree()
     await waitFor(() => rowFor('finance'))
 
     const financeRow = rowFor('finance')
@@ -237,59 +261,137 @@ describe('ConceptTree', () => {
     expect(screen.queryByRole('button', { name: /confirm merge/i })).not.toBeInTheDocument()
   })
 
-  it('moving a node calls reparentConcept with null for "(make a root)"', async () => {
-    mockListConceptTree.mockResolvedValue({
-      success: true,
-      data: [
+  it('adding a root concept calls createConcept with a null parent', async () => {
+    mockTree([node({ id: 'f', name: 'finance', depth: 0 })])
+    mockCreateConcept.mockResolvedValue({ success: true, data: { kltId: 'new' } })
+
+    renderTree()
+    await waitFor(() => rowFor('finance'))
+
+    fireEvent.change(screen.getByLabelText(/new root concept name/i), { target: { value: 'macro' } })
+    fireEvent.click(screen.getByRole('button', { name: /add root concept/i }))
+
+    await waitFor(() => expect(mockCreateConcept).toHaveBeenCalledWith(SET_ID, 'macro', null))
+  })
+
+  it('adding a child concept from a row calls createConcept with that row’s kltId as parent', async () => {
+    mockTree([node({ id: 'row-f', kltId: 'klt-f', name: 'finance', depth: 0 })])
+    mockCreateConcept.mockResolvedValue({ success: true, data: { kltId: 'new' } })
+
+    renderTree()
+    await waitFor(() => rowFor('finance'))
+
+    fireEvent.click(within(rowFor('finance')).getByRole('button', { name: /add child/i }))
+    fireEvent.change(await screen.findByLabelText(/new concept under finance/i), { target: { value: 'accounting' } })
+    fireEvent.click(screen.getByRole('button', { name: /^add$/i }))
+
+    await waitFor(() => expect(mockCreateConcept).toHaveBeenCalledWith(SET_ID, 'accounting', 'klt-f'))
+  })
+
+  describe('unplaced concepts', () => {
+    it('render in their own section, first, with a count', async () => {
+      mockTree(
+        [node({ id: 'f', name: 'finance', depth: 0 })],
+        [unplaced('u1', 'quick ratio', 3)],
+      )
+
+      renderTree()
+      await waitFor(() => screen.getByText(/unplaced concepts \(1\)/i))
+      expect(screen.getByText('quick ratio')).toBeInTheDocument()
+      expect(screen.getByText(/3 links/i)).toBeInTheDocument()
+    })
+
+    it('do not render a section at all when there are none', async () => {
+      mockTree([node({ id: 'f', name: 'finance', depth: 0 })], [])
+      renderTree()
+      await waitFor(() => rowFor('finance'))
+      expect(screen.queryByText(/unplaced concepts/i)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('filter', () => {
+    it('narrows to matching concepts and keeps their ancestors visible', async () => {
+      mockTree([
         node({ id: 'f', name: 'finance', depth: 0 }),
         node({ id: 'a', name: 'accounting', parentKltId: 'f', depth: 1, ancestorIds: ['f'] }),
-      ],
+        node({ id: 'r', name: 'ratios', parentKltId: 'a', depth: 2, ancestorIds: ['f', 'a'] }),
+        node({ id: 'v', name: 'valuation', depth: 0 }),
+      ])
+
+      renderTree()
+      await waitFor(() => rowFor('finance'))
+
+      fireEvent.change(screen.getByLabelText(/filter concepts/i), { target: { value: 'ratios' } })
+
+      await waitFor(() => expect(screen.queryByText('ratios', { selector: 'p.font-medium' })).toBeInTheDocument())
+      // Ancestors of the match stay visible for context…
+      expect(screen.queryByText('finance', { selector: 'p.font-medium' })).toBeInTheDocument()
+      expect(screen.queryByText('accounting', { selector: 'p.font-medium' })).toBeInTheDocument()
+      // …but an unrelated branch is filtered out.
+      expect(screen.queryByText('valuation', { selector: 'p.font-medium' })).not.toBeInTheDocument()
     })
-    mockReparentConcept.mockResolvedValue({ success: true, data: null })
-
-    render(<ConceptTree />)
-    await waitFor(() => rowFor('accounting'))
-
-    const accountingRow = rowFor('accounting')
-    const moveSelect = within(accountingRow).getByLabelText(/move accounting under/i)
-    fireEvent.change(moveSelect, { target: { value: '' } })
-
-    await waitFor(() => expect(mockReparentConcept).toHaveBeenCalledWith('a', null))
   })
 
-  it('renames a node via the inline input', async () => {
-    mockListConceptTree.mockResolvedValue({
-      success: true,
-      data: [node({ id: 'f', name: 'finance', depth: 0 })],
+  describe('empty-structure panel', () => {
+    it('appears when the set has no placed nodes at all', async () => {
+      mockTree([], [])
+      renderTree()
+      await waitFor(() => screen.getByText(/no concepts yet/i))
     })
-    mockRenameConcept.mockResolvedValue({ success: true, data: null })
 
-    render(<ConceptTree />)
-    await waitFor(() => rowFor('finance'))
+    it('appears, phrased "no structure yet", when concepts exist but none is placed', async () => {
+      mockTree([], [unplaced('u1', 'quick ratio')])
+      renderTree()
+      await waitFor(() => screen.getByText(/no structure yet/i))
+    })
 
-    const financeRow = rowFor('finance')
-    const renameInput = within(financeRow).getByLabelText(/rename finance/i)
-    fireEvent.change(renameInput, { target: { value: 'financial statements' } })
-    fireEvent.click(within(financeRow).getByRole('button', { name: /^rename$/i }))
+    it('does not appear once at least one concept is placed', async () => {
+      mockTree([node({ id: 'f', name: 'finance', depth: 0 })])
+      renderTree()
+      await waitFor(() => rowFor('finance'))
+      expect(screen.queryByText(/no concepts yet/i)).not.toBeInTheDocument()
+      expect(screen.queryByText(/no structure yet/i)).not.toBeInTheDocument()
+    })
 
-    await waitFor(() =>
-      expect(mockRenameConcept).toHaveBeenCalledWith('f', 'financial statements'),
-    )
+    it('offers the AI-seam and preset-seam alongside manual entry, prefilling the subject from setTitle', async () => {
+      mockTree([], [])
+      renderTree()
+      await waitFor(() => screen.getByText(/no concepts yet/i))
+      expect(screen.getByLabelText(/subject/i)).toHaveValue(SET_TITLE)
+      expect(screen.getByRole('button', { name: /apply a preset/i })).toBeDisabled()
+    })
   })
 
-  it('deleting a childless node calls deleteConcept', async () => {
-    mockListConceptTree.mockResolvedValue({
-      success: true,
-      data: [node({ id: 'f', name: 'finance', depth: 0, childCount: 0 })],
-    })
-    mockDeleteConcept.mockResolvedValue({ success: true, data: null })
+  it('shows the suggested skeleton as a preview and writes nothing until Apply', async () => {
+    mockTree([], [])
+    mockSuggestSkeleton.mockResolvedValue({ success: true, data: { paths: [['finance', 'accounting']] } })
+    mockApplySkeleton.mockResolvedValue({ success: true, data: { created: 2, skipped: 0 } })
 
-    render(<ConceptTree />)
-    await waitFor(() => rowFor('finance'))
+    renderTree()
+    await waitFor(() => screen.getByLabelText(/subject/i))
 
-    const financeRow = rowFor('finance')
-    fireEvent.click(within(financeRow).getByRole('button', { name: /^delete$/i }))
+    fireEvent.change(screen.getByLabelText(/subject/i), { target: { value: 'finance' } })
+    fireEvent.click(screen.getByRole('button', { name: /suggest a starting structure/i }))
 
-    await waitFor(() => expect(mockDeleteConcept).toHaveBeenCalledWith('f'))
+    await waitFor(() => screen.getByText('accounting'))
+    expect(mockApplySkeleton).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /^apply$/i }))
+    await waitFor(() => expect(mockApplySkeleton).toHaveBeenCalledWith(SET_ID, [['finance', 'accounting']]))
+  })
+
+  it('discarding a suggested skeleton also writes nothing', async () => {
+    mockTree([], [])
+    mockSuggestSkeleton.mockResolvedValue({ success: true, data: { paths: [['finance', 'accounting']] } })
+
+    renderTree()
+    await waitFor(() => screen.getByLabelText(/subject/i))
+    fireEvent.change(screen.getByLabelText(/subject/i), { target: { value: 'finance' } })
+    fireEvent.click(screen.getByRole('button', { name: /suggest a starting structure/i }))
+    await waitFor(() => screen.getByText('accounting'))
+
+    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+    expect(mockApplySkeleton).not.toHaveBeenCalled()
+    expect(screen.queryByText('accounting')).not.toBeInTheDocument()
   })
 })

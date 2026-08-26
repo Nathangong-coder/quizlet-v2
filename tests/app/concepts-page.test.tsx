@@ -1,6 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, cleanup } from '@testing-library/react'
 
-const h = vi.hoisted(() => ({ auth: vi.fn(), notFound: vi.fn() }))
+const h = vi.hoisted(() => ({ auth: vi.fn(), notFound: vi.fn(), setFindMany: vi.fn() }))
 
 // notFound() THROWS in Next, to unwind the render. The mock must too, or a
 // call that gets swallowed somewhere would still look like a call and this
@@ -13,26 +15,25 @@ vi.mock('next/navigation', () => ({
   },
 }))
 vi.mock('@/auth', () => ({ auth: h.auth }))
-
-// ConceptTree pulls in '@/actions/klt-tree' and '@/actions/klt-seed', both
-// 'use server' modules that import next-auth — irrelevant to what this file
-// tests (the route's gate), so it's stubbed out rather than exercised here.
-vi.mock('@/components/klt/ConceptTree', () => ({ ConceptTree: () => null }))
+vi.mock('@/lib/db', () => ({ prisma: { set: { findMany: h.setFindMany } } }))
 
 import ConceptsPage from '@/app/concepts/page'
 
 beforeEach(() => {
   vi.clearAllMocks()
   delete process.env.KLT_EDITORS
+  h.setFindMany.mockResolvedValue([])
 })
+afterEach(cleanup)
 
-describe('/concepts', () => {
+describe('/concepts (admin picker)', () => {
   it('calls notFound() — a real 404 — for a signed-in non-editor, never a redirect or a message', async () => {
     h.auth.mockResolvedValue({ user: { id: 'someone' } })
     process.env.KLT_EDITORS = 'someone-else'
 
     await expect(ConceptsPage()).rejects.toThrow('NEXT_NOT_FOUND')
     expect(h.notFound).toHaveBeenCalledTimes(1)
+    expect(h.setFindMany).not.toHaveBeenCalled()
   })
 
   it('calls notFound() for a signed-out visitor', async () => {
@@ -49,12 +50,26 @@ describe('/concepts', () => {
     await expect(ConceptsPage()).rejects.toThrow('NEXT_NOT_FOUND')
   })
 
-  it('renders the tree for an editor, without ever calling notFound', async () => {
+  it('lists sets, each linking to that set’s own /sets/[id]/concepts editor — the SAME editor an owner uses', async () => {
     h.auth.mockResolvedValue({ user: { id: 'editor-1' } })
     process.env.KLT_EDITORS = 'editor-1'
+    h.setFindMany.mockResolvedValue([
+      {
+        id: 'set-a',
+        title: 'Finance 101',
+        user: { name: 'Alice', email: 'a@x.com' },
+        _count: { cards: 10, kltNodes: 3 },
+      },
+    ])
 
-    const result = await ConceptsPage()
-    expect(result).toBeTruthy()
+    render(await ConceptsPage())
     expect(h.notFound).not.toHaveBeenCalled()
+
+    expect(screen.getByText('Finance 101')).toBeInTheDocument()
+    const links = screen.getAllByRole('link', { name: /finance 101|open editor/i })
+    expect(links.length).toBeGreaterThan(0)
+    for (const link of links) {
+      expect(link).toHaveAttribute('href', '/sets/set-a/concepts')
+    }
   })
 })
