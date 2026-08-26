@@ -81,14 +81,17 @@
 **Files:** Modify `src/actions/klt-tree.ts`, `src/components/klt/ConceptTree.tsx`, `src/app/concepts/page.tsx`. Create `src/app/sets/[id]/concepts/page.tsx`.
 
 - [ ] **Step 1: Actions take a `setId`** and gate on EITHER set ownership OR `isKltEditor`. One private helper resolves that once; every action uses it. A caller who is neither gets the not-found shape — never "forbidden".
+- [ ] **Step 1b: Add `createConcept(setId, name, parentKltId | null)`.** Today there is NO manual way to create a node — the editor can only rearrange concepts the KLP pipeline named, so an owner who knows their own subject cannot type its top rungs in. It runs `parseKltName`, upserts the `Klt` by `normalizedName` (reusing a concept that already exists globally rather than forking a near-duplicate), then creates the `SetKltNode`. It refuses: a concept that already has a node in THIS set; a `parentKltId` with no node in this set; a resulting depth past `MAX_TREE_DEPTH`. The same name in a DIFFERENT set is not a duplicate and must be allowed.
 - [ ] **Step 2: Two routes.** `/sets/[id]/concepts` — owner-gated, that set only. `/concepts` — `KLT_EDITORS`-gated, lists sets and lets the admin pick one, then renders the SAME component. Both `notFound()` when the gate fails.
 - [ ] **Step 3: The UI the owner asked for — "better, clearer, more comprehensive".** Beyond what exists today:
   - **Unplaced concepts surfaced FIRST**, in their own section with a count. They are what needs attention; today they are buried in a flat list.
   - **Collapsible nodes** with indent guides, so a six-level tree is navigable.
   - **A filter box** that narrows to matching concepts and keeps their ancestors visible for context.
   - **Impact preview on move**: "moves 12 concepts" before confirming, computed from `computeSubtreeUpdates`.
+  - **An "add concept" control** on every row (add a child) and above the tree (add a root). This is the missing half of "the user seeds the top": manual entry and AI generation are peers, not a fallback each.
+  - **An empty-structure panel offering all three seeding routes** — type your own top-level concepts, generate them with AI (`suggestSkeleton`, subject pre-filled from the SET'S TITLE so the owner rarely types it, still previewed and never auto-applied), or apply a preset (Task 5). Shown when the set has no `SetKltNode` rows at all, and again — phrased as "no structure yet" — when it has concepts but every one of them is unplaced.
   - Keep from today: link/child counts per row, Delete disabled with a visible reason, merge behind a confirm.
-- [ ] **Step 4: Tests** — the owner gate admits an owner and refuses a stranger; the admin gate admits an allowlisted non-owner; unplaced concepts render in their own section; the filter keeps ancestors visible; the impact preview shows the subtree count. Mutation-verify both gates.
+- [ ] **Step 4: Tests** — the owner gate admits an owner and refuses a stranger; the admin gate admits an allowlisted non-owner; unplaced concepts render in their own section; the filter keeps ancestors visible; the impact preview shows the subtree count. For `createConcept`: a root is created at depth 0 with empty `ancestorIds`; a child inherits `ancestorIds` + parent; a duplicate within the set is refused; **the SAME name in another set succeeds**; a parent with no node in this set is refused; the empty-structure panel appears only when the set has no placed nodes. Mutation-verify both gates and the same-name-other-set rule.
 - [ ] **Step 5: Commit** — `feat(klt): per-set and admin concept editors`
 
 ---
@@ -118,6 +121,8 @@
 ---
 
 ## Self-Review
+
+**Amended 2026-08-26** (owner request, mid-execution): Task 4 gains `createConcept` and an empty-structure seeding panel. Manual creation was designed for in the concept-tree spec ("either the user can seed the top or ask AI to seed it") but never built — Phase 2 shipped only the AI route. Tasks 1–3 are unaffected.
 
 **Spec coverage:** §3 schema → T1; §3b presets → T1 (model) + T5; Decision 3 two editors → T4; Decision 4 one-set-per-edit → T4 Step 1; Decision 5 per-set pipeline → T2, T3; Decision 6 mastery safety → T6 Step 4; Decision 8 rebuild → T6. §6.2's union semantics → T3 Step 1. Out-of-scope items (auto-apply presets, the IA split, 6c sharing) correctly absent.
 
