@@ -52,6 +52,9 @@ export type { SummarizeKltsBuildInput } from './summarize-klts';
 export { PLACE_KLTS_PROMPT } from './place-klts';
 export type { PlaceKltsBuildInput } from './place-klts';
 
+export { SUGGEST_SKELETON_PROMPT } from './suggest-skeleton';
+export type { SuggestSkeletonBuildInput } from './suggest-skeleton';
+
 import { MULTIPLE_CHOICE_PROMPT } from './multiple-choice';
 import { GRADE_SHORT_ANSWER_PROMPT } from './grade-short-answer';
 import { ANNOTATION_PROMPT } from './annotation';
@@ -63,6 +66,7 @@ import { EXTRACT_KLPS_PROMPT } from './extract-klps';
 import { TRUE_FALSE_PROMPT } from './true-false';
 import { SUMMARIZE_KLTS_PROMPT } from './summarize-klts';
 import { PLACE_KLTS_PROMPT } from './place-klts';
+import { SUGGEST_SKELETON_PROMPT } from './suggest-skeleton';
 
 /** All registry entries keyed by `id`, for introspection/tooling. */
 export const PROMPT_REGISTRY = {
@@ -77,4 +81,5 @@ export const PROMPT_REGISTRY = {
   [TRUE_FALSE_PROMPT.id]: TRUE_FALSE_PROMPT,
   [SUMMARIZE_KLTS_PROMPT.id]: SUMMARIZE_KLTS_PROMPT,
   [PLACE_KLTS_PROMPT.id]: PLACE_KLTS_PROMPT,
+  [SUGGEST_SKELETON_PROMPT.id]: SUGGEST_SKELETON_PROMPT,
 } as const;

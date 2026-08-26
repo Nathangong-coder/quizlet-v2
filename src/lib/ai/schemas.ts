@@ -204,3 +204,19 @@ export const KltPlacementSchema = z.object({
 });
 
 export type KltPlacement = z.infer<typeof KltPlacementSchema>;
+
+/**
+ * Deepest a suggested skeleton may go. Top rungs only — never leaves.
+ *
+ * Separate from `MAX_TREE_DEPTH` (the whole tree's cap, 8): a skeleton is
+ * proposed BEFORE any placement happens, to anchor the top few rungs a
+ * subject organises into, not to describe the tree's eventual full depth.
+ */
+export const MAX_SKELETON_DEPTH = 3;
+
+export const KltSkeletonSchema = z.object({
+  /** Root-first paths, each 1..MAX_SKELETON_DEPTH segments. Never a leaf. */
+  paths: z.array(z.array(z.string().min(1)).min(1).max(MAX_SKELETON_DEPTH)).min(1),
+});
+
+export type KltSkeleton = z.infer<typeof KltSkeletonSchema>;
