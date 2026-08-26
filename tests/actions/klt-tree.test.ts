@@ -28,7 +28,7 @@ function defaultTransactionImpl(arg: unknown) {
   if (typeof arg === 'function') {
     const tx = {
       klt: { update: h.kltUpdate, delete: h.kltDelete },
-      klpTopic: { update: h.topicUpdate },
+      klpTopic: { findMany: h.topicFindMany, update: h.topicUpdate },
     }
     return (arg as (tx: unknown) => Promise<unknown>)(tx)
   }
@@ -282,6 +282,35 @@ describe('mergeConcepts', () => {
     const res = await mergeConcepts('k-a', 'k-a')
     expect(res.success).toBe(false)
     expect(h.transaction).not.toHaveBeenCalled()
+  })
+
+  it('merge refuses when re-parenting a child of the source under the target would breach the max tree depth', async () => {
+    // 'deep7' is fabricated already sitting at depth 7, same trick as the
+    // analogous reparentConcept test above — its ancestor chain does not
+    // need to literally exist as rows. 'src' has one child ('kid') and is
+    // NOT an ancestor of 'deep7' (and vice versa), so the merge itself is
+    // not a cycle — but re-parenting 'kid' under 'deep7' during the merge
+    // would land it at depth 8, breaching MAX_TREE_DEPTH. This is the exact
+    // throw from computeSubtreeUpdates that mergeConcepts must catch, the
+    // same way reparentConcept already does.
+    const rows = [
+      { id: 'root', name: 'Root', normalizedName: 'root', parentKltId: null, depth: 0, ancestorIds: [] },
+      { id: 'deep7', name: 'Deep7', normalizedName: 'deep7', parentKltId: 'phantom', depth: 7, ancestorIds: ['root', 'a', 'b', 'c', 'd', 'e', 'f'] },
+      { id: 'src', name: 'Src', normalizedName: 'src', parentKltId: 'root', depth: 1, ancestorIds: ['root'] },
+      { id: 'kid', name: 'Kid', normalizedName: 'kid', parentKltId: 'src', depth: 2, ancestorIds: ['root', 'src'] },
+    ]
+    h.kltFindMany.mockResolvedValue(rows)
+
+    const res = await mergeConcepts('src', 'deep7')
+
+    expect(res.success).toBe(false)
+    expect(res.success === false && res.error).toMatch(/depth/i)
+    // Must fail cleanly, with no transaction opened and nothing written —
+    // matching reparentConcept's contract for the identical throw.
+    expect(h.transaction).not.toHaveBeenCalled()
+    expect(h.kltUpdate).not.toHaveBeenCalled()
+    expect(h.kltDelete).not.toHaveBeenCalled()
+    expect(h.topicUpdate).not.toHaveBeenCalled()
   })
 
   it('merge re-points links and children to the target, then deletes the source', async () => {

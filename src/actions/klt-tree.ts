@@ -200,14 +200,34 @@ export async function mergeConcepts(sourceId: string, targetId: string): Promise
     return { success: false, error: 'Cannot merge a concept into itself or its own descendant' };
   }
 
-  const [sourceLinks, targetLinks] = await Promise.all([
-    prisma.klpTopic.findMany({ where: { kltId: sourceId }, select: { id: true, klpId: true } }),
-    prisma.klpTopic.findMany({ where: { kltId: targetId }, select: { klpId: true } }),
-  ]);
-  const targetKlpIds = new Set(targetLinks.map((l) => l.klpId));
   const children = rows.filter((r) => r.parentKltId === sourceId);
 
+  // `target` cannot be a descendant of `source` (refused above), so it cannot
+  // be a descendant of any of `source`'s children either — this move can
+  // never introduce a cycle of its own. It CAN still breach MAX_TREE_DEPTH,
+  // though, and `computeSubtreeUpdates` throws on that — caught here and
+  // turned into a failed `ActionResult` the same way `reparentConcept`
+  // already handles the identical throw from the same function, and before
+  // any write, so no transaction is even opened.
+  const childUpdatesById = new Map<string, { id: string; depth: number; ancestorIds: string[] }[]>();
+  try {
+    for (const child of children) {
+      childUpdatesById.set(child.id, computeSubtreeUpdates(child.id, targetId, rows));
+    }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Unable to merge concepts' };
+  }
+
   await prisma.$transaction(async (tx) => {
+    // Read inside the transaction, not before it opens, so the duplicate-link
+    // skip decision below is computed atomically with the write that acts on
+    // it.
+    const [sourceLinks, targetLinks] = await Promise.all([
+      tx.klpTopic.findMany({ where: { kltId: sourceId }, select: { id: true, klpId: true } }),
+      tx.klpTopic.findMany({ where: { kltId: targetId }, select: { klpId: true } }),
+    ]);
+    const targetKlpIds = new Set(targetLinks.map((l) => l.klpId));
+
     for (const link of sourceLinks) {
       // Skip: re-pointing this one would duplicate an existing
       // (klpId, targetId) pair. The row itself is not orphaned — it cascades
@@ -218,11 +238,7 @@ export async function mergeConcepts(sourceId: string, targetId: string): Promise
     }
 
     for (const child of children) {
-      // `target` cannot be a descendant of `source` (refused above), so it
-      // cannot be a descendant of any of `source`'s children either — this
-      // move can never introduce a cycle of its own.
-      const childUpdates = computeSubtreeUpdates(child.id, targetId, rows);
-      await applySubtreeMove(tx, child.id, targetId, childUpdates);
+      await applySubtreeMove(tx, child.id, targetId, childUpdatesById.get(child.id)!);
     }
 
     await tx.klt.delete({ where: { id: sourceId } });
