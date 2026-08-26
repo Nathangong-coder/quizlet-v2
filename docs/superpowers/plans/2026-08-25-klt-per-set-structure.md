@@ -90,7 +90,9 @@
 
 ## Task 4: Both editors, with a better UI
 
-**Files:** Modify `src/actions/klt-tree.ts`, `src/components/klt/ConceptTree.tsx`, `src/app/concepts/page.tsx`. Create `src/app/sets/[id]/concepts/page.tsx`.
+**Files:** Modify `src/actions/klt-tree.ts`, `src/actions/klt-seed.ts`, `src/components/klt/ConceptTree.tsx`, `src/app/concepts/page.tsx`. Create `src/app/sets/[id]/concepts/page.tsx`.
+
+**Task 4 owns migrating `src/actions/klt-seed.ts` off the deprecated `Klt` structure columns.** `suggestSkeleton`/`applySkeleton` gain a `setId`, gate through the same helper as Step 1, and `createChain` writes `SetKltNode` rows instead of `Klt.parentKltId`. Until this task they keep compiling against the old columns behind a `TODO(task-4)` adapter — they are the last write path still pointed at the global tree, and Task 6's guard test will fail if any of it survives.
 
 - [ ] **Step 1: Actions take a `setId`** and gate on EITHER set ownership OR `isKltEditor`. One private helper resolves that once; every action uses it. A caller who is neither gets the not-found shape — never "forbidden".
 - [ ] **Step 1b: Add `createConcept(setId, name, parentKltId | null)`.** Today there is NO manual way to create a node — the editor can only rearrange concepts the KLP pipeline named, so an owner who knows their own subject cannot type its top rungs in. It runs `parseKltName`, upserts the `Klt` by `normalizedName` (reusing a concept that already exists globally rather than forking a near-duplicate), then creates the `SetKltNode`. It refuses: a concept that already has a node in THIS set; a `parentKltId` with no node in this set; a resulting depth past `MAX_TREE_DEPTH`. The same name in a DIFFERENT set is not a duplicate and must be allowed.
