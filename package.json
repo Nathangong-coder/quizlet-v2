@@ -16,7 +16,9 @@
     "backfill:study-event-link": "tsx --env-file=.env scripts/backfill-study-event-answer-link.ts",
     "backfill:klts": "tsx --conditions=react-server --env-file=.env scripts/backfill-klts.ts",
     "seed:dev-user": "tsx --env-file=.env scripts/seed-dev-user.ts",
-    "invite": "tsx --env-file=.env scripts/mint-invite.ts"
+    "invite": "tsx --env-file=.env scripts/mint-invite.ts",
+    "verify:klt:baseline": "tsx --env-file=.env scripts/verify-klt-rebuild.ts baseline",
+    "verify:klt": "tsx --env-file=.env scripts/verify-klt-rebuild.ts verify"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.22",

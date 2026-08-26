@@ -9,7 +9,8 @@ import {
 import { KLT_BATCH_SIZE } from '../src/lib/cards/klt-batch'
 import { KltSummarySchema, KltPlacementSchema } from '../src/lib/ai/schemas'
 import { placeUnparentedConcepts, type KltPlacer } from '../src/lib/klt/place'
-import { summarizeTreeHealth, MAX_BRANCHING } from '../src/lib/klt/health'
+import { summarizeTreeHealth, MAX_BRANCHING, type TreeHealth } from '../src/lib/klt/health'
+import type { TreeNodeRow } from '../src/lib/klt/tree'
 
 /**
  * `--direct` runs against a raw `GOOGLE_API_KEY` instead of the user's stored
@@ -111,12 +112,13 @@ async function main() {
     }
   }
 
-  // Phase B. TODO(task-6): this loop is the minimal per-set adaptation
-  // forced by `placeUnparentedConcepts` now requiring a `setId` — structure
-  // moved from one global tree to `SetKltNode` (one row per set/concept), so
-  // "unplaced" is a per-set question and each set's tree is placed against
-  // only its own prompt. Task 6 owns turning this into the real, reported
-  // rebuild (`--direct --force`) and deciding whether it stays sequential.
+  // Phase B. Structure moved from one global tree to `SetKltNode` (one row
+  // per set/concept), so "unplaced" is a per-set question: this loops every
+  // owner's every set and places that set's tree against only its own
+  // prompt. A concept unplaced in set A may already be placed in set B —
+  // independent by design (spec §6.1). Sequential, on purpose: each call
+  // bills the owner's own AI credentials and this is an operator tool, not a
+  // latency-sensitive path.
   //
   // Unconditional on `force`: unplaced concepts are unplaced either way, and
   // guarded on `owners.length` rather than defaulting a missing first owner's
@@ -161,47 +163,103 @@ async function main() {
   // branching factor means a rung is probably missing beneath them, and
   // LEAF concepts covering exactly one key point — the sign a leaf is being
   // minted per card instead of reused. All of it is computed by the pure
-  // `summarizeTreeHealth`; this function only fetches and prints.
+  // `summarizeTreeHealth`; this function only fetches and prints — PER SET,
+  // since structure lives on `SetKltNode` now, one row per (set, concept).
   await reportTreeHealth()
 }
 
+/**
+ * Prints tree health for every set that has structure or linked concepts.
+ *
+ * Structure moved off the global `Klt` tree onto `SetKltNode` (Task 3); a
+ * whole-install read of the deprecated structure columns straight off the
+ * Klt model would read columns Task 2-5 stopped writing to, and Task 6's
+ * guard test (`tests/klt/deprecated-columns-guard.test.ts`) fails the build
+ * on exactly that pattern. So this loops sets and calls `summarizeTreeHealth` once per
+ * set, reading `SetKltNode` joined to `Klt` for display names, and scoping
+ * the `KlpTopic` link counts to that set's own cards — the same scoping
+ * `loadKltRows` (`src/lib/metrics/read.ts`) uses for the live dashboard.
+ *
+ * A set with neither placed nodes nor linked concepts is skipped entirely —
+ * nothing to report. A set with links but zero `SetKltNode` rows still gets
+ * a line: every one of its concepts is unplaced, which is the sharpest
+ * possible health signal and must not be silent.
+ */
 async function reportTreeHealth() {
-  const rawRows = await prisma.klt.findMany({
-    select: { id: true, name: true, normalizedName: true, parentKltId: true, depth: true, ancestorIds: true },
-  })
-  // TODO(task-3): compile-only adapter. `summarizeTreeHealth` (and health
-  // reporting generally) becomes per-set in Task 3; this script still reports
-  // across the whole install by reading structure directly off `Klt`, so
-  // `kltId` doubling as the row's own `id` is exactly true for now.
-  const rows = rawRows.map((r) => ({ ...r, kltId: r.id }))
-  const linkRows = await prisma.klpTopic.groupBy({ by: ['kltId'], _count: true })
-  const linkCounts = new Map(linkRows.map((l) => [l.kltId, l._count]))
+  const sets = await prisma.set.findMany({ select: { id: true, title: true } })
 
-  const health = summarizeTreeHealth(rows, linkCounts)
+  for (const set of sets) {
+    const [nodes, linkRows] = await Promise.all([
+      prisma.setKltNode.findMany({
+        where: { setId: set.id },
+        select: {
+          id: true,
+          kltId: true,
+          parentKltId: true,
+          depth: true,
+          ancestorIds: true,
+          klt: { select: { name: true, normalizedName: true } },
+        },
+      }),
+      prisma.klpTopic.groupBy({
+        by: ['kltId'],
+        where: { klp: { card: { setId: set.id } } },
+        _count: true,
+      }),
+    ])
+
+    if (nodes.length === 0 && linkRows.length === 0) continue
+
+    const rows: TreeNodeRow[] = nodes.map((n) => ({
+      id: n.id,
+      kltId: n.kltId,
+      name: n.klt.name,
+      normalizedName: n.klt.normalizedName,
+      parentKltId: n.parentKltId,
+      depth: n.depth,
+      ancestorIds: n.ancestorIds,
+    }))
+    const linkCounts = new Map(linkRows.map((l) => [l.kltId, l._count]))
+
+    if (nodes.length === 0) {
+      console.warn(
+        `[backfill:klts] set ${set.id} (${set.title}): ${linkRows.length} linked concept(s), ` +
+          `zero placed in this set's structure`,
+      )
+      continue
+    }
+
+    const health = summarizeTreeHealth(rows, linkCounts)
+    printSetHealth(set.id, set.title, health)
+  }
+}
+
+function printSetHealth(setId: string, title: string, health: TreeHealth): void {
+  const tag = `[backfill:klts] set ${setId} (${title})`
 
   if (health.violations.length > 0) {
-    console.error(`[backfill:klts] STRUCTURAL VIOLATIONS: ${health.violations.length}`)
+    console.error(`${tag}: STRUCTURAL VIOLATIONS: ${health.violations.length}`)
     for (const v of health.violations.slice(0, 10)) console.error(`  ${v.kind} ${v.kltId}: ${v.detail}`)
   }
 
-  console.log('[backfill:klts] nodes by depth: ' +
+  console.log(`${tag}: nodes by depth: ` +
     health.nodesByDepth.map(({ depth, count }) => `${depth}:${count}`).join(' '))
 
   if (health.unplaced.length > 0) {
-    console.warn(`[backfill:klts] ${health.unplaced.length} concept(s) still unparented — they report ` +
+    console.warn(`${tag}: ${health.unplaced.length} concept(s) still unparented — they report ` +
       `mastery as their own node but do not roll up: ${health.unplaced.slice(0, 8).map((u) => u.name).join(', ')}`)
   }
 
   if (health.overloaded.length > 0) {
-    console.warn(`[backfill:klts] ${health.overloaded.length} node(s) exceed ${MAX_BRANCHING} direct ` +
+    console.warn(`${tag}: ${health.overloaded.length} node(s) exceed ${MAX_BRANCHING} direct ` +
       `children — a rung is probably missing beneath them: ` +
       health.overloaded.map((o) => `${o.name} (${o.children})`).join(', '))
   }
 
   if (health.linkedConcepts > 0) {
-    console.log(`[backfill:klts] concepts with exactly one key point: ${health.singletonConcepts}/${health.linkedConcepts}`)
+    console.log(`${tag}: concepts with exactly one key point: ${health.singletonConcepts}/${health.linkedConcepts}`)
     if (health.singletonConcepts > health.linkedConcepts * 0.5) {
-      console.warn('[backfill:klts] WARNING: over half of concepts cover a single key point. ' +
+      console.warn(`${tag}: WARNING: over half of concepts cover a single key point. ` +
         'Leaves are being minted per card instead of reused — nothing will aggregate.')
     }
   }
