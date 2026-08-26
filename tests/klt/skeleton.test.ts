@@ -181,15 +181,16 @@ describe('applySkeleton', () => {
     )
   })
 
-  it('rejects a skeleton path deeper than MAX_SKELETON_DEPTH', async () => {
+  it('rejects a skeleton path deeper than MAX_SKELETON_DEPTH, and REPORTS the refusal via skipped', async () => {
     const tooDeep = Array.from({ length: MAX_SKELETON_DEPTH + 1 }, (_, i) => `level${i}`)
     const res = await applySkeleton([tooDeep])
     expect(res.success).toBe(true)
     expect(res.success === true && res.data.created).toBe(0)
+    expect(res.success === true && res.data.skipped).toBe(1)
     expect(h.kltUpsert).not.toHaveBeenCalled()
   })
 
-  it('creates missing nodes but NEVER re-parents an existing one', async () => {
+  it('creates missing nodes but NEVER re-parents an existing one, and counts the refusal as skipped', async () => {
     // 'accounting' already exists as a child of 'finance'. A skeleton path
     // that would insert a new level BETWEEN them (finance > ratios >
     // accounting) is a match-after-creation — resolvePlacementPath refuses
@@ -202,12 +203,22 @@ describe('applySkeleton', () => {
     const res = await applySkeleton([['finance', 'ratios', 'accounting']])
     expect(res.success).toBe(true)
     expect(res.success === true && res.data.created).toBe(0)
+    expect(res.success === true && res.data.skipped).toBe(1)
     expect(h.kltUpsert).not.toHaveBeenCalled()
   })
 
-  it('is idempotent — applying the same skeleton twice creates nothing the second time', async () => {
+  it('a mixed batch reports created and skipped independently, one bad path does not discard a good one', async () => {
+    const tooDeep = Array.from({ length: MAX_SKELETON_DEPTH + 1 }, (_, i) => `level${i}`)
+    const res = await applySkeleton([['finance', 'accounting'], tooDeep])
+    expect(res.success).toBe(true)
+    expect(res.success === true && res.data.created).toBe(2)
+    expect(res.success === true && res.data.skipped).toBe(1)
+  })
+
+  it('is idempotent — applying the same skeleton twice creates nothing the second time, and does NOT count the no-op as skipped', async () => {
     const first = await applySkeleton([['finance', 'accounting']])
     expect(first.success === true && first.data.created).toBe(2)
+    expect(first.success === true && first.data.skipped).toBe(0)
 
     // Reset call history only (implementations survive `clearAllMocks` —
     // it clears `.mock.calls`/`.mock.results`, not `mockImplementation`),
@@ -224,6 +235,9 @@ describe('applySkeleton', () => {
     const second = await applySkeleton([['finance', 'accounting']])
     expect(second.success).toBe(true)
     expect(second.success === true && second.data.created).toBe(0)
+    // Already existing, not refused: skipped stays 0, not 1. A no-op success
+    // must never be reported to the user as though something were refused.
+    expect(second.success === true && second.data.skipped).toBe(0)
     expect(h.kltUpsert).not.toHaveBeenCalled()
     expect(h.transaction).not.toHaveBeenCalled()
   })

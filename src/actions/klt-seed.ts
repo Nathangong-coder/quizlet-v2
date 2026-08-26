@@ -103,11 +103,19 @@ export async function suggestSkeleton(subject: string): Promise<ActionResult<{ p
  * tree has left.
  *
  * IDEMPOTENT: a path whose every segment already exists resolves to
- * `toCreate.length === 0` and is skipped without touching the database at
- * all, so applying the same accepted skeleton twice creates nothing the
- * second time.
+ * `toCreate.length === 0` — nothing was refused, the concept is simply
+ * already there, so this does NOT count toward `skipped` below.
+ *
+ * `skipped` counts only paths that were REFUSED (too deep, empty, or a
+ * `resolvePlacementPath` null — e.g. one that would re-parent an existing
+ * node). Skipping a bad path rather than failing the whole call is right —
+ * one bad path should not discard an otherwise good skeleton — but doing so
+ * silently is not: a caller that only sees `created` never learns some
+ * rungs were refused. The UI surfaces both numbers ("Applied N, skipped M").
  */
-export async function applySkeleton(paths: string[][]): Promise<ActionResult<{ created: number }>> {
+export async function applySkeleton(
+  paths: string[][],
+): Promise<ActionResult<{ created: number; skipped: number }>> {
   const userId = await requireEditor();
   if (!userId) return NOT_FOUND;
 
@@ -115,16 +123,24 @@ export async function applySkeleton(paths: string[][]): Promise<ActionResult<{ c
   const byNormalized = new Map(rows.map((r) => [r.normalizedName, r]));
 
   let created = 0;
+  let skipped = 0;
   for (const path of paths) {
-    if (path.length === 0 || path.length > MAX_SKELETON_DEPTH) continue;
+    if (path.length === 0 || path.length > MAX_SKELETON_DEPTH) {
+      skipped++;
+      continue;
+    }
 
     const resolved = resolvePlacementPath(path, byNormalized);
-    if (!resolved || resolved.toCreate.length === 0) continue;
+    if (!resolved) {
+      skipped++;
+      continue;
+    }
+    if (resolved.toCreate.length === 0) continue;
 
     created += await createChain(resolved, byNormalized);
   }
 
-  return { success: true, data: { created } };
+  return { success: true, data: { created, skipped } };
 }
 
 /**
