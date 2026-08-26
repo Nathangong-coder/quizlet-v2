@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const h = vi.hoisted(() => ({
   kltFindMany: vi.fn(),
   kltFindFirst: vi.fn(),
+  kltFindUnique: vi.fn(),
   kltUpdate: vi.fn(),
   kltDelete: vi.fn(),
   kltCount: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock('@/lib/db', () => ({
     klt: {
       findMany: h.kltFindMany,
       findFirst: h.kltFindFirst,
+      findUnique: h.kltFindUnique,
       update: h.kltUpdate,
       delete: h.kltDelete,
       count: h.kltCount,
@@ -87,6 +89,12 @@ beforeEach(() => {
   h.transaction.mockImplementation(defaultTransactionImpl)
   h.kltFindMany.mockResolvedValue(ROWS.map((r) => ({ ...r, ancestorIds: [...r.ancestorIds] })))
   h.kltFindFirst.mockResolvedValue(null)
+  // Existence check for renameConcept: resolves against the same fixture
+  // tree, so every existing test id (k-leaf, k-a, ...) is found automatically
+  // and only a deliberately unknown id reads as "not found".
+  h.kltFindUnique.mockImplementation(async ({ where: { id } }: { where: { id: string } }) =>
+    ROWS.some((r) => r.id === id) ? { id } : null,
+  )
   h.kltCount.mockResolvedValue(0)
   h.topicFindMany.mockResolvedValue([])
   h.kltUpdate.mockResolvedValue({})
@@ -229,6 +237,19 @@ describe('renameConcept', () => {
       where: { id: 'k-leaf' },
       data: { name: 'Cost of Capital', normalizedName: 'cost of capital' },
     })
+  })
+
+  it('returns a failed ActionResult for a nonexistent id, instead of throwing a raw Prisma exception', async () => {
+    // Carried fix: renameConcept previously had no existence check, unlike
+    // reparentConcept and mergeConcepts, which both check explicitly. A
+    // nonexistent kltId would fall straight through to `klt.update`, which
+    // Prisma rejects with a raw P2025 exception — surfaced to the editor UI
+    // as an unhandled error instead of a clean, renderable ActionResult.
+    const res = await renameConcept('does-not-exist', 'Cost of Capital')
+    expect(res.success).toBe(false)
+    expect(res.success === false && res.error).toMatch(/not found/i)
+    expect(h.kltFindFirst).not.toHaveBeenCalled()
+    expect(h.kltUpdate).not.toHaveBeenCalled()
   })
 })
 

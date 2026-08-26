@@ -150,6 +150,11 @@ export async function renameConcept(kltId: string, name: string): Promise<Action
   const parsed = parseKltName(name);
   if (!parsed) return { success: false, error: 'Invalid concept name' };
 
+  const existing = await prisma.klt.findUnique({ where: { id: kltId }, select: { id: true } });
+  if (!existing) {
+    return { success: false, error: 'Concept not found' };
+  }
+
   const collision = await prisma.klt.findFirst({
     where: { normalizedName: parsed.normalizedName, NOT: { id: kltId } },
     select: { id: true },
