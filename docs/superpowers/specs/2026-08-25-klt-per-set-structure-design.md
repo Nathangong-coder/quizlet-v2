@@ -44,11 +44,12 @@ A learner with three finance sets therefore has three structures over one vocabu
 | --- | --- | --- |
 | 1 | **`Klt` keeps global `normalizedName` uniqueness and loses `parentKltId`, `depth`, `ancestorIds`.** | The registry is the comparable thing. Structure is not comparable across sets and never was — 0 concepts are shared by more than one set today. |
 | 2 | **New `SetKltNode`: one row per (set, concept), carrying `parentKltId`, `depth`, `ancestorIds`.** | Structure becomes owned by the set that has to live with it. |
-| 3 | **The editor moves to `/sets/[id]/concepts`, gated by SET OWNERSHIP.** `KLT_EDITORS` is deleted. | The owner's request. Ownership is a real boundary the app already enforces everywhere; an env allowlist was a stand-in for the absence of one. |
-| 4 | **Every edit affects one set only.** | Removes the entire blast-radius problem that motivated the allowlist. A future permission share is then per set, which is the shape the owner asked for. |
+| 3 | **TWO editors, not one. `KLT_EDITORS` is KEPT.** A per-set editor at `/sets/[id]/concepts` gated by SET OWNERSHIP, and an admin editor at `/concepts` gated by `KLT_EDITORS` that spans every set. | Corrected 2026-08-25 after the owner clarified: they want both. The per-set editor is for power users tending their own deck; the admin view is how the owner helps other people and authors presets. Same component, two scopes, one table. |
+| 4 | **Every edit affects one set only — including admin edits.** The admin view differs in WHAT IT CAN REACH, never in what an edit does. | Removes the blast-radius problem entirely: there is no longer any write that touches more than one set's structure, so an admin slip damages one deck rather than the install. A future permission share is then per set, which is the shape the owner asked for. |
 | 5 | **Placement, seeding and health checks all become per-set.** | They operate on structure, and structure is now per-set. Phase B places a set's concepts within that set's tree, seeing only that tree. |
 | 6 | **The mastery-safety guarantee is unchanged.** No path may delete or supersede a `CardKlp`, or touch `KlpState`/`AnswerKlpResult`. | `AnswerKlpResult.klp` is `onDelete: Cascade`; deleting a `CardKlp` destroys answer history irrecoverably. This survived two phases and survives this one. |
-| 7 | **Rebuild rather than migrate the structure.** Keep `Klt` rows and `CardKlp.label`; re-derive every edge per set. | The existing edges encode one global hierarchy; splitting it per set by inference would guess. Re-deriving costs one backfill run and is honest. |
+| 7 | **Presets: a named, reusable skeleton that can be applied to a set.** Authored by hand in the admin view at first, applied explicitly. | The owner's stated need — "building base pre-sets (manually at first) for new sets that are generated". A preset is just saved paths, so it reuses the seeding apply-path wholesale rather than being new machinery. |
+| 8 | **Rebuild rather than migrate the structure.** Keep `Klt` rows and `CardKlp.label`; re-derive every edge per set. | The existing edges encode one global hierarchy; splitting it per set by inference would guess. Re-deriving costs one backfill run and is honest. |
 
 ---
 
@@ -99,6 +100,34 @@ model SetKltNode {
 
 ---
 
+## 3b. Presets
+
+A preset is a **named list of root-to-node paths** — the same shape `applySkeleton` already consumes.
+
+```prisma
+/// A reusable skeleton an operator can apply to a set, so a new deck starts
+/// with a sensible hierarchy instead of whatever the model infers from cold.
+///
+/// Deliberately NOT auto-applied to new sets in this iteration: the owner
+/// asked for manual first, and an unreviewed skeleton is the structure every
+/// later placement inherits.
+model KltPreset {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  /// Root-first paths of concept NAMES, not ids — a preset must survive being
+  /// applied to a set whose concepts do not exist yet.
+  paths     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+```
+
+Authoring is admin-only (`KLT_EDITORS`). **Applying** a preset to a set is available to the set's owner, and goes through the same validation as AI seeding — a path that would re-parent an existing node is refused, not honoured. Applying is idempotent and reports how many paths were skipped, exactly as `applySkeleton` does.
+
+Storing **names rather than ids** is what makes a preset portable: applied to a set whose `financial statements` does not exist yet, it creates it; applied where it does, it reuses it.
+
+---
+
 ## 4. What changes in the pipeline
 
 - **Phase A (naming leaf concepts) is unchanged.** It produces `Klt` rows and `KlpTopic` links, neither of which moves.
@@ -134,5 +163,7 @@ model SetKltNode {
 ## 7. Out of scope
 
 - **Sharing permissions themselves.** This spec makes the editor set-scoped so that permissions *can* be added; it does not add them. Set sharing is queue item 6c.
+- **Auto-applying a preset to newly created sets.** Decision 7 keeps it manual for now, per the owner's "manually at first". The hook is trivial once presets exist and have been used enough to trust one as a default.
+- **The `My Sets` / `Sets` navigation split** the owner raised alongside this — separating a place to EDIT your own sets from a place to browse and quiz on anyone's. That is an app-wide information-architecture change that overlaps queue item 6c's public directory and homepage design, and it should be designed WITH 6c rather than half-built here. Recorded so it is not lost.
 - **Reconciling two sets that disagree about a concept's parent** — §6.2 accepts the divergence.
 - **Phase 3** (branching-factor refinement, AI semantic audits) remains unbuilt and is unaffected by this change.
