@@ -92,10 +92,14 @@ describe('requireSetKltAccess', () => {
 
   it('resolves setId from the database row, not merely echoing the argument back', async () => {
     h.auth.mockResolvedValue({ user: { id: OWNER } })
-    h.setFindFirst.mockResolvedValue({ id: SET_ID, title: 'Finance 101' })
+    // The row's id DIFFERS from the argument passed in — a mock that resolved
+    // the SAME id as the argument cannot distinguish `access.setId = set.id`
+    // from `access.setId = setId` (the raw argument), which is exactly the
+    // vacuous shape this guard had before (2026-08-26 review finding #3).
+    h.setFindFirst.mockResolvedValue({ id: 'set-resolved', title: 'Finance 101' })
 
     const access = await requireSetKltAccess(SET_ID)
 
-    expect(access?.setId).toBe(SET_ID)
+    expect(access?.setId).toBe('set-resolved')
   })
 })

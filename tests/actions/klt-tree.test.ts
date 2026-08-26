@@ -332,11 +332,29 @@ describe('gating', () => {
   })
 
   it('scopes every query to the setId requireSetKltAccess resolved, not a raw argument', async () => {
-    // Access is granted for SET_A regardless of what's passed in — mirrors a
-    // caller physically incapable of widening scope, since the helper
-    // resolves setId from the database, not from its argument.
-    await listConceptTree(SET_A)
-    expect(h.nodeFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { setId: SET_A } }))
+    // Access resolves to a DIFFERENT setId than the raw argument passed to
+    // listConceptTree — a mock where the resolved id equals the argument
+    // cannot tell `access.setId` apart from the raw parameter, which is
+    // exactly the vacuous shape this guard had before (2026-08-26 review
+    // finding #3). Seed a node under the RESOLVED id so a query scoped to the
+    // wrong id would come back empty, not merely call-shape-wrong.
+    const RESOLVED_SET_ID = 'set-resolved'
+    h.state.nodes.push({
+      id: 'n-resolved-root',
+      setId: RESOLVED_SET_ID,
+      kltId: 'k-root',
+      parentKltId: null,
+      depth: 0,
+      ancestorIds: [],
+    })
+    h.access.mockResolvedValue({ ...ACCESS_A, setId: RESOLVED_SET_ID })
+
+    const res = await listConceptTree('set-argument')
+
+    expect(h.nodeFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { setId: RESOLVED_SET_ID } }))
+    expect(h.nodeFindMany).not.toHaveBeenCalledWith(expect.objectContaining({ where: { setId: 'set-argument' } }))
+    expect(res.success).toBe(true)
+    expect(res.success === true && res.data.nodes.some((n) => n.kltId === 'k-root')).toBe(true)
   })
 })
 

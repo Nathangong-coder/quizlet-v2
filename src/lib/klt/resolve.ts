@@ -20,7 +20,8 @@ export interface KltWrite {
  * - A repeated ref keeps only the first entry.
  * - Rank is CENTRALITY: 1 is the concept the point is chiefly about, 2 a
  *   second it honestly also covers. Breadth comes from the concept tree
- *   (`Klt.parentKltId`), not from rank. Invalid names are dropped and
+ *   (`SetKltNode.parentKltId`, per-set since Task 3), not from rank. Invalid
+ *   names are dropped and
  *   survivors RE-RANKED, so ranks stay contiguous from 1 — a gap would make
  *   rank mean two different things depending on what the model returned, and
  *   `masteryTopicRanks` reads rank as a cutoff. If the model's most-central

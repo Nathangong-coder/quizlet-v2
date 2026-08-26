@@ -27,9 +27,11 @@ export interface TreeHealth {
  * `normalizedName`) — Task 3 moved structure off the global `Klt` tree, so
  * this function no longer sees (and must never be handed) more than one
  * set's nodes at a time. A caller wanting the whole install's picture loops
- * over sets and reports per set (`scripts/backfill-klts.ts` still reads the
- * deprecated global `Klt` columns directly and calls this once for the whole
- * table — Task 6's to move onto `SetKltNode`).
+ * over sets and reports per set — `scripts/backfill-klts.ts`'s
+ * `reportTreeHealth()` does exactly this (Task 6a): it loops
+ * `prisma.set.findMany()` and calls `summarizeTreeHealth` once per set
+ * against that set's own `SetKltNode` rows, with `KlpTopic` link counts
+ * scoped by `klp.card.setId`.
  *
  * Every lookup below keys on `kltId` (the concept `parentKltId`/`ancestorIds`
  * point at), never on `id` (the `SetKltNode` row) — see `SetNodeRow` in

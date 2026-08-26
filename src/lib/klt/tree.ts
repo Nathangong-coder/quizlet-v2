@@ -105,14 +105,19 @@ export function wouldCycle(
  * New depth/ancestors for a moved node and everything beneath it.
  *
  * `nodeKltId`/`newParentKltId` are concepts, matched against `rows` by
- * `kltId`; the returned `id` on each entry is that row's OWN `SetKltNode` id
- * (or the bare `kltId` as a fallback — see below), because a caller writes
- * with it, and a write always targets a specific row, never a concept alone.
+ * `kltId`; the returned `id` on each entry is that row's OWN `SetKltNode` id,
+ * because a caller writes with it, and a write always targets a specific
+ * row, never a concept alone — a concept id in this field would corrupt
+ * whichever row a caller updates.
  *
  * Returns ONLY rows whose values actually change, so a no-op move writes
  * nothing. Throws when the move would push any descendant past the cap —
  * refusing is correct, because the alternative is a tree whose depth means
- * nothing.
+ * nothing. Also throws if `walk` ever reaches a `kltId` absent from `rows` —
+ * this should be unreachable (`walk` starts at `nodeKltId`, guaranteed
+ * present by the `node` guard above, and only recurses into `child.kltId`
+ * values drawn from `rows` itself), but a missing row must fail loudly
+ * rather than write a concept id where a row id belongs.
  */
 export function computeSubtreeUpdates(
   nodeKltId: string,
@@ -146,15 +151,12 @@ export function computeSubtreeUpdates(
       throw new Error(`move would exceed max depth ${MAX_TREE_DEPTH} at ${kltId}`)
     }
     const current = byKltId.get(kltId)
+    if (current === undefined) {
+      throw new Error(`unreachable: walked to ${kltId}, which is not in rows`)
+    }
     const changed =
-      current === undefined ||
-      current.depth !== depth ||
-      current.ancestorIds.join(',') !== ancestorIds.join(',')
-    // `current?.id` is the row to write; `kltId` is only a fallback for a
-    // node not present in `rows` at all, which the `node`/`parent` guards
-    // above make unreachable for the walk's start but is kept here so a
-    // future caller cannot turn a missing lookup into a thrown TypeError.
-    if (changed) out.push({ id: current?.id ?? kltId, depth, ancestorIds })
+      current.depth !== depth || current.ancestorIds.join(',') !== ancestorIds.join(',')
+    if (changed) out.push({ id: current.id, depth, ancestorIds })
     for (const child of childrenOf.get(kltId) ?? []) {
       walk(child.kltId, depth + 1, [...ancestorIds, kltId])
     }

@@ -1,10 +1,8 @@
 'use server';
 
-import { prisma } from '@/lib/db';
 import { requireSetKltAccess } from '@/lib/klt/access';
-import { listConceptTree, loadSetTree } from '@/actions/klt-tree';
-import { resolvePlacementPath, type ResolvedPlacement } from '@/lib/klt/place';
-import { MAX_TREE_DEPTH, type TreeNodeRow } from '@/lib/klt/tree';
+import { listConceptTree } from '@/actions/klt-tree';
+import { applyPaths } from '@/lib/klt/structure';
 import { generateJson } from '@/lib/ai/generate';
 import { SUGGEST_SKELETON_PROMPT } from '@/lib/ai/prompts/suggest-skeleton';
 import { KltSkeletonSchema, MAX_SKELETON_DEPTH } from '@/lib/ai/schemas';
@@ -70,17 +68,24 @@ export async function suggestSkeleton(
 /**
  * Create the missing chain for each accepted path, IN THIS SET.
  *
- * REUSES `resolvePlacementPath` rather than reinventing reconciliation — it
- * already refuses a path whose match follows a creation (which would
- * silently re-parent an existing node and move its subtree's mastery), a
- * repeated name, an over-deep path, and a segment failing `parseKltName`. A
- * `null` result is honoured by skipping that path outright, never worked
- * around: fabricating a placement here is exactly the failure mode the whole
- * placement pipeline exists to avoid. `byNormalized` (and therefore what
- * counts as "already exists") is seeded from `loadSetTree(setId)` — THIS
- * SET's placed nodes only, so a chain segment that happens to share a name
- * with another set's structure is still created fresh here rather than
- * silently adopting that other set's placement.
+ * Gated here, then delegates the actual mechanics to `applyPaths`
+ * (`src/lib/klt/structure.ts`, shared with Task 5's presets) — a plain
+ * library function, not a server action, precisely so it cannot be called
+ * directly with an arbitrary `setId`. This wrapper is what resolves and
+ * enforces access before that shared code ever runs.
+ *
+ * REUSES `resolvePlacementPath` (inside `applyPaths`) rather than
+ * reinventing reconciliation — it already refuses a path whose match follows
+ * a creation (which would silently re-parent an existing node and move its
+ * subtree's mastery), a repeated name, an over-deep path, and a segment
+ * failing `parseKltName`. A `null` result is honoured by skipping that path
+ * outright, never worked around: fabricating a placement here is exactly the
+ * failure mode the whole placement pipeline exists to avoid. `byNormalized`
+ * (and therefore what counts as "already exists") is seeded from
+ * `loadSetTree(setId)` — THIS SET's placed nodes only, so a chain segment
+ * that happens to share a name with another set's structure is still
+ * created fresh here rather than silently adopting that other set's
+ * placement.
  *
  * Also enforces `MAX_SKELETON_DEPTH` directly, independent of
  * `resolvePlacementPath`'s own (much looser) `MAX_TREE_DEPTH` cap — a
@@ -107,120 +112,4 @@ export async function applySkeleton(
 
   const data = await applyPaths(access.setId, paths, MAX_SKELETON_DEPTH);
   return { success: true, data };
-}
-
-/**
- * Shared apply mechanics for BOTH the AI skeleton and Task 5's presets: given
- * a set already resolved by the caller's own gate (`requireSetKltAccess`),
- * create the missing chain for each accepted root-to-node path, IN THAT SET.
- *
- * Every rejection rule lives in `resolvePlacementPath` (imported, not
- * reimplemented) — a path whose match follows a creation is refused, an
- * over-deep path is refused whole, a repeated name is refused, and any
- * segment failing `parseKltName` refuses the whole path. `maxPathLength` is
- * an ADDITIONAL, caller-specific cap layered on top: a skeleton is top rungs
- * only (`MAX_SKELETON_DEPTH`, much shallower than the tree's own
- * `MAX_TREE_DEPTH`), while a preset may legitimately capture a set's WHOLE
- * structure, so it passes no extra cap and relies on `resolvePlacementPath`'s
- * own `MAX_TREE_DEPTH` alone.
- *
- * IDEMPOTENT: a path whose every segment already exists in this set resolves
- * to `toCreate.length === 0` — nothing was refused, the concept is simply
- * already there, so this does NOT count toward `skipped`.
- *
- * `skipped` counts only paths that were REFUSED (too deep for the caller's
- * own cap, empty, or a `resolvePlacementPath` null — e.g. one that would
- * re-parent an existing node). Skipping a bad path rather than failing the
- * whole call is right — one bad path should not discard an otherwise good
- * batch — but doing so silently is not: a caller that only sees `created`
- * never learns some rungs were refused. Callers surface both numbers.
- */
-export async function applyPaths(
-  setId: string,
-  paths: string[][],
-  maxPathLength: number = MAX_TREE_DEPTH,
-): Promise<{ created: number; skipped: number }> {
-  const rows = await loadSetTree(setId);
-  const byNormalized = new Map(rows.map((r) => [r.normalizedName, r]));
-
-  let created = 0;
-  let skipped = 0;
-  for (const path of paths) {
-    if (!Array.isArray(path) || path.length === 0 || path.length > maxPathLength) {
-      skipped++;
-      continue;
-    }
-
-    const resolved = resolvePlacementPath(path, byNormalized);
-    if (!resolved) {
-      skipped++;
-      continue;
-    }
-    if (resolved.toCreate.length === 0) continue;
-
-    created += await createChain(setId, resolved, byNormalized);
-  }
-
-  return { created, skipped };
-}
-
-/**
- * Create every missing segment of one resolved path, in order, each a child
- * of the previous, and place each one in THIS SET — the parent chain and the
- * final segment alike, unlike `place.ts`'s `applyPlacement` (which treats its
- * last segment as an EXISTING unplaced node to attach, not a node to create).
- * A skeleton has no pre-existing leaf to attach: every `toCreate` entry here
- * is new structure.
- *
- * Two tables per segment, same split as `createConcept` in `klt-tree.ts`:
- * `klt.upsert` gets-or-creates the concept by `normalizedName` (globally
- * unique — reusing a name that already exists elsewhere in the install is
- * correct, not a bug), and `setKltNode.upsert` places THAT concept within
- * THIS set specifically. `upsert` on both (not `create`), so a concurrent or
- * repeated call converges on the same rows instead of racing to create a
- * duplicate. `byNormalized` is updated in place as each segment is created so
- * the NEXT segment in the same path — and any later path in the same call —
- * can chain off it instead of re-resolving against a stale snapshot.
- */
-async function createChain(
-  setId: string,
-  resolved: ResolvedPlacement,
-  byNormalized: Map<string, TreeNodeRow>,
-): Promise<number> {
-  let parent = resolved.matched[resolved.matched.length - 1] ?? null;
-  let count = 0;
-
-  await prisma.$transaction(async (tx) => {
-    for (const spec of resolved.toCreate) {
-      const klt = await tx.klt.upsert({
-        where: { normalizedName: spec.normalizedName },
-        create: { name: spec.name, normalizedName: spec.normalizedName },
-        update: {},
-        select: { id: true, name: true, normalizedName: true },
-      });
-      const parentKltId = parent?.kltId ?? null;
-      const depth = parent ? parent.depth + 1 : 0;
-      const ancestorIds = parent ? [...parent.ancestorIds, parent.kltId] : [];
-      const setNode = await tx.setKltNode.upsert({
-        where: { setId_kltId: { setId, kltId: klt.id } },
-        create: { setId, kltId: klt.id, parentKltId, depth, ancestorIds },
-        update: {},
-        select: { id: true, kltId: true, parentKltId: true, depth: true, ancestorIds: true },
-      });
-      const node: TreeNodeRow = {
-        id: setNode.id,
-        kltId: setNode.kltId,
-        name: klt.name,
-        normalizedName: klt.normalizedName,
-        parentKltId: setNode.parentKltId,
-        depth: setNode.depth,
-        ancestorIds: setNode.ancestorIds,
-      };
-      byNormalized.set(node.normalizedName, node);
-      parent = node;
-      count++;
-    }
-  });
-
-  return count;
 }

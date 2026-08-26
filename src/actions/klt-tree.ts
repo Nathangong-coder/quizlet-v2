@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { requireSetKltAccess } from '@/lib/klt/access';
 import { computeSubtreeUpdates, wouldCycle, MAX_TREE_DEPTH, type TreeNodeRow } from '@/lib/klt/tree';
 import { parseKltName } from '@/lib/klt/normalize';
+import { loadSetTree } from '@/lib/klt/structure';
 import type { ActionResult } from '@/types/action';
 
 /**
@@ -54,36 +55,7 @@ export interface ConceptTreeData {
   unplaced: UnplacedConcept[];
 }
 
-const SET_NODE_SELECT = {
-  id: true,
-  kltId: true,
-  parentKltId: true,
-  depth: true,
-  ancestorIds: true,
-  klt: { select: { name: true, normalizedName: true } },
-} as const;
-
 const NOT_FOUND: ActionResult<never> = { success: false, error: 'Not found' };
-
-/**
- * THIS SET's tree, and only this set's.
- *
- * Every action below reads through this one function, so the `where: { setId }`
- * appears once rather than at five call sites — a concept placed in another
- * set can never be reached, let alone matched or moved.
- */
-export async function loadSetTree(setId: string): Promise<TreeNodeRow[]> {
-  const rows = await prisma.setKltNode.findMany({ where: { setId }, select: SET_NODE_SELECT });
-  return rows.map((r) => ({
-    id: r.id,
-    kltId: r.kltId,
-    name: r.klt.name,
-    normalizedName: r.klt.normalizedName,
-    parentKltId: r.parentKltId,
-    depth: r.depth,
-    ancestorIds: r.ancestorIds,
-  }));
-}
 
 /**
  * Write one subtree move (a node plus every descendant `computeSubtreeUpdates`
@@ -545,3 +517,4 @@ export async function deleteConcept(setId: string, kltId: string): Promise<Actio
 
   return { success: true, data: null };
 }
+

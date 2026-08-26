@@ -611,9 +611,12 @@ async function loadUncategorizedCards(
  *
  * Scoped to the sets in the learner's scope — `set: { userId }` plus,
  * when the scope names sets, `setId: { in: scope.setIds }` — never the whole
- * `SetKltNode` table. This is also what makes the `ancestorIds` GIN index
- * usable: the old global-`Klt` read fetched every concept in the install
- * regardless of scope.
+ * `SetKltNode` table. The `ancestorIds` GIN index is NOT what this scoping
+ * enables — no containment query (`has`/`hasSome`/`hasEvery` on
+ * `ancestorIds`) exists anywhere in this file; the ancestor fold below runs
+ * in TypeScript (`buildAncestorClosureByName`), matching the controller
+ * ruling in `src/lib/metrics/klt-rollup.ts` (R3). The index is provisioned
+ * for a future containment query, not one that exists today.
  *
  * The nested `links` filter repeats the card scope on purpose, ONE SET AT A
  * TIME. Without it a node that qualifies through ONE in-scope card drags in
@@ -655,6 +658,11 @@ async function loadKltRows(
       set: { userId },
       ...(scope.setIds.length > 0 ? { setId: { in: scope.setIds } } : {}),
     },
+    // `setId: 'asc'` makes `bySet`'s iteration order deterministic, which is
+    // what `breadcrumbByName`'s "first set to name a topic wins" and
+    // `shapeTopicProfile`'s depth pick both actually need — without it,
+    // "first set" was whatever order Postgres happened to return.
+    orderBy: { setId: 'asc' },
     select: {
       setId: true,
       kltId: true,
@@ -735,10 +743,28 @@ async function loadKltRows(
  * correct here: each answer is a real event that appears in exactly one set's
  * group, so the sum is total evidence, not a double count.
  *
- * A set absent from `closuresBySet` (no placed structure) falls back to an
- * empty closure — `countAnalyzedAnswersByTopic` then credits only the direct
- * topic name, which is unused chart data since `loadKltRows` produced no
- * `RawKltRow` for that set's concepts either; it is harmless, not a throw.
+ * RULING (2026-08-26 review finding #8): a set ABSENT from `closuresBySet`
+ * (no placed `SetKltNode` structure at all) is SKIPPED — its answers
+ * contribute NOTHING to any topic's denominator, on this axis. This was
+ * previously a `?? new Map()` fallback, on the reasoning that it was
+ * harmless because `loadKltRows` produced no `RawKltRow` for that set's
+ * concepts either — but that reasoning only holds when the concept name
+ * appears in NO OTHER set. Concrete counterexample: a learner has set A
+ * (cards cite `accounting`, no `SetKltNode` rows yet — the ordinary state
+ * for a freshly imported deck) and set B (`accounting` placed). Under the
+ * old fallback, set A's answers landed in `counts['accounting']` (credited
+ * to the bare name, with no ancestor climb since the closure was empty) —
+ * inflating the denominator for a concept whose NUMERATOR (tag attribution)
+ * runs entirely off set B's `klpIds` and can never see set A's answers. The
+ * result: readiness for a shared concept understated whenever the learner
+ * has an unplaced set citing it.
+ *
+ * Skipping is deliberate, not a gap: it matches the existing project
+ * precedent that uncategorized/unplaced work participates in TARGETING
+ * (KLP-grain, needs no concept) but never in TOPIC MASTERY (concept-grain,
+ * needs a placed structure) — see Spec 3C's uncategorized-KLP handling. An
+ * unplaced set simply has no topic-grain opinion to contribute, on either
+ * side of the fraction.
  */
 async function loadAnalyzedAnswerCountsByKlt(
   prisma: PrismaClient,
@@ -778,7 +804,13 @@ async function loadAnalyzedAnswerCountsByKlt(
 
   const counts: Record<string, number> = {}
   for (const [setId, setAnswers] of answersBySet) {
-    const setCounts = countAnalyzedAnswersByTopic(setAnswers, closuresBySet.get(setId) ?? new Map())
+    // No closure entry means no placed structure in this set — skip it
+    // WHOLE rather than falling back to an empty closure. See the ruling
+    // above: an unplaced set must not inflate a shared concept's
+    // denominator with answers the numerator can never see.
+    const closure = closuresBySet.get(setId)
+    if (!closure) continue
+    const setCounts = countAnalyzedAnswersByTopic(setAnswers, closure)
     for (const [key, count] of Object.entries(setCounts)) {
       counts[key] = (counts[key] ?? 0) + count
     }

@@ -40,5 +40,5 @@ ALTER TABLE "SetKltNode" ADD CONSTRAINT "SetKltNode_setId_fkey" FOREIGN KEY ("se
 ALTER TABLE "SetKltNode" ADD CONSTRAINT "SetKltNode_kltId_fkey" FOREIGN KEY ("kltId") REFERENCES "Klt"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 
--- CreateIndex (hand-added; ancestorIds needs GIN for the containment queries the rollup runs on every dashboard load)
+-- CreateIndex (hand-added; ancestorIds mirrors Klt's own GIN index and is provisioned for a future containment query — the current rollup folds ancestor chains in TypeScript, not SQL, see src/lib/metrics/klt-rollup.ts's controller ruling R3)
 CREATE INDEX "SetKltNode_ancestorIds_idx" ON "SetKltNode" USING GIN ("ancestorIds");

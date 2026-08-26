@@ -9,7 +9,7 @@
  * - Paths store concept NAMES, never ids (`KltPreset.paths`), so a preset
  *   applies cleanly to a set whose concepts do not exist yet — see the
  *   model's own doc comment in `prisma/schema.prisma`.
- * - Applying routes through `applyPaths` (`src/actions/klt-seed.ts`), the
+ * - Applying routes through `applyPaths` (`src/lib/klt/structure.ts`), the
  *   SAME function `applySkeleton` uses, which in turn calls
  *   `resolvePlacementPath` for every path. A path that would re-parent an
  *   existing node is refused there, not honoured — this module never
@@ -27,8 +27,7 @@ import { prisma } from '@/lib/db';
 import { auth } from '@/auth';
 import { isKltEditor } from '@/lib/klt/editors';
 import { requireSetKltAccess } from '@/lib/klt/access';
-import { loadSetTree } from '@/actions/klt-tree';
-import { applyPaths } from '@/actions/klt-seed';
+import { loadSetTree, applyPaths } from '@/lib/klt/structure';
 import { parseKltName } from '@/lib/klt/normalize';
 import type { TreeNodeRow } from '@/lib/klt/tree';
 import type { ActionResult } from '@/types/action';
@@ -144,7 +143,7 @@ export async function deletePreset(id: string): Promise<ActionResult<null>> {
  * Apply a saved preset to ONE set — the set owner, or an operator, via
  * `requireSetKltAccess`.
  *
- * Reuses `applyPaths` (`src/actions/klt-seed.ts`) unchanged: the SAME
+ * Reuses `applyPaths` (`src/lib/klt/structure.ts`) unchanged: the SAME
  * `resolvePlacementPath` validation `applySkeleton` relies on, so a path that
  * would re-parent an existing node is refused and counted in `skipped`, not
  * honoured. No `maxPathLength` is passed — unlike a skeleton (top rungs
@@ -189,6 +188,18 @@ export async function applyPreset(
  * all already exist as a no-op, so the redundancy with deeper paths sharing
  * the same prefix costs nothing.
  *
+ * `derivePath` REFUSES A NODE WHOLE, rather than shortening its path, when
+ * one of its `ancestorIds` has no node in this set (a `parent_not_in_set`
+ * invariant violation — the tree is broken, not merely sparse). The
+ * codebase rule everywhere else in this feature is "refuse whole, never
+ * truncate": a truncated path here would bake a WRONG chain (e.g.
+ * `['finance', 'ratios', 'quick ratio']` for a node whose real chain is
+ * `finance > accounting > ratios > quick ratio`) into a shared, install-wide
+ * preset that every other owner who applies it inherits — worse than a
+ * skipped row, which is at least visible. `skipped` reports how many nodes
+ * were dropped this way so the admin isn't left thinking the capture was
+ * complete when it silently wasn't.
+ *
  * Uses `requireSetKltAccess`'s own `viaAllowlist` to decide admin-ness,
  * rather than a second, independent `isCallerKltAdmin()` check — access to
  * THIS set has already been resolved once, from the database; asking a
@@ -196,20 +207,44 @@ export async function applyPreset(
  * way `renameConcept` does keeps there being exactly one source of truth for
  * "was this access via the allowlist".
  */
-export async function savePresetFromSet(setId: string, name: string): Promise<ActionResult<{ id: string }>> {
+export async function savePresetFromSet(
+  setId: string,
+  name: string,
+): Promise<ActionResult<{ id: string; skipped: number }>> {
   const access = await requireSetKltAccess(setId);
   if (!access || !access.viaAllowlist) return NOT_FOUND;
 
   const rows = await loadSetTree(access.setId);
   const byKltId = new Map(rows.map((r) => [r.kltId, r]));
-  const paths = rows.map((r) => derivePath(r, byKltId));
 
-  return savePreset(name, paths);
+  const paths: string[][] = [];
+  let skipped = 0;
+  for (const row of rows) {
+    const path = derivePath(row, byKltId);
+    if (path === null) {
+      skipped++;
+      continue;
+    }
+    paths.push(path);
+  }
+
+  const saved = await savePreset(name, paths);
+  if (!saved.success) return saved;
+  return { success: true, data: { id: saved.data.id, skipped } };
 }
 
-function derivePath(node: TreeNodeRow, byKltId: Map<string, TreeNodeRow>): string[] {
-  const ancestorNames = node.ancestorIds
-    .map((id) => byKltId.get(id)?.name)
-    .filter((n): n is string => typeof n === 'string');
+/**
+ * `node`'s root-to-node path, or `null` when any of `node.ancestorIds` has
+ * no node in this set — refused whole rather than shortened. See the
+ * `savePresetFromSet` doc comment for why a truncated path is worse than a
+ * skipped one.
+ */
+function derivePath(node: TreeNodeRow, byKltId: Map<string, TreeNodeRow>): string[] | null {
+  const ancestorNames: string[] = [];
+  for (const id of node.ancestorIds) {
+    const ancestor = byKltId.get(id);
+    if (!ancestor) return null;
+    ancestorNames.push(ancestor.name);
+  }
   return [...ancestorNames, node.name];
 }

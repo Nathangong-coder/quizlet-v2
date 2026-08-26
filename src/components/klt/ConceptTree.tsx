@@ -462,7 +462,8 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
       toast.error(res.error || 'Failed to save preset')
       return
     }
-    toast.success(`Saved “${value}”`)
+    const { skipped } = res.data
+    toast.success(skipped > 0 ? `Saved “${value}” (skipped ${skipped})` : `Saved “${value}”`)
     setSavePresetName('')
     await loadPresets()
   }

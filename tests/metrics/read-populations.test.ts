@@ -61,6 +61,8 @@ vi.mock('@/lib/db', () => ({
 import { getLearnerMetrics } from '@/lib/metrics/read'
 import { EMPTY_SCOPE } from '@/lib/memory/scope'
 import { resolveBands } from '@/lib/tuning/schema'
+import { deriveTagScores, toStoredTags } from '@/lib/errors/derive'
+import { computeArticulation } from '@/lib/metrics/articulation'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -409,6 +411,18 @@ describe('KLT rollup resolves each set independently, then unions by concept (Ta
     expect(new Set(setIdsQueried)).toEqual(new Set(['set-A', 'set-B']))
   })
 
+  it("orders the SetKltNode read by setId, so 'first set wins' (breadcrumb, depth pick) is deterministic rather than whatever Postgres happens to return (review finding #9)", async () => {
+    twoSetStructure()
+    await getLearnerMetrics({
+      userId: 'u1',
+      scope: { ...EMPTY_SCOPE, setIds: ['set-A', 'set-B'] },
+    })
+
+    expect(h.setKltNodeFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { setId: 'asc' } }),
+    )
+  })
+
   it('a set with no placed structure at all yields no KLT topics, without throwing', async () => {
     h.setKltNodeFindMany.mockResolvedValue([])
     await expect(
@@ -417,5 +431,135 @@ describe('KLT rollup resolves each set independently, then unions by concept (Ta
     const out = await getLearnerMetrics({ userId: 'u1', scope: { ...EMPTY_SCOPE, setIds: ['set-empty'] } })
     expect(out.kltTopics).toEqual([])
     expect(h.klpTopicFindMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('KLT readiness denominator does not cross an unplaced set boundary (review finding #8)', () => {
+  it("a set with no SetKltNode structure at all contributes nothing to another set's topic denominator", async () => {
+    // Set B places 'accounting' as a root concept and has its own klp linked
+    // to it. Set A CITES the same concept name via one of its cards' klp
+    // topics, but has never placed any structure of its own — the ordinary
+    // state for a freshly imported deck. `closuresBySet` therefore has an
+    // entry for set B only.
+    h.setKltNodeFindMany.mockResolvedValue([
+      { setId: 'set-B', kltId: 'concept-acct', depth: 0, ancestorIds: [],
+        klt: { normalizedName: 'accounting', name: 'Accounting' } },
+    ])
+    h.klpTopicFindMany.mockImplementation((args: { where: { klp: { card: { setId: string } } } }) => {
+      const setId = args.where.klp.card.setId
+      if (setId === 'set-B') {
+        return Promise.resolve([
+          { kltId: 'concept-acct', rank: 1, klp: { id: 'k-b1', supersededAt: null, cardId: 'card-b1' } },
+        ])
+      }
+      return Promise.resolve([])
+    })
+
+    // ONE analyzed answer, on a card in the UNPLACED set A, citing
+    // 'accounting' via its klp's topic — no analyzed answers on set B's own
+    // cards at all. Before the fix, this answer fell through the
+    // `closuresBySet.get(setId) ?? new Map()` fallback and inflated
+    // `counts['accounting']` anyway; readiness would then read as evidenced
+    // (non-null) purely from a set with no placed structure.
+    h.answerFindMany.mockImplementation(
+      (args: { select?: { card?: { select?: Record<string, unknown> } } }) => {
+        const isKltAxis = !!args.select?.card?.select?.klps
+        if (!isKltAxis) return Promise.resolve([]) // the category-axis call
+        return Promise.resolve([
+          { card: { setId: 'set-A', klps: [{ topics: [{ klt: { normalizedName: 'accounting' } }] }] } },
+        ])
+      },
+    )
+
+    const out = await getLearnerMetrics({
+      userId: 'u1',
+      scope: { ...EMPTY_SCOPE, setIds: ['set-A', 'set-B'] },
+    })
+
+    const accounting = out.kltTopics.find((t) => t.key === 'accounting')
+    expect(accounting).toBeDefined()
+    // Set A's answer must NOT have entered this denominator. Set B (the only
+    // set with placed structure) had zero analyzed answers of its own, so the
+    // correct denominator is 0 and readiness must read `null` — "no
+    // evidence" — not a value borrowed from an unplaced set.
+    expect(accounting!.readiness).toBeNull()
+  })
+})
+
+describe('KLT readiness denominator sums across sets rather than overwriting (review finding #8, the += fold)', () => {
+  it('two sets that both place the same concept each contribute their own analyzed answer to the denominator', async () => {
+    // Both sets place 'accounting' as a root and each links ONE key point of
+    // their own directly to it — no children, so the ancestor-climb already
+    // covered by the union test above stays out of this test's way.
+    h.setKltNodeFindMany.mockResolvedValue([
+      { setId: 'set-A', kltId: 'concept-acct', depth: 0, ancestorIds: [],
+        klt: { normalizedName: 'accounting', name: 'Accounting' } },
+      { setId: 'set-B', kltId: 'concept-acct', depth: 0, ancestorIds: [],
+        klt: { normalizedName: 'accounting', name: 'Accounting' } },
+    ])
+    h.klpTopicFindMany.mockImplementation((args: { where: { klp: { card: { setId: string } } } }) => {
+      const setId = args.where.klp.card.setId
+      if (setId === 'set-A') {
+        return Promise.resolve([
+          { kltId: 'concept-acct', rank: 1, klp: { id: 'k-a1', supersededAt: null, cardId: 'card-a1' } },
+        ])
+      }
+      if (setId === 'set-B') {
+        return Promise.resolve([
+          { kltId: 'concept-acct', rank: 1, klp: { id: 'k-b1', supersededAt: null, cardId: 'card-b1' } },
+        ])
+      }
+      return Promise.resolve([])
+    })
+
+    // One analyzed answer PER SET, both citing 'accounting' directly, so the
+    // correct denominator is 2 — the sum across sets, never a single set's
+    // count surviving a `=` overwrite.
+    h.answerFindMany.mockImplementation(
+      (args: { select?: { card?: { select?: Record<string, unknown> } } }) => {
+        const isKltAxis = !!args.select?.card?.select?.klps
+        if (!isKltAxis) return Promise.resolve([]) // the category-axis call
+        return Promise.resolve([
+          { card: { setId: 'set-A', klps: [{ topics: [{ klt: { normalizedName: 'accounting' } }] }] } },
+          { card: { setId: 'set-B', klps: [{ topics: [{ klt: { normalizedName: 'accounting' } }] }] } },
+        ])
+      },
+    )
+
+    // One whole-answer clarity tag, attributed to set A's card only, so
+    // `computeArticulation`'s readiness is sensitive to the DENOMINATOR: a
+    // regression from `+=` to `=` at read.ts leaves it at 1 (whichever set's
+    // per-set count folds in last) instead of 2, changing `weightPerAnswer`
+    // and therefore `readiness` — this is what makes the assertion below
+    // able to detect that regression, rather than merely a doesn't-throw
+    // smoke test.
+    const rawTag = {
+      dimension: 'clarity', type: 'no_thesis', klpId: null,
+      relevance: 1, starred: false, magnitude: null, mode: 'quiz-sa',
+      severity: 5, significance: 5,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      quizAnswer: { attemptId: 'attempt-a1', cardId: 'card-a1' },
+    }
+    h.tagFindMany.mockResolvedValue([rawTag])
+
+    const out = await getLearnerMetrics({
+      userId: 'u1',
+      scope: { ...EMPTY_SCOPE, setIds: ['set-A', 'set-B'] },
+    })
+
+    const accounting = out.kltTopics.find((t) => t.key === 'accounting')
+    expect(accounting).toBeDefined()
+
+    // Reproduce the SAME derivation the read path uses (rather than hand-
+    // computing significance constants) so this test is only about the
+    // DENOMINATOR: 2, from both sets' own answer, not 1 from an overwrite.
+    const derived = deriveTagScores(toStoredTags([rawTag]), resolveBands({}), [])
+    const correct = computeArticulation({ tags: derived, knowledge: {}, analyzedAnswers: 2 })
+    const ifOverwritten = computeArticulation({ tags: derived, knowledge: {}, analyzedAnswers: 1 })
+
+    // Sanity: the two denominators must actually predict different readiness
+    // values, or this test would pass no matter which one the real code used.
+    expect(correct.readiness).not.toBe(ifOverwritten.readiness)
+    expect(accounting!.readiness).toBe(correct.readiness)
   })
 })

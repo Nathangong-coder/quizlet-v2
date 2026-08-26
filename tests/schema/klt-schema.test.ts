@@ -117,8 +117,11 @@ describe('KLT per-set structure migration', () => {
   )
 
   it('adds a GIN index on SetKltNode.ancestorIds', () => {
-    // The rollup reads this array on every dashboard load; without the index
-    // it is a sequential scan of every concept placement in the set.
+    // Provisioned for a future containment query, mirroring Klt's own GIN
+    // index — the rollup does NOT run one today; it folds each set's
+    // ancestor chains in TypeScript (src/lib/metrics/klt-rollup.ts, R3), so
+    // this index costs little and is kept for when a containment query
+    // exists to use it.
     expect(sql).toMatch(/CREATE INDEX "SetKltNode_ancestorIds_idx" ON "SetKltNode" USING GIN \("ancestorIds"\)/)
   })
 

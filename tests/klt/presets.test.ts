@@ -477,6 +477,43 @@ describe('savePresetFromSet', () => {
       ]),
     )
   })
+
+  it('refuses a node WHOLE — never truncated — when an ancestor has no node in this set', async () => {
+    // A broken tree: 'ratios' claims 'k-accounting' as an ancestor (via
+    // ancestorIds), but no SetKltNode for 'k-accounting' exists in SET_A —
+    // a `parent_not_in_set`-shaped invariant violation. The codebase rule is
+    // "refuse whole, never truncate": deriving `['finance', 'ratios']` here
+    // (dropping the missing middle segment) would bake a WRONG chain into a
+    // shared, install-wide preset. 'ratios' must be SKIPPED, not shortened —
+    // and the healthy 'finance' row must still be captured.
+    h.state.klts = [
+      { id: 'k-finance', name: 'finance', normalizedName: 'finance' },
+      { id: 'k-accounting', name: 'accounting', normalizedName: 'accounting' },
+      { id: 'k-ratios', name: 'ratios', normalizedName: 'ratios' },
+    ]
+    h.state.nodes = [
+      { id: 'n-finance', setId: SET_A, kltId: 'k-finance', parentKltId: null, depth: 0, ancestorIds: [] },
+      // No 'n-accounting' row in SET_A — the missing middle segment.
+      {
+        id: 'n-ratios',
+        setId: SET_A,
+        kltId: 'k-ratios',
+        parentKltId: 'k-accounting',
+        depth: 2,
+        ancestorIds: ['k-finance', 'k-accounting'],
+      },
+    ]
+    h.access.mockResolvedValue(ACCESS_ADMIN)
+    h.auth.mockResolvedValue({ user: { id: ADMIN } })
+
+    const res = await savePresetFromSet(SET_A, 'Captured')
+
+    expect(res.success).toBe(true)
+    expect(res.success === true && res.data.skipped).toBe(1)
+    const saved = h.state.presets[0].paths as string[][]
+    expect(saved).toEqual([['finance']])
+    expect(saved).not.toContainEqual(['finance', 'ratios'])
+  })
 })
 
 describe('placing an unplaced concept (folded-in UI gap)', () => {
