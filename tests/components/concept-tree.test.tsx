@@ -14,6 +14,9 @@ afterEach(cleanup)
 // ".not.toHaveBeenCalled()" assertion.
 beforeEach(() => {
   vi.clearAllMocks()
+  // Default: no presets saved. Individual tests override this when the
+  // preset picker's contents matter.
+  mockListPresets.mockResolvedValue({ success: true, data: [] })
 })
 
 /**
@@ -41,6 +44,11 @@ vi.mock('@/actions/klt-seed', () => ({
   suggestSkeleton: vi.fn(),
   applySkeleton: vi.fn(),
 }))
+vi.mock('@/actions/klt-presets', () => ({
+  listPresets: vi.fn(),
+  applyPreset: vi.fn(),
+  savePresetFromSet: vi.fn(),
+}))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import {
@@ -52,6 +60,7 @@ import {
   deleteConcept,
 } from '@/actions/klt-tree'
 import { suggestSkeleton, applySkeleton } from '@/actions/klt-seed'
+import { listPresets, applyPreset, savePresetFromSet } from '@/actions/klt-presets'
 
 // Typed handles rather than `as any`, matching this repo's convention (see
 // QuizSummary.test.tsx's "canReset opt-in" block) — `any` here is a
@@ -64,6 +73,9 @@ const mockMergeConcepts = mergeConcepts as unknown as ReturnType<typeof vi.fn>
 const mockDeleteConcept = deleteConcept as unknown as ReturnType<typeof vi.fn>
 const mockSuggestSkeleton = suggestSkeleton as unknown as ReturnType<typeof vi.fn>
 const mockApplySkeleton = applySkeleton as unknown as ReturnType<typeof vi.fn>
+const mockListPresets = listPresets as unknown as ReturnType<typeof vi.fn>
+const mockApplyPreset = applyPreset as unknown as ReturnType<typeof vi.fn>
+const mockSavePresetFromSet = savePresetFromSet as unknown as ReturnType<typeof vi.fn>
 
 const SET_ID = 'set-1'
 const SET_TITLE = 'Finance 101'
@@ -104,8 +116,8 @@ function mockTree(nodes: ReturnType<typeof node>[], unplacedList: ReturnType<typ
   })
 }
 
-function renderTree() {
-  return render(<ConceptTree setId={SET_ID} setTitle={SET_TITLE} />)
+function renderTree(isAdmin = false) {
+  return render(<ConceptTree setId={SET_ID} setTitle={SET_TITLE} isAdmin={isAdmin} />)
 }
 
 describe('ConceptTree', () => {
@@ -307,6 +319,37 @@ describe('ConceptTree', () => {
       await waitFor(() => rowFor('finance'))
       expect(screen.queryByText(/unplaced concepts/i)).not.toBeInTheDocument()
     })
+
+    it('offers a "Place under" control that calls createConcept with the unplaced concept\'s own name', async () => {
+      mockTree(
+        [node({ id: 'f', name: 'finance', depth: 0 })],
+        [unplaced('u1', 'quick ratio', 3)],
+      )
+      mockCreateConcept.mockResolvedValue({ success: true, data: { kltId: 'u1' } })
+
+      renderTree()
+      await waitFor(() => screen.getByText(/unplaced concepts \(1\)/i))
+
+      const placeSelect = screen.getByLabelText(/place quick ratio under/i)
+      fireEvent.change(placeSelect, { target: { value: 'f' } })
+      fireEvent.click(screen.getByRole('button', { name: /^place$/i }))
+
+      await waitFor(() => expect(mockCreateConcept).toHaveBeenCalledWith(SET_ID, 'quick ratio', 'f'))
+    })
+
+    it('"Place under" defaults to root ("make a root") for the parent', async () => {
+      mockTree(
+        [node({ id: 'f', name: 'finance', depth: 0 })],
+        [unplaced('u1', 'quick ratio', 3)],
+      )
+      mockCreateConcept.mockResolvedValue({ success: true, data: { kltId: 'u1' } })
+
+      renderTree()
+      await waitFor(() => screen.getByText(/unplaced concepts \(1\)/i))
+      fireEvent.click(screen.getByRole('button', { name: /^place$/i }))
+
+      await waitFor(() => expect(mockCreateConcept).toHaveBeenCalledWith(SET_ID, 'quick ratio', null))
+    })
   })
 
   describe('filter', () => {
@@ -353,12 +396,69 @@ describe('ConceptTree', () => {
       expect(screen.queryByText(/no structure yet/i)).not.toBeInTheDocument()
     })
 
-    it('offers the AI-seam and preset-seam alongside manual entry, prefilling the subject from setTitle', async () => {
+    it('offers the AI-seam alongside manual entry, prefilling the subject from setTitle', async () => {
       mockTree([], [])
       renderTree()
       await waitFor(() => screen.getByText(/no concepts yet/i))
       expect(screen.getByLabelText(/subject/i)).toHaveValue(SET_TITLE)
-      expect(screen.getByRole('button', { name: /apply a preset/i })).toBeDisabled()
+    })
+
+    it('offers a real preset picker, disabled with no selection until presets load', async () => {
+      mockTree([], [])
+      mockListPresets.mockResolvedValue({
+        success: true,
+        data: [{ id: 'p1', name: 'Finance skeleton', pathCount: 2 }],
+      })
+      renderTree()
+      await waitFor(() => screen.getByText(/no concepts yet/i))
+      await waitFor(() => screen.getByLabelText(/^preset$/i))
+      expect(screen.getByRole('button', { name: /apply preset/i })).toBeDisabled()
+    })
+
+    it('says so when no presets have been saved yet', async () => {
+      mockTree([], [])
+      renderTree()
+      await waitFor(() => screen.getByText(/no concepts yet/i))
+      await waitFor(() => screen.getByText(/no presets saved yet/i))
+    })
+
+    it('applying a preset calls applyPreset with the chosen id and this set, then reloads', async () => {
+      mockTree([], [])
+      mockListPresets.mockResolvedValue({
+        success: true,
+        data: [{ id: 'p1', name: 'Finance skeleton', pathCount: 2 }],
+      })
+      mockApplyPreset.mockResolvedValue({ success: true, data: { created: 2, skipped: 0 } })
+      renderTree()
+      await waitFor(() => screen.getByText(/no concepts yet/i))
+
+      fireEvent.change(await screen.findByLabelText(/^preset$/i), { target: { value: 'p1' } })
+      fireEvent.click(screen.getByRole('button', { name: /apply preset/i }))
+
+      await waitFor(() => expect(mockApplyPreset).toHaveBeenCalledWith('p1', SET_ID))
+      await waitFor(() => expect(mockListConceptTree).toHaveBeenCalledTimes(2))
+    })
+  })
+
+  describe('presets (admin)', () => {
+    it('does not show "save as preset" for a non-admin', async () => {
+      mockTree([node({ id: 'f', name: 'finance', depth: 0 })])
+      renderTree(false)
+      await waitFor(() => rowFor('finance'))
+      expect(screen.queryByText(/save this set.s structure as a preset/i)).not.toBeInTheDocument()
+    })
+
+    it('shows "save as preset" for an admin once structure exists, and calls savePresetFromSet', async () => {
+      mockTree([node({ id: 'f', name: 'finance', depth: 0 })])
+      mockSavePresetFromSet.mockResolvedValue({ success: true, data: { id: 'p1' } })
+      renderTree(true)
+      await waitFor(() => rowFor('finance'))
+
+      const nameInput = await screen.findByLabelText(/preset name/i)
+      fireEvent.change(nameInput, { target: { value: 'Finance skeleton' } })
+      fireEvent.click(screen.getByRole('button', { name: /^save as preset$/i }))
+
+      await waitFor(() => expect(mockSavePresetFromSet).toHaveBeenCalledWith(SET_ID, 'Finance skeleton'))
     })
   })
 

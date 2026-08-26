@@ -17,6 +17,7 @@ import {
   type UnplacedConcept,
 } from '@/actions/klt-tree'
 import { suggestSkeleton, applySkeleton } from '@/actions/klt-seed'
+import { listPresets, applyPreset, savePresetFromSet, type KltPresetSummary } from '@/actions/klt-presets'
 import { computeSubtreeUpdates } from '@/lib/klt/tree'
 
 /** Sentinel value the "Move under…"/"Merge into…" selects use for "no parent". */
@@ -161,6 +162,15 @@ interface ConceptTreeProps {
   setId: string
   /** Pre-fills the AI seeding subject, so the owner rarely has to type it. */
   setTitle: string
+  /**
+   * Whether the current viewer reached this set via the `KLT_EDITORS`
+   * allowlist (`SetKltAccess.viaAllowlist`), not merely by owning it. Gates
+   * ONE control — "save this set's structure as a preset" — since preset
+   * AUTHORING is an operator capability (spec §3b), while applying one is
+   * open to any owner. Defaults to `false` so an omitted prop never
+   * accidentally grants it.
+   */
+  isAdmin?: boolean
 }
 
 /**
@@ -173,7 +183,7 @@ interface ConceptTreeProps {
  * `requireSetKltAccess`; this component does not re-check access, it assumes
  * whichever route rendered it already 404'd an unauthorized caller.
  */
-export function ConceptTree({ setId, setTitle }: ConceptTreeProps) {
+export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreeProps) {
   const [nodes, setNodes] = useState<ConceptTreeNode[] | null>(null)
   const [unplaced, setUnplaced] = useState<UnplacedConcept[]>([])
 
@@ -195,6 +205,15 @@ export function ConceptTree({ setId, setTitle }: ConceptTreeProps) {
   const [skeleton, setSkeleton] = useState<string[][] | null>(null)
   const [applying, setApplying] = useState(false)
 
+  const [presets, setPresets] = useState<KltPresetSummary[] | null>(null)
+  const [selectedPresetId, setSelectedPresetId] = useState('')
+  const [applyingPreset, setApplyingPreset] = useState(false)
+  const [savePresetName, setSavePresetName] = useState('')
+  const [savingPreset, setSavingPreset] = useState(false)
+
+  const [placeDrafts, setPlaceDrafts] = useState<Record<string, string>>({})
+  const [placing, setPlacing] = useState<Set<string>>(new Set())
+
   // `.then(callback)`, not `async`/`await`: `react-hooks/set-state-in-effect`
   // flags a setState reachable from an async function called directly in an
   // effect body, even though the state write happens after the await.
@@ -212,6 +231,20 @@ export function ConceptTree({ setId, setTitle }: ConceptTreeProps) {
   useEffect(() => {
     load()
   }, [load])
+
+  const loadPresets = useCallback(() => {
+    return listPresets(setId).then((res) => {
+      if (!res.success) {
+        toast.error(res.error || 'Failed to load presets')
+        return
+      }
+      setPresets(res.data)
+    })
+  }, [setId])
+
+  useEffect(() => {
+    loadPresets()
+  }, [loadPresets])
 
   function toggleCollapse(nodeId: string) {
     setCollapsed((prev) => {
@@ -402,6 +435,61 @@ export function ConceptTree({ setId, setTitle }: ConceptTreeProps) {
     await load()
   }
 
+  async function handleApplyPreset() {
+    if (!selectedPresetId) return
+    setApplyingPreset(true)
+    const res = await applyPreset(selectedPresetId, setId)
+    setApplyingPreset(false)
+    if (!res.success) {
+      toast.error(res.error || 'Failed to apply preset')
+      return
+    }
+    const { created, skipped } = res.data
+    toast.success(skipped > 0 ? `Applied ${created}, skipped ${skipped}` : `Applied ${created}`)
+    await load()
+  }
+
+  async function handleSavePresetFromSet() {
+    const value = savePresetName.trim()
+    if (!value) {
+      toast.error('Enter a preset name')
+      return
+    }
+    setSavingPreset(true)
+    const res = await savePresetFromSet(setId, value)
+    setSavingPreset(false)
+    if (!res.success) {
+      toast.error(res.error || 'Failed to save preset')
+      return
+    }
+    toast.success(`Saved “${value}”`)
+    setSavePresetName('')
+    await loadPresets()
+  }
+
+  async function handlePlaceUnplaced(u: UnplacedConcept) {
+    const value = placeDrafts[u.kltId] ?? ROOT_VALUE
+    const parentKltId = value === ROOT_VALUE ? null : value
+    setPlacing((prev) => new Set(prev).add(u.kltId))
+    const res = await createConcept(setId, u.name, parentKltId)
+    setPlacing((prev) => {
+      const next = new Set(prev)
+      next.delete(u.kltId)
+      return next
+    })
+    if (!res.success) {
+      toast.error(res.error || 'Failed to place concept')
+      return
+    }
+    toast.success(`Placed “${u.name}”`)
+    setPlaceDrafts((prev) => {
+      const next = { ...prev }
+      delete next[u.kltId]
+      return next
+    })
+    await load()
+  }
+
   const allNodes = nodes ?? []
   const byKltId = new Map(allNodes.map((n) => [n.kltId, n]))
   const filterVisible = computeFilterVisibleIds(allNodes, filter)
@@ -468,17 +556,71 @@ export function ConceptTree({ setId, setTitle }: ConceptTreeProps) {
     </div>
   )
 
-  // SEAM FOR TASK 5 — presets. Deliberately inert: no data is fetched or
-  // applied here. Task 5 replaces this button with a real preset picker;
-  // nothing about it is built out ahead of that spec.
-  const presetSeam = (
+  // Task 5 fills in what was a dead seam here: a real preset picker, backed
+  // by `listPresets`/`applyPreset` (spec §3b). Applying is never automatic —
+  // it fires only when the owner picks a preset and clicks Apply (Decision
+  // 7), same posture as the AI skeleton preview above.
+  const presetSection = (
     <div className="space-y-1">
-      <Button type="button" variant="outline" size="sm" disabled title="Coming soon">
-        Apply a preset
-      </Button>
-      <p className="text-xs text-muted-foreground">Preset structures are coming soon.</p>
+      {presets === null ? (
+        <p className="text-xs text-muted-foreground">Loading presets…</p>
+      ) : presets.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No presets saved yet.</p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="Preset"
+            value={selectedPresetId}
+            onChange={(e) => setSelectedPresetId(e.target.value)}
+            className="border rounded px-2 py-1 text-sm"
+          >
+            <option value="">(choose a preset)</option>
+            {presets.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({p.pathCount})
+              </option>
+            ))}
+          </select>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleApplyPreset}
+            disabled={!selectedPresetId || applyingPreset}
+          >
+            {applyingPreset ? 'Applying…' : 'Apply preset'}
+          </Button>
+        </div>
+      )}
     </div>
   )
+
+  // Admin-only (spec §3b: authoring shared presets is an operator
+  // capability). Captures THIS set's current structure as a new (or
+  // replacement) preset — nothing else is written.
+  const savePresetSection = isAdmin ? (
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground">Save this set&rsquo;s structure as a preset</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          aria-label="Preset name"
+          placeholder="e.g. finance skeleton"
+          value={savePresetName}
+          onChange={(e) => setSavePresetName(e.target.value)}
+          className="w-56"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleSavePresetFromSet}
+          disabled={savingPreset || allNodes.length === 0}
+        >
+          {savingPreset ? 'Saving…' : 'Save as preset'}
+        </Button>
+      </div>
+    </div>
+  ) : null
 
   return (
     <div className="space-y-6">
@@ -512,16 +654,41 @@ export function ConceptTree({ setId, setTitle }: ConceptTreeProps) {
               <p className="font-medium text-sm">Unplaced concepts ({unplaced.length})</p>
               <p className="text-xs text-muted-foreground">
                 Your cards cite these, but they have no place in the tree yet. AI placement will
-                try them automatically, or drop them into the tree yourself with &ldquo;Add a
-                child&rdquo; below.
+                try them automatically, or place one yourself right here.
               </p>
               <ul className="space-y-1">
                 {visibleUnplaced.map((u) => (
-                  <li key={u.kltId} className="flex items-center gap-2 text-sm">
+                  <li key={u.kltId} className="flex flex-wrap items-center gap-2 text-sm">
                     <span>{u.name}</span>
                     <Badge variant="outline">
                       {u.linkCount} link{u.linkCount === 1 ? '' : 's'}
                     </Badge>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      Place under
+                      <select
+                        aria-label={`Place ${u.name} under`}
+                        value={placeDrafts[u.kltId] ?? ROOT_VALUE}
+                        onChange={(e) => setPlaceDrafts((prev) => ({ ...prev, [u.kltId]: e.target.value }))}
+                        className="border rounded px-2 py-1 text-sm"
+                      >
+                        <option value={ROOT_VALUE}>(make a root)</option>
+                        {[...allNodes]
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map((n) => (
+                            <option key={n.kltId} value={n.kltId}>
+                              {n.name}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handlePlaceUnplaced(u)}
+                      disabled={placing.has(u.kltId)}
+                    >
+                      {placing.has(u.kltId) ? 'Placing…' : 'Place'}
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -547,7 +714,7 @@ export function ConceptTree({ setId, setTitle }: ConceptTreeProps) {
               </div>
               <div className="space-y-2">
                 <p className="text-xs font-medium text-muted-foreground">Apply a preset</p>
-                {presetSeam}
+                {presetSection}
               </div>
             </div>
           ) : (
@@ -754,6 +921,19 @@ export function ConceptTree({ setId, setTitle }: ConceptTreeProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>{aiSuggestSection}</CardContent>
+        </Card>
+      )}
+
+      {!showEmptyPanel && isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Presets</CardTitle>
+            <CardDescription>
+              Capture this set&rsquo;s current structure as a reusable preset — other owners can
+              apply it to seed a new set&rsquo;s tree. Only visible to operators.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>{savePresetSection}</CardContent>
         </Card>
       )}
     </div>

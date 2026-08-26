@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db';
 import { requireSetKltAccess } from '@/lib/klt/access';
 import { listConceptTree, loadSetTree } from '@/actions/klt-tree';
 import { resolvePlacementPath, type ResolvedPlacement } from '@/lib/klt/place';
-import type { TreeNodeRow } from '@/lib/klt/tree';
+import { MAX_TREE_DEPTH, type TreeNodeRow } from '@/lib/klt/tree';
 import { generateJson } from '@/lib/ai/generate';
 import { SUGGEST_SKELETON_PROMPT } from '@/lib/ai/prompts/suggest-skeleton';
 import { KltSkeletonSchema, MAX_SKELETON_DEPTH } from '@/lib/ai/schemas';
@@ -105,13 +105,48 @@ export async function applySkeleton(
   const access = await requireSetKltAccess(setId);
   if (!access) return NOT_FOUND;
 
-  const rows = await loadSetTree(access.setId);
+  const data = await applyPaths(access.setId, paths, MAX_SKELETON_DEPTH);
+  return { success: true, data };
+}
+
+/**
+ * Shared apply mechanics for BOTH the AI skeleton and Task 5's presets: given
+ * a set already resolved by the caller's own gate (`requireSetKltAccess`),
+ * create the missing chain for each accepted root-to-node path, IN THAT SET.
+ *
+ * Every rejection rule lives in `resolvePlacementPath` (imported, not
+ * reimplemented) — a path whose match follows a creation is refused, an
+ * over-deep path is refused whole, a repeated name is refused, and any
+ * segment failing `parseKltName` refuses the whole path. `maxPathLength` is
+ * an ADDITIONAL, caller-specific cap layered on top: a skeleton is top rungs
+ * only (`MAX_SKELETON_DEPTH`, much shallower than the tree's own
+ * `MAX_TREE_DEPTH`), while a preset may legitimately capture a set's WHOLE
+ * structure, so it passes no extra cap and relies on `resolvePlacementPath`'s
+ * own `MAX_TREE_DEPTH` alone.
+ *
+ * IDEMPOTENT: a path whose every segment already exists in this set resolves
+ * to `toCreate.length === 0` — nothing was refused, the concept is simply
+ * already there, so this does NOT count toward `skipped`.
+ *
+ * `skipped` counts only paths that were REFUSED (too deep for the caller's
+ * own cap, empty, or a `resolvePlacementPath` null — e.g. one that would
+ * re-parent an existing node). Skipping a bad path rather than failing the
+ * whole call is right — one bad path should not discard an otherwise good
+ * batch — but doing so silently is not: a caller that only sees `created`
+ * never learns some rungs were refused. Callers surface both numbers.
+ */
+export async function applyPaths(
+  setId: string,
+  paths: string[][],
+  maxPathLength: number = MAX_TREE_DEPTH,
+): Promise<{ created: number; skipped: number }> {
+  const rows = await loadSetTree(setId);
   const byNormalized = new Map(rows.map((r) => [r.normalizedName, r]));
 
   let created = 0;
   let skipped = 0;
   for (const path of paths) {
-    if (path.length === 0 || path.length > MAX_SKELETON_DEPTH) {
+    if (!Array.isArray(path) || path.length === 0 || path.length > maxPathLength) {
       skipped++;
       continue;
     }
@@ -123,10 +158,10 @@ export async function applySkeleton(
     }
     if (resolved.toCreate.length === 0) continue;
 
-    created += await createChain(access.setId, resolved, byNormalized);
+    created += await createChain(setId, resolved, byNormalized);
   }
 
-  return { success: true, data: { created, skipped } };
+  return { created, skipped };
 }
 
 /**

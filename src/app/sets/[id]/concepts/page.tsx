@@ -25,7 +25,7 @@ export default async function SetConceptsPage({ params }: { params: Promise<{ id
       <Link href={`/sets/${access.setId}`} className="text-sm text-muted-foreground hover:underline">
         &larr; Back to {access.setTitle}
       </Link>
-      <ConceptTree setId={access.setId} setTitle={access.setTitle} />
+      <ConceptTree setId={access.setId} setTitle={access.setTitle} isAdmin={access.viaAllowlist} />
     </div>
   )
 }
