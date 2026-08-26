@@ -596,6 +596,48 @@ turns per-level mastery into a subtree query — zero extra AI calls, which answ
 token-cost concern. It supersedes §10 of the 2026-08-24 spec and takes the concept-graph bet
 `CLAUDE.md` deferred.
 
+**PHASE 1 BUILT 2026-08-25** — plan `plans/2026-08-25-klt-concept-tree-phase1.md`, 10 tasks,
+19 commits `88d575b..646e259`, executed subagent-driven with a review + fix loop per task.
+
+**New baselines:** 160 test files / **1888 passing**; `tsc` clean; `next build` clean; lint **175**
+(exactly the prior baseline); zero schema drift.
+
+**Live regeneration result — BETTER than spec §12.1 predicted.** It forecast the model collapsing to
+3-4 rungs; the real run produced a six-level tree over 69 cards:
+`depths 0:2 1:9 2:27 3:28 4:16 5:9`, 91 concepts, 243 links, 153/153 labelled, 2 roots
+(`finance`, `biology` — subjects correctly separated), only 2 nodes over the branching threshold,
+25% singleton leaves. **Zero structural invariant violations. `KlpState` byte-identical before and
+after**, verifying §6 against Postgres rather than mocks. Real paths:
+`finance > accounting > financial statements > balance sheet > assets > restricted cash`.
+
+**Dashboard today shows ONE row** — `displayDepth` resolves to 0 because no topic clears the
+observation floor (5 answers, all with 1 observation, floor 3). Designed behaviour on a thin corpus.
+Readiness reads 0.58 on the root, which is the Task 7 fix working; knowledge reads "not measured".
+`depreciation` landed under `income statement`, not `cash flow statement` — §12.6's single-parent
+limit, surfacing on the first real run exactly as the user's own example predicted.
+
+**DEFERRED-MINOR TRIAGE (16 findings across 10 tasks). None blocks merge.**
+1. *Worth fixing soon (2).* `loadKltRows` does an unconditional full-table `Klt.findMany` per metrics
+   read — so the `ancestorIds` GIN index Task 1 fought to declare is **currently unused**, and the
+   read scales with the whole install rather than one learner's scope. Harmless at 91 concepts,
+   real later. And `tests/klt/prompt.test.ts` still imports the deprecated `MAX_KLTS_PER_KLP` alias,
+   which passes only because the alias equals the real constant.
+2. *Coverage gaps, defensible (10).* Ten are "no test for X" at integration seams: the depth-selection
+   wiring in `read.ts`, a superseded descendant link folding into an ancestor, a KLP shared under one
+   ancestor via two paths, a cycle sitting above the examined row, and similar. **The pattern matters
+   more than any one:** pure functions on this branch are heavily covered and every guard is
+   mutation-verified, but the seams between them are not.
+3. *Cosmetic / already resolved (4).* A migration rewritten on an unmerged branch; a doc comment that
+   forward-referenced `invariants.ts` (resolved once Task 3 landed); `KltNodeRow` duplicating
+   `TreeNodeRow`'s fields; and the placement schema not enforcing "last path element == concept",
+   which `resolvePlacementPath` enforces instead.
+
+**Gate NOT completed:** the final whole-branch review agent died at a monthly spend limit before
+writing its report. The load-bearing checks were run by the controller directly instead: the KLT code
+never references `klpState`/`answerKlpResult`, the sole `CardKlp` write is `data: { label }` (no
+supersede, no delete), no test rebuilds a schema, and no Phase 2/3 module leaked in. A broad
+cross-task review is still owed.
+
 **Built in THREE phases, each with its own plan** (spec §13): (1) substrate — schema, generation,
 invariants, rollup, minimal display; (2) editor + seeding — the tree UI behind `KLT_EDITORS`, with
 both user-authored and AI-suggested skeletons; (3) refinement + semantic audits. Stopping after
