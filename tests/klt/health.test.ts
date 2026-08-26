@@ -2,18 +2,20 @@ import { describe, it, expect } from 'vitest'
 import { summarizeTreeHealth, MAX_BRANCHING } from '@/lib/klt/health'
 import type { TreeNodeRow } from '@/lib/klt/tree'
 
-// TODO(task-3): compile-only adapter — `summarizeTreeHealth` still reads
-// `Klt` rows directly (Task 3 moves it onto `SetKltNode`), so `kltId`
-// doubling as the row's own `id` is exactly true for now.
+// `id` (the SetKltNode row) is deliberately DIFFERENT from `kltId` (the
+// concept) in every fixture below — `row-<kltId>` — so a test that
+// accidentally keyed on `id` instead of `kltId` anywhere in `summarizeTreeHealth`
+// would fail loudly instead of passing by coincidence (Task 3: structure now
+// comes from real `SetKltNode` rows, where the two are never the same value).
 const node = (
-  id: string,
+  kltId: string,
   parentKltId: string | null,
   depth: number,
   ancestorIds: string[],
-  name: string = id,
+  name: string = kltId,
 ): TreeNodeRow => ({
-  id,
-  kltId: id,
+  id: `row-${kltId}`,
+  kltId,
   name,
   normalizedName: name.toLowerCase(),
   parentKltId,
@@ -76,7 +78,7 @@ describe('summarizeTreeHealth', () => {
       node('orphan', null, 0, [], 'derivatives'), // no parent, no children -> unplaced
     ]
     const health = summarizeTreeHealth(rows, new Map())
-    expect(health.unplaced).toEqual([{ id: 'orphan', name: 'derivatives' }])
+    expect(health.unplaced).toEqual([{ kltId: 'orphan', name: 'derivatives' }])
   })
 
   it('does not flag a node exactly at MAX_BRANCHING, but does one over it', () => {
@@ -93,7 +95,7 @@ describe('summarizeTreeHealth', () => {
     )
     const healthOverLimit = summarizeTreeHealth([parent, ...overLimit], new Map())
     expect(healthOverLimit.overloaded).toEqual([
-      { id: 'p', name: 'parent', children: MAX_BRANCHING + 1 },
+      { kltId: 'p', name: 'parent', children: MAX_BRANCHING + 1 },
     ])
   })
 

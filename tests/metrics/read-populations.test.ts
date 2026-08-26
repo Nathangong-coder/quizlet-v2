@@ -23,7 +23,8 @@ const h = vi.hoisted(() => ({
   eventFindMany: vi.fn(),
   attemptFindMany: vi.fn(),
   categoryFindMany: vi.fn(),
-  kltFindMany: vi.fn(),
+  setKltNodeFindMany: vi.fn(),
+  klpTopicFindMany: vi.fn(),
   progressFindMany: vi.fn(),
   cardFindMany: vi.fn(),
   setFindUnique: vi.fn(),
@@ -45,8 +46,11 @@ vi.mock('@/lib/db', () => ({
     cardCategory: { findMany: h.categoryFindMany },
     // The KLT axis. Empty by default: these suites are about the CATEGORY
     // axis, and `getLearnerMetrics` short-circuits `kltTopics` to [] when no
-    // topic rows come back, so no further KLT query is reached.
-    klt: { findMany: h.kltFindMany },
+    // topic rows come back (`loadKltRows` finds no `SetKltNode` rows), so no
+    // further KLT query (`klpTopic`, `quizAnswer` for the KLT denominator) is
+    // reached.
+    setKltNode: { findMany: h.setKltNodeFindMany },
+    klpTopic: { findMany: h.klpTopicFindMany },
     cardProgress: { findMany: h.progressFindMany },
     card: { findMany: h.cardFindMany },
     set: { findUnique: h.setFindUnique, findFirst: h.setFindFirst },
@@ -72,7 +76,8 @@ beforeEach(() => {
   h.tuningFindUnique.mockResolvedValue(null)
   // One category holding two LIVE klps and one retired one, so the
   // live-only assertion below has something to catch.
-  h.kltFindMany.mockResolvedValue([])
+  h.setKltNodeFindMany.mockResolvedValue([])
+  h.klpTopicFindMany.mockResolvedValue([])
   h.categoryFindMany.mockResolvedValue([{
     normalizedName: 'valuation',
     name: 'Valuation',
@@ -327,5 +332,90 @@ describe('Uncategorized KLPs enter TARGETING but not topic mastery (Task 4B)', (
     const [args] = h.cardFindMany.mock.calls[0]
     expect(args.where.id).toBe('cardU')
     expect(args.where).not.toHaveProperty('setId')
+  })
+})
+
+describe('KLT rollup resolves each set independently, then unions by concept (Task 3, spec §6.2)', () => {
+  // Two sets both place the SAME concept ('accounting') as a root, each with
+  // its own descendant leaf carrying a DIFFERENT key point: set A's
+  // 'revrec' (klp k-a1), set B's 'matching' (klp k-b1). This is exactly the
+  // scenario §6.2 says is intended, not a bug: the concept is the same node,
+  // the paths differ.
+  function twoSetStructure() {
+    h.setKltNodeFindMany.mockResolvedValue([
+      { setId: 'set-A', kltId: 'concept-acct', depth: 0, ancestorIds: [],
+        klt: { normalizedName: 'accounting', name: 'Accounting' } },
+      { setId: 'set-A', kltId: 'concept-revrec', depth: 1, ancestorIds: ['concept-acct'],
+        klt: { normalizedName: 'revrec', name: 'Revenue Recognition' } },
+      { setId: 'set-B', kltId: 'concept-acct', depth: 0, ancestorIds: [],
+        klt: { normalizedName: 'accounting', name: 'Accounting' } },
+      { setId: 'set-B', kltId: 'concept-matching', depth: 1, ancestorIds: ['concept-acct'],
+        klt: { normalizedName: 'matching', name: 'Matching Principle' } },
+    ])
+    h.klpTopicFindMany.mockImplementation((args: { where: { klp: { card: { setId: string } } } }) => {
+      const setId = args.where.klp.card.setId
+      if (setId === 'set-A') {
+        return Promise.resolve([
+          { kltId: 'concept-revrec', rank: 1, klp: { id: 'k-a1', supersededAt: null, cardId: 'card-a1' } },
+        ])
+      }
+      if (setId === 'set-B') {
+        return Promise.resolve([
+          { kltId: 'concept-matching', rank: 1, klp: { id: 'k-b1', supersededAt: null, cardId: 'card-b1' } },
+        ])
+      }
+      return Promise.resolve([])
+    })
+  }
+
+  it("unions a concept present in two sets ONCE PER SET — mastery counts BOTH sets' key points, not zero and not doubled", async () => {
+    twoSetStructure()
+    // Nothing clears MIN_TOPICS_AT_DEPTH anywhere, so `selectDisplayDepth`
+    // shows the broadest existing level — depth 0, 'accounting' — which is
+    // exactly the unioned interior node this test is about.
+    const out = await getLearnerMetrics({ userId: 'u1', scope: EMPTY_SCOPE })
+
+    const accounting = out.kltTopics.find((t) => t.key === 'accounting')
+    expect(accounting).toBeDefined()
+    // The union: both sets' key points, counted once each.
+    expect(accounting!.klpCount).toBe(2)
+  })
+
+  it("queries each set's links separately, pinned to that set's own cards", async () => {
+    // The mechanism behind the union above: one `klpTopic.findMany` call per
+    // set, each scoped to `card.setId` for THAT set — never a single query
+    // spanning both, which is what would make the per-set resolution real
+    // rather than accidental.
+    //
+    // Scope BOTH sets explicitly (not EMPTY_SCOPE) so `buildCardScopeWhere`
+    // actually sets `card.setId = { in: ['set-A', 'set-B'] }` from the scope —
+    // this is what makes the assertion below catch a caller that forgets to
+    // override that multi-set `in` with the single set actually being rolled
+    // up: with EMPTY_SCOPE, `buildCardScopeWhere` never touches `setId` at
+    // all, and the same bug would pass unnoticed.
+    twoSetStructure()
+    await getLearnerMetrics({
+      userId: 'u1',
+      scope: { ...EMPTY_SCOPE, setIds: ['set-A', 'set-B'] },
+    })
+
+    const setIdsQueried = h.klpTopicFindMany.mock.calls.map(
+      (call) => call[0].where.klp.card.setId,
+    )
+    // Each call's `card.setId` must be a single scalar naming THAT set, never
+    // the scope's `{ in: [...] }` — a caller who let the scope's clause
+    // survive would have BOTH calls query `{ in: ['set-A', 'set-B'] }`.
+    expect(setIdsQueried.every((id) => typeof id === 'string')).toBe(true)
+    expect(new Set(setIdsQueried)).toEqual(new Set(['set-A', 'set-B']))
+  })
+
+  it('a set with no placed structure at all yields no KLT topics, without throwing', async () => {
+    h.setKltNodeFindMany.mockResolvedValue([])
+    await expect(
+      getLearnerMetrics({ userId: 'u1', scope: { ...EMPTY_SCOPE, setIds: ['set-empty'] } }),
+    ).resolves.not.toThrow()
+    const out = await getLearnerMetrics({ userId: 'u1', scope: { ...EMPTY_SCOPE, setIds: ['set-empty'] } })
+    expect(out.kltTopics).toEqual([])
+    expect(h.klpTopicFindMany).not.toHaveBeenCalled()
   })
 })
