@@ -638,6 +638,37 @@ never references `klpState`/`answerKlpResult`, the sole `CardKlp` write is `data
 supersede, no delete), no test rebuilds a schema, and no Phase 2/3 module leaked in. A broad
 cross-task review is still owed.
 
+**PHASE 2 BUILT 2026-08-25** — plan `plans/2026-08-25-klt-concept-tree-phase2.md`, 5 tasks,
+9 commits `646e259..b2da863`. Run subagent-driven with reviews BATCHED at the end rather than per
+task, at the user's request to limit spend — one combined cross-task + final review instead of ten.
+
+**New baselines:** 165 test files / **1949 passing**; `tsc` clean; `next build` clean; lint **175**
+(baseline); zero schema drift — Phase 2 adds no columns.
+
+**What shipped:** `KLT_EDITORS` allowlist; four gated mutations (re-parent, rename, merge, delete)
+reusing Phase 1's `computeSubtreeUpdates`/`wouldCycle` rather than reimplementing them; AI skeleton
+suggestion that writes nothing until the user accepts; and the editor screen at `/concepts`.
+
+**Live-verified:** `/concepts` returns **404 for a signed-in NON-editor when `KLT_EDITORS` is unset**
+and 200 when allowlisted — the load-bearing check, since a gate that opens on missing config is not a
+gate. Tree renders indented with per-row link/child counts; Delete is disabled with a visible reason
+on a node with children. 91 concepts, 0 invariant violations, `KlpState` byte-identical.
+
+**To use it:** set `KLT_EDITORS` to the user id that owns your sets — NOT the seeded `dev_user`.
+
+**Two deliberate deviations from spec §5.1/§9:** "Move under" is a `<select>`, not drag-and-drop
+(equivalent in function, keyboard-accessible, testable); and merge's confirm is an inline block rather
+than the repo's `Dialog` primitive, because nothing in this suite exercises `Dialog` under jsdom yet.
+
+**Deferred minors, none blocking:** `renameConcept`/`deleteConcept` each do a non-transactional
+read-then-write, so a concurrent edit surfaces as a raw DB constraint error rather than a clean
+`ActionResult`; and the six-field `KLT_ROW_SELECT` object is duplicated across three files (two of
+them from Phase 1). `isKltEditor`'s empty-id guard is knowingly unreachable and kept as
+belt-and-braces — recorded, not a finding.
+
+**Phase 3** (refinement driven by branching factor, plus the two-direction AI semantic audits) remains
+unbuilt. Stopping here is a legitimate outcome per spec §13 if the seeded tree proves good enough.
+
 **Built in THREE phases, each with its own plan** (spec §13): (1) substrate — schema, generation,
 invariants, rollup, minimal display; (2) editor + seeding — the tree UI behind `KLT_EDITORS`, with
 both user-authored and AI-suggested skeletons; (3) refinement + semantic audits. Stopping after
