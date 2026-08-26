@@ -31,7 +31,10 @@ export function summarizeTreeHealth(
   rows: TreeNodeRow[],
   linkCounts: Map<string, number>,
 ): TreeHealth {
-  const violations = checkTreeInvariants(rows)
+  // Adapter: structure still lives on Klt (Task 6 moves it to SetKltNode),
+  // so `id` and `kltId` are the same value here — exactly true only while
+  // that remains the case.
+  const violations = checkTreeInvariants(rows.map((row) => ({ ...row, kltId: row.id })))
 
   const byDepth = new Map<number, number>()
   for (const r of rows) byDepth.set(r.depth, (byDepth.get(r.depth) ?? 0) + 1)

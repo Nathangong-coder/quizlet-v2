@@ -21,6 +21,23 @@ export interface TreeNodeRow {
 }
 
 /**
+ * One SET's view of a concept's placement — what `checkTreeInvariants` reads.
+ *
+ * `id` is the `SetKltNode` row; `kltId` is the concept it places, and is what
+ * `parentKltId`/`ancestorIds` point at (within this same set's rows). The two
+ * differ from `TreeNodeRow`, where `id` doubles as both because structure
+ * still lives directly on `Klt` there. Task 2 folds `kltId` into
+ * `TreeNodeRow` itself once tree math moves to `SetKltNode` too.
+ */
+export interface SetNodeRow {
+  id: string // the SetKltNode row
+  kltId: string // the concept — what parentKltId and ancestorIds hold
+  parentKltId: string | null
+  depth: number
+  ancestorIds: string[]
+}
+
+/**
  * The whole tree as indented names, parents before children.
  *
  * This is what Phase B sees. Names only — one short line per node — which is
