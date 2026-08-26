@@ -30,21 +30,33 @@
 
 **Files:** Modify `prisma/schema.prisma`, `src/lib/klt/invariants.ts`, `tests/klt/invariants.test.ts`, `tests/schema/klt-schema.test.ts`. Create the migration.
 
-**Produces:** `SetKltNode`, `KltPreset`; `Klt` without structure; `checkTreeInvariants(rows)` where rows are one set's nodes, plus a new `'parent_not_in_set'` violation kind.
+**Produces:** `SetKltNode`, `KltPreset`; `SetNodeRow` (exported from `src/lib/klt/tree.ts`); `checkTreeInvariants(rows: SetNodeRow[])` over ONE set's nodes, keyed by `kltId`, with a new `'parent_not_in_set'` kind and violations carrying `kltId` + `nodeId`. `Klt` keeps its structure columns until Task 6.
 
-- [ ] **Step 1: Schema.** Apply §3 and §3b of the spec verbatim. Remove `parentKltId`, `depth`, `ancestorIds` and the `KltTree` self-relation from `Klt`; add `nodes SetKltNode[]`.
-- [ ] **Step 2: Migration** via `migrate diff` → `prisma/migrations/20260826000000_klt_per_set/migration.sql` → `migrate deploy`. Append by hand:
+- [ ] **Step 1: Schema — EXPAND ONLY.** Add `SetKltNode` and `KltPreset` exactly as §3 and §3b of the spec define them, and add `nodes SetKltNode[]` to `Klt`. **KEEP `Klt.parentKltId`, `Klt.depth`, `Klt.ancestorIds` and the `KltTree` self-relation for now**, with a doc comment marking them deprecated and naming Task 6 as where they are dropped. Thirteen source files still read them; removing them here leaves `tsc` and the suite red until Task 4, which would make every intermediate task unverifiable. Task 6 contracts.
+- [ ] **Step 2: Migration** (additive only) via `migrate diff` → `prisma/migrations/20260826000000_klt_per_set/migration.sql` → `migrate deploy`. It must contain no `DROP COLUMN`. Append by hand:
   ```sql
   CREATE INDEX "SetKltNode_ancestorIds_idx" ON "SetKltNode" USING GIN ("ancestorIds");
   ```
   Then re-run the diff and confirm it is empty apart from that hand-added index.
-- [ ] **Step 3: Invariants.** `checkTreeInvariants` now validates ONE SET's nodes. Its existing five kinds are unchanged in meaning. Add a sixth:
+- [ ] **Step 3: Invariants.** `checkTreeInvariants` now validates ONE SET's nodes — the caller scopes the rows; the function never sees a `setId` and cannot verify what it is not given. Export a new row type from `src/lib/klt/tree.ts` beside `TreeNodeRow`:
+  ```ts
+  export interface SetNodeRow {
+    id: string          // the SetKltNode row
+    kltId: string       // the concept — what parentKltId and ancestorIds hold
+    parentKltId: string | null
+    depth: number
+    ancestorIds: string[]
+  }
+  ```
+  **The lookup map keys on `kltId`, not `id`** — that is the whole semantic change, and every existing check must be re-read against it. `InvariantViolation` carries BOTH `kltId` (the concept, for the operator) and `nodeId` (the row, for the fix).
+  Add a sixth kind:
   ```ts
   | 'parent_not_in_set'
   ```
-  raised when a node's `parentKltId` has no `SetKltNode` in the same set. This replaces the foreign key the schema deliberately cannot declare, so it is the guard that matters most in this task.
+  raised when a node's OWN `parentKltId` has no node among the rows. This replaces the foreign key the schema deliberately cannot declare, so it is the guard that matters most in this task. `orphan` **narrows** to mean the chain breaks FURTHER UP — the direct parent is present but one of ITS ancestors is not. The two are then independently reachable, which is what makes both mutation-testable.
+  Task 1's only live caller (`src/lib/klt/health.ts`, and the backfill through it) still passes `Klt` rows: adapt at the call site with `{ ...row, kltId: row.id }`, which is exactly true while structure still lives on `Klt`. Task 2 makes the row shape real and the adapter disappears.
 - [ ] **Step 4: Tests.** Update the existing invariant fixtures to the new row shape. Add a `parent_not_in_set` test. Mutation-verify all six kinds: remove each check, watch its named test go red, restore, report.
-- [ ] **Step 5: Schema guard tests.** Assert `SetKltNode` has `@@unique([setId, kltId])`, that `set` cascades, that `Klt` no longer declares `parentKltId`, and that the migration contains the GIN index.
+- [ ] **Step 5: Schema guard tests.** Assert `SetKltNode` has `@@unique([setId, kltId])`, that `set` cascades, that `parentKltId` declares NO relation/FK (the invariant checker is its only enforcement — if a future edit adds the FK, that guard silently becomes decoration), that `KltPreset.name` is unique, and that the migration contains the GIN index and no `DROP COLUMN`. The assertion that `Klt` no longer declares `parentKltId` belongs to Task 6, not here.
 - [ ] **Step 6: Commit** — `feat(klt): per-set structure table and set-scoped invariants`
 
 ---
@@ -111,7 +123,8 @@
 
 ## Task 6: Rebuild and verify
 
-- [ ] **Step 1** Full gates: suite, `tsc`, `next build`, `npm run lint` (175 baseline), zero schema drift.
+- [ ] **Step 1: CONTRACT the schema.** Now that Tasks 2–5 have moved every reader onto `SetKltNode`, drop `Klt.parentKltId`, `Klt.depth`, `Klt.ancestorIds` and the `KltTree` self-relation, in a second migration `20260827000000_klt_drop_global_structure`. Add a guard test asserting no file under `src/` or `scripts/` reads `klt.parentKltId` / `klt.depth` / `klt.ancestorIds`, so a reader left behind is a build failure rather than a silent read of a column that no longer updates. `tsc` finding a straggler here is the point of the expand/contract split, not a surprise.
+- [ ] **Step 1b** Full gates: suite, `tsc`, `next build`, `npm run lint` (175 baseline), zero schema drift.
 - [ ] **Step 2** Capture the mastery baseline (`KlpState` rows) BEFORE any rebuild.
 - [ ] **Step 3** Rebuild structure per set: `npm run backfill:klts -- --direct --force`. `Klt` rows, `KlpTopic` links and `CardKlp.label` are KEPT; only `SetKltNode` is re-derived.
 - [ ] **Step 4** Verify: zero invariant violations **per set**; `KlpState` byte-identical to Step 2; every set with linked concepts has a non-empty structure.
@@ -121,6 +134,8 @@
 ---
 
 ## Self-Review
+
+**Amended 2026-08-26 (b) — expand/contract, controller ruling:** the original Task 1 dropped `Klt`'s structure columns immediately, which breaks 13 files that Tasks 2–4 have not yet migrated and leaves every intermediate task unverifiable against the plan's own "full suite green" constraint. Task 1 is now purely additive and Task 6 drops the columns. **Cost if wrong:** a window (T1–T5) where both structures exist and a reader could keep using the stale one — bounded by T6 Step 1's guard test and `tsc`.
 
 **Amended 2026-08-26** (owner request, mid-execution): Task 4 gains `createConcept` and an empty-structure seeding panel. Manual creation was designed for in the concept-tree spec ("either the user can seed the top or ask AI to seed it") but never built — Phase 2 shipped only the AI route. Tasks 1–3 are unaffected.
 
