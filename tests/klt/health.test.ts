@@ -2,13 +2,24 @@ import { describe, it, expect } from 'vitest'
 import { summarizeTreeHealth, MAX_BRANCHING } from '@/lib/klt/health'
 import type { TreeNodeRow } from '@/lib/klt/tree'
 
+// TODO(task-3): compile-only adapter — `summarizeTreeHealth` still reads
+// `Klt` rows directly (Task 3 moves it onto `SetKltNode`), so `kltId`
+// doubling as the row's own `id` is exactly true for now.
 const node = (
   id: string,
   parentKltId: string | null,
   depth: number,
   ancestorIds: string[],
   name: string = id,
-): TreeNodeRow => ({ id, name, normalizedName: name.toLowerCase(), parentKltId, depth, ancestorIds })
+): TreeNodeRow => ({
+  id,
+  kltId: id,
+  name,
+  normalizedName: name.toLowerCase(),
+  parentKltId,
+  depth,
+  ancestorIds,
+})
 
 describe('summarizeTreeHealth', () => {
   it('returns empty everything for an empty tree, without throwing', () => {

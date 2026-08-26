@@ -111,10 +111,12 @@ async function main() {
     }
   }
 
-  // Phase B. Runs ONCE for the whole install, not per owner: the tree is
-  // global, and placing one owner's concepts at a time would show the model a
-  // partial tree and invite it to mint duplicates of nodes another owner's run
-  // is about to create.
+  // Phase B. TODO(task-6): this loop is the minimal per-set adaptation
+  // forced by `placeUnparentedConcepts` now requiring a `setId` — structure
+  // moved from one global tree to `SetKltNode` (one row per set/concept), so
+  // "unplaced" is a per-set question and each set's tree is placed against
+  // only its own prompt. Task 6 owns turning this into the real, reported
+  // rebuild (`--direct --force`) and deciding whether it stays sequential.
   //
   // Unconditional on `force`: unplaced concepts are unplaced either way, and
   // guarded on `owners.length` rather than defaulting a missing first owner's
@@ -123,7 +125,12 @@ async function main() {
   // cleanly, the way every other empty-database path in this script does.
   if (owners.length > 0) {
     console.log('[backfill:klts] placing unparented concepts…')
-    await placeUnparentedConcepts(owners[0].id, direct ? directPlacer() : undefined)
+    for (const owner of owners) {
+      const ownerSets = await prisma.set.findMany({ where: { userId: owner.id }, select: { id: true } })
+      for (const set of ownerSets) {
+        await placeUnparentedConcepts(owner.id, set.id, direct ? directPlacer() : undefined)
+      }
+    }
   }
 
   const [topics, links, labels, stillPending] = await Promise.all([
@@ -159,9 +166,14 @@ async function main() {
 }
 
 async function reportTreeHealth() {
-  const rows = await prisma.klt.findMany({
+  const rawRows = await prisma.klt.findMany({
     select: { id: true, name: true, normalizedName: true, parentKltId: true, depth: true, ancestorIds: true },
   })
+  // TODO(task-3): compile-only adapter. `summarizeTreeHealth` (and health
+  // reporting generally) becomes per-set in Task 3; this script still reports
+  // across the whole install by reading structure directly off `Klt`, so
+  // `kltId` doubling as the row's own `id` is exactly true for now.
+  const rows = rawRows.map((r) => ({ ...r, kltId: r.id }))
   const linkRows = await prisma.klpTopic.groupBy({ by: ['kltId'], _count: true })
   const linkCounts = new Map(linkRows.map((l) => [l.kltId, l._count]))
 

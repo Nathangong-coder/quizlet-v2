@@ -1,11 +1,21 @@
 /**
- * The placement pipeline: attaches unparented concepts into the tree.
+ * The placement pipeline: attaches unparented concepts into ONE SET's tree.
  *
- * Task 5 built the prompt that asks an AI where an unplaced concept hangs —
- * it returns a full path like `finance > accounting > financial statements >
- * liquidity ratios > quick ratio`. This module calls it and writes the
- * result: matching path segments against existing nodes, creating only what
- * is missing, and refusing anything unsafe.
+ * Task 5 (of the KLT concept-tree phase) built the prompt that asks an AI
+ * where an unplaced concept hangs — it returns a full path like `finance >
+ * accounting > financial statements > liquidity ratios > quick ratio`. This
+ * module calls it and writes the result: matching path segments against
+ * nodes ALREADY PLACED IN THIS SET, creating only what is missing, and
+ * refusing anything unsafe.
+ *
+ * Structure lives on `SetKltNode`, one row per (set, concept) — see
+ * `docs/superpowers/specs/2026-08-25-klt-per-set-structure-design.md`. `Klt`
+ * itself is a global, structure-free vocabulary: "quick ratio" is one row for
+ * the whole install, but whether it sits under `finance > liquidity` or
+ * somewhere else entirely is a fact about the SET, not the concept. A concept
+ * unplaced in set A may already be placed in set B — that is independent, and
+ * intentionally so (spec §6.1): two sets may each grow their own hierarchy
+ * over the same shared names.
  */
 import { generateJson } from '@/lib/ai/generate'
 import { PLACE_KLTS_PROMPT } from '@/lib/ai/prompts/place-klts'
@@ -17,6 +27,20 @@ export type KltPlacer = (input: { userId: string; prompt: string }) => Promise<K
 
 export const defaultKltPlacer: KltPlacer = ({ userId, prompt }) =>
   generateJson({ userId, task: 'autocomplete', prompt, schema: KltPlacementSchema })
+
+/**
+ * A concept this set has linked (via `KlpTopic`, transitively through its
+ * cards' `CardKlp`s) but has no `SetKltNode` for yet. Deliberately NOT a
+ * `TreeNodeRow`: it has no place in the tree at all yet, so it carries no
+ * `id` (no `SetKltNode` row exists to name), no `parentKltId`, no `depth`,
+ * no `ancestorIds` — inventing placeholder values for those would blur the
+ * exact distinction this module exists to keep sharp.
+ */
+export interface UnplacedConcept {
+  kltId: string
+  name: string
+  normalizedName: string
+}
 
 export interface ResolvedPlacement {
   /** Existing nodes matched, root-first. */
@@ -44,6 +68,11 @@ export interface ResolvedPlacement {
  * - A repeated name is refused: it is a cycle expressed as a path.
  * - Any segment failing `parseKltName` refuses the path, rather than dropping
  *   the segment — dropping a middle rung silently changes what the path means.
+ *
+ * `byNormalized` is scoped to ONE set's already-placed nodes — the caller
+ * (`placeUnparentedConcepts`) builds it from that set's `SetKltNode` rows
+ * only, which is what makes matching here set-scoped without this function
+ * needing to know about sets at all.
  */
 export function resolvePlacementPath(
   path: string[],
@@ -85,7 +114,7 @@ export function resolvePlacementPath(
 }
 
 /**
- * Place every concept that has no parent yet.
+ * Place every concept THIS SET has linked but not yet parented.
  *
  * NEVER THROWS — it runs from `after()` and from a script. A failure leaves
  * concepts unparented, which is the honest resting state: they still hold
@@ -95,6 +124,7 @@ export function resolvePlacementPath(
  */
 export async function placeUnparentedConcepts(
   userId: string,
+  setId: string,
   generate: KltPlacer = defaultKltPlacer,
 ): Promise<void> {
   // Lazy, like `generateJson` itself — a static top-level import of
@@ -104,38 +134,57 @@ export async function placeUnparentedConcepts(
   // import inside the try also folds "prisma failed to even initialize" into
   // the same never-throws path as "the query failed".
   let prisma: (typeof import('@/lib/db'))['prisma']
-  let all: TreeNodeRow[]
+  let placed: TreeNodeRow[]
+  let unplaced: UnplacedConcept[]
   try {
     ;({ prisma } = await import('@/lib/db'))
-    all = await prisma.klt.findMany({
-      select: {
-        id: true, name: true, normalizedName: true,
-        parentKltId: true, depth: true, ancestorIds: true,
-      },
-    })
+
+    const [nodes, links] = await Promise.all([
+      // This set's own tree, and ONLY this set's — a concept placed in
+      // another set never appears here, so it can never be treated as an
+      // existing match for this set's placements.
+      prisma.setKltNode.findMany({
+        where: { setId },
+        select: {
+          id: true,
+          kltId: true,
+          parentKltId: true,
+          depth: true,
+          ancestorIds: true,
+          klt: { select: { name: true, normalizedName: true } },
+        },
+      }),
+      // Every concept THIS SET's cards have linked, via KlpTopic -> CardKlp
+      // -> Card.setId. A concept is "unplaced" (below) when it shows up here
+      // but has no row in `nodes` above — the same concept linked by a
+      // DIFFERENT set's cards is irrelevant to this query entirely, because
+      // the `klp.card.setId` filter never reaches it.
+      prisma.klpTopic.findMany({
+        where: { klp: { card: { setId } } },
+        select: { kltId: true, klt: { select: { name: true, normalizedName: true } } },
+        distinct: ['kltId'],
+      }),
+    ])
+
+    placed = nodes.map((n) => ({
+      id: n.id,
+      kltId: n.kltId,
+      name: n.klt.name,
+      normalizedName: n.klt.normalizedName,
+      parentKltId: n.parentKltId,
+      depth: n.depth,
+      ancestorIds: n.ancestorIds,
+    }))
+
+    const placedKltIds = new Set(placed.map((n) => n.kltId))
+    unplaced = links
+      .filter((l) => !placedKltIds.has(l.kltId))
+      .map((l) => ({ kltId: l.kltId, name: l.klt.name, normalizedName: l.klt.normalizedName }))
   } catch {
     return
   }
 
-  // A root is a node with children and no parent; an unplaced concept is a
-  // node with neither. Distinguishing them matters — re-placing a root would
-  // try to hang a whole subject under something else.
-  const hasChildren = new Set(all.map((n) => n.parentKltId).filter((id): id is string => id !== null))
-  const unplaced = all.filter((n) => n.parentKltId === null && !hasChildren.has(n.id))
   if (unplaced.length === 0) return
-
-  // Everything that is ALREADY real tree structure — i.e. not one of the
-  // concepts this run is trying to place. This must exclude the unplaced set,
-  // not just filter it out of the prompt: an unplaced concept's own row is
-  // still sitting in `all` (parentless), keyed under its own name. If it were
-  // left in `byNormalized` below, resolving a path that ends at that same
-  // concept would find it "already existing" at the final step — either
-  // self-parenting a root-level placement, or (once any ancestor needed
-  // creating first) tripping the match-after-creation rejection on every
-  // single placement. Newly created/placed nodes are added back into this map
-  // as the loop below proceeds, which is what lets a later placement in the
-  // same run reuse them.
-  const placed = all.filter((n) => !unplaced.includes(n))
 
   let result: KltPlacement
   try {
@@ -156,8 +205,15 @@ export async function placeUnparentedConcepts(
     return
   }
 
+  // `byNormalized`/`byKltId` hold only nodes ALREADY PLACED IN THIS SET —
+  // `unplaced` concepts are deliberately excluded so that resolving a path
+  // ending at one of them reaches the `toCreate` branch (see the `placed`
+  // comment on `resolvePlacementPath`), and are merged in only once actually
+  // written. `byKltId` is keyed by `kltId` (the concept), NOT by row `id` —
+  // that is what lets `wouldCycle` walk `parentKltId` (also a `kltId`) and
+  // land on the right node.
   const byNormalized = new Map(placed.map((n) => [n.normalizedName, n]))
-  const byId = new Map(placed.map((n) => [n.id, n]))
+  const byKltId = new Map(placed.map((n) => [n.kltId, n]))
   const unplacedByNormalized = new Map(unplaced.map((n) => [n.normalizedName, n]))
 
   // Shortest path first. A concept's own path is generally no longer than a
@@ -185,18 +241,20 @@ export async function placeUnparentedConcepts(
     if (!resolved) continue
 
     // A `toCreate` ancestor whose name collides with a concept that is STILL
-    // unplaced this run must not be upserted into: `Klt.normalizedName` is
-    // globally unique, so the upsert would match that existing (parentless)
-    // row and take its `update: {}` no-op branch instead of truly creating a
-    // child of `parent` — silently stranding the row exactly where it was
-    // while our in-memory map wrongly believes it was just re-parented.
-    // Skipping leaves this placement unplaced this round, which a later run
-    // (once that other concept has its own real parent) resolves correctly.
+    // unplaced (in THIS SET) this run must not be silently adopted as
+    // structure: this set has its own, independent decision left to make
+    // about where that concept goes, and creating its `SetKltNode` here — as
+    // an incidental side effect of placing a DIFFERENT concept — would
+    // pre-empt that decision with whatever path this unrelated placement
+    // happened to propose, rather than the (possibly different) path the
+    // model returns for it directly. Skipping leaves this placement unplaced
+    // this round; a later run (once that other concept has its own real
+    // placement in this set) resolves correctly.
     const ancestorSpecs = resolved.toCreate.slice(0, -1)
     if (ancestorSpecs.some((spec) => unplacedByNormalized.has(spec.normalizedName))) continue
 
     try {
-      await applyPlacement(prisma, node, resolved, byNormalized, byId)
+      await applyPlacement(prisma, setId, node, resolved, byNormalized, byKltId)
       // Removed only on SUCCESS, and only here: this is what makes the
       // "Hallucinated concept, or one already placed this run" comment above
       // true. Without it, the SAME concept named twice in one AI reply would
@@ -214,98 +272,119 @@ export async function placeUnparentedConcepts(
 }
 
 /**
- * Create the missing chain and attach the concept, in one transaction.
+ * Create the missing chain and attach the concept to THIS SET, in one
+ * transaction.
  *
- * `byNormalized`/`byId` are updated in place, but only AFTER the transaction
- * resolves — mutating them from inside the callback would let a ROLLED BACK
- * transaction leave phantom nodes that a later placement in this run could
- * "match" against rows that were never actually written. Updating them at
- * all (rather than not bothering) is what lets a later placement in the same
- * run reuse a node this one created — without it, two concepts sharing a new
- * ancestor would each mint their own copy and the tree would fork on its
- * first run.
+ * Each `toCreate` segment needs TWO writes, because the vocabulary and the
+ * structure are two different tables now: `klt.upsert` gets-or-creates the
+ * concept by `normalizedName` (globally unique — reusing a name that already
+ * exists elsewhere in the install is correct, not a bug: "WACC" is one
+ * concept for the whole install), and `setKltNode.upsert` places THAT concept
+ * within THIS set specifically. `upsert` (not `create`) on both, so a retry
+ * or a concurrent run converges instead of racing to create a duplicate.
+ *
+ * `byNormalized`/`byKltId` are updated in place, but only AFTER the
+ * transaction resolves — mutating them from inside the callback would let a
+ * ROLLED BACK transaction leave phantom nodes that a later placement in this
+ * run could "match" against rows that were never actually written. Updating
+ * them at all (rather than not bothering) is what lets a later placement in
+ * the same run reuse a node this one created — without it, two concepts
+ * sharing a new ancestor would each mint their own copy and the tree would
+ * fork on its first run.
  */
 async function applyPlacement(
   prisma: (typeof import('@/lib/db'))['prisma'],
-  node: TreeNodeRow,
+  setId: string,
+  node: UnplacedConcept,
   resolved: ResolvedPlacement,
   byNormalized: Map<string, TreeNodeRow>,
-  byId: Map<string, TreeNodeRow>,
+  byKltId: Map<string, TreeNodeRow>,
 ): Promise<void> {
   const parentChain = resolved.toCreate.slice(0, -1) // last entry IS the node
   const createdInTx: TreeNodeRow[] = []
-  let parent = resolved.matched[resolved.matched.length - 1] ?? null
+  let parent: TreeNodeRow | null = resolved.matched[resolved.matched.length - 1] ?? null
+
+  let placedNode!: TreeNodeRow
 
   await prisma.$transaction(async (tx) => {
     for (const spec of parentChain) {
-      const created = await tx.klt.upsert({
+      const klt = await tx.klt.upsert({
         where: { normalizedName: spec.normalizedName },
-        create: {
-          name: spec.name,
-          normalizedName: spec.normalizedName,
-          parentKltId: parent?.id ?? null,
-          depth: parent ? parent.depth + 1 : 0,
-          ancestorIds: parent ? [...parent.ancestorIds, parent.id] : [],
-        },
+        create: { name: spec.name, normalizedName: spec.normalizedName },
         update: {},
-        select: {
-          id: true, name: true, normalizedName: true,
-          parentKltId: true, depth: true, ancestorIds: true,
-        },
+        select: { id: true, name: true, normalizedName: true },
       })
-      createdInTx.push(created)
-      parent = created
+      const parentKltId = parent?.kltId ?? null
+      const depth = parent ? parent.depth + 1 : 0
+      const ancestorIds = parent ? [...parent.ancestorIds, parent.kltId] : []
+      const setNode = await tx.setKltNode.upsert({
+        where: { setId_kltId: { setId, kltId: klt.id } },
+        create: { setId, kltId: klt.id, parentKltId, depth, ancestorIds },
+        update: {},
+        select: { id: true, kltId: true, parentKltId: true, depth: true, ancestorIds: true },
+      })
+      const createdRow: TreeNodeRow = {
+        id: setNode.id,
+        kltId: setNode.kltId,
+        name: klt.name,
+        normalizedName: klt.normalizedName,
+        parentKltId: setNode.parentKltId,
+        depth: setNode.depth,
+        ancestorIds: setNode.ancestorIds,
+      }
+      createdInTx.push(createdRow)
+      parent = createdRow
     }
 
-    // Belt-and-braces (Task 6 review, C1): refuse to write a self-parent or a
-    // cycle, checked against the FINAL parent this placement would use — the
-    // one just-created ancestors included. `unplacedByNormalized.delete` on
-    // success (in the caller) already closes the one reachable path to this
-    // in normal operation (the same concept named twice in one AI reply); this
-    // is the backstop for if that ever regresses, checked right before the
-    // write it would corrupt.
+    // Belt-and-braces (Task 6 review, C1, of the KLT concept-tree phase):
+    // refuse to write a self-parent or a cycle, checked against the FINAL
+    // parent this placement would use — the one just-created/just-adopted
+    // ancestors included, and keyed by `kltId` throughout since that is what
+    // `parentKltId`/`wouldCycle` operate on now. `unplacedByNormalized.delete`
+    // on success (in the caller) already closes the one reachable path to
+    // this in normal operation (the same concept named twice in one AI
+    // reply); this is the backstop for a concurrently-adopted ancestor that
+    // (unknown to this run's stale snapshot) already descends from `node`.
     if (parent) {
-      const localById = new Map(byId)
-      for (const created of createdInTx) localById.set(created.id, created)
-      localById.set(node.id, node)
-      if (parent.id === node.id || wouldCycle(node.id, parent.id, localById)) {
+      const localByKltId = new Map(byKltId)
+      for (const created of createdInTx) localByKltId.set(created.kltId, created)
+      if (parent.kltId === node.kltId || wouldCycle(node.kltId, parent.kltId, localByKltId)) {
         throw new Error(
-          `refusing to attach ${node.id} under ${parent.id}: would self-parent or create a cycle`,
+          `refusing to attach ${node.kltId} under ${parent.kltId}: would self-parent or create a cycle`,
         )
       }
     }
 
-    await tx.klt.update({
-      where: { id: node.id },
-      data: {
-        parentKltId: parent?.id ?? null,
-        depth: parent ? parent.depth + 1 : 0,
-        ancestorIds: parent ? [...parent.ancestorIds, parent.id] : [],
-      },
+    const parentKltId = parent?.kltId ?? null
+    const depth = parent ? parent.depth + 1 : 0
+    const ancestorIds = parent ? [...parent.ancestorIds, parent.kltId] : []
+    // `node` is unplaced IN THIS SET by definition (that is what put it in
+    // `unplaced`), so this is always a genuinely new `SetKltNode` — never an
+    // update of an existing one. `upsert` anyway (not a bare `create`), for
+    // the same concurrent-run safety as the ancestor writes above.
+    const setNode = await tx.setKltNode.upsert({
+      where: { setId_kltId: { setId, kltId: node.kltId } },
+      create: { setId, kltId: node.kltId, parentKltId, depth, ancestorIds },
+      update: {},
+      select: { id: true, kltId: true, parentKltId: true, depth: true, ancestorIds: true },
     })
+    placedNode = {
+      id: setNode.id,
+      kltId: setNode.kltId,
+      name: node.name,
+      normalizedName: node.normalizedName,
+      parentKltId: setNode.parentKltId,
+      depth: setNode.depth,
+      ancestorIds: setNode.ancestorIds,
+    }
   })
 
   // Only merged in once the transaction has actually committed — see the
   // doc comment above.
   for (const created of createdInTx) {
     byNormalized.set(created.normalizedName, created)
-    byId.set(created.id, created)
+    byKltId.set(created.kltId, created)
   }
-  const placedNode: TreeNodeRow = parent
-    ? {
-        ...node,
-        parentKltId: parent.id,
-        depth: parent.depth + 1,
-        ancestorIds: [...parent.ancestorIds, parent.id],
-      }
-    : { ...node } // Placed as a ROOT (round 2 review, residual I2 hole): still
-      // must be merged in, unconditionally -- otherwise a root placed here is
-      // invisible to BOTH byNormalized (never merged before this fix) and
-      // unplacedByNormalized (already deleted by the caller on success). A
-      // later placement in this run proposing a NEW ancestor above this root
-      // would then upsert-adopt it via its unique normalizedName instead of
-      // matching it, silently stranding the new ancestor as a parentless,
-      // childless orphan.
-  byNormalized.set(node.normalizedName, placedNode)
-  byId.set(node.id, placedNode)
+  byNormalized.set(placedNode.normalizedName, placedNode)
+  byKltId.set(placedNode.kltId, placedNode)
 }

@@ -239,7 +239,10 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
         //
         // Cheap when there is nothing to do: it early-returns after ONE query
         // when no concept is unparented, so an ordinary edit costs no AI call.
-        await placeUnparentedConcepts(session.user.id)
+        // Scoped to THIS set: a concept this set has linked but not placed is
+        // "unplaced" here regardless of whether some other set already
+        // placed the same concept in its own tree.
+        await placeUnparentedConcepts(session.user.id, set.id)
       })
     } catch (klpErr) {
       // Nothing more to do — see comment above — but log so an operator can
@@ -381,7 +384,7 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
     after(async () => {
       await extractKlpsForCards(session.user.id, stale)
       await summarizeKltsForCards(session.user.id, stale)
-      await placeUnparentedConcepts(session.user.id)
+      await placeUnparentedConcepts(session.user.id, id)
     })
 
     revalidatePath('/sets')

@@ -7,13 +7,26 @@ import {
   type TreeNodeRow,
 } from '@/lib/klt/tree'
 
+// `id` (the SetKltNode row) is deliberately DIFFERENT from `kltId` (the
+// concept) in every fixture below — a function that accidentally dereferenced
+// `.id` where it means `.kltId` (or vice versa) would still pass fixtures
+// where the two coincide, which defeats the point of this file. `parentKltId`
+// and `ancestorIds` hold `kltId`s throughout, per the SetKltNode schema.
 const node = (
-  id: string,
+  kltId: string,
   name: string,
   parentKltId: string | null,
   depth: number,
   ancestorIds: string[],
-): TreeNodeRow => ({ id, name, normalizedName: name, parentKltId, depth, ancestorIds })
+): TreeNodeRow => ({
+  id: `row-${kltId}`,
+  kltId,
+  name,
+  normalizedName: name,
+  parentKltId,
+  depth,
+  ancestorIds,
+})
 
 //  finance
 //  └── accounting
@@ -25,7 +38,7 @@ const TREE: TreeNodeRow[] = [
   node('s', 'statements', 'a', 2, ['f', 'a']),
   node('c', 'cash flow', 's', 3, ['f', 'a', 's']),
 ]
-const byId = new Map(TREE.map((n) => [n.id, n]))
+const byKltId = new Map(TREE.map((n) => [n.kltId, n]))
 
 describe('renderTreeForPrompt', () => {
   it('renders one indented line per node, parents before children', () => {
@@ -63,15 +76,15 @@ describe('renderTreeForPrompt', () => {
 describe('wouldCycle', () => {
   it('detects placing a node under its own descendant', () => {
     // Moving `accounting` under `cash flow` would make accounting its own ancestor.
-    expect(wouldCycle('a', 'c', byId)).toBe(true)
+    expect(wouldCycle('a', 'c', byKltId)).toBe(true)
   })
 
   it('detects placing a node under itself', () => {
-    expect(wouldCycle('a', 'a', byId)).toBe(true)
+    expect(wouldCycle('a', 'a', byKltId)).toBe(true)
   })
 
   it('allows a legitimate move', () => {
-    expect(wouldCycle('c', 'a', byId)).toBe(false)
+    expect(wouldCycle('c', 'a', byKltId)).toBe(false)
   })
 
   it('terminates on an ALREADY cyclic map instead of looping forever', () => {
@@ -86,20 +99,20 @@ describe('wouldCycle', () => {
 })
 
 describe('computeSubtreeUpdates', () => {
-  it('recomputes depth and ancestors for the moved node AND its subtree', () => {
+  it('recomputes depth and ancestors for the moved node AND its subtree, keyed by kltId, writing row ids', () => {
     // Move `statements` from under `accounting` to directly under `finance`.
     const updates = computeSubtreeUpdates('s', 'f', TREE)
     expect(updates).toEqual([
-      { id: 's', depth: 1, ancestorIds: ['f'] },
-      { id: 'c', depth: 2, ancestorIds: ['f', 's'] },
+      { id: 'row-s', depth: 1, ancestorIds: ['f'] },
+      { id: 'row-c', depth: 2, ancestorIds: ['f', 's'] },
     ])
   })
 
   it('handles promotion to a root', () => {
     const updates = computeSubtreeUpdates('s', null, TREE)
     expect(updates).toEqual([
-      { id: 's', depth: 0, ancestorIds: [] },
-      { id: 'c', depth: 1, ancestorIds: ['s'] },
+      { id: 'row-s', depth: 0, ancestorIds: [] },
+      { id: 'row-c', depth: 1, ancestorIds: ['s'] },
     ])
   })
 

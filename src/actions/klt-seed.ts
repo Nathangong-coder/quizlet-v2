@@ -62,7 +62,13 @@ export async function suggestSkeleton(subject: string): Promise<ActionResult<{ p
   const parsedSubject = parseKltName(subject);
   if (!parsedSubject) return { success: false, error: 'Invalid subject name' };
 
-  const rows = (await prisma.klt.findMany({ select: KLT_ROW_SELECT })) as TreeNodeRow[];
+  // TODO(task-4): compile-only adapter. This still writes `Klt.parentKltId`
+  // directly (Task 4 migrates it onto `SetKltNode`), so `kltId` doubling as
+  // the row's own `id` is exactly true for now.
+  const rows = (await prisma.klt.findMany({ select: KLT_ROW_SELECT })).map((r) => ({
+    ...r,
+    kltId: r.id,
+  })) as TreeNodeRow[];
 
   // Same "unplaced leaf" definition `placeUnparentedConcepts` uses: a node
   // with no parent AND no children. A root already has a home; a node with
@@ -119,7 +125,13 @@ export async function applySkeleton(
   const userId = await requireEditor();
   if (!userId) return NOT_FOUND;
 
-  const rows = (await prisma.klt.findMany({ select: KLT_ROW_SELECT })) as TreeNodeRow[];
+  // TODO(task-4): compile-only adapter. This still writes `Klt.parentKltId`
+  // directly (Task 4 migrates it onto `SetKltNode`), so `kltId` doubling as
+  // the row's own `id` is exactly true for now.
+  const rows = (await prisma.klt.findMany({ select: KLT_ROW_SELECT })).map((r) => ({
+    ...r,
+    kltId: r.id,
+  })) as TreeNodeRow[];
   const byNormalized = new Map(rows.map((r) => [r.normalizedName, r]));
 
   let created = 0;
@@ -165,7 +177,7 @@ async function createChain(
 
   await prisma.$transaction(async (tx) => {
     for (const spec of resolved.toCreate) {
-      const node = await tx.klt.upsert({
+      const created = await tx.klt.upsert({
         where: { normalizedName: spec.normalizedName },
         create: {
           name: spec.name,
@@ -177,6 +189,9 @@ async function createChain(
         update: {},
         select: KLT_ROW_SELECT,
       });
+      // TODO(task-4): compile-only adapter — see the two `klt.findMany`
+      // call sites above.
+      const node: TreeNodeRow = { ...created, kltId: created.id };
       byNormalized.set(node.normalizedName, node);
       parent = node;
       count++;

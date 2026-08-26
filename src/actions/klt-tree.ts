@@ -122,7 +122,13 @@ export async function reparentConcept(
   const userId = await requireEditor();
   if (!userId) return NOT_FOUND;
 
-  const rows = (await prisma.klt.findMany({ select: KLT_ROW_SELECT })) as TreeNodeRow[];
+  // TODO(task-4): compile-only adapter. Structure still lives directly on
+  // `Klt` here — this editor is migrated onto `SetKltNode` in Task 4 — so
+  // `kltId` doubling as the row's own `id` is exactly true for now.
+  const rows = (await prisma.klt.findMany({ select: KLT_ROW_SELECT })).map((r) => ({
+    ...r,
+    kltId: r.id,
+  })) as TreeNodeRow[];
 
   let updates: { id: string; depth: number; ancestorIds: string[] }[];
   try {
@@ -190,7 +196,13 @@ export async function mergeConcepts(sourceId: string, targetId: string): Promise
   const userId = await requireEditor();
   if (!userId) return NOT_FOUND;
 
-  const rows = (await prisma.klt.findMany({ select: KLT_ROW_SELECT })) as TreeNodeRow[];
+  // TODO(task-4): compile-only adapter. Structure still lives directly on
+  // `Klt` here — this editor is migrated onto `SetKltNode` in Task 4 — so
+  // `kltId` doubling as the row's own `id` is exactly true for now.
+  const rows = (await prisma.klt.findMany({ select: KLT_ROW_SELECT })).map((r) => ({
+    ...r,
+    kltId: r.id,
+  })) as TreeNodeRow[];
   const byId = new Map(rows.map((r) => [r.id, r]));
 
   if (!byId.has(sourceId) || !byId.has(targetId)) {
