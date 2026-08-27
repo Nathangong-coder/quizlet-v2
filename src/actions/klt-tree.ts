@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { requireSetKltAccess } from '@/lib/klt/access';
 import { computeSubtreeUpdates, wouldCycle, MAX_TREE_DEPTH, type TreeNodeRow } from '@/lib/klt/tree';
 import { parseKltName } from '@/lib/klt/normalize';
+import { isNodeColorKey, isNodeIconKey } from '@/lib/klt/node-style';
 import { loadSetTree } from '@/lib/klt/structure';
 import type { ActionResult } from '@/types/action';
 
@@ -31,6 +32,13 @@ export interface ConceptTreeNode {
   ancestorIds: string[];
   linkCount: number;
   childCount: number;
+  /**
+   * Cosmetic only, and null means "inherit" for `color` / "default glyph" for
+   * `icon`. Nothing downstream of the canvas reads either — no placement, no
+   * rollup, no mastery — so a null here costs a colour, never a number.
+   */
+  color: string | null;
+  icon: string | null;
 }
 
 /**
@@ -120,6 +128,8 @@ export async function listConceptTree(setId: string): Promise<ActionResult<Conce
     ancestorIds: r.ancestorIds,
     linkCount: linkCounts.get(r.kltId) ?? 0,
     childCount: childCounts.get(r.kltId) ?? 0,
+    color: r.color,
+    icon: r.icon,
   }));
 
   const placed = new Set(nodeRows.map((r) => r.kltId));
@@ -518,3 +528,47 @@ export async function deleteConcept(setId: string, kltId: string): Promise<Actio
   return { success: true, data: null };
 }
 
+
+/**
+ * Set (or clear) one node's display colour and icon IN THIS SET.
+ *
+ * Purely cosmetic and purely set-scoped — it writes two nullable columns on
+ * one `SetKltNode` row. No `Klt`, no `KlpTopic`, no structure: unlike
+ * `renameConcept`, which edits the SHARED vocabulary and is therefore narrowed
+ * to operators when a concept is used elsewhere, styling the same concept
+ * differently in two sets is not a conflict, it is the point.
+ *
+ * `undefined` leaves a field alone, `null` clears it — so the picker can drop
+ * a colour back to "inherit from my branch" without also wiping the icon.
+ * Both are validated against the shared key lists rather than stored as free
+ * text: an arbitrary value would render as the fallback anyway, so accepting
+ * it would only mean silently losing the user's choice.
+ */
+export async function setNodeStyle(
+  setId: string,
+  kltId: string,
+  style: { color?: string | null; icon?: string | null },
+): Promise<ActionResult<null>> {
+  const access = await requireSetKltAccess(setId);
+  if (!access) return NOT_FOUND;
+
+  if (style.color !== undefined && style.color !== null && !isNodeColorKey(style.color)) {
+    return { success: false, error: 'Unknown colour' };
+  }
+  if (style.icon !== undefined && style.icon !== null && !isNodeIconKey(style.icon)) {
+    return { success: false, error: 'Unknown icon' };
+  }
+
+  const node = await prisma.setKltNode.findUnique({
+    where: { setId_kltId: { setId: access.setId, kltId } },
+    select: { id: true },
+  });
+  if (!node) return { success: false, error: 'Concept not found in this set' };
+
+  await prisma.setKltNode.update({
+    where: { id: node.id },
+    data: { color: style.color, icon: style.icon },
+  });
+
+  return { success: true, data: null };
+}

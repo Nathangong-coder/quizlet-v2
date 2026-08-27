@@ -28,6 +28,8 @@ const h = vi.hoisted(() => {
     parentKltId: string | null
     depth: number
     ancestorIds: string[]
+    color: string | null
+    icon: string | null
   }
   interface KltRow {
     id: string
@@ -65,6 +67,8 @@ const h = vi.hoisted(() => {
       parentKltId: n.parentKltId,
       depth: n.depth,
       ancestorIds: n.ancestorIds,
+      color: n.color,
+      icon: n.icon,
       klt: { name: klt.name, normalizedName: klt.normalizedName },
     }
   }
@@ -144,7 +148,7 @@ const h = vi.hoisted(() => {
     }: {
       data: { setId: string; kltId: string; parentKltId: string | null; depth: number; ancestorIds: string[] }
     }) => {
-      const created: NodeRow = { id: freshId('node'), ...data }
+      const created: NodeRow = { id: freshId('node'), color: null, icon: null, ...data }
       state.nodes.push(created)
       return created
     },
@@ -156,13 +160,26 @@ const h = vi.hoisted(() => {
       data,
     }: {
       where: { id: string }
-      data: { parentKltId?: string | null; depth: number; ancestorIds: string[] }
+      data: {
+        parentKltId?: string | null
+        depth?: number
+        ancestorIds?: string[]
+        color?: string | null
+        icon?: string | null
+      }
     }) => {
       const row = state.nodes.find((n) => n.id === where.id)
       if (!row) throw new Error(`test fixture: unknown node ${where.id}`)
+      // Prisma leaves an `undefined` field alone, and EVERY field is checked
+      // that way here. Before `setNodeStyle` existed the fake assigned
+      // `depth`/`ancestorIds` unconditionally, which was harmless while every
+      // caller was a move — and would have silently written `undefined` over
+      // a node's depth the moment a caller updated only its colour.
       if (data.parentKltId !== undefined) row.parentKltId = data.parentKltId
-      row.depth = data.depth
-      row.ancestorIds = data.ancestorIds
+      if (data.depth !== undefined) row.depth = data.depth
+      if (data.ancestorIds !== undefined) row.ancestorIds = data.ancestorIds
+      if (data.color !== undefined) row.color = data.color
+      if (data.icon !== undefined) row.icon = data.icon
       return row
     },
   )
@@ -268,6 +285,7 @@ import {
   renameConcept,
   mergeConcepts,
   deleteConcept,
+  setNodeStyle,
 } from '@/actions/klt-tree'
 
 const OWNER = 'owner-1'
@@ -293,11 +311,11 @@ function seedBaseTree() {
     { id: 'k-leaf', name: 'WACC', normalizedName: 'wacc' },
   ]
   h.state.nodes = [
-    { id: 'n-root', setId: SET_A, kltId: 'k-root', parentKltId: null, depth: 0, ancestorIds: [] },
-    { id: 'n-a', setId: SET_A, kltId: 'k-a', parentKltId: 'k-root', depth: 1, ancestorIds: ['k-root'] },
-    { id: 'n-b', setId: SET_A, kltId: 'k-b', parentKltId: 'k-a', depth: 2, ancestorIds: ['k-root', 'k-a'] },
-    { id: 'n-c', setId: SET_A, kltId: 'k-c', parentKltId: 'k-root', depth: 1, ancestorIds: ['k-root'] },
-    { id: 'n-leaf', setId: SET_A, kltId: 'k-leaf', parentKltId: 'k-c', depth: 2, ancestorIds: ['k-root', 'k-c'] },
+    { id: 'n-root', setId: SET_A, kltId: 'k-root', parentKltId: null, depth: 0, ancestorIds: [], color: null, icon: null },
+    { id: 'n-a', setId: SET_A, kltId: 'k-a', parentKltId: 'k-root', depth: 1, ancestorIds: ['k-root'], color: null, icon: null },
+    { id: 'n-b', setId: SET_A, kltId: 'k-b', parentKltId: 'k-a', depth: 2, ancestorIds: ['k-root', 'k-a'], color: null, icon: null },
+    { id: 'n-c', setId: SET_A, kltId: 'k-c', parentKltId: 'k-root', depth: 1, ancestorIds: ['k-root'], color: null, icon: null },
+    { id: 'n-leaf', setId: SET_A, kltId: 'k-leaf', parentKltId: 'k-c', depth: 2, ancestorIds: ['k-root', 'k-c'], color: null, icon: null },
   ]
   h.state.topics = []
   h.state.setOwners = { [SET_A]: OWNER, [SET_B]: OWNER }
@@ -346,6 +364,8 @@ describe('gating', () => {
       parentKltId: null,
       depth: 0,
       ancestorIds: [],
+      color: null,
+      icon: null,
     })
     h.access.mockResolvedValue({ ...ACCESS_A, setId: RESOLVED_SET_ID })
 
@@ -442,6 +462,8 @@ describe('createConcept', () => {
         parentKltId,
         depth: d,
         ancestorIds: parentKltId ? [...parentAncestors, parentKltId] : [],
+        color: null,
+        icon: null,
       })
       parentKltId = kltId
     }
@@ -471,7 +493,7 @@ describe('reparentConcept', () => {
 describe('renameConcept (ruling 3 — narrowed to non-shared concepts)', () => {
   it('refuses a non-allowlisted caller renaming a concept another set (owned by someone else) also uses', async () => {
     h.state.setOwners[SET_B] = 'other-user'
-    h.state.nodes.push({ id: 'n-a-in-b', setId: SET_B, kltId: 'k-a', parentKltId: null, depth: 0, ancestorIds: [] })
+    h.state.nodes.push({ id: 'n-a-in-b', setId: SET_B, kltId: 'k-a', parentKltId: null, depth: 0, ancestorIds: [], color: null, icon: null })
 
     const res = await renameConcept(SET_A, 'k-a', 'Bookkeeping')
     expect(res.success).toBe(false)
@@ -488,7 +510,7 @@ describe('renameConcept (ruling 3 — narrowed to non-shared concepts)', () => {
 
   it('allows an operator (viaAllowlist) to rename a concept shared with another owner’s set', async () => {
     h.state.setOwners[SET_B] = 'other-user'
-    h.state.nodes.push({ id: 'n-a-in-b', setId: SET_B, kltId: 'k-a', parentKltId: null, depth: 0, ancestorIds: [] })
+    h.state.nodes.push({ id: 'n-a-in-b', setId: SET_B, kltId: 'k-a', parentKltId: null, depth: 0, ancestorIds: [], color: null, icon: null })
     h.access.mockResolvedValue({ ...ACCESS_A, viaAllowlist: true })
 
     const res = await renameConcept(SET_A, 'k-a', 'Bookkeeping')
@@ -573,5 +595,105 @@ describe('mergeConcepts', () => {
     await expect(mergeConcepts(SET_A, 'k-a', 'k-c')).resolves.toMatchObject({ success: true })
     await expect(deleteConcept(SET_A, 'k-leaf')).resolves.toMatchObject({ success: true })
     await expect(reparentConcept(SET_A, 'k-c', null)).resolves.toMatchObject({ success: true })
+  })
+})
+
+describe('setNodeStyle', () => {
+  beforeEach(() => {
+    seedBaseTree()
+    h.access.mockResolvedValue(ACCESS_A)
+  })
+
+  it('saves a colour on this set’s node', async () => {
+    const res = await setNodeStyle(SET_A, 'k-a', { color: 'teal' })
+    expect(res.success).toBe(true)
+    expect(h.state.nodes.find((n) => n.id === 'n-a')?.color).toBe('teal')
+  })
+
+  it('clears a colour back to inheriting, without touching the icon', async () => {
+    // `undefined` leaves a field alone, `null` clears it — so dropping a
+    // colour back to "inherit" must not also wipe a chosen icon.
+    await setNodeStyle(SET_A, 'k-a', { color: 'teal', icon: 'brain' })
+    await setNodeStyle(SET_A, 'k-a', { color: null })
+
+    const row = h.state.nodes.find((n) => n.id === 'n-a')
+    expect(row?.color).toBeNull()
+    expect(row?.icon).toBe('brain')
+  })
+
+  it('leaves placement untouched — style is not structure', async () => {
+    // The regression this guards: an update that sends only `color` must not
+    // blank the denormalized depth/ancestors the rollup depends on.
+    await setNodeStyle(SET_A, 'k-b', { color: 'amber' })
+    const row = h.state.nodes.find((n) => n.id === 'n-b')
+    expect(row?.depth).toBe(2)
+    expect(row?.ancestorIds).toEqual(['k-root', 'k-a'])
+    expect(row?.parentKltId).toBe('k-a')
+  })
+
+  it('refuses an unrecognised colour key, writing nothing', async () => {
+    const res = await setNodeStyle(SET_A, 'k-a', { color: 'chartreuse' })
+    expect(res).toEqual({ success: false, error: 'Unknown colour' })
+    expect(h.nodeUpdate).not.toHaveBeenCalled()
+  })
+
+  it('refuses an unrecognised icon key, writing nothing', async () => {
+    const res = await setNodeStyle(SET_A, 'k-a', { icon: 'unicorn' })
+    expect(res).toEqual({ success: false, error: 'Unknown icon' })
+    expect(h.nodeUpdate).not.toHaveBeenCalled()
+  })
+
+  it('refuses a concept with no node in this set', async () => {
+    h.state.klts.push({ id: 'k-elsewhere', name: 'Elsewhere', normalizedName: 'elsewhere' })
+    const res = await setNodeStyle(SET_A, 'k-elsewhere', { color: 'teal' })
+    expect(res.success).toBe(false)
+    expect(h.nodeUpdate).not.toHaveBeenCalled()
+  })
+
+  it('returns Not found — and writes nothing — when access does not resolve', async () => {
+    h.access.mockResolvedValue(null)
+    const res = await setNodeStyle(SET_A, 'k-a', { color: 'teal' })
+    expect(res).toEqual({ success: false, error: 'Not found' })
+    expect(h.nodeUpdate).not.toHaveBeenCalled()
+  })
+
+  it('targets the setId access resolved, never the raw argument', async () => {
+    // Same shape as the listConceptTree guard: the resolved id differs from
+    // the argument, so a lookup scoped to the wrong one finds no node at all.
+    h.state.nodes.push({
+      id: 'n-resolved',
+      setId: 'set-resolved',
+      kltId: 'k-a',
+      parentKltId: null,
+      depth: 0,
+      ancestorIds: [],
+      color: null,
+      icon: null,
+    })
+    h.access.mockResolvedValue({ ...ACCESS_A, setId: 'set-resolved' })
+
+    const res = await setNodeStyle('set-argument', 'k-a', { color: 'rose' })
+
+    expect(res.success).toBe(true)
+    expect(h.state.nodes.find((n) => n.id === 'n-resolved')?.color).toBe('rose')
+    // The same concept's node in SET_A is untouched.
+    expect(h.state.nodes.find((n) => n.id === 'n-a')?.color).toBeNull()
+  })
+
+  it('never touches CardKlp, KlpState or AnswerKlpResult', async () => {
+    // Those models are absent from the mocked prisma client, so reaching for
+    // one throws "is not a function" rather than passing quietly.
+    await expect(setNodeStyle(SET_A, 'k-a', { color: 'violet', icon: 'coins' })).resolves.toEqual({
+      success: true,
+      data: null,
+    })
+  })
+
+  it('comes back out through listConceptTree, which is what the canvas draws', async () => {
+    await setNodeStyle(SET_A, 'k-a', { color: 'green', icon: 'bank' })
+
+    const res = await listConceptTree(SET_A)
+    const node = res.success === true ? res.data.nodes.find((n) => n.kltId === 'k-a') : undefined
+    expect(node).toMatchObject({ color: 'green', icon: 'bank' })
   })
 })

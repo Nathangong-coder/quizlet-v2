@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-26 (item 9's per-set structure BUILT and reviewed — the live rebuild, the live gate and the column drop are OWED and need the owner; item 8's two human gates reported PASSED by the user 2026-08-24)
+**Last updated:** 2026-08-27 (item 9's concept-tree editor rebuilt as a drag-and-drop canvas, `ee1bcb7` — not yet seen rendered; item 9's per-set structure BUILT and reviewed — the live rebuild, the live gate and the column drop are OWED and need the owner; item 8's two human gates reported PASSED by the user 2026-08-24)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -700,6 +700,61 @@ NAMES, not ids, so a preset applies to a set whose concepts do not exist yet; ne
 clean; `next build` clean; lint **175** (the standing ceiling, unchanged). One known, accepted schema
 drift line: the `ancestorIds` GIN index is hand-added in migration SQL and not declared in
 `schema.prisma` — same pattern as `Klt`'s own. Re-check after the drop that no NEW line appears.
+
+**CANVAS REDESIGN BUILT 2026-08-27 (`ee1bcb7`) — the editor is now a drawing, not a list.**
+
+The owner's verdict on the shipped editor was "too plain and complex", with a concrete picture:
+"an actual coding tree/binary tree that you can traverse", nodes customizable, and the concepts as
+"a list on the side that i can then drag/drop to other places". They chose the top-down tidy tree
+over a left-to-right one and over an organic neural-web layout.
+
+**The complexity was structural, not cosmetic.** The old editor rendered four `<select>`s and a text
+input on EVERY row — a twenty-concept tree meant a hundred controls competing for attention. The fix
+is not styling; it is that the per-node controls now exist ONCE, in an inspector addressing whichever
+node is selected. Anything that re-adds per-row controls re-creates the original complaint.
+
+**What shipped:**
+- `src/lib/klt/layout.ts` — pure layout (leaves take consecutive slots, parents centre over their
+  children). Deliberately separate from `tree.ts`: that module owns what the tree MEANS and its bugs
+  corrupt mastery; this one owns what it LOOKS like and its bugs misdraw a picture.
+- `src/lib/klt/drag.ts` — `evaluateDrop`, the ONE decision point for every re-parent however
+  triggered. Highlight and drop call the same function, so a target that lights up cannot then
+  refuse on release.
+- **The confirm threshold changed:** a move of one node applies immediately with Undo in the toast;
+  a move carrying descendants still confirms and states the count. Confirming a single-node drag is
+  what makes drag-and-drop feel broken; the blast-radius warning stays where it earns its keep.
+- `SetKltNode.color`/`icon` (migration `20260827000000_klt_node_style`, additive, both nullable).
+  Palette KEYS, never raw values — a stored hex ignores the theme and cannot be re-themed without a
+  data migration. Null colour inherits from the NEAREST coloured ancestor. The key lists live in
+  `src/lib/klt/node-style.ts` (plain module) so the ACTION can validate against the same list the
+  picker renders from; `src/components/klt/node-style.ts` is the presentation half, and a test pins
+  that the two cannot drift.
+- Side panel with unplaced on top, all concepts below, both drag sources. **Every drag has a button
+  equivalent** — HTML5 drag-and-drop is unreachable by keyboard, so a drag-only canvas is a canvas
+  some people cannot use at all. The "Place" button's target follows the canvas selection rather
+  than adding a second parent picker.
+
+**Guards mutation-tested** (each removed, its named test watched go red, restored): the confirm
+threshold, the already-that-parent refusal, parent-centring, and — most importantly — `setNodeStyle`
+against `tests/actions/klt-gated-exports-guard.test.ts`, which correctly flagged it the moment its
+`requireSetKltAccess` call was removed.
+
+**A fake that lied, found and fixed:** `nodeUpdate` in `tests/actions/klt-tree.test.ts` assigned
+`depth`/`ancestorIds` unconditionally. Harmless while every caller was a move — and it would have
+written `undefined` over a node's depth the first time a caller updated only a colour. It now honours
+Prisma's "undefined leaves the field alone" for every field.
+
+**Two React-specific traps this hit.** (1) `document.querySelectorAll('svg path')` counts lucide
+GLYPHS as tree edges — scope edge assertions to `[data-testid="concept-edges"]`. (2) A capitalised
+binding assigned from a call at a component's top level (`const Icon = iconFor(x)`) trips the
+compiler lint as "component created during render"; inside a `.map` callback it does not. Use
+`createElement(iconFor(x), {...})`.
+
+**New baselines (2026-08-27):** 173 test files / **2088 passing** (from 170/2026); `tsc` clean;
+`next build` clean; lint **175** — the standing ceiling, unchanged.
+
+**NOT yet seen rendered by anyone.** The jsdom suite covers behaviour, not layout; nobody has looked
+at the canvas in a browser. That check is owed before this is called done.
 
 **Expand/contract, deliberately.** Task 1 as planned dropped `Klt.parentKltId`/`depth`/`ancestorIds`
 immediately, which breaks every file later tasks had not yet migrated and leaves `tsc` and the suite

@@ -1,10 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import {
   listConceptTree,
@@ -13,93 +12,31 @@ import {
   renameConcept,
   mergeConcepts,
   deleteConcept,
+  setNodeStyle,
   type ConceptTreeNode,
   type UnplacedConcept,
 } from '@/actions/klt-tree'
 import { suggestSkeleton, applySkeleton } from '@/actions/klt-seed'
 import { listPresets, applyPreset, savePresetFromSet, type KltPresetSummary } from '@/actions/klt-presets'
-import { computeSubtreeUpdates } from '@/lib/klt/tree'
-
-/** Sentinel value the "Move under…"/"Merge into…" selects use for "no parent". */
-const ROOT_VALUE = ''
-
-/**
- * A stable depth-first ordering of the whole tree: parents before children,
- * siblings sorted by name. Mirrors `renderTreeForPrompt`'s walk exactly, so
- * the editor and the AI prompt agree on what "the tree, in order" means.
- *
- * Keyed on `kltId` throughout — `parentKltId`/`ancestorIds` hold concept ids,
- * never the `SetKltNode` row id.
- */
-function orderNodes(nodes: ConceptTreeNode[]): ConceptTreeNode[] {
-  const byParent = new Map<string | null, ConceptTreeNode[]>()
-  for (const n of nodes) {
-    const list = byParent.get(n.parentKltId)
-    if (list) list.push(n)
-    else byParent.set(n.parentKltId, [n])
-  }
-
-  const out: ConceptTreeNode[] = []
-  const walk = (parentKltId: string | null) => {
-    const kids = [...(byParent.get(parentKltId) ?? [])].sort((a, b) => a.name.localeCompare(b.name))
-    for (const k of kids) {
-      out.push(k)
-      walk(k.kltId)
-    }
-  }
-  walk(null)
-  return out
-}
+import { evaluateDrop, type DragSource } from '@/lib/klt/drag'
+import { ConceptCanvas } from '@/components/klt/ConceptCanvas'
+import { ConceptSidePanel } from '@/components/klt/ConceptSidePanel'
+import { NodeInspector } from '@/components/klt/NodeInspector'
 
 /**
- * Every node EXCEPT `node` itself and any descendant of `node` — offering
- * either would let a move/merge make a node its own ancestor. A descendant
- * is detected via `ancestorIds`, which holds `kltId`s.
+ * Which nodes the filter box keeps: every node whose name matches, PLUS every
+ * ancestor of a match, so a matched leaf still has a visible chain above it.
+ * Returns null for an empty filter — "no restriction", which is a different
+ * thing from an empty set ("hide everything").
  */
-function nonDescendants(node: ConceptTreeNode, all: ConceptTreeNode[]): ConceptTreeNode[] {
-  return all
-    .filter((n) => n.kltId !== node.kltId && !n.ancestorIds.includes(node.kltId))
-    .sort((a, b) => a.name.localeCompare(b.name))
-}
-
-/**
- * Is `node` hidden because some ancestor of it is collapsed?
- *
- * Walks the FULL `ancestorIds` chain (not just the direct parent) so
- * collapsing a grandparent hides everything beneath it, not just its
- * immediate children.
- */
-function isHiddenByCollapse(
-  node: ConceptTreeNode,
-  collapsed: Set<string>,
-  byKltId: Map<string, ConceptTreeNode>,
-): boolean {
-  for (const ancestorKltId of node.ancestorIds) {
-    const ancestor = byKltId.get(ancestorKltId)
-    if (ancestor && collapsed.has(ancestor.id)) return true
-  }
-  return false
-}
-
-/**
- * Which node ids the filter box keeps visible: every node whose name matches,
- * PLUS every ancestor of a match (for context — a matched leaf with no
- * visible parent chain is unreadable). Returns null for an empty filter,
- * meaning "the filter imposes no restriction" (distinct from an empty Set,
- * which would hide everything).
- */
-function computeFilterVisibleIds(nodes: ConceptTreeNode[], filter: string): Set<string> | null {
+function computeFilterVisible(nodes: ConceptTreeNode[], filter: string): Set<string> | null {
   const q = filter.trim().toLowerCase()
   if (!q) return null
-  const byKltId = new Map(nodes.map((n) => [n.kltId, n]))
   const visible = new Set<string>()
   for (const n of nodes) {
     if (!n.name.toLowerCase().includes(q)) continue
-    visible.add(n.id)
-    for (const ancestorKltId of n.ancestorIds) {
-      const ancestor = byKltId.get(ancestorKltId)
-      if (ancestor) visible.add(ancestor.id)
-    }
+    visible.add(n.kltId)
+    for (const ancestorKltId of n.ancestorIds) visible.add(ancestorKltId)
   }
   return visible
 }
@@ -139,49 +76,46 @@ function SkeletonPreviewList({ nodes, depth = 0 }: { nodes: SkeletonNode[]; dept
   )
 }
 
-/** A pending "move" awaiting confirmation, with its computed blast radius. */
-interface MovePending {
-  nodeId: string
-  nodeKltId: string
-  nodeName: string
-  newParentKltId: string | null
-  newParentName: string
-  preview: { kind: 'count'; count: number } | { kind: 'error'; message: string }
-}
-
-/** A pending "merge" awaiting confirmation — merge deletes the source. */
-interface MergePending {
-  sourceId: string
-  sourceKltId: string
-  sourceName: string
-  targetKltId: string
-  targetName: string
-}
+/**
+ * A write held back for confirmation.
+ *
+ * Only two things ever reach here: a move that carries OTHER nodes with it,
+ * and a merge (which deletes the source outright). A move of one node applies
+ * immediately — confirming a single-node drag makes drag-and-drop feel broken,
+ * while the blast-radius warning still fires exactly where it earns its keep.
+ */
+type Pending =
+  | {
+      kind: 'move'
+      source: DragSource
+      newParentKltId: string | null
+      newParentName: string
+      movedCount: number
+      /** A move of a concept that has no node yet is a placement, not a move. */
+      isPlacement: boolean
+    }
+  | { kind: 'merge'; sourceKltId: string; sourceName: string; targetKltId: string; targetName: string }
 
 interface ConceptTreeProps {
   setId: string
   /** Pre-fills the AI seeding subject, so the owner rarely has to type it. */
   setTitle: string
   /**
-   * Whether the current viewer reached this set via the `KLT_EDITORS`
-   * allowlist (`SetKltAccess.viaAllowlist`), not merely by owning it. Gates
-   * ONE control — "save this set's structure as a preset" — since preset
-   * AUTHORING is an operator capability (spec §3b), while applying one is
-   * open to any owner. Defaults to `false` so an omitted prop never
-   * accidentally grants it.
+   * Whether the viewer reached this set through the `KLT_EDITORS` allowlist
+   * rather than by owning it. Gates ONE control — saving this set's structure
+   * as a shared preset, which is an operator capability (spec §3b). Defaults
+   * to false so an omitted prop never accidentally grants it.
    */
   isAdmin?: boolean
 }
 
 /**
- * ONE set's concept-tree editor (spec Decision 3: this same component renders
- * both from `/sets/[id]/concepts`, reached by the set's owner, and from the
- * admin picker at `/concepts`, reached by a `KLT_EDITORS` operator via
- * `/sets/[id]/concepts` too — there is only one editor, not two).
+ * ONE set's concept tree, as a canvas.
  *
- * Every write below is scoped to `setId` and gated server-side by
- * `requireSetKltAccess`; this component does not re-check access, it assumes
- * whichever route rendered it already 404'd an unauthorized caller.
+ * Renders from both `/sets/[id]/concepts` (the owner) and the admin picker at
+ * `/concepts` — one editor, two ways in. Every write is scoped to `setId` and
+ * gated server-side by `requireSetKltAccess`; this component does not re-check
+ * access, it assumes the route that rendered it already 404'd a stranger.
  */
 export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreeProps) {
   const [nodes, setNodes] = useState<ConceptTreeNode[] | null>(null)
@@ -189,16 +123,13 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
 
   const [filter, setFilter] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
-
-  const [renameDrafts, setRenameDrafts] = useState<Record<string, string>>({})
-  const [movePending, setMovePending] = useState<MovePending | null>(null)
-  const [mergeDraft, setMergeDraft] = useState<Record<string, string>>({})
-  const [mergePending, setMergePending] = useState<MergePending | null>(null)
+  const [selectedKltId, setSelectedKltId] = useState<string | null>(null)
+  const [dragging, setDragging] = useState<DragSource | null>(null)
+  const [pending, setPending] = useState<Pending | null>(null)
+  const [placing, setPlacing] = useState<Set<string>>(new Set())
 
   const [addRootName, setAddRootName] = useState('')
   const [addingRoot, setAddingRoot] = useState(false)
-  const [addChildOpen, setAddChildOpen] = useState<Set<string>>(new Set())
-  const [addChildDrafts, setAddChildDrafts] = useState<Record<string, string>>({})
 
   const [subject, setSubject] = useState(setTitle)
   const [suggesting, setSuggesting] = useState(false)
@@ -210,9 +141,6 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
   const [applyingPreset, setApplyingPreset] = useState(false)
   const [savePresetName, setSavePresetName] = useState('')
   const [savingPreset, setSavingPreset] = useState(false)
-
-  const [placeDrafts, setPlaceDrafts] = useState<Record<string, string>>({})
-  const [placing, setPlacing] = useState<Set<string>>(new Set())
 
   // `.then(callback)`, not `async`/`await`: `react-hooks/set-state-in-effect`
   // flags a setState reachable from an async function called directly in an
@@ -246,97 +174,149 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
     loadPresets()
   }, [loadPresets])
 
-  function toggleCollapse(nodeId: string) {
+  const allNodes = useMemo(() => nodes ?? [], [nodes])
+  const byKltId = useMemo(() => new Map(allNodes.map((n) => [n.kltId, n])), [allNodes])
+  const selected = selectedKltId ? byKltId.get(selectedKltId) ?? null : null
+
+  const visible = useMemo(() => {
+    const filterVisible = computeFilterVisible(allNodes, filter)
+    return allNodes.filter((n) => {
+      if (filterVisible) return filterVisible.has(n.kltId)
+      return !n.ancestorIds.some((a) => collapsed.has(a))
+    })
+  }, [allNodes, filter, collapsed])
+
+  function toggleCollapse(kltId: string) {
     setCollapsed((prev) => {
       const next = new Set(prev)
-      if (next.has(nodeId)) next.delete(nodeId)
-      else next.add(nodeId)
+      if (next.has(kltId)) next.delete(kltId)
+      else next.add(kltId)
       return next
     })
   }
 
-  function handleMoveSelect(node: ConceptTreeNode, value: string) {
-    const newParentKltId = value === ROOT_VALUE ? null : value
-    if (newParentKltId === node.parentKltId) return
-
-    let preview: MovePending['preview']
-    try {
-      const updates = computeSubtreeUpdates(node.kltId, newParentKltId, nodes ?? [])
-      preview = { kind: 'count', count: updates.length }
-    } catch (err) {
-      preview = { kind: 'error', message: err instanceof Error ? err.message : 'Unable to move concept' }
-    }
-
-    const newParentName =
-      newParentKltId === null ? '(root)' : (nodes ?? []).find((n) => n.kltId === newParentKltId)?.name ?? newParentKltId
-
-    setMovePending({ nodeId: node.id, nodeKltId: node.kltId, nodeName: node.name, newParentKltId, newParentName, preview })
-  }
-
-  function cancelMove() {
-    setMovePending(null)
-  }
-
-  async function confirmMoveNow() {
-    if (!movePending) return
-    const res = await reparentConcept(setId, movePending.nodeKltId, movePending.newParentKltId)
-    setMovePending(null)
+  /** A move of one node, undoable straight from the toast. */
+  async function commitMove(source: DragSource, newParentKltId: string | null, previousParentKltId: string | null) {
+    const res = await reparentConcept(setId, source.kltId, newParentKltId)
     if (!res.success) {
       toast.error(res.error || 'Failed to move concept')
       return
     }
-    toast.success(`Moved “${movePending.nodeName}”`)
+    toast.success(`Moved “${source.name}”`, {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          reparentConcept(setId, source.kltId, previousParentKltId).then((undo) => {
+            if (!undo.success) toast.error(undo.error || 'Failed to undo')
+            return load()
+          })
+        },
+      },
+    })
     await load()
   }
 
-  async function handleRename(node: ConceptTreeNode) {
-    const value = (renameDrafts[node.id] ?? node.name).trim()
-    if (!value || value === node.name) return
-    const res = await renameConcept(setId, node.kltId, value)
+  /** Give an unplaced concept its first home. Undo deletes the fresh node. */
+  async function commitPlacement(source: DragSource, parentKltId: string | null) {
+    setPlacing((prev) => new Set(prev).add(source.kltId))
+    const res = await createConcept(setId, source.name, parentKltId)
+    setPlacing((prev) => {
+      const next = new Set(prev)
+      next.delete(source.kltId)
+      return next
+    })
+    if (!res.success) {
+      toast.error(res.error || 'Failed to place concept')
+      return
+    }
+    const newKltId = res.data.kltId
+    toast.success(`Placed “${source.name}”`, {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          // Safe: the node was just created, so it cannot have children yet,
+          // and `deleteConcept` removes only THIS set's placement — the
+          // concept and every key point citing it are untouched.
+          deleteConcept(setId, newKltId).then((undo) => {
+            if (!undo.success) toast.error(undo.error || 'Failed to undo')
+            return load()
+          })
+        },
+      },
+    })
+    await load()
+  }
+
+  /**
+   * One decision point for every re-parent, however it was triggered — a drag
+   * onto a node, a drop on the empty canvas, the inspector's parent select, or
+   * the side panel's Place button. They all ask `evaluateDrop`, so they all
+   * refuse the same things and confirm at the same threshold.
+   */
+  async function requestMove(source: DragSource, targetKltId: string | null) {
+    const verdict = evaluateDrop(source.kltId, targetKltId, allNodes)
+    if (!verdict.ok) {
+      toast.error(verdict.reason)
+      return
+    }
+    const isPlacement = verdict.kind === 'place'
+    if (verdict.needsConfirm) {
+      setPending({
+        kind: 'move',
+        source,
+        newParentKltId: targetKltId,
+        newParentName: targetKltId ? byKltId.get(targetKltId)?.name ?? targetKltId : '(root)',
+        movedCount: verdict.movedCount,
+        isPlacement,
+      })
+      return
+    }
+    if (isPlacement) await commitPlacement(source, targetKltId)
+    else await commitMove(source, targetKltId, byKltId.get(source.kltId)?.parentKltId ?? null)
+  }
+
+  async function confirmPending() {
+    if (!pending) return
+    const p = pending
+    setPending(null)
+    if (p.kind === 'move') {
+      if (p.isPlacement) await commitPlacement(p.source, p.newParentKltId)
+      else
+        await commitMove(
+          p.source,
+          p.newParentKltId,
+          byKltId.get(p.source.kltId)?.parentKltId ?? null,
+        )
+      return
+    }
+    const res = await mergeConcepts(setId, p.sourceKltId, p.targetKltId)
+    if (!res.success) {
+      toast.error(res.error || 'Failed to merge concepts')
+      return
+    }
+    if (selectedKltId === p.sourceKltId) setSelectedKltId(null)
+    toast.success(`Merged “${p.sourceName}”`)
+    await load()
+  }
+
+  async function handleRename(node: ConceptTreeNode, name: string) {
+    if (!name || name === node.name) return
+    const res = await renameConcept(setId, node.kltId, name)
     if (!res.success) {
       toast.error(res.error || 'Failed to rename concept')
       return
     }
     toast.success('Renamed')
-    setRenameDrafts((prev) => {
-      const next = { ...prev }
-      delete next[node.id]
-      return next
-    })
     await load()
   }
 
-  function handleMergeSelect(node: ConceptTreeNode, value: string) {
-    setMergeDraft((prev) => ({ ...prev, [node.id]: value }))
-    if (!value) return
-    const target = (nodes ?? []).find((n) => n.kltId === value)
-    setMergePending({
-      sourceId: node.id,
-      sourceKltId: node.kltId,
-      sourceName: node.name,
-      targetKltId: value,
-      targetName: target?.name ?? value,
-    })
-  }
-
-  function cancelMerge() {
-    if (mergePending) {
-      setMergeDraft((prev) => ({ ...prev, [mergePending.sourceId]: '' }))
-    }
-    setMergePending(null)
-  }
-
-  async function confirmMergeNow() {
-    if (!mergePending) return
-    const { sourceId, sourceKltId, targetKltId, sourceName } = mergePending
-    const res = await mergeConcepts(setId, sourceKltId, targetKltId)
-    setMergePending(null)
-    setMergeDraft((prev) => ({ ...prev, [sourceId]: '' }))
+  async function handleAddChild(node: ConceptTreeNode, name: string) {
+    const res = await createConcept(setId, name, node.kltId)
     if (!res.success) {
-      toast.error(res.error || 'Failed to merge concepts')
+      toast.error(res.error || 'Failed to add concept')
       return
     }
-    toast.success(`Merged “${sourceName}”`)
+    toast.success(`Added “${name}” under “${node.name}”`)
     await load()
   }
 
@@ -346,8 +326,22 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
       toast.error(res.error || 'Failed to delete concept')
       return
     }
+    if (selectedKltId === node.kltId) setSelectedKltId(null)
     toast.success('Deleted')
     await load()
+  }
+
+  async function handleStyle(node: ConceptTreeNode, style: { color?: string | null; icon?: string | null }) {
+    // Optimistic: a colour swatch that waits for a round trip feels broken,
+    // and the failure path below puts the real values back.
+    setNodes((prev) =>
+      prev ? prev.map((n) => (n.kltId === node.kltId ? { ...n, ...style } : n)) : prev,
+    )
+    const res = await setNodeStyle(setId, node.kltId, style)
+    if (!res.success) {
+      toast.error(res.error || 'Failed to update appearance')
+      await load()
+    }
   }
 
   async function handleAddRoot() {
@@ -368,36 +362,6 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
     await load()
   }
 
-  function toggleAddChild(parentKltId: string) {
-    setAddChildOpen((prev) => {
-      const next = new Set(prev)
-      if (next.has(parentKltId)) next.delete(parentKltId)
-      else next.add(parentKltId)
-      return next
-    })
-  }
-
-  async function handleAddChild(parentKltId: string, parentName: string) {
-    const value = (addChildDrafts[parentKltId] ?? '').trim()
-    if (!value) {
-      toast.error('Enter a concept name')
-      return
-    }
-    const res = await createConcept(setId, value, parentKltId)
-    if (!res.success) {
-      toast.error(res.error || 'Failed to add concept')
-      return
-    }
-    toast.success(`Added “${value}” under “${parentName}”`)
-    setAddChildDrafts((prev) => ({ ...prev, [parentKltId]: '' }))
-    setAddChildOpen((prev) => {
-      const next = new Set(prev)
-      next.delete(parentKltId)
-      return next
-    })
-    await load()
-  }
-
   async function handleSuggest() {
     const trimmed = subject.trim()
     if (!trimmed) {
@@ -415,8 +379,8 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
   }
 
   function handleDiscard() {
-    // WRITES NOTHING — the whole point of a preview. Discarding just clears
-    // local state; the server was never asked to apply anything.
+    // WRITES NOTHING — the whole point of a preview. Discarding clears local
+    // state; the server was never asked to apply anything.
     setSkeleton(null)
   }
 
@@ -468,46 +432,10 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
     await loadPresets()
   }
 
-  async function handlePlaceUnplaced(u: UnplacedConcept) {
-    const value = placeDrafts[u.kltId] ?? ROOT_VALUE
-    const parentKltId = value === ROOT_VALUE ? null : value
-    setPlacing((prev) => new Set(prev).add(u.kltId))
-    const res = await createConcept(setId, u.name, parentKltId)
-    setPlacing((prev) => {
-      const next = new Set(prev)
-      next.delete(u.kltId)
-      return next
-    })
-    if (!res.success) {
-      toast.error(res.error || 'Failed to place concept')
-      return
-    }
-    toast.success(`Placed “${u.name}”`)
-    setPlaceDrafts((prev) => {
-      const next = { ...prev }
-      delete next[u.kltId]
-      return next
-    })
-    await load()
-  }
-
-  const allNodes = nodes ?? []
-  const byKltId = new Map(allNodes.map((n) => [n.kltId, n]))
-  const filterVisible = computeFilterVisibleIds(allNodes, filter)
-  const ordered = orderNodes(allNodes).filter((n) => {
-    if (filterVisible) return filterVisible.has(n.id)
-    return !isHiddenByCollapse(n, collapsed, byKltId)
-  })
-  const visibleUnplaced = unplaced.filter((u) =>
-    filter.trim() ? u.name.toLowerCase().includes(filter.trim().toLowerCase()) : true,
-  )
-
-  // Shown once the set has genuinely no structure — either it has no
-  // concepts at all yet, or its cards have already produced concepts
-  // (`unplaced`) but none has ever been placed into a hierarchy. Both are
-  // the SAME condition (`nodes.length === 0`, since `nodes` only ever holds
-  // PLACED rows); only the copy differs, so the owner isn't told "no
-  // concepts" when concepts clearly exist, just unorganized.
+  // Genuinely no structure: either no concepts at all, or the cards produced
+  // concepts but none has ever been placed. Both are `nodes.length === 0`
+  // (`nodes` only ever holds PLACED rows); only the copy differs, so nobody is
+  // told "no concepts" while concepts plainly exist, just unorganised.
   const showEmptyPanel = nodes !== null && allNodes.length === 0
 
   const addRootForm = (
@@ -557,10 +485,8 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
     </div>
   )
 
-  // Task 5 fills in what was a dead seam here: a real preset picker, backed
-  // by `listPresets`/`applyPreset` (spec §3b). Applying is never automatic —
-  // it fires only when the owner picks a preset and clicks Apply (Decision
-  // 7), same posture as the AI skeleton preview above.
+  // Applying is never automatic — it fires only when the owner picks a preset
+  // and clicks Apply (Decision 7), the same posture as the AI preview above.
   const presetSection = (
     <div className="space-y-1">
       {presets === null ? (
@@ -596,33 +522,6 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
     </div>
   )
 
-  // Admin-only (spec §3b: authoring shared presets is an operator
-  // capability). Captures THIS set's current structure as a new (or
-  // replacement) preset — nothing else is written.
-  const savePresetSection = isAdmin ? (
-    <div className="space-y-2">
-      <p className="text-xs font-medium text-muted-foreground">Save this set&rsquo;s structure as a preset</p>
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          aria-label="Preset name"
-          placeholder="e.g. finance skeleton"
-          value={savePresetName}
-          onChange={(e) => setSavePresetName(e.target.value)}
-          className="w-56"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleSavePresetFromSet}
-          disabled={savingPreset || allNodes.length === 0}
-        >
-          {savingPreset ? 'Saving…' : 'Save as preset'}
-        </Button>
-      </div>
-    </div>
-  ) : null
-
   return (
     <div className="space-y-6">
       <Card>
@@ -636,67 +535,10 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
             another learner.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           {nodes === null && <p className="text-sm text-muted-foreground">Loading…</p>}
 
-          {nodes !== null && (allNodes.length > 0 || unplaced.length > 0) && (
-            <Input
-              aria-label="Filter concepts"
-              placeholder="Filter concepts…"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="w-64"
-            />
-          )}
-
-          {/* Unplaced FIRST — this is what needs attention. */}
-          {unplaced.length > 0 && (
-            <div className="rounded-lg border p-3 space-y-2">
-              <p className="font-medium text-sm">Unplaced concepts ({unplaced.length})</p>
-              <p className="text-xs text-muted-foreground">
-                Your cards cite these, but they have no place in the tree yet. AI placement will
-                try them automatically, or place one yourself right here.
-              </p>
-              <ul className="space-y-1">
-                {visibleUnplaced.map((u) => (
-                  <li key={u.kltId} className="flex flex-wrap items-center gap-2 text-sm">
-                    <span>{u.name}</span>
-                    <Badge variant="outline">
-                      {u.linkCount} link{u.linkCount === 1 ? '' : 's'}
-                    </Badge>
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      Place under
-                      <select
-                        aria-label={`Place ${u.name} under`}
-                        value={placeDrafts[u.kltId] ?? ROOT_VALUE}
-                        onChange={(e) => setPlaceDrafts((prev) => ({ ...prev, [u.kltId]: e.target.value }))}
-                        className="border rounded px-2 py-1 text-sm"
-                      >
-                        <option value={ROOT_VALUE}>(make a root)</option>
-                        {[...allNodes]
-                          .sort((a, b) => a.name.localeCompare(b.name))
-                          .map((n) => (
-                            <option key={n.kltId} value={n.kltId}>
-                              {n.name}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => handlePlaceUnplaced(u)}
-                      disabled={placing.has(u.kltId)}
-                    >
-                      {placing.has(u.kltId) ? 'Placing…' : 'Place'}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {showEmptyPanel ? (
+          {showEmptyPanel && (
             <div className="rounded-lg border border-dashed p-4 space-y-4">
               <p className="text-sm font-medium">
                 {unplaced.length > 0 ? 'No structure yet' : 'No concepts yet'}
@@ -718,195 +560,101 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
                 {presetSection}
               </div>
             </div>
-          ) : (
-            nodes !== null && (
-              <>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Add a root concept</p>
-                  {addRootForm}
-                </div>
+          )}
 
-                {ordered.map((node) => {
-                  const candidates = nonDescendants(node, allNodes)
-                  const mergeValue = mergeDraft[node.id] ?? ''
-                  return (
-                    <div
-                      key={node.id}
-                      data-node-id={node.id}
-                      data-depth={node.depth}
-                      style={{ marginLeft: `${node.depth * 1.25}rem` }}
-                      className={node.depth > 0 ? 'border-l pl-3 space-y-2 py-1' : 'space-y-2 py-1'}
-                    >
-                      <div className="rounded-lg border p-3 space-y-2">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                          {node.childCount > 0 && (
-                            <button
-                              type="button"
-                              aria-label={collapsed.has(node.id) ? `Expand ${node.name}` : `Collapse ${node.name}`}
-                              onClick={() => toggleCollapse(node.id)}
-                              className="text-xs text-muted-foreground w-4"
-                            >
-                              {collapsed.has(node.id) ? '▸' : '▾'}
-                            </button>
-                          )}
-                          <p className="font-medium">{node.name}</p>
-                          <Badge variant="outline">{node.linkCount} link{node.linkCount === 1 ? '' : 's'}</Badge>
-                          <Badge variant="outline">
-                            {node.childCount} child{node.childCount === 1 ? '' : 'ren'}
-                          </Badge>
-                        </div>
+          {nodes !== null && !showEmptyPanel && (
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+              <ConceptSidePanel
+                unplaced={unplaced}
+                nodes={allNodes}
+                selected={selected}
+                filter={filter}
+                onFilterChange={setFilter}
+                onDragStart={setDragging}
+                onDragEnd={() => setDragging(null)}
+                onSelect={setSelectedKltId}
+                onPlace={(concept) => requestMove(concept, selectedKltId)}
+                placing={placing}
+              />
 
-                        <div className="flex flex-wrap items-center gap-2">
-                          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            Move under
-                            <select
-                              aria-label={`Move ${node.name} under`}
-                              value={node.parentKltId ?? ROOT_VALUE}
-                              onChange={(e) => handleMoveSelect(node, e.target.value)}
-                              className="border rounded px-2 py-1 text-sm"
-                            >
-                              <option value={ROOT_VALUE}>(make a root)</option>
-                              {candidates.map((c) => (
-                                <option key={c.kltId} value={c.kltId}>
-                                  {c.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+              <div className="min-w-0 flex-1 space-y-3">
+                {addRootForm}
 
-                          <Input
-                            aria-label={`Rename ${node.name}`}
-                            value={renameDrafts[node.id] ?? node.name}
-                            onChange={(e) =>
-                              setRenameDrafts((prev) => ({ ...prev, [node.id]: e.target.value }))
-                            }
-                            className="w-40"
-                          />
-                          <Button type="button" variant="outline" size="sm" onClick={() => handleRename(node)}>
-                            Rename
-                          </Button>
+                <div className="relative">
+                  <ConceptCanvas
+                    visible={visible}
+                    allNodes={allNodes}
+                    collapsed={collapsed}
+                    selectedKltId={selectedKltId}
+                    dragging={dragging}
+                    onSelect={setSelectedKltId}
+                    onToggleCollapse={toggleCollapse}
+                    onDragStart={setDragging}
+                    onDragEnd={() => setDragging(null)}
+                    onDrop={(targetKltId) => {
+                      const source = dragging
+                      setDragging(null)
+                      if (source) requestMove(source, targetKltId)
+                    }}
+                  />
 
-                          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            Merge into
-                            <select
-                              aria-label={`Merge ${node.name} into`}
-                              value={mergeValue}
-                              onChange={(e) => handleMergeSelect(node, e.target.value)}
-                              className="border rounded px-2 py-1 text-sm"
-                            >
-                              <option value="">(choose a target)</option>
-                              {candidates.map((c) => (
-                                <option key={c.kltId} value={c.kltId}>
-                                  {c.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+                  {selected && (
+                    <NodeInspector
+                      key={selected.kltId}
+                      node={selected}
+                      allNodes={allNodes}
+                      onClose={() => setSelectedKltId(null)}
+                      onRename={handleRename}
+                      onMove={(node, newParentKltId) =>
+                        requestMove({ kltId: node.kltId, name: node.name }, newParentKltId)
+                      }
+                      onAddChild={handleAddChild}
+                      onMerge={(node, targetKltId) =>
+                        setPending({
+                          kind: 'merge',
+                          sourceKltId: node.kltId,
+                          sourceName: node.name,
+                          targetKltId,
+                          targetName: byKltId.get(targetKltId)?.name ?? targetKltId,
+                        })
+                      }
+                      onDelete={handleDelete}
+                      onStyle={handleStyle}
+                    />
+                  )}
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleAddChild(node.kltId)}
-                          >
-                            Add child
-                          </Button>
-
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            disabled={node.childCount > 0}
-                            onClick={() => handleDelete(node)}
-                          >
-                            Delete
-                          </Button>
-                          {node.childCount > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              Has {node.childCount} child{node.childCount === 1 ? '' : 'ren'} — move or
-                              delete them first
-                            </span>
-                          )}
-                        </div>
-
-                        {addChildOpen.has(node.kltId) && (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Input
-                              aria-label={`New concept under ${node.name}`}
-                              placeholder="e.g. quick ratio"
-                              value={addChildDrafts[node.kltId] ?? ''}
-                              onChange={(e) =>
-                                setAddChildDrafts((prev) => ({ ...prev, [node.kltId]: e.target.value }))
-                              }
-                              className="w-48"
-                            />
-                            <Button type="button" size="sm" onClick={() => handleAddChild(node.kltId, node.name)}>
-                              Add
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => toggleAddChild(node.kltId)}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        )}
-
-                        {/* Move is confirmed, not instant — the impact
-                            preview is why: a select alone can't show "moves
-                            N concepts" before it happens. */}
-                        {movePending?.nodeId === node.id && (
-                          <div className="rounded-md border p-2 space-y-2">
-                            {movePending.preview.kind === 'count' ? (
-                              <p className="text-sm">
-                                Move &ldquo;{movePending.nodeName}&rdquo; under &ldquo;
-                                {movePending.newParentName}&rdquo;? This moves{' '}
-                                {movePending.preview.count} concept
-                                {movePending.preview.count === 1 ? '' : 's'}.
-                              </p>
-                            ) : (
-                              <p className="text-sm text-destructive">{movePending.preview.message}</p>
-                            )}
-                            <div className="flex gap-2">
-                              {movePending.preview.kind === 'count' && (
-                                <Button type="button" size="sm" onClick={confirmMoveNow}>
-                                  Confirm move
-                                </Button>
-                              )}
-                              <Button type="button" variant="outline" size="sm" onClick={cancelMove}>
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Merge deletes the source node, so it never fires
-                            on the select's onChange alone. */}
-                        {mergePending?.sourceId === node.id && (
-                          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 space-y-2">
-                            <p className="text-sm">
-                              Merge &ldquo;{mergePending.sourceName}&rdquo; into &ldquo;
-                              {mergePending.targetName}&rdquo;? This deletes &ldquo;
-                              {mergePending.sourceName}&rdquo;.
-                            </p>
-                            <div className="flex gap-2">
-                              <Button type="button" variant="destructive" size="sm" onClick={confirmMergeNow}>
-                                Confirm merge
-                              </Button>
-                              <Button type="button" variant="outline" size="sm" onClick={cancelMerge}>
-                                Cancel merge
-                              </Button>
-                            </div>
-                          </div>
-                        )}
+                  {pending && (
+                    <div className="absolute inset-x-0 top-3 z-30 mx-auto w-[min(28rem,calc(100%-1.5rem))] rounded-lg border bg-card p-3 shadow-lg">
+                      {pending.kind === 'move' ? (
+                        <p className="text-sm">
+                          Move &ldquo;{pending.source.name}&rdquo; under &ldquo;
+                          {pending.newParentName}&rdquo;? This moves {pending.movedCount} concept
+                          {pending.movedCount === 1 ? '' : 's'}.
+                        </p>
+                      ) : (
+                        <p className="text-sm">
+                          Merge &ldquo;{pending.sourceName}&rdquo; into &ldquo;{pending.targetName}
+                          &rdquo;? This deletes &ldquo;{pending.sourceName}&rdquo;.
+                        </p>
+                      )}
+                      <div className="mt-2 flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={pending.kind === 'merge' ? 'destructive' : 'default'}
+                          onClick={confirmPending}
+                        >
+                          {pending.kind === 'merge' ? 'Confirm merge' : 'Confirm move'}
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setPending(null)}>
+                          Cancel
+                        </Button>
                       </div>
                     </div>
-                  )
-                })}
-              </>
-            )
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -921,7 +669,13 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
               click Apply.
             </CardDescription>
           </CardHeader>
-          <CardContent>{aiSuggestSection}</CardContent>
+          <CardContent className="space-y-4">
+            {aiSuggestSection}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Or apply a saved preset</p>
+              {presetSection}
+            </div>
+          </CardContent>
         </Card>
       )}
 
@@ -934,7 +688,31 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
               apply it to seed a new set&rsquo;s tree. Only visible to operators.
             </CardDescription>
           </CardHeader>
-          <CardContent>{savePresetSection}</CardContent>
+          <CardContent>
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                Save this set&rsquo;s structure as a preset
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  aria-label="Preset name"
+                  placeholder="e.g. finance skeleton"
+                  value={savePresetName}
+                  onChange={(e) => setSavePresetName(e.target.value)}
+                  className="w-56"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSavePresetFromSet}
+                  disabled={savingPreset || allNodes.length === 0}
+                >
+                  {savingPreset ? 'Saving…' : 'Save as preset'}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
         </Card>
       )}
     </div>

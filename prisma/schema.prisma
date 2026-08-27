@@ -319,6 +319,16 @@ model SetKltNode {
   depth       Int      @default(0)
   /// Ancestor Klt ids, root-first, EXCLUDING self, within this set.
   ancestorIds String[]
+  /// Display colour for this node in THIS set's editor, as a palette KEY
+  /// (`violet`, `teal`, …) — never a raw hex or oklch value, so the rendered
+  /// colour follows the theme tokens and stays legible in dark mode. Null
+  /// means "inherit from the nearest ancestor that sets one", which is what
+  /// makes a whole branch read as one family from a single choice at its root.
+  color       String?
+  /// Display icon key from the curated set in `src/components/klt/node-style.ts`.
+  /// A key, not a component name or an import path: an unknown key renders the
+  /// default glyph rather than crashing the canvas.
+  icon        String?
   set         Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
   klt         Klt      @relation(fields: [kltId], references: [id], onDelete: Cascade)
 

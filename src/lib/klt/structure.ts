@@ -31,8 +31,20 @@ const SET_NODE_SELECT = {
   parentKltId: true,
   depth: true,
   ancestorIds: true,
+  color: true,
+  icon: true,
   klt: { select: { name: true, normalizedName: true } },
-} as const;
+} as const
+
+/**
+ * A `TreeNodeRow` plus this set's cosmetic overrides.
+ *
+ * `color`/`icon` ride along on the same read rather than costing a second
+ * query, but stay OFF `TreeNodeRow` itself: that type is the input to the
+ * tree math in `tree.ts`, which must never be able to see, let alone branch
+ * on, a display value.
+ */
+export type SetTreeRow = TreeNodeRow & { color: string | null; icon: string | null };
 
 /**
  * THIS SET's tree, and only this set's.
@@ -46,7 +58,7 @@ const SET_NODE_SELECT = {
  * argument. This is a plain library function precisely so it cannot be
  * called as a server-action RPC endpoint; see the file doc comment.
  */
-export async function loadSetTree(setId: string): Promise<TreeNodeRow[]> {
+export async function loadSetTree(setId: string): Promise<SetTreeRow[]> {
   const rows = await prisma.setKltNode.findMany({ where: { setId }, select: SET_NODE_SELECT });
   return rows.map((r) => ({
     id: r.id,
@@ -56,6 +68,8 @@ export async function loadSetTree(setId: string): Promise<TreeNodeRow[]> {
     parentKltId: r.parentKltId,
     depth: r.depth,
     ancestorIds: r.ancestorIds,
+    color: r.color,
+    icon: r.icon,
   }));
 }
 
