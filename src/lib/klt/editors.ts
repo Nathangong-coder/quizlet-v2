@@ -1,10 +1,16 @@
 /**
- * Who may edit the GLOBAL concept tree.
+ * Which users get OPERATOR REACH into a set they do not own.
  *
- * The tree is shared across every account, so one re-parent moves everyone's
- * topic mastery. That is why editing is an allowlist rather than an ordinary
- * owner check — there IS no owner. Same posture as `npm run invite`: an
- * operator capability, configured out-of-band, not a user-facing permission.
+ * Structure is per-set (`SetKltNode`), so after Decision 4 this list widens
+ * WHICH SETS an operator can open — never what an edit inside one DOES. An
+ * admin's edit still affects exactly one set's structure, exactly like an
+ * owner's; `requireSetKltAccess` (`src/lib/klt/access.ts`) is what actually
+ * decides access and resolves the one `setId` every write scopes to. This
+ * list is not a blast-radius control — see that file for the real rationale.
+ * Same posture as `npm run invite`, still: an operator capability, configured
+ * out-of-band, not a user-facing permission — for a power user tending their
+ * own deck, ownership alone is already enough (no allowlist needed); this is
+ * how an operator helps someone else's set, or authors an install-wide preset.
  *
  * Unset means NOBODY, never everybody. A gate that opens when its config is
  * missing is not a gate.

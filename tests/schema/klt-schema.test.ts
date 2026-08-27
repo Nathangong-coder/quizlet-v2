@@ -74,3 +74,61 @@ describe('KLT tree schema', () => {
     expect(model('KlpTopic')).toMatch(/CENTRALITY, not breadth/)
   })
 })
+
+describe('SetKltNode (per-set structure)', () => {
+  it('uniquely constrains one node per (set, concept)', () => {
+    expect(model('SetKltNode')).toMatch(/@@unique\(\[setId, kltId\]\)/)
+  })
+
+  it('cascades from Set, so deleting a set drops its structure', () => {
+    expect(model('SetKltNode')).toMatch(/set\s+Set\s+@relation\(.*onDelete: Cascade\)/)
+  })
+
+  it('declares NO relation/FK on parentKltId', () => {
+    // A Klt id, not a SetKltNode id — an FK would have to point at Klt and
+    // would wrongly permit a parent with no node in this set.
+    // checkTreeInvariants is the ONLY enforcement; if a future edit adds a
+    // `parent`/`@relation` here, this guard silently becomes decoration.
+    const body = model('SetKltNode')
+    expect(body).toMatch(/parentKltId\s+String\?/)
+    expect(body).not.toMatch(/parentKltId.*@relation/)
+    expect(body).not.toMatch(/\bparent\s+SetKltNode/)
+  })
+
+  it('gives Klt a back-relation to its per-set nodes', () => {
+    expect(model('Klt')).toMatch(/nodes\s+SetKltNode\[\]/)
+  })
+})
+
+describe('KltPreset', () => {
+  it('uniquely names a preset', () => {
+    expect(model('KltPreset')).toMatch(/name\s+String\s+@unique/)
+  })
+
+  it('stores paths as names, not ids, so a preset survives an empty target set', () => {
+    expect(model('KltPreset')).toMatch(/paths\s+Json/)
+  })
+})
+
+describe('KLT per-set structure migration', () => {
+  const sql = readFileSync(
+    join(process.cwd(), 'prisma/migrations/20260826000000_klt_per_set/migration.sql'),
+    'utf8',
+  )
+
+  it('adds a GIN index on SetKltNode.ancestorIds', () => {
+    // Provisioned for a future containment query, mirroring Klt's own GIN
+    // index — the rollup does NOT run one today; it folds each set's
+    // ancestor chains in TypeScript (src/lib/metrics/klt-rollup.ts, R3), so
+    // this index costs little and is kept for when a containment query
+    // exists to use it.
+    expect(sql).toMatch(/CREATE INDEX "SetKltNode_ancestorIds_idx" ON "SetKltNode" USING GIN \("ancestorIds"\)/)
+  })
+
+  it('is additive only — no column is dropped', () => {
+    // Task 1 keeps Klt.parentKltId/depth/ancestorIds live until Task 6; a
+    // DROP COLUMN here would break every one of the thirteen files that still
+    // read them before their readers have moved.
+    expect(sql).not.toMatch(/DROP COLUMN/i)
+  })
+})

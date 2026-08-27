@@ -14,7 +14,7 @@ import { eventRecalled, type StudySource } from '@/lib/memory/scoring'
 import { paceOutliers as computePaceOutliers } from '@/lib/metrics/pace'
 import {
   rollUpKltLinks, buildAncestorClosureByName, buildAncestorBreadcrumbByName,
-  countAnalyzedAnswersByTopic,
+  countAnalyzedAnswersByTopic, type KltNodeRow,
 } from '@/lib/metrics/klt-rollup'
 import { selectDisplayDepth } from '@/lib/metrics/klt-depth'
 import {
@@ -330,7 +330,7 @@ export async function getLearnerMetrics({
   // The KLT axis, from the same inputs. `masteryTopicRanks` decides how many
   // of a KLP's ranked topics count — 3 by default, so one point can move
   // several topics (spec §9.1).
-  const { topics: kltRows, ancestorClosureByName, breadcrumbByName } =
+  const { topics: kltRows, closuresBySet, breadcrumbByName } =
     await loadKltRows(prisma, userId, scope, categoryIds)
   const kltTopicRows = kltRowsToTopicRows(kltRows, tuning.thresholds.masteryTopicRanks)
   const kltTopicsAll = kltTopicRows.length === 0 ? [] : shapeTopicProfile({
@@ -338,7 +338,7 @@ export async function getLearnerMetrics({
     knowledge,
     tags: derived,
     analyzedAnswersByTopic: await loadAnalyzedAnswerCountsByKlt(
-      prisma, quizAnswerScopeWhere, tuning.thresholds.masteryTopicRanks, ancestorClosureByName,
+      prisma, quizAnswerScopeWhere, tuning.thresholds.masteryTopicRanks, closuresBySet,
     ),
     thresholds: tuning.thresholds,
   })
@@ -594,32 +594,54 @@ async function loadUncategorizedCards(
  * toward 1.0 on a card edit, with no change in the learner's behaviour.
  */
 /**
- * KLT rows for the cards in scope, rolled up over the concept TREE.
+ * KLT rows for the cards in scope, rolled up over the concept TREE —
+ * PER SET, then unioned (Task 3, spec §6.2).
  *
- * `Klt` is GLOBAL (one row per concept for the whole install — see the model
- * comment in `schema.prisma`), so this fetches the WHOLE tree — small enough
- * to hold in memory, per `renderTreeForPrompt`'s "fits in a prompt" — rather
- * than filtering to nodes with a direct link. A `where` that tried to mean
- * "linked directly, OR has a descendant that is" does not express in Prisma;
- * see `rollUpKltLinks` for why this is one query + one TypeScript fold instead
- * (controller ruling R3, 2026-08-25).
+ * Structure moved off the global `Klt` tree onto `SetKltNode`: one row per
+ * (set, concept), where the SAME concept can sit under a different parent at
+ * a different depth in a different set. Resolving all sets' rows in one fold
+ * (as the old global-tree version did) would credit a leaf's links to an
+ * ancestor chain that is not its own the moment two sets disagree about where
+ * a shared concept sits — so this groups `SetKltNode` rows BY SET and calls
+ * `rollUpKltLinks` once per set, then concatenates the results. A concept
+ * present in two sets therefore produces two `RawKltRow` entries sharing a
+ * `normalizedName`; `kltRowsToTopicRows`/`shapeTopicProfile` (unchanged) group
+ * by that name and deduplicate `klpIds` through a `Set`, which is what turns
+ * the concatenation into a union rather than a double count.
  *
- * The nested `links` filter repeats the card scope on purpose. Without it a
- * node that qualifies through ONE in-scope card drags in its links from every
- * other card in the database — including other users' — and the topic's
- * knowledge would be averaged over KLPs this learner has never seen.
+ * Scoped to the sets in the learner's scope — `set: { userId }` plus,
+ * when the scope names sets, `setId: { in: scope.setIds }` — never the whole
+ * `SetKltNode` table. The `ancestorIds` GIN index is NOT what this scoping
+ * enables — no containment query (`has`/`hasSome`/`hasEvery` on
+ * `ancestorIds`) exists anywhere in this file; the ancestor fold below runs
+ * in TypeScript (`buildAncestorClosureByName`), matching the controller
+ * ruling in `src/lib/metrics/klt-rollup.ts` (R3). The index is provisioned
+ * for a future containment query, not one that exists today.
  *
- * Also returns `ancestorClosureByName` — every node's normalizedName plus its
- * ancestors' — built from this SAME fetch and threaded into
- * `loadAnalyzedAnswerCountsByKlt` rather than re-querying the whole `Klt`
- * table a second time there. Readiness's denominator needs the identical
- * ancestor fold the links (its numerator) already get; see
+ * The nested `links` filter repeats the card scope on purpose, ONE SET AT A
+ * TIME. Without it a node that qualifies through ONE in-scope card drags in
+ * its links from every other card in the database — including other users' —
+ * and the topic's knowledge would be averaged over KLPs this learner has
+ * never seen.
+ *
+ * Also returns `closuresBySet` — one ancestor-closure map PER SET, keyed by
+ * setId, threaded into `loadAnalyzedAnswerCountsByKlt` rather than re-querying
+ * `SetKltNode` a second time there. Readiness's denominator needs the
+ * identical per-set ancestor fold the links (its numerator) already get; see
  * `buildAncestorClosureByName`'s doc comment for why (review finding,
- * 2026-08-25).
+ * 2026-08-25) — kept ONE PER SET, not merged, because two sets may disagree
+ * about a shared concept's ancestors (§6.2) and a single merged map would let
+ * one set's structure silently answer for another's.
  *
- * And `breadcrumbByName` — every node's ancestors as DISPLAY names — from the
- * same fetch again, for Task 8's breadcrumb. Three derived maps from one query
- * rather than three queries.
+ * And `breadcrumbByName` — every node's ancestors as DISPLAY names, first set
+ * to name a given topic wins — for Task 8's breadcrumb. A topic present in
+ * two sets has no single correct breadcrumb (§6.2's accepted divergence); a
+ * stable "first seen" choice is preferable to a `Map.set` last-write that
+ * would vary with query order.
+ *
+ * A set with no `SetKltNode` rows at all (structure never placed) simply
+ * contributes nothing — no throw, no topics, exactly the "empty structure"
+ * case Task 3's tests require.
  */
 async function loadKltRows(
   prisma: PrismaClient,
@@ -628,32 +650,79 @@ async function loadKltRows(
   categoryIds: string[],
 ): Promise<{
   topics: RawKltRow[]
-  ancestorClosureByName: Map<string, string[]>
+  closuresBySet: Map<string, Map<string, string[]>>
   breadcrumbByName: Map<string, string[]>
 }> {
-  const card: Record<string, unknown> = scope.cardId
-    ? { id: scope.cardId, set: { userId } }
-    : { ...buildCardScopeWhere(scope, categoryIds), set: { userId } }
-
-  const rows = await prisma.klt.findMany({
+  const nodeRows = await prisma.setKltNode.findMany({
+    where: {
+      set: { userId },
+      ...(scope.setIds.length > 0 ? { setId: { in: scope.setIds } } : {}),
+    },
+    // `setId: 'asc'` makes `bySet`'s iteration order deterministic, which is
+    // what `breadcrumbByName`'s "first set to name a topic wins" and
+    // `shapeTopicProfile`'s depth pick both actually need — without it,
+    // "first set" was whatever order Postgres happened to return.
+    orderBy: { setId: 'asc' },
     select: {
-      id: true,
-      normalizedName: true,
-      name: true,
+      setId: true,
+      kltId: true,
       depth: true,
       ancestorIds: true,
-      links: {
-        where: { klp: { card } },
-        select: { rank: true, klp: { select: { id: true, supersededAt: true, cardId: true } } },
-      },
+      klt: { select: { normalizedName: true, name: true } },
     },
   })
 
-  return {
-    topics: rollUpKltLinks(rows),
-    ancestorClosureByName: buildAncestorClosureByName(rows),
-    breadcrumbByName: buildAncestorBreadcrumbByName(rows),
+  const bySet = new Map<string, typeof nodeRows>()
+  for (const row of nodeRows) {
+    const list = bySet.get(row.setId)
+    if (list) list.push(row)
+    else bySet.set(row.setId, [row])
   }
+
+  const topics: RawKltRow[] = []
+  const closuresBySet = new Map<string, Map<string, string[]>>()
+  const breadcrumbByName = new Map<string, string[]>()
+
+  for (const [setId, rowsForSet] of bySet) {
+    // cardId subsumes the category dimension, mirroring `buildStudyEventWhere`/
+    // `buildQuizAnswerScopeWhere`'s "narrowest scope wins" convention — a
+    // single-card scope makes "which categories" moot. `setId` is always
+    // pinned to THIS set, never `scope.setIds` (which may name several) —
+    // placed AFTER the spread so it always wins over whatever
+    // `buildCardScopeWhere` set from the (possibly multi-set) scope.
+    const card: Record<string, unknown> = scope.cardId
+      ? { id: scope.cardId, setId, set: { userId } }
+      : { ...buildCardScopeWhere(scope, categoryIds), setId, set: { userId } }
+
+    const links = await prisma.klpTopic.findMany({
+      where: { kltId: { in: rowsForSet.map((r) => r.kltId) }, klp: { card } },
+      select: { kltId: true, rank: true, klp: { select: { id: true, supersededAt: true, cardId: true } } },
+    })
+    const linksByKltId = new Map<string, RawKltRow['links']>()
+    for (const l of links) {
+      const entry = { rank: l.rank, klp: l.klp }
+      const list = linksByKltId.get(l.kltId)
+      if (list) list.push(entry)
+      else linksByKltId.set(l.kltId, [entry])
+    }
+
+    const kltNodeRows: KltNodeRow[] = rowsForSet.map((r) => ({
+      kltId: r.kltId,
+      normalizedName: r.klt.normalizedName,
+      name: r.klt.name,
+      depth: r.depth,
+      ancestorIds: r.ancestorIds,
+      links: linksByKltId.get(r.kltId) ?? [],
+    }))
+
+    topics.push(...rollUpKltLinks(kltNodeRows))
+    closuresBySet.set(setId, buildAncestorClosureByName(kltNodeRows))
+    for (const [name, crumb] of buildAncestorBreadcrumbByName(kltNodeRows)) {
+      if (!breadcrumbByName.has(name)) breadcrumbByName.set(name, crumb)
+    }
+  }
+
+  return { topics, closuresBySet, breadcrumbByName }
 }
 
 /**
@@ -664,28 +733,51 @@ async function loadKltRows(
  * the positive evidence readiness needs, so deriving this from tags would make
  * every learner look maximally unready.
  *
- * `ancestorClosureByName` folds each direct topic up to its ancestors — the
- * SAME rollup `rollUpKltLinks` gives the numerator (links) — so an interior
- * node whose evidence lives only on descendant leaves gets a non-zero
- * denominator instead of being permanently stuck at `analyzedAnswers === 0`
- * (which pins readiness to `null` regardless of how much evidence its
- * subtree actually carries). Threaded in from `loadKltRows`'s fetch rather
- * than queried again here (review finding, 2026-08-25). The fold and the
- * "once per answer" dedup rule itself live in `countAnalyzedAnswersByTopic`,
- * a pure function, so they are tested directly rather than only indirectly
- * through this DB shell.
+ * Per-set-then-union (Task 3, spec §6.2), matching `loadKltRows`'s numerator:
+ * every answer's card belongs to exactly ONE set, so its direct topic names
+ * must climb THAT set's ancestor chain, never another set's — grouping
+ * answers by `card.setId` and folding each group through `closuresBySet`
+ * before summing is what keeps the denominator, like the numerator, from
+ * letting one set's structure answer for another's. Summing counts across
+ * sets (rather than deduplicating, the way the numerator's `klpIds` are) is
+ * correct here: each answer is a real event that appears in exactly one set's
+ * group, so the sum is total evidence, not a double count.
+ *
+ * RULING (2026-08-26 review finding #8): a set ABSENT from `closuresBySet`
+ * (no placed `SetKltNode` structure at all) is SKIPPED — its answers
+ * contribute NOTHING to any topic's denominator, on this axis. This was
+ * previously a `?? new Map()` fallback, on the reasoning that it was
+ * harmless because `loadKltRows` produced no `RawKltRow` for that set's
+ * concepts either — but that reasoning only holds when the concept name
+ * appears in NO OTHER set. Concrete counterexample: a learner has set A
+ * (cards cite `accounting`, no `SetKltNode` rows yet — the ordinary state
+ * for a freshly imported deck) and set B (`accounting` placed). Under the
+ * old fallback, set A's answers landed in `counts['accounting']` (credited
+ * to the bare name, with no ancestor climb since the closure was empty) —
+ * inflating the denominator for a concept whose NUMERATOR (tag attribution)
+ * runs entirely off set B's `klpIds` and can never see set A's answers. The
+ * result: readiness for a shared concept understated whenever the learner
+ * has an unplaced set citing it.
+ *
+ * Skipping is deliberate, not a gap: it matches the existing project
+ * precedent that uncategorized/unplaced work participates in TARGETING
+ * (KLP-grain, needs no concept) but never in TOPIC MASTERY (concept-grain,
+ * needs a placed structure) — see Spec 3C's uncategorized-KLP handling. An
+ * unplaced set simply has no topic-grain opinion to contribute, on either
+ * side of the fraction.
  */
 async function loadAnalyzedAnswerCountsByKlt(
   prisma: PrismaClient,
   quizAnswerScopeWhere: Record<string, unknown>,
   maxRank: number,
-  ancestorClosureByName: Map<string, string[]>,
+  closuresBySet: Map<string, Map<string, string[]>>,
 ): Promise<Record<string, number>> {
   const answers = await prisma.quizAnswer.findMany({
     where: buildExpressionAnswerWhere(quizAnswerScopeWhere),
     select: {
       card: {
         select: {
+          setId: true,
           klps: {
             where: { supersededAt: null },
             select: {
@@ -700,12 +792,30 @@ async function loadAnalyzedAnswerCountsByKlt(
     },
   })
 
-  return countAnalyzedAnswersByTopic(
-    answers.map((a) => ({
-      topicNames: (a.card?.klps ?? []).flatMap((klp) => klp.topics.map((t) => t.klt.normalizedName)),
-    })),
-    ancestorClosureByName,
-  )
+  const answersBySet = new Map<string, { topicNames: string[] }[]>()
+  for (const a of answers) {
+    const setId = a.card?.setId
+    if (!setId) continue
+    const topicNames = (a.card?.klps ?? []).flatMap((klp) => klp.topics.map((t) => t.klt.normalizedName))
+    const list = answersBySet.get(setId)
+    if (list) list.push({ topicNames })
+    else answersBySet.set(setId, [{ topicNames }])
+  }
+
+  const counts: Record<string, number> = {}
+  for (const [setId, setAnswers] of answersBySet) {
+    // No closure entry means no placed structure in this set — skip it
+    // WHOLE rather than falling back to an empty closure. See the ruling
+    // above: an unplaced set must not inflate a shared concept's
+    // denominator with answers the numerator can never see.
+    const closure = closuresBySet.get(setId)
+    if (!closure) continue
+    const setCounts = countAnalyzedAnswersByTopic(setAnswers, closure)
+    for (const [key, count] of Object.entries(setCounts)) {
+      counts[key] = (counts[key] ?? 0) + count
+    }
+  }
+  return counts
 }
 
 async function loadCategoryRows(prisma: PrismaClient, userId: string, scope: HistoryScope) {

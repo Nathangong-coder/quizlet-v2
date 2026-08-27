@@ -116,6 +116,7 @@ model Set {
   categories    CardCategory[]
   assets        CardAsset[]
   studySessions StudySession[]
+  kltNodes      SetKltNode[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -237,15 +238,24 @@ model KlpState {
 /// displayed; deleting it would churn ids that history points at, for no
 /// storage saving worth naming.
 model Klt {
-  id             String     @id @default(cuid())
+  id             String       @id @default(cuid())
   name           String
-  normalizedName String     @unique
+  normalizedName String       @unique
+  /// DEPRECATED (2026-08-26, KLT per-set structure spec): structure is moving
+  /// to `SetKltNode`, one row per (set, concept), because 0 concepts in the
+  /// live corpus are shared by more than one set — the only thing genuinely
+  /// shared was the vocabulary, not where a concept sits. This column, `depth`,
+  /// `ancestorIds` and the `KltTree` self-relation are kept ADDITIVELY through
+  /// Task 1-5 (thirteen source files still read them) and dropped in Task 6
+  /// once every reader has moved to `SetKltNode`. Do not add new readers.
   parentKltId    String?
-  parent         Klt?       @relation("KltTree", fields: [parentKltId], references: [id], onDelete: Restrict)
-  children       Klt[]      @relation("KltTree")
+  parent         Klt?         @relation("KltTree", fields: [parentKltId], references: [id], onDelete: Restrict)
+  children       Klt[]        @relation("KltTree")
+  /// DEPRECATED — see `parentKltId`. Dropped in Task 6.
   /// 0 at a subject root. Denormalized; `child.depth = parent.depth + 1` is a
   /// TESTED invariant, not an assumption — see src/lib/klt/invariants.ts.
-  depth          Int        @default(0)
+  depth          Int          @default(0)
+  /// DEPRECATED — see `parentKltId`. Dropped in Task 6.
   /// Every ancestor id, root-first, EXCLUDING self.
   ///
   /// Denormalized so "everything under `accounting`" is one indexed array
@@ -253,8 +263,10 @@ model Klt {
   /// dashboard load. A stale array silently changes which key points roll up
   /// where, so an invariant test asserts it matches a real parent walk.
   ancestorIds    String[]
-  createdAt      DateTime   @default(now())
+  createdAt      DateTime     @default(now())
   links          KlpTopic[]
+  /// Per-set structure over this concept. See `SetKltNode`.
+  nodes          SetKltNode[]
 
   @@index([parentKltId])
   @@index([depth])
@@ -290,6 +302,45 @@ model KlpTopic {
   @@unique([klpId, kltId])
   @@index([kltId])
   @@index([klpId, rank])
+}
+
+/// Where one concept sits in ONE set's hierarchy.
+///
+/// The same concept may sit at different depths under different parents in
+/// different sets, and that is correct — a finance deck and a biology deck
+/// have no reason to agree about where `growth` belongs. Editing here affects
+/// exactly one set, which is what makes the editor safe to hand to any owner.
+model SetKltNode {
+  id          String   @id @default(cuid())
+  setId       String
+  kltId       String
+  parentKltId String?
+  /// 0 at a root WITHIN THIS SET. Denormalized; a tested invariant.
+  depth       Int      @default(0)
+  /// Ancestor Klt ids, root-first, EXCLUDING self, within this set.
+  ancestorIds String[]
+  set         Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
+  klt         Klt      @relation(fields: [kltId], references: [id], onDelete: Cascade)
+
+  @@unique([setId, kltId])
+  @@index([setId, parentKltId])
+  @@index([setId, depth])
+}
+
+/// A reusable skeleton an operator can apply to a set, so a new deck starts
+/// with a sensible hierarchy instead of whatever the model infers from cold.
+///
+/// Deliberately NOT auto-applied to new sets in this iteration: the owner
+/// asked for manual first, and an unreviewed skeleton is the structure every
+/// later placement inherits.
+model KltPreset {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  /// Root-first paths of concept NAMES, not ids — a preset must survive being
+  /// applied to a set whose concepts do not exist yet.
+  paths     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model CardCategory {

@@ -16,6 +16,22 @@ describe('KLT trigger wiring', () => {
     expect(summarizations).toBe(extractions)
   })
 
+  it('places new concepts after summarizing them, at every save site', () => {
+    // Without this the tree freezes: a concept gets created but never parented,
+    // so it reports mastery as an isolated node and never rolls up. Placement
+    // must come THIRD — it can only place concepts summarization has created.
+    const summarizations = (sets.match(/await summarizeKltsForCards\(/g) ?? []).length
+    const placements = (sets.match(/await placeUnparentedConcepts\(/g) ?? []).length
+    expect(placements).toBe(summarizations)
+    for (const block of sets.split('after(async () => {').slice(1)) {
+      const body = block.split('})')[0]
+      if (!body.includes('placeUnparentedConcepts')) continue
+      expect(body.indexOf('summarizeKltsForCards')).toBeLessThan(
+        body.indexOf('placeUnparentedConcepts'),
+      )
+    }
+  })
+
   it('chains summarization AFTER extraction, never in parallel', () => {
     // Racing them would summarize KLPs that do not exist yet. Every
     // summarize call must be preceded by an awaited extract in the same block.

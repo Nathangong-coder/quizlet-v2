@@ -16,13 +16,29 @@ export const MAX_BRANCHING = 7
 export interface TreeHealth {
   violations: InvariantViolation[]
   nodesByDepth: { depth: number; count: number }[]
-  unplaced: { id: string; name: string }[]
-  overloaded: { id: string; name: string; children: number }[]
+  unplaced: { kltId: string; name: string }[]
+  overloaded: { kltId: string; name: string; children: number }[]
   singletonConcepts: number
   linkedConcepts: number
 }
 
 /**
+ * `rows` are ONE SET's `SetKltNode` rows (joined to `Klt` for `name`/
+ * `normalizedName`) — Task 3 moved structure off the global `Klt` tree, so
+ * this function no longer sees (and must never be handed) more than one
+ * set's nodes at a time. A caller wanting the whole install's picture loops
+ * over sets and reports per set — `scripts/backfill-klts.ts`'s
+ * `reportTreeHealth()` does exactly this (Task 6a): it loops
+ * `prisma.set.findMany()` and calls `summarizeTreeHealth` once per set
+ * against that set's own `SetKltNode` rows, with `KlpTopic` link counts
+ * scoped by `klp.card.setId`.
+ *
+ * Every lookup below keys on `kltId` (the concept `parentKltId`/`ancestorIds`
+ * point at), never on `id` (the `SetKltNode` row) — see `SetNodeRow` in
+ * `@/lib/klt/tree`. The two are different values in general; keying on `id`
+ * here would silently fail to find a node's children/parent the moment a
+ * real `SetKltNode.id` stops coinciding with its `kltId`.
+ *
  * `linkCounts` is keyed by `kltId`, one entry per concept that has at least
  * one linked key point (e.g. `prisma.klpTopic.groupBy({ by: ['kltId'],
  * _count: true })` reshaped into a map).
@@ -46,17 +62,17 @@ export function summarizeTreeHealth(
     rows.map((r) => r.parentKltId).filter((id): id is string => id !== null),
   )
   const unplaced = rows
-    .filter((r) => r.parentKltId === null && !hasChildren.has(r.id))
-    .map((r) => ({ id: r.id, name: r.name }))
+    .filter((r) => r.parentKltId === null && !hasChildren.has(r.kltId))
+    .map((r) => ({ kltId: r.kltId, name: r.name }))
 
   const childCount = new Map<string, number>()
   for (const r of rows) {
     if (r.parentKltId) childCount.set(r.parentKltId, (childCount.get(r.parentKltId) ?? 0) + 1)
   }
-  const byId = new Map(rows.map((r) => [r.id, r]))
+  const byKltId = new Map(rows.map((r) => [r.kltId, r]))
   const overloaded = [...childCount.entries()]
     .filter(([, count]) => count > MAX_BRANCHING)
-    .map(([id, count]) => ({ id, name: byId.get(id)?.name ?? id, children: count }))
+    .map(([kltId, count]) => ({ kltId, name: byKltId.get(kltId)?.name ?? kltId, children: count }))
 
   // LEAVES only. A key point normally links to the leaf concept it is
   // chiefly about; a non-leaf node with exactly one direct link is not

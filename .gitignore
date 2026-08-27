@@ -32,3 +32,6 @@ prisma/*.db-journal
 litellm.log
 
 /src/generated/prisma
+
+# scripts/verify-klt-rebuild.ts baseline snapshot — real KlpState rows, never committed
+/tmp/klt-rebuild-verify/

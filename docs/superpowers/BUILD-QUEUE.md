@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-24 (item 9 BUILT as the KLT topic layer, two verification steps owed; item 8's two human gates reported PASSED by the user 2026-08-24)
+**Last updated:** 2026-08-26 (item 9's per-set structure BUILT and reviewed — the live rebuild, the live gate and the column drop are OWED and need the owner; item 8's two human gates reported PASSED by the user 2026-08-24)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -668,6 +668,77 @@ belt-and-braces — recorded, not a finding.
 
 **Phase 3** (refinement driven by branching factor, plus the two-direction AI semantic audits) remains
 unbuilt. Stopping here is a legitimate outcome per spec §13 if the seeded tree proves good enough.
+
+---
+
+**PER-SET STRUCTURE BUILT 2026-08-26 — code complete, LIVE REBUILD AND COLUMN DROP STILL OWED.**
+Spec `specs/2026-08-25-klt-per-set-structure-design.md`, plan
+`plans/2026-08-25-klt-per-set-structure.md`, 6 tasks, commits `22403cb..2070194`, subagent-driven
+with reviews **batched at the end** (the owner asked for that on spend grounds — it worked: the
+single whole-branch review found three must-fixes that per-task reviews would have missed, because
+all three only exist across task boundaries).
+
+**Why it changed again:** the owner wants any SET OWNER to edit their own tree, reached from that
+set, so permissions can later be shared per set. A single global tree editable by every owner is not
+safe — one person re-parenting `financial statements` moves every other learner's mastery. Measured
+on the live corpus first: **0 concepts shared by more than one set, 0 by more than one user**, which
+is what made the split nearly free. `Klt` stays a globally-unique concept REGISTRY (that is what a
+future leaderboard aggregates on); a new `SetKltNode` holds `parentKltId`/`depth`/`ancestorIds` per
+(set, concept). **`SetKltNode.parentKltId` is a `Klt` id and carries NO foreign key** — an FK would
+point at `Klt` and wrongly permit a parent with no node in this set; `checkTreeInvariants`' new
+`parent_not_in_set` kind is the only enforcement.
+
+**What shipped:** two editors over one table — `/sets/[id]/concepts` (owner-gated) and `/concepts`
+(`KLT_EDITORS`, spans every set, picks a set first). **Every edit affects exactly one set, admin
+included** — the admin view differs in what it can REACH, never in what an edit DOES. Plus
+`createConcept` (manual base nodes — the half of "seed the top" that had never existed; only the AI
+could create a node before), a "Place under…" control on unplaced concepts, an empty-structure panel
+offering manual / AI / preset side by side, and `KltPreset` (reusable skeletons stored as concept
+NAMES, not ids, so a preset applies to a set whose concepts do not exist yet; never auto-applied).
+
+**New baselines (this branch, 2026-08-26):** 170 test files / **2026 passing** (from 1950); `tsc`
+clean; `next build` clean; lint **175** (the standing ceiling, unchanged). One known, accepted schema
+drift line: the `ancestorIds` GIN index is hand-added in migration SQL and not declared in
+`schema.prisma` — same pattern as `Klt`'s own. Re-check after the drop that no NEW line appears.
+
+**Expand/contract, deliberately.** Task 1 as planned dropped `Klt.parentKltId`/`depth`/`ancestorIds`
+immediately, which breaks every file later tasks had not yet migrated and leaves `tsc` and the suite
+red across four tasks — every intermediate task unverifiable. Task 1 is additive; **the drop is still
+owed** and is ordered AFTER a verified rebuild, never before (dropping first leaves a window with no
+structure in either place).
+
+**STILL OWED — the owner must run these; they spend AI credits and write live data:**
+1. `npm run verify:klt:baseline` (read-only, hashes every `KlpState` row)
+2. `npm run backfill:klts -- --direct --force` — the only step that writes and spends credits
+3. `npm run verify:klt` — exits 0 only if `KlpState` is IDENTICAL, invariants are clean per set, and
+   every set with linked concepts has structure
+4. Live gate: `/sets/[id]/concepts` renders for the owner and 404s for a stranger; `/concepts` 404s
+   with `KLT_EDITORS` unset; **a re-parent in set A leaves set B untouched — the load-bearing check
+   of this whole change**; mastery unchanged after an edit
+5. The contraction migration dropping the three deprecated `Klt` columns + the `KltTree` relation
+
+**The defect worth remembering.** `applyPaths` and `loadSetTree` were exported from `'use server'`
+modules purely so another module could import them — and **in Next.js every export of a `'use server'`
+file is a callable RPC endpoint**, so `applyPaths` was an ungated structural WRITE into any `setId`.
+Every ACTION was correctly gated; the hole came from a refactor for code reuse. Both now live in
+`src/lib/klt/structure.ts` (a plain module) and a mutation-verified guard test asserts every export
+of the four KLT action modules is gated or type-only.
+
+**Test-quality note for whoever runs the next plan here: FOUR tests that could not fail were found in
+this one** — three during implementation (fixture data coincidentally satisfying the assertion, twice;
+an adjacent redundant check masking the gate under test, once) and two more at review (both asserting
+"the resolved setId, not the raw argument" while the mock made them equal). Watching a mutation go red
+is the process; a report claiming it went red is not evidence.
+
+**Deliberate metrics decision made during the fix pass:** a set with no structure now contributes
+nothing to topic-grain readiness. Before, its answers entered a shared concept's denominator while the
+numerator could never reach them, understating readiness. This matches the existing precedent that
+unplaced work drives TARGETING but not TOPIC MASTERY — flagged to the owner as a decision, not a
+silent change.
+
+**Also deferred here, not lost:** the **My Sets / Sets navigation split** the owner raised alongside
+this (a place to EDIT your own sets, separate from a place to browse and quiz on anyone's). It is an
+app-wide IA change overlapping item 6c's public directory, and should be designed WITH 6c.
 
 **Built in THREE phases, each with its own plan** (spec §13): (1) substrate — schema, generation,
 invariants, rollup, minimal display; (2) editor + seeding — the tree UI behind `KLT_EDITORS`, with

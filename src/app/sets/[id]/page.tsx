@@ -60,6 +60,12 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
             >
               Edit
             </Link>
+            <Link
+              href={`/sets/${id}/concepts`}
+              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+            >
+              Concepts
+            </Link>
             <DeleteSetForm setId={id} />
           </div>
         )}

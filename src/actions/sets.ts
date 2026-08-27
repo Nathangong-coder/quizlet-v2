@@ -13,6 +13,7 @@ import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categor
 import { reconcileCards } from '@/lib/cards/reconcile'
 import { extractKlpsForCards } from '@/actions/klp'
 import { summarizeKltsForCards } from '@/lib/klt/summarize'
+import { placeUnparentedConcepts } from '@/lib/klt/place'
 import { selectRefreshableStaleCardIds } from '@/lib/cards/stale'
 import { rescoreSetAttempts } from '@/lib/quiz/rescore'
 import type { CardKlpStatus } from '@/lib/cards/klp-status'
@@ -231,6 +232,17 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
         const ids = created.map((c) => c.id)
         await extractKlpsForCards(session.user.id, ids)
         await summarizeKltsForCards(session.user.id, ids)
+        // Third and last: hang the new concepts in the tree. Without this a
+        // concept is created but never parented, so it reports mastery only as
+        // an isolated node and never rolls up into a subject — the tree would
+        // freeze at whatever the last manual backfill produced.
+        //
+        // Cheap when there is nothing to do: it early-returns after ONE query
+        // when no concept is unparented, so an ordinary edit costs no AI call.
+        // Scoped to THIS set: a concept this set has linked but not placed is
+        // "unplaced" here regardless of whether some other set already
+        // placed the same concept in its own tree.
+        await placeUnparentedConcepts(session.user.id, set.id)
       })
     } catch (klpErr) {
       // Nothing more to do — see comment above — but log so an operator can
@@ -372,6 +384,7 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
     after(async () => {
       await extractKlpsForCards(session.user.id, stale)
       await summarizeKltsForCards(session.user.id, stale)
+      await placeUnparentedConcepts(session.user.id, id)
     })
 
     revalidatePath('/sets')
