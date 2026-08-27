@@ -425,16 +425,53 @@ export async function setSetVisibility(
       return { success: false, error: 'Unrecognised visibility setting' }
     }
 
+    // Publishing is the ONE act that needs a public identity, because /browse
+    // credits creators by handle and a directory row with no author is not
+    // shippable. `private` and `link` never require one — which is what keeps
+    // handles optional for everyone who never publishes. Note the asymmetry is
+    // deliberate: UNpublishing (public -> link/private) is never gated, so a
+    // user who somehow holds a published set with no handle can always retreat.
+    if (parsed === 'public') {
+      const user = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { handle: true },
+      })
+      if (!user?.handle) {
+        return {
+          success: false,
+          error: 'Choose a handle before publishing — it is how you are credited in Browse.',
+        }
+      }
+    }
+
+    // Read the current row before writing, so `publishedAt` can be stamped on
+    // the FIRST publish only. The directory's cursor sorts on it; refreshing
+    // it on every republish would let an owner jump to the front of Browse by
+    // toggling visibility twice.
+    const existing = await prisma.set.findFirst({
+      where: { id: setId, userId: session.user.id },
+      select: { publishedAt: true },
+    })
+
+    const data: { visibility: SetVisibility; publishedAt?: Date } = { visibility: parsed }
+    if (parsed === 'public' && existing && existing.publishedAt === null) {
+      data.publishedAt = new Date()
+    }
+
     const updated = await prisma.set.updateMany({
       where: { id: setId, userId: session.user.id },
-      data: { visibility: parsed },
+      data,
     })
     // Not-found rather than unauthorized: the same reason every read path
     // 404s. A distinguishable error confirms the set exists.
     if (updated.count === 0) return { success: false, error: 'Set not found' }
 
+    // The set may now be listed somewhere new (or have vanished from it), so
+    // the directory and the homepage are invalidated alongside the set itself.
     revalidatePath(`/sets/${setId}`)
     revalidatePath('/sets')
+    revalidatePath('/browse')
+    revalidatePath('/')
     return { success: true, data: { visibility: parsed } }
   } catch (error) {
     return { success: false, error: (error as Error).message }

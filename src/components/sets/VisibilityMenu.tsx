@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Check, ChevronDown, Link2, Lock } from 'lucide-react'
+import { Check, ChevronDown, Globe, Link2, Lock } from 'lucide-react'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { setSetVisibility } from '@/actions/sets'
 import { SET_VISIBILITIES, type SetVisibility } from '@/lib/sets/visibility'
@@ -29,6 +29,19 @@ const OPTIONS: Record<SetVisibility, { trigger: string; label: string; hint: str
     label: 'Anyone with the link',
     hint: 'They can view and study it, but not edit it — and their progress stays their own.',
   },
+  public: {
+    trigger: 'Public',
+    label: 'Anyone, and listed in Browse',
+    hint: 'Listed publicly and credited to your handle. Anyone can study it or make their own copy.',
+  },
+}
+
+/** Confirmation copy per destination state, so `public` is not silently
+ *  reported as `private` by an else-branch written when there were two states. */
+const SAVED_MESSAGE: Record<SetVisibility, string> = {
+  private: 'This set is now private',
+  link: 'Anyone with the link can now see this set',
+  public: 'This set is now listed in Browse',
 }
 
 /**
@@ -68,13 +81,28 @@ export default function VisibilityMenu({
     startTransition(async () => {
       const res = await setSetVisibility(setId, next)
       if (!res.success) {
+        // The revert is not optional — see the state comment above. The
+        // message is surfaced verbatim because publishing can now fail for a
+        // reason the user can actually fix (no handle), and "could not change
+        // who can see this set" gives them nothing to act on.
         setCurrent(previous)
-        toast.error(res.error || 'Could not change who can see this set')
+        const message = res.error || 'Could not change who can see this set'
+        toast.error(
+          message,
+          /handle/i.test(message)
+            ? {
+                action: {
+                  label: 'Choose one',
+                  onClick: () => {
+                    window.location.href = '/account'
+                  },
+                },
+              }
+            : undefined,
+        )
         return
       }
-      toast.success(
-        next === 'link' ? 'Anyone with the link can now see this set' : 'This set is now private',
-      )
+      toast.success(SAVED_MESSAGE[next])
     })
   }
 
@@ -93,7 +121,18 @@ export default function VisibilityMenu({
     }
   }
 
-  const Icon = current === 'link' ? Link2 : Lock
+  // Written as an exhaustive map rather than a ternary. The ternary this
+  // replaces (`current === 'link' ? Link2 : Lock`) silently drew a PADLOCK on
+  // a published set — the else-branch quietly absorbed the new state.
+  const ICONS: Record<SetVisibility, typeof Lock> = {
+    private: Lock,
+    link: Link2,
+    public: Globe,
+  }
+  const Icon = ICONS[current]
+  // A public set is readable by link too, so the copy affordance belongs to
+  // "not private", not to `link` alone.
+  const isShared = current !== 'private'
 
   return (
     <div className="flex items-center gap-2">
@@ -107,7 +146,7 @@ export default function VisibilityMenu({
             'inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm',
             'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             'disabled:opacity-60',
-            current === 'link'
+            isShared
               ? 'border-primary/40 bg-accent text-accent-foreground'
               : 'border-input hover:bg-muted',
           )}
@@ -163,7 +202,7 @@ export default function VisibilityMenu({
         </PopoverContent>
       </Popover>
 
-      {current === 'link' && (
+      {isShared && (
         <button
           type="button"
           onClick={copyLink}
