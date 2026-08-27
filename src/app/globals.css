@@ -133,8 +133,10 @@
   --info-foreground: oklch(0.985 0 0);
   --info-subtle: oklch(0.960 0.026 245);
 
-  --border: oklch(0.910 0 0);
-  --input: oklch(0.910 0 0);
+  /* Hairline. Was oklch(0.910 0 0) — a visible grey box around everything.
+     A rule you can barely see still separates; a rule you can see contains. */
+  --border: oklch(0.935 0 0);
+  --input: oklch(0.900 0 0);
   --ring: oklch(0.55 0.14 265);
 
   /* Categorical, for series — five distinguishable hues held at similar
@@ -157,7 +159,10 @@
   --severity-medium: oklch(0.58 0.16 55);
   --severity-high: oklch(0.55 0.20 27);
 
-  --radius: 0.625rem;
+  /* Was 0.625rem. The Instrument chassis is ruled and typographic, and a
+     generous corner radius is the single strongest "SaaS card" signal in the
+     whole token set. */
+  --radius: 0.375rem;
 
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -205,7 +210,7 @@
   --info-foreground: oklch(0.17 0.03 245);
   --info-subtle: oklch(0.27 0.045 245);
 
-  --border: oklch(1 0 0 / 12%);
+  --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.62 0.13 265);
 
@@ -249,12 +254,45 @@
   }
 
   /* Hierarchy comes from a change of VOICE, not only of size. Page and section
-     titles take the display serif; everything else stays in Plex Sans. */
+     titles take the display serif; everything else stays in Plex Sans.
+     `text-wrap: balance` on headings so a two-line title breaks evenly rather
+     than leaving one orphaned word — the cheapest typographic tell there is.
+
+     NO `font-optical-sizing` and NO `font-variation-settings` here or below:
+     `src/app/layout.tsx` loads Fraunces through next/font WITHOUT an `axes`
+     option, so the fetched file carries the `wght` axis and nothing else —
+     `opsz`, `SOFT` and `WONK` are absent and any rule naming them is inert.
+     To turn them on, add `axes: ['opsz', 'SOFT', 'WONK']` to the `Fraunces()`
+     call in layout.tsx FIRST; a CSS rule that silently does nothing is worse
+     than no rule. */
   h1,
   h2,
   h3 {
     @apply font-heading;
-    font-optical-sizing: auto;
+    text-wrap: balance;
+  }
+
+  /* The display size. Fraunces is loaded and, before this, was never used
+     above text-3xl anywhere in the app — so the one face chosen to give the
+     product a voice was whispering. Page titles opt in with `.display`. */
+  .display {
+    @apply font-heading tracking-tight;
+    font-size: clamp(2rem, 1.4rem + 2.2vw, 3.25rem);
+    line-height: 1.04;
+    text-wrap: balance;
+  }
+
+  /* A standfirst under a display title. */
+  .lede {
+    @apply text-muted-foreground;
+    font-size: 1.0625rem;
+    line-height: 1.55;
+    max-width: 62ch;
+  }
+
+  /* Small caps-ish label for column heads and metric labels. */
+  .label {
+    @apply text-xs uppercase tracking-wider text-muted-foreground;
   }
 
   /* Figures never reflow their column as values change. */
