@@ -7,22 +7,40 @@
  * typo compiles cleanly and silently never matches — import this const rather
  * than writing a literal.
  *
- * Two states only. There is no public directory and no discovery: `link` means
- * "anyone holding the id may read it", nothing more.
+ * Three states. `private` is owner-only; `link` means "anyone holding the id
+ * may read it, and it is listed NOWHERE"; `public` means readable AND listed
+ * in /browse.
+ *
+ * `link` and `public` are deliberately NOT collapsed. They answer different
+ * questions — "may this be read?" and "should this be advertised?" — and a
+ * learner who shared a study-group link did not thereby ask to be published.
+ * Collapsing them would silently publish every already-shared set on deploy.
  */
-export const SET_VISIBILITIES = ['private', 'link'] as const
+export const SET_VISIBILITIES = ['private', 'link', 'public'] as const
 
 export type SetVisibility = (typeof SET_VISIBILITIES)[number]
 
 /**
+ * The visibilities that are readable by someone who is not the owner.
+ *
+ * Derived by exclusion rather than written out, so adding a fourth visibility
+ * cannot leave this list silently stale — the one way this module goes wrong
+ * without any test noticing.
+ */
+export const READABLE_VISIBILITIES = SET_VISIBILITIES.filter(
+  (v): v is Exclude<SetVisibility, 'private'> => v !== 'private',
+)
+
+/**
  * Narrow a value read from the database.
  *
- * FAILS CLOSED: an unrecognised value resolves to `private`, never `link`. The
- * cost of wrongly hiding a set is an annoyed owner; the cost of wrongly
- * exposing one is the bug this module exists to close. Note this differs in
- * REASON from `toCardKlpStatus`, which degrades to the column default because
- * that default is harmless — here the safe value and the column default happen
- * to coincide, and the safety is why, not the coincidence.
+ * FAILS CLOSED: an unrecognised value resolves to `private`, never `link` and
+ * above all never `public`. The cost of wrongly hiding a set is an annoyed
+ * owner; the cost of wrongly exposing one is the bug this module exists to
+ * close. Note this differs in REASON from `toCardKlpStatus`, which degrades to
+ * the column default because that default is harmless — here the safe value
+ * and the column default happen to coincide, and the safety is why, not the
+ * coincidence.
  */
 export function toSetVisibility(raw: string): SetVisibility {
   return (SET_VISIBILITIES as readonly string[]).includes(raw)
@@ -48,7 +66,10 @@ export function canReadSet(
   viewerId: string | null,
 ): boolean {
   if (viewerId !== null && set.userId === viewerId) return true
-  return toSetVisibility(set.visibility) === 'link'
+  // `!== 'private'` rather than `=== 'link'`. Written positively against the
+  // readable list, this is the one line that has to change every time a
+  // visibility is added; written negatively it never does.
+  return toSetVisibility(set.visibility) !== 'private'
 }
 
 /**
@@ -73,10 +94,53 @@ export function canReadSet(
  * applied, and a test asserts there are none.
  *
  * Returns a bare `OR` for a signed-in viewer, so spreading this into a `where`
- * that already has its own `OR` REPLACES it. No current call site has one; if
- * that changes, combine under an explicit `AND: [...]`.
+ * that already has its own `OR` REPLACES it. Use `composeSetWhere` for every
+ * read that carries a predicate of its own.
  */
 export function readableSetWhere(viewerId: string | null): Record<string, unknown> {
-  if (viewerId === null) return { visibility: 'link' }
-  return { OR: [{ userId: viewerId }, { visibility: 'link' }] }
+  // `in`, NOT a second OR. Making this branch an OR would give BOTH branches
+  // the replace-my-OR hazard at exactly the moment the directory arrives as
+  // the first call site with an OR of its own. See spec §3.1.
+  const readable = { visibility: { in: READABLE_VISIBILITIES } }
+  if (viewerId === null) return readable
+  return { OR: [{ userId: viewerId }, readable] }
+}
+
+/**
+ * A Prisma `where` fragment for "sets that may be ADVERTISED in the directory".
+ *
+ * Separate from `readableSetWhere` because listing and reading are different
+ * questions. `listingBlocked` is an OPERATOR decision (spec §10) and is
+ * checked here rather than in `readableSetWhere` on purpose: an unlisted set
+ * stays readable by anyone holding its id — moderation removes it from the
+ * shop window, it does not retroactively break every link already shared.
+ *
+ * ALWAYS compose this with `readableSetWhere` via `composeSetWhere`, never
+ * alone. `visibility: 'public'` looks like it makes the readable fragment
+ * redundant; the day someone adds "also show my own private sets here" is the
+ * day a hand-rolled filter leaks and a composed one does not.
+ */
+export function listableSetWhere(): Record<string, unknown> {
+  return { visibility: 'public', listingBlocked: false }
+}
+
+/**
+ * Compose the readable fragment with additional clauses under an explicit
+ * `AND`.
+ *
+ * THE REASON THIS EXISTS: `readableSetWhere` returns a bare `OR` for a
+ * signed-in viewer, and JavaScript object spread makes a second `OR` REPLACE
+ * it rather than combine with it. The directory's title/description search is
+ * an `OR`. Spreading both at one level widens the query to every set in the
+ * database — and it still returns plausible-looking results while doing it,
+ * which is why the failure cannot be caught by looking at the page.
+ *
+ * Use this for every set read that carries a predicate of its own. A read with
+ * nothing but an id may still spread the fragment directly.
+ */
+export function composeSetWhere(
+  viewerId: string | null,
+  ...clauses: Record<string, unknown>[]
+): Record<string, unknown> {
+  return { AND: [readableSetWhere(viewerId), ...clauses] }
 }
