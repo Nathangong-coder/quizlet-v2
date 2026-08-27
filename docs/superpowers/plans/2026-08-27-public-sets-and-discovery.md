@@ -2223,6 +2223,14 @@ Expected: PASS, with a non-zero test count.
 
 A server-safe (no `'use client'`) SVG component: `<SetGlyph setId={id} categoryCount={n} className?>`. Render a `viewBox="0 0 100 100"` SVG, `aria-hidden="true"`, with `buildGlyph(setId, categoryCount)` mapped to `<circle cx={x*100} cy={y*100} r={r*100} />` filled `currentColor` at varying opacity, plus faint `<line>` elements connecting consecutive nodes (`stroke="currentColor"`, `strokeOpacity={0.25}`). Colour comes from `text-primary/70` on the wrapper so it follows the theme in both modes.
 
+> **From Task 4:** the handle gate on publishing is **validation, not an invariant** — it
+> is checked at the moment of publishing and never again. Today no code path can clear a
+> handle back to null (`saveHandle` rejects anything under 3 characters, verified
+> 2026-08-27), so a public set's author always has one. **Do not rely on that.** Render
+> `handle === null` gracefully — omit the credit line entirely, exactly as `SetStrip` does.
+> Do NOT add `handle: { not: null }` to the directory's `where`: that would silently hide a
+> published set for a reason its owner can neither see nor fix.
+
 - [ ] **Step 7: Create `src/components/sets/DirectoryCard.tsx`**
 
 Server component taking `entry: DirectoryEntry`. Layout: the glyph at the left, then title (linking to `/sets/${entry.id}`), description clamped to two lines, then a footer row of `{cardCount} cards` · `@handle` (plain text, not a link — `/{handle}` does not exist) · category chips using the existing chip styling from `TermsList.tsx`, plus the fork credit when present.
@@ -2903,7 +2911,26 @@ export default async function Home() {
       include: { _count: { select: { cards: true } } },
     }),
   ])
-  const summaries = await loadSetStudySummaries(prisma, userId, ownSets.map((s) => s.id))
+  // DEDUPE AT RENDER, never at write. Reported by Task 5: the strip is
+  // `viewedAt desc take 8` and this preview is `updatedAt desc take 6`, so for
+  // any account with six or fewer sets and nothing shared to them — which is
+  // this account today — the two blocks render THE SAME TILES in a slightly
+  // different order. Two blocks with identical content, different sort keys and
+  // no stated reason for differing is the specific thing that reads as
+  // unfinished.
+  //
+  // Subtracting this way round and not the other: excluding own sets from the
+  // STRIP would leave a solo account's strip empty until they open somebody
+  // else's set, so the flagship feature would look broken on day one, when
+  // there are no public sets to have opened yet.
+  const recentIds = new Set(recents.map((r) => r.id))
+  const otherOwnSets = ownSets.filter((s) => !recentIds.has(s.id))
+
+  const summaries = await loadSetStudySummaries(
+    prisma,
+    userId,
+    otherOwnSets.map((s) => s.id),
+  )
 
   const hasNothing = recents.length === 0 && ownSets.length === 0
 
@@ -2932,7 +2959,11 @@ export default async function Home() {
             </Section>
           )}
 
-          {ownSets.length > 0 && (
+          {/* `otherOwnSets`, not `ownSets` — anything already in the strip
+              above is not repeated here. The block disappears entirely when
+              that empties it, per the render-nothing-rather-than-an-empty-shell
+              rule; "See all" is still one click away in the nav. */}
+          {otherOwnSets.length > 0 && (
             <Section>
               <SectionHeader
                 title="Your sets"
@@ -2940,7 +2971,7 @@ export default async function Home() {
               />
               <SectionBody>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {ownSets.map((s) => (
+                  {otherOwnSets.map((s) => (
                     <SetCard key={s.id} set={s} summary={summaries[s.id]} />
                   ))}
                 </div>
