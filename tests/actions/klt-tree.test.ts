@@ -86,6 +86,7 @@ const h = vi.hoisted(() => {
   }
 
   const access = vi.fn()
+  const view = vi.fn()
 
   const kltFindFirst = vi.fn(async ({ where }: { where: { normalizedName?: string; NOT?: { id: string } } }) => {
     const match = state.klts.find(
@@ -241,6 +242,7 @@ const h = vi.hoisted(() => {
   return {
     state,
     access,
+    view,
     kltFindFirst,
     kltUpsert,
     kltUpdate,
@@ -259,7 +261,7 @@ const h = vi.hoisted(() => {
   }
 })
 
-vi.mock('@/lib/klt/access', () => ({ requireSetKltAccess: h.access }))
+vi.mock('@/lib/klt/access', () => ({ requireSetKltAccess: h.access, requireSetKltView: h.view }))
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -292,6 +294,8 @@ const OWNER = 'owner-1'
 const SET_A = 'set-a'
 const SET_B = 'set-b'
 const ACCESS_A = { userId: OWNER, setId: SET_A, setTitle: 'Finance 101', viaAllowlist: false }
+/** What `requireSetKltView` resolves for the owner: the read gate, plus the verdict on writing. */
+const VIEW_A = { viewerId: OWNER, setId: SET_A, setTitle: 'Finance 101', canEdit: true, viaAllowlist: false }
 
 /**
  * A small real tree in SET_A:
@@ -326,11 +330,13 @@ beforeEach(() => {
   h.state.nextId = 0
   seedBaseTree()
   h.access.mockResolvedValue(ACCESS_A)
+  h.view.mockResolvedValue(VIEW_A)
 })
 
 describe('gating', () => {
   it('every action returns the not-found shape, and touches no store, when access is refused', async () => {
     h.access.mockResolvedValue(null)
+    h.view.mockResolvedValue(null)
     const calls: Array<() => Promise<{ success: boolean; error?: string }>> = [
       () => listConceptTree(SET_A),
       () => createConcept(SET_A, 'finance', null),
@@ -368,6 +374,7 @@ describe('gating', () => {
       icon: null,
     })
     h.access.mockResolvedValue({ ...ACCESS_A, setId: RESOLVED_SET_ID })
+    h.view.mockResolvedValue({ ...VIEW_A, setId: RESOLVED_SET_ID })
 
     const res = await listConceptTree('set-argument')
 
@@ -375,6 +382,43 @@ describe('gating', () => {
     expect(h.nodeFindMany).not.toHaveBeenCalledWith(expect.objectContaining({ where: { setId: 'set-argument' } }))
     expect(res.success).toBe(true)
     expect(res.success === true && res.data.nodes.some((n) => n.kltId === 'k-root')).toBe(true)
+  })
+})
+
+describe('the read/write split', () => {
+  it('lets a shared-set viewer read the tree while every write still refuses', async () => {
+    // Exactly the state a link-shared viewer is in: the READ gate resolves,
+    // the OWNERSHIP gate does not. If a write action were ever switched to
+    // the read gate to "fix" a 404, this goes red.
+    h.view.mockResolvedValue({ ...VIEW_A, viewerId: 'viewer-1', canEdit: false })
+    h.access.mockResolvedValue(null)
+
+    const read = await listConceptTree(SET_A)
+    expect(read.success).toBe(true)
+    expect(read.success === true && read.data.canEdit).toBe(false)
+
+    const writes: Array<() => Promise<{ success: boolean; error?: string }>> = [
+      () => createConcept(SET_A, 'finance', null),
+      () => reparentConcept(SET_A, 'k-a', null),
+      () => renameConcept(SET_A, 'k-a', 'x'),
+      () => mergeConcepts(SET_A, 'k-a', 'k-c'),
+      () => deleteConcept(SET_A, 'k-leaf'),
+      () => setNodeStyle(SET_A, 'k-a', { color: 'violet' }),
+    ]
+    for (const call of writes) {
+      const res = await call()
+      expect(res.success).toBe(false)
+      expect(res.success === false && res.error).toMatch(/not found/i)
+    }
+    expect(h.nodeUpdate).not.toHaveBeenCalled()
+    expect(h.nodeDelete).not.toHaveBeenCalled()
+    expect(h.kltUpsert).not.toHaveBeenCalled()
+  })
+
+  it('reports canEdit straight from the view gate, never re-derived', async () => {
+    h.view.mockResolvedValue({ ...VIEW_A, canEdit: true })
+    const res = await listConceptTree(SET_A)
+    expect(res.success === true && res.data.canEdit).toBe(true)
   })
 })
 

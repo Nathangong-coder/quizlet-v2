@@ -79,7 +79,7 @@ const node = (kltId: string, name: string, parentKltId: string | null, depth: nu
 beforeEach(() => {
   vi.clearAllMocks()
   h.access.mockResolvedValue(ACCESS)
-  h.listConceptTree.mockResolvedValue({ success: true, data: { setId: SET_ID, setTitle: 'Finance 101', nodes: [], unplaced: [] } })
+  h.listConceptTree.mockResolvedValue({ success: true, data: { setId: SET_ID, setTitle: 'Finance 101', nodes: [], unplaced: [], canEdit: true } })
   h.transaction.mockImplementation(defaultTransactionImpl)
   h.nodeFindMany.mockResolvedValue([])
   h.kltUpsert.mockImplementation(

@@ -55,7 +55,10 @@ export function TermsList({ cards, progressMap, userId, setId }: TermsListProps)
         const defBlocks = card.contentBlocks?.filter(b => b.side === 'definition') ?? [];
 
         return (
-          <Card key={card.id}>
+          // The anchor the concept tree's linked-cards panel jumps to.
+          // `scroll-mt` keeps the card clear of the sticky header it would
+          // otherwise land underneath.
+          <Card key={card.id} id={`card-${card.id}`} className="scroll-mt-24">
             <CardContent className="pt-4 grid grid-cols-[1fr_1fr_auto] gap-4 items-start">
               <div>
                 <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">

@@ -13,6 +13,12 @@ interface ConceptSidePanelProps {
   nodes: ConceptTreeNode[]
   /** The canvas selection, which is what the Place button places under. */
   selected: ConceptTreeNode | null
+  /**
+   * False for a read-only viewer: rows stop being drag sources and the Place
+   * buttons disappear. The lists themselves stay — knowing which concepts a
+   * set uses, and which ones have no home yet, is a read.
+   */
+  canEdit: boolean
   filter: string
   onFilterChange: (value: string) => void
   onDragStart: (source: DragSource) => void
@@ -36,6 +42,7 @@ export function ConceptSidePanel({
   unplaced,
   nodes,
   selected,
+  canEdit,
   filter,
   onFilterChange,
   onDragStart,
@@ -52,7 +59,7 @@ export function ConceptSidePanel({
   const byKltId = new Map(nodes.map((n) => [n.kltId, n]))
 
   const dragProps = (source: DragSource) => ({
-    draggable: true,
+    draggable: canEdit,
     onDragStart: (e: React.DragEvent) => {
       e.dataTransfer.effectAllowed = 'move'
       e.dataTransfer.setData('text/plain', source.name)
@@ -86,42 +93,54 @@ export function ConceptSidePanel({
         ) : (
           <>
             <p className="px-3 pt-2 text-xs text-muted-foreground">
-              Drag one onto a node, or use the button to file it{' '}
-              {selected ? (
+              {canEdit ? (
                 <>
-                  under <strong>{selected.name}</strong>
+                  Drag one onto a node, or use the button to file it{' '}
+                  {selected ? (
+                    <>
+                      under <strong>{selected.name}</strong>
+                    </>
+                  ) : (
+                    'as a root'
+                  )}
+                  .
                 </>
               ) : (
-                'as a root'
+                'These concepts are used by this set’s cards but have no place in the tree yet.'
               )}
-              .
             </p>
             <ul className="max-h-64 overflow-auto p-2">
               {visibleUnplaced.map((u) => (
                 <li
                   key={u.kltId}
                   {...dragProps({ kltId: u.kltId, name: u.name })}
-                  className="group flex cursor-grab items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-accent"
+                  className={`group flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-accent ${
+                    canEdit ? 'cursor-grab' : ''
+                  }`}
                 >
-                  <GripVertical className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  {canEdit && (
+                    <GripVertical className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  )}
                   <span className="min-w-0 flex-1 truncate text-sm">{u.name}</span>
                   <Badge variant="outline" className="shrink-0 text-[10px]">
                     {u.linkCount}
                   </Badge>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 shrink-0 px-2 text-xs"
-                    disabled={placing.has(u.kltId)}
-                    onClick={() => onPlace({ kltId: u.kltId, name: u.name })}
-                  >
-                    {placing.has(u.kltId)
-                      ? 'Placing…'
-                      : selected
-                        ? `Place under ${selected.name}`
-                        : 'Place as root'}
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 shrink-0 px-2 text-xs"
+                      disabled={placing.has(u.kltId)}
+                      onClick={() => onPlace({ kltId: u.kltId, name: u.name })}
+                    >
+                      {placing.has(u.kltId)
+                        ? 'Placing…'
+                        : selected
+                          ? `Place under ${selected.name}`
+                          : 'Place as root'}
+                    </Button>
+                  )}
                 </li>
               ))}
               {visibleUnplaced.length === 0 && (
@@ -151,9 +170,9 @@ export function ConceptSidePanel({
                   {...dragProps({ kltId: n.kltId, name: n.name })}
                   onClick={() => onSelect(n.kltId)}
                   aria-pressed={selected?.kltId === n.kltId}
-                  className={`flex w-full cursor-grab items-center gap-1.5 rounded-md px-2 py-1.5 text-left hover:bg-accent ${
-                    selected?.kltId === n.kltId ? 'bg-accent' : ''
-                  }`}
+                  className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left hover:bg-accent ${
+                    canEdit ? 'cursor-grab' : ''
+                  } ${selected?.kltId === n.kltId ? 'bg-accent' : ''}`}
                 >
                   <Icon className={`size-3.5 shrink-0 ${colors.text}`} aria-hidden="true" />
                   <span className="min-w-0 flex-1 truncate text-sm">{n.name}</span>

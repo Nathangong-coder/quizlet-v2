@@ -17,6 +17,12 @@ beforeEach(() => {
   // Default: no presets saved. Individual tests override this when the
   // preset picker's contents matter.
   mockListPresets.mockResolvedValue({ success: true, data: [] })
+  // Default: the selected concept has nothing filed under it. Tests that care
+  // about the linked-cards panel override this.
+  mockListConceptCards.mockResolvedValue({
+    success: true,
+    data: { conceptName: 'accounting', direct: [], descendants: [] },
+  })
 })
 
 // Both action modules are 'use server'. Importing either for real drags
@@ -30,6 +36,7 @@ vi.mock('@/actions/klt-tree', () => ({
   mergeConcepts: vi.fn(),
   deleteConcept: vi.fn(),
   setNodeStyle: vi.fn(),
+  listConceptCards: vi.fn(),
 }))
 vi.mock('@/actions/klt-seed', () => ({
   suggestSkeleton: vi.fn(),
@@ -50,6 +57,7 @@ import {
   mergeConcepts,
   deleteConcept,
   setNodeStyle,
+  listConceptCards,
 } from '@/actions/klt-tree'
 import { suggestSkeleton, applySkeleton } from '@/actions/klt-seed'
 import { listPresets, applyPreset, savePresetFromSet } from '@/actions/klt-presets'
@@ -65,6 +73,7 @@ const mockRenameConcept = renameConcept as unknown as ReturnType<typeof vi.fn>
 const mockMergeConcepts = mergeConcepts as unknown as ReturnType<typeof vi.fn>
 const mockDeleteConcept = deleteConcept as unknown as ReturnType<typeof vi.fn>
 const mockSetNodeStyle = setNodeStyle as unknown as ReturnType<typeof vi.fn>
+const mockListConceptCards = listConceptCards as unknown as ReturnType<typeof vi.fn>
 const mockSuggestSkeleton = suggestSkeleton as unknown as ReturnType<typeof vi.fn>
 const mockApplySkeleton = applySkeleton as unknown as ReturnType<typeof vi.fn>
 const mockListPresets = listPresets as unknown as ReturnType<typeof vi.fn>
@@ -108,10 +117,14 @@ function unplaced(kltId: string, name: string, linkCount = 1) {
   return { kltId, name, normalizedName: name, linkCount }
 }
 
-function mockTree(nodes: ReturnType<typeof node>[], unplacedList: ReturnType<typeof unplaced>[] = []) {
+function mockTree(
+  nodes: ReturnType<typeof node>[],
+  unplacedList: ReturnType<typeof unplaced>[] = [],
+  canEdit = true,
+) {
   mockListConceptTree.mockResolvedValue({
     success: true,
-    data: { setId: SET_ID, setTitle: SET_TITLE, nodes, unplaced: unplacedList },
+    data: { setId: SET_ID, setTitle: SET_TITLE, nodes, unplaced: unplacedList, canEdit },
   })
 }
 
@@ -159,8 +172,17 @@ function sampleNodes() {
   ]
 }
 
-function renderTree(isAdmin = false) {
-  return render(<ConceptTree setId={SET_ID} setTitle={SET_TITLE} isAdmin={isAdmin} />)
+function renderTree(isAdmin = false, canEdit = true) {
+  return render(
+    <ConceptTree setId={SET_ID} setTitle={SET_TITLE} isAdmin={isAdmin} canEdit={canEdit} />,
+  )
+}
+
+/** The read-only viewer's render: the tree of a set someone shared with them. */
+async function renderReadOnly(unplacedList: ReturnType<typeof unplaced>[] = []) {
+  mockTree(sampleNodes(), unplacedList, false)
+  renderTree(false, false)
+  await waitFor(() => expect(canvasNode('finance')).toBeTruthy())
 }
 
 /** The node's wrapper on the canvas, keyed by concept id. */
@@ -624,5 +646,171 @@ describe('ConceptTree presets (admin)', () => {
     await waitFor(() =>
       expect(mockSavePresetFromSet).toHaveBeenCalledWith(SET_ID, 'finance skeleton'),
     )
+  })
+})
+
+describe('read-only viewing (a set someone shared)', () => {
+  it('still draws the whole tree — the map is the point', async () => {
+    await renderReadOnly()
+    expect(drawnKltIds().sort()).toEqual(['acct', 'bs', 'finance', 'is', 'val'])
+  })
+
+  it('makes no node a drag source, so no gesture appears to work and then fails at the server', async () => {
+    await renderReadOnly()
+    for (const kltId of drawnKltIds()) {
+      expect(nodeCard(kltId).getAttribute('draggable')).toBe('false')
+    }
+  })
+
+  it('ignores a drop even if one is forced through, calling no write', async () => {
+    await renderReadOnly()
+    dragOnto(nodeCard('is'), nodeCard('val'))
+    await waitFor(() => expect(mockReparentConcept).not.toHaveBeenCalled())
+  })
+
+  it('renders no control that writes structure', async () => {
+    await renderReadOnly()
+    expect(screen.queryByLabelText('New root concept name')).toBeNull()
+    expect(screen.queryByRole('button', { name: /suggest a starting structure/i })).toBeNull()
+    expect(screen.queryByLabelText('Preset')).toBeNull()
+    expect(screen.queryByLabelText('Preset name')).toBeNull()
+  })
+
+  it('never asks the server for presets — that action is owner-gated and would only toast', async () => {
+    await renderReadOnly()
+    expect(mockListPresets).not.toHaveBeenCalled()
+  })
+
+  it('opens the inspector as a details view: no rename, move, colour, merge or delete', async () => {
+    await renderReadOnly()
+    await select('acct')
+
+    expect(screen.queryByLabelText('Move accounting under')).toBeNull()
+    expect(screen.queryByLabelText('Merge accounting into')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Rename' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /delete concept/i })).toBeNull()
+    expect(screen.queryByLabelText('Inherit colour from parent')).toBeNull()
+    expect(screen.queryByLabelText(/new concept under/i)).toBeNull()
+  })
+
+  it('tells the viewer where the concept sits, since it cannot show them the parent picker', async () => {
+    await renderReadOnly()
+    await select('acct')
+    expect(screen.getByText('finance', { selector: 'strong' })).toBeInTheDocument()
+  })
+
+  it('offers no Place button on an unplaced concept, but still lists it', async () => {
+    await renderReadOnly([unplaced('k-wc', 'working capital')])
+    expect(screen.getByText('working capital')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /place/i })).toBeNull()
+  })
+
+  it('replaces the owner-facing seeding panel with a plain explanation', async () => {
+    mockTree([], [unplaced('k-wc', 'working capital')], false)
+    renderTree(false, false)
+    await waitFor(() => expect(screen.getByText('No structure yet')).toBeInTheDocument())
+
+    expect(screen.getByText(/into a tree yet/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText('New root concept name')).toBeNull()
+    expect(screen.queryByLabelText('Subject')).toBeNull()
+  })
+})
+
+describe('the linked-cards panel', () => {
+  interface CardSeed {
+    cardId: string
+    term: string
+    labels: (string | null)[]
+    via?: string[]
+  }
+
+  function cards(direct: CardSeed[], descendants: CardSeed[] = []) {
+    const shape = (c: CardSeed) => ({
+      cardId: c.cardId,
+      term: c.term,
+      viaConcepts: c.via ?? [],
+      klps: c.labels.map((label, i) => ({
+        id: `${c.cardId}-klp-${i}`,
+        label,
+        text: `full text ${i}`,
+        rank: 1,
+      })),
+    })
+    mockListConceptCards.mockResolvedValue({
+      success: true,
+      data: {
+        conceptName: 'accounting',
+        direct: direct.map(shape),
+        descendants: descendants.map(shape),
+      },
+    })
+  }
+
+  it('asks for the selected concept, scoped to this set', async () => {
+    cards([])
+    await renderSample()
+    await select('acct')
+    await waitFor(() => expect(mockListConceptCards).toHaveBeenCalledWith(SET_ID, 'acct'))
+  })
+
+  it('lists each card with the key point that filed it, linking into the set', async () => {
+    cards([{ cardId: 'card-1', term: 'Goodwill', labels: ['impairment test'] }])
+    await renderSample()
+    await select('acct')
+
+    const link = await screen.findByRole('link', { name: /goodwill/i })
+    expect(link).toHaveAttribute('href', `/sets/${SET_ID}#card-card-1`)
+    expect(screen.getByText('impairment test')).toBeInTheDocument()
+  })
+
+  it('falls back to the full proposition when a key point has no short label', async () => {
+    cards([{ cardId: 'card-1', term: 'Goodwill', labels: [null] }])
+    await renderSample()
+    await select('acct')
+
+    expect(await screen.findByText('full text 0')).toBeInTheDocument()
+  })
+
+  it('keeps descendant cards behind an expander, counted', async () => {
+    cards(
+      [{ cardId: 'card-1', term: 'Goodwill', labels: ['a'] }],
+      [{ cardId: 'card-2', term: 'Current ratio', labels: ['b'], via: ['working capital'] }],
+    )
+    await renderSample()
+    await select('acct')
+
+    await screen.findByRole('link', { name: /goodwill/i })
+    expect(screen.queryByText(/current ratio/i)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /1 more under child concept/i }))
+
+    expect(await screen.findByRole('link', { name: /current ratio/i })).toBeInTheDocument()
+    expect(screen.getByText(/via working capital/i)).toBeInTheDocument()
+  })
+
+  it('says so plainly when nothing is filed under the concept', async () => {
+    cards([])
+    await renderSample()
+    await select('acct')
+
+    expect(await screen.findByText(/nothing is filed under this concept yet/i)).toBeInTheDocument()
+  })
+
+  it('renders for a read-only viewer too — this is the whole reason they opened the tree', async () => {
+    cards([{ cardId: 'card-1', term: 'Goodwill', labels: ['impairment test'] }])
+    await renderReadOnly()
+    await select('acct')
+
+    expect(await screen.findByRole('link', { name: /goodwill/i })).toBeInTheDocument()
+  })
+
+  it('refetches when the selection moves to a different concept', async () => {
+    cards([])
+    await renderSample()
+    await select('acct')
+    await waitFor(() => expect(mockListConceptCards).toHaveBeenCalledWith(SET_ID, 'acct'))
+
+    fireEvent.click(nodeCard('val'))
+    await waitFor(() => expect(mockListConceptCards).toHaveBeenCalledWith(SET_ID, 'val'))
   })
 })

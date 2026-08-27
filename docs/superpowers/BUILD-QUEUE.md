@@ -756,6 +756,63 @@ compiler lint as "component created during render"; inside a `.map` callback it 
 **NOT yet seen rendered by anyone.** The jsdom suite covers behaviour, not layout; nobody has looked
 at the canvas in a browser. That check is owed before this is called done.
 
+**SHARED VIEWING + LINKED CARDS BUILT 2026-08-27 — the tree became readable, and each concept now
+says what is filed under it.**
+
+Two owner requests, both additive. The first was posed as "even owners of the sets can see the
+concept tree (not edit)", which is worth recording because the premise was wrong and the fix was
+not what the words asked for: **owners already had full edit access** (`requireSetKltAccess` admits
+the owner with no allowlist, and the set page carried a Concepts button). The people actually
+locked out were **non-owner viewers of a link-shared set** — no button, and a 404 on the URL.
+Confirmed with the owner before building rather than guessing.
+
+**The read/write split.** `src/lib/klt/access.ts` gained `requireSetKltView` beside the untouched
+`requireSetKltAccess`. The file's existing comment — "NOT `readableSetWhere`… editing its hierarchy
+is not a read" — still stands and the new helper is its other half: reading the hierarchy IS a read,
+so it resolves through `readableSetWhere`, the same fragment the set page uses. A signed-out visitor
+holding the link is admitted deliberately: they can already read every card the tree organizes, so
+refusing here would hide the map while handing over the territory. `canEdit` is computed by the
+SAME rule the write gate applies and is a UI hint only — **every write still calls
+`requireSetKltAccess` itself.** Exactly two exports moved to the read gate: `listConceptTree` and
+the new `listConceptCards`.
+
+**The guard had to be taught, carefully.** `tests/actions/klt-gated-exports-guard.test.ts` correctly
+failed on both new read paths. Adding `requireSetKltView` to `GATE_PATTERNS` would have been the
+easy fix and the wrong one — it would silently accept a WRITE action switched to the read gate to
+"fix" a 404, which is the exact bug class the guard exists for. Instead the read gate counts as a
+gate only for exports named in a new `READ_GATE_ALLOWLIST`. Mutation-verified: pointing
+`createConcept` at `requireSetKltView` makes the guard fail **by name**.
+
+**Read-only rendering.** `canEdit` threads from the page through `ConceptTree` into the canvas, side
+panel and inspector, defaulting to `false` so an omitted prop never grants editing (same posture as
+`isAdmin`). A viewer gets the canvas, pan/zoom/collapse, filter, the All concepts and Unplaced lists,
+and the linked-cards panel. Nodes are not `draggable` and drops are refused, so no gesture appears to
+work and then fails at the server. `listPresets` is not called at all — it is owner-gated and would
+only produce a toast that tells the viewer nothing.
+
+**Linked cards.** `listConceptCards(setId, kltId)` walks `Klt ← KlpTopic → CardKlp → Card`, filtered
+by `klp.card.setId` (concepts are GLOBAL vocabulary — without it a shared name pulls in another
+owner's cards) and `supersededAt: null` (the panel answers what a card tests NOW, not what it used
+to). Descendants come from **this set's** `SetKltNode.ancestorIds`, never the deprecated global
+`Klt.ancestorIds`. Direct links list first; descendants sit behind a `+N under child concepts`
+expander, each row naming the child concept it really came from. A card tagged directly is never
+also counted as a descendant, or the expander would overstate every time.
+
+**`NodeInspector` became the node DETAIL panel** rather than gaining a second competing panel: cards
+section always, edit sections only under `canEdit`. `TermsList` cards gained `id="card-<id>"` so the
+panel's rows can link into the set.
+
+**Guards mutation-tested** (each broken, its named test watched go red, restored): the canvas
+`draggable={canEdit}` (4 red), the read/write split with `createConcept` on the read gate (2 red),
+the descendant-subtree filter, the direct/descendant de-duplication, and the export guard's read
+allowlist.
+
+**New baselines (2026-08-27):** 174 test files / **2128 passing** (from 173/2088); `tsc` clean;
+`next build` clean; lint **175** — the standing ceiling, unchanged.
+
+**Still not seen rendered by anyone** — same caveat as the canvas redesign above. The jsdom suite
+covers behaviour, not layout.
+
 **Expand/contract, deliberately.** Task 1 as planned dropped `Klt.parentKltId`/`depth`/`ancestorIds`
 immediately, which breaks every file later tasks had not yet migrated and leaves `tsc` and the suite
 red across four tasks — every intermediate task unverifiable. Task 1 is additive; **the drop is still

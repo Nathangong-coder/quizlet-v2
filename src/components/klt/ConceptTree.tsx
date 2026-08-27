@@ -107,6 +107,17 @@ interface ConceptTreeProps {
    * to false so an omitted prop never accidentally grants it.
    */
   isAdmin?: boolean
+  /**
+   * Whether this viewer may CHANGE the structure. False for someone who
+   * reached a link-shared set they do not own — they get the canvas, the
+   * lists, and the linked-cards panel, and no control that writes.
+   *
+   * Defaults to false so an omitted prop never accidentally grants editing,
+   * the same posture as `isAdmin`. It is a rendering decision only: every
+   * action re-checks `requireSetKltAccess` on the server, so a viewer who
+   * forced a control into existence would still be refused.
+   */
+  canEdit?: boolean
 }
 
 /**
@@ -117,7 +128,7 @@ interface ConceptTreeProps {
  * gated server-side by `requireSetKltAccess`; this component does not re-check
  * access, it assumes the route that rendered it already 404'd a stranger.
  */
-export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreeProps) {
+export function ConceptTree({ setId, setTitle, isAdmin = false, canEdit = false }: ConceptTreeProps) {
   const [nodes, setNodes] = useState<ConceptTreeNode[] | null>(null)
   const [unplaced, setUnplaced] = useState<UnplacedConcept[]>([])
 
@@ -160,7 +171,10 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
     load()
   }, [load])
 
+  // `listPresets` is on the ownership gate, so a read-only viewer calling it
+  // gets a not-found and a toast that tells them nothing. Skipped entirely.
   const loadPresets = useCallback(() => {
+    if (!canEdit) return Promise.resolve()
     return listPresets(setId).then((res) => {
       if (!res.success) {
         toast.error(res.error || 'Failed to load presets')
@@ -168,7 +182,7 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
       }
       setPresets(res.data)
     })
-  }, [setId])
+  }, [setId, canEdit])
 
   useEffect(() => {
     loadPresets()
@@ -528,17 +542,39 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
         <CardHeader>
           <CardTitle>Concept tree — {setTitle}</CardTitle>
           <CardDescription>
-            Structural edits here — moving, merging, or deleting a concept — affect only{' '}
-            <strong>{setTitle}</strong>, never any other set. Concept NAMES, though, are shared
-            vocabulary across every set that uses them: renaming one used elsewhere is refused
-            unless you&rsquo;re an operator, so you can&rsquo;t rename a label out from under
-            another learner.
+            {canEdit ? (
+              <>
+                Structural edits here — moving, merging, or deleting a concept — affect only{' '}
+                <strong>{setTitle}</strong>, never any other set. Concept NAMES, though, are
+                shared vocabulary across every set that uses them: renaming one used elsewhere is
+                refused unless you&rsquo;re an operator, so you can&rsquo;t rename a label out
+                from under another learner.
+              </>
+            ) : (
+              <>
+                How <strong>{setTitle}</strong> is organized. You can explore the tree and see
+                what each concept covers, but only the set&rsquo;s owner can change it.
+              </>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {nodes === null && <p className="text-sm text-muted-foreground">Loading…</p>}
 
-          {showEmptyPanel && (
+          {showEmptyPanel && !canEdit && (
+            <div className="rounded-lg border border-dashed p-4 space-y-2">
+              <p className="text-sm font-medium">
+                {unplaced.length > 0 ? 'No structure yet' : 'No concepts yet'}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {unplaced.length > 0
+                  ? `This set’s cards cover ${unplaced.length} concept${unplaced.length === 1 ? '' : 's'}, but the owner hasn’t organised them into a tree yet.`
+                  : 'The owner hasn’t added any concepts to this set yet.'}
+              </p>
+            </div>
+          )}
+
+          {showEmptyPanel && canEdit && (
             <div className="rounded-lg border border-dashed p-4 space-y-4">
               <p className="text-sm font-medium">
                 {unplaced.length > 0 ? 'No structure yet' : 'No concepts yet'}
@@ -568,6 +604,7 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
                 unplaced={unplaced}
                 nodes={allNodes}
                 selected={selected}
+                canEdit={canEdit}
                 filter={filter}
                 onFilterChange={setFilter}
                 onDragStart={setDragging}
@@ -578,7 +615,7 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
               />
 
               <div className="min-w-0 flex-1 space-y-3">
-                {addRootForm}
+                {canEdit && addRootForm}
 
                 <div className="relative">
                   <ConceptCanvas
@@ -586,6 +623,7 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
                     allNodes={allNodes}
                     collapsed={collapsed}
                     selectedKltId={selectedKltId}
+                    canEdit={canEdit}
                     dragging={dragging}
                     onSelect={setSelectedKltId}
                     onToggleCollapse={toggleCollapse}
@@ -603,6 +641,8 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
                       key={selected.kltId}
                       node={selected}
                       allNodes={allNodes}
+                      setId={setId}
+                      canEdit={canEdit}
                       onClose={() => setSelectedKltId(null)}
                       onRename={handleRename}
                       onMove={(node, newParentKltId) =>
@@ -659,7 +699,7 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
         </CardContent>
       </Card>
 
-      {!showEmptyPanel && (
+      {!showEmptyPanel && canEdit && (
         <Card>
           <CardHeader>
             <CardTitle>Suggest a starting structure</CardTitle>
@@ -679,7 +719,7 @@ export function ConceptTree({ setId, setTitle, isAdmin = false }: ConceptTreePro
         </Card>
       )}
 
-      {!showEmptyPanel && isAdmin && (
+      {!showEmptyPanel && canEdit && isAdmin && (
         <Card>
           <CardHeader>
             <CardTitle>Presets</CardTitle>

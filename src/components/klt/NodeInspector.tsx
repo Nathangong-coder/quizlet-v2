@@ -11,6 +11,7 @@ import {
   NODE_ICON_KEYS,
   iconFor,
 } from '@/components/klt/node-style'
+import { ConceptCards } from '@/components/klt/ConceptCards'
 import type { ConceptTreeNode } from '@/actions/klt-tree'
 
 const ROOT_VALUE = ''
@@ -19,6 +20,15 @@ interface NodeInspectorProps {
   node: ConceptTreeNode
   /** Every node in the set — the move/merge targets are drawn from this. */
   allNodes: ConceptTreeNode[]
+  /** Scopes the linked-cards fetch, and the links out to each card. */
+  setId: string
+  /**
+   * False for someone viewing a set they were shared. Hides every control
+   * that writes, leaving the panel as a details view. A UI decision only —
+   * each action re-checks `requireSetKltAccess` server-side, so flipping this
+   * in a devtools console buys nothing.
+   */
+  canEdit: boolean
   onClose: () => void
   onRename: (node: ConceptTreeNode, name: string) => void
   onMove: (node: ConceptTreeNode, newParentKltId: string | null) => void
@@ -29,7 +39,8 @@ interface NodeInspectorProps {
 }
 
 /**
- * Everything you can do to ONE node, in one place.
+ * Everything about ONE node, in one place: what is filed under it, and —
+ * for someone who may edit — every control that changes it.
  *
  * This is the half of the redesign that removes the complexity rather than
  * moving it: the old editor put four selects and a text input on every row, so
@@ -38,11 +49,14 @@ interface NodeInspectorProps {
  *
  * The parent mounts this with `key={node.kltId}` so the drafts below reset
  * when the selection changes — otherwise a half-typed rename would follow you
- * onto the next node and get applied to it.
+ * onto the next node and get applied to it. The same remount is what refetches
+ * the linked cards.
  */
 export function NodeInspector({
   node,
   allNodes,
+  setId,
+  canEdit,
   onClose,
   onRename,
   onMove,
@@ -57,6 +71,10 @@ export function NodeInspector({
 
   // Neither itself nor anything beneath it: either would make the node its own
   // ancestor. Detected through `ancestorIds`, which holds `kltId`s.
+  const parent = node.parentKltId
+    ? allNodes.find((n) => n.kltId === node.parentKltId) ?? null
+    : null
+
   const candidates = allNodes
     .filter((n) => n.kltId !== node.kltId && !n.ancestorIds.includes(node.kltId))
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -80,6 +98,24 @@ export function NodeInspector({
       </header>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-auto p-3">
+        {!canEdit && (
+          <p className="text-[11px] text-muted-foreground">
+            {parent ? (
+              <>
+                Under <strong>{parent.name}</strong>
+              </>
+            ) : (
+              'A top-level concept'
+            )}
+            {node.childCount > 0 &&
+              ` · ${node.childCount} child concept${node.childCount === 1 ? '' : 's'}`}
+          </p>
+        )}
+
+        <ConceptCards setId={setId} kltId={node.kltId} />
+
+        {canEdit && (
+          <>
         <section className="space-y-1.5">
           <label htmlFor="node-name" className="text-xs font-medium text-muted-foreground">
             Name
@@ -242,8 +278,11 @@ export function NodeInspector({
             ))}
           </select>
         </section>
+          </>
+        )}
       </div>
 
+      {canEdit && (
       <footer className="border-t p-3">
         <Button
           type="button"
@@ -261,6 +300,7 @@ export function NodeInspector({
           </p>
         )}
       </footer>
+      )}
     </div>
   )
 }

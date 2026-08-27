@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/db';
-import { requireSetKltAccess } from '@/lib/klt/access';
+import { requireSetKltAccess, requireSetKltView } from '@/lib/klt/access';
 import { computeSubtreeUpdates, wouldCycle, MAX_TREE_DEPTH, type TreeNodeRow } from '@/lib/klt/tree';
 import { parseKltName } from '@/lib/klt/normalize';
 import { isNodeColorKey, isNodeIconKey } from '@/lib/klt/node-style';
@@ -61,6 +61,12 @@ export interface ConceptTreeData {
   setTitle: string;
   nodes: ConceptTreeNode[];
   unplaced: UnplacedConcept[];
+  /**
+   * A UI hint, never an authorization. The page already knows this and passes
+   * it as a prop; it rides along here so a client that reloaded the tree after
+   * a share change cannot keep rendering controls the server would refuse.
+   */
+  canEdit: boolean;
 }
 
 const NOT_FOUND: ActionResult<never> = { success: false, error: 'Not found' };
@@ -93,9 +99,18 @@ async function applySubtreeMove(
   }
 }
 
-/** One set's whole tree plus its unplaced concepts, for the editor screen. */
+/**
+ * One set's whole tree plus its unplaced concepts, for the editor screen.
+ *
+ * The ONLY structure endpoint on the READ gate (`requireSetKltView`): someone
+ * you shared a set with may look at how it is organized, exactly as they may
+ * already read every card the tree organizes. Every other export in this file
+ * stays on `requireSetKltAccess`, which is the ownership gate — a viewer that
+ * can see the tree still cannot move, rename, merge, delete or restyle a
+ * single node.
+ */
 export async function listConceptTree(setId: string): Promise<ActionResult<ConceptTreeData>> {
-  const access = await requireSetKltAccess(setId);
+  const access = await requireSetKltView(setId);
   if (!access) return NOT_FOUND;
 
   const [nodeRows, links] = await Promise.all([
@@ -152,6 +167,7 @@ export async function listConceptTree(setId: string): Promise<ActionResult<Conce
       setTitle: access.setTitle,
       nodes,
       unplaced: [...unplacedByKltId.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      canEdit: access.canEdit,
     },
   };
 }
@@ -571,4 +587,137 @@ export async function setNodeStyle(
   });
 
   return { success: true, data: null };
+}
+
+/** One key point that files a card under the concept being inspected. */
+export interface LinkedKlp {
+  id: string;
+  /** The short reading label; null when the summarizer never ran for it. */
+  label: string | null;
+  text: string;
+  /** 1 = the concept this point is chiefly about, 2 = one it also covers. */
+  rank: number;
+}
+
+export interface LinkedCard {
+  cardId: string;
+  term: string;
+  /**
+   * Empty for a direct link. For a descendant, the child concept names the
+   * card is actually filed under — "balance sheet" showing a card that really
+   * sits on "working capital" must say so, or the rollup reads as a lie.
+   */
+  viaConcepts: string[];
+  klps: LinkedKlp[];
+}
+
+export interface ConceptCards {
+  conceptName: string;
+  /** Cards whose key points cite THIS concept. */
+  direct: LinkedCard[];
+  /** Cards under a descendant concept, and not already listed in `direct`. */
+  descendants: LinkedCard[];
+}
+
+/**
+ * What is actually tagged to one concept in one set.
+ *
+ * On the READ gate, like `listConceptTree` — this is the panel that answers
+ * "what's under balance sheet", and a viewer who can see the tree and the
+ * cards separately gains nothing by being refused the join of the two.
+ *
+ * Three filters carry the whole correctness of the answer:
+ *
+ * - `klp.card.setId` — the same filter `listConceptTree` uses. Concepts are
+ *   GLOBAL vocabulary, so without it a shared name pulls in another owner's
+ *   cards, which is both wrong and a leak.
+ * - `supersededAt: null` — a card that was edited has superseded key points
+ *   kept deliberately (history stays truthful). They must not appear here:
+ *   this panel answers "what does this card test NOW".
+ * - descendants come from THIS SET's `ancestorIds`, never `Klt.ancestorIds`,
+ *   which is the deprecated global column.
+ */
+export async function listConceptCards(
+  setId: string,
+  kltId: string,
+): Promise<ActionResult<ConceptCards>> {
+  const access = await requireSetKltView(setId);
+  if (!access) return NOT_FOUND;
+
+  const rows = await loadSetTree(access.setId);
+  const self = rows.find((r) => r.kltId === kltId);
+  if (!self) return { success: false, error: 'Concept not found in this set' };
+
+  const descendantNames = new Map<string, string>();
+  for (const r of rows) {
+    if (r.ancestorIds.includes(kltId)) descendantNames.set(r.kltId, r.name);
+  }
+
+  const topics = await prisma.klpTopic.findMany({
+    where: {
+      kltId: { in: [kltId, ...descendantNames.keys()] },
+      klp: { supersededAt: null, card: { setId: access.setId } },
+    },
+    select: {
+      kltId: true,
+      rank: true,
+      klp: {
+        select: {
+          id: true,
+          label: true,
+          text: true,
+          index: true,
+          card: { select: { id: true, term: true, position: true } },
+        },
+      },
+    },
+  });
+
+  // Grouped by card, not by link: one card citing a concept from three of its
+  // key points is one row with three lines, not three rows.
+  const positions = new Map<string, number>();
+  const direct = new Map<string, LinkedCard>();
+  const descendants = new Map<string, LinkedCard>();
+  const orders = new Map<string, number>();
+
+  for (const t of topics) {
+    const card = t.klp.card;
+    const isDirect = t.kltId === kltId;
+    const bucket = isDirect ? direct : descendants;
+    let entry = bucket.get(card.id);
+    if (!entry) {
+      entry = { cardId: card.id, term: card.term, viaConcepts: [], klps: [] };
+      bucket.set(card.id, entry);
+      positions.set(card.id, card.position);
+    }
+    if (!isDirect) {
+      const via = descendantNames.get(t.kltId);
+      if (via && !entry.viaConcepts.includes(via)) entry.viaConcepts.push(via);
+    }
+    if (!entry.klps.some((k) => k.id === t.klp.id)) {
+      entry.klps.push({ id: t.klp.id, label: t.klp.label, text: t.klp.text, rank: t.rank });
+      orders.set(t.klp.id, t.klp.index);
+    }
+  }
+
+  // A card tagged directly is never ALSO reported as "under a child": the
+  // expander's count is what the direct list is missing, so double-counting
+  // would make it overstate every time.
+  for (const cardId of direct.keys()) descendants.delete(cardId);
+
+  const finish = (bucket: Map<string, LinkedCard>): LinkedCard[] =>
+    [...bucket.values()]
+      .map((c) => ({
+        ...c,
+        viaConcepts: [...c.viaConcepts].sort((a, b) => a.localeCompare(b)),
+        klps: [...c.klps].sort(
+          (a, b) => a.rank - b.rank || (orders.get(a.id) ?? 0) - (orders.get(b.id) ?? 0),
+        ),
+      }))
+      .sort((a, b) => (positions.get(a.cardId) ?? 0) - (positions.get(b.cardId) ?? 0));
+
+  return {
+    success: true,
+    data: { conceptName: self.name, direct: finish(direct), descendants: finish(descendants) },
+  };
 }
