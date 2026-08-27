@@ -204,7 +204,25 @@ ALTER TABLE "Set" ADD CONSTRAINT "Set_forkedFromId_fkey" FOREIGN KEY ("forkedFro
 Run: `npx prisma generate`
 Expected: succeeds.
 
-Run: `npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url "$DATABASE_URL" --script`
+> **⚠ CORRECTED 2026-08-27 after Task 1 reported it. DO NOT run the command this
+> step originally carried:**
+> `prisma migrate diff --from-migrations … --shadow-database-url "$DATABASE_URL"`.
+> Two things were wrong with it. Prisma 7.8.0 has **removed** `--shadow-database-url`
+> and renamed `--to-schema-datamodel` to `--to-schema`, so it errors out rather than
+> running — which is lucky, because **had the flag still existed it would have pointed
+> the shadow database at the live Neon database, and `migrate diff` RESETS the shadow
+> database and replays every migration into it.** Running the plan verbatim would have
+> wiped real data. A true migrations-directory diff needs `shadowDatabaseUrl` in
+> `prisma.config.ts`, which is not set. Use the read-only comparison below instead.
+
+Run: `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
+
+This compares the **live database** to the schema rather than the migrations directory to
+the schema. It is read-only and it is a weaker check — because your migration is written
+but not yet applied, it necessarily re-emits your migration's own contents. What it proves
+is still worth having: every statement it emits must be **byte-identical in name, type,
+default and FK action** to your hand-written `migration.sql`, and it must emit **nothing
+else**. Anything extra is real drift.
 
 Expected: an **empty** migration. **One known exception**: the diff also emits `DROP INDEX "SetKltNode_ancestorIds_idx"`. That index is the GIN index hand-added in `20260826000000_klt_per_set`, which the Prisma schema cannot express, so it is reported as drift on every run. **Ignore that one line; it must NOT be added to your migration.** Any other line is real drift — fix the schema or the SQL until only that line remains.
 
