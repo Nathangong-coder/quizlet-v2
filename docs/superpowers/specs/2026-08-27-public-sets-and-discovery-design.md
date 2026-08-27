@@ -540,6 +540,26 @@ unlisted.
 action against the *account*. Reports land in a table an operator reads with a query. That
 is a deliberate floor, not an oversight — it is the smallest thing that is not nothing.
 
+**A `link`-shared set is unreportable, BY DESIGN, and that is a real gap — state it rather
+than let someone discover it.** Two reasons it is right today: a link-share is a private
+handoff, and a queue that ingests them makes an operator a party to every study-group link;
+and more practically, the only remedy this spec builds is `listingBlocked`, which is a no-op
+on a set that was never listed. Accepting link reports would build a queue whose entries
+have no available remedy, which is worse than declining them.
+
+The gap: someone mass-distributing abusive content by link — posted to a forum, say — cannot
+be reported in-app at all, and the only channel is out-of-band contact with the operator. A
+person holding that link finds no Report button and reasonably concludes nobody cares.
+**Revisit this in the same change that introduces account-level action**, because that is
+exactly the point at which a link report becomes actionable.
+
+**An already-unlisted set stays reportable** (`{ visibility: 'public' }`, not
+`listableSetWhere()`). Unlisting ends the matter for spam; for content that should never
+have been hosted it is only the first step, and the count of people reporting a set *after*
+an operator acted is precisely the signal that says the action taken was not enough.
+`@@unique([setId, reporterId])` already prevents the duplicate row that gating on
+`listingBlocked` would have been saving.
+
 ---
 
 ## §11 Navigation — the IA split the queue deferred

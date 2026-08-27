@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { isKltEditor } from '@/lib/klt/editors'
 import { toReportReason, REPORT_DETAIL_MAX } from '@/lib/sets/moderation'
-import { composeSetWhere, listableSetWhere } from '@/lib/sets/visibility'
+import { composeSetWhere } from '@/lib/sets/visibility'
 import type { ActionResult } from '@/types/action'
 
 /**
@@ -32,10 +32,23 @@ export async function reportSet(
     const parsed = toReportReason(reason)
     if (parsed === null) return { success: false, error: 'Unrecognised report reason' }
 
-    // The set must be one this viewer can actually SEE listed. Composed, never
-    // hand-rolled — same rule as every other set read.
+    // `{ visibility: 'public' }` rather than `listableSetWhere()`, which also
+    // requires `listingBlocked: false`.
+    //
+    // The difference is whether an ALREADY-UNLISTED set stays reportable, and
+    // it must. Unlisting is not always the end of the matter — for spam it is,
+    // for content that should never have been hosted it is only the first
+    // step. The count of people who reported a set AFTER an operator acted is
+    // precisely the signal that says the action taken was not enough, and
+    // gating on `listingBlocked` throws that signal away to save a duplicate
+    // row that `@@unique([setId, reporterId])` already prevents.
+    //
+    // Still composed and never hand-rolled — the reporter must be someone who
+    // can actually read the set.
     const set = await prisma.set.findFirst({
-      where: { AND: [{ id: setId }, composeSetWhere(session.user.id, listableSetWhere())] },
+      where: {
+        AND: [{ id: setId }, composeSetWhere(session.user.id, { visibility: 'public' })],
+      },
       select: { id: true },
     })
     if (!set) return { success: false, error: 'Set not found' }
