@@ -93,22 +93,48 @@ model User {
   studySessions    StudySession[]
   klpStates        KlpState[]
   learnerTuning    LearnerTuning?
+  setViews         SetView[]
+  setReports       SetReport[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 }
 
 model Set {
-  id            String         @id @default(cuid())
-  title         String
-  description   String?
-  /// Vocabulary: SET_VISIBILITIES in src/lib/sets/visibility.ts (private|link).
+  id          String  @id @default(cuid())
+  title       String
+  description String?
+  /// Vocabulary: SET_VISIBILITIES in src/lib/sets/visibility.ts
+  /// (private|link|public).
   /// Import that const rather than writing a literal — this is a String
   /// column, so a typo compiles and never matches.
   ///
   /// Defaults to `private`, so the migration makes every EXISTING set private
   /// too. That is the intent: sets were readable by anyone holding the id, and
   /// this closes that rather than grandfathering it.
-  visibility    String         @default("private")
+  visibility  String  @default("private")
+
+  /// Operator moderation. Independent of `visibility` ON PURPOSE: flipping
+  /// visibility is something the OWNER can undo in one click and silently, so
+  /// it cannot carry a decision made ABOUT the owner. This excludes the set
+  /// from /browse; it does NOT affect readability by id.
+  listingBlocked Boolean   @default(false)
+  /// First transition to `public`. The directory's cursor sorts on it, and a
+  /// set that was published, unpublished and republished keeps its original
+  /// date rather than jumping to the front of the list again.
+  publishedAt    DateTime?
+
+  /// Fork attribution. `forkedFromId` is the LIVE link and may go dark
+  /// (SetNull on source delete); the two denormalized fields are captured AT
+  /// FORK TIME and are what actually renders. See spec §7.3 — rendering from
+  /// the FK leaks the title of a set the author has since made private.
+  forkedFromId     String?
+  forkedFromTitle  String?
+  forkedFromHandle String?
+  forkedFrom       Set?        @relation("SetForks", fields: [forkedFromId], references: [id], onDelete: SetNull)
+  forks            Set[]       @relation("SetForks")
+  views            SetView[]
+  reports          SetReport[]
+
   userId        String
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   cards         Card[]
@@ -121,6 +147,51 @@ model Set {
   updatedAt     DateTime       @updatedAt
 
   @@index([userId])
+  @@index([visibility, listingBlocked, publishedAt])
+  @@index([forkedFromId])
+}
+
+/// "Jump back in" — sets this user has OPENED, not sets they have studied.
+///
+/// An UPSERT, not an append-only log: one row per (user, set), `viewedAt`
+/// overwritten. This is a navigation convenience, and real history already
+/// exists in `StudySession`/`StudyEvent`. A second append-only table would be
+/// a second notion of activity that can disagree with them.
+///
+/// NOT EVIDENCE. Nothing here reaches the learner model, mastery, or
+/// `StudyEvent`.
+model SetView {
+  id       String   @id @default(cuid())
+  userId   String
+  setId    String
+  viewedAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  set      Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, setId])
+  @@index([userId, viewedAt])
+}
+
+/// A report against a PUBLIC set.
+///
+/// `reason` vocabulary: REPORT_REASONS in src/lib/sets/moderation.ts. This is
+/// a String column, so import that const rather than writing a literal.
+///
+/// `@@unique([setId, reporterId])` makes reporting idempotent — the button
+/// cannot be used to flood the table.
+model SetReport {
+  id         String   @id @default(cuid())
+  setId      String
+  reporterId String?
+  reason     String
+  detail     String?  @db.Text
+  status     String   @default("open") // open | actioned | dismissed
+  createdAt  DateTime @default(now())
+  set        Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
+  reporter   User?    @relation(fields: [reporterId], references: [id], onDelete: SetNull)
+
+  @@unique([setId, reporterId])
+  @@index([status, createdAt])
 }
 
 model Card {
