@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   checkForkSize, describeForkRefusal, FORK_MAX_CARDS, FORK_ASSET_BUDGET_BYTES,
+  FORK_MAX_ASSETS, UNKNOWN_ASSET_SIZE_BYTES,
 } from '@/lib/sets/fork'
 
 describe('checkForkSize', () => {
@@ -48,6 +49,31 @@ describe('checkForkSize', () => {
     expect(v.ok).toBe(false)
   })
 
+  it('allows exactly the asset COUNT limit', () => {
+    const v = checkForkSize({ cardCount: 1, assetSizes: Array(FORK_MAX_ASSETS).fill(1) })
+    expect(v.ok).toBe(true)
+  })
+
+  it('refuses one asset over the count limit, even when every file is tiny', () => {
+    // THE gate the byte budget cannot express. The copy is one sequential
+    // network round trip per asset, so a thousand 100 KB images is a thousand
+    // calls in one request — cheap by every measure except the one that times
+    // out. There is no maxDuration configured anywhere in this repo.
+    const v = checkForkSize({ cardCount: 1, assetSizes: Array(FORK_MAX_ASSETS + 1).fill(1) })
+    expect(v).toEqual({
+      ok: false, reason: 'too_many_assets', limit: FORK_MAX_ASSETS, actual: FORK_MAX_ASSETS + 1,
+    })
+  })
+
+  it('reports the COUNT gate before the size gate when both fail', () => {
+    const v = checkForkSize({
+      cardCount: 1,
+      assetSizes: Array(FORK_MAX_ASSETS + 1).fill(FORK_ASSET_BUDGET_BYTES),
+    })
+    expect(v.ok).toBe(false)
+    if (!v.ok) expect(v.reason).toBe('too_many_assets')
+  })
+
   it('checks cards BEFORE assets', () => {
     // Both gates fail here. Cards is the cheaper fact and the one the user can
     // most easily act on, so it is the one reported.
@@ -59,15 +85,36 @@ describe('checkForkSize', () => {
     if (!v.ok) expect(v.reason).toBe('too_many_cards')
   })
 
-  it('ignores negative or non-finite sizes rather than trusting them', () => {
-    // sizeBytes comes from an upload path; a bad row must not be able to buy
-    // budget back for a genuinely oversized set.
+  it('counts an unreadable size as the LARGEST it could be, never as free', () => {
+    // FAILS CLOSED, matching the house rule `src/lib/sets/visibility.ts`
+    // documents for junk read from the database. Counting a corrupt row as 0
+    // is the one reading that lets it buy budget back for a set that is
+    // genuinely too large.
     const v = checkForkSize({ cardCount: 1, assetSizes: [-5, NaN, 1000] })
-    expect(v).toEqual({ ok: true, totalAssetBytes: 1000 })
+    expect(v).toEqual({
+      ok: true,
+      totalAssetBytes: 1000 + UNKNOWN_ASSET_SIZE_BYTES * 2,
+    })
+  })
+
+  it('refuses when junk sizes push the total over budget', () => {
+    // Five unreadable rows at the 25 MB assumption exceed the 100 MB budget on
+    // their own. Under the old coerce-to-zero rule this returned ok:true.
+    const v = checkForkSize({ cardCount: 1, assetSizes: [NaN, NaN, NaN, NaN, NaN] })
+    expect(v.ok).toBe(false)
   })
 })
 
 describe('describeForkRefusal', () => {
+  it('names the asset count limit', () => {
+    const msg = describeForkRefusal({
+      ok: false, reason: 'too_many_assets', limit: 200, actual: 640,
+    })
+    expect(msg).toContain('640')
+    expect(msg).toContain('200')
+    expect(msg).toMatch(/files/i)
+  })
+
   it('names the card limit and the actual count', () => {
     const msg = describeForkRefusal({
       ok: false, reason: 'too_many_cards', limit: 1000, actual: 1500,

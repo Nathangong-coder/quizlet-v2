@@ -2591,6 +2591,9 @@ export async function forkSet(setId: string): Promise<ActionResult<{ setId: stri
   // is seconds of a held connection.
   const newKeyByAssetId = new Map<string, string>()
   const copiedKeys: string[] = []
+  // Declared OUTSIDE the try so the catch can delete a half-built set. See the
+  // rollback comment at the bottom for why that case exists at all.
+  let createdSetId: string | null = null
   try {
     for (const asset of assets) {
       const result = await copy(
@@ -2602,57 +2605,89 @@ export async function forkSet(setId: string): Promise<ActionResult<{ setId: stri
       copiedKeys.push(result.url)
     }
 
-    const fork = await prisma.$transaction(async (tx) => {
-      const created = await tx.set.create({
-        data: {
-          title: source.title,
-          description: source.description,
-          userId: viewerId,
-          // ALWAYS private, never inherited. A fork that auto-published would
-          // republish someone else's work under a new name with no deliberate
-          // act. Spec §7.1.
-          visibility: 'private',
-          publishedAt: null,
-          forkedFromId: source.id,
-          // Denormalized AT FORK TIME. Rendering from the live FK would leak
-          // the title of a set the author later makes private. Spec §7.3.
-          forkedFromTitle: source.title,
-          forkedFromHandle: source.user.handle,
+    // BATCHED, not an interactive transaction with sequential awaits.
+    //
+    // Task 6 caught this: an earlier draft used
+    // `prisma.$transaction(async (tx) => { ... await tx.card.create ... })`
+    // with nested loops. No `$transaction` call in this repo passes a
+    // `timeout`, so Prisma's 5-SECOND default applies — and 1000 cards is
+    // ≥1000 sequential statements inside it. It would P2028 long before
+    // FORK_MAX_CARDS fired, so the user would get an unreadable Prisma error
+    // instead of the carefully-worded refusal. `createSet`
+    // (`src/actions/sets.ts:210`) already uses the batched array form for
+    // exactly this reason; the fork must not diverge to the slower shape while
+    // raising the volume five- to tenfold.
+    //
+    // Assets use `createManyAndReturn` because the new ids are needed to remap
+    // content blocks, and cards nest their blocks and category assignments as
+    // relation `create`s so each card is ONE statement rather than 1 + N.
+    const created = await prisma.set.create({
+      data: {
+        title: source.title,
+        description: source.description,
+        userId: viewerId,
+        // ALWAYS private, never inherited. A fork that auto-published would
+        // republish someone else's work under a new name with no deliberate
+        // act. Spec §7.1.
+        visibility: 'private',
+        publishedAt: null,
+        forkedFromId: source.id,
+        // Denormalized AT FORK TIME. Rendering from the live FK would leak the
+        // title of a set the author later makes private. Spec §7.3.
+        forkedFromTitle: source.title,
+        forkedFromHandle: source.user.handle,
+        categories: {
+          create: source.categories.map((c) => ({
+            name: c.name,
+            normalizedName: c.normalizedName,
+            color: c.color,
+          })),
         },
-      })
+      },
+      include: { categories: true },
+    })
+    createdSetId = created.id
 
-      const categoryIdMap = new Map<string, string>()
-      for (const cat of source.categories) {
-        const newCat = await tx.cardCategory.create({
-          data: {
-            setId: created.id,
-            name: cat.name,
-            normalizedName: cat.normalizedName,
-            color: cat.color,
-          },
-        })
-        categoryIdMap.set(cat.id, newCat.id)
-      }
+    // Keyed on normalizedName, which `@@unique([setId, normalizedName])`
+    // guarantees is unique within a set — the same mapping `createSet` builds.
+    const newCategoryIdByNormalized = new Map(
+      created.categories.map((c) => [c.normalizedName, c.id]),
+    )
+    const newCategoryIdByOldId = new Map(
+      source.categories
+        .map((c) => [c.id, newCategoryIdByNormalized.get(c.normalizedName)] as const)
+        .filter((pair): pair is readonly [string, string] => pair[1] !== undefined),
+    )
 
-      const newAssetIdMap = new Map<string, string>()
-      for (const asset of assets) {
-        const newAsset = await tx.cardAsset.create({
-          data: {
+    const newAssets = assets.length
+      ? await prisma.cardAsset.createManyAndReturn({
+          data: assets.map((a) => ({
             userId: viewerId,
             setId: created.id,
-            storageKey: newKeyByAssetId.get(asset.id)!,
-            originalName: asset.originalName,
-            mimeType: asset.mimeType,
-            sizeBytes: asset.sizeBytes,
-            kind: asset.kind,
-            textExtract: asset.textExtract,
-          },
+            storageKey: newKeyByAssetId.get(a.id)!,
+            originalName: a.originalName,
+            mimeType: a.mimeType,
+            sizeBytes: a.sizeBytes,
+            kind: a.kind,
+            textExtract: a.textExtract,
+          })),
+          select: { id: true, storageKey: true },
         })
-        newAssetIdMap.set(asset.id, newAsset.id)
-      }
+      : []
 
-      for (const card of source.cards) {
-        const newCard = await tx.card.create({
+    // Joined back through storageKey, which is `@unique` — createManyAndReturn
+    // does not promise input order, so zipping by index would be a silent
+    // mis-mapping that renders the wrong image on the wrong card.
+    const newAssetIdByKey = new Map(newAssets.map((a) => [a.storageKey, a.id]))
+    const newAssetIdByOldId = new Map(
+      assets
+        .map((a) => [a.id, newAssetIdByKey.get(newKeyByAssetId.get(a.id)!)] as const)
+        .filter((pair): pair is readonly [string, string] => pair[1] !== undefined),
+    )
+
+    await prisma.$transaction(
+      source.cards.map((card) =>
+        prisma.card.create({
           data: {
             setId: created.id,
             term: card.term,
@@ -2663,61 +2698,66 @@ export async function forkSet(setId: string): Promise<ActionResult<{ setId: stri
             // describes edits made to SOMEONE ELSE'S card, which defeats the
             // reason KLPs are versioned at all. Spec §7.5.
             klpStatus: 'pending',
-          },
-        })
-
-        for (const block of card.contentBlocks) {
-          await tx.cardContentBlock.create({
-            data: {
-              cardId: newCard.id,
-              side: block.side,
-              type: block.type,
-              text: block.text,
-              position: block.position,
-              assetId: block.assetId ? (newAssetIdMap.get(block.assetId) ?? null) : null,
+            contentBlocks: {
+              create: card.contentBlocks.map((b) => ({
+                side: b.side,
+                type: b.type,
+                text: b.text,
+                position: b.position,
+                assetId: b.assetId ? (newAssetIdByOldId.get(b.assetId) ?? null) : null,
+              })),
             },
-          })
-        }
+            categoryAssignments: {
+              create: card.categoryAssignments
+                .map((a) => newCategoryIdByOldId.get(a.categoryId))
+                .filter((id): id is string => id !== undefined)
+                .map((categoryId) => ({ categoryId })),
+            },
+          },
+        }),
+      ),
+    )
 
-        const assignments = card.categoryAssignments
-          .map((a) => categoryIdMap.get(a.categoryId))
-          .filter((id): id is string => id !== undefined)
-          .map((categoryId) => ({ cardId: newCard.id, categoryId }))
-        if (assignments.length) {
-          await tx.cardCategoryAssignment.createMany({ data: assignments })
-        }
-      }
-
-      // The concept tree carries VERBATIM. `SetKltNode` points at a GLOBAL
-      // `Klt` and stores only placement, so there is no id to remap — and the
-      // hierarchy is often the most valuable authored thing in a mature set.
-      // Spec §7.4.
-      if (source.kltNodes.length) {
-        await tx.setKltNode.createMany({
-          data: source.kltNodes.map((n) => ({
-            setId: created.id,
-            kltId: n.kltId,
-            parentKltId: n.parentKltId,
-            depth: n.depth,
-            ancestorIds: n.ancestorIds,
-            color: n.color,
-            icon: n.icon,
-          })),
-        })
-      }
-
-      return created
-    })
-
+    // The concept tree carries VERBATIM. `SetKltNode` points at a GLOBAL `Klt`
+    // and stores only placement, so there is no id to remap — and the
+    // hierarchy is often the most valuable authored thing in a mature set.
+    // Spec §7.4.
+    if (source.kltNodes.length) {
+      await prisma.setKltNode.createMany({
+        data: source.kltNodes.map((n) => ({
+          setId: created.id,
+          kltId: n.kltId,
+          parentKltId: n.parentKltId,
+          depth: n.depth,
+          ancestorIds: n.ancestorIds,
+          color: n.color,
+          icon: n.icon,
+        })),
+      })
+    }
     revalidatePath('/sets')
     revalidatePath('/')
-    return { success: true, data: { setId: fork.id } }
+    return { success: true, data: { setId: created.id } }
   } catch (error) {
-    // Roll the blobs back by hand — they were copied outside the transaction,
-    // so nothing else will.
+    // Two things to roll back, and the SET one exists because of the batching
+    // above. Going batched means the set, its assets and its cards are no
+    // longer one atomic unit — so a failure partway through leaves a real,
+    // owned, EMPTY set sitting in the forker's library with no cards and a
+    // fork-attribution line. That is worse than a failed fork, because it
+    // looks like a successful one.
     //
-    // KNOWN RESIDUAL: if the process dies between the copy and the commit, the
-    // copies are orphaned. Accepted in spec §7.2/§15 rather than solved — a
+    // Deleting the set cascades its cards, blocks, categories, assignments and
+    // CardAsset rows (`onDelete: Cascade` on all of them), so this one call is
+    // the whole database rollback.
+    if (createdSetId) {
+      await prisma.set.deleteMany({ where: { id: createdSetId, userId: viewerId } })
+        .catch(() => undefined)
+    }
+    // Blobs were copied outside every transaction, so nothing else will
+    // reclaim them.
+    //
+    // KNOWN RESIDUAL: if the process DIES between the copy and here, the copies
+    // are orphaned. Accepted in spec §7.2/§15 rather than solved — a
     // reconciliation job is a larger piece of work than this whole feature.
     for (const key of copiedKeys) {
       await del(key).catch(() => undefined)
@@ -2727,7 +2767,16 @@ export async function forkSet(setId: string): Promise<ActionResult<{ setId: stri
 }
 ```
 
-**Two things to check against the real schema before trusting this verbatim:** the `ActionResult` import path (`grep -rn "export type ActionResult" src/`), and whether `CardCategory` really has `normalizedName` and `color` columns (`sed -n '356,381p' prisma/schema.prisma`). Adjust and tell the parent if either differs.
+**Verified for you by earlier waves — do not re-derive, but do confirm nothing moved:**
+`ActionResult` is at **`@/types/action`** (NOT `@/lib/actions/result`, which the plan said
+earlier and which does not exist), shaped
+`{ success: true; data: T } | { success: false; error: string; detail?: ErrorDetail }`.
+`CardCategory` **does** have `normalizedName` and `color`, with `@@unique([setId, normalizedName])`
+— that uniqueness is what makes the `newCategoryIdByNormalized` map above safe.
+
+**Confirm before trusting:** that `Card`, `CardContentBlock`, `CardCategoryAssignment` and
+`CardAsset` all cascade from `Set` (`grep -n "onDelete: Cascade" prisma/schema.prisma`). The
+rollback's single `set.deleteMany` depends on it.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -2742,7 +2791,34 @@ Run: expected **FAIL** on "creates the copy PRIVATE". Revert.
 (b) Move the `checkForkSize` call to *after* the blob-copy loop.
 Run: expected **FAIL** on "refuses an oversized set BEFORE copying any blob". Revert.
 
-If either passes, the test is not protecting anything — fix the test.
+(c) Delete the `prisma.set.deleteMany` from the catch block.
+Run: expected **FAIL** on "leaves no half-built set behind when the copy fails". Revert.
+
+If any passes, the test is not protecting anything — fix the test.
+
+**You must also add the test for (c)**, which the plan's Step 1 does not contain because the
+rollback was added after it was written:
+
+```ts
+  it('leaves no half-built set behind when the card write fails', async () => {
+    // The set is created OUTSIDE the batched transaction, so a failure partway
+    // through would otherwise leave a real, owned, EMPTY set in the forker's
+    // library carrying a fork-attribution line — which looks like a successful
+    // fork rather than a failed one.
+    h.db.card.create.mockImplementationOnce(async () => {
+      throw new Error('boom')
+    })
+    const res = await forkSet('src')
+    expect(res.success).toBe(false)
+    expect(h.state.sets.filter((s) => s.userId === 'bob')).toHaveLength(0)
+    // ...and the copied blob is reclaimed too.
+    expect(h.deleted).toHaveLength(1)
+  })
+```
+
+This needs two additions to the `vi.hoisted` fake: a `deleted: string[]` array that the
+mocked `del` pushes to, and a `set.deleteMany` that splices matching rows out of
+`state.sets`. Add both.
 
 - [ ] **Step 6: Create `src/components/sets/ForkButton.tsx`**
 
