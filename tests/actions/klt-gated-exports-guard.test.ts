@@ -40,6 +40,25 @@ const GATE_PATTERNS = [
 ]
 
 /**
+ * `requireSetKltView` is a REAL gate, but a weaker one: it admits anyone who
+ * may read the set, including a stranger holding the link to a link-shared
+ * one. Adding it to `GATE_PATTERNS` would therefore have quietly widened what
+ * this guard accepts — a write action switched to the read gate to "fix" a
+ * 404 would pass silently, which is precisely the class of bug this file
+ * exists to catch.
+ *
+ * So it counts as a gate ONLY for the exports named below, each of which is a
+ * pure read. Anything else reaching for it fails here by name.
+ */
+const READ_GATE_PATTERN = /requireSetKltView\s*\(/
+
+const READ_GATE_ALLOWLIST: Record<string, string[]> = {
+  // Reads one set's structure, and what is filed under one of its concepts.
+  // Neither writes anything; both are what a shared-set viewer sees.
+  'klt-tree.ts': ['listConceptTree', 'listConceptCards'],
+}
+
+/**
  * Functions that gate access WITHOUT calling one of the patterns above,
  * individually verified here rather than trusted blind. Each entry names
  * exactly why its own inline check is a real gate.
@@ -64,6 +83,11 @@ function checkFile(fileName: string, text: string): Violation[] {
   const sourceFile = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
   const violations: Violation[] = []
   const allowlisted = new Set(EXPLICIT_GATE_ALLOWLIST[fileName] ?? [])
+  const readGated = new Set(READ_GATE_ALLOWLIST[fileName] ?? [])
+
+  const isGated = (name: string, body: string) =>
+    GATE_PATTERNS.some((p) => p.test(body)) ||
+    (readGated.has(name) && READ_GATE_PATTERN.test(body))
 
   const isExported = (node: ts.Node & { modifiers?: ts.NodeArray<ts.ModifierLike> }) =>
     node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
@@ -96,12 +120,11 @@ function checkFile(fileName: string, text: string): Violation[] {
       if (allowlisted.has(name)) continue
 
       const body = stmt.body?.getText(sourceFile) ?? ''
-      const gated = GATE_PATTERNS.some((p) => p.test(body))
-      if (!gated) {
+      if (!isGated(name, body)) {
         violations.push({
           file: fileName,
           name,
-          reason: 'calls no known access gate (requireSetKltAccess / isCallerKltAdmin / isKltEditor) and is not on the explicit allowlist',
+          reason: 'calls no known access gate (requireSetKltAccess / isCallerKltAdmin / isKltEditor, or requireSetKltView on a read-allowlisted export) and is not on the explicit allowlist',
         })
       }
       continue
@@ -120,8 +143,7 @@ function checkFile(fileName: string, text: string): Violation[] {
           init.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword)
         if (!isAsyncFn) continue
         const body = init.body.getText(sourceFile)
-        const gated = GATE_PATTERNS.some((p) => p.test(body))
-        if (!gated) {
+        if (!isGated(name, body)) {
           violations.push({
             file: fileName,
             name,

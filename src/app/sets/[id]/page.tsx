@@ -52,23 +52,32 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
             <p className="text-muted-foreground mt-1">{set.description}</p>
           )}
         </div>
-        {isOwner && (
-          <div className="flex gap-2">
-            <Link
-              href={`/sets/${id}/edit`}
-              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
-            >
-              Edit
-            </Link>
-            <Link
-              href={`/sets/${id}/concepts`}
-              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
-            >
-              Concepts
-            </Link>
-            <DeleteSetForm setId={id} />
-          </div>
-        )}
+        <div className="flex gap-2">
+          {/*
+            Concepts is NOT inside the owner block. Anyone who reached this
+            page may read every card the tree organizes, so hiding the map
+            while handing over the territory bought nothing; the page itself
+            renders read-only for a non-owner, and every structural write is
+            gated server-side by `requireSetKltAccess` either way.
+          */}
+          <Link
+            href={`/sets/${id}/concepts`}
+            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+          >
+            Concepts
+          </Link>
+          {isOwner && (
+            <>
+              <Link
+                href={`/sets/${id}/edit`}
+                className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
+              >
+                Edit
+              </Link>
+              <DeleteSetForm setId={id} />
+            </>
+          )}
+        </div>
       </div>
 
       {/*

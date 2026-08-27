@@ -20,6 +20,12 @@ interface ConceptCanvasProps {
   /** `kltId`s whose children are hidden. */
   collapsed: Set<string>
   selectedKltId: string | null
+  /**
+   * False for a read-only viewer: nodes stop being drag sources and stop
+   * accepting drops, so there is no gesture that appears to work and then
+   * fails at the server. Panning, zooming, collapsing and selecting all stay.
+   */
+  canEdit: boolean
   dragging: DragSource | null
   onSelect: (kltId: string | null) => void
   onToggleCollapse: (kltId: string) => void
@@ -44,6 +50,7 @@ export function ConceptCanvas({
   allNodes,
   collapsed,
   selectedKltId,
+  canEdit,
   dragging,
   onSelect,
   onToggleCollapse,
@@ -70,7 +77,7 @@ export function ConceptCanvas({
    * green cannot then refuse on release.
    */
   const verdictFor = (targetKltId: string | null) =>
-    dragging ? evaluateDrop(dragging.kltId, targetKltId, allNodes) : null
+    canEdit && dragging ? evaluateDrop(dragging.kltId, targetKltId, allNodes) : null
 
   function beginPan(e: React.PointerEvent<HTMLDivElement>) {
     // Only the background pans. A pointerdown that lands on a node belongs to
@@ -155,6 +162,7 @@ export function ConceptCanvas({
         }}
         onDragLeave={() => setHoverTarget(null)}
         onDrop={(e) => {
+          if (!canEdit) return
           if ((e.target as HTMLElement).closest('[data-concept-node]')) return
           e.preventDefault()
           setHoverTarget(null)
@@ -233,7 +241,7 @@ export function ConceptCanvas({
                 >
                   <button
                     type="button"
-                    draggable
+                    draggable={canEdit}
                     aria-pressed={isSelected}
                     onClick={() => onSelect(node.kltId)}
                     onDragStart={(e) => {
@@ -256,13 +264,15 @@ export function ConceptCanvas({
                     }}
                     onDragLeave={() => setHoverTarget((t) => (t === node.kltId ? null : t))}
                     onDrop={(e) => {
+                      if (!canEdit) return
                       e.preventDefault()
                       e.stopPropagation()
                       setHoverTarget(null)
                       onDrop(node.kltId)
                     }}
                     className={[
-                      'relative flex h-full w-full cursor-grab flex-col justify-center gap-0.5 overflow-hidden rounded-lg border px-3 py-2 text-left shadow-sm transition',
+                      'relative flex h-full w-full flex-col justify-center gap-0.5 overflow-hidden rounded-lg border px-3 py-2 text-left shadow-sm transition',
+                      canEdit ? 'cursor-grab' : 'cursor-pointer',
                       colors.border,
                       colors.fill,
                       isSelected ? 'ring-2 ring-primary ring-offset-1 ring-offset-background' : '',

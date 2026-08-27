@@ -69,6 +69,7 @@ const h = vi.hoisted(() => {
   }
 
   const access = vi.fn()
+  const view = vi.fn()
   const auth = vi.fn()
 
   const kltUpsert = vi.fn(
@@ -188,6 +189,7 @@ const h = vi.hoisted(() => {
   return {
     state,
     access,
+    view,
     auth,
     kltUpsert,
     nodeFindMany,
@@ -213,7 +215,10 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
-vi.mock('@/lib/klt/access', () => ({ requireSetKltAccess: h.access }))
+// `listConceptTree` runs on the READ gate; everything else here on the
+// ownership gate. Both are mocked so a test that flips one sees the other
+// unchanged.
+vi.mock('@/lib/klt/access', () => ({ requireSetKltAccess: h.access, requireSetKltView: h.view }))
 vi.mock('@/auth', () => ({ auth: h.auth }))
 
 // klt-seed.ts also imports the AI generation path (used only by
@@ -257,6 +262,12 @@ beforeEach(() => {
   h.state.topics = []
   h.state.nextId = 0
   h.access.mockResolvedValue(ACCESS_OWNER)
+  // Mirrors whatever the ownership gate resolves, so a test that refuses
+  // access does not accidentally leave the read gate open behind it.
+  h.view.mockImplementation(async (setId: string) => {
+    const a = await h.access(setId)
+    return a && { viewerId: a.userId, setId: a.setId, setTitle: a.setTitle, canEdit: true, viaAllowlist: a.viaAllowlist }
+  })
   h.auth.mockResolvedValue({ user: { id: OWNER } })
   process.env.KLT_EDITORS = ADMIN
 })
