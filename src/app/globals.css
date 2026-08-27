@@ -258,27 +258,41 @@
      `text-wrap: balance` on headings so a two-line title breaks evenly rather
      than leaving one orphaned word — the cheapest typographic tell there is.
 
-     NO `font-optical-sizing` and NO `font-variation-settings` here or below:
-     `src/app/layout.tsx` loads Fraunces through next/font WITHOUT an `axes`
-     option, so the fetched file carries the `wght` axis and nothing else —
-     `opsz`, `SOFT` and `WONK` are absent and any rule naming them is inert.
-     To turn them on, add `axes: ['opsz', 'SOFT', 'WONK']` to the `Fraunces()`
-     call in layout.tsx FIRST; a CSS rule that silently does nothing is worse
-     than no rule. */
+     `font-optical-sizing` works here ONLY because `layout.tsx` requests
+     `axes: ['opsz', 'SOFT', 'WONK']`. Before that it was a dead rule that had
+     shipped since the Ledger work — next/font fetches `wght` alone unless the
+     axes are named, so `opsz` was absent from the file. If that option is ever
+     removed from the Fraunces() call, every rule below naming an axis silently
+     stops doing anything. */
   h1,
   h2,
   h3 {
     @apply font-heading;
+    font-optical-sizing: auto;
     text-wrap: balance;
   }
 
-  /* The display size. Fraunces is loaded and, before this, was never used
-     above text-3xl anywhere in the app — so the one face chosen to give the
-     product a voice was whispering. Page titles opt in with `.display`. */
+  /* The display size. Page titles opt in with `.display`.
+     `@layer base` already puts Fraunces on every h1/h2/h3, so the face was
+     never unused — but only three files opt into `font-heading` explicitly and
+     the largest heading in the app is text-4xl. The face was present and
+     whispering, which is a different problem from absent.
+
+     The clamp FLOOR is 2.25rem (36px) deliberately: that matches the largest
+     existing h1 (`/profile`, text-4xl), so `.display` is never SMALLER than
+     what it replaces. An earlier draft floored at 2rem and would have shrunk
+     page titles on a phone while claiming to be a display scale.
+
+     WONK 1 is the axis that gives Fraunces its character; without it this is a
+     competent default serif and reads as no choice at all. SOFT 0 keeps the
+     terminals crisp at large sizes. Both are inert unless layout.tsx requests
+     them — see the note above. */
   .display {
     @apply font-heading tracking-tight;
-    font-size: clamp(2rem, 1.4rem + 2.2vw, 3.25rem);
+    font-size: clamp(2.25rem, 1.5rem + 2.6vw, 3.75rem);
     line-height: 1.04;
+    font-optical-sizing: auto;
+    font-variation-settings: 'SOFT' 0, 'WONK' 1;
     text-wrap: balance;
   }
 

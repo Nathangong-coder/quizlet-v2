@@ -3462,3 +3462,36 @@ Then run the live gate below.
 8. **Directory search for a PRIVATE set's exact title returns nothing** — the `AND` composition, live. This is the one that catches the widened-OR defect, and it is the single most important step in this gate.
 
 **Owed to the human, not agent-runnable:** whether the Instrument chassis actually reads as less generic. No test covers it, and it is the whole point of Phase 0.
+
+---
+
+## Findings from Wave 1 — carried forward, do not lose
+
+**1. Surface elevation cannot be removed from `globals.css`, so §2's Phase 0 table is wrong about it.**
+Reported by Task 3. Elevation in this codebase is **13 hardcoded Tailwind `shadow-*`
+utilities** across components (`shadow-sm` ×5, `shadow-lg` ×4, `shadow-xl` ×2, `shadow-md`,
+`shadow-inner`) — not a token. Nothing in `globals.css` can turn them off. That row of the
+spec's Phase 0 table is **unbuilt**. It needs either a `--shadow-*` override in
+`@theme inline` or edits to the components themselves, and it belongs to whichever wave
+converts those surfaces.
+
+**2. `.metric` renders SMALLER than the figures it will replace.** `Metric` is `text-2xl`;
+the quiz score is `text-6xl` and `/profile`'s stat tiles are `text-4xl` (neither is
+`.metric` today, so both use proportional figures). Converting those surfaces will visibly
+shrink them. That is a scale decision nobody has taken — take it deliberately, do not
+discover it.
+
+**3. Four test files hardcoded `readableSetWhere`'s literal shape** and went red on the
+widening: `tests/klt/access.test.ts` (×2), `tests/actions/klp-gap-fill.test.ts`,
+`tests/actions/klp.test.ts`. All four now assert **through** the fragment
+(`expect(...).toEqual(readableSetWhere(id))`) plus an explicit
+`.not.toEqual({ userId })` so the assertion cannot go vacuous. **When a later wave widens
+the fragment again, these should not break.** If one does, that is a real finding.
+
+**4. The baseline in `BUILD-QUEUE.md` is stale.** It records 153 files / 1790 tests. The
+actual pre-Wave-1 state is ~175 files / ~2136. Update the queue when this branch lands
+rather than trusting the recorded number.
+
+**5. `npx next build` cannot run between Wave 1 and Wave 2** — it type-checks, and
+`VisibilityMenu.tsx` is deliberately broken until Task 4. Run the other three checks at
+that checkpoint and defer the build.
