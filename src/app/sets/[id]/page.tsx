@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
+import { after } from 'next/server'
 import Link from 'next/link'
 import { buttonVariants } from '@/components/ui/button'
 import FlashcardSection from '@/components/flashcard/FlashcardSection'
@@ -9,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { TermsList } from '@/components/sets/TermsList'
 import { ActivityTiles } from '@/components/sets/ActivityTiles'
 import { readableSetWhere } from '@/lib/sets/visibility'
+import { recordSetView } from '@/lib/sets/recents'
 
 export default async function SetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -39,6 +41,18 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
   ])
 
   if (!set) notFound()
+
+  // AFTER the notFound guard, so a probe for a set id that does not exist (or
+  // that this viewer may not read) never writes a row — which would make the
+  // recents table a record of what someone guessed at.
+  //
+  // In `after()` rather than inline: writing during a Server Component's
+  // render is unsafe under caching and PPR, and a recents row must never be
+  // able to fail the page. Same pattern as KLP extraction.
+  if (viewerId) {
+    const seenSetId = set.id
+    after(() => recordSetView(viewerId, seenSetId))
+  }
 
   const isOwner = session?.user?.id === set.userId
   const progressByCardId = new Map(progressList.map((p) => [p.cardId, p]))
