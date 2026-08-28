@@ -43,6 +43,45 @@ export function verifyEmailTemplate(input: { origin: string; token: string }): M
   }
 }
 
+/**
+ * A message someone sent through /help, addressed to the operator.
+ *
+ * The sender's address is carried in `replyTo` by the caller; `from` stays the
+ * verified sender. Sending AS the user is the obvious spelling and it bounces
+ * every message, because providers reject an unverified from-address — and
+ * `sendQuietly` swallows that bounce, so it would fail silently and completely.
+ *
+ * Every interpolated value here is USER-SUPPLIED free text, unlike the other
+ * two templates whose only inputs are an origin and a token. `escapeHtml` on
+ * each is therefore load-bearing rather than defensive: without it a subject
+ * containing markup is injected into the operator's mail client.
+ */
+export function feedbackTemplate(input: {
+  name: string
+  email: string
+  subject: string
+  message: string
+}): MailBody {
+  return {
+    subject: `[Feedback] ${input.subject}`,
+    text: [
+      `From: ${input.name} <${input.email}>`,
+      `Subject: ${input.subject}`,
+      '',
+      input.message,
+    ].join('\n'),
+    html: [
+      `<p><strong>From:</strong> ${escapeHtml(input.name)} &lt;${escapeHtml(input.email)}&gt;</p>`,
+      `<p><strong>Subject:</strong> ${escapeHtml(input.subject)}</p>`,
+      `<hr />`,
+      // Newlines are the sender's paragraphing and the only structure a plain
+      // textarea can express; dropping them turns a readable report into one
+      // wall of text.
+      `<p>${escapeHtml(input.message).replace(/\n/g, '<br />')}</p>`,
+    ].join('\n'),
+  }
+}
+
 export function passwordResetTemplate(input: { origin: string; token: string }): MailBody {
   const url = `${input.origin}/reset/${input.token}`
   return {
