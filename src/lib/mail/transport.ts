@@ -3,6 +3,18 @@ export interface MailMessage {
   subject: string
   text: string
   html: string
+  /**
+   * Where a reply should go, when that is not the sender.
+   *
+   * Exists for feedback, and it is not a nicety. The `from` address must be one
+   * the provider has verified for this domain — Resend rejects anything else
+   * outright — so a feedback mail cannot be sent AS the person who wrote it. It
+   * is sent as us, replying to them. Without this field the operator would have
+   * to copy the address out of the body by hand every time.
+   *
+   * Optional: verification and reset mail should be replied to by nobody.
+   */
+  replyTo?: string
 }
 
 export interface MailTransport {
@@ -34,6 +46,9 @@ export function resendTransport(apiKey: string, from: string): MailTransport {
           subject: message.subject,
           text: message.text,
           html: message.html,
+          // Omitted entirely when absent rather than sent as null — Resend
+          // treats an explicit null as a value and rejects the payload.
+          ...(message.replyTo ? { reply_to: message.replyTo } : {}),
         }),
       })
       if (!res.ok) {
@@ -55,6 +70,7 @@ export const consoleTransport: MailTransport = {
     console.log(
       ['[mail] (console transport — no RESEND_API_KEY set)',
        `  to:      ${message.to}`,
+       ...(message.replyTo ? [`  replyTo: ${message.replyTo}`] : []),
        `  subject: ${message.subject}`,
        message.text].join('\n'),
     )

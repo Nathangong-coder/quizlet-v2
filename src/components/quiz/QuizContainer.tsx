@@ -293,7 +293,7 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
           onClick={handleSubmitQuiz}
           disabled={isSubmitting}
           size="lg"
-          className="px-12 py-6 text-xl font-bold bg-primary hover:bg-primary/90 transition-all hover:scale-105 active:scale-95 shadow-xl"
+          className="px-12 py-6 text-xl font-bold bg-primary hover:bg-primary/90 transition-transform hover:scale-105 active:scale-95"
         >
           {isSubmitting && <Loader2 className="animate-spin w-5 h-5 mr-2" />}
           Submit Overall Quiz

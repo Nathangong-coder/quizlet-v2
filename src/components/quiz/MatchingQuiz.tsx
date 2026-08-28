@@ -164,7 +164,7 @@ export const MatchingQuiz = forwardRef<QuizSectionHandle, MatchingQuizProps>(
             const matchedDef = cards.find(card => card.id === matchedDefId);
 
             return (
-              <div key={c.id} className="flex items-center gap-4 p-4 border rounded-xl bg-card group transition-all hover:border-primary/50 hover:shadow-sm">
+              <div key={c.id} className="flex items-center gap-4 p-4 border rounded-xl bg-card group transition-colors hover:border-primary/50">
                 <div className="flex-1 font-medium text-base">
                   <SideContent card={c} side="term" />
                 </div>
