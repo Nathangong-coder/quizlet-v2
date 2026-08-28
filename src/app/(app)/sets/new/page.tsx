@@ -11,7 +11,7 @@ export default async function NewSetPage() {
   }
 
   return (
-    <div className="container max-w-4xl py-10">
+    <div className="max-w-4xl">
       <h1 className="text-3xl font-bold mb-8">Create New Study Set</h1>
       <SetForm mode="create" />
     </div>

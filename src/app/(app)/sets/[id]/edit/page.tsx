@@ -41,7 +41,7 @@ export default async function EditSetPage({ params }: EditSetPageProps) {
   }
 
   return (
-    <div className="container max-w-4xl py-10">
+    <div className="max-w-4xl">
       {/*
         Visibility sits at the top of Edit, beside the heading — it is a
         property of the set, not of the card list below, and it saves on its own

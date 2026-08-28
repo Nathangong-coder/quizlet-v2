@@ -50,6 +50,8 @@ const SHELLED_ROUTES = [
   'account/page.tsx',
   'settings/ai/page.tsx',
   'settings/ai/[provider]/page.tsx',
+  'settings/study/page.tsx',
+  'help/page.tsx',
   'concepts/page.tsx',
 ]
 

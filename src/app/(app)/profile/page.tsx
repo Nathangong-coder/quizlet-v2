@@ -58,7 +58,7 @@ function ProfileOverview() {
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-12 space-y-8">
+      <div className="space-y-8">
         {chrome}
         <ProfileNav />
         <p className="text-sm text-muted-foreground text-center py-12">Loading your activity…</p>
@@ -68,7 +68,7 @@ function ProfileOverview() {
 
   if (!stats) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-12 space-y-8">
+      <div className="space-y-8">
         {chrome}
         <ProfileNav />
         <div className="text-center py-12 space-y-3">
@@ -83,7 +83,7 @@ function ProfileOverview() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12 space-y-8">
+    <div className="space-y-8">
       {chrome}
       <ProfileNav />
 
@@ -217,7 +217,7 @@ export default function ProfilePage() {
   return (
     <Suspense
       fallback={
-        <div className="max-w-5xl mx-auto px-4 py-12 text-sm text-muted-foreground">Loading…</div>
+        <div className="text-sm text-muted-foreground">Loading…</div>
       }
     >
       <ProfileOverview />

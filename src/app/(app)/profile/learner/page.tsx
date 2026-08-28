@@ -99,7 +99,7 @@ function LearnerDashboardContent() {
   }, [d]);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12 space-y-8">
+    <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Learner Profile</h1>
         <p className="text-muted-foreground mt-2">
@@ -225,7 +225,7 @@ export default function LearnerProfilePage() {
   return (
     <Suspense
       fallback={
-        <div className="max-w-5xl mx-auto px-4 py-12 text-sm text-muted-foreground">Loading…</div>
+        <div className="text-sm text-muted-foreground">Loading…</div>
       }
     >
       <LearnerDashboardContent />

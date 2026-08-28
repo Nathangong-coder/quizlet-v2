@@ -211,7 +211,7 @@ function MemoryHistoryContent() {
   const scopedSetTitle = options.sets.find((s) => s.id === scope.setIds[0])?.title ?? 'this set';
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12 space-y-8">
+    <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Memory History</h1>
         <p className="text-muted-foreground mt-2">
@@ -328,7 +328,7 @@ function MemoryHistoryContent() {
 
 export default function MemoryHistoryPage() {
   return (
-    <Suspense fallback={<div className="max-w-5xl mx-auto px-4 py-12 text-sm text-muted-foreground">Loading...</div>}>
+    <Suspense fallback={<div className="text-sm text-muted-foreground">Loading...</div>}>
       <MemoryHistoryContent />
     </Suspense>
   );

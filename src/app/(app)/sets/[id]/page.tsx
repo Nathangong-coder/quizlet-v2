@@ -62,7 +62,7 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
   const progressByCardId = new Map(progressList.map((p) => [p.cardId, p]))
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl">
       <div className="flex items-start justify-between mb-2">
         <div>
           <h1 className="text-3xl font-bold">{set.title}</h1>

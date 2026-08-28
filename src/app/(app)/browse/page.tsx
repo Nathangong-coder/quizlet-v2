@@ -38,7 +38,7 @@ export default async function BrowsePage({
   const { entries, nextCursor } = await loadDirectory(viewerId, q, cursor)
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10">
+    <div>
       <h1 className="display">Browse</h1>
       <p className="lede mt-3">
         Sets people have published. Study any of them &mdash; your progress stays your own

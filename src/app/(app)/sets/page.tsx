@@ -72,7 +72,7 @@ export default async function SetsPage({
   )
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="display">Library</h1>

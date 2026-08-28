@@ -30,7 +30,7 @@ export default async function AccountPage() {
   const result = await getAccountSettings()
   if (!result.success) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-12">
+      <div className="max-w-2xl">
         <h1 className="text-3xl font-bold tracking-tight">Account</h1>
         <p className="mt-4 text-sm text-destructive">{result.error}</p>
       </div>
@@ -40,7 +40,7 @@ export default async function AccountPage() {
   const account = result.data
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-12 space-y-8">
+    <div className="max-w-2xl space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Account</h1>
         <p className="text-muted-foreground mt-2">

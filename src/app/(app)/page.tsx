@@ -72,7 +72,7 @@ export default async function Home() {
   const hasNothing = recents.length === 0 && ownSets.length === 0
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10">
+    <div>
       <h1 className="display">Your desk</h1>
 
       {hasNothing ? (

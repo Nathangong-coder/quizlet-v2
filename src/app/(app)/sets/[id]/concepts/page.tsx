@@ -26,7 +26,7 @@ export default async function SetConceptsPage({ params }: { params: Promise<{ id
   if (!access) notFound()
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12 space-y-4">
+    <div className="max-w-4xl space-y-4">
       <Link href={`/sets/${access.setId}`} className="text-sm text-muted-foreground hover:underline">
         &larr; Back to {access.setTitle}
       </Link>

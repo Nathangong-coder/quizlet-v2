@@ -35,10 +35,13 @@ export function AvatarMark({
 
   if (resolved.kind === 'url') {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- Deliberate; see
-      // the note above. `next/image` would need a wildcard remote pattern for
-      // the blob host, which widens what the image proxy will fetch on request
-      // — a worse trade than one unoptimised 32px thumbnail.
+      /* Deliberate, per the note on this component: `next/image` would need a
+         wildcard remote pattern for the blob host, which widens what the image
+         proxy will fetch on request — a worse trade than one unoptimised 32px
+         thumbnail. The directive below must stay a SINGLE line immediately
+         above the element; `next-line` applied to another comment line is a
+         no-op that also reports itself as unused. */
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={resolved.url}
         alt={label}

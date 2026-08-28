@@ -1,12 +1,24 @@
 import { auth } from '@/auth';
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import CredentialList from '@/components/settings/CredentialList';
 import TaskRoutingPanel from '@/components/settings/TaskRoutingPanel';
-import SeverityBandPanel from '@/components/settings/SeverityBandPanel';
-import TargetingStrategyPanel from '@/components/settings/TargetingStrategyPanel';
-import MetricThresholdPanel from '@/components/settings/MetricThresholdPanel';
-import StudyScopePanel from '@/components/settings/StudyScopePanel';
 
+/**
+ * Provider credentials and task routing. NOTHING ELSE.
+ *
+ * This page used to also carry the four scoring panels — severity bands, metric
+ * thresholds, targeting strategy, study scope — under a comment saying they
+ * lived here "because this is where the learner already comes to tune how the
+ * app judges them", and that they would move if the route ever narrowed to
+ * strict credential management. It has, and they did: `/settings/study`.
+ *
+ * The URL is deliberately UNCHANGED. Eight links point here from error states
+ * across the app — the quiz's no-credentials screen, StudyNext, ScopeLine,
+ * /account, /profile/learner and the credential components — and every one of
+ * them is about credentials specifically. They all still land correctly, with
+ * no redirect to maintain.
+ */
 export default async function AiSettingsPage() {
   const session = await auth();
   if (!session) {
@@ -14,13 +26,13 @@ export default async function AiSettingsPage() {
   }
 
   return (
-    <div className="container mx-auto py-10 space-y-8 max-w-3xl">
+    <div className="max-w-2xl space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">AI Settings</h1>
-        <p className="text-muted-foreground">
-          Manage the AI provider credentials used for quiz grading, distractor generation, training plans, and
-          autocomplete. Add as many as you like across providers; primary credentials are tried first, backups
-          are used if a primary fails.
+        <h1 className="display">AI settings</h1>
+        <p className="lede mt-3">
+          The provider credentials used for grading, distractor generation, training plans and
+          autocomplete. Add as many as you like across providers; primaries are tried first and
+          backups cover a failure.
         </p>
       </div>
 
@@ -28,19 +40,14 @@ export default async function AiSettingsPage() {
 
       <TaskRoutingPanel />
 
-      {/*
-        Scoring and targeting. These govern TypeScript-computed numbers rather
-        than AI behaviour — they live here because this is where the learner
-        already comes to tune how the app judges them. If this route ever
-        narrows to strict credential management, they move rather than go.
-      */}
-      <SeverityBandPanel />
-
-      <MetricThresholdPanel />
-
-      <TargetingStrategyPanel />
-
-      <StudyScopePanel />
+      <p className="text-sm text-muted-foreground">
+        Looking for severity bands, thresholds or targeting? Those govern numbers computed in
+        TypeScript rather than anything the AI does, and they now live under{' '}
+        <Link href="/settings/study" className="underline underline-offset-4 hover:text-foreground">
+          Study settings
+        </Link>
+        .
+      </p>
     </div>
   );
 }
