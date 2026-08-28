@@ -10,7 +10,7 @@ This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirror
 1. ~~**Item 8 — open the doors**~~ **FULLY DONE.** Built and agent-gated 2026-08-21; the two human gates (real Resend delivery, Vercel Firewall) were reported PASSED by the user on 2026-08-24, and **`CREDENTIALS_SIGNUP_ENABLED` is now ON** — set via a deployed env var, not in `.env`. Nothing outstanding.
 2. **Item 9 — surfacing missed KLPs / weak topics.** **BUILT 2026-08-24** as the KLT topic layer (`specs/2026-08-24-klt-topic-layer-design.md`). Two verification steps owed — see its entry. Next action after those is item 7.
 3. **Item 7 — Spec 4**, plan setup + readiness + lesson generation. The biggest item; its lesson half now has its first design decision (see item 7's "LESSON OUTPUT TYPES").
-4. **Item 6c — sharing & discovery.** Designed and ready — item 8 landing removes the "a stranger cannot sign up" blocker, though the flag itself is still off.
+4. ~~**Item 6c — sharing & discovery.**~~ **BUILT 2026-08-27** as public sets, fork & discovery. Live gate owed. Collaborators deliberately cut. Next action is item 7 (Spec 4), or the set-views/Atlas spec the owner asked for alongside this.
 
 ---
 
@@ -450,7 +450,57 @@ Sign up and sign in with a username-or-email plus password, alongside GitHub OAu
 - **GitHub OAuth.** `.env` has no `GITHUB_ID`/`GITHUB_SECRET`. Clicking "Continue with GitHub" produced no server-side request at all (confirmed against the dev server log) — the provider is unreachable, not merely untested.
 - **The `OAuthAccountNotLinked` copy** (Task 7) needs a real GitHub account whose email matches an existing password account — not producible from this environment.
 
-### 6c. ⬜ Sharing, collaboration & discovery — **DESIGNED 2026-08-17, NOT STARTED.**
+### 6c. ✅ Public sets, fork & discovery — **BUILT 2026-08-27. LIVE GATE OWED.**
+
+Design: `specs/2026-08-27-public-sets-and-discovery-design.md` (supersedes the 2026-08-17
+6c design for execution; that document stays authoritative for **collaborators**, its §2,
+which is still unbuilt and was deliberately cut).
+Plan: `plans/2026-08-27-public-sets-and-discovery.md`. 14 tasks in 4 waves, commit range
+`59b44e6..b0a9b06`.
+
+**What shipped:** `public` as a third visibility (`private | link | public`), `/browse` with
+cursor pagination and composed search, `SetView` + a view-keyed "Jump back in", **fork**
+with real blob duplication and viewer-scoped attribution, a real homepage (`/` no longer
+redirects), report + operator unlist, and Home / Browse / Library navigation. Plus the
+**"Instrument" chassis** — the Phase 0 token, type-scale and primitive work the visual
+revamp builds on.
+
+**New baselines (this branch, 2026-08-27):**
+- **Tests:** 184 files / **2241 passing** (was 175 / 2142 before this item — note the
+  previously recorded 153 / 1790 was already stale)
+- **`tsc --noEmit`:** clean · **`next build`:** clean · **`npm run lint`:** **175 problems** — unchanged
+
+**Five things worth knowing before touching this:**
+1. **`readableSetWhere` uses `in`, not a second `OR`.** The naive extension would have made
+   its SIGNED-OUT branch an `OR` too, doubling the replace-my-`OR` hazard at exactly the
+   moment `/browse` arrived as the first call site with an `OR` of its own. Every read with
+   its own predicate composes through `composeSetWhere`.
+2. **A guard in the enforcement suite could not fail.** `directory.ts` documents the
+   predicate at length, so a raw `includes()` matched the DOC COMMENT while the code did
+   something else. Every assertion there now runs against a comment-stripped copy. Second
+   time this shape has appeared in this repo.
+3. **The fork test's blob mock ignored its options argument**, so `access: 'public'` — which
+   would make every forked asset world-readable and route it around `/api/assets/[id]` —
+   left all 11 tests green. I wrote that exact bug on the first pass and only mutation
+   testing caught it.
+4. **The plan contained a command that would have wiped the dev database:**
+   `prisma migrate diff --shadow-database-url "$DATABASE_URL"`. `migrate diff` RESETS the
+   shadow database. It failed safe only because Prisma 7 removed the flag.
+5. **Fork is bounded by asset COUNT, not just bytes** (`FORK_MAX_ASSETS = 200`), and its
+   writes are BATCHED. An interactive `$transaction` with sequential awaits would have hit
+   Prisma's 5s default long before `FORK_MAX_CARDS` fired.
+
+**OWED — the live gate (design §16), not agent-runnable here.** Nine steps, of which step 8
+matters most: *directory search for a PRIVATE set's exact title must return nothing* — that
+is the widened-`OR` defect, live. Also owed: a human read on whether the Instrument chassis
+actually looks less generic. No test covers that, and it is the whole point of Phase 0.
+
+**Still unbuilt from the original 6c:** collaborators / "Editable by" (6c §2), ownership
+transfer, `/{handle}` creator pages.
+
+---
+
+### 6c-old. ⬜ Sharing, collaboration & discovery — **SUPERSEDED, see 6c above.**
 
 Design: `specs/2026-08-17-sharing-collaboration-and-discovery-design.md`. No plan, no code.
 
