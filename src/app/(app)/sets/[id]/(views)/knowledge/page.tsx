@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { readableSetWhere } from '@/lib/sets/visibility'
-import { loadSetKnowledge, shadesByKey } from '@/lib/sets/knowledge'
+import { loadSetKnowledge } from '@/lib/sets/knowledge'
 import { parseConceptView } from '@/lib/sets/views'
 import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
 import { Metric } from '@/components/ui/metric'
@@ -89,7 +89,10 @@ export default async function SetKnowledgePage({
   }
 
   const knowledge = await loadSetKnowledge(viewerId, id)
-  const measured = knowledge.topics.filter((t) => t.knowledge !== null)
+  // Counted over the WHOLE concept axis, not the listed rung — the tile says
+  // "Concepts measured" about this set, and a rung-sized count would shrink
+  // every time the list picked a narrower level.
+  const measured = knowledge.measuredConceptCount
 
   return (
     <div className="space-y-8">
@@ -104,29 +107,38 @@ export default async function SetKnowledgePage({
           emptyLabel="—"
         />
         <Metric value={knowledge.confidence.due} label="Due now" emptyLabel="—" />
-        <Metric value={measured.length} label="Concepts measured" emptyLabel="—" />
+        <Metric value={measured} label="Concepts measured" emptyLabel="—" />
       </div>
 
       <Section>
         <SectionHeader
           title="Concepts"
           hint={
-            measured.length > 0
-              ? `${measured.length} of ${knowledge.topics.length} measured`
+            measured > 0
+              ? `${measured} of ${knowledge.conceptCount} measured`
               : 'nothing measured yet'
           }
         />
         <SectionBody>
+          {/* Two different slices of ONE axis: the list shows a single rung
+              (`topics`), the map shades every node (`conceptShades`). Deriving
+              the second from the first would leave every node off that rung
+              unshaded. */}
           <ConceptMastery
             setId={id}
             rows={knowledge.topics}
-            shades={shadesByKey(knowledge.topics)}
+            shades={knowledge.conceptShades}
             initialView={conceptView}
             canEdit={isOwner}
           />
         </SectionBody>
       </Section>
 
+      {/* BELOW the concepts, and separate from them, because they are a
+          different axis rather than a finer grain of the same one — a category
+          is whatever the learner found useful to label with, and in practice
+          that is often a FORMAT ("label the image", "talking") rather than a
+          subject. See CLAUDE.md, 2026-08-14. */}
       <Section>
         <SectionHeader title="Your categories" hint={`${knowledge.categories.length}`} />
         <SectionBody>

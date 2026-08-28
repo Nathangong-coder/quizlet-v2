@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   buildAvatarGlyph,
+  avatarSrc,
   resolveAvatar,
   AVATAR_MAX_BYTES,
   AVATAR_MIME_TYPES,
@@ -106,5 +107,36 @@ describe('avatar limits', () => {
     // An SVG is a script-bearing document. Serving one from a blob host for a
     // decorative 32px circle is a needless XSS surface.
     expect(AVATAR_MIME_TYPES).not.toContain('image/svg+xml')
+  })
+})
+
+describe('avatarSrc', () => {
+  it('points at the proxy route, not the stored blob URL', () => {
+    // The store is configured private, so the blob URL is not fetchable from a
+    // browser at all — rendering it directly is a broken image on every page
+    // with a topbar.
+    expect(avatarSrc('u1', 'https://blob.example/avatars/abc-123.png')).toMatch(
+      /^\/api\/avatar\/u1\?/,
+    )
+  })
+
+  it('busts the cache on the blob id, so a new upload is a new URL', () => {
+    // Without this the path is byte-identical before and after a change, and a
+    // browser holding the old picture for a week keeps showing it — the upload
+    // looks like it silently failed.
+    const before = avatarSrc('u1', 'https://blob.example/avatars/aaa.png')
+    const after = avatarSrc('u1', 'https://blob.example/avatars/bbb.png')
+    expect(before).not.toBe(after)
+  })
+
+  it('drops a query string already on the stored URL rather than nesting one', () => {
+    expect(avatarSrc('u1', 'https://blob.example/avatars/abc.png?download=1')).toBe(
+      '/api/avatar/u1?v=abc.png',
+    )
+  })
+
+  it('degrades to the bare path for a malformed stored value', () => {
+    // A broken image, never a 500 on every page that renders a topbar.
+    expect(avatarSrc('u1', '')).toBe('/api/avatar/u1')
   })
 })

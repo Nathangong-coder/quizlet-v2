@@ -4,6 +4,9 @@ import {
   shapeConfidenceHistogram,
   shapeCategoryMastery,
   shadesByKey,
+  shadeForCoverage,
+  selectConceptListDepth,
+  selectConceptRows,
   UNCATEGORIZED_KEY,
 } from '@/lib/sets/knowledge'
 import type { LearnerTopicProfile } from '@/lib/memory/topic-profile'
@@ -14,6 +17,12 @@ const topic = (over: Partial<LearnerTopicProfile> = {}): LearnerTopicProfile => 
   color: null,
   depth: 1,
   klpCount: 8,
+  // FULLY MEASURED by default. `shapeTopicMastery` now withholds a shade when
+  // too few of a concept's key points cleared the observation floor, so a
+  // fixture that left this at 0 would make every pre-existing shade assertion
+  // in this file pass for the new reason instead of the one it was written
+  // for. Coverage gets its own block below, with explicit counts.
+  measuredKlpCount: 8,
   knowledge: 0.4,
   verbosityIndex: 0,
   knowledgeGapTerseness: 0,
@@ -239,5 +248,107 @@ describe('shapeCategoryMastery', () => {
       expect(rows).toHaveLength(2)
       expect(new Set(rows.map((r) => r.key)).size).toBe(2)
     })
+  })
+})
+
+describe('shadeForCoverage', () => {
+  it('withholds a shade when too few key points were measured', () => {
+    // The reported bug in one line: a concept rolled up from 40 key points,
+    // three of them answered well, painted `strong` on the map. 3/40 is far
+    // under the floor, so the honest answer is "not measured yet".
+    expect(shadeForCoverage(0.95, 3, 40)).toBe('unknown')
+  })
+
+  it('shades normally once coverage clears the floor', () => {
+    expect(shadeForCoverage(0.95, 20, 40)).toBe('strong')
+  })
+
+  it('treats exactly the floor as sufficient, not insufficient', () => {
+    // A boundary that excludes its own threshold makes two concepts with
+    // identical coverage render differently depending on rounding.
+    expect(shadeForCoverage(0.95, 1, 3)).toBe('strong')
+  })
+
+  it('is unknown for a null knowledge however good the coverage', () => {
+    expect(shadeForCoverage(null, 10, 10)).toBe('unknown')
+  })
+
+  it('is unknown for a concept with no key points, without dividing by zero', () => {
+    expect(shadeForCoverage(0.9, 0, 0)).toBe('unknown')
+  })
+
+  it('still reports a MEASURED zero as weak, never as unmeasured', () => {
+    // Being measured at zero is real information; only the ABSENCE of
+    // measurement is `unknown`. This is the half of `shadeForKnowledge`'s rule
+    // the coverage floor must not swallow.
+    expect(shadeForCoverage(0, 10, 10)).toBe('weak')
+  })
+})
+
+describe('selectConceptListDepth', () => {
+  it('prefers the third rung when it fits the cap', () => {
+    expect(selectConceptListDepth(new Map([[0, 1], [1, 3], [2, 4], [3, 30]]))).toBe(2)
+  })
+
+  it('walks UPWARD when the preferred rung is too wide', () => {
+    // Never downward: a shallower rung rolls up everything below it, so no
+    // branch goes unrepresented. A deeper one would silently omit whole
+    // subtrees that have no node at that depth.
+    expect(selectConceptListDepth(new Map([[0, 1], [1, 4], [2, 12]]))).toBe(1)
+  })
+
+  it('keeps walking up past several oversized rungs', () => {
+    expect(selectConceptListDepth(new Map([[0, 2], [1, 9], [2, 20]]))).toBe(0)
+  })
+
+  it('never goes DEEPER than the preferred rung even when a deeper one is smaller', () => {
+    expect(selectConceptListDepth(new Map([[0, 1], [1, 2], [2, 3], [3, 1]]))).toBe(2)
+  })
+
+  it('falls back to the shallowest rung when even that exceeds the cap', () => {
+    // Nine roots and nothing else: there is no smaller layer to offer, and a
+    // long list beats an empty one.
+    expect(selectConceptListDepth(new Map([[0, 9]]))).toBe(0)
+  })
+
+  it('uses the deepest available rung on a tree shallower than the preference', () => {
+    expect(selectConceptListDepth(new Map([[0, 1], [1, 3]]))).toBe(1)
+  })
+
+  it('returns null for a set with no concept structure', () => {
+    expect(selectConceptListDepth(new Map())).toBe(null)
+  })
+
+  it('ignores a depth present with a zero count', () => {
+    expect(selectConceptListDepth(new Map([[0, 1], [1, 0]]))).toBe(0)
+  })
+})
+
+describe('selectConceptRows', () => {
+  it('returns only the chosen rung, never the whole tree', () => {
+    const rows = selectConceptRows([
+      topic({ key: 'root', depth: 0 }),
+      topic({ key: 'a', depth: 2 }),
+      topic({ key: 'b', depth: 2 }),
+      topic({ key: 'leaf', depth: 3 }),
+    ])
+    expect(rows.map((r) => r.key).sort()).toEqual(['a', 'b'])
+  })
+
+  it('counts and filters in ONE place, so the cap cannot be exceeded', () => {
+    // Seven concepts at the preferred rung: the depth rule must reject it and
+    // the rows must follow that same decision, not a second one.
+    const wide = Array.from({ length: 7 }, (_, i) => topic({ key: `w${i}`, depth: 2 }))
+    const rows = selectConceptRows([topic({ key: 'root', depth: 0 }), ...wide])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].key).toBe('root')
+  })
+
+  it('skips category rows, which have no tree position to select on', () => {
+    expect(selectConceptRows([topic({ key: 'a-category', depth: null })])).toEqual([])
+  })
+
+  it('returns nothing for a set with no concept structure', () => {
+    expect(selectConceptRows([])).toEqual([])
   })
 })

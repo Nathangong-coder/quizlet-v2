@@ -9,6 +9,7 @@ import { MobileRail } from '@/components/shell/MobileRail'
 import { ProfileMenu } from '@/components/shell/ProfileMenu'
 import { AvatarMark } from '@/components/shell/AvatarMark'
 import { AvatarDialog } from '@/components/shell/AvatarDialog'
+import { SynapseLogo } from '@/components/shell/SynapseLogo'
 import { loadRecentSets } from '@/lib/sets/recents'
 import { RAIL_RECENTS_LIMIT } from '@/lib/shell/nav'
 
@@ -51,8 +52,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* `hidden lg:flex`, with MobileRail carrying the same nav in a drawer
           below that breakpoint. */}
       <aside className="hidden lg:flex flex-col gap-6 border-r px-3 py-5 h-screen sticky top-0">
-        <Link href="/" className="font-heading text-lg font-semibold tracking-tight px-3">
-          Quizlet v2
+        {/* `h-*` with no width: the viewBox is 640x200, so height alone sizes
+            it and the aspect ratio does the rest. A fixed width here would
+            letterbox the mark the moment the wordmark's metrics change. */}
+        <Link href="/" className="px-3" aria-label="synapseHQ home">
+          <SynapseLogo id="rail" className="h-9 w-auto text-foreground" />
         </Link>
         <div className="flex-1 overflow-y-auto">
           <RailNav signedIn={signedIn} recents={railRecents} />
@@ -66,8 +70,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="flex flex-col min-w-0">
         <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur lg:px-8">
           <MobileRail signedIn={signedIn} recents={railRecents} />
-          <Link href="/" className="font-heading font-semibold tracking-tight lg:hidden">
-            Quizlet v2
+          <Link href="/" className="lg:hidden" aria-label="synapseHQ home">
+            <SynapseLogo id="topbar" className="h-7 w-auto text-foreground" />
           </Link>
 
           <div className="flex-1" />
@@ -84,6 +88,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               name={user.name}
               avatar={
                 <AvatarMark
+                  userId={user.id}
                   avatarUrl={user.avatarUrl}
                   image={user.image}
                   seed={user.id}
@@ -93,6 +98,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               }
               menuAvatar={
                 <AvatarMark
+                  userId={user.id}
                   avatarUrl={user.avatarUrl}
                   image={user.image}
                   seed={user.id}

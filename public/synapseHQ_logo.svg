@@ -1,0 +1,38 @@
+<svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="nodeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7C5CFC"/>
+      <stop offset="100%" stop-color="#33C6F4"/>
+    </linearGradient>
+    <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9B7BFF"/>
+      <stop offset="100%" stop-color="#4FD3F0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icon: synapse / node network forming an abstract "S" -->
+  <g transform="translate(30,30)">
+    <!-- connecting lines (synapses) -->
+    <line x1="30" y1="25" x2="90" y2="25" stroke="url(#lineGrad)" stroke-width="4" stroke-linecap="round"/>
+    <line x1="30" y1="25" x2="30" y2="70" stroke="url(#lineGrad)" stroke-width="4" stroke-linecap="round"/>
+    <line x1="30" y1="70" x2="90" y2="70" stroke="url(#lineGrad)" stroke-width="4" stroke-linecap="round"/>
+    <line x1="90" y1="70" x2="90" y2="115" stroke="url(#lineGrad)" stroke-width="4" stroke-linecap="round"/>
+    <line x1="30" y1="115" x2="90" y2="115" stroke="url(#lineGrad)" stroke-width="4" stroke-linecap="round"/>
+    <line x1="60" y1="47" x2="30" y2="70" stroke="url(#lineGrad)" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+    <line x1="60" y1="92" x2="90" y2="70" stroke="url(#lineGrad)" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+
+    <!-- nodes -->
+    <circle cx="30" cy="25" r="10" fill="url(#nodeGrad)"/>
+    <circle cx="90" cy="25" r="7" fill="url(#nodeGrad)"/>
+    <circle cx="30" cy="70" r="7" fill="url(#nodeGrad)"/>
+    <circle cx="90" cy="70" r="10" fill="url(#nodeGrad)"/>
+    <circle cx="30" cy="115" r="10" fill="url(#nodeGrad)"/>
+    <circle cx="90" cy="115" r="7" fill="url(#nodeGrad)"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="175" y="120" font-family="'Segoe UI', Arial, sans-serif" font-size="58" font-weight="700" fill="#1E1B4B">synapse<tspan fill="#7C5CFC">HQ</tspan></text>
+
+  <!-- Tagline -->
+  <text x="177" y="150" font-family="'Segoe UI', Arial, sans-serif" font-size="17" font-weight="500" letter-spacing="2" fill="#6B7280">STUDY SMARTER, TOGETHER</text>
+</svg>

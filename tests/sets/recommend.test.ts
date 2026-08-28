@@ -16,6 +16,7 @@ const topic = (over: Partial<LearnerTopicProfile> = {}): LearnerTopicProfile => 
   color: null,
   depth: null,
   klpCount: 10,
+  measuredKlpCount: 10,
   knowledge: 0.3,
   verbosityIndex: 0,
   knowledgeGapTerseness: 0,

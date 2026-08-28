@@ -53,7 +53,7 @@ const plexMono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Quizlet v2',
+  title: 'synapseHQ',
   description: 'Finance interview prep — flashcards, matching, AI grading',
 }
 

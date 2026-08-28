@@ -20,11 +20,19 @@ import type { ConceptView } from '@/lib/sets/views'
  * so a reader gets no gesture that appears to work and then fails at the server.
  * Structure is still authored at `/sets/[id]/concepts`, which is unchanged.
  *
- * THE LIST IS NOT A FALLBACK. It takes `TopicMasteryRow[]` and imports nothing
- * from KLT, because it has to outlive the concept tree: the roadmap intends
- * KLP-inherent topics living beside user categories, and when those arrive they
- * produce rows of exactly this shape. The map is the half that is tied to
- * `SetKltNode`.
+ * THE LIST IS NOT A FALLBACK, AND IT IS THE SAME AXIS AS THE MAP. Both draw
+ * `Klt` concepts; the list shows one rung of the tree (`selectConceptListDepth`)
+ * because a list has to pick a level, while the map draws every node at once.
+ * Until 2026-08-28 the list rendered the user-authored CATEGORY axis instead,
+ * so toggling the view silently changed what a "concept" was — and the map's
+ * shades, keyed by name off that same category axis, coloured a tree node
+ * whenever its name happened to collide with a category. Categories now have
+ * their own block, below this one on the page.
+ *
+ * The list still takes `TopicMasteryRow[]` and imports nothing from KLT,
+ * because it has to outlive the concept tree: the roadmap intends KLP-inherent
+ * topics living beside user categories, and when those arrive they produce rows
+ * of exactly this shape. The map is the half that is tied to `SetKltNode`.
  */
 export function ConceptMastery({
   setId,
@@ -134,7 +142,10 @@ export function ConceptMastery({
           ) : (
             'Its owner has not built one.'
           )}
-          {canEdit && ' — or use the list, which works from your categories alone.'}
+          {/* The list is NOT offered as an alternative here any more. It reads
+              the same concept tree this message is reporting the absence of, so
+              pointing at it would send the reader to a second empty view. Their
+              own categories are still measured, in their own block below. */}
         </p>
       ) : (
         <ConceptCanvas

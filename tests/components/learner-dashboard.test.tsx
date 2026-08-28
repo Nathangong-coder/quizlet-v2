@@ -41,6 +41,7 @@ function topic(over: Partial<LearnerTopicProfile> & { key: string }): LearnerTop
     color: null,
     depth: null,
     klpCount: 4,
+    measuredKlpCount: 4,
     knowledge: 0.6,
     verbosityIndex: 0,
     knowledgeGapTerseness: 0,

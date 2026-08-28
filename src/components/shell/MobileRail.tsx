@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Menu, X } from 'lucide-react'
 import Link from 'next/link'
 import { RailNav, type RailRecent } from '@/components/shell/RailNav'
+import { SynapseLogo } from '@/components/shell/SynapseLogo'
 
 /**
  * The rail below `lg`: a hamburger and a slide-in drawer.
@@ -50,9 +51,9 @@ export function MobileRail({ signedIn, recents }: { signedIn: boolean; recents: 
               <Link
                 href="/"
                 onClick={() => setOpen(false)}
-                className="font-heading text-lg font-semibold tracking-tight"
+                aria-label="synapseHQ home"
               >
-                Quizlet v2
+                <SynapseLogo id="drawer" className="h-8 w-auto text-foreground" />
               </Link>
               <button
                 type="button"

@@ -64,17 +64,22 @@ export default async function Home() {
   const recentIds = new Set(recents.map((r) => r.id))
   const otherOwnSets = ownSets.filter((s) => !recentIds.has(s.id))
 
+  // ONE query for BOTH blocks. The strip renders the same `SetCard` as the
+  // shelf below it now, and that card's footer reads `summary.lastStudiedAt` —
+  // so a strip left out of this call would show every recent set dated by
+  // CREATION while the identical card below showed it dated by last study.
+  // Same component, same set, two different dates, on one screen.
   const summaries = await loadSetStudySummaries(
     prisma,
     userId,
-    otherOwnSets.map((s) => s.id),
+    [...recents.map((s) => s.id), ...otherOwnSets.map((s) => s.id)],
   )
 
   const hasNothing = recents.length === 0 && ownSets.length === 0
 
   return (
     <div>
-      <PageHeader title="Your desk" />
+      <PageHeader title="Home" />
 
       {hasNothing ? (
         <div className="mt-8">
@@ -96,7 +101,7 @@ export default async function Home() {
                 title="Jump back in"
                 hint={recents.length === 1 ? '1 set' : `${recents.length} sets`}
               />
-              <SectionBody><SetStrip sets={recents} /></SectionBody>
+              <SectionBody><SetStrip sets={recents} summaries={summaries} /></SectionBody>
             </Section>
           )}
 
