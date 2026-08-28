@@ -17,7 +17,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/auth', () => ({ auth: h.auth }))
 vi.mock('@/lib/db', () => ({ prisma: { set: { findMany: h.setFindMany } } }))
 
-import ConceptsPage from '@/app/concepts/page'
+import ConceptsPage from '@/app/(app)/concepts/page'
 
 beforeEach(() => {
   vi.clearAllMocks()

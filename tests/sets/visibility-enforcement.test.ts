@@ -38,7 +38,7 @@ function code(path: string): string {
  * property of the file, not of the function.
  */
 const ENFORCED_PATHS = [
-  'src/app/sets/[id]/page.tsx',
+  'src/app/(app)/sets/[id]/page.tsx',
   'src/app/sets/[id]/match/page.tsx',
   'src/app/sets/[id]/quiz/page.tsx',
   'src/app/sets/[id]/review/page.tsx',
@@ -52,8 +52,8 @@ const ENFORCED_PATHS = [
   // --- Added with public sets & discovery, 2026-08-27 ---
   // The homepage reads sets by id in two places — recents and recommendations
   // — and both are reachable by anyone with an account.
-  'src/app/page.tsx',
-  'src/app/browse/page.tsx',
+  'src/app/(app)/page.tsx',
+  'src/app/(app)/browse/page.tsx',
   // Fork READS the source. It needs no write access to it and must never be
   // given any, so the read guard is the only guard it has.
   'src/actions/sets-fork.ts',

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { Fraunces, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
-import Navbar from '@/components/Navbar'
 import { Toaster } from 'sonner'
 import { cn } from '@/lib/utils'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
@@ -67,10 +66,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
       className={cn(fraunces.variable, plexSans.variable, plexMono.variable)}
     >
+      {/*
+        NO CHROME AND NO MEASURE HERE, deliberately.
+
+        This layout used to render the navbar and wrap everything in
+        `max-w-6xl mx-auto px-4 py-8` — and then all 17 pages applied their own
+        `max-w-5xl mx-auto px-4 py-10` on top of it. Centered inside centered,
+        with `px-4` twice. That was invisible only while both wrappers centered
+        on the same axis; a fixed-width rail is what makes it visible.
+
+        `src/app/(app)/layout.tsx` now owns the rail, the topbar and the measure,
+        exactly once. Everything OUTSIDE that route group — the study activities
+        and the auth pages — renders bare, which is the point: a timed matching
+        game must not carry a nav column, and /print must be chrome-free.
+      */}
       <body className="bg-background text-foreground min-h-screen font-sans">
         <ThemeProvider>
-          <Navbar />
-          <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
+          {children}
           {/* Follows the app theme rather than defaulting to light. */}
           <Toaster richColors closeButton theme="system" />
         </ThemeProvider>

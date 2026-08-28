@@ -36,7 +36,7 @@ vi.mock('@/components/klt/ConceptTree', () => ({
   ),
 }))
 
-import SetConceptsPage from '@/app/sets/[id]/concepts/page'
+import SetConceptsPage from '@/app/(app)/sets/[id]/concepts/page'
 
 beforeEach(() => vi.clearAllMocks())
 afterEach(cleanup)
