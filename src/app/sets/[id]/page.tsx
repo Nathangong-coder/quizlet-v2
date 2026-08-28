@@ -11,6 +11,8 @@ import { TermsList } from '@/components/sets/TermsList'
 import { ActivityTiles } from '@/components/sets/ActivityTiles'
 import { readableSetWhere } from '@/lib/sets/visibility'
 import { recordSetView } from '@/lib/sets/recents'
+import { ForkButton } from '@/components/sets/ForkButton'
+import { ForkAttribution } from '@/components/sets/ForkAttribution'
 
 export default async function SetPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -65,6 +67,17 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
           {set.description && (
             <p className="text-muted-foreground mt-1">{set.description}</p>
           )}
+          {/*
+            Renders nothing at all unless this set is a fork. The credit text
+            comes from the denormalized columns; only the LINK consults the
+            database, and only through `readableSetWhere`.
+          */}
+          <ForkAttribution
+            forkedFromId={set.forkedFromId}
+            forkedFromTitle={set.forkedFromTitle}
+            forkedFromHandle={set.forkedFromHandle}
+            viewerId={viewerId}
+          />
         </div>
         <div className="flex gap-2">
           {/*
@@ -80,6 +93,12 @@ export default async function SetPage({ params }: { params: Promise<{ id: string
           >
             Concepts
           </Link>
+          {/*
+            Non-owners only. Duplicating your OWN set is a different verb and
+            does not belong on this row; the fork action itself allows it, so
+            this is a UI choice rather than a restriction.
+          */}
+          {!isOwner && viewerId && <ForkButton setId={id} />}
           {isOwner && (
             <>
               <Link
