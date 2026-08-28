@@ -11,7 +11,8 @@ This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirror
 2. **Item 9 — surfacing missed KLPs / weak topics.** **BUILT 2026-08-24** as the KLT topic layer (`specs/2026-08-24-klt-topic-layer-design.md`). Two verification steps owed — see its entry. Next action after those is item 7.
 3. **Item 7 — Spec 4**, plan setup + readiness + lesson generation. The biggest item; its lesson half now has its first design decision (see item 7's "LESSON OUTPUT TYPES").
 4. ~~**Item 6c — sharing & discovery.**~~ **BUILT 2026-08-27** as public sets, fork & discovery. Live gate owed. Collaborators deliberately cut.
-5. ~~**Item 6f — app shell.**~~ **BUILT 2026-08-28.** Left rail, profile menu, settings split, avatar, feedback. Live gate owed. **Next action is Spec C (set views + Atlas)**, which is the remaining half of what the owner asked for on 2026-08-27, or item 7 (Spec 4).
+5. ~~**Item 6f — app shell.**~~ **BUILT 2026-08-28.** Left rail, profile menu, settings split, avatar, feedback. Live gate owed.
+6. ~~**Item 6g — set views & Atlas.**~~ **BUILT 2026-08-28.** Study / Knowledge / Analysis with mastery shading. Live gate owed. **This completes the two-part UI request made on 2026-08-27. Next action is item 7 (Spec 4)**, whose lesson half is now also the thing the Analysis tab's in-progress block points at.
 
 ---
 
@@ -556,6 +557,56 @@ prints to the server log.
 **Next: Spec C — set views + Atlas.** Study / Knowledge / Analysis tabs on the set page, the
 concept tree moving into Knowledge, and the spatial Atlas surfaces. Decisions already taken
 with the user are in the memory note `set-views-and-atlas-owed`; do not re-litigate them.
+
+---
+
+### 6g. ✅ Set views & Atlas — **BUILT 2026-08-28. LIVE GATE OWED.**
+
+Spec: `specs/2026-08-28-set-views-and-atlas-design.md` · Plan:
+`plans/2026-08-28-set-views-and-atlas.md`
+Branch `spec3b-tunable-scoring`, 2 commits (`b42c5dd`, `2521b3c`), **not merged**.
+
+The second half of the 2026-08-27 request. The set page is now Study / Knowledge / Analysis
+via a `(views)` route group; Knowledge shades the concept canvas by mastery and offers a
+Map | List toggle; Analysis ships with real retention, misconceptions and pace, plus one
+in-progress block for the error taxonomy.
+
+**New baselines (this branch, 2026-08-28):**
+- **Tests:** 193 files / **2393 passing** (from 190 / 2335)
+- **`tsc`:** clean · **`next build`:** clean · **`npm run lint`:** **175** (unchanged)
+- **No migration.** Every number comes from data that already existed.
+
+**Three decisions revised from the design conversation, and why:**
+
+1. **`/sets/[id]/concepts` was NOT redirected into Knowledge.** The owner asked on
+   2026-08-28 to keep the full editor at its own route. Knowledge embeds the canvas
+   read-only; the tree is still authored there. `ConceptCanvas`'s new `shades` prop is
+   **optional** precisely so that page renders exactly as before.
+2. **Knowledge has a Map | List toggle.** The list is not a fallback — it takes
+   `TopicMasteryRow[]` and imports nothing from KLT, because it must **outlive the concept
+   tree** when KLP-inherent topics arrive beside user categories (CLAUDE.md, 2026-08-14).
+   Typing it against `SetKltNode` would have guaranteed a rewrite.
+3. **Analysis ships real, not stubbed.** `getLearnerMetrics({ scope: { setIds: [id] } })`
+   already returns misconceptions, a forgetting curve and pace outliers for one set, and
+   `RetentionPanel`/`MisconceptionList` already render them. Stubbing would have hidden
+   working analysis behind a placeholder.
+
+**Four things worth knowing before touching this:**
+
+1. **`shadeForKnowledge(null)` is `'unknown'`, never `'weak'`.** The fifth place this rule
+   is stated. `knowledge ?? 0` paints every untouched concept in the alarm colour, so a
+   fresh set renders as a wall of red and the learner learns to ignore the shading. A
+   MEASURED zero is still `weak`.
+2. **Shades are named, not just coloured.** A fill-only shade is unreadable to anyone who
+   cannot distinguish the hues, and "no evidence vs bad evidence" is not a colour.
+3. **The `(views)` group is what keeps `edit` and `concepts` out of the tab strip.** A
+   `layout.tsx` at `sets/[id]` would wrap both; a test asserts none exists.
+4. **A page's query does not inherit its layout's guard.** All three view files apply
+   `readableSetWhere` themselves and all are on `ENFORCED_PATHS`.
+
+**OWED — the live gate (spec §11), nine steps.** The two that matter: **step 5** — a
+concept with no answered KLPs must render hatched, not in the weak colour; and **step 7** —
+signed out on a public set, both tabs render with an unshaded map and no crash.
 
 ---
 
