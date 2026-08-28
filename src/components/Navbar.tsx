@@ -12,7 +12,7 @@ export default async function Navbar() {
   return (
     <nav className="border-b bg-background">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link href="/sets" className="font-heading font-semibold text-xl tracking-tight">
+        <Link href="/" className="font-heading font-semibold text-xl tracking-tight">
           Quizlet v2
         </Link>
         <div className="flex items-center gap-2">
@@ -21,11 +21,18 @@ export default async function Navbar() {
           <ThemeToggle />
           {session ? (
             <>
-              <Link href="/sets" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-                My Sets
+              {/* "Library", not "My Sets". The item beside it is now Browse,
+                  and My Sets vs Browse names the wrong axis — the distinction
+                  is yours-vs-everyone's, which stops being true the moment you
+                  fork someone's set into it. */}
+              <Link href="/" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+                Home
               </Link>
-              <Link href="/settings/ai" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
-                AI Settings
+              <Link href="/browse" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+                Browse
+              </Link>
+              <Link href="/sets" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+                Library
               </Link>
               {/* "Learning", not "Profile". These three pages are about what
                   you know and what you answered; the account itself now has its
@@ -47,9 +54,17 @@ export default async function Navbar() {
               </form>
             </>
           ) : (
-            <Link href="/login" className={cn(buttonVariants({ size: 'sm' }))}>
-              Sign in
-            </Link>
+            <>
+              {/* Browse is reachable signed OUT on purpose: it is the only
+                  surface a stranger can use to judge whether this is worth
+                  signing up for. */}
+              <Link href="/browse" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}>
+                Browse
+              </Link>
+              <Link href="/login" className={cn(buttonVariants({ size: 'sm' }))}>
+                Sign in
+              </Link>
+            </>
           )}
         </div>
       </div>
