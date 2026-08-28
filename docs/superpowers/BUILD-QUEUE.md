@@ -572,7 +572,7 @@ Map | List toggle; Analysis ships with real retention, misconceptions and pace, 
 in-progress block for the error taxonomy.
 
 **New baselines (this branch, 2026-08-28):**
-- **Tests:** 193 files / **2393 passing** (from 190 / 2335)
+- **Tests:** 195 files / **2422 passing** (from 190 / 2335)
 - **`tsc`:** clean · **`next build`:** clean · **`npm run lint`:** **175** (unchanged)
 - **No migration.** Every number comes from data that already existed.
 
@@ -607,6 +607,18 @@ in-progress block for the error taxonomy.
 **OWED — the live gate (spec §11), nine steps.** The two that matter: **step 5** — a
 concept with no answered KLPs must render hatched, not in the weak colour; and **step 7** —
 signed out on a public set, both tabs render with an unshaded map and no crash.
+
+**A regression 6f introduced and 6g caught, worth knowing because the class recurs.**
+When the scoring panels moved from `/settings/ai` to `/settings/study`, five deep links and
+one `revalidatePath` were left pointing at the old page — "Change your study scope",
+"Adjust your evidence floor", the targeting-strategy link, the default-scope link, and
+`saveTuning`s revalidation. The 6f commit message asserted every link still landed correctly;
+that was reached by **counting** the links rather than reading what each one promised.
+**Nothing failed** — `/settings/ai` still renders, so every link produced a real settings
+page, just not the one holding the named control.
+`tests/settings/deep-links.test.ts` now pins each link to the page rendering the panel it
+names, and `src/middleware.ts` matches `/settings/:path*` so a future split cannot leave the
+new half unprotected.
 
 ---
 
