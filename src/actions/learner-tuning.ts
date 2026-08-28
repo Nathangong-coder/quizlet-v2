@@ -113,7 +113,7 @@ export async function saveTuning(input: {
     select: { strategy: true, bands: true, thresholds: true, studyScope: true },
   })
 
-  revalidatePath('/settings/ai')
+  revalidatePath('/settings/study')
   // Returned from the ROW, not from the input, so the caller sees what the
   // other panels' fields actually hold rather than the blanks it sent.
   return { success: true, data: shapeTuning(row) }

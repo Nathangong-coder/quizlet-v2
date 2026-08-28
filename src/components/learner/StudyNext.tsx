@@ -64,7 +64,7 @@ export default function StudyNext({
         <CardDescription>
           Individual key points, not whole cards — the exact sub-claim you get wrong is the most
           actionable thing here. Ordered by{' '}
-          <Link href="/settings/ai" className="text-primary hover:underline">
+          <Link href="/settings/study" className="text-primary hover:underline">
             {STRATEGY_LABELS[strategy]}
           </Link>
           .
