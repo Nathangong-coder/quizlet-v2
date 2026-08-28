@@ -38,7 +38,10 @@ function code(path: string): string {
  * property of the file, not of the function.
  */
 const ENFORCED_PATHS = [
-  'src/app/(app)/sets/[id]/page.tsx',
+  'src/app/(app)/sets/[id]/(views)/page.tsx',
+  'src/app/(app)/sets/[id]/(views)/layout.tsx',
+  'src/app/(app)/sets/[id]/(views)/knowledge/page.tsx',
+  'src/app/(app)/sets/[id]/(views)/analysis/page.tsx',
   'src/app/sets/[id]/match/page.tsx',
   'src/app/sets/[id]/quiz/page.tsx',
   'src/app/sets/[id]/review/page.tsx',

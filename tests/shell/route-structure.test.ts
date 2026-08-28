@@ -40,7 +40,9 @@ const SHELLED_ROUTES = [
   'browse/page.tsx',
   'sets/page.tsx',
   'sets/new/page.tsx',
-  'sets/[id]/page.tsx',
+  'sets/[id]/(views)/page.tsx',
+  'sets/[id]/(views)/knowledge/page.tsx',
+  'sets/[id]/(views)/analysis/page.tsx',
   'sets/[id]/edit/page.tsx',
   'sets/[id]/concepts/page.tsx',
   'profile/page.tsx',
@@ -104,6 +106,51 @@ describe('no route escapes classification', () => {
     ])
     const unclassified = allPages(APP).filter((p) => !classified.has(p))
     expect(unclassified, `add these to BARE_ROUTES or SHELLED_ROUTES: ${unclassified.join(', ')}`).toEqual([])
+  })
+})
+
+/**
+ * The set page's three views live in a `(views)` group so that `edit` and
+ * `concepts` do NOT inherit their tab strip.
+ *
+ * A `layout.tsx` at `sets/[id]` — the obvious spelling — would wrap both. `edit`
+ * is a long authoring form and `concepts` is a full-bleed drag-and-drop canvas;
+ * a tab strip on either claims it is one of three peer views of the set, which
+ * it is not. This is the same reason the study activities sit outside `(app)`.
+ */
+describe('set views are grouped so edit and concepts stay out', () => {
+  const SETS = join(APP, '(app)', 'sets', '[id]')
+
+  for (const view of ['page.tsx', 'knowledge/page.tsx', 'analysis/page.tsx']) {
+    it(`${view} is inside (views)`, () => {
+      expect(existsSync(join(SETS, '(views)', view)), `${view} must be in (views)`).toBe(true)
+    })
+  }
+
+  it('supplies the tab strip from the group layout', () => {
+    expect(existsSync(join(SETS, '(views)', 'layout.tsx'))).toBe(true)
+  })
+
+  for (const outside of ['edit/page.tsx', 'concepts/page.tsx']) {
+    it(`${outside} is NOT inside (views)`, () => {
+      expect(
+        existsSync(join(SETS, '(views)', outside)),
+        `${outside} must stay outside (views) — it would gain a tab strip`,
+      ).toBe(false)
+      expect(existsSync(join(SETS, outside)), `${outside} must still exist`).toBe(true)
+    })
+  }
+
+  it('has NO layout.tsx directly at sets/[id]', () => {
+    // Such a layout would wrap edit and concepts too, defeating the group.
+    expect(existsSync(join(SETS, 'layout.tsx'))).toBe(false)
+  })
+
+  it('keeps the standalone concept editor reachable', () => {
+    // Revised decision, 2026-08-28: Knowledge EMBEDS the canvas, it does not
+    // replace the editor. The owner asked for the original tree to be preserved
+    // at its own route.
+    expect(existsSync(join(SETS, 'concepts', 'page.tsx'))).toBe(true)
   })
 })
 

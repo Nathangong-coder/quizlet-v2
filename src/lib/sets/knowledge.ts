@@ -117,6 +117,81 @@ export function shapeConfidenceHistogram(rows: ConfidenceRow[], now: Date): Conf
   }
 }
 
+export interface SetKnowledge {
+  topics: TopicMasteryRow[]
+  categories: CategoryMasteryRow[]
+  confidence: ConfidenceHistogram
+  sessions: { id: string; kind: string; startedAt: Date; durationMs: number | null; itemCount: number }[]
+  conceptCount: number
+}
+
+/** How many sessions the per-set history shows before linking out. */
+export const SET_HISTORY_LIMIT = 8
+
+/**
+ * Thin, READ-ONLY DB shell. Untested here by the same convention as
+ * `getLearnerMetrics` and `loadRecommendations` — every computation it
+ * delegates to is covered above.
+ *
+ * NO SET READ HERE, deliberately. The caller has already resolved the set
+ * through `readableSetWhere` and passes an id it has proven this viewer may
+ * read; adding a second, unguarded lookup would be the exact shape
+ * `ENFORCED_PATHS` exists to catch. Everything below is keyed on `userId` as
+ * well, so nothing crosses accounts even if that contract were broken.
+ *
+ * `@/lib/db` is imported DYNAMICALLY so importing this module for its types
+ * never touches `lib/db.ts`, which throws at import time without DATABASE_URL.
+ */
+export async function loadSetKnowledge(userId: string, setId: string): Promise<SetKnowledge> {
+  const { prisma } = await import('@/lib/db')
+  const { getLearnerMetrics } = await import('@/lib/metrics/read')
+
+  const scope = { setIds: [setId], categoryKeys: [], sources: [] }
+
+  const [metrics, categoryRows, progressRows, sessions] = await Promise.all([
+    // ONE set's scope. The same object drives Analysis, so the two tabs cannot
+    // disagree about which answers they are describing.
+    getLearnerMetrics({ userId, scope }),
+    prisma.cardCategory.findMany({
+      where: { setId },
+      select: {
+        normalizedName: true,
+        name: true,
+        color: true,
+        _count: { select: { assignments: true } },
+      },
+    }),
+    prisma.cardProgress.findMany({
+      where: { userId, card: { setId } },
+      select: { confidence: true, dueAt: true },
+    }),
+    prisma.studySession.findMany({
+      where: { userId, setId },
+      orderBy: { startedAt: 'desc' },
+      take: SET_HISTORY_LIMIT,
+      select: { id: true, kind: true, startedAt: true, durationMs: true, itemCount: true },
+    }),
+  ])
+
+  const topics = shapeTopicMastery(metrics.profile.topics)
+
+  return {
+    topics,
+    categories: shapeCategoryMastery(
+      categoryRows.map((c) => ({
+        normalizedName: c.normalizedName,
+        name: c.name,
+        color: c.color,
+        cardCount: c._count.assignments,
+      })),
+      metrics.profile.topics,
+    ),
+    confidence: shapeConfidenceHistogram(progressRows, new Date()),
+    sessions,
+    conceptCount: topics.length,
+  }
+}
+
 export interface CategoryMasteryRow {
   key: string
   name: string

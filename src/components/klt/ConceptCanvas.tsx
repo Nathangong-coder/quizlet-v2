@@ -7,12 +7,26 @@ import { layoutTree, LAYOUT_DEFAULTS, type LayoutNode } from '@/lib/klt/layout'
 import { evaluateDrop, type DragSource } from '@/lib/klt/drag'
 import { iconFor, resolveNodeColor, NEUTRAL_NODE_COLOR } from '@/components/klt/node-style'
 import type { ConceptTreeNode } from '@/actions/klt-tree'
+import { SHADE_CLASS, SHADE_LABEL, type MasteryShade } from '@/lib/klt/mastery-shade'
 
 const CANVAS_PADDING = 48
 const MIN_ZOOM = 0.35
 const MAX_ZOOM = 1.6
 
 interface ConceptCanvasProps {
+  /**
+   * Mastery shading, keyed on `normalizedName`. OPTIONAL, and absent is the
+   * editor's case: `/sets/[id]/concepts` renders exactly as it always has.
+   *
+   * When present, the shade REPLACES the node's fill and border while the
+   * user's chosen colour survives as the top accent bar. The two are answering
+   * different questions and must not compete for the same surface: in the
+   * editor the colour says "this is the branch I put it in", and on Knowledge
+   * the fill says "this is how well you know it". Painting both into the fill
+   * would make a well-known concept in a teal branch indistinguishable from a
+   * badly-known one in a green branch.
+   */
+  shades?: Record<string, MasteryShade>
   /** Only what should be drawn — the caller applies collapse and filtering. */
   visible: ConceptTreeNode[]
   /** Every node in the set, for colour inheritance and drop arithmetic. */
@@ -46,6 +60,7 @@ interface ConceptCanvasProps {
  * top of something else.
  */
 export function ConceptCanvas({
+  shades,
   visible,
   allNodes,
   collapsed,
@@ -220,6 +235,12 @@ export function ConceptCanvas({
               const node = byKltId.get(pos.kltId)
               if (!node) return null
               const colors = resolveNodeColor(node, byKltId)
+              // Undefined when the caller passed no shades at all (the editor),
+              // AND when this concept simply has no measurement. Both correctly
+              // fall back to the structure colours; `shadeForKnowledge` is what
+              // turns "measured, but no evidence" into an explicit `unknown`,
+              // and that arrives here as a real shade rather than as a gap.
+              const shade = shades?.[node.normalizedName]
               const Icon = iconFor(node.icon)
               const isSelected = node.kltId === selectedKltId
               const isDragged = dragging?.kltId === node.kltId
@@ -271,10 +292,14 @@ export function ConceptCanvas({
                       onDrop(node.kltId)
                     }}
                     className={[
-                      'relative flex h-full w-full flex-col justify-center gap-0.5 overflow-hidden rounded-lg border px-3 py-2 text-left shadow-sm transition',
+                      'relative flex h-full w-full flex-col justify-center gap-0.5 overflow-hidden rounded-lg border px-3 py-2 text-left transition',
                       canEdit ? 'cursor-grab' : 'cursor-pointer',
-                      colors.border,
-                      colors.fill,
+                      // Mastery takes the fill when it is supplied; the user's
+                      // structure colour survives as the accent bar. Painting
+                      // both into the fill would make a well-known concept in a
+                      // teal branch indistinguishable from a badly-known one in
+                      // a green branch.
+                      shade ? SHADE_CLASS[shade] : `${colors.border} ${colors.fill}`,
                       isSelected ? 'ring-2 ring-primary ring-offset-1 ring-offset-background' : '',
                       isDragged ? 'opacity-40' : '',
                       verdict?.ok ? 'ring-2 ring-primary' : '',
@@ -289,6 +314,10 @@ export function ConceptCanvas({
                       <span className="truncate text-sm font-medium">{node.name}</span>
                     </span>
                     <span className="text-[11px] text-muted-foreground">
+                      {/* Named, not colour alone. A shade that only exists as a
+                          fill is unreadable to anyone who cannot distinguish
+                          the hues, and unguessable to everyone else. */}
+                      {shade ? `${SHADE_LABEL[shade]} · ` : ''}
                       {node.linkCount} link{node.linkCount === 1 ? '' : 's'}
                       {node.childCount > 0 && ` · ${node.childCount} child${node.childCount === 1 ? '' : 'ren'}`}
                     </span>
