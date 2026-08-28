@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db'
 import Link from 'next/link'
 import { readableSetWhere } from '@/lib/sets/visibility'
 import { loadRecentSets } from '@/lib/sets/recents'
+import { loadRecommendations } from '@/lib/sets/recommend'
+import { RecommendedStrip } from '@/components/home/RecommendedStrip'
 import { loadSetStudySummaries } from '@/lib/sets/study-summary'
 import { SetCard } from '@/components/sets/SetCard'
 import { SetStrip } from '@/components/home/SetStrip'
@@ -28,8 +30,11 @@ export default async function Home() {
   if (!session?.user?.id) return <Landing />
   const userId = session.user.id
 
-  const [recents, ownSets] = await Promise.all([
+  const [recents, recommended, ownSets] = await Promise.all([
     loadRecentSets(userId),
+    // Read-only. Recommendations never write to the learner model — they are a
+    // recommendation surface, not evidence.
+    loadRecommendations(userId),
     prisma.set.findMany({
       // `readableSetWhere` alongside `{ userId }` is redundant AS A FILTER —
       // an owner reads their own sets at every visibility. It is here as the
@@ -91,6 +96,31 @@ export default async function Home() {
                 hint={recents.length === 1 ? '1 set' : `${recents.length} sets`}
               />
               <SectionBody><SetStrip sets={recents} /></SectionBody>
+            </Section>
+          )}
+
+          {/* Recommended sits BETWEEN what you were doing and what you own,
+              because it is the only block on this page about somebody else's
+              material — putting it last would bury the whole point of having a
+              directory. It renders its own four empty states rather than
+              disappearing, so a learner who has none can see WHY. */}
+          {(recommended.recommendations.length > 0 || recommended.emptyReason !== null) && (
+            <Section>
+              <SectionHeader
+                title="Recommended"
+                hint={recommended.recommendations.length > 0 ? 'from Browse' : undefined}
+                action={
+                  <Link href="/browse" className="underline underline-offset-4">
+                    Browse all
+                  </Link>
+                }
+              />
+              <SectionBody>
+                <RecommendedStrip
+                  recommendations={recommended.recommendations}
+                  emptyReason={recommended.emptyReason}
+                />
+              </SectionBody>
             </Section>
           )}
 
