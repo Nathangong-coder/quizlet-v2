@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-27 (item 9's concept-tree editor rebuilt as a drag-and-drop canvas, `ee1bcb7` — not yet seen rendered; item 9's per-set structure BUILT and reviewed — the live rebuild, the live gate and the column drop are OWED and need the owner; item 8's two human gates reported PASSED by the user 2026-08-24)
+**Last updated:** 2026-08-28 (items **10-14 added as a new backlog section** at the bottom, from the user's 2026-08-28 request — question-type labels, a shareable misconception library, a mastery-engine rework, an error DAG, and writing-vs-learning signals. Item 12 carries an **audit of the current mastery engine**, and it found that there is no speed multiplier at all; read it before touching scoring. Earlier: item 9's concept-tree editor rebuilt as a drag-and-drop canvas, `ee1bcb7` — not yet seen rendered; item 9's per-set structure BUILT and reviewed — the live rebuild, the live gate and the column drop are OWED and need the owner; item 8's two human gates reported PASSED by the user 2026-08-24)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -13,6 +13,8 @@ This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirror
 4. ~~**Item 6c — sharing & discovery.**~~ **BUILT 2026-08-27** as public sets, fork & discovery. Live gate owed. Collaborators deliberately cut.
 5. ~~**Item 6f — app shell.**~~ **BUILT 2026-08-28.** Left rail, profile menu, settings split, avatar, feedback. Live gate owed.
 6. ~~**Item 6g — set views & Atlas.**~~ **BUILT 2026-08-28.** Study / Knowledge / Analysis with mastery shading. Live gate owed. **This completes the two-part UI request made on 2026-08-27. Next action is item 7 (Spec 4)**, whose lesson half is now also the thing the Analysis tab's in-progress block points at.
+
+**Items 10-14 are a BACKLOG, not part of that order** — see "Backlog" at the bottom of the queue. They were requested on 2026-08-28 and none of them is next. Two need something from the user before they can start: **item 11** needs seed misconception content written in a separate chat and pasted in, and **item 14** is a research week the user asked to be reminded to book. **Item 12** (mastery rework) is the one the user said they want to spend a week on with expert analysis, and its entry already carries the audit of what exists today.
 
 ---
 
@@ -1111,6 +1113,221 @@ The user's words: "a better way of displaying the KLPs that they missed and/or t
 **Open question 2 — ANSWERED: a new panel at the top of `/profile/learner`**, with `TopicMastery`/`StudyNext`/`RetentionPanel` untouched below it. Original framing: That page already owns roughly this job. The user has only ever seen it against a very thin corpus (6 quiz answers on the whole account), so it is genuinely unclear whether it is *insufficient* or merely *unpopulated* — and those have opposite remedies. Spec 3C's `diagnoseEmptyState` exists precisely because "nothing here" has four different causes.
 
 **Sequencing note:** this makes item 7 better rather than competing with it — a plan needs somewhere to point when it says "you are weak here." Worth doing before Spec 4's lesson generation, not after.
+
+---
+
+## Backlog — requested by the user 2026-08-28. Not designed, not specced, not ordered into the build above.
+
+These five came in as one message and are recorded here so nothing is lost. **None of them is
+next** — item 7 (Spec 4) still is. They are written up in the queue rather than in a memory file
+because two of them (10 and 12) contradict assumptions currently baked into shipped code, and a
+future session needs to read that before it starts building on those assumptions.
+
+Two carry an obligation to the user rather than to the code, and both are easy to lose:
+- **Item 11** needs the user to open a **separate chat**, have general misconception content
+  written there, and paste it back in as seed data. Poke them for it when that item starts.
+- **Item 14** is explicitly a *research week*, not a build. Remind the user to book it.
+
+### 10. ⬜ "Type of question" — an automatic AI-assigned label axis
+
+**The ask, in the user's words:** "an automatic AI-based labelling system similar to categories
+called 'type of question' (conceptual, calculation, model, explanation, brainteaser, free-form,
+etc.)".
+
+**This is the fix for a limit CLAUDE.md already records.** The "Known limit of that decision,
+raised 2026-08-14" paragraph under Stage 8 says a user-authored `CardCategory` is often a **format
+or modality** ("label the image", "talking", "vocabulary") rather than a subject, and that
+categories and concepts are two axes the current model collapses into one. Item 9 built the
+*concept* axis (`Klt` / `SetKltNode`). **This item builds the third axis: question form.** Once it
+exists, format-shaped categories have somewhere honest to live, and `CardCategory` can go back to
+being whatever the learner finds useful without corrupting mastery.
+
+**What already exists and must not be duplicated:**
+- `CardCategory` — set-scoped, user-authored, `@@unique([setId, normalizedName])`, colored chips,
+  filters every study mode through `filterCardsByCategories`.
+- `Klt` — global concept nodes, `normalizedName` unique install-wide, per-set structure in
+  `SetKltNode`, filled by an `after()`-triggered AI pass that mirrors KLP extraction.
+- `CardKlp.kind` — **already a question-shaped closed enum** (`definition | mechanism | causal |
+  condition | quantitative | contrast | example`), AI-assigned at extraction, at KLP grain. This is
+  the closest existing thing and the first question the design must answer: is "type of question" a
+  **closed vocabulary at KLP grain that generalizes `kind`**, or a **new label at card grain**? Two
+  overlapping enums describing the same distinction is the drift class this repo keeps flagging.
+
+**Design questions, none answered:**
+- **Closed vocabulary or open?** Spec 2's ruling on error types applies verbatim: open-ended tags
+  fragment into synonyms and cannot aggregate. If mastery is ever to be reported *per question
+  type* — "fine on conceptual, weak on calculation", which is obviously the point — the vocabulary
+  must be closed and versioned, and renaming a value strands persisted rows.
+- **Grain.** A card can carry KLPs of different types. Card-grain is cheaper and matches the
+  category-chip UI; KLP-grain is what the metrics substrate actually consumes.
+- **Overridable?** Categories are authored; KLTs are AI-assigned with a user editor at `/concepts`.
+  Follow the KLT precedent (AI assigns, user corrects) rather than inventing a third interaction
+  model.
+- **Does it feed targeting, or only filtering?** Filtering is cheap and safe. Feeding it into
+  `rankCandidates` means a new term in `scoreFor` and belongs with item 12, not before it.
+- Extraction must be self-healing on a status column the way `Card.klpStatus` is, and the KLT
+  spec's §6 rule applies unchanged: **the pass may never delete or supersede a `CardKlp` row** —
+  `KlpState` keys on `klpId`, so superseding silently resets every learner's mastery.
+
+### 11. ⬜ Misconception library — curated, per-topic, user-editable, shareable
+
+**The ask:** "misconception library for each topic (finance technicals, etc.) that is also
+updatable per user and also shareable (and can be used as a template) + a separate view not for
+sharing flashcards but the customizable stuff (misconception library, concept tree, etc.). have it
+operate similar to the concept tree (but as a list view). have some that are general and poke me to
+ask you in a separate chat for that and to copy it in."
+
+**Critically: this is NOT the misconceptions that exist today.** `src/lib/metrics/misconceptions.ts`
+derives misconceptions **deterministically from the learner's own `conflation` error tags** —
+promoted at 2 occurrences across 2 sessions, retired after 30 days or 3 clean answers, evidence a
+verbatim learner quote that is never regenerated. That is *observed* and *personal*. This item is a
+*curated, authored catalogue of misconceptions known to exist in a domain*, attached to topics,
+useful before the learner has ever made the mistake. The two must stay distinguishable in the
+schema and in the UI, or a seeded library entry becomes indistinguishable from measured evidence —
+the same failure Spec 2a refuses when it rules that degradation must never fabricate a tag.
+
+**Design questions:**
+- **What does an entry attach to?** `Klt` is the obvious anchor (global, one node per concept,
+  already the topic axis). Attaching to a *KLP* would make it per-card and unshareable.
+- **The share/template model has a precedent to follow, not invent:** `KltPreset` already stores
+  root-first paths of concept **names, not ids**, precisely so a preset survives being applied to a
+  set whose concepts do not exist yet. A shareable misconception library needs the same
+  name-keyed-not-id-keyed property for the same reason.
+- **"A separate view for the customizable stuff."** Today `/concepts` (behind `KLT_EDITORS`) owns
+  the concept tree and set sharing owns flashcards; there is no home for "the things I have tuned".
+  This view would hold the concept tree, the misconception library, and plausibly `LearnerTuning`
+  and the saved study scope. Requested as a **list view**, not the drag-and-drop canvas.
+- **Seeded general content** — the user will supply finance-technicals content from a separate
+  chat. Decide before then whether seeds are `KltPreset`-style global rows or a per-user fork on
+  import. Forking is safer (an edited seed must not mutate everyone's copy) and matches how public
+  sets fork today (item 6c).
+- **Does a library entry become a distractor source?** Spec 1 generates distractors by corrupting
+  one named KLP with one named corruption and persists that provenance. A curated misconception is
+  exactly a high-quality corruption. Tempting, and out of scope for v1 — but the schema should not
+  make it impossible.
+
+### 12. ⬜ Rework the mastery engine — speed and confidence multipliers
+
+**The ask:** "speed multiplier & confidence multiplier — tell me how they are currently being
+implemented in calculations of mastery and how the mastery engine/formula works. i want to spend a
+week just re-working & perfecting that with expert analysis from you."
+
+**AUDITED 2026-08-28. Two headline findings, before any design starts:**
+
+1. **There is no speed multiplier. Latency multiplies nothing, anywhere.** `latencyMs` is
+   normalized by `src/lib/memory/latency.ts` (anything over 10 minutes becomes `null`, because
+   per-item timing is measured client-side and is untrusted), persisted per answer, and read by
+   **exactly one consumer**: `paceIndex` / `paceOutliers` in `src/lib/metrics/pace.ts`, which
+   produces a *separately displayed* list of "correct but slow" cards on the learner dashboard. It
+   does not enter `masteryScore`, `nextConfidence`, `stepBkt`, `nextDueAt`, `rankCandidates`, or
+   `computeSignificance`. `pace.ts`'s own doc comment says *"This is what separates 'correct' from
+   'actually known': a card answered right at 2.4x baseline is not mastered"* — and then the
+   codebase scores that card identically to one answered instantly. The insight is written down and
+   not priced in. **That gap is the strongest single argument for this item.**
+
+2. **There is one confidence multiplier and it only affects scheduling.** `confidenceScale` in
+   `src/lib/memory/schedule.ts` maps confidence 1-10 linearly onto **0.5x - 1.5x** and multiplies
+   the spaced-repetition interval. Confidence never enters `masteryScore` and never enters BKT.
+   Elsewhere it acts as a **gate, not a multiplier**: `masteryBucket` requires mastery >= 80 **and**
+   confidence >= 8 for `mastered`; mastery >= 60 **or** confidence >= 7 for `solid`; >= 4 for
+   `shaky`.
+
+**The engine as built — there is no single formula. There are four estimators at two grains, and
+they never reconcile:**
+
+| # | Quantity | Where | Formula |
+| --- | --- | --- | --- |
+| 1 | `CardProgress.confidence` 1-10 | `nextConfidence`, `memory/scoring.ts` | Incremental counter, starts at 5. Binary modes +/-1. Graded SA on the 1-10 rubric: `>=8` -> +1, `7` -> 0, `5-6` -> -1, `<=4` -> **-2**. Clamped 1-10. |
+| 2 | `CardProgress.mastery` 0-100 | `masteryScore`, `memory/scoring.ts` | Recency-weighted mean correctness over the last **10** events, weight `0.8^i` (i=0 newest). `eventCorrectness` prefers `score/100` over the boolean `correct`, so graded nuance survives. `null` when nothing is scorable. |
+| 3 | `KlpState.pKnown` | `stepBkt`, `metrics/bkt.ts` | BKT. Prior **.25**, learn **.1**, slip **.1**, `guess = 1 - EVIDENCE_STRENGTH[mode]` (SA .05 / MC .25 / TF .50). Mixing weight is `STATUS_CREDIT` (passed 1 / partial .5 / failed 0) **only** — the stored `credit` float is deliberately never read here, since it already folds in the mode discount and applying it twice creates a fixed point below 1. |
+| 4 | Topic mastery | `metrics/read.ts` + `klt-rollup.ts` | Aggregate of member KLPs' `pKnown`, gated by the learner's `minObservations` floor. |
+
+**Complete inventory of multiplicative terms in the system**, so the rework knows what it is
+touching: `MASTERY_DECAY 0.8^i` (recency); `confidenceScale 0.5-1.5` (scheduling only);
+`STAR_BOOST 1.15` and `DIM_WEIGHTS` (accuracy 1.0 / clarity 0.8 / conciseness 0.7) in
+`errors/significance.ts`; `EVIDENCE_STRENGTH` SA .95 / MC .75 / TF .50 (enters BKT as a guess rate,
+not as a weight); `weight / 5` KLP centrality in `rankCandidates`'s `weakness` term; `GROWTH_RATE 2`
+with `MAX_INTERVAL_DAYS 60` in scheduling.
+
+**Three structural problems to start the week from — these are design gaps, not bugs:**
+- **The card grain and the KLP grain never talk.** `masteryBucket` reads confidence + mastery;
+  `rankCandidates` reads pKnown + weight + readiness + dueAt. Two knowledge estimates for the same
+  card can disagree, and nothing reconciles or even surfaces the disagreement.
+- **"Confidence" is not confidence.** It is an outcome-derived counter, not a self-report. Nothing
+  captures what the learner *thought* they knew at answer time, so **calibration — the gap between
+  believed and actual knowledge, arguably the most useful signal in interview prep — is not
+  computable today.** Capturing a self-rating at answer time is a cheap data-capture change that
+  must land before any calibration metric can be designed.
+- **Speed is untrusted by construction.** The 10-minute cap exists because a learner who walks away
+  produces a 40-minute answer. Any speed multiplier must degrade to "no signal" rather than to a
+  default, and `paceIndex` already establishes the right shape: mode-scoped, a ratio to the
+  learner's *own* baseline (never a cross-mode absolute), `null` below `MIN_TIMED_OBSERVATIONS = 3`,
+  and the baseline drawn from an **unscoped** population even when the view is scoped.
+
+**Anything retuned here must recompute cleanly.** Spec 2a persists significance *components*
+alongside the computed value precisely so the formula can be retuned and history recomputed, and
+`computeSignificance` returns its inputs for the same reason. A mastery rework that introduces a
+term with no persisted input silently makes every historical row un-recomputable. Note also that
+`CardProgress` is **incremental**, with `recomputeCardProgress` the only replay path.
+
+### 13. ⬜ Error DAG — what you missed, and what the AI predicts it leads to
+
+**The ask:** "build a DAG (directed acyclic graph) that will later serve as the base for them
+visualizing/understanding what they missed and what mistakes the AI predicts it'll lead to."
+
+**Not the concept tree.** `Klt` / `SetKltNode` is a strict **tree** (6 levels, `depth` invariant
+tested, `parentKltId` with `onDelete: Restrict`) expressing *containment* — WACC sits under
+valuation. This is a different edge type: **consequence / prerequisite** — "misunderstanding X will
+make you get Y wrong" — which is many-to-many and therefore genuinely a DAG. Do not try to make one
+structure carry both; the containment invariants (single parent, denormalized ancestor closure) are
+exactly what a consequence graph must not have.
+
+**What already exists as seed data, and this is the interesting part:** `AnswerErrorTag` carries
+`klpId` **and `secondaryKlpId`** for `conflation` errors — an *observed, evidenced* edge between two
+KLPs, already accumulating, already deterministic, already promoted and retired by
+`metrics/misconceptions.ts`. The measured half of this graph is being collected today. The
+predictive half — "what it will lead to" — is the new bet.
+
+**The load-bearing design question:** an AI-predicted edge and an observed edge are **not the same
+kind of claim**, and the feature is worthless if they are drawn identically. Same rule as item 11
+and as Spec 2a's refusal to fabricate tags: a predicted consequence is a hypothesis that has not
+happened yet, and rendering it beside "you actually conflated these twice" makes the evidence
+unreadable. Edge provenance (observed / predicted / curated) has to be first-class in the schema,
+not a render-time flag.
+
+**Cycle prevention is a real problem, not a formality.** An AI asked "what does misunderstanding X
+lead to?" will happily produce X -> Y and Y -> X across two calls. Acyclicity must be enforced on
+write — the KLT tree already needed `src/lib/klt/invariants.ts` for a strictly easier invariant.
+
+**Sequencing:** item 11's curated misconceptions are natural *nodes* in this graph, and item 10's
+question types are a plausible edge filter. Building 13 before 11 means building it on KLPs alone,
+which works but is thinner.
+
+### 14. ⬜ Separate writing signals from learning signals in short answer
+
+**The ask:** "separating writing signals from learning signals in short answer response questions
+& analysis (need to do that a bit later — remind me also to spend a week just going over possible
+ways of doing that and diving deep into the question)."
+
+**This is a research week the user has explicitly asked to be reminded to book. Remind them.** It
+is not a build item and should not be turned into one prematurely.
+
+**Where the codebase already half-draws this line, imperfectly:** `docs/ai/error-taxonomy.md`'s
+three dimensions are `accuracy`, `clarity`, `conciseness`, weighted 1.0 / 0.8 / 0.7 in
+`DIM_WEIGHTS`. Accuracy is a learning signal; clarity and conciseness are writing signals — and all
+three are already **summed into one `significance` number**, which is precisely the conflation the
+user wants undone. `computeArticulation` (`metrics/articulation.ts`) goes further and computes a
+signed `verbosityIndex` (over-talk minus under-talk) plus a `readiness` score, which are pure
+articulation measures kept separate from `pKnown`. So the separation exists at the articulation
+layer and is **collapsed again** at the significance layer.
+
+**The question that makes it a week and not an afternoon:** the two signals are not independent.
+CLAUDE.md's own grading note observes that a wrong answer can score well on clarity (clearly
+admitting "I don't know"), and the inverse — a learner who knows the material but writes badly — is
+indistinguishable from partial knowledge *in text*, which is the only channel a short answer has.
+Stage 4's spoken answers add delivery metrics but do not resolve it. Worth reading
+`docs/ai/error-taxonomy.md`'s `clarity` / `conciseness` type lists and `OVER_TALK_TYPES` before the
+session, since that vocabulary is closed and already persisted.
 
 ## Where deferred issues are recorded
 
