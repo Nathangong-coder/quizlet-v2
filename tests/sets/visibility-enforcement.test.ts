@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readableSetWhere } from '@/lib/sets/visibility'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = process.cwd()
@@ -180,26 +180,35 @@ describe('forks are never born public', () => {
 })
 
 /**
- * BOTH DIRECTIONS, and that is the entire point of this block.
+ * EVERY WRITE TO THE STORE IS PRIVATE — and the two call sites still reach that
+ * answer for different reasons, which is why both are asserted.
  *
- * The two call sites deliberately DISAGREE. A card asset is private content
- * belonging to one owner, proxied through `/api/assets/[id]` so every byte is
- * owner-checked. An avatar is public by its nature — it sits beside a published
- * set and is seen by strangers — so a private blob would add a proxy hop per
- * render and buy no privacy at all.
+ * A card asset is private CONTENT: it belongs to one owner and is proxied
+ * through `/api/assets/[id]` so every byte is owner-checked.
  *
- * An inconsistency between two call sites is exactly the kind of thing a
- * later reader "tidies up". Asserting only the fork side would let someone make
- * avatars private (a pointless slowdown); asserting only the avatar side would
- * let someone make fork copies public (a real, silent auth bypass, which is the
- * bug that was actually written here on 2026-08-27). Neither edit is possible
- * with both assertions present.
+ * An avatar is not private at all — it sits beside a published set and is seen
+ * by strangers — and until 2026-08-28 it was written `access: 'public'` on
+ * exactly that reasoning. The reasoning was sound and the code was broken: the
+ * Blob STORE backing this project is configured private, and the API rejects a
+ * public write to it outright ("Cannot use public access on a private store"),
+ * so every photo upload failed. It is private now for a mechanical reason, not
+ * a privacy one, and `/api/avatar/[id]` puts the bytes back on a plain <img>.
+ *
+ * The fork assertion above is the one that still guards a SECURITY boundary
+ * (public fork copies would route around the owner check — the bug actually
+ * written on 2026-08-27). This one guards an OUTAGE: restoring `access:
+ * 'public'` here on the old reasoning breaks uploads again, in a path no mock
+ * can see, because a mocked store has no access mode to reject anything.
  */
-describe('blob access differs by call site, on purpose, in both directions', () => {
-  it('avatars are public', () => {
+describe('every blob write is private, for two different reasons', () => {
+  it('avatars are private, and are served through their own proxy route', () => {
     const src = code('src/actions/avatar.ts')
-    expect(src).toMatch(/access: 'public'/)
-    expect(src).not.toMatch(/access: 'private'/)
+    expect(src).toMatch(/access: 'private'/)
+    expect(src).not.toMatch(/access: 'public'/)
+    // The proxy is half of the fix, not an optional extra: a private blob URL
+    // is not fetchable from a browser, so making the write private WITHOUT
+    // this route swaps a failing upload for a broken image everywhere.
+    expect(existsSync(join(ROOT, 'src/app/api/avatar/[id]/route.ts'))).toBe(true)
   })
 
   it('card asset uploads stay private', () => {

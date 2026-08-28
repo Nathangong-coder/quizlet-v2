@@ -9,6 +9,7 @@ const row = (over: Partial<RecentRow> = {}): RecentRow => ({
     description: null,
     visibility: 'link',
     userId: 'owner',
+    createdAt: new Date('2026-08-01T10:00:00Z'),
     user: { handle: 'alice' },
     _count: { cards: 12 },
   },
@@ -27,6 +28,11 @@ describe('shapeRecents', () => {
       ownerHandle: 'alice',
       isOwn: false,
       viewedAt: new Date('2026-08-27T10:00:00Z'),
+      // The set's OWN creation date, distinct from `viewedAt` above — the
+      // strip renders `SetCard`, whose footer falls back to it when the viewer
+      // has no study history on the set. Two different dates on one row, so
+      // the fixture uses two different values.
+      createdAt: new Date('2026-08-01T10:00:00Z'),
     })
   })
 

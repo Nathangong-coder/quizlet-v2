@@ -1,28 +1,46 @@
-import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { SetCard } from '@/components/sets/SetCard'
 import type { RecentSet } from '@/lib/sets/recents'
+import type { SetStudySummary } from '@/lib/sets/study-summary'
 
 /**
  * The "Jump back in" row — the sets this viewer most recently OPENED.
  *
- * A horizontal scroller of compact tiles rather than a grid, on purpose: this
- * is a shelf of things you already know, scanned by title, not a catalogue you
- * evaluate. A grid here would compete visually with "Your sets" below it and
- * make two blocks of the same weight, which is exactly the reading the page is
- * trying to avoid.
+ * RENDERS THE SAME `SetCard` AS EVERY OTHER SET LIST, and that is the change.
+ * It used to be a bespoke compact tile: title, card count, and an @handle. Two
+ * blocks on one page describing the same kind of object in two different
+ * vocabularies is what made the page read as unfinished — the block a learner
+ * lands on first was the one that said the least, so "jump back in" showed less
+ * about a set than the shelf below it showed about the same set.
+ *
+ * STILL A HORIZONTAL SCROLLER, not a grid. That is the distinction actually
+ * worth keeping: this is a shelf of things you were already doing, scanned
+ * left-to-right, while "Your sets" is a catalogue you browse. The tiles now
+ * match; the SHAPE of the block is what separates them.
  *
  * Server-safe (no `'use client'`) — nothing here is interactive beyond a link.
  */
-export function SetStrip({ sets }: { sets: RecentSet[] }) {
+export function SetStrip({
+  sets,
+  summaries = {},
+}: {
+  sets: RecentSet[]
+  /**
+   * Per-set study summaries, keyed by set id. Missing entries are the norm, not
+   * an error — a set you opened and never answered a question in has no
+   * `CardProgress` row, and `SetCard` falls back to its creation date.
+   */
+  summaries?: Record<string, SetStudySummary>
+}) {
   // NOTHING, not an empty shell. A block with a heading and no contents reads
   // as a failed render; a block that is absent reads as "you have not done
   // this yet", which is the truth. Tested contract, not a nicety.
   if (sets.length === 0) return null
 
   return (
-    <div
+    <ul
       className={cn(
-        'flex gap-4 overflow-x-auto pb-2',
+        'flex gap-6 overflow-x-auto pb-2',
         // Negative margin + matching padding so the first and last tiles can
         // sit flush with the page gutter while their focus rings still have
         // room to draw.
@@ -30,49 +48,28 @@ export function SetStrip({ sets }: { sets: RecentSet[] }) {
       )}
     >
       {sets.map((s) => (
-        <Link
-          key={s.id}
-          href={`/sets/${s.id}`}
-          className={cn(
-            'group shrink-0 w-56 rounded-lg border border-border bg-card p-4',
-            'transition-colors hover:border-primary/50',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          )}
-        >
-          <div className="font-heading text-base leading-snug tracking-tight line-clamp-2 group-hover:text-primary transition-colors">
-            {s.title}
-          </div>
-
-          {s.description && (
-            <p className="mt-1.5 text-xs text-muted-foreground line-clamp-2">
-              {s.description}
-            </p>
-          )}
-
-          <div className="mt-3 flex items-baseline gap-2 text-xs text-muted-foreground">
-            <span className="metric">{s.cardCount}</span>
-            <span>{s.cardCount === 1 ? 'card' : 'cards'}</span>
-            {/*
-              The credit renders ONLY for someone else's set, and only when
-              they have a handle.
-
-              - `isOwn`: "@you" on your own material is noise, and on a strip
-                that deliberately mixes your sets with other people's, the
-                ABSENCE of a credit is what tells you it is yours.
-              - `ownerHandle !== null`: never falls back to `User.name`. That
-                field comes from the OAuth provider and is usually a real full
-                name — printing it here would publish it to everyone the set
-                was shared with.
-            */}
-            {!s.isOwn && s.ownerHandle !== null && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span className="truncate">{`@${s.ownerHandle}`}</span>
-              </>
-            )}
-          </div>
-        </Link>
+        // `w-72` and `shrink-0`: a card in a flex scroller with no fixed width
+        // collapses to its content, and a one-word title would render a tile
+        // half the width of its neighbour.
+        <li key={s.id} className="w-72 shrink-0">
+          <SetCard
+            set={{
+              id: s.id,
+              title: s.title,
+              description: s.description,
+              visibility: s.visibility,
+              createdAt: s.createdAt,
+              _count: { cards: s.cardCount },
+            }}
+            summary={summaries[s.id]}
+            // Credit ONLY for someone else's set. On a strip that deliberately
+            // mixes your sets with other people's, the absence of a credit is
+            // what tells you which is yours — and "@you" on your own material
+            // is noise.
+            ownerHandle={s.isOwn ? null : s.ownerHandle}
+          />
+        </li>
       ))}
-    </div>
+    </ul>
   )
 }

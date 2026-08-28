@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { resolveAvatar } from '@/lib/users/avatar'
+import { avatarSrc, resolveAvatar } from '@/lib/users/avatar'
 
 /**
  * A user's mark: their uploaded photo, their OAuth picture, or a generated
@@ -15,6 +15,7 @@ import { resolveAvatar } from '@/lib/users/avatar'
  * proxy will fetch on request — a worse trade than one unoptimised thumbnail.
  */
 export function AvatarMark({
+  userId,
   avatarUrl,
   image,
   seed,
@@ -22,6 +23,17 @@ export function AvatarMark({
   size = 32,
   className,
 }: {
+  /**
+   * Whose picture this is — the id `/api/avatar/[id]` is addressed by.
+   *
+   * SEPARATE from `seed` even though both call sites pass the same value
+   * today. `seed` is an arbitrary string fed to a hash to draw a
+   * constellation; this one has to be a real row id or the proxy 404s. Reusing
+   * `seed` as an id would work right up until the first caller seeds a glyph
+   * with a handle or an email, and would then fail as a missing image with
+   * nothing on screen saying why.
+   */
+  userId: string
   avatarUrl?: string | null
   image?: string | null
   seed: string
@@ -34,6 +46,12 @@ export function AvatarMark({
   const label = name ? `${name}'s picture` : 'Your picture'
 
   if (resolved.kind === 'url') {
+    // An UPLOAD lives in a private blob store and is not fetchable by its
+    // stored URL — it comes back through the proxy. An OAUTH picture is a
+    // third-party URL that was already public and must be used as-is; routing
+    // it through `/api/avatar` would 404, since the route only knows about
+    // `User.avatarUrl`.
+    const src = resolved.source === 'upload' ? avatarSrc(userId, resolved.url) : resolved.url
     return (
       /* Deliberate, per the note on this component: `next/image` would need a
          wildcard remote pattern for the blob host, which widens what the image
@@ -43,7 +61,7 @@ export function AvatarMark({
          no-op that also reports itself as unused. */
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={resolved.url}
+        src={src}
         alt={label}
         width={size}
         height={size}

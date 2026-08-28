@@ -18,6 +18,36 @@ export type ResolvedAvatar =
   | { kind: 'url'; url: string; source: 'upload' | 'oauth' }
   | { kind: 'glyph'; glyph: AvatarGlyph }
 
+/**
+ * Where an UPLOADED avatar is actually fetched from.
+ *
+ * NOT the stored blob URL. Avatars live in the same Vercel Blob store as card
+ * assets, and that store is configured `private` — `put(..., { access:
+ * 'public' })` is rejected outright by the API ("Cannot use public access on a
+ * private store"), which is what made every photo upload fail. A private blob's
+ * URL is not directly fetchable either, so the bytes have to come back through
+ * `/api/avatar/[id]`, exactly as card media comes back through
+ * `/api/assets/[id]`.
+ *
+ * `?v=` is the LAST PATH SEGMENT of the stored blob URL — a fresh
+ * `randomUUID()` per upload. Without it the proxy path is identical before and
+ * after a change, so a browser that cached the old picture for a week keeps
+ * showing it and the upload looks like it silently failed. With it, a new
+ * upload is a new URL, which is what lets the route cache aggressively at all.
+ *
+ * Pure and separate from `resolveAvatar` because it is the half that has to be
+ * right for the *bytes* to arrive, while `resolveAvatar` decides *which* mark
+ * to draw. A `?? url` fallback is deliberate rather than a throw: a malformed
+ * stored value should degrade to a broken image, never to a 500 on every page
+ * that renders a topbar.
+ */
+export function avatarSrc(userId: string, avatarUrl: string): string {
+  const version = avatarUrl.split('/').pop()?.split('?')[0]
+  return version
+    ? `/api/avatar/${userId}?v=${encodeURIComponent(version)}`
+    : `/api/avatar/${userId}`
+}
+
 /** Hard cap. Larger is not a better avatar; it is a slower page. */
 export const AVATAR_MAX_BYTES = 2 * 1024 * 1024
 

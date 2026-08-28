@@ -19,9 +19,22 @@ interface SetCardProps {
   }
   /** Absent for a signed-out viewer, or for a set with no progress rows. */
   summary?: SetStudySummary
+  /**
+   * The creator's public handle, for a set that is not the viewer's.
+   *
+   * Optional because most callers render the viewer's OWN library, where "@you"
+   * on every card is noise. Passed by "Jump back in", which deliberately mixes
+   * your sets with ones shared to you — there, the ABSENCE of a credit is what
+   * tells you a set is yours.
+   *
+   * NEVER `User.name`: that field comes from the OAuth provider and is usually
+   * a real full name, so printing it would publish it to everyone a set reached.
+   * No handle means no credit line.
+   */
+  ownerHandle?: string | null
 }
 
-export function SetCard({ set, summary }: SetCardProps) {
+export function SetCard({ set, summary, ownerHandle }: SetCardProps) {
   const cardCount = set._count?.cards ?? 0
   const shared = set.visibility !== undefined && toSetVisibility(set.visibility) !== 'private'
 
@@ -64,11 +77,19 @@ export function SetCard({ set, summary }: SetCardProps) {
         */}
 
         <CardFooter className="flex justify-between items-center text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <CalendarDays className="w-3 h-3" />
-            {summary?.lastStudiedAt
-              ? `studied ${format(new Date(summary.lastStudiedAt), 'MMM d')}`
-              : format(new Date(set.createdAt), 'MMM d, yyyy')}
+          <div className="flex items-center gap-1 min-w-0">
+            <CalendarDays className="w-3 h-3 shrink-0" />
+            <span className="truncate">
+              {summary?.lastStudiedAt
+                ? `studied ${format(new Date(summary.lastStudiedAt), 'MMM d')}`
+                : format(new Date(set.createdAt), 'MMM d, yyyy')}
+            </span>
+            {ownerHandle && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="truncate">{`@${ownerHandle}`}</span>
+              </>
+            )}
           </div>
           {/* A SPAN, not a Button. The whole card is already a link, and a
               <button> inside an <a> is invalid HTML — it also gave keyboard

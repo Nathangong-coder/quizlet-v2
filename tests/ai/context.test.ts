@@ -177,7 +177,7 @@ describe('renders a large profile without truncation', () => {
 
 describe('Spec 3 profile block', () => {
   const topic = (key: string, knowledge: number | null, verbosity: number) => ({
-    key, name: key, color: null, depth: null, klpCount: 3,
+    key, name: key, color: null, depth: null, klpCount: 3, measuredKlpCount: 3,
     knowledge, verbosityIndex: verbosity, knowledgeGapTerseness: 0, readiness: 0.7,
   })
 
@@ -261,7 +261,7 @@ describe('Spec 3 profile block', () => {
 
 describe('the topic section survives a huge card section (Spec 3 §14, defect 2)', () => {
   const topic = (key: string) => ({
-    key, name: key, color: null, depth: null, klpCount: 3,
+    key, name: key, color: null, depth: null, klpCount: 3, measuredKlpCount: 3,
     knowledge: 0.42, verbosityIndex: 0, knowledgeGapTerseness: 0, readiness: 0.7,
   })
 

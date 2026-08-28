@@ -1,7 +1,7 @@
 # Set Views & Atlas — Design
 
 **Date:** 2026-08-28
-**Status:** approved, unbuilt
+**Status:** **BUILT 2026-08-28** (queue item 6g), commits `b42c5dd..0b0d62a` on `spec3b-tunable-scoring`, not merged. **Live gate owed — see §11.** Every section implemented including §5.4 (Uncategorized bucket) and §6.1 (`diagnoseEmptyState`), both of which were missed on the first pass and closed in `45f290f`.
 **Branch:** `spec3b-tunable-scoring`
 **Depends on:** `2026-08-28-app-shell-design.md` (built). **Completes** the two-part request
 made on 2026-08-27; the sharing half is `2026-08-27-public-sets-and-discovery-design.md`.

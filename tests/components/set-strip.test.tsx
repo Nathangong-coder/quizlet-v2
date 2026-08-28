@@ -9,7 +9,8 @@ afterEach(cleanup)
 const set = (over: Partial<RecentSet> = {}): RecentSet => ({
   id: 's1', title: 'Merger Model', description: null, cardCount: 12,
   visibility: 'link', ownerHandle: 'alice', isOwn: false,
-  viewedAt: new Date('2026-08-27T10:00:00Z'), ...over,
+  viewedAt: new Date('2026-08-27T10:00:00Z'),
+  createdAt: new Date('2026-08-01T10:00:00Z'), ...over,
 })
 
 describe('SetStrip', () => {

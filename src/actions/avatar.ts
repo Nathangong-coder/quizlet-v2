@@ -69,14 +69,23 @@ export async function setAvatar(formData: FormData): Promise<ActionResult<{ url:
 
   const blob = await put(`avatars/${randomUUID()}.${EXTENSIONS[verified.type]}`, Buffer.from(bytes), {
     contentType: verified.type,
-    // PUBLIC, DELIBERATELY — and this is the one place in the app where that is
-    // the right answer. An avatar sits beside a published set and is seen by
-    // strangers, so a private blob would add a proxy hop per render and buy no
-    // privacy at all. Card assets are the opposite case and stay private; both
-    // directions are asserted in tests/sets/visibility-enforcement.test.ts,
-    // because last session `access: 'public'` in the FORK copier was a real
-    // security bug and the two call sites must not be "made consistent".
-    access: 'public',
+    // PRIVATE, because the store is. This was `access: 'public'` on the
+    // reasoning that an avatar sits beside a published set and a private blob
+    // would buy no privacy for the cost of a proxy hop — sound in the abstract,
+    // and rejected by the API in practice:
+    //
+    //   Vercel Blob: Cannot use public access on a private store.
+    //
+    // That error WAS the bug: every photo upload failed with "server is down",
+    // in a code path no test could see because the store's access mode is not
+    // something a mock has. The bytes come back through `/api/avatar/[id]` now,
+    // the same way card media comes back through `/api/assets/[id]`.
+    //
+    // Card assets stay private for a DIFFERENT reason — they carry set content
+    // and are owner-checked on every fetch — so the two call sites still must
+    // not be "made consistent" by copying a rule from one to the other. Last
+    // session `access: 'public'` in the FORK copier was a real security bug.
+    access: 'private',
   })
 
   await prisma.user.update({ where: { id: userId }, data: { avatarUrl: blob.url } })

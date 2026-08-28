@@ -66,6 +66,24 @@ export interface LearnerMetrics {
    */
   kltTopics: LearnerTopicProfile[]
   /**
+   * The SAME axis at EVERY depth, unfiltered.
+   *
+   * `kltTopics` above is one chosen depth, because a dashboard listing 68 leaf
+   * topics all reading "not measured" is unusable. A concept MAP is the
+   * opposite case: it draws the whole tree, every node at once, and a shade
+   * table built from one depth would leave every other node unshaded — or,
+   * worse, shaded from a different axis entirely, which is what the set
+   * Knowledge tab did until 2026-08-28. It keyed the map's shades off
+   * `profile.topics` (the user-authored CATEGORY axis) while the map's nodes
+   * are `Klt` concepts, so a node was shaded whenever its name happened to
+   * collide with a category the learner had studied — a concept nobody had
+   * been asked about, painted with an unrelated category's mastery.
+   *
+   * Depth-filtering is a PRESENTATION choice and belongs to the caller that
+   * needs it, so both shapes are returned rather than one being recomputed.
+   */
+  kltTopicsAll: LearnerTopicProfile[]
+  /**
    * Which tree depth `kltTopics` is showing (0 at a subject root), chosen by
    * `selectDisplayDepth` — the DEEPEST level where at least
    * `MIN_TOPICS_AT_DEPTH` topics clear the observation floor, falling back to
@@ -424,6 +442,7 @@ export async function getLearnerMetrics({
     misconceptions,
     ranked,
     kltTopics,
+    kltTopicsAll,
     displayDepth,
     kltBreadcrumbs,
     candidateLabels,

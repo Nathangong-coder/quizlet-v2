@@ -31,8 +31,35 @@ export interface TopicMasteryRow {
   /** Null means NO EVIDENCE. Never coerce it to 0 — see `shadeForKnowledge`. */
   knowledge: number | null
   klpCount: number
+  /** How many of `klpCount` cleared the observation floor. See `shade`. */
+  measuredKlpCount: number
+  /**
+   * The shade to PAINT — which is not always `shadeForKnowledge(knowledge)`.
+   * See `shapeTopicMastery` for the coverage rule and why it lives here.
+   */
   shade: MasteryShade
 }
+
+/**
+ * The share of a concept's key points that must have been measured before it
+ * is painted with a mastery colour at all.
+ *
+ * WHY A FRACTION AND NOT JUST `knowledge !== null`. `knowledge` is a mean over
+ * the KLPs that cleared the observation floor, and a mean is silent about how
+ * many that was. On a concept-tree node the effect compounds: `rollUpKltLinks`
+ * gives an interior node every descendant's KLPs, so a subject root can hold
+ * forty key points, have three of them answered, and report the mean of those
+ * three as the whole subject's mastery. It then shades `strong` — a subject the
+ * learner has barely been asked about, painted as known. That is the reported
+ * bug, and the honest answer for it is "not measured yet", not a colour.
+ *
+ * A THIRD, deliberately low. This is a floor on whether we may make a CLAIM,
+ * not a target: set near 1.0 and a large tree would stay grey forever, which
+ * teaches the learner to ignore the shading — the same failure mode
+ * `shadeForKnowledge`'s doc comment describes for the opposite error of
+ * painting everything red.
+ */
+export const MIN_MEASURED_FRACTION = 1 / 3
 
 /**
  * Order: measured-and-weakest first, then everything unmeasured.
@@ -49,9 +76,15 @@ export function shapeTopicMastery(topics: LearnerTopicProfile[]): TopicMasteryRo
       key: t.key,
       name: t.name,
       depth: t.depth,
+      // The NUMBER is reported unchanged, even when the shade is withheld. It
+      // is a true statement about what was measured, and a learner who opens
+      // the list is entitled to see it next to the coverage that produced it.
+      // Only the COLOUR — the thing scanned at a glance, with no denominator
+      // beside it — is held back.
       knowledge: t.knowledge,
       klpCount: t.klpCount,
-      shade: shadeForKnowledge(t.knowledge),
+      measuredKlpCount: t.measuredKlpCount,
+      shade: shadeForCoverage(t.knowledge, t.measuredKlpCount, t.klpCount),
     }))
     .sort((a, b) => {
       if (a.knowledge === null && b.knowledge === null) return a.name.localeCompare(b.name)
@@ -59,6 +92,86 @@ export function shapeTopicMastery(topics: LearnerTopicProfile[]): TopicMasteryRo
       if (b.knowledge === null) return -1
       return a.knowledge - b.knowledge
     })
+}
+
+/**
+ * `shadeForKnowledge`, plus the coverage floor.
+ *
+ * Kept OUT of `shadeForKnowledge` itself on purpose. That function answers
+ * "what does this number mean?" and is used wherever a bare knowledge value has
+ * to become a colour, including places that have no KLP counts to offer. This
+ * one answers "may we say anything at all yet?", which needs the denominator.
+ * Folding the second question into the first would have forced every caller to
+ * supply counts it does not have, and two of them would have passed zeros.
+ *
+ * `klpCount === 0` yields `unknown` without dividing — a concept with no key
+ * points has nothing to have measured, and 0/0 is NaN, which
+ * `shadeForKnowledge` would swallow into `unknown` by accident rather than by
+ * decision.
+ */
+export function shadeForCoverage(
+  knowledge: number | null,
+  measuredKlpCount: number,
+  klpCount: number,
+): MasteryShade {
+  if (knowledge === null) return 'unknown'
+  if (klpCount === 0) return 'unknown'
+  if (measuredKlpCount / klpCount < MIN_MEASURED_FRACTION) return 'unknown'
+  return shadeForKnowledge(knowledge)
+}
+
+/**
+ * Which rung of the concept tree the Knowledge list shows.
+ *
+ * A tree is drawn all at once on the MAP; a list has to pick a level, and the
+ * two useful constraints are "deep enough to be about something" and "short
+ * enough to read". `PREFERRED_LIST_DEPTH` is the third rung (depth 2, counting
+ * the root as the first) — deep enough that the names are real subjects rather
+ * than the one-or-two headline nodes at the top of a tree. `MAX_CONCEPTS_LISTED`
+ * is the cap that actually decides: a rung wider than that is a wall of rows,
+ * so the search walks UPWARD until a layer fits.
+ *
+ * Upward, never downward: a shallower rung is a rollup of the one below it, so
+ * every concept is still represented, just at a coarser grain. Walking deeper
+ * to find a small layer would show a handful of leaves and silently omit whole
+ * branches that have no node at that depth.
+ *
+ * The final fallback is the SHALLOWEST populated rung even when it too exceeds
+ * the cap — a tree with nine roots and nothing else has no smaller layer to
+ * offer, and a long list beats an empty one.
+ */
+export const PREFERRED_LIST_DEPTH = 2
+export const MAX_CONCEPTS_LISTED = 5
+
+export function selectConceptListDepth(countsByDepth: Map<number, number>): number | null {
+  const depths = [...countsByDepth.keys()].filter((d) => (countsByDepth.get(d) ?? 0) > 0)
+  if (depths.length === 0) return null
+  depths.sort((a, b) => a - b)
+
+  const candidates = depths.filter((d) => d <= PREFERRED_LIST_DEPTH).reverse()
+  for (const d of candidates) {
+    if ((countsByDepth.get(d) ?? 0) <= MAX_CONCEPTS_LISTED) return d
+  }
+  return depths[0]
+}
+
+/**
+ * Reduce the KLT axis to the one rung the list shows.
+ *
+ * Takes EVERY depth and does the counting itself, so the depth rule and the
+ * rows it produces cannot disagree — an earlier shape where the caller counted
+ * and this function filtered is exactly how a "max 5" cap ends up rendering
+ * seven rows.
+ */
+export function selectConceptRows(topics: LearnerTopicProfile[]): TopicMasteryRow[] {
+  const counts = new Map<number, number>()
+  for (const t of topics) {
+    if (t.depth === null) continue
+    counts.set(t.depth, (counts.get(t.depth) ?? 0) + 1)
+  }
+  const depth = selectConceptListDepth(counts)
+  if (depth === null) return []
+  return shapeTopicMastery(topics.filter((t) => t.depth === depth))
 }
 
 /** Shades keyed by concept name, for the canvas. */
@@ -118,11 +231,35 @@ export function shapeConfidenceHistogram(rows: ConfidenceRow[], now: Date): Conf
 }
 
 export interface SetKnowledge {
+  /**
+   * The CONCEPT axis — `Klt` nodes from this set's concept tree, at the one
+   * rung `selectConceptListDepth` picked. What the list renders.
+   *
+   * This used to be the user-authored CATEGORY axis, which is why the list and
+   * the map disagreed about what a "concept" was: the map draws `Klt` nodes,
+   * the list named categories, and the shade table joining them keyed on a
+   * name. A learner's category called "valuation" then coloured a tree node
+   * called "valuation" that shares neither its cards nor its key points.
+   */
   topics: TopicMasteryRow[]
+  /**
+   * Shades for the MAP: the same concept axis at EVERY depth, keyed by
+   * normalizedName. Not derived from `topics` — that is one rung, and the map
+   * draws the whole tree.
+   */
+  conceptShades: Record<string, MasteryShade>
   categories: CategoryMasteryRow[]
   confidence: ConfidenceHistogram
   sessions: { id: string; kind: string; startedAt: Date; durationMs: number | null; itemCount: number }[]
   conceptCount: number
+  /**
+   * Concepts with a real measurement, over the WHOLE axis.
+   *
+   * Counted here rather than by the page over `topics`, because `topics` is one
+   * rung: a page counting there would report "2 concepts measured" on a set
+   * where forty are, purely because the list chose a narrow level.
+   */
+  measuredConceptCount: number
 }
 
 /** How many sessions the per-set history shows before linking out. */
@@ -177,10 +314,13 @@ export async function loadSetKnowledge(userId: string, setId: string): Promise<S
     prisma.card.count({ where: { setId, categoryAssignments: { none: {} } } }),
   ])
 
-  const topics = shapeTopicMastery(metrics.profile.topics)
+  // `kltTopicsAll`, not `kltTopics`: the latter is already narrowed to the
+  // dashboard's chosen depth, and the map needs every node it can shade.
+  const topics = selectConceptRows(metrics.kltTopicsAll)
 
   return {
     topics,
+    conceptShades: shadesByKey(shapeTopicMastery(metrics.kltTopicsAll)),
     categories: shapeCategoryMastery(
       categoryRows.map((c) => ({
         normalizedName: c.normalizedName,
@@ -193,7 +333,11 @@ export async function loadSetKnowledge(userId: string, setId: string): Promise<S
     ),
     confidence: shapeConfidenceHistogram(progressRows, new Date()),
     sessions,
-    conceptCount: topics.length,
+    // EVERY concept with key points, not just the listed rung — this number
+    // heads the page as "N concepts", and reporting the rung's size would say
+    // a set had five concepts while its map drew forty.
+    conceptCount: metrics.kltTopicsAll.length,
+    measuredConceptCount: metrics.kltTopicsAll.filter((t) => t.knowledge !== null).length,
   }
 }
 
@@ -238,6 +382,9 @@ export interface CategoryMasteryRow {
   color: string | null
   cardCount: number
   knowledge: number | null
+  /** How many of this category's key points cleared the observation floor. */
+  measuredKlpCount: number
+  klpCount: number
   shade: MasteryShade
 }
 
@@ -268,14 +415,23 @@ export function shapeCategoryMastery(
   const byKey = new Map(topics.map((t) => [t.key, t]))
   const rows = categories
     .map((c) => {
-      const knowledge = byKey.get(c.normalizedName)?.knowledge ?? null
+      const measured = byKey.get(c.normalizedName)
+      const knowledge = measured?.knowledge ?? null
+      const measuredKlpCount = measured?.measuredKlpCount ?? 0
+      const klpCount = measured?.klpCount ?? 0
       return {
         key: c.normalizedName,
         name: c.name,
         color: c.color,
         cardCount: c.cardCount,
         knowledge,
-        shade: shadeForKnowledge(knowledge),
+        measuredKlpCount,
+        klpCount,
+        // The SAME coverage rule the concept axis uses. A category whose mean
+        // rests on two of its thirty key points must not read as mastered
+        // here and "not measured yet" three inches above it, on one page,
+        // about overlapping material.
+        shade: shadeForCoverage(knowledge, measuredKlpCount, klpCount),
       }
     })
     .sort((a, b) => b.cardCount - a.cardCount || a.name.localeCompare(b.name))
@@ -296,6 +452,8 @@ export function shapeCategoryMastery(
       color: null,
       cardCount: uncategorizedCount,
       knowledge: null,
+      measuredKlpCount: 0,
+      klpCount: 0,
       shade: shadeForKnowledge(null),
     })
   }

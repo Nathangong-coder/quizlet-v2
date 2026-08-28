@@ -1,0 +1,39 @@
+<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    The synapseHQ mark, cropped square for the browser tab.
+
+    THE WORDMARK IS DELIBERATELY ABSENT. The full logo (public/synapseHQ_logo.svg,
+    and src/components/shell/SynapseLogo.tsx in the shell) is 640x200 — a 3.2:1
+    lockup. Squeezed into a 16px favicon it renders as an unreadable smear with
+    the mark itself about 5px wide. The constellation is the half that survives
+    at that size, and it is the half that identifies the brand.
+
+    Same geometry as the lockup's icon group, translated to fill this viewBox.
+    Next.js App Router picks this up by filename convention.
+  -->
+  <defs>
+    <linearGradient id="nodeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7C5CFC"/>
+      <stop offset="100%" stop-color="#33C6F4"/>
+    </linearGradient>
+    <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9B7BFF"/>
+      <stop offset="100%" stop-color="#4FD3F0"/>
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(20,10)">
+    <line x1="30" y1="25" x2="90" y2="25" stroke="url(#lineGrad)" stroke-width="7" stroke-linecap="round"/>
+    <line x1="30" y1="25" x2="30" y2="70" stroke="url(#lineGrad)" stroke-width="7" stroke-linecap="round"/>
+    <line x1="30" y1="70" x2="90" y2="70" stroke="url(#lineGrad)" stroke-width="7" stroke-linecap="round"/>
+    <line x1="90" y1="70" x2="90" y2="115" stroke="url(#lineGrad)" stroke-width="7" stroke-linecap="round"/>
+    <line x1="30" y1="115" x2="90" y2="115" stroke="url(#lineGrad)" stroke-width="7" stroke-linecap="round"/>
+
+    <circle cx="30" cy="25" r="13" fill="url(#nodeGrad)"/>
+    <circle cx="90" cy="25" r="9" fill="url(#nodeGrad)"/>
+    <circle cx="30" cy="70" r="9" fill="url(#nodeGrad)"/>
+    <circle cx="90" cy="70" r="13" fill="url(#nodeGrad)"/>
+    <circle cx="30" cy="115" r="13" fill="url(#nodeGrad)"/>
+    <circle cx="90" cy="115" r="9" fill="url(#nodeGrad)"/>
+  </g>
+</svg>

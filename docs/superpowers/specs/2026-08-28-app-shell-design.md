@@ -1,10 +1,10 @@
 # App Shell, Navigation & Settings — Design
 
 **Date:** 2026-08-28
-**Status:** approved, unbuilt
+**Status:** **BUILT 2026-08-28** (queue item 6f), commits `2d66302..94152e1` on `spec3b-tunable-scoring`, not merged. **Live gate owed — see §13.** One deviation: only 3 of the 13 `shadow-*` utilities were removed; the rest sit on floating layers where elevation is correct (§9 item 3 assumed all 13 were decoration).
 **Branch:** `spec3b-tunable-scoring`
-**Precedes:** Spec C (set views + Atlas), still unwritten — see
-`docs/superpowers/BUILD-QUEUE.md` and the memory note `set-views-and-atlas-owed`.
+**Precedes:** `2026-08-28-set-views-and-atlas-design.md` (Spec C), written and BUILT the
+same day. Together the two complete the request made on 2026-08-27.
 
 ---
 

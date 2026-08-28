@@ -61,6 +61,25 @@ export interface LearnerTopicProfile {
   depth: number | null
   klpCount: number
   /**
+   * How many of those `klpCount` key points actually cleared the observation
+   * floor — the denominator `knowledge` was averaged over.
+   *
+   * EXISTS BECAUSE A MEAN HIDES ITS OWN COVERAGE. `knowledge` is the mean
+   * pKnown over measured KLPs, which is a true statement about the KLPs that
+   * were measured and says nothing about the ones that were not. A concept
+   * with 40 key points, three of them answered well, reports the same 0.9 as
+   * a concept with three key points all answered well — and on the map they
+   * shade identically. That was the reported bug: concepts the learner knows
+   * they have never been asked about, painted as known.
+   *
+   * Callers that PRESENT a shade are expected to weigh this (see
+   * `shapeTopicMastery`). `knowledge` itself is deliberately unchanged — the
+   * prompts and the learner dashboard have always read it as "over what was
+   * measured", and redefining it here would silently move numbers on four
+   * other surfaces to fix one.
+   */
+  measuredKlpCount: number
+  /**
    * Mean pKnown across KLPs clearing the learner's observation floor
    * (`MetricThresholds.minObservations`). Null when none do.
    */
@@ -164,6 +183,7 @@ export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicPr
       // not "root".
       depth: rows.find((r) => r.depth !== undefined)?.depth ?? null,
       klpCount: klpIds.length,
+      measuredKlpCount: scored.length,
       knowledge,
       verbosityIndex: articulation.verbosityIndex,
       knowledgeGapTerseness: articulation.knowledgeGapTerseness,

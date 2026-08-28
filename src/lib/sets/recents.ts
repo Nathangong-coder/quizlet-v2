@@ -11,6 +11,7 @@ export interface RecentRow {
     description: string | null
     visibility: string
     userId: string
+    createdAt: Date
     user: { handle: string | null }
     _count: { cards: number }
   }
@@ -31,6 +32,13 @@ export interface RecentSet {
   ownerHandle: string | null
   isOwn: boolean
   viewedAt: Date
+  /**
+   * Carried so the strip can render the SAME card as `/sets` and the "Your
+   * sets" block below it — `SetCard` falls back to the creation date when the
+   * viewer has no study history on a set, and without this it had nothing to
+   * fall back TO.
+   */
+  createdAt: Date
 }
 
 /**
@@ -51,6 +59,7 @@ export function shapeRecents(rows: RecentRow[], viewerId: string): RecentSet[] {
     ownerHandle: r.set.user.handle,
     isOwn: r.set.userId === viewerId,
     viewedAt: r.viewedAt,
+    createdAt: r.set.createdAt,
   }))
 }
 
@@ -105,6 +114,7 @@ export async function loadRecentSets(
       set: {
         select: {
           id: true, title: true, description: true, visibility: true, userId: true,
+          createdAt: true,
           user: { select: { handle: true } },
           _count: { select: { cards: true } },
         },
