@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { FeedbackForm } from '@/components/help/FeedbackForm'
+import { PageHeader } from '@/components/ui/page-header'
 
 /**
  * Help & feedback.
@@ -27,13 +28,10 @@ export default async function HelpPage() {
 
   return (
     <div className="max-w-2xl space-y-8">
-      <div>
-        <h1 className="display">Help &amp; feedback</h1>
-        <p className="lede mt-3">
-          Something broken, something confusing, or something missing &mdash; tell us. Every
-          message is read.
-        </p>
-      </div>
+      <PageHeader
+        title="Help & feedback"
+        lede="Something broken, something confusing, or something missing — tell us. Every message is read."
+      />
 
       <FeedbackForm
         defaultName={user?.name ?? user?.handle ?? ''}

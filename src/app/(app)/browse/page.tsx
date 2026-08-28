@@ -4,6 +4,7 @@ import { loadDirectory } from '@/lib/sets/directory'
 import { readableSetWhere } from '@/lib/sets/visibility'
 import { DirectoryCard } from '@/components/sets/DirectoryCard'
 import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
+import { PageHeader } from '@/components/ui/page-header'
 
 /**
  * The public directory.
@@ -39,13 +40,12 @@ export default async function BrowsePage({
 
   return (
     <div>
-      <h1 className="display">Browse</h1>
-      <p className="lede mt-3">
-        Sets people have published. Study any of them &mdash; your progress stays your own
-        &mdash; or open one and make your own copy to edit.
-      </p>
+      <PageHeader
+        title="Browse"
+        lede="Sets people have published. Study any of them — your progress stays your own — or open one and make your own copy to edit."
+      />
 
-      <form action="/browse" className="mt-6 flex gap-2 max-w-md">
+      <form action="/browse" className="flex gap-2 max-w-md">
         <input
           type="search"
           name="q"

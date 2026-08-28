@@ -10,6 +10,7 @@ import { Suspense } from 'react'
 import { cn } from '@/lib/utils'
 import { SignInButton } from '@/components/auth/SignInButton'
 import { loadSetStudySummaries } from '@/lib/sets/study-summary'
+import { PageHeader } from '@/components/ui/page-header'
 
 export default async function SetsPage({
   searchParams,
@@ -73,21 +74,24 @@ export default async function SetsPage({
 
   return (
     <div>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <div>
-          <h1 className="display">Library</h1>
-          <p className="text-muted-foreground mt-1">Everything you have made or copied.</p>
-        </div>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full md:w-auto">
-          <Suspense fallback={<div className="h-10 w-full max-w-sm bg-muted animate-pulse rounded-md" />}>
-            <SearchBar />
-          </Suspense>
-          <Link href="/sets/new" className={cn(buttonVariants(), 'flex items-center gap-2 whitespace-nowrap')}>
-            <Plus className="w-4 h-4" />
-            New Set
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Library"
+        lede="Everything you have made or copied."
+        action={
+          <>
+            <Suspense fallback={<div className="h-9 w-56 bg-muted animate-pulse rounded-md" />}>
+              <SearchBar />
+            </Suspense>
+            <Link
+              href="/sets/new"
+              className={cn(buttonVariants(), 'flex items-center gap-2 whitespace-nowrap')}
+            >
+              <Plus className="w-4 h-4" />
+              New Set
+            </Link>
+          </>
+        }
+      />
 
       {sets.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[40vh] text-center border-2 border-dashed rounded-xl p-12">

@@ -10,6 +10,7 @@ import { SetCard } from '@/components/sets/SetCard'
 import { SetStrip } from '@/components/home/SetStrip'
 import { Landing } from '@/components/home/Landing'
 import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
+import { PageHeader } from '@/components/ui/page-header'
 
 /** How many of your own sets the homepage shows before "See all". */
 const OWN_SETS_PREVIEW = 6
@@ -73,7 +74,7 @@ export default async function Home() {
 
   return (
     <div>
-      <h1 className="display">Your desk</h1>
+      <PageHeader title="Your desk" />
 
       {hasNothing ? (
         <div className="mt-8">

@@ -154,7 +154,7 @@ describe('forks are never born public', () => {
   it('src/actions/sets-fork.ts pins visibility to private', () => {
     // Inheriting the source's visibility would republish someone else's work
     // under a new name with no deliberate act.
-    const src = readFileSync(join(ROOT, 'src/actions/sets-fork.ts'), 'utf8')
+    const src = code('src/actions/sets-fork.ts')
     expect(src).toMatch(/visibility: 'private'/)
     expect(src).not.toMatch(/visibility: (source|src)\.visibility/)
   })
@@ -165,8 +165,51 @@ describe('forks are never born public', () => {
     // byte. The behavioural test in tests/actions/fork.test.ts is the primary
     // guard; this is the cheap source-level backstop, because the mock that
     // test relies on silently ignored `access` until 2026-08-27.
-    const src = readFileSync(join(ROOT, 'src/actions/sets-fork.ts'), 'utf8')
+    //
+    // `code()` rather than raw source, as everywhere else in this file: this
+    // assertion is a NEGATIVE one, so a future comment here explaining why
+    // `access: 'public'` would be wrong would make the guard fail for the wrong
+    // reason — and the mirror-image assertion below would silently pass.
+    const src = code('src/actions/sets-fork.ts')
     expect(src).toMatch(/access: 'private'/)
     expect(src).not.toMatch(/access: 'public'/)
+  })
+})
+
+/**
+ * BOTH DIRECTIONS, and that is the entire point of this block.
+ *
+ * The two call sites deliberately DISAGREE. A card asset is private content
+ * belonging to one owner, proxied through `/api/assets/[id]` so every byte is
+ * owner-checked. An avatar is public by its nature — it sits beside a published
+ * set and is seen by strangers — so a private blob would add a proxy hop per
+ * render and buy no privacy at all.
+ *
+ * An inconsistency between two call sites is exactly the kind of thing a
+ * later reader "tidies up". Asserting only the fork side would let someone make
+ * avatars private (a pointless slowdown); asserting only the avatar side would
+ * let someone make fork copies public (a real, silent auth bypass, which is the
+ * bug that was actually written here on 2026-08-27). Neither edit is possible
+ * with both assertions present.
+ */
+describe('blob access differs by call site, on purpose, in both directions', () => {
+  it('avatars are public', () => {
+    const src = code('src/actions/avatar.ts')
+    expect(src).toMatch(/access: 'public'/)
+    expect(src).not.toMatch(/access: 'private'/)
+  })
+
+  it('card asset uploads stay private', () => {
+    const src = code('src/lib/uploads/index.ts')
+    expect(src).toMatch(/access: "private"|access: 'private'/)
+    expect(src).not.toMatch(/access: "public"|access: 'public'/)
+  })
+
+  it('the avatar action never accepts a caller-supplied user id', () => {
+    // Every export in a `'use server'` file is a public endpoint. An id read
+    // from the payload would let anyone overwrite anyone's picture.
+    const src = code('src/actions/avatar.ts')
+    expect(src).toMatch(/session\?\.user\?\.id/)
+    expect(src).not.toMatch(/userId: input|userId: formData\.get/)
   })
 })

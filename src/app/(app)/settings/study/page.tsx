@@ -5,6 +5,7 @@ import SeverityBandPanel from '@/components/settings/SeverityBandPanel'
 import TargetingStrategyPanel from '@/components/settings/TargetingStrategyPanel'
 import MetricThresholdPanel from '@/components/settings/MetricThresholdPanel'
 import StudyScopePanel from '@/components/settings/StudyScopePanel'
+import { PageHeader } from '@/components/ui/page-header'
 
 /**
  * "Other settings" — how the app judges you and what it puts in front of you.
@@ -27,17 +28,17 @@ export default async function StudySettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-8">
-      <div>
-        <h1 className="display">Study settings</h1>
-        <p className="lede mt-3">
+      <PageHeader
+        title="Study settings"
+        lede={<>
           How answers are scored and what gets put in front of you next. These are
           TypeScript computations, not AI behaviour &mdash; provider keys live under{' '}
           <Link href="/settings/ai" className="underline underline-offset-4 hover:text-foreground">
             AI settings
           </Link>
           .
-        </p>
-      </div>
+        </>}
+      />
 
       <SeverityBandPanel />
       <MetricThresholdPanel />

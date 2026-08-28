@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import CredentialList from '@/components/settings/CredentialList';
 import TaskRoutingPanel from '@/components/settings/TaskRoutingPanel';
+import { PageHeader } from '@/components/ui/page-header';
 
 /**
  * Provider credentials and task routing. NOTHING ELSE.
@@ -27,14 +28,10 @@ export default async function AiSettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-8">
-      <div>
-        <h1 className="display">AI settings</h1>
-        <p className="lede mt-3">
-          The provider credentials used for grading, distractor generation, training plans and
-          autocomplete. Add as many as you like across providers; primaries are tried first and
-          backups cover a failure.
-        </p>
-      </div>
+      <PageHeader
+        title="AI settings"
+        lede="The provider credentials used for grading, distractor generation, training plans and autocomplete. Add as many as you like across providers; primaries are tried first and backups cover a failure."
+      />
 
       <CredentialList />
 

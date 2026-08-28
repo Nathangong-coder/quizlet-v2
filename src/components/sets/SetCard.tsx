@@ -27,7 +27,7 @@ export function SetCard({ set, summary }: SetCardProps) {
 
   return (
     <Link href={`/sets/${set.id}`} className="block group">
-      <Card className="transition-all hover:shadow-md group-hover:border-primary/50">
+      <Card className="transition-colors group-hover:border-primary/50">
         <CardHeader>
           <div className="flex justify-between items-start gap-2 mb-2">
             <Badge variant="secondary" className="flex gap-1 items-center">

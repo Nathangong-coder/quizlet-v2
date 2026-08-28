@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/auth'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageHeader, SettingRow } from '@/components/ui/page-header'
 import { getAccountSettings } from '@/actions/account'
 import ThemeChoice from '@/components/account/ThemeChoice'
 import {
@@ -30,8 +30,8 @@ export default async function AccountPage() {
   const result = await getAccountSettings()
   if (!result.success) {
     return (
-      <div className="max-w-2xl">
-        <h1 className="text-3xl font-bold tracking-tight">Account</h1>
+      <div className="max-w-3xl">
+        <h1 className="display">Account</h1>
         <p className="mt-4 text-sm text-destructive">{result.error}</p>
       </div>
     )
@@ -40,114 +40,93 @@ export default async function AccountPage() {
   const account = result.data
 
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="max-w-3xl">
+      <PageHeader
+        title="Account"
+        lede={
+          <>
+            Who you are on this site. Your study history lives under{' '}
+            <Link href="/profile" className="underline underline-offset-4 hover:text-foreground">
+              Learning
+            </Link>
+            .
+          </>
+        }
+      />
+
+      {/*
+        `SettingRow`, not one `Card` per setting. Six boxed, shadowed cards —
+        each a heading, a description and one control — filled a screen with
+        four settings and read as a form nobody had finished designing. Label
+        and description left, control right, separated by hairlines.
+      */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Account</h1>
-        <p className="text-muted-foreground mt-2">
-          Who you are on this site. Your study history lives under{' '}
-          <a href="/profile" className="underline hover:text-foreground">
-            Learning
-          </a>
-          .
-        </p>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Handle</CardTitle>
-          <CardDescription>
-            The public name you&apos;re credited by. Needed before you can publish a set.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <SettingRow
+          label="Handle"
+          description="The public name you're credited by. Needed before you can publish a set."
+        >
           <HandlePanel initial={account.handle} />
-        </CardContent>
-      </Card>
+        </SettingRow>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Email</CardTitle>
-          <CardDescription>How we reach you, and how you sign in.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Account email</p>
-            <p className="font-mono text-sm">{account.email}</p>
-            {/*
-              Read-only, and the reason is on screen. This address identifies
-              the account and is its password-reset recovery address; letting
-              it be edited without a verification round trip is an
-              account-takeover vector. The editable contact address below is
-              what "add your email" should mean.
-            */}
-            <p className="text-xs text-muted-foreground">
-              {account.hasGithub
-                ? "From your GitHub account. It identifies you here, so it can't be edited directly yet."
-                : "The address you signed up with. It identifies you here, so it can't be edited directly yet."}
-            </p>
-          </div>
+        <SettingRow
+          label="Account email"
+          description={
+            /*
+              Read-only, and the reason stays on screen. This address identifies
+              the account and is its password-reset recovery address; letting it
+              be edited without a verification round trip is an account-takeover
+              vector. The contact address below is what "add your email" means.
+            */
+            account.hasGithub
+              ? "From your GitHub account. It identifies you here, so it can't be edited directly yet."
+              : "The address you signed up with. It identifies you here, so it can't be edited directly yet."
+          }
+        >
+          <p className="font-mono text-sm">{account.email}</p>
+        </SettingRow>
 
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Contact email</p>
-            <ContactEmailPanel initial={account.contactEmail} />
-          </div>
+        <SettingRow
+          label="Contact email"
+          description="Where we write to you. Safe to change — it cannot be used to take over the account."
+        >
+          <ContactEmailPanel initial={account.contactEmail} />
+        </SettingRow>
 
-          <div className="space-y-2 border-t pt-4">
-            <p className="text-sm font-medium">Updates</p>
-            <EmailUpdatesPanel initial={account.emailUpdates} />
-          </div>
-        </CardContent>
-      </Card>
+        <SettingRow label="Updates" description="Occasional product email. Nothing sends yet.">
+          <EmailUpdatesPanel initial={account.emailUpdates} />
+        </SettingRow>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Appearance</CardTitle>
-          <CardDescription>Saved on this device, not to your account.</CardDescription>
-        </CardHeader>
-        <CardContent>
+        <SettingRow label="Appearance" description="Saved on this device, not to your account.">
           <ThemeChoice />
-        </CardContent>
-      </Card>
+        </SettingRow>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Sign-in</CardTitle>
-          <CardDescription>How you get into this account.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        <SettingRow label="Sign-in" description="How you get into this account.">
           <p className="text-sm">
             <span className="font-medium">{account.hasGithub ? 'GitHub' : 'Password'}</span>
             <span className="text-muted-foreground"> — {account.email}</span>
           </p>
-          <div className="space-y-2 border-t pt-4">
-            <p className="text-sm font-medium">
-              {account.hasPassword ? 'Password' : 'Add a password'}
-            </p>
-            <PasswordPanel hasPassword={account.hasPassword} />
-          </div>
-        </CardContent>
-      </Card>
+        </SettingRow>
 
-      {/*
-        AI settings moved here when the navbar gained Home / Browse / Library.
-        Six ghost buttons plus a primary plus sign-out was already a crowded
-        bar, and provider credentials are an account-level setting rather than
-        a place you navigate to. THIS LINK IS LOAD-BEARING: /settings/ai has no
-        other entry point now, so deleting it strands the route.
-      */}
-      <Card>
-        <CardHeader>
-          <CardTitle>AI providers</CardTitle>
-          <CardDescription>
-            The keys this account uses for grading, distractors and plans.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <SettingRow
+          label={account.hasPassword ? 'Password' : 'Add a password'}
+          description={
+            account.hasPassword
+              ? 'Changing it signs out every other session, including any an attacker holds.'
+              : 'Lets you sign in without GitHub.'
+          }
+        >
+          <PasswordPanel hasPassword={account.hasPassword} />
+        </SettingRow>
+
+        <SettingRow
+          label="AI providers"
+          description="The keys this account uses for grading, distractors and plans."
+        >
           <Link href="/settings/ai" className="text-sm underline underline-offset-4">
             Manage AI providers
           </Link>
-        </CardContent>
-      </Card>
+        </SettingRow>
+      </div>
     </div>
   )
 }
