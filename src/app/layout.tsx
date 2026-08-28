@@ -19,8 +19,22 @@ import { ThemeProvider } from '@/components/theme/ThemeProvider'
  * `display: 'swap'` on all three: the alternative (FOIT) hides text entirely
  * while a font loads.
  */
+/**
+ * `axes` is NOT optional decoration here — without it Fraunces downloads with
+ * `wght` only, and SOFT / WONK / opsz are simply absent from the file. Any
+ * `font-variation-settings` or `font-optical-sizing` naming them is then a rule
+ * that silently does nothing, which is exactly what shipped: `globals.css` had
+ * carried a dead `font-optical-sizing: auto` on every heading since the Ledger
+ * work, because `opsz` was never requested.
+ *
+ * WONK is the axis that gives Fraunces its character (the "wonky" g, the
+ * flared terminals); opsz is what stops a 52px display size from looking like
+ * a blown-up body face. Requesting them is what makes the display serif read
+ * as a CHOICE rather than as a default.
+ */
 const fraunces = Fraunces({
   subsets: ['latin'],
+  axes: ['opsz', 'SOFT', 'WONK'],
   variable: '--font-fraunces',
   display: 'swap',
 })

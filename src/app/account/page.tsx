@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { auth } from '@/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getAccountSettings } from '@/actions/account'
@@ -124,6 +125,27 @@ export default async function AccountPage() {
             </p>
             <PasswordPanel hasPassword={account.hasPassword} />
           </div>
+        </CardContent>
+      </Card>
+
+      {/*
+        AI settings moved here when the navbar gained Home / Browse / Library.
+        Six ghost buttons plus a primary plus sign-out was already a crowded
+        bar, and provider credentials are an account-level setting rather than
+        a place you navigate to. THIS LINK IS LOAD-BEARING: /settings/ai has no
+        other entry point now, so deleting it strands the route.
+      */}
+      <Card>
+        <CardHeader>
+          <CardTitle>AI providers</CardTitle>
+          <CardDescription>
+            The keys this account uses for grading, distractors and plans.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link href="/settings/ai" className="text-sm underline underline-offset-4">
+            Manage AI providers
+          </Link>
         </CardContent>
       </Card>
     </div>

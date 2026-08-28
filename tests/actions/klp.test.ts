@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readableSetWhere } from '@/lib/sets/visibility'
 
 const h = vi.hoisted(() => ({
   findMany: vi.fn(),
@@ -302,10 +303,20 @@ describe('extractKlpsForCards', () => {
       expect.objectContaining({
         where: {
           id: { in: ['card-not-mine'] },
-          set: { OR: [{ userId: 'u1' }, { visibility: 'link' }] },
+          // Asserted THROUGH the fragment, not against a copy of its literal
+          // shape — see the same fix in tests/klt/access.test.ts. This line
+          // hardcoded `{ visibility: 'link' }` and went red when `public`
+          // joined SET_VISIBILITIES, which is a test duplicating a security
+          // module's internals rather than a real regression.
+          set: readableSetWhere('u1'),
         },
       }),
     )
+    // ...and prove that is not vacuous: whatever the fragment becomes, the
+    // load must never collapse back to the ownership-only filter this test
+    // exists to forbid.
+    const passedWhere = h.findMany.mock.calls[0][0].where as { set: unknown }
+    expect(passedWhere.set).not.toEqual({ userId: 'u1' })
     expect(h.generateJson).not.toHaveBeenCalled()
     expect(h.createMany).not.toHaveBeenCalled()
     expect(h.klpUpdateMany).not.toHaveBeenCalled()

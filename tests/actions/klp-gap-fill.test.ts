@@ -12,6 +12,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *
  * These tests pin the two constraints that keep the widening safe.
  */
+import { readableSetWhere } from '@/lib/sets/visibility'
+
 const h = vi.hoisted(() => ({
   auth: vi.fn(),
   cardKlpFindMany: vi.fn(),
@@ -141,8 +143,15 @@ describe('ensureKlpsReady on a set you do not own', () => {
     await ensureKlpsReady(VIEWER, 'c1')
     const where = h.cardFindFirst.mock.calls[0][0].where
     expect(where.id).toBe('c1')
-    // The old shape was `set: { userId }`. It must now be the OR fragment.
-    expect(where.set).toEqual({ OR: [{ userId: VIEWER }, { visibility: 'link' }] })
+    // The old shape was `set: { userId }` — an ownership-only filter. It must
+    // now be the readability fragment. Asserted THROUGH the fragment rather
+    // than against a copy of its literal shape: this line hardcoded
+    // `{ visibility: 'link' }` and went red when `public` was added, which is
+    // a test duplicating a security module's internals, not a real regression.
+    expect(where.set).toEqual(readableSetWhere(VIEWER))
+    // ...and prove that is not vacuous: whatever the fragment becomes, it must
+    // never collapse back to the ownership-only filter this test exists for.
+    expect(where.set).not.toEqual({ userId: VIEWER })
   })
 })
 

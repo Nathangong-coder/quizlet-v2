@@ -11,6 +11,13 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/auth', () => ({ auth: h.auth }))
 
 import { requireSetKltAccess, requireSetKltView } from '@/lib/klt/access'
+// Asserted THROUGH the fragment, never against a copy of its literal shape.
+// These three assertions used to hardcode `{ visibility: 'link' }` and all
+// went red the moment `public` was added — not because the gate regressed,
+// but because a test had duplicated a security module's internals. Referencing
+// it still catches the failure that matters (a call site reverting to an
+// ownership-only filter, or passing the wrong viewerId) and cannot drift again.
+import { readableSetWhere } from '@/lib/sets/visibility'
 
 const OWNER = 'owner-1'
 const STRANGER = 'stranger-1'
@@ -122,7 +129,7 @@ describe('requireSetKltView', () => {
       viaAllowlist: false,
     })
     expect(h.setFindFirst).toHaveBeenCalledWith({
-      where: { id: SET_ID, OR: [{ userId: STRANGER }, { visibility: 'link' }] },
+      where: { id: SET_ID, ...readableSetWhere(STRANGER) },
       select: { id: true, title: true, userId: true },
     })
   })
@@ -136,7 +143,7 @@ describe('requireSetKltView', () => {
     expect(view?.viewerId).toBeNull()
     expect(view?.canEdit).toBe(false)
     expect(h.setFindFirst).toHaveBeenCalledWith({
-      where: { id: SET_ID, visibility: 'link' },
+      where: { id: SET_ID, ...readableSetWhere(null) },
       select: { id: true, title: true, userId: true },
     })
   })
