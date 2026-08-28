@@ -1,5 +1,7 @@
 # Public sets, fork & discovery — implementation plan
 
+> **EXECUTED 2026-08-27.** All tasks complete; commits `59b44e6..ddc9862` on `spec3b-tunable-scoring`. Baselines at completion: 184 files / 2241 tests, tsc clean, build clean, lint 175. **Live gate owed (design §16).** Wave 3 lost three sub-agents to a spend limit mid-task; Tasks 8 and 9 were finished inline.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship a third set visibility (`public`), a browsable `/browse` directory, fork ("make my own copy"), a real homepage with Jump back in + Recommended, report/unlist moderation, and the "Instrument" visual chassis those surfaces are built in.
@@ -54,7 +56,7 @@ Tasks are grouped into waves by dependency. **Within a wave, file ownership is d
 
 **You own `prisma/schema.prisma` exclusively this wave. No other task may touch it.**
 
-- [ ] **Step 1: Add the new columns to `model Set`**
+- [x] **Step 1: Add the new columns to `model Set`**
 
 In `prisma/schema.prisma`, inside `model Set`, after the existing `visibility` field and its comment block, add:
 
@@ -89,7 +91,7 @@ And add to the `@@index` block at the bottom of `model Set`:
   @@index([forkedFromId])
 ```
 
-- [ ] **Step 2: Add the two new models**
+- [x] **Step 2: Add the two new models**
 
 Append after `model Set`:
 
@@ -138,7 +140,7 @@ model SetReport {
 }
 ```
 
-- [ ] **Step 3: Add the back-relations to `model User`**
+- [x] **Step 3: Add the back-relations to `model User`**
 
 In `model User`, alongside the other relation lists, add:
 
@@ -147,7 +149,7 @@ In `model User`, alongside the other relation lists, add:
   setReports       SetReport[]
 ```
 
-- [ ] **Step 4: Write the migration by hand**
+- [x] **Step 4: Write the migration by hand**
 
 Create `prisma/migrations/20260828000000_public_sets_and_discovery/migration.sql`:
 
@@ -199,7 +201,7 @@ ALTER TABLE "SetReport" ADD CONSTRAINT "SetReport_reporterId_fkey" FOREIGN KEY (
 ALTER TABLE "Set" ADD CONSTRAINT "Set_forkedFromId_fkey" FOREIGN KEY ("forkedFromId") REFERENCES "Set"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ```
 
-- [ ] **Step 5: Regenerate the client and check for drift**
+- [x] **Step 5: Regenerate the client and check for drift**
 
 Run: `npx prisma generate`
 Expected: succeeds.
@@ -228,7 +230,7 @@ Expected: an **empty** migration. **One known exception**: the diff also emits `
 
 If `$DATABASE_URL` is unavailable, skip this step and say so in your report — do not fabricate the result.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add prisma/schema.prisma prisma/migrations/20260828000000_public_sets_and_discovery
@@ -263,7 +265,7 @@ git commit -m "feat(sets): schema for public sets, fork attribution, recents and
 
 `src/components/sets/VisibilityMenu.tsx` types its `OPTIONS` as `Record<SetVisibility, …>`, so adding `'public'` **will break `tsc` in that file**. That is expected. Task 4 owns it and fixes it in wave 2. Do not touch it.
 
-- [ ] **Step 1: Rewrite the existing tests for three values**
+- [x] **Step 1: Rewrite the existing tests for three values**
 
 Replace `tests/sets/visibility.test.ts` entirely:
 
@@ -453,12 +455,12 @@ describe('composeSetWhere', () => {
 })
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `npx vitest run tests/sets/visibility.test.ts`
 Expected: FAIL — `READABLE_VISIBILITIES`, `listableSetWhere`, `composeSetWhere` are not exported, and the vocabulary assertion fails.
 
-- [ ] **Step 3: Rewrite the module**
+- [x] **Step 3: Rewrite the module**
 
 Replace the body of `src/lib/sets/visibility.ts` below its existing top-of-file doc comment. Update that comment's final paragraph (currently "Two states only. There is no public directory and no discovery…") to:
 
@@ -556,24 +558,24 @@ export function composeSetWhere(
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run tests/sets/visibility.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Run the regression guards you might have broken**
+- [x] **Step 5: Run the regression guards you might have broken**
 
 Run: `npx vitest run tests/sets/visibility-enforcement.test.ts tests/api`
 Expected: PASS. These read the *source* of call sites, not their behaviour, so they should be unaffected — but `canReadSet`'s change is what makes public assets fetchable and `tests/api` is where that lives.
 
-- [ ] **Step 6: Mutation-test the `in` fix**
+- [x] **Step 6: Mutation-test the `in` fix**
 
 Temporarily change `readableSetWhere`'s anonymous branch to `{ OR: READABLE_VISIBILITIES.map((v) => ({ visibility: v })) }`.
 
 Run: `npx vitest run tests/sets/visibility.test.ts`
 Expected: **FAIL** on "uses `in`, NOT a second OR". If it passes, the test is not protecting anything — fix the test, not the implementation. **Revert the mutation before continuing.**
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/lib/sets/visibility.ts tests/sets/visibility.test.ts
@@ -606,7 +608,7 @@ git commit -m "feat(sets): three-valued visibility with in-based readable fragme
 
 **You own `src/app/globals.css` exclusively. No other task touches it.** Scope: tokens + type scale + two primitives. **Do NOT** remove shadcn, delete `Card`, convert existing pages, or touch lint problems.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/components/instrument-chassis.test.tsx`. **Its first line must be the jsdom docblock** — vitest 4 does not honour `environmentMatchGlobs` in this repo (see `vitest.config.ts`), so each `.test.tsx` opts in per-file:
 
@@ -671,12 +673,12 @@ describe('Metric', () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npx vitest run tests/components/instrument-chassis.test.tsx`
 Expected: FAIL — cannot resolve `@/components/ui/section`.
 
-- [ ] **Step 3: Create `src/components/ui/section.tsx`**
+- [x] **Step 3: Create `src/components/ui/section.tsx`**
 
 ```tsx
 import * as React from 'react'
@@ -745,7 +747,7 @@ export function SectionBody({
 }
 ```
 
-- [ ] **Step 4: Create `src/components/ui/metric.tsx`**
+- [x] **Step 4: Create `src/components/ui/metric.tsx`**
 
 ```tsx
 import * as React from 'react'
@@ -796,12 +798,12 @@ export function Metric({
 }
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `npx vitest run tests/components/instrument-chassis.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 6: Apply the chassis tokens to `globals.css`**
+- [x] **Step 6: Apply the chassis tokens to `globals.css`**
 
 In `:root`, change these three values only (dark mode's `--border`/`--input` already use alpha and stay as they are):
 
@@ -866,7 +868,7 @@ Then, in `@layer base`, replace the existing `h1, h2, h3` block with a real disp
 
 Leave the existing `.metric` rule exactly as it is.
 
-- [ ] **Step 7: Verify the app still builds and nothing regressed visually at the token level**
+- [x] **Step 7: Verify the app still builds and nothing regressed visually at the token level**
 
 Run: `npx vitest run tests/components`
 Expected: PASS (existing component tests must not break — you changed only token *values* and added new classes).
@@ -874,7 +876,7 @@ Expected: PASS (existing component tests must not break — you changed only tok
 Run: `npx tsc --noEmit 2>&1 | grep -E "section.tsx|metric.tsx" || echo "no chassis type errors"`
 Expected: `no chassis type errors`. (Other files may error from Task 2's concurrent change — that is not yours.)
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/app/globals.css src/components/ui/section.tsx src/components/ui/metric.tsx tests/components/instrument-chassis.test.tsx
@@ -917,7 +919,7 @@ Expected: tests ≥ 1790 + the new ones; `tsc` clean **except** `src/components/
 
 **This task is the one that unbreaks `tsc`.** Task 2 added `'public'` to `SetVisibility`, and `VisibilityMenu`'s `OPTIONS: Record<SetVisibility, …>` is now missing a key.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/actions/set-visibility-publish.test.ts`. Follow the in-memory-Prisma-fake pattern from `tests/actions/klt-tree.test.ts` — everything inside one `vi.hoisted` block, because `vi.mock` factories hoist above every other top-level statement:
 
@@ -1024,12 +1026,12 @@ describe('setSetVisibility', () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npx vitest run tests/actions/set-visibility-publish.test.ts`
 Expected: FAIL — public is accepted with no handle, and `publishedAt` is never set.
 
-- [ ] **Step 3: Implement the gate in `src/actions/sets.ts`**
+- [x] **Step 3: Implement the gate in `src/actions/sets.ts`**
 
 Replace the body of `setSetVisibility` between the `parsed` check and the `updateMany`:
 
@@ -1080,12 +1082,12 @@ Then extend the revalidation below it (the set is now listed somewhere new):
     revalidatePath('/')
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run tests/actions/set-visibility-publish.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Add the `public` option to `VisibilityMenu`**
+- [x] **Step 5: Add the `public` option to `VisibilityMenu`**
 
 In `src/components/sets/VisibilityMenu.tsx`, add the third entry to `OPTIONS`:
 
@@ -1109,7 +1111,7 @@ The action can now fail with a handle message. Surface it rather than swallowing
         }
 ```
 
-- [ ] **Step 6: Verify `tsc` is clean for this file**
+- [x] **Step 6: Verify `tsc` is clean for this file**
 
 Run: `npx tsc --noEmit 2>&1 | grep VisibilityMenu || echo "VisibilityMenu clean"`
 Expected: `VisibilityMenu clean`.
@@ -1117,7 +1119,7 @@ Expected: `VisibilityMenu clean`.
 Run: `npx vitest run tests/actions`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/actions/sets.ts src/components/sets/VisibilityMenu.tsx tests/actions/set-visibility-publish.test.ts
@@ -1148,7 +1150,7 @@ git commit -m "feat(sets): publishing requires a handle, and publishedAt stamps 
   export function shapeRecents(rows: RecentRow[], viewerId: string): RecentSet[]
   ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/sets/recents.test.ts`. Only the **pure** shaping function is tested — the DB shell follows `getLearnerMetrics`' precedent and stays untested:
 
@@ -1221,12 +1223,12 @@ describe('RECENTS_LIMIT', () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npx vitest run tests/sets/recents.test.ts`
 Expected: FAIL — cannot resolve `@/lib/sets/recents`.
 
-- [ ] **Step 3: Create `src/lib/sets/recents.ts`**
+- [x] **Step 3: Create `src/lib/sets/recents.ts`**
 
 ```ts
 import { readableSetWhere } from '@/lib/sets/visibility'
@@ -1345,12 +1347,12 @@ export async function loadRecentSets(
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run tests/sets/recents.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Record the view from the set page**
+- [x] **Step 5: Record the view from the set page**
 
 In `src/app/sets/[id]/page.tsx`, add the imports:
 
@@ -1377,7 +1379,7 @@ and immediately after the existing `if (!set) notFound()` line, add:
 
 Change **nothing else on this page.** Task 5 does not restructure it.
 
-- [ ] **Step 6: Verify the page still type-checks and its guard test still passes**
+- [x] **Step 6: Verify the page still type-checks and its guard test still passes**
 
 Run: `npx tsc --noEmit 2>&1 | grep "sets/\[id\]/page" || echo "set page clean"`
 Expected: `set page clean`.
@@ -1385,7 +1387,7 @@ Expected: `set page clean`.
 Run: `npx vitest run tests/sets/visibility-enforcement.test.ts`
 Expected: PASS — the page must still contain `readableSetWhere` and no `prisma.set.findUnique`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/lib/sets/recents.ts tests/sets/recents.test.ts "src/app/sets/[id]/page.tsx"
@@ -1416,7 +1418,7 @@ git commit -m "feat(sets): record set views and load a recents strip"
 
 **Pure module. No Prisma, no `@vercel/blob`, no imports from `@/lib/db`.** Task 9 builds the action on top of it.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/sets/fork.test.ts`:
 
@@ -1512,12 +1514,12 @@ describe('describeForkRefusal', () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npx vitest run tests/sets/fork.test.ts`
 Expected: FAIL — cannot resolve `@/lib/sets/fork`.
 
-- [ ] **Step 3: Create `src/lib/sets/fork.ts`**
+- [x] **Step 3: Create `src/lib/sets/fork.ts`**
 
 ```ts
 /**
@@ -1605,19 +1607,19 @@ export function describeForkRefusal(
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run tests/sets/fork.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Mutation-test the boundary**
+- [x] **Step 5: Mutation-test the boundary**
 
 Change `if (cardCount > FORK_MAX_CARDS)` to `>=`.
 
 Run: `npx vitest run tests/sets/fork.test.ts`
 Expected: **FAIL** on "allows exactly the card limit". **Revert.**
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/lib/sets/fork.ts tests/sets/fork.test.ts
@@ -1648,7 +1650,7 @@ git commit -m "feat(sets): fork size gates as tested pure arithmetic"
   export function setListingBlocked(setId: string, blocked: boolean): Promise<ActionResult<void>>
   ```
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/sets/moderation.test.ts`:
 
@@ -1691,12 +1693,12 @@ describe('toReportReason', () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npx vitest run tests/sets/moderation.test.ts`
 Expected: FAIL — cannot resolve `@/lib/sets/moderation`.
 
-- [ ] **Step 3: Create `src/lib/sets/moderation.ts`**
+- [x] **Step 3: Create `src/lib/sets/moderation.ts`**
 
 ```ts
 /**
@@ -1741,12 +1743,12 @@ export function toReportReason(raw: string): ReportReason | null {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run tests/sets/moderation.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Create `src/actions/set-reports.ts`**
+- [x] **Step 5: Create `src/actions/set-reports.ts`**
 
 ```ts
 'use server'
@@ -1850,13 +1852,13 @@ export async function setListingBlocked(
 
 **Check the import path for `ActionResult` first** — run `grep -rn "export type ActionResult\|export interface ActionResult" src/` and use whatever path it actually lives at, not the one written above.
 
-- [ ] **Step 6: Create `src/components/sets/ReportSetDialog.tsx`**
+- [x] **Step 6: Create `src/components/sets/ReportSetDialog.tsx`**
 
 A client component: a "Report" text button opening a `Popover` (the repo already uses `@/components/ui/popover` in `VisibilityMenu.tsx` — follow that file's structure), a radio list built from `REPORT_REASONS`/`REPORT_REASON_LABELS`, an optional detail `textarea`, and a submit calling `reportSet`. On success show `toast.success('Thanks — an operator will take a look.')` and close. On failure show `toast.error(res.error)`.
 
 **Do not** use `alert()`, `confirm()`, or any browser modal — `ActivityTiles` documents why that was removed.
 
-- [ ] **Step 7: Verify**
+- [x] **Step 7: Verify**
 
 Run: `npx vitest run tests/sets/moderation.test.ts`
 Expected: PASS.
@@ -1864,7 +1866,7 @@ Expected: PASS.
 Run: `npx tsc --noEmit 2>&1 | grep -E "set-reports|moderation|ReportSetDialog" || echo "moderation clean"`
 Expected: `moderation clean`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/lib/sets/moderation.ts src/actions/set-reports.ts src/components/sets/ReportSetDialog.tsx tests/sets/moderation.test.ts
@@ -1917,7 +1919,7 @@ Expected: all green; `tsc` fully clean now (Task 4 fixed `VisibilityMenu`); lint
   export function buildGlyph(seed: string, categoryCount: number): GlyphNode[]
   ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/sets/directory.test.ts`:
 
@@ -2027,12 +2029,12 @@ describe('buildGlyph', () => {
 })
 ```
 
-- [ ] **Step 2: Run them to verify they fail**
+- [x] **Step 2: Run them to verify they fail**
 
 Run: `npx vitest run tests/sets/directory.test.ts tests/sets/glyph.test.ts`
 Expected: FAIL — modules do not resolve. **If it reports 0 tests and exits 0, your paths are wrong** — a wrong vitest path matches nothing and still reports success.
 
-- [ ] **Step 3: Create `src/lib/sets/glyph.ts`**
+- [x] **Step 3: Create `src/lib/sets/glyph.ts`**
 
 ```ts
 /**
@@ -2103,7 +2105,7 @@ function clamp01(n: number): number {
 }
 ```
 
-- [ ] **Step 4: Create `src/lib/sets/directory.ts`**
+- [x] **Step 4: Create `src/lib/sets/directory.ts`**
 
 ```ts
 import { composeSetWhere, listableSetWhere } from '@/lib/sets/visibility'
@@ -2214,12 +2216,12 @@ export async function loadDirectory(
 }
 ```
 
-- [ ] **Step 5: Run the pure tests to verify they pass**
+- [x] **Step 5: Run the pure tests to verify they pass**
 
 Run: `npx vitest run tests/sets/directory.test.ts tests/sets/glyph.test.ts`
 Expected: PASS, with a non-zero test count.
 
-- [ ] **Step 6: Create `src/components/sets/SetGlyph.tsx`**
+- [x] **Step 6: Create `src/components/sets/SetGlyph.tsx`**
 
 A server-safe (no `'use client'`) SVG component: `<SetGlyph setId={id} categoryCount={n} className?>`. Render a `viewBox="0 0 100 100"` SVG, `aria-hidden="true"`, with `buildGlyph(setId, categoryCount)` mapped to `<circle cx={x*100} cy={y*100} r={r*100} />` filled `currentColor` at varying opacity, plus faint `<line>` elements connecting consecutive nodes (`stroke="currentColor"`, `strokeOpacity={0.25}`). Colour comes from `text-primary/70` on the wrapper so it follows the theme in both modes.
 
@@ -2231,13 +2233,13 @@ A server-safe (no `'use client'`) SVG component: `<SetGlyph setId={id} categoryC
 > Do NOT add `handle: { not: null }` to the directory's `where`: that would silently hide a
 > published set for a reason its owner can neither see nor fix.
 
-- [ ] **Step 7: Create `src/components/sets/DirectoryCard.tsx`**
+- [x] **Step 7: Create `src/components/sets/DirectoryCard.tsx`**
 
 Server component taking `entry: DirectoryEntry`. Layout: the glyph at the left, then title (linking to `/sets/${entry.id}`), description clamped to two lines, then a footer row of `{cardCount} cards` · `@handle` (plain text, not a link — `/{handle}` does not exist) · category chips using the existing chip styling from `TermsList.tsx`, plus the fork credit when present.
 
 Fork credit rule (spec §7.3): render `forkedFromTitle`/`forkedFromHandle` as **plain text**. This component never links it — the viewer-scoped readability check that would justify a link is Task 9's `ForkAttribution`, used on the set page where one extra query is affordable.
 
-- [ ] **Step 8: Create `src/app/browse/page.tsx`**
+- [x] **Step 8: Create `src/app/browse/page.tsx`**
 
 ```tsx
 import { auth } from '@/auth'
@@ -2316,7 +2318,7 @@ export default async function BrowsePage({
 
 **Note the `void readableSetWhere`** — the enforcement test is source-level and asserts the identifier appears in this file. That is a real constraint of the guard, not a decoration; if you restructure so the name genuinely does not belong here, tell the parent rather than deleting the line.
 
-- [ ] **Step 9: Verify**
+- [x] **Step 9: Verify**
 
 Run: `npx vitest run tests/sets/directory.test.ts tests/sets/glyph.test.ts`
 Expected: PASS.
@@ -2324,7 +2326,7 @@ Expected: PASS.
 Run: `npx tsc --noEmit 2>&1 | grep -E "browse|directory|glyph|DirectoryCard|SetGlyph" || echo "directory clean"`
 Expected: `directory clean`.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/lib/sets/directory.ts src/lib/sets/glyph.ts src/components/sets/SetGlyph.tsx src/components/sets/DirectoryCard.tsx src/app/browse/page.tsx tests/sets/directory.test.ts tests/sets/glyph.test.ts
@@ -2345,7 +2347,7 @@ git commit -m "feat(browse): public directory with composed where and set glyphs
 - Consumes: `checkForkSize`, `describeForkRefusal`, `FORK_MAX_CARDS`, `FORK_ASSET_BUDGET_BYTES` (Task 6); `readableSetWhere` (Task 2).
 - Produces: `forkSet(setId: string): Promise<ActionResult<{ setId: string }>>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/actions/fork.test.ts` using the in-memory-fake pattern. **The blob copy must be mocked** — assert it is called once per asset and that each produces a distinct `storageKey`:
 
@@ -2515,12 +2517,12 @@ describe('forkSet', () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npx vitest run tests/actions/fork.test.ts`
 Expected: FAIL — cannot resolve `@/actions/sets-fork`.
 
-- [ ] **Step 3: Implement `src/actions/sets-fork.ts`**
+- [x] **Step 3: Implement `src/actions/sets-fork.ts`**
 
 ```ts
 'use server'
@@ -2778,12 +2780,12 @@ earlier and which does not exist), shaped
 `CardAsset` all cascade from `Set` (`grep -n "onDelete: Cascade" prisma/schema.prisma`). The
 rollback's single `set.deleteMany` depends on it.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run tests/actions/fork.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Mutation-test the two guards that matter**
+- [x] **Step 5: Mutation-test the two guards that matter**
 
 (a) Change the created set's `visibility` to inherit `source.visibility`.
 Run: expected **FAIL** on "creates the copy PRIVATE". Revert.
@@ -2820,11 +2822,11 @@ This needs two additions to the `vi.hoisted` fake: a `deleted: string[]` array t
 mocked `del` pushes to, and a `set.deleteMany` that splices matching rows out of
 `state.sets`. Add both.
 
-- [ ] **Step 6: Create `src/components/sets/ForkButton.tsx`**
+- [x] **Step 6: Create `src/components/sets/ForkButton.tsx`**
 
 Client component. A button "Make my own copy" calling `forkSet(setId)` inside `useTransition`, disabled while pending with the label "Copying…" (blob copies are slow and a dead button reads as a broken one). On success `toast.success('Copied to your library')` and `router.push('/sets/' + res.data.setId)`. On failure `toast.error(res.error)`.
 
-- [ ] **Step 7: Create `src/components/sets/ForkAttribution.tsx`**
+- [x] **Step 7: Create `src/components/sets/ForkAttribution.tsx`**
 
 Server component:
 
@@ -2846,18 +2848,18 @@ Rules (spec §7.3), and they are the whole component:
 - Link to `/sets/${forkedFromId}` **only** when `forkedFromId` is non-null **and** `prisma.set.findFirst({ where: { id: forkedFromId, ...readableSetWhere(viewerId) }, select: { id: true } })` returns a row. Otherwise plain text.
 - Copy: `Copied from <title> by @<handle>`, with `by @handle` omitted when the handle is null.
 
-- [ ] **Step 8: Show both on the set page**
+- [x] **Step 8: Show both on the set page**
 
 In `src/app/sets/[id]/page.tsx`, add `<ForkAttribution … viewerId={session?.user?.id ?? null} />` under the title, and `<ForkButton setId={id} />` in the button row **only when `!isOwner`** — you fork someone else's set; duplicating your own is a different verb and does not belong on this row.
 
 Task 5 also edits this file, in an earlier wave. Rebase onto its commit before starting.
 
-- [ ] **Step 9: Verify**
+- [x] **Step 9: Verify**
 
 Run: `npx vitest run tests/actions/fork.test.ts tests/sets/visibility-enforcement.test.ts`
 Expected: PASS.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/actions/sets-fork.ts src/components/sets/ForkButton.tsx src/components/sets/ForkAttribution.tsx tests/actions/fork.test.ts "src/app/sets/[id]/page.tsx"
@@ -2880,7 +2882,7 @@ git commit -m "feat(sets): fork with blob duplication and viewer-scoped attribut
 
 **Do NOT add a Recommended block. Task 11 adds it in wave 4.**
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/components/set-strip.test.tsx` (jsdom docblock first line):
 
@@ -2932,20 +2934,20 @@ describe('SetStrip', () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npx vitest run tests/components/set-strip.test.tsx`
 Expected: FAIL — cannot resolve `@/components/home/SetStrip`.
 
-- [ ] **Step 3: Create `src/components/home/SetStrip.tsx`**
+- [x] **Step 3: Create `src/components/home/SetStrip.tsx`**
 
 A horizontal scrolling row (`flex gap-4 overflow-x-auto`) of compact tiles. Each tile: `SetGlyph`, title, `{cardCount} cards`, and `@handle` **only when `!isOwn && ownerHandle !== null`**. `return null` for an empty array — that is the tested contract, not a nicety.
 
-- [ ] **Step 4: Create `src/components/home/Landing.tsx`**
+- [x] **Step 4: Create `src/components/home/Landing.tsx`**
 
 The signed-out hero: an `h1.display`, a `p.lede` explaining what the app is, sign-in / sign-up links, and a link into `/browse`. No data fetching. It replaces the current signed-out experience, which is a redirect to `/sets` followed by "Sign in to see your sets" — the least informative possible first screen.
 
-- [ ] **Step 5: Replace `src/app/page.tsx`**
+- [x] **Step 5: Replace `src/app/page.tsx`**
 
 ```tsx
 import { auth } from '@/auth'
@@ -3061,7 +3063,7 @@ export default async function Home() {
 }
 ```
 
-- [ ] **Step 6: Verify**
+- [x] **Step 6: Verify**
 
 Run: `npx vitest run tests/components/set-strip.test.tsx`
 Expected: PASS.
@@ -3069,7 +3071,7 @@ Expected: PASS.
 Run: `npx tsc --noEmit 2>&1 | grep -E "app/page|home/" || echo "home clean"`
 Expected: `home clean`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/app/page.tsx src/components/home tests/components/set-strip.test.tsx
@@ -3116,7 +3118,7 @@ Tasks 9 and 10 both grew `src/app/sets/[id]/page.tsx` and `src/app/page.tsx`. Re
 
 **`src/lib/sets/recommend.ts` MUST contain no `prisma.*.create`/`update`/`upsert`/`delete`.** Task 13 adds a source-level test asserting that. Recommended is a recommendation surface, not evidence.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `tests/sets/recommend.test.ts`:
 
@@ -3232,12 +3234,12 @@ describe('diagnoseRecommendEmpty', () => {
 })
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `npx vitest run tests/sets/recommend.test.ts`
 Expected: FAIL — cannot resolve `@/lib/sets/recommend`.
 
-- [ ] **Step 3: Implement `src/lib/sets/recommend.ts`**
+- [x] **Step 3: Implement `src/lib/sets/recommend.ts`**
 
 Pure functions plus one read-only DB shell `loadRecommendations(userId)`. Header comment, verbatim:
 
@@ -3274,20 +3276,20 @@ Pure functions plus one read-only DB shell `loadRecommendations(userId)`. Header
 
 **Check `HistoryScope`'s empty-scope shape** (`src/lib/memory/scope.ts`) before writing `scope: {}` — use whatever that module's "consolidated view" value actually is.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `npx vitest run tests/sets/recommend.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Create `src/components/home/RecommendedStrip.tsx`**
+- [x] **Step 5: Create `src/components/home/RecommendedStrip.tsx`**
 
 Renders each recommendation as a tile with the title, `@handle`, card count, and **the `because` line, always visible** — not a tooltip, not a hover. Renders the four distinct empty-state messages from `RecommendReason`; never a single generic "nothing to show".
 
-- [ ] **Step 6: Add the block to `src/app/page.tsx`**
+- [x] **Step 6: Add the block to `src/app/page.tsx`**
 
 Insert between "Jump back in" and "Your sets", following the same `{x.length > 0 && …}` pattern. Add `loadRecommendations(userId)` to the existing `Promise.all`.
 
-- [ ] **Step 7: Verify**
+- [x] **Step 7: Verify**
 
 Run: `npx vitest run tests/sets/recommend.test.ts`
 Expected: PASS.
@@ -3295,7 +3297,7 @@ Expected: PASS.
 Run: `grep -nE "prisma\.[a-zA-Z]+\.(create|update|upsert|delete)" src/lib/sets/recommend.ts && echo "WRITE FOUND — FIX IT" || echo "no writes, correct"`
 Expected: `no writes, correct`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/lib/sets/recommend.ts src/components/home/RecommendedStrip.tsx tests/sets/recommend.test.ts src/app/page.tsx
@@ -3314,7 +3316,7 @@ git commit -m "feat(home): recommended sets from weak categories, with stated re
 
 **Copy changes and one nav item. Do NOT restructure `/sets`' query or its grid.**
 
-- [ ] **Step 1: Update the navbar**
+- [x] **Step 1: Update the navbar**
 
 In `src/components/Navbar.tsx`:
 
@@ -3332,11 +3334,11 @@ Add this comment above the links:
             someone's set into it. */}
 ```
 
-- [ ] **Step 2: Update `/sets`' heading**
+- [x] **Step 2: Update `/sets`' heading**
 
 In `src/app/sets/page.tsx`, change `<h1 className="text-3xl font-bold tracking-tight">My Sets</h1>` to `<h1 className="display">Library</h1>` and the subtitle to `Everything you have made or copied.` Change **nothing else** — not the query, not the grid, not the empty states.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 Run: `npx vitest run tests/components tests/app`
 Expected: PASS. If a test asserts the string "My Sets", update it to "Library" and note it in your report.
@@ -3344,7 +3346,7 @@ Expected: PASS. If a test asserts the string "My Sets", update it to "Library" a
 Run: `npx tsc --noEmit 2>&1 | grep -E "Navbar|sets/page" || echo "nav clean"`
 Expected: `nav clean`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/components/Navbar.tsx src/app/sets/page.tsx src/app/account/page.tsx
@@ -3362,7 +3364,7 @@ git commit -m "feat(nav): Home / Browse / Library, and AI settings moves under A
 
 **This task is the guard for the whole feature. It runs LAST because it asserts things the earlier tasks built.**
 
-- [ ] **Step 1: Verify every path exists before asserting on it**
+- [x] **Step 1: Verify every path exists before asserting on it**
 
 Run:
 
@@ -3374,7 +3376,7 @@ done
 
 Expected: all `OK`. **A path that does not exist makes its assertion vacuous** — `readFileSync` throws, so it fails loudly here, but a *wrong* path in the vitest command itself matches nothing and reports success. Do not skip this step.
 
-- [ ] **Step 2: Extend `ENFORCED_PATHS`**
+- [x] **Step 2: Extend `ENFORCED_PATHS`**
 
 Add to the array, with comments:
 
@@ -3408,7 +3410,7 @@ Note `src/lib/sets/directory.ts`, `recommend.ts` and `set-reports.ts` reach the 
     })
 ```
 
-- [ ] **Step 3: Add the two new guard suites**
+- [x] **Step 3: Add the two new guard suites**
 
 Append:
 
@@ -3454,7 +3456,7 @@ describe('forks are never born public', () => {
 })
 ```
 
-- [ ] **Step 4: Run and mutation-test every new guard**
+- [x] **Step 4: Run and mutation-test every new guard**
 
 Run: `npx vitest run tests/sets/visibility-enforcement.test.ts`
 Expected: PASS with a non-zero count.
@@ -3469,7 +3471,7 @@ Then, one at a time, break each guard and confirm it goes RED. **A guard that ca
 
 **Revert every mutation.** Report any guard that stayed green — that is a finding, not a nuisance.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/sets/visibility-enforcement.test.ts
@@ -3489,11 +3491,11 @@ git commit -m "test(sets): extend the enforcement checklist to discovery, fork a
 
 Tasks 5 and 9 also edit this file, in earlier waves. Rebase before starting.
 
-- [ ] **Step 1: Select the two new fields**
+- [x] **Step 1: Select the two new fields**
 
 In the `prisma.set.findFirst` call, add `listingBlocked: true` to what is loaded (the query currently uses `include`, so scalars come back already — confirm, and only add a `select` if it does not).
 
-- [ ] **Step 2: Render the report affordance for a non-owner**
+- [x] **Step 2: Render the report affordance for a non-owner**
 
 Inside the existing `{!isOwner && …}` block, beneath the "Someone shared this set with you" notice, add the report entry point — but **only for a `public` set**:
 
@@ -3508,7 +3510,7 @@ Inside the existing `{!isOwner && …}` block, beneath the "Someone shared this 
         )}
 ```
 
-- [ ] **Step 3: Render the unlist notice for the owner**
+- [x] **Step 3: Render the unlist notice for the owner**
 
 Directly beneath the card count, add:
 
@@ -3528,7 +3530,7 @@ Directly beneath the card count, add:
       )}
 ```
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 Run: `npx vitest run tests/sets/visibility-enforcement.test.ts`
 Expected: PASS — this page must still contain `readableSetWhere` and no `prisma.set.findUnique`.
@@ -3536,7 +3538,7 @@ Expected: PASS — this page must still contain `readableSetWhere` and no `prism
 Run: `npx tsc --noEmit 2>&1 | grep "sets/\[id\]/page" || echo "set page clean"`
 Expected: `set page clean`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add "src/app/sets/[id]/page.tsx"

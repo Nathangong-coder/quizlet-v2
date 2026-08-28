@@ -1,7 +1,7 @@
 # Public sets, fork & discovery — design
 
 **Date:** 2026-08-27
-**Status:** DESIGNED, NOT STARTED. No plan, no code.
+**Status:** **BUILT 2026-08-27** (queue item 6c), commits `59b44e6..ddc9862` on `spec3b-tunable-scoring`, not merged. **Live gate owed — see §16.** Collaborators / "Editable by" (§2) deliberately cut and still unbuilt.
 **Branch:** builds on `spec3b-tunable-scoring` (still unmerged).
 **Supersedes for execution:** `specs/2026-08-17-sharing-collaboration-and-discovery-design.md`
 (the 6c design). That document stays authoritative for **collaborators** (its §2) and for
