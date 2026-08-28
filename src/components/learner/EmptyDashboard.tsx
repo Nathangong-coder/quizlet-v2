@@ -53,7 +53,7 @@ function copyFor(cause: EmptyCause): {
         title: 'Nothing in your study scope has been studied yet',
         body:
           'Your saved scope is valid, just narrow — the rest of your library has material this page could report on. Widen the scope, or study something inside it.',
-        action: { href: '/settings/ai', label: 'Change your study scope' },
+        action: { href: '/settings/study', label: 'Change your study scope' },
       };
 
     case 'no_history':
@@ -71,7 +71,7 @@ function copyFor(cause: EmptyCause): {
         title: 'Not enough evidence to draw conclusions',
         body:
           `${cause.measured} key point${cause.measured === 1 ? ' has' : 's have'} been tested, but none has reached your evidence floor of ${cause.floor} answer${cause.floor === 1 ? '' : 's'} yet. Keep studying, or lower the floor if you would rather act on thinner evidence.`,
-        action: { href: '/settings/ai', label: 'Adjust your evidence floor' },
+        action: { href: '/settings/study', label: 'Adjust your evidence floor' },
       };
 
     case 'nothing_categorized':

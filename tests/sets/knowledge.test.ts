@@ -4,6 +4,7 @@ import {
   shapeConfidenceHistogram,
   shapeCategoryMastery,
   shadesByKey,
+  UNCATEGORIZED_KEY,
 } from '@/lib/sets/knowledge'
 import type { LearnerTopicProfile } from '@/lib/memory/topic-profile'
 
@@ -190,5 +191,53 @@ describe('shapeCategoryMastery', () => {
 
   it('preserves the category colour', () => {
     expect(shapeCategoryMastery([cat()], [])[0].color).toBe('#123456')
+  })
+
+  describe('the Uncategorized bucket', () => {
+    it('appears when cards are in no category', () => {
+      // The only thing on the page that can say "a third of this set is in no
+      // topic". Silence there is indistinguishable from full coverage, and a
+      // learner reading category mastery would believe the whole set had been
+      // measured.
+      const rows = shapeCategoryMastery([cat()], [], 7)
+      const bucket = rows.find((r) => r.key === UNCATEGORIZED_KEY)
+      expect(bucket).toBeDefined()
+      expect(bucket?.cardCount).toBe(7)
+    })
+
+    it('is absent when every card has a category', () => {
+      expect(shapeCategoryMastery([cat()], [], 0).map((r) => r.key)).toEqual(['valuation'])
+    })
+
+    it('carries null knowledge, never a measured value', () => {
+      // These cards have no concept to roll up to, so nothing has measured them
+      // AS a group. Spec 3C's ruling stands: uncategorized KLPs participate in
+      // targeting but not in topic mastery.
+      const bucket = shapeCategoryMastery([], [], 3)[0]
+      expect(bucket.knowledge).toBeNull()
+      expect(bucket.shade).toBe('unknown')
+    })
+
+    it('is ALWAYS LAST, even when it is the biggest bucket', () => {
+      // Sorted among the real categories it would head the list on most sets,
+      // presenting "no topic" as the set's main topic. It is not a category the
+      // learner made; it is the absence of one.
+      const rows = shapeCategoryMastery(
+        [cat({ normalizedName: 'a', name: 'A', cardCount: 2 })],
+        [],
+        999,
+      )
+      expect(rows[rows.length - 1].key).toBe(UNCATEGORIZED_KEY)
+    })
+
+    it('does not collide with a real category literally named "Uncategorized"', () => {
+      const rows = shapeCategoryMastery(
+        [cat({ normalizedName: 'uncategorized', name: 'Uncategorized', cardCount: 4 })],
+        [],
+        2,
+      )
+      expect(rows).toHaveLength(2)
+      expect(new Set(rows.map((r) => r.key)).size).toBe(2)
+    })
   })
 })

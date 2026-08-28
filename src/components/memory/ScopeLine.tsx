@@ -272,7 +272,7 @@ export default function ScopeLine({
           >
             Show everything
           </button>
-          <Link href="/settings/ai" className="underline hover:text-foreground">
+          <Link href="/settings/study" className="underline hover:text-foreground">
             Edit default
           </Link>
         </span>

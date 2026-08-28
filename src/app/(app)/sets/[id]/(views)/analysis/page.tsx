@@ -3,10 +3,11 @@ import Link from 'next/link'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { readableSetWhere } from '@/lib/sets/visibility'
-import { getLearnerMetrics } from '@/lib/metrics/read'
+import { loadSetAnalysis } from '@/lib/sets/knowledge'
 import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
 import { MisconceptionList, RetentionPanel } from '@/components/learner/RetentionPanel'
 import { InProgressBlock } from '@/components/sets/knowledge/InProgressBlock'
+import { SetAnalysisEmpty } from '@/components/sets/knowledge/SetAnalysisEmpty'
 
 /**
  * Analysis — why you get things wrong.
@@ -50,32 +51,26 @@ export default async function SetAnalysisPage({ params }: { params: Promise<{ id
     )
   }
 
-  const metrics = await getLearnerMetrics({
-    userId: viewerId,
-    scope: { setIds: [id], categoryKeys: [], sources: [] },
-  })
-
-  const hasEvidence =
-    metrics.misconceptions.length > 0 ||
-    metrics.forgetting !== null ||
-    metrics.paceOutliers.length > 0
+  const { metrics, empty } = await loadSetAnalysis(viewerId, id)
 
   return (
     <div className="space-y-8">
-      {!hasEvidence && (
-        // ONE named cause, not a generic "no data". The remedy for "you have
-        // not answered anything on this set" is completely different from "your
-        // cards have no key points yet", and merging them produces the "is this
-        // broken?" confusion the 3B gate hit twice.
-        <div className="rounded-lg border bg-muted/40 p-5 text-sm">
-          <p className="font-medium">Nothing to analyse on this set yet.</p>
-          <p className="text-muted-foreground mt-1">
-            This page reads the answers you have given here. Take a quiz or a review pass and
-            it fills in — a handful of answers is enough for the retention curve to start.
-          </p>
-        </div>
-      )}
+      {/*
+        FIVE causes, five remedies — via `diagnoseEmptyState`, shared with the
+        learner dashboard and with scripts/tuning-check.ts so the gate and the
+        page can never disagree about whether there is enough data. An earlier
+        draft of this page hand-rolled a single "nothing to analyse yet"
+        message, which is the exact merge that function exists to prevent: the
+        3B live gate produced two of these causes and both read as a broken
+        feature until they were diagnosed against the database.
 
+        A `blocking` cause replaces the panels; a non-blocking one sits above
+        real content and explains a gap in it.
+      */}
+      {empty && <SetAnalysisEmpty cause={empty} setId={id} />}
+
+      {empty?.blocking ? null : (
+      <>
       <Section>
         <SectionHeader title="Retention and pace" hint="this set only" />
         <SectionBody>
@@ -112,6 +107,8 @@ export default async function SetAnalysisPage({ params }: { params: Promise<{ id
           </InProgressBlock>
         </SectionBody>
       </Section>
+      </>
+      )}
 
       <p className="text-sm text-muted-foreground">
         Across every set, the same analysis lives on your{' '}

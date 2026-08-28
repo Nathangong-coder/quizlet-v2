@@ -128,7 +128,7 @@ function LearnerDashboardContent() {
                 .filter(Boolean)
                 .join(' and ')}
               .{' '}
-              <Link href="/settings/ai" className="text-primary hover:underline">
+              <Link href="/settings/study" className="text-primary hover:underline">
                 Update your scope
               </Link>
             </p>
