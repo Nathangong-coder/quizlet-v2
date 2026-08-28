@@ -10,7 +10,8 @@ This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirror
 1. ~~**Item 8 — open the doors**~~ **FULLY DONE.** Built and agent-gated 2026-08-21; the two human gates (real Resend delivery, Vercel Firewall) were reported PASSED by the user on 2026-08-24, and **`CREDENTIALS_SIGNUP_ENABLED` is now ON** — set via a deployed env var, not in `.env`. Nothing outstanding.
 2. **Item 9 — surfacing missed KLPs / weak topics.** **BUILT 2026-08-24** as the KLT topic layer (`specs/2026-08-24-klt-topic-layer-design.md`). Two verification steps owed — see its entry. Next action after those is item 7.
 3. **Item 7 — Spec 4**, plan setup + readiness + lesson generation. The biggest item; its lesson half now has its first design decision (see item 7's "LESSON OUTPUT TYPES").
-4. ~~**Item 6c — sharing & discovery.**~~ **BUILT 2026-08-27** as public sets, fork & discovery. Live gate owed. Collaborators deliberately cut. Next action is item 7 (Spec 4), or the set-views/Atlas spec the owner asked for alongside this.
+4. ~~**Item 6c — sharing & discovery.**~~ **BUILT 2026-08-27** as public sets, fork & discovery. Live gate owed. Collaborators deliberately cut.
+5. ~~**Item 6f — app shell.**~~ **BUILT 2026-08-28.** Left rail, profile menu, settings split, avatar, feedback. Live gate owed. **Next action is Spec C (set views + Atlas)**, which is the remaining half of what the owner asked for on 2026-08-27, or item 7 (Spec 4).
 
 ---
 
@@ -497,6 +498,64 @@ actually looks less generic. No test covers that, and it is the whole point of P
 
 **Still unbuilt from the original 6c:** collaborators / "Editable by" (6c §2), ownership
 transfer, `/{handle}` creator pages.
+
+---
+
+### 6f. ✅ App shell, navigation & settings — **BUILT 2026-08-28. LIVE GATE OWED.**
+
+Spec: `specs/2026-08-28-app-shell-design.md` · Plan: `plans/2026-08-28-app-shell.md`
+Branch `spec3b-tunable-scoring`, 5 commits (`2d66302` … `86c9d18`), **not merged**.
+
+The first half of what the owner asked for on 2026-08-27 ("revamp the entire UI"). Home /
+Browse / Library left the navbar for a persistent 240px left rail with a live Recents list;
+the top-right avatar opens a menu holding Settings / Learning / AI settings / Other settings
+/ Help. `Navbar.tsx` is deleted.
+
+**New baselines (this branch, 2026-08-28):**
+- **Tests:** 190 files / **2335 passing** (from 184 / 2241)
+- **`tsc --noEmit`:** clean · **`next build`:** clean · **`npm run lint`:** **175** (unchanged)
+
+**Five things worth knowing before touching this:**
+
+1. **The route group is the whole design.** `src/app/(app)/` holds everything that gets the
+   shell; the five study activities (`quiz`, `quiz/print`, `match`, `review`, `print`) and
+   every auth page sit OUTSIDE it and render bare. A timed game with a nav column beside it
+   invites you to leave, and the print views must be chrome-free. `tests/shell/route-structure.test.ts`
+   enforces the split **and** fails on any page classified as neither — the ENFORCED_PATHS
+   shape, applied to routing.
+2. **A layout bug had to be fixed first, and it is why this touched every page.** Root
+   `layout.tsx` applied `max-w-6xl mx-auto px-4` and then all 17 pages applied their own on
+   top: centered inside centered, `px-4` twice. Invisible while both centered on the same
+   axis; a fixed rail is what exposes it. The shell layout owns the measure exactly once and
+   the root owns none. **Pages must not re-center themselves** — a narrow measure is
+   `max-w-2xl` with NO `mx-auto`, because left-aligned against the rail is the correct edge.
+3. **`User.avatarUrl` is a new column and must not be collapsed into `User.image`.** The
+   Auth.js adapter owns `image` and rewrites it from the GitHub profile on every OAuth
+   sign-in, so a photo stored there silently reverts. Precedence lives in `resolveAvatar`.
+4. **Blob `access` deliberately differs by call site, and is now asserted in BOTH
+   directions.** Avatars are public (they sit beside published sets; a private blob adds a
+   proxy hop and buys no privacy); card assets and fork copies stay private. Asserting one
+   side only leaves the other free to move, and moving the fork side is a silent auth bypass
+   — the bug actually written here on 2026-08-27.
+5. **Feedback persists before it mails.** `send.ts` must never throw and therefore swallows
+   delivery failures, and `RESEND_API_KEY` is absent in development — so email-only delivery
+   loses the message by default, not by accident. `Feedback.delivered` records what happened.
+
+**Deliberately NOT done, with reasons:** only 3 of the 13 `shadow-*` utilities were removed.
+The other 10 are on genuinely floating layers (popover, node inspector, canvas toolbar,
+active tab) where elevation is what says "above the page"; the spec's "remove elevation" line
+assumed all 13 were decoration and was wrong.
+
+**OWED — the live gate (spec §13), not agent-runnable here** (`.env` has only
+`DATABASE_URL`, so `auth()` throws `MissingSecret`). Ten steps. The two that matter most:
+**step 7** — upload an avatar, sign out, sign in *with GitHub*, and confirm the picture
+survives (the exact failure `User.image` would have caused); and **step 9** — submit feedback
+with `RESEND_API_KEY` unset and confirm the row exists with `delivered: false` while the body
+prints to the server log.
+
+**Next: Spec C — set views + Atlas.** Study / Knowledge / Analysis tabs on the set page, the
+concept tree moving into Knowledge, and the spatial Atlas surfaces. Decisions already taken
+with the user are in the memory note `set-views-and-atlas-owed`; do not re-litigate them.
 
 ---
 
