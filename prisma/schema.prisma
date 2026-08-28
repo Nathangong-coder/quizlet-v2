@@ -24,7 +24,22 @@ model User {
   /// today. GitHub's verification of its own users is GitHub's business; this
   /// column governs the addresses *we* let people self-register.
   emailVerified DateTime?
+  /// OWNED BY THE AUTH.JS ADAPTER. It is written from the OAuth profile on
+  /// sign-in, so anything WE store here is silently reverted the next time the
+  /// user signs in with GitHub. Read it as a fallback; never write it.
   image         String?
+  /// The user's own uploaded avatar — deliberately NOT `image`, for the reason
+  /// above. A photo stored in `image` presents as "my picture keeps reverting",
+  /// which is close to unattributable after the fact.
+  ///
+  /// A PUBLIC blob url. An avatar sits beside a published set and is seen by
+  /// strangers, so a private blob would add a proxy hop per render and buy no
+  /// privacy. See `src/actions/avatar.ts`, where that choice is asserted by
+  /// tests in BOTH directions — public here, still private for fork copies.
+  ///
+  /// Null is the common case and means "draw the generated glyph"; see
+  /// `resolveAvatar` in `src/lib/users/avatar.ts` for the precedence.
+  avatarUrl     String?
 
   /// Public display handle, e.g. "Alice_NG". Rules live in
   /// src/lib/users/handle.ts — import them rather than re-deriving.
@@ -95,8 +110,42 @@ model User {
   learnerTuning    LearnerTuning?
   setViews         SetView[]
   setReports       SetReport[]
+  feedback         Feedback[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+}
+
+/// A message someone sent through /help.
+///
+/// THE ROW IS WRITTEN BEFORE MAIL IS ATTEMPTED, and that ordering is the whole
+/// point of this table existing. `src/lib/mail/send.ts` documents that it MUST
+/// NEVER THROW — every caller runs inside `after()`, where an exception is
+/// unhandled — so it swallows delivery failures. With email-only delivery a
+/// missing or expired RESEND_API_KEY means the sender reads "thanks, sent" and
+/// the message exists nowhere at all. RESEND_API_KEY is absent in development,
+/// so that is the DEFAULT state here, not an edge case.
+///
+/// `delivered` is therefore the honest record of what actually happened, and
+/// false is not an error — it is "the row is safe, the mail is not confirmed".
+model Feedback {
+  id      String  @id @default(cuid())
+  /// SetNull, not Cascade. This is a record of something that happened; a
+  /// closed account should not erase the report it filed.
+  userId  String?
+  name    String
+  /// Where the sender asked to be replied to. Carried into the mail's
+  /// `reply_to`, never its `from` — an unverified from-address is rejected
+  /// outright by Resend, and `sendQuietly` would swallow that rejection.
+  email   String
+  subject String
+  message String  @db.Text
+
+  delivered Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Serves the rate-limit read: "how many has this user sent since T".
+  @@index([userId, createdAt])
 }
 
 model Set {
