@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
  * where nothing was more important than anything else. A shared header is the
  * cheapest way to give every page one thing that is unambiguously first.
  *
- * The `.display` and `.lede` classes come from the Instrument chassis
+ * The `.display` and `.lede` classes come from the shared visual language
  * (globals.css); this component's job is the arrangement, not the type.
  */
 export function PageHeader({

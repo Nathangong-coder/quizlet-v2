@@ -2,7 +2,7 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 /**
- * A ruled section — the Instrument chassis's replacement for a shadcn `Card`
+ * A ruled section — the shared study-desk layout's replacement for a shadcn `Card`
  * on list and detail surfaces.
  *
  * A hairline top rule and open space, not a bordered box with elevation. The

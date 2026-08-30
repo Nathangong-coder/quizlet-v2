@@ -42,7 +42,7 @@ export function RailNav({
   const items = railItems(signedIn)
 
   return (
-    <nav aria-label="Main" className="flex flex-col gap-1">
+    <nav aria-label="Main" className="flex flex-col gap-0.5">
       {items.map((item) => {
         const Icon = ICONS[item.icon]
         const current = isRailItemCurrent(pathname, item.href)
@@ -53,10 +53,10 @@ export function RailNav({
             onClick={onNavigate}
             aria-current={current ? 'page' : undefined}
             className={cn(
-              'group flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+              'group flex items-center gap-3 rounded-[4px] px-3 py-2.5 text-[0.9375rem] transition-colors',
               current
-                ? 'bg-accent text-accent-foreground font-medium'
-                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-[inset_3px_0_0_var(--primary)]'
+                : 'text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground',
             )}
           >
             <Icon className="h-4 w-4 shrink-0" />
@@ -70,7 +70,7 @@ export function RailNav({
           {/* The divider and heading only exist when there is something under
               them. An empty "RECENTS" label is a promise the rail cannot keep
               and reads as a broken query rather than as a new account. */}
-          <div className="mt-6 mb-2 px-3">
+          <div className="mt-8 mb-2 px-3">
             <p className="label text-muted-foreground">Recents</p>
           </div>
           <ul className="flex flex-col gap-0.5">
@@ -84,10 +84,10 @@ export function RailNav({
                     aria-current={current ? 'page' : undefined}
                     title={recent.title}
                     className={cn(
-                      'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors',
+                      'flex items-center gap-2 rounded-[4px] px-3 py-2 text-sm transition-colors',
                       current
-                        ? 'bg-accent text-accent-foreground font-medium'
-                        : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                        ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-[inset_3px_0_0_var(--primary)]'
+                        : 'text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground',
                     )}
                   >
                     {/* A 3px tick, not an icon: it marks whose set it is

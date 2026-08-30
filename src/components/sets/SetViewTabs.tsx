@@ -20,7 +20,7 @@ export function SetViewTabs({ setId }: { setId: string }) {
   const pathname = usePathname()
 
   return (
-    <nav aria-label="Set views" className="border-b">
+    <nav aria-label="Set views" className="border-b border-border/80">
       <ul className="flex gap-1 -mb-px">
         {setViewTabs(setId).map((tab) => {
           const current = isSetViewCurrent(pathname, tab.href)
@@ -31,7 +31,7 @@ export function SetViewTabs({ setId }: { setId: string }) {
                 aria-current={current ? 'page' : undefined}
                 title={tab.hint}
                 className={cn(
-                  'inline-block px-4 py-2 text-sm border-b-2 transition-colors',
+                  'inline-block px-4 py-2.5 text-sm border-b-2 transition-colors',
                   current
                     ? 'border-primary text-foreground font-medium'
                     : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border',

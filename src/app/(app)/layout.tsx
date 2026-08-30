@@ -48,14 +48,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const railRecents = recents.map((r) => ({ id: r.id, title: r.title, isOwn: r.isOwn }))
 
   return (
-    <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] min-h-screen">
+    <div className="min-h-screen bg-background lg:grid lg:grid-cols-[15rem_minmax(0,1fr)]">
       {/* `hidden lg:flex`, with MobileRail carrying the same nav in a drawer
           below that breakpoint. */}
-      <aside className="hidden lg:flex flex-col gap-6 border-r px-3 py-5 h-screen sticky top-0">
+      <aside className="hidden h-screen sticky top-0 flex-col gap-8 border-r border-sidebar-border bg-sidebar px-4 py-6 lg:flex">
         {/* `h-*` with no width: the viewBox is 640x200, so height alone sizes
             it and the aspect ratio does the rest. A fixed width here would
             letterbox the mark the moment the wordmark's metrics change. */}
-        <Link href="/" className="px-3" aria-label="synapseHQ home">
+        <Link href="/" className="px-2" aria-label="synapseHQ home">
           <SynapseLogo id="rail" className="h-9 w-auto text-foreground" />
         </Link>
         <div className="flex-1 overflow-y-auto">
@@ -68,7 +68,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           would push the whole column past the viewport and scroll the body
           horizontally. */}
       <div className="flex flex-col min-w-0">
-        <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur lg:px-8">
+        <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-border/70 bg-card/95 px-5 shadow-[var(--shadow-md)] backdrop-blur lg:px-10">
           <MobileRail signedIn={signedIn} recents={railRecents} />
           <Link href="/" className="lg:hidden" aria-label="synapseHQ home">
             <SynapseLogo id="topbar" className="h-7 w-auto text-foreground" />
@@ -115,7 +115,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           )}
         </header>
 
-        <main className="flex-1 w-full max-w-[72rem] px-4 py-8 lg:px-8 lg:py-10">{children}</main>
+        <main className="flex-1 w-full max-w-[75rem] px-5 py-9 lg:px-10 lg:py-12">{children}</main>
       </div>
     </div>
   )

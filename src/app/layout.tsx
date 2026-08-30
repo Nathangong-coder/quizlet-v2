@@ -1,47 +1,19 @@
 import type { Metadata } from 'next'
-import { Fraunces, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google'
+import { Nunito_Sans, IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'sonner'
 import { cn } from '@/lib/utils'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
 
 /**
- * "Ledger" type system — see
- * docs/superpowers/specs/2026-08-15-design-system-and-scope-redesign-design.md §4.1.
- *
- * Three faces with three jobs, where there was previously one face doing all
- * three. Fraunces carries hierarchy that size-and-weight alone could not;
- * Plex Mono exists because this app's dominant content is NUMBERS (confidence
- * 1-10, posteriors, percentages, counts) and proportional figures shift columns
- * as values change.
- *
- * `display: 'swap'` on all three: the alternative (FOIT) hides text entirely
- * while a font loads.
+ * The UI uses one soft geometric sans, close to Quizlet's Hurme Geometric Sans
+ * reference. Keeping headings and body copy in one family makes the interface
+ * feel like a study tool rather than an editorial dashboard. Plex Mono remains
+ * reserved for changing numeric values, where stable character widths help.
  */
-/**
- * `axes` is NOT optional decoration here — without it Fraunces downloads with
- * `wght` only, and SOFT / WONK / opsz are simply absent from the file. Any
- * `font-variation-settings` or `font-optical-sizing` naming them is then a rule
- * that silently does nothing, which is exactly what shipped: `globals.css` had
- * carried a dead `font-optical-sizing: auto` on every heading since the Ledger
- * work, because `opsz` was never requested.
- *
- * WONK is the axis that gives Fraunces its character (the "wonky" g, the
- * flared terminals); opsz is what stops a 52px display size from looking like
- * a blown-up body face. Requesting them is what makes the display serif read
- * as a CHOICE rather than as a default.
- */
-const fraunces = Fraunces({
+const nunitoSans = Nunito_Sans({
   subsets: ['latin'],
-  axes: ['opsz', 'SOFT', 'WONK'],
-  variable: '--font-fraunces',
-  display: 'swap',
-})
-
-const plexSans = IBM_Plex_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-plex-sans',
+  variable: '--font-nunito-sans',
   display: 'swap',
 })
 
@@ -64,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn(fraunces.variable, plexSans.variable, plexMono.variable)}
+      className={cn(nunitoSans.variable, plexMono.variable)}
     >
       {/*
         NO CHROME AND NO MEASURE HERE, deliberately.

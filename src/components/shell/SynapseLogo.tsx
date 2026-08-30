@@ -10,15 +10,11 @@
  * artefact or a second exported file that drifts from the first.
  *
  * Inlining costs ~1KB and buys `currentColor` on the word, which follows the
- * theme token like every other piece of type in the shell. The MARK keeps its
- * literal gradient: violet-to-cyan reads on both grounds, and it is the part
- * that carries the brand.
+ * theme token like every other piece of type in the shell. The mark uses the
+ * same indigo accent as actions instead of a gradient, keeping the shell calm.
  *
- * `gradient ids are suffixed per instance`: two copies of this component on one
- * page (the rail and the mobile drawer both render it) would otherwise define
- * `#nodeGrad` twice, and an SVG `url(#id)` reference resolves to the FIRST
- * match in the document — so unmounting the rail would silently strip the
- * drawer's fill.
+ * The `id` prop remains part of the API so copies in the rail and drawer can
+ * keep their own accessible instances without changing callers.
  */
 export function SynapseLogo({
   className,
@@ -31,46 +27,33 @@ export function SynapseLogo({
    * width; the constellation stays legible at any size.
    */
   withWordmark?: boolean
-  /** Disambiguates the gradient ids when several instances share a page. */
+  /** Keeps multiple logo instances distinguishable in the rendered markup. */
   id?: string
 }) {
-  const nodeGrad = `synapse-node-${id}`
-  const lineGrad = `synapse-line-${id}`
-
   return (
     <svg
       viewBox={withWordmark ? '0 0 640 200' : '0 0 160 200'}
       className={className}
+      data-logo-id={id}
       role="img"
       aria-label="synapseHQ"
     >
-      <defs>
-        <linearGradient id={nodeGrad} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#7C5CFC" />
-          <stop offset="100%" stopColor="#33C6F4" />
-        </linearGradient>
-        <linearGradient id={lineGrad} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#9B7BFF" />
-          <stop offset="100%" stopColor="#4FD3F0" />
-        </linearGradient>
-      </defs>
-
       {/* Icon: synapse / node network forming an abstract "S" */}
       <g transform="translate(30,30)">
-        <line x1="30" y1="25" x2="90" y2="25" stroke={`url(#${lineGrad})`} strokeWidth="4" strokeLinecap="round" />
-        <line x1="30" y1="25" x2="30" y2="70" stroke={`url(#${lineGrad})`} strokeWidth="4" strokeLinecap="round" />
-        <line x1="30" y1="70" x2="90" y2="70" stroke={`url(#${lineGrad})`} strokeWidth="4" strokeLinecap="round" />
-        <line x1="90" y1="70" x2="90" y2="115" stroke={`url(#${lineGrad})`} strokeWidth="4" strokeLinecap="round" />
-        <line x1="30" y1="115" x2="90" y2="115" stroke={`url(#${lineGrad})`} strokeWidth="4" strokeLinecap="round" />
-        <line x1="60" y1="47" x2="30" y2="70" stroke={`url(#${lineGrad})`} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-        <line x1="60" y1="92" x2="90" y2="70" stroke={`url(#${lineGrad})`} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+        <line x1="30" y1="25" x2="90" y2="25" stroke="var(--primary)" strokeWidth="4" strokeLinecap="round" />
+        <line x1="30" y1="25" x2="30" y2="70" stroke="var(--primary)" strokeWidth="4" strokeLinecap="round" />
+        <line x1="30" y1="70" x2="90" y2="70" stroke="var(--primary)" strokeWidth="4" strokeLinecap="round" />
+        <line x1="90" y1="70" x2="90" y2="115" stroke="var(--primary)" strokeWidth="4" strokeLinecap="round" />
+        <line x1="30" y1="115" x2="90" y2="115" stroke="var(--primary)" strokeWidth="4" strokeLinecap="round" />
+        <line x1="60" y1="47" x2="30" y2="70" stroke="var(--primary)" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+        <line x1="60" y1="92" x2="90" y2="70" stroke="var(--primary)" strokeWidth="3" strokeLinecap="round" opacity="0.6" />
 
-        <circle cx="30" cy="25" r="10" fill={`url(#${nodeGrad})`} />
-        <circle cx="90" cy="25" r="7" fill={`url(#${nodeGrad})`} />
-        <circle cx="30" cy="70" r="7" fill={`url(#${nodeGrad})`} />
-        <circle cx="90" cy="70" r="10" fill={`url(#${nodeGrad})`} />
-        <circle cx="30" cy="115" r="10" fill={`url(#${nodeGrad})`} />
-        <circle cx="90" cy="115" r="7" fill={`url(#${nodeGrad})`} />
+        <circle cx="30" cy="25" r="10" fill="var(--primary)" />
+        <circle cx="90" cy="25" r="7" fill="var(--primary)" />
+        <circle cx="30" cy="70" r="7" fill="var(--primary)" />
+        <circle cx="90" cy="70" r="10" fill="var(--primary)" />
+        <circle cx="30" cy="115" r="10" fill="var(--primary)" />
+        <circle cx="90" cy="115" r="7" fill="var(--primary)" />
       </g>
 
       {withWordmark && (
@@ -83,18 +66,18 @@ export function SynapseLogo({
           <text
             x="175"
             y="120"
-            fontFamily="var(--font-plex-sans), 'Segoe UI', Arial, sans-serif"
+            fontFamily="var(--font-nunito-sans), 'Segoe UI', Arial, sans-serif"
             fontSize="58"
             fontWeight="700"
             fill="currentColor"
           >
             synapse
-            <tspan fill="#7C5CFC">HQ</tspan>
+            <tspan fill="var(--primary)">HQ</tspan>
           </text>
           <text
             x="177"
             y="150"
-            fontFamily="var(--font-plex-sans), 'Segoe UI', Arial, sans-serif"
+            fontFamily="var(--font-nunito-sans), 'Segoe UI', Arial, sans-serif"
             fontSize="17"
             fontWeight="500"
             letterSpacing="2"
