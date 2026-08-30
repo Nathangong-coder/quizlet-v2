@@ -32,11 +32,14 @@ export function RailNav({
   signedIn,
   recents,
   onNavigate,
+  collapsed = false,
 }: {
   signedIn: boolean
   recents: RailRecent[]
   /** Lets the mobile drawer close itself when a link is taken. */
   onNavigate?: () => void
+  /** When true, the rail is icon-only and recent text is hidden. */
+  collapsed?: boolean
 }) {
   const pathname = usePathname()
   const items = railItems(signedIn)
@@ -52,20 +55,23 @@ export function RailNav({
             href={item.href}
             onClick={onNavigate}
             aria-current={current ? 'page' : undefined}
+            aria-label={item.label}
+            title={collapsed ? item.label : undefined}
             className={cn(
-              'group flex items-center gap-3 rounded-[4px] px-3 py-2.5 text-[0.9375rem] transition-colors',
+              'group flex items-center gap-3 rounded-[4px] py-2.5 text-[0.9375rem] transition-colors',
+              collapsed ? 'justify-center px-0' : 'px-3',
               current
                 ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-[inset_3px_0_0_var(--primary)]'
                 : 'text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground',
             )}
           >
             <Icon className="h-4 w-4 shrink-0" />
-            {item.label}
+            {!collapsed && item.label}
           </Link>
         )
       })}
 
-      {recents.length > 0 && (
+      {!collapsed && recents.length > 0 && (
         <>
           {/* The divider and heading only exist when there is something under
               them. An empty "RECENTS" label is a promise the rail cannot keep

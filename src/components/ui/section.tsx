@@ -16,15 +16,14 @@ import { cn } from '@/lib/utils'
 export function Section({
   children,
   className,
+  rule = true,
 }: {
   children: React.ReactNode
   className?: string
+  /** Hide the top rule when this is the first visual block on a page. */
+  rule?: boolean
 }) {
-  return (
-    <section className={cn('border-t border-border pt-4 mt-10 first:mt-0', className)}>
-      {children}
-    </section>
-  )
+  return <section className={cn('mt-10 first:mt-0', rule && 'border-t border-border pt-4', className)}>{children}</section>
 }
 
 export function SectionHeader({

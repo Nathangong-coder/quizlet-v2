@@ -32,7 +32,7 @@ export function SynapseLogo({
 }) {
   return (
     <svg
-      viewBox={withWordmark ? '0 0 640 200' : '0 0 160 200'}
+      viewBox={withWordmark ? '0 0 640 170' : '0 0 160 200'}
       className={className}
       data-logo-id={id}
       role="img"
@@ -58,33 +58,17 @@ export function SynapseLogo({
 
       {withWordmark && (
         <>
-          {/*
-            `currentColor`, not the file's `#1E1B4B` — see this module's note.
-            "HQ" keeps the brand violet, which is legible on both grounds and is
-            the one accent the wordmark actually needs.
-          */}
+          {/* The wordmark is intentionally larger now that the tagline is gone. */}
           <text
             x="175"
-            y="120"
+            y="122"
             fontFamily="var(--font-nunito-sans), 'Segoe UI', Arial, sans-serif"
-            fontSize="58"
+            fontSize="78"
             fontWeight="700"
             fill="currentColor"
           >
             synapse
             <tspan fill="var(--primary)">HQ</tspan>
-          </text>
-          <text
-            x="177"
-            y="150"
-            fontFamily="var(--font-nunito-sans), 'Segoe UI', Arial, sans-serif"
-            fontSize="17"
-            fontWeight="500"
-            letterSpacing="2"
-            fill="currentColor"
-            opacity="0.55"
-          >
-            STUDY SMARTER, TOGETHER
           </text>
         </>
       )}
