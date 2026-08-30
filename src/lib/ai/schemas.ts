@@ -81,6 +81,13 @@ export const CardAutocompleteSchema = z.object({
 
 export type CardAutocomplete = z.infer<typeof CardAutocompleteSchema>;
 
+export const CardAutofillSchema = z.object({
+  term: z.string().trim().min(1),
+  definition: z.string().trim().min(1),
+});
+
+export type CardAutofill = z.infer<typeof CardAutofillSchema>;
+
 export const TrainingPlanSchema = z.object({
   title: z.string().min(1),
   summary: z.string().min(1),
