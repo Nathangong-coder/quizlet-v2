@@ -28,7 +28,7 @@ export function MobileRail({ signedIn, recents }: { signedIn: boolean; recents: 
         onClick={() => setOpen(true)}
         aria-label="Open navigation"
         aria-expanded={open}
-        className="lg:hidden inline-flex h-9 w-9 items-center justify-center rounded-md
+        className="lg:hidden inline-flex h-9 w-9 items-center justify-center rounded-[4px]
                    text-muted-foreground transition-colors hover:bg-accent hover:text-foreground
                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
@@ -46,7 +46,7 @@ export function MobileRail({ signedIn, recents }: { signedIn: boolean; recents: 
             onClick={() => setOpen(false)}
             className="absolute inset-0 bg-background/80 backdrop-blur-sm"
           />
-          <div className="relative flex h-full w-64 flex-col border-r bg-background p-4">
+          <div className="relative flex h-full w-72 flex-col border-r border-sidebar-border bg-sidebar p-5">
             <div className="mb-6 flex items-center justify-between">
               <Link
                 href="/"
@@ -59,7 +59,7 @@ export function MobileRail({ signedIn, recents }: { signedIn: boolean; recents: 
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close navigation"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md
+                className="inline-flex h-8 w-8 items-center justify-center rounded-[4px]
                            text-muted-foreground hover:bg-accent hover:text-foreground"
               >
                 <X className="h-4 w-4" />

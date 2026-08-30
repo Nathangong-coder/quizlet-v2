@@ -28,8 +28,8 @@ function PopoverContent({
         <PopoverPrimitive.Popup
           data-slot="popover-content"
           className={cn(
-            "w-72 rounded-xl bg-popover p-2 text-sm text-popover-foreground",
-            "ring-1 ring-foreground/10 shadow-lg outline-none duration-100",
+            "w-72 rounded-lg border border-border bg-popover p-2 text-sm text-popover-foreground",
+            "shadow-[var(--shadow-md)] outline-none duration-100",
             "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
             "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className

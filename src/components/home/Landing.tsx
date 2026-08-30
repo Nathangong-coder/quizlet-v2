@@ -24,19 +24,20 @@ export function Landing() {
   const signupOpen = isSignupOpen()
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-16 sm:py-24">
-      <h1 className="display max-w-[18ch]">
-        Recognising the answer is not knowing it.
-      </h1>
+    <div className="py-16 sm:py-20">
+      <div className="mx-auto max-w-3xl text-center">
+        <h1 className="display mx-auto max-w-[18ch]">
+          Recognising the answer is not knowing it.
+        </h1>
 
-      <p className="lede mt-6">
-        Flashcards test whether you can pick the right answer out of a lineup. This
-        app makes you write it — then grades what you actually wrote for
-        correctness, clarity and concision, remembers which ideas you keep
-        missing, and builds the next session out of them.
-      </p>
+        <p className="lede mx-auto mt-6">
+          Flashcards test whether you can pick the right answer out of a lineup. This
+          app makes you write it — then grades what you actually wrote for
+          correctness, clarity and concision, remembers which ideas you keep
+          missing, and builds the next session out of them.
+        </p>
 
-      <div className="mt-8 flex flex-wrap items-center gap-3">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         {signupOpen ? (
           <>
             <Link href="/signup" className={cn(buttonVariants())}>
@@ -63,9 +64,10 @@ export function Landing() {
         >
           Browse published sets
         </Link>
+        </div>
       </div>
 
-      <Section className="mt-16">
+      <Section className="mx-auto mt-20 max-w-5xl">
         <SectionHeader title="What it does" />
         <SectionBody>
           <div className="grid gap-8 sm:grid-cols-3">

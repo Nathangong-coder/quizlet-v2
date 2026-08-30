@@ -1,0 +1,82 @@
+/*
+ * Dark mode reference, adapted from the pasted Quizlet stylesheet.
+ *
+ * The original selectors target Quizlet's production class names, so this
+ * version maps the same choices onto synapseHQ's token system: #1e1e1e is the
+ * room, surfaces are only slightly raised, and borders/shadows stay quiet.
+ * It is imported by src/app/globals.css so the reference is actually applied.
+ */
+.dark {
+  --background: #1e1e1e;
+  --foreground: #f5f5f5;
+  --card: #292929;
+  --card-foreground: #f5f5f5;
+  --popover: #292929;
+  --popover-foreground: #f5f5f5;
+
+  --primary: #8593ff;
+  --primary-foreground: #171927;
+  --secondary: #303030;
+  --secondary-foreground: #f5f5f5;
+  --muted: #2a2a2a;
+  --muted-foreground: #b6b6b6;
+  --accent: #343434;
+  --accent-foreground: #ffffff;
+
+  --destructive: #f08091;
+  --destructive-foreground: #281316;
+  --destructive-subtle: #3a2428;
+  --success: #72c99d;
+  --success-foreground: #14291e;
+  --success-subtle: #263c30;
+  --warning: #e0b25a;
+  --warning-foreground: #2b2110;
+  --warning-subtle: #40351f;
+  --info: #8593ff;
+  --info-foreground: #171927;
+  --info-subtle: #2a2d4a;
+
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.18);
+  --ring: #8593ff;
+
+  --know-0: #30303d;
+  --know-1: #4c526e;
+  --know-2: #6876a9;
+  --know-3: #8593d4;
+  --know-4: #a2adff;
+  --severity-none: #72c99d;
+  --severity-low: #e0b25a;
+  --severity-medium: #e49a63;
+  --severity-high: #f08091;
+
+  --sidebar: #1e1e1e;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #8593ff;
+  --sidebar-primary-foreground: #171927;
+  --sidebar-accent: #292929;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.12);
+  --sidebar-ring: #8593ff;
+
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.24);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.22);
+  --shadow-subtle: inset 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.dark html,
+.dark body {
+  background: #1e1e1e;
+  color-scheme: dark;
+}
+
+.dark ::-webkit-scrollbar {
+  width: 10px;
+  height: 12px;
+  background: #1e1e1e;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #343434;
+  border-radius: 2px;
+}

@@ -40,7 +40,7 @@ export function SetCard({ set, summary, ownerHandle }: SetCardProps) {
 
   return (
     <Link href={`/sets/${set.id}`} className="block group">
-      <Card className="transition-colors group-hover:border-primary/50">
+      <Card className="shadow-[var(--shadow-sm)] transition-[border-color,box-shadow,transform] group-hover:-translate-y-px group-hover:border-primary/50 group-hover:shadow-[var(--shadow-md)]">
         <CardHeader>
           <div className="flex justify-between items-start gap-2 mb-2">
             <Badge variant="secondary" className="flex gap-1 items-center">
@@ -60,7 +60,7 @@ export function SetCard({ set, summary, ownerHandle }: SetCardProps) {
               </Badge>
             )}
           </div>
-          <CardTitle className="line-clamp-1 group-hover:text-primary transition-colors">
+          <CardTitle className="line-clamp-1 transition-colors group-hover:text-primary">
             {set.title}
           </CardTitle>
           <CardDescription className="line-clamp-2 min-h-[2.5rem]">

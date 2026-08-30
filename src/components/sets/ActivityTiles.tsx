@@ -27,7 +27,7 @@ interface Tile {
  * still tell them apart, which is what colour was doing anyway.
  */
 const TILE_SURFACE =
-  "bg-muted/50 text-foreground border-border hover:bg-muted hover:border-primary/40";
+  "bg-card text-foreground border-border shadow-[var(--shadow-sm)] hover:border-primary/60 hover:shadow-[var(--shadow-md)]";
 
 const TILES: Tile[] = [
   {
@@ -66,7 +66,7 @@ export function ActivityTiles({ id, userId }: ActivityTileProps) {
               aria-disabled="true"
               title="Sign in to use this activity"
               className={cn(
-                "flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm",
+                "flex items-center justify-center gap-2 rounded-lg border px-3 py-3 text-sm",
                 "opacity-60 cursor-not-allowed",
                 TILE_SURFACE,
               )}
@@ -83,7 +83,7 @@ export function ActivityTiles({ id, userId }: ActivityTileProps) {
             key={tile.label}
             href={tile.href(id)}
             className={cn(
-              "flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-colors",
+              "flex items-center justify-center gap-2 rounded-lg border px-3 py-3 text-sm transition-[border-color,box-shadow]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               TILE_SURFACE,
             )}
