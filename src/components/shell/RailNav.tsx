@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Compass, Library, Plus, LogIn } from 'lucide-react'
+import { Home, Compass, Library, NotebookPen, Plus, LogIn } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { railItems, isRailItemCurrent, isRecentCurrent, type RailIcon } from '@/lib/shell/nav'
 
@@ -43,6 +43,7 @@ export function RailNav({
 }) {
   const pathname = usePathname()
   const items = railItems(signedIn)
+  const postmortemCurrent = pathname === '/postmortem' || pathname.startsWith('/postmortem/')
 
   return (
     <nav aria-label="Main" className="flex flex-col gap-0.5">
@@ -112,6 +113,31 @@ export function RailNav({
             })}
           </ul>
         </>
+      )}
+
+      {signedIn && (
+        <div className={cn(
+          'border-t border-sidebar-border pt-3',
+          recents.length > 0 ? 'mt-5' : 'mt-8',
+        )}>
+          <Link
+            href="/postmortem"
+            onClick={onNavigate}
+            aria-current={postmortemCurrent ? 'page' : undefined}
+            aria-label="Postmortem"
+            title={collapsed ? 'Postmortem' : undefined}
+            className={cn(
+              'group flex items-center gap-3 rounded-[4px] py-2.5 text-[0.9375rem] transition-colors',
+              collapsed ? 'justify-center px-0' : 'px-3',
+              postmortemCurrent
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-[inset_3px_0_0_var(--primary)]'
+                : 'text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground',
+            )}
+          >
+            <NotebookPen className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {!collapsed && 'Postmortem'}
+          </Link>
+        </div>
       )}
     </nav>
   )
