@@ -1,9 +1,44 @@
-import React, { useRef, useState } from "react";
+'use client'
+
+import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ContentBlock } from "@/lib/cards/content";
 import { Trash2, Plus, Upload, Loader2 } from "lucide-react";
 import { AIAutocompleteButton } from "./AIAutocompleteButton";
 import { uploadCardAsset } from "@/actions/uploads";
 import { toast } from "sonner";
+
+function AutoResizeTextarea({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: React.ChangeEventHandler<HTMLTextAreaElement>;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const resize = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    // Reset before measuring so the field also shrinks when text is deleted.
+    textarea.style.height = "0px";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  }, []);
+
+  useLayoutEffect(() => {
+    resize();
+  }, [resize, value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      className="field-sizing-content min-h-[10rem] w-full resize-none overflow-hidden rounded-[6px] border border-input bg-card px-3 py-3 pr-10 text-sm leading-6 transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+      value={value}
+      onChange={onChange}
+      onInput={resize}
+    />
+  );
+}
 
 interface RichCardSideEditorProps {
   blocks: ContentBlock[];
@@ -12,6 +47,8 @@ interface RichCardSideEditorProps {
   setId: string;
   side: "term" | "definition";
   categories: string[];
+  referenceText: string;
+  onFillCard: (term: string, definition: string) => void;
 }
 
 export function RichCardSideEditor({
@@ -21,6 +58,8 @@ export function RichCardSideEditor({
   setId,
   side,
   categories,
+  referenceText,
+  onFillCard,
 }: RichCardSideEditorProps) {
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
@@ -63,10 +102,11 @@ export function RichCardSideEditor({
 
       updateBlock(index, { assetId: result.assetId });
       toast.success("✓ File uploaded successfully");
-    } catch (e: any) {
-      const errorMsg = e.message?.includes("BLOB_READ_WRITE_TOKEN")
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Upload failed. Please try again.";
+      const errorMsg = message.includes("BLOB_READ_WRITE_TOKEN")
         ? "Server error: Vercel Blob credentials missing. Contact admin."
-        : e.message || "Upload failed. Please try again.";
+        : message;
       toast.error(errorMsg, { duration: 5000 });
       console.error("Upload error:", e);
     } finally {
@@ -83,24 +123,25 @@ export function RichCardSideEditor({
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-2">
       {blocks.map((block, i) => (
-        <div key={block.id || i} className="flex items-start gap-2">
-          <div className="flex-grow relative">
+        <div key={block.id || i} className="flex min-w-0 items-start gap-2">
+          <div className="relative min-w-0 flex-grow">
             {block.type === "text" ? (
               <div className="relative">
-                <textarea
-                  className="w-full rounded border p-2 pr-8 text-sm"
+                <AutoResizeTextarea
                   value={block.text || ""}
                   onChange={(e) => updateBlock(i, { text: e.target.value })}
                 />
-                <div className="absolute right-1 top-1">
+                <div className="absolute right-2 top-2">
                   <AIAutocompleteButton
                     setId={setId}
                     currentText={block.text || ""}
                     side={side}
                     categories={categories}
+                    referenceText={referenceText}
                     onSelect={(s) => updateBlock(i, { text: s })}
+                    onFillCard={onFillCard}
                   />
                 </div>
               </div>

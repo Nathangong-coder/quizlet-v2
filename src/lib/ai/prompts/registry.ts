@@ -32,8 +32,8 @@ export type { McFeedbackBuildInput } from './mc-feedback';
 export { TRAINING_PLAN_PROMPT } from './training-plan';
 export type { TrainingPlanContext } from './training-plan';
 
-export { AUTOCOMPLETE_PROMPT } from './autocomplete';
-export type { AutocompleteBuildInput } from './autocomplete';
+export { AUTOCOMPLETE_PROMPT, CARD_AUTOFILL_PROMPT } from './autocomplete';
+export type { AutocompleteBuildInput, CardAutofillBuildInput } from './autocomplete';
 
 export { SESSION_INSIGHT_PROMPT } from './session-insight';
 export type { SessionInsightBuildInput } from './session-insight';
@@ -61,6 +61,7 @@ import { ANNOTATION_PROMPT } from './annotation';
 import { MC_FEEDBACK_PROMPT } from './mc-feedback';
 import { TRAINING_PLAN_PROMPT } from './training-plan';
 import { AUTOCOMPLETE_PROMPT } from './autocomplete';
+import { CARD_AUTOFILL_PROMPT } from './autocomplete';
 import { SESSION_INSIGHT_PROMPT } from './session-insight';
 import { EXTRACT_KLPS_PROMPT } from './extract-klps';
 import { TRUE_FALSE_PROMPT } from './true-false';
@@ -76,6 +77,7 @@ export const PROMPT_REGISTRY = {
   [MC_FEEDBACK_PROMPT.id]: MC_FEEDBACK_PROMPT,
   [TRAINING_PLAN_PROMPT.id]: TRAINING_PLAN_PROMPT,
   [AUTOCOMPLETE_PROMPT.id]: AUTOCOMPLETE_PROMPT,
+  [CARD_AUTOFILL_PROMPT.id]: CARD_AUTOFILL_PROMPT,
   [SESSION_INSIGHT_PROMPT.id]: SESSION_INSIGHT_PROMPT,
   [EXTRACT_KLPS_PROMPT.id]: EXTRACT_KLPS_PROMPT,
   [TRUE_FALSE_PROMPT.id]: TRUE_FALSE_PROMPT,

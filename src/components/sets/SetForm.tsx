@@ -79,6 +79,22 @@ function cardToEditorBlocks(card: InitialCard) {
   }
 }
 
+function hasTypedText(blocks: ContentBlock[]) {
+  return blocks.some((block) => block.type === 'text' && Boolean(block.text?.trim()))
+}
+
+function withGeneratedText(blocks: ContentBlock[], text: string, side: 'term' | 'definition') {
+  const textIndex = blocks.findIndex((block) => block.type === 'text')
+  if (textIndex >= 0) {
+    return blocks.map((block, index) => (index === textIndex ? { ...block, text } : block))
+  }
+
+  return [
+    { id: `${Date.now()}-${Math.random()}`, type: 'text' as const, text, position: 0, side },
+    ...blocks.map((block, index) => ({ ...block, position: index + 1 })),
+  ]
+}
+
 export function SetForm({
   mode,
   initialTitle = '',
@@ -123,9 +139,27 @@ export function SetForm({
   }
 
   const updateCard = (index: number, side: 'term' | 'definition', blocks: ContentBlock[]) => {
-    const newCards = [...cards]
-    newCards[index] = { ...newCards[index], [side]: blocks }
-    setCards(newCards)
+    setCards((prev) =>
+      prev.map((card, cardIndex) => (cardIndex === index ? { ...card, [side]: blocks } : card)),
+    )
+  }
+
+  const fillCard = (index: number, term: string, definition: string) => {
+    setCards((prev) =>
+      prev.map((card, cardIndex) => {
+        if (cardIndex !== index) return card
+
+        return {
+          ...card,
+          // Never replace text the learner already supplied. This also means
+          // both sides can safely be returned for a one-sided completion.
+          term: hasTypedText(card.term) ? card.term : withGeneratedText(card.term, term, 'term'),
+          definition: hasTypedText(card.definition)
+            ? card.definition
+            : withGeneratedText(card.definition, definition, 'definition'),
+        }
+      }),
+    )
   }
 
   const handleCategoriesChange = (index: number, names: string[]) => {
@@ -248,7 +282,7 @@ export function SetForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-4xl mx-auto p-6 space-y-8">
+    <form onSubmit={handleSubmit} className="w-full max-w-none space-y-8">
       <div className="space-y-6">
         <div className="space-y-2">
           <label htmlFor="title" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
@@ -308,7 +342,7 @@ export function SetForm({
           />
         )}
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           {cards.map((card, index) => (
             <CardRow
               key={index}
@@ -321,12 +355,26 @@ export function SetForm({
               onChange={updateCard}
               onCategoriesChange={handleCategoriesChange}
               onCreateCategory={handleCreateCategory}
+              onFillCard={fillCard}
               onRemove={removeCard}
               onUploadStatusChange={setIsUploading}
               canRemove={cards.length > 1}
               setId={setId || 'new'}
             />
           ))}
+        </div>
+
+        <div className="border-t border-dashed border-border/80 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={addCard}
+            className="w-full gap-2 border-dashed"
+          >
+            <Plus className="h-4 w-4" />
+            Add a card
+          </Button>
         </div>
       </div>
 

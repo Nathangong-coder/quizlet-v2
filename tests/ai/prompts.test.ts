@@ -5,7 +5,7 @@ import { GRADE_SHORT_ANSWER_PROMPT } from '@/lib/ai/prompts/grade-short-answer'
 import { ANNOTATION_PROMPT } from '@/lib/ai/prompts/annotation'
 import { TRAINING_PLAN_PROMPT } from '@/lib/ai/prompts/training-plan'
 import { MC_FEEDBACK_PROMPT } from '@/lib/ai/prompts/mc-feedback'
-import { AUTOCOMPLETE_PROMPT } from '@/lib/ai/prompts/autocomplete'
+import { AUTOCOMPLETE_PROMPT, CARD_AUTOFILL_PROMPT } from '@/lib/ai/prompts/autocomplete'
 import { SESSION_INSIGHT_PROMPT } from '@/lib/ai/prompts/session-insight'
 import { EXTRACT_KLPS_PROMPT } from '@/lib/ai/prompts/extract-klps'
 import { TRUE_FALSE_PROMPT } from '@/lib/ai/prompts/true-false'
@@ -14,6 +14,7 @@ import { summarizeSession } from '@/lib/memory/summarize'
 import { MAX_FOCUS_AREAS } from '@/lib/memory/insight'
 import { KLP_KINDS } from '@/lib/ai/schemas'
 import { ACCURACY_TYPES, CLARITY_TYPES, CONCISENESS_TYPES } from '@/lib/errors/taxonomy'
+import type { ContentBlock } from '@/lib/cards/content'
 
 function makeCard(overrides: Partial<Card> = {}): Card {
   return {
@@ -51,7 +52,7 @@ describe('MULTIPLE_CHOICE_PROMPT', () => {
   it('buildParts() returns parts + matching promptText, with profileBlock included', () => {
     const { parts, promptText } = MULTIPLE_CHOICE_PROMPT.buildParts({
       card,
-      promptBlocks: [{ type: 'text', text: 'x', position: 0 } as any],
+      promptBlocks: [{ type: 'text', text: 'x', position: 0 } as ContentBlock],
       siblingCards: [card, sibling],
       profileBlock: PROFILE_BLOCK,
     })
@@ -192,6 +193,31 @@ describe('MC_FEEDBACK_PROMPT and AUTOCOMPLETE_PROMPT (no memory injection)', () 
     })
     expect(prompt).toContain('M&A Basics')
     expect(prompt).toContain('valuation')
+  })
+
+  it('uses the filled opposite side as context for suggestions', () => {
+    const prompt = AUTOCOMPLETE_PROMPT.build({
+      set: { title: 'M&A Basics', description: null, cards: [] },
+      currentText: '',
+      side: 'definition',
+      categories: ['valuation'],
+      referenceText: 'WACC',
+    })
+    expect(prompt).toContain('existing term / question')
+    expect(prompt).toContain('WACC')
+    expect(prompt).toContain('semantically correct completion')
+  })
+
+  it('asks for a complete pair when the editor needs a card autofill', () => {
+    const prompt = CARD_AUTOFILL_PROMPT.build({
+      set: { title: 'M&A Basics', description: null, cards: [] },
+      term: 'WACC',
+      definition: '',
+      categories: ['valuation'],
+    })
+    expect(prompt).toContain('Term / question: "WACC"')
+    expect(prompt).toContain('write the missing side')
+    expect(prompt).toContain('{ "term": string, "definition": string }')
   })
 })
 

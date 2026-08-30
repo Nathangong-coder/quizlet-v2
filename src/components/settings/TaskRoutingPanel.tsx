@@ -18,7 +18,7 @@ const TASK_LABELS: Record<Task, string> = {
   grade: 'Grading (short-answer & spoken)',
   plan: 'Training plan generation',
   distractors: 'Multiple-choice distractors',
-  autocomplete: 'Card autocomplete',
+  autocomplete: 'Card autocomplete & autofill',
 };
 
 interface RowState {

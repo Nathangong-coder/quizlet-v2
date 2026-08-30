@@ -6,7 +6,7 @@ import { Trash2 } from 'lucide-react'
 import { RichCardSideEditor } from './RichCardSideEditor'
 import { CategoryPicker } from './CategoryPicker'
 import { KlpEditor } from './KlpEditor'
-import { ContentBlock } from '@/lib/cards/content'
+import { ContentBlock, contentBlocksToPlainText } from '@/lib/cards/content'
 
 interface CardRowProps {
   index: number
@@ -18,6 +18,7 @@ interface CardRowProps {
   onChange: (index: number, side: 'term' | 'definition', blocks: ContentBlock[]) => void
   onCategoriesChange: (index: number, names: string[]) => void
   onCreateCategory: (name: string) => void
+  onFillCard: (index: number, term: string, definition: string) => void
   onRemove: (index: number) => void
   onUploadStatusChange?: (isUploading: boolean) => void
   canRemove: boolean
@@ -34,6 +35,7 @@ export function CardRow({
   onChange,
   onCategoriesChange,
   onCreateCategory,
+  onFillCard,
   onRemove,
   onUploadStatusChange,
   canRemove,
@@ -47,10 +49,10 @@ export function CardRow({
   }
 
   return (
-    <div className="flex gap-4 items-start mb-6 p-4 border rounded-lg bg-card">
-      <div className="flex-1 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
+    <div className="flex items-start gap-3 rounded-lg border bg-card p-4 sm:gap-4 sm:p-5">
+      <div className="min-w-0 flex-1 space-y-5">
+        <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-2 xl:gap-7">
+          <div className="min-w-0 space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase">Term</label>
             <RichCardSideEditor
               blocks={termBlocks}
@@ -58,10 +60,12 @@ export function CardRow({
               setId={setId}
               categories={categoryNames}
               onChange={(blocks) => onChange(index, 'term', blocks)}
+              referenceText={contentBlocksToPlainText(definitionBlocks)}
+              onFillCard={(term, definition) => onFillCard(index, term, definition)}
               onUploadStatusChange={handleUploadChange}
             />
           </div>
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase">Definition</label>
             <RichCardSideEditor
               blocks={definitionBlocks}
@@ -69,6 +73,8 @@ export function CardRow({
               setId={setId}
               categories={categoryNames}
               onChange={(blocks) => onChange(index, 'definition', blocks)}
+              referenceText={contentBlocksToPlainText(termBlocks)}
+              onFillCard={(term, definition) => onFillCard(index, term, definition)}
               onUploadStatusChange={handleUploadChange}
             />
           </div>

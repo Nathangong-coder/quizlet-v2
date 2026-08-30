@@ -1,8 +1,9 @@
+"use client";
+
 import React, { useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getCardAutocompleteSuggestions } from "@/actions/card-autocomplete";
-import { cn } from "@/lib/utils";
+import { generateCardAutofill, getCardAutocompleteSuggestions } from "@/actions/card-autocomplete";
 import { useErrorToast } from "@/components/errors/useErrorToast";
 
 interface AIAutocompleteButtonProps {
@@ -10,7 +11,9 @@ interface AIAutocompleteButtonProps {
   currentText: string;
   side: "term" | "definition";
   categories: string[];
+  referenceText: string;
   onSelect: (suggestion: string) => void;
+  onFillCard: (term: string, definition: string) => void;
 }
 
 export function AIAutocompleteButton({
@@ -18,7 +21,9 @@ export function AIAutocompleteButton({
   currentText,
   side,
   categories,
+  referenceText,
   onSelect,
+  onFillCard,
 }: AIAutocompleteButtonProps) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,14 +32,47 @@ export function AIAutocompleteButton({
 
   const fetchSuggestions = async () => {
     setIsLoading(true);
-    const result = await getCardAutocompleteSuggestions(setId, currentText, side, categories);
-    if (result.success) {
-      setSuggestions(result.data.suggestions);
-    } else {
-      showError(result.error, result.detail);
+    try {
+      // A blank side is a completion action, not a suggestion request. The
+      // server returns both sides so an entirely empty card can be filled in
+      // one click, while the parent preserves any side the learner already
+      // typed.
+      if (!currentText.trim()) {
+        const result = await generateCardAutofill(
+          setId,
+          side === "term" ? currentText : referenceText,
+          side === "definition" ? currentText : referenceText,
+          categories,
+        );
+        if (result.success) {
+          setIsOpen(false);
+          onFillCard(result.data.term, result.data.definition);
+          // Also fill the specific empty text block that owns this button.
+          // This matters when a rich card has another text block on the same
+          // side that already contains content.
+          onSelect(side === "term" ? result.data.term : result.data.definition);
+        } else {
+          showError(result.error, result.detail);
+        }
+        return;
+      }
+
+      const result = await getCardAutocompleteSuggestions(
+        setId,
+        currentText,
+        side,
+        categories,
+        referenceText,
+      );
+      if (result.success) {
+        setSuggestions(result.data.suggestions);
+        setIsOpen(true);
+      } else {
+        showError(result.error, result.detail);
+      }
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-    setIsOpen(true);
   };
 
   return (
@@ -42,6 +80,10 @@ export function AIAutocompleteButton({
       <Button
         variant="ghost"
         size="sm"
+        type="button"
+        aria-label={currentText.trim() ? "Get AI suggestions" : "Fill card with AI"}
+        title={currentText.trim() ? "Get AI suggestions" : "Fill card with AI"}
+        aria-expanded={isOpen}
         className="h-8 w-8 p-0 text-muted-foreground hover:text-primary"
         onClick={fetchSuggestions}
         disabled={isLoading}
@@ -61,6 +103,7 @@ export function AIAutocompleteButton({
                 <Button
                   key={i}
                   variant="ghost"
+                  type="button"
                   className="w-full justify-start text-sm h-auto py-2 px-3 text-left"
                   onClick={() => {
                     onSelect(s);
