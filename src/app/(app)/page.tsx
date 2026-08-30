@@ -10,7 +10,6 @@ import { SetCard } from '@/components/sets/SetCard'
 import { SetStrip } from '@/components/home/SetStrip'
 import { Landing } from '@/components/home/Landing'
 import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
-import { PageHeader } from '@/components/ui/page-header'
 
 /** How many of your own sets the homepage shows before "See all". */
 const OWN_SETS_PREVIEW = 6
@@ -76,11 +75,10 @@ export default async function Home() {
   )
 
   const hasNothing = recents.length === 0 && ownSets.length === 0
+  const hasRecommended = recommended.recommendations.length > 0 || recommended.emptyReason !== null
 
   return (
     <div>
-      <PageHeader title="Home" />
-
       {hasNothing ? (
         <div className="mt-8">
           <p className="lede">
@@ -96,11 +94,8 @@ export default async function Home() {
           {/* Each block renders NOTHING rather than an empty shell — a new
               account must not meet three empty headings. */}
           {recents.length > 0 && (
-            <Section className="mt-8">
-              <SectionHeader
-                title="Jump back in"
-                hint={recents.length === 1 ? '1 set' : `${recents.length} sets`}
-              />
+            <Section className="mt-8" rule={false}>
+              <SectionHeader title="Jump back in" />
               <SectionBody><SetStrip sets={recents} summaries={summaries} /></SectionBody>
             </Section>
           )}
@@ -110,8 +105,8 @@ export default async function Home() {
               material — putting it last would bury the whole point of having a
               directory. It renders its own four empty states rather than
               disappearing, so a learner who has none can see WHY. */}
-          {(recommended.recommendations.length > 0 || recommended.emptyReason !== null) && (
-            <Section>
+          {hasRecommended && (
+            <Section rule={recents.length > 0}>
               <SectionHeader
                 title="Recommended"
                 hint={recommended.recommendations.length > 0 ? 'from Browse' : undefined}
@@ -135,7 +130,7 @@ export default async function Home() {
               that empties it, per the render-nothing-rather-than-an-empty-shell
               rule; "See all" is still one click away in the nav. */}
           {otherOwnSets.length > 0 && (
-            <Section>
+            <Section rule={recents.length > 0 || hasRecommended}>
               <SectionHeader
                 title="Your sets"
                 action={<Link href="/sets" className="underline underline-offset-4">See all</Link>}
