@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { ExpandableText } from "@/components/ui/expandable-text";
 import { submitMatchingAnswers } from "@/actions/quiz-matching";
 import { toast } from "sonner";
-import { ContentBlock } from "@/lib/cards/content";
+import { ContentBlock, getNumberedListIndex } from "@/lib/cards/content";
 import { ContentBlockView } from "@/components/cards/ContentBlockView";
 import { QuizSectionHandle } from "./section";
 
@@ -50,6 +50,7 @@ function SideContent({
           <ContentBlockView
             key={i}
             block={block}
+            index={getNumberedListIndex(blocks, i)}
             compact
             assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
           />

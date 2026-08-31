@@ -8,9 +8,26 @@ export const ContentBlockSchema = z.object({
   assetId: z.string().optional(),
   position: z.number().int(),
   side: z.enum(["term", "definition"]).optional(),
+  // Formatting stays structured rather than HTML so every renderer remains
+  // XSS-safe and can follow the active light/dark theme.
+  listType: z.enum(["bullet", "numbered"]).nullable().optional(),
+  indent: z.number().int().min(0).max(6).nullable().optional(),
 });
 
 export type ContentBlock = z.infer<typeof ContentBlockSchema>;
+
+/**
+ * Numbered lists are stored as block metadata, so their display number needs
+ * to be derived from sibling text blocks rather than the mixed-media position.
+ * This keeps the first numbered item at 1 even when a paragraph or image comes
+ * before it.
+ */
+export function getNumberedListIndex(blocks: ContentBlock[], index: number): number {
+  return blocks
+    .slice(0, index)
+    .filter((block) => block.type === "text" && block.listType === "numbered")
+    .length;
+}
 
 /**
  * Compute a content hash for a list of blocks.
@@ -20,7 +37,7 @@ export type ContentBlock = z.infer<typeof ContentBlockSchema>;
  */
 export function computeContentHash(blocks: ContentBlock[]): string {
   const data = blocks
-    .map((b) => `${b.type}:${b.position}:${b.text || ""}:${b.assetId || ""}`)
+    .map((b) => `${b.type}:${b.position}:${b.text || ""}:${b.assetId || ""}:${b.listType || ""}:${b.indent ?? 0}`)
     .join("|");
   return createHash("sha256").update(data).digest("hex");
 }

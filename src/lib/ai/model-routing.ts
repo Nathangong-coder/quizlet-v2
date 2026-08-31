@@ -4,6 +4,6 @@
  * settings routing panel. Single source of truth — the UI must import
  * `AI_TASKS` rather than re-listing these.
  */
-export const AI_TASKS = ['grade', 'plan', 'distractors', 'autocomplete'] as const;
+export const AI_TASKS = ['grade', 'plan', 'distractors', 'autocomplete', 'note-analysis'] as const;
 
 export type AiTask = (typeof AI_TASKS)[number];

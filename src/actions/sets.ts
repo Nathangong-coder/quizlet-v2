@@ -42,12 +42,19 @@ function sanitizeBlock(
   side: 'term' | 'definition',
   position: number,
 ) {
+  const listType = block?.listType === 'bullet' || block?.listType === 'numbered'
+    ? block.listType
+    : null
+  const rawIndent = Number.isInteger(block?.indent) ? block.indent : 0
+
   return {
     side,
     type: typeof block?.type === 'string' ? block.type : 'text',
     text: block?.text ?? null,
     assetId: block?.assetId ?? null,
     position,
+    listType,
+    indent: Math.min(Math.max(rawIndent, 0), 6),
   }
 }
 

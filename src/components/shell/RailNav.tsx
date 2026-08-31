@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Compass, Library, NotebookPen, Plus, LogIn } from 'lucide-react'
+import { Home, Compass, FileText, Folder, FolderPlus, Library, NotebookPen, Plus, LogIn } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { railItems, isRailItemCurrent, isRecentCurrent, type RailIcon } from '@/lib/shell/nav'
 
@@ -20,6 +20,11 @@ export interface RailRecent {
   isOwn: boolean
 }
 
+export interface RailFolder {
+  id: string
+  name: string
+}
+
 /**
  * The rail's links. The ONLY client component in the shell's navigation —
  * everything around it (the wordmark, the data fetch, the container) is server
@@ -31,11 +36,13 @@ export interface RailRecent {
 export function RailNav({
   signedIn,
   recents,
+  folders,
   onNavigate,
   collapsed = false,
 }: {
   signedIn: boolean
   recents: RailRecent[]
+  folders: RailFolder[]
   /** Lets the mobile drawer close itself when a link is taken. */
   onNavigate?: () => void
   /** When true, the rail is icon-only and recent text is hidden. */
@@ -44,6 +51,7 @@ export function RailNav({
   const pathname = usePathname()
   const items = railItems(signedIn)
   const postmortemCurrent = pathname === '/postmortem' || pathname.startsWith('/postmortem/')
+  const notesCurrent = pathname === '/notes' || pathname.startsWith('/notes/')
 
   return (
     <nav aria-label="Main" className="flex flex-col gap-0.5">
@@ -117,7 +125,7 @@ export function RailNav({
 
       {signedIn && (
         <div className={cn(
-          'border-t border-sidebar-border pt-3',
+          'space-y-0.5 border-t border-sidebar-border pt-3',
           recents.length > 0 ? 'mt-5' : 'mt-8',
         )}>
           <Link
@@ -137,6 +145,74 @@ export function RailNav({
             <NotebookPen className="h-4 w-4 shrink-0" aria-hidden="true" />
             {!collapsed && 'Postmortem'}
           </Link>
+          <Link
+            href="/notes"
+            onClick={onNavigate}
+            aria-current={notesCurrent ? 'page' : undefined}
+            aria-label="Study notes"
+            title={collapsed ? 'Study notes' : undefined}
+            className={cn(
+              'group flex items-center gap-3 rounded-[4px] py-2.5 text-[0.9375rem] transition-colors',
+              collapsed ? 'justify-center px-0' : 'px-3',
+              notesCurrent
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-[inset_3px 0_0_var(--primary)]'
+                : 'text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground',
+            )}
+          >
+            <FileText className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {!collapsed && 'Study notes'}
+          </Link>
+        </div>
+      )}
+
+      {signedIn && (
+        <div className={cn(
+          'border-t border-sidebar-border pt-4',
+          recents.length > 0 || folders.length > 0 ? 'mt-5' : 'mt-8',
+        )}>
+          {!collapsed && <p className="label mb-2 px-3 text-muted-foreground">Your folders</p>}
+          {folders.length > 0 ? (
+            <ul className="flex flex-col gap-0.5">
+              {folders.map((folder) => {
+                const current = pathname === `/folders/${folder.id}`
+                return (
+                  <li key={folder.id}>
+                    <Link
+                      href={`/folders/${folder.id}`}
+                      onClick={onNavigate}
+                      aria-current={current ? 'page' : undefined}
+                      aria-label={folder.name}
+                      title={collapsed ? folder.name : undefined}
+                      className={cn(
+                        'flex items-center gap-3 rounded-[4px] py-2 text-sm transition-colors',
+                        collapsed ? 'justify-center px-0' : 'px-3',
+                        current
+                          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-[inset_3px_0_0_var(--primary)]'
+                          : 'text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground',
+                      )}
+                    >
+                      <Folder className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      {!collapsed && <span className="truncate">{folder.name}</span>}
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <Link
+              href="/folders/new"
+              onClick={onNavigate}
+              aria-label="Create your first folder"
+              title={collapsed ? 'Create folder' : undefined}
+              className={cn(
+                'flex items-center gap-3 rounded-[4px] py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground',
+                collapsed ? 'justify-center px-0' : 'px-3',
+              )}
+            >
+              <FolderPlus className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {!collapsed && 'Create a folder'}
+            </Link>
+          )}
         </div>
       )}
     </nav>

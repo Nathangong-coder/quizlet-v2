@@ -199,6 +199,8 @@ export async function createPostmortem(input: PostmortemInput): Promise<ActionRe
     })
 
     revalidatePath('/postmortem')
+    revalidatePath('/folders')
+    revalidatePath('/', 'layout')
     return { success: true, data: { id: created.id } }
   } catch (error) {
     console.error('createPostmortem error:', error)
@@ -242,6 +244,8 @@ export async function updatePostmortem(
 
     revalidatePath('/postmortem')
     revalidatePath(`/postmortem/${id}`)
+    revalidatePath('/folders')
+    revalidatePath('/', 'layout')
     return { success: true, data: { id } }
   } catch (error) {
     console.error('updatePostmortem error:', error)
@@ -257,6 +261,8 @@ export async function deletePostmortem(id: string): Promise<ActionResult<{ delet
     const deleted = await prisma.postmortemSession.deleteMany({ where: { id, userId: session.user.id } })
     if (deleted.count === 0) return { success: false, error: 'Postmortem not found' }
     revalidatePath('/postmortem')
+    revalidatePath('/folders')
+    revalidatePath('/', 'layout')
     return { success: true, data: { deleted: true } }
   } catch (error) {
     console.error('deletePostmortem error:', error)

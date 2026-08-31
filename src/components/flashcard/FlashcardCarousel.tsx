@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { ContentBlock } from '@/lib/cards/content'
+import { ContentBlock, getNumberedListIndex } from '@/lib/cards/content'
 import { ContentBlockView } from '@/components/cards/ContentBlockView'
 
 interface FlashcardCarouselCard {
@@ -78,6 +78,7 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
                   <ContentBlockView
                     key={i}
                     block={block}
+                    index={getNumberedListIndex(termBlocks, i)}
                     compact
                     assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
                   />
@@ -100,6 +101,7 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
                   <ContentBlockView
                     key={i}
                     block={block}
+                    index={getNumberedListIndex(defBlocks, i)}
                     compact
                     assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
                   />

@@ -19,6 +19,7 @@ const TASK_LABELS: Record<Task, string> = {
   plan: 'Training plan generation',
   distractors: 'Multiple-choice distractors',
   autocomplete: 'Card autocomplete & autofill',
+  'note-analysis': 'Study note analysis',
 };
 
 interface RowState {
@@ -35,6 +36,7 @@ export default function TaskRoutingPanel() {
     plan: { ...EMPTY_ROW },
     distractors: { ...EMPTY_ROW },
     autocomplete: { ...EMPTY_ROW },
+    'note-analysis': { ...EMPTY_ROW },
   });
   const [loading, setLoading] = useState(true);
   const [savingTask, setSavingTask] = useState<Task | null>(null);

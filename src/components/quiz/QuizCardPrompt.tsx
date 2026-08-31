@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Card } from '@prisma/client';
-import { ContentBlock } from '@/lib/cards/content';
+import { ContentBlock, getNumberedListIndex } from '@/lib/cards/content';
 import { ContentBlockView } from '@/components/cards/ContentBlockView';
 
 type QuizCard = Card & { contentBlocks?: ContentBlock[] };
@@ -37,6 +37,7 @@ export function QuizCardPrompt({
         <ContentBlockView
           key={i}
           block={block}
+          index={getNumberedListIndex(blocks, i)}
           compact
           assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
         />
