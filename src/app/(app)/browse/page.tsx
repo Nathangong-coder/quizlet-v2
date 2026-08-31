@@ -98,11 +98,11 @@ export default async function BrowsePage({
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-7">
+            <ul className="border-t border-border/70">
               {entries.map((e) => (
                 <DirectoryCard key={e.id} entry={e} />
               ))}
-            </div>
+            </ul>
           )}
         </SectionBody>
       </Section>

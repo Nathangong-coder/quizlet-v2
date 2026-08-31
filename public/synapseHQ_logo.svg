@@ -20,5 +20,5 @@
   </g>
 
   <!-- The wordmark is larger now that the tagline is gone. -->
-  <text x="175" y="122" font-family="'Nunito Sans', 'Segoe UI', Arial, sans-serif" font-size="78" font-weight="700" fill="#282e3e">synapse<tspan fill="#4255ff">HQ</tspan></text>
+  <text x="175" y="122" font-family="'hurme_no2-webfont', 'Hurme Geometric Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="78" font-weight="700" fill="#282e3e">synapse<tspan fill="#4255ff">HQ</tspan></text>
 </svg>

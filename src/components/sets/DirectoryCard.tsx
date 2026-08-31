@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { CategoryChip } from '@/components/cards/CategoryChip'
 import { SetGlyph } from '@/components/sets/SetGlyph'
 import type { DirectoryEntry } from '@/lib/sets/directory'
 
@@ -13,25 +12,20 @@ import type { DirectoryEntry } from '@/lib/sets/directory'
  */
 export function DirectoryCard({ entry }: { entry: DirectoryEntry }) {
   return (
-    <article className="flex gap-4 min-w-0">
+    <li className="group flex min-w-0 items-center gap-3 border-b border-border/70 py-3 sm:gap-4 sm:py-4">
       <Link
         href={`/sets/${entry.id}`}
-        tabIndex={-1}
-        aria-hidden="true"
-        className="shrink-0 text-primary/70 pt-1"
+        aria-label={`Open ${entry.title}`}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/[0.07] text-primary/70 transition-colors group-hover:bg-primary/10 sm:h-11 sm:w-11"
       >
-        <SetGlyph setId={entry.id} categoryCount={entry.categories.length} className="w-12 h-12" />
+        <SetGlyph setId={entry.id} categoryCount={0} className="h-7 w-7 sm:h-8 sm:w-8" />
       </Link>
 
-      <div className="min-w-0 flex-1">
-        <h3 className="text-base font-medium leading-snug">
-          <Link href={`/sets/${entry.id}`} className="hover:underline underline-offset-4">
-            {entry.title}
-          </Link>
-        </h3>
+      <Link href={`/sets/${entry.id}`} className="min-w-0 flex-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <h3 className="truncate text-base font-semibold leading-snug tracking-tight transition-colors group-hover:text-primary sm:text-lg">{entry.title}</h3>
 
         {entry.description && (
-          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{entry.description}</p>
+          <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">{entry.description}</p>
         )}
 
         {/*
@@ -43,21 +37,13 @@ export function DirectoryCard({ entry }: { entry: DirectoryEntry }) {
           still exists or is still readable.
         */}
         {entry.forkedFromTitle && (
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="mt-1 text-xs text-muted-foreground">
             Copied from {entry.forkedFromTitle}
             {entry.forkedFromHandle && ` by @${entry.forkedFromHandle}`}
           </p>
         )}
 
-        {entry.categories.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
-            {entry.categories.map((c) => (
-              <CategoryChip key={c.name} name={c.name} color={c.color} />
-            ))}
-          </div>
-        )}
-
-        <p className="text-xs text-muted-foreground mt-2 flex flex-wrap items-center gap-x-2">
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
           <span className="metric">{entry.cardCount}</span>
           <span>{entry.cardCount === 1 ? 'card' : 'cards'}</span>
           {/*
@@ -85,7 +71,7 @@ export function DirectoryCard({ entry }: { entry: DirectoryEntry }) {
             </>
           )}
         </p>
-      </div>
-    </article>
+      </Link>
+    </li>
   )
 }

@@ -13,6 +13,7 @@ export type FolderItemType = (typeof FOLDER_ITEM_TYPES)[number]
 const FolderInputSchema = z.object({
   name: z.string().trim().min(1, 'Give this folder a name').max(80),
   description: z.string().trim().max(1000).optional(),
+  tags: z.array(z.string().trim().min(1).max(32)).max(12).optional(),
 })
 
 export interface FolderListRow {
@@ -39,6 +40,8 @@ export interface FolderDetail {
   id: string
   name: string
   description: string | null
+  tags: string[]
+  pinned: boolean
   createdAt: Date
   updatedAt: Date
   sets: FolderMember[]
@@ -57,6 +60,10 @@ export interface FolderOptions {
 function cleanDescription(value: string | undefined): string | null {
   const cleaned = value?.trim()
   return cleaned ? cleaned : null
+}
+
+function cleanTags(value: string[] | undefined): string[] {
+  return [...new Set((value ?? []).map((tag) => tag.trim()).filter(Boolean))].slice(0, 12)
 }
 
 function invalidInput(error: z.ZodError) {
@@ -103,6 +110,8 @@ export async function listFolders(): Promise<ActionResult<FolderListRow[]>> {
         name: true,
         description: true,
         updatedAt: true,
+        tags: true,
+        pinned: true,
         _count: { select: { sets: true, postmortems: true, notes: true, children: true } },
       },
     })
@@ -127,6 +136,8 @@ export async function getFolder(id: string): Promise<ActionResult<FolderDetail>>
         id: true,
         name: true,
         description: true,
+        tags: true,
+        pinned: true,
         createdAt: true,
         updatedAt: true,
         sets: { select: { createdAt: true, set: { select: { id: true, title: true, description: true, createdAt: true, updatedAt: true, _count: { select: { cards: true } } } } } },
@@ -156,6 +167,8 @@ export async function getFolder(id: string): Promise<ActionResult<FolderDetail>>
         id: row.id,
         name: row.name,
         description: row.description,
+        tags: row.tags,
+        pinned: row.pinned,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         sets: row.sets.map(({ createdAt: addedAt, set }) => ({ id: set.id, title: set.title, href: `/sets/${set.id}`, meta: set.description ?? `${set._count.cards} ${set._count.cards === 1 ? 'card' : 'cards'}`, addedAt, createdAt: set.createdAt, updatedAt: set.updatedAt, studiedAt: studiedBySet.get(set.id) ?? null })),
@@ -196,7 +209,7 @@ export async function createFolder(input: z.input<typeof FolderInputSchema>): Pr
 
   try {
     const created = await prisma.folder.create({
-      data: { userId: session.user.id, name: parsed.data.name, description: cleanDescription(parsed.data.description) },
+        data: { userId: session.user.id, name: parsed.data.name, description: cleanDescription(parsed.data.description), ...(parsed.data.tags !== undefined ? { tags: cleanTags(parsed.data.tags) } : {}) },
     })
     refreshFolderViews(created.id)
     return { success: true, data: { id: created.id } }
@@ -215,7 +228,7 @@ export async function updateFolder(id: string, input: z.input<typeof FolderInput
   try {
     const updated = await prisma.folder.updateMany({
       where: { id, userId: session.user.id },
-      data: { name: parsed.data.name, description: cleanDescription(parsed.data.description) },
+      data: { name: parsed.data.name, description: cleanDescription(parsed.data.description), ...(parsed.data.tags !== undefined ? { tags: cleanTags(parsed.data.tags) } : {}) },
     })
     if (updated.count === 0) return { success: false, error: 'Folder not found' }
     refreshFolderViews(id)
@@ -223,6 +236,21 @@ export async function updateFolder(id: string, input: z.input<typeof FolderInput
   } catch (error) {
     console.error('updateFolder error:', error)
     return { success: false, error: 'A folder with that name may already exist' }
+  }
+}
+
+export async function setFolderPinned(id: string, pinned: boolean): Promise<ActionResult<{ pinned: boolean }>> {
+  const session = await auth()
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+  try {
+    const updated = await prisma.folder.updateMany({ where: { id, userId: session.user.id }, data: { pinned } })
+    if (updated.count === 0) return { success: false, error: 'Folder not found' }
+    refreshFolderViews(id)
+    return { success: true, data: { pinned } }
+  } catch (error) {
+    console.error('setFolderPinned error:', error)
+    return { success: false, error: 'Failed to update sidebar pin' }
   }
 }
 

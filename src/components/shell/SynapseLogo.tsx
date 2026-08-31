@@ -62,7 +62,7 @@ export function SynapseLogo({
           <text
             x="175"
             y="122"
-            fontFamily="var(--font-nunito-sans), 'Segoe UI', Arial, sans-serif"
+            fontFamily="var(--font-hurme-geometric-sans)"
             fontSize="78"
             fontWeight="700"
             fill="currentColor"

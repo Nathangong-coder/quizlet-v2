@@ -728,6 +728,8 @@ model Folder {
   userId      String
   name        String
   description String?  @db.Text
+  tags        String[] @default([])
+  pinned      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
