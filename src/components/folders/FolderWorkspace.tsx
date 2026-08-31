@@ -4,21 +4,17 @@ import Link from 'next/link'
 import { useMemo, useState, useTransition } from 'react'
 import {
   BookOpen,
-  ChevronDown,
   FileText,
   Folder,
   Loader2,
-  MoreHorizontal,
   NotebookPen,
   Plus,
   Search,
   Trash2,
 } from 'lucide-react'
-import { addFolderItem, removeFolderItem, updateFolder, type FolderDetail, type FolderItemType, type FolderMember, type FolderOptions } from '@/actions/folders'
-import { FolderDeleteButton } from '@/components/folders/FolderDeleteButton'
+import { addFolderItem, removeFolderItem, type FolderDetail, type FolderItemType, type FolderMember, type FolderOptions } from '@/actions/folders'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 
 type SortMode = 'recent' | 'created' | 'studied'
 type FolderRow = FolderMember & { type: FolderItemType }
@@ -80,12 +76,10 @@ function FolderRowItem({ row, onRemove, removing }: { row: FolderRow; onRemove: 
 export function FolderWorkspace({ folder, options }: { folder: FolderDetail; options: FolderOptions }) {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortMode>('recent')
-  const [name, setName] = useState(folder.name)
-  const [description, setDescription] = useState(folder.description ?? '')
   const [selected, setSelected] = useState<Record<FolderItemType, string>>({ set: '', note: '', postmortem: '', folder: '' })
   const [error, setError] = useState<string | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
-  const [saving, startSaving] = useTransition()
+  const [addOpen, setAddOpen] = useState(false)
   const [adding, startAdding] = useTransition()
 
   const rows = useMemo<FolderRow[]>(() => [
@@ -101,15 +95,6 @@ export function FolderWorkspace({ folder, options }: { folder: FolderDetail; opt
       .filter((row) => !normalizedQuery || `${row.title} ${formatMeta(row)}`.toLowerCase().includes(normalizedQuery))
       .sort((a, b) => timestamp(b, sort) - timestamp(a, sort) || a.title.localeCompare(b.title))
   }, [query, rows, sort])
-
-  function saveFolder(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setError(null)
-    startSaving(async () => {
-      const result = await updateFolder(folder.id, { name, description })
-      if (!result.success) setError(result.error)
-    })
-  }
 
   function addItem(type: FolderItemType) {
     const itemId = selected[type]
@@ -138,13 +123,9 @@ export function FolderWorkspace({ folder, options }: { folder: FolderDetail; opt
   }
 
   return (
-    <div className="space-y-8">
-      <section className="rounded-2xl border border-border bg-card/70 p-4 shadow-[var(--shadow-sm)] sm:p-6" aria-labelledby="folder-materials-heading">
-        <div className="flex flex-col gap-4 border-b border-border/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 id="folder-materials-heading" className="text-xl font-semibold tracking-tight">Materials in this folder</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Sets, study guides, and postmortems for this thread.</p>
-          </div>
+    <div className="space-y-7">
+      <section className="border-y border-border/70" aria-label="Folder contents">
+        <div className="flex flex-col gap-3 border-b border-border/70 py-3 sm:flex-row sm:items-center sm:justify-end">
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
               <span className="sr-only">Sort folder materials</span>
@@ -160,10 +141,10 @@ export function FolderWorkspace({ folder, options }: { folder: FolderDetail; opt
           </div>
         </div>
 
-        {error && <p role="alert" className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        {error && <p role="alert" className="border-b border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
         {filteredRows.length > 0 ? (
-          <ul className="mt-2">
+          <ul>
             {filteredRows.map((row) => <FolderRowItem key={`${row.type}:${row.id}`} row={row} onRemove={removeItem} removing={removing} />)}
           </ul>
         ) : (
@@ -175,17 +156,15 @@ export function FolderWorkspace({ folder, options }: { folder: FolderDetail; opt
         )}
       </section>
 
-      <details className="group rounded-2xl border border-border bg-card/50">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 font-semibold marker:hidden sm:px-6">
-          <span className="flex items-center gap-2"><Plus className="h-4 w-4 text-primary" aria-hidden="true" />Add material</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
-        </summary>
-        <div className="grid gap-4 border-t border-border/70 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-4">
+      <div className="flex flex-col items-center">
+        <button type="button" onClick={() => { setAddOpen((value) => !value); setError(null) }} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground shadow-[var(--shadow-sm)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Plus className="h-4 w-4 text-primary" aria-hidden="true" />{addOpen ? 'Close' : 'New content'}</button>
+        {addOpen && <div className="mt-4 w-full rounded-xl border border-border/70 bg-card/50 p-4 sm:p-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {(['set', 'note', 'postmortem', 'folder'] as FolderItemType[]).map((type) => {
             const meta = SECTION_META[type]
             const Icon = meta.icon
             const optionKey = type === 'set' ? 'sets' : type === 'note' ? 'notes' : type === 'postmortem' ? 'postmortems' : 'folders'
-            const available = options[optionKey]
+            const available = options[optionKey].filter((item) => !rows.some((row) => row.type === type && row.id === item.id))
             return <div key={type} className="space-y-2">
               <label htmlFor={`add-${type}`} className="flex items-center gap-2 text-sm font-semibold"><Icon className={`h-4 w-4 ${meta.iconClass}`} aria-hidden="true" />{meta.singular}</label>
               <div className="flex gap-2">
@@ -199,25 +178,9 @@ export function FolderWorkspace({ folder, options }: { folder: FolderDetail; opt
               </div>
             </div>
           })}
-        </div>
-      </details>
-
-      <details className="group rounded-2xl border border-border bg-card/50">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 font-semibold marker:hidden sm:px-6">
-          <span className="flex items-center gap-2"><MoreHorizontal className="h-4 w-4 text-muted-foreground" aria-hidden="true" />Folder details</span>
-          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
-        </summary>
-        <form onSubmit={saveFolder} className="space-y-4 border-t border-border/70 p-4 sm:p-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-2 text-sm font-semibold">Name<Input value={name} onChange={(event) => setName(event.target.value)} maxLength={80} required /></label>
-            <label className="space-y-2 text-sm font-semibold">Description<span className="font-normal text-muted-foreground"> (optional)</span><Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} maxLength={1000} /></label>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <FolderDeleteButton id={folder.id} />
-            <Button type="submit" variant="outline" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}{saving ? 'Saving…' : 'Save details'}</Button>
-          </div>
-        </form>
-      </details>
+        </div>}
+      </div>
     </div>
   )
 }

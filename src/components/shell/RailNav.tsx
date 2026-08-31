@@ -90,11 +90,12 @@ export function RailNav({
 
       {signedIn && <>
         <div className={cn('border-t border-sidebar-border pt-4', recents.length > 0 ? 'mt-5' : 'mt-8')}>
-          {!collapsed && <p className="label mb-2 px-3 text-muted-foreground">Your folders</p>}
-          {folders.length > 0 ? <ul className="flex flex-col gap-0.5">{folders.map((folder) => {
+          <Link href="/folders" onClick={onNavigate} aria-label="All folders" title={collapsed ? 'All folders' : undefined} className={cn('mb-2 flex items-center gap-2 rounded-[4px] py-1.5 text-muted-foreground transition-colors hover:text-foreground', collapsed ? 'justify-center px-0' : 'px-3')}><Folder className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{!collapsed && <span className="label">Your folders</span>}</Link>
+          {folders.length > 0 && <ul className="flex flex-col gap-0.5">{folders.map((folder) => {
             const current = pathname === `/folders/${folder.id}`
             return <li key={folder.id}><Link href={`/folders/${folder.id}`} onClick={onNavigate} aria-current={current ? 'page' : undefined} aria-label={folder.name} title={collapsed ? folder.name : undefined} className={cn('flex items-center gap-2 rounded-[4px] py-2 text-sm transition-colors', collapsed ? 'justify-center px-0' : 'px-3', current ? 'bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--primary)]' : 'text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground')}><Folder className="h-4 w-4 shrink-0" aria-hidden="true" />{!collapsed && <span className="truncate">{folder.name}</span>}</Link></li>
-          })}</ul> : <Link href="/folders/new" onClick={onNavigate} aria-label="Create your first folder" title={collapsed ? 'Create folder' : undefined} className={cn('flex items-center gap-2 rounded-[4px] py-2 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground', collapsed ? 'justify-center px-0' : 'px-3')}><FolderPlus className="h-4 w-4 shrink-0" aria-hidden="true" />{!collapsed && 'Create a folder'}</Link>}
+          })}</ul>}
+          <Link href="/folders/new" onClick={onNavigate} aria-label="Create a folder" title={collapsed ? '+ folder' : undefined} className={cn('flex items-center gap-2 rounded-[4px] py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground', collapsed ? 'justify-center px-0' : 'px-3')}><FolderPlus className="h-4 w-4 shrink-0" aria-hidden="true" />{!collapsed && '+ folder'}</Link>
         </div>
 
         <div className="mt-5 border-t border-sidebar-border pt-4">

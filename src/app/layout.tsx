@@ -1,22 +1,16 @@
 import type { Metadata } from 'next'
-import { Nunito_Sans, IBM_Plex_Mono } from 'next/font/google'
+import { IBM_Plex_Mono } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'sonner'
 import { cn } from '@/lib/utils'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
 
 /**
- * The UI uses one soft geometric sans, close to Quizlet's Hurme Geometric Sans
- * reference. Keeping headings and body copy in one family makes the interface
- * feel like a study tool rather than an editorial dashboard. Plex Mono remains
- * reserved for changing numeric values, where stable character widths help.
+ * The UI uses the Hurme families named by the design direction. They are
+ * resolved locally when available and fall back to the system sans stack in
+ * environments that do not ship the webfont. Plex Mono remains reserved for
+ * changing numeric values, where stable character widths help.
  */
-const nunitoSans = Nunito_Sans({
-  subsets: ['latin'],
-  variable: '--font-nunito-sans',
-  display: 'swap',
-})
-
 const plexMono = IBM_Plex_Mono({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
@@ -36,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn(nunitoSans.variable, plexMono.variable)}
+      className={cn(plexMono.variable)}
     >
       {/*
         NO CHROME AND NO MEASURE HERE, deliberately.
