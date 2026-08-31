@@ -38,7 +38,7 @@ export interface RecordStudyEventResult {
 
 /**
  * The single write path for study memory. Every mode — Review, Quiz
- * (MC/SA/TF), Matching, and (later) Lessons — must call this instead of
+ * (MC/SA/TF), Matching, Diagnostic, and (later) Lessons — must call this instead of
  * writing to `CardProgress`/event tables directly.
  *
  * Atomically:

@@ -96,12 +96,13 @@ describe('scopeChips', () => {
 })
 
 describe('activityOptions', () => {
-  it('lists the four graded question modes before the rest', () => {
+  it('lists the five graded question modes before the rest', () => {
     expect(activityOptions().map((o) => o.value)).toEqual([
       'quiz-mc',
       'quiz-sa',
       'quiz-tf',
       'matching',
+      'diagnostic',
       'review',
       'lesson',
     ])
@@ -117,7 +118,7 @@ describe('activityOptions', () => {
     // not tried yet was simply absent, which reads as a broken filter rather
     // than an empty shelf.
     const opts = activityOptions({ 'quiz-mc': 42 })
-    expect(opts).toHaveLength(6)
+    expect(opts).toHaveLength(7)
     expect(opts.find((o) => o.value === 'quiz-mc')?.count).toBe(42)
     expect(opts.find((o) => o.value === 'lesson')?.count).toBe(0)
   })

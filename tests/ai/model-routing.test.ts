@@ -8,7 +8,7 @@ import { AI_TASKS } from '@/lib/ai/model-routing'
  * (src/lib/ai/generate.ts). A hardcoded fallback chain here would be
  * unreachable dead code. All that remains worth pinning is the task
  * vocabulary itself, since several modules (generateJson, the AiTaskRouting
- * actions, TaskRoutingPanel) must agree on exactly these five strings.
+ * actions, TaskRoutingPanel) must agree on exactly these six strings.
  *
  * `AiTask` is a `(typeof AI_TASKS)[number]` derived type, not a separately
  * declared one — there is no independent type to drift out of sync with the
@@ -17,7 +17,7 @@ import { AI_TASKS } from '@/lib/ai/model-routing'
  * asserted exactly that and could never fail).
  */
 describe('AI_TASKS', () => {
-  it('contains exactly the five expected task names', () => {
-    expect(AI_TASKS).toEqual(['grade', 'plan', 'distractors', 'autocomplete', 'note-analysis'])
+  it('contains exactly the six expected task names', () => {
+    expect(AI_TASKS).toEqual(['grade', 'plan', 'distractors', 'autocomplete', 'note-analysis', 'diagnostic'])
   })
 })

@@ -1,7 +1,7 @@
 /**
  * Pure scoring functions for the unified study-memory write path (Stage 6).
  *
- * Every study mode (Review, Quiz MC/SA/TF, Matching, future Lessons) funnels
+ * Every study mode (Review, Quiz MC/SA/TF, Matching, Diagnostic, future Lessons) funnels
  * through `recordStudyEvent` (src/lib/memory/record.ts), which delegates the
  * actual math to these two pure functions so the rules stay in one place and
  * are trivially unit-testable without touching the database.
@@ -26,6 +26,7 @@ export const STUDY_SOURCES = [
   'quiz-tf',
   'matching',
   'lesson',
+  'diagnostic',
 ] as const
 
 export type StudySource = (typeof STUDY_SOURCES)[number]

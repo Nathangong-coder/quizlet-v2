@@ -13,6 +13,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   'quiz-tf': 'True/False',
   matching: 'Matching',
   lesson: 'Lesson',
+  diagnostic: 'Diagnostic test',
 }
 
 export function sourceLabel(source: string): string {
@@ -22,7 +23,7 @@ export function sourceLabel(source: string): string {
 /**
  * Order for the activity-type picker, and the split within it.
  *
- * `questions` are the four modes that ask you something and grade the answer;
+ * `questions` are the modes that ask you something and grade the answer;
  * `other` is everything else. They are listed as one group with a rule between
  * them rather than as two controls — a learner filtering their history is
  * asking one question ("which activities?"), not two.
@@ -34,7 +35,7 @@ export function sourceLabel(source: string): string {
  * empty.
  */
 export const SOURCE_GROUPS: { questions: string[]; other: string[] } = {
-  questions: ['quiz-mc', 'quiz-sa', 'quiz-tf', 'matching'],
+  questions: ['quiz-mc', 'quiz-sa', 'quiz-tf', 'matching', 'diagnostic'],
   other: ['review', 'lesson'],
 }
 

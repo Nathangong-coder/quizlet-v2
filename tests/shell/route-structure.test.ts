@@ -53,6 +53,7 @@ const SHELLED_ROUTES = [
   'postmortem/new/page.tsx',
   'postmortem/[id]/page.tsx',
   'postmortem/[id]/edit/page.tsx',
+  'diagnostic/page.tsx',
   'folders/page.tsx',
   'folders/new/page.tsx',
   'folders/[id]/page.tsx',

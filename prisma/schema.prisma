@@ -109,6 +109,7 @@ model User {
   postmortems      PostmortemSession[]
   folders          Folder[]
   studyNotes       StudyNote[]
+  diagnosticAttempts DiagnosticAttempt[]
   klpStates        KlpState[]
   learnerTuning    LearnerTuning?
   setViews         SetView[]
@@ -195,6 +196,7 @@ model Set {
   assets        CardAsset[]
   studySessions StudySession[]
   postmortems   PostmortemSession[]
+  diagnosticAttempts DiagnosticAttempt[]
   folderLinks   FolderSet[]
   kltNodes      SetKltNode[]
   createdAt     DateTime       @default(now())
@@ -279,6 +281,7 @@ model Card {
   kltError            String?                  @db.Text
   klps                CardKlp[]
   quizQuestions       QuizQuestion[]
+  diagnosticQuestions DiagnosticQuestion[]
 
   @@index([setId])
 }
@@ -663,7 +666,7 @@ model StudySession {
   id          String       @id @default(cuid())
   userId      String
   setId       String
-  kind        String // "quiz" | "matching" | "confidence"
+  kind        String // "quiz" | "matching" | "confidence" | "diagnostic"
   startedAt   DateTime     @default(now())
   endedAt     DateTime?
   // Denormalized rather than derived from endedAt - startedAt: the activity
@@ -677,6 +680,7 @@ model StudySession {
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   set         Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
   attempt     QuizAttempt?
+  diagnosticAttempt DiagnosticAttempt?
   events      StudyEvent[]
 
   @@index([userId, startedAt])
@@ -781,6 +785,9 @@ model StudyNote {
   userId     String
   title      String
   body       String   @db.Text
+  // Immutable first draft retained so AI-assisted editing can never erase the
+  // learner's original source, even when the working body is edited later.
+  originalBody String? @db.Text
   analysis   Json?
   analyzedAt DateTime?
   createdAt  DateTime @default(now())
@@ -790,6 +797,57 @@ model StudyNote {
   folderLinks FolderNote[]
 
   @@index([userId, updatedAt])
+}
+
+/// A focused, AI-generated baseline for one set. Unlike a normal quiz, a
+/// diagnostic deliberately spans the set's learning points and includes
+/// follow-up questions so the first result can seed recommendations.
+model DiagnosticAttempt {
+  id          String   @id @default(cuid())
+  userId      String
+  setId       String
+  sessionId   String   @unique
+  status      String   @default("in_progress") // in_progress | completed
+  questionCount Int
+  score       Int?
+  report      Json?
+  reportAt    DateTime?
+  createdAt   DateTime @default(now())
+  completedAt DateTime?
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  set         Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
+  session     StudySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questions   DiagnosticQuestion[]
+
+  @@index([userId, createdAt])
+  @@index([setId, createdAt])
+}
+
+model DiagnosticQuestion {
+  id            String   @id @default(cuid())
+  attemptId     String
+  cardId        String
+  position      Int
+  kind          String   // core | follow-up
+  learningPoint String   @db.Text
+  prompt        String   @db.Text
+  expectedAnswer String  @db.Text
+  answer        String?  @db.Text
+  score         Int?
+  status        String?  // mastered | partial | missed
+  feedback      String?  @db.Text
+  mistake       String?  @db.Text
+  latencyMs     Int?
+  answeredAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  attempt DiagnosticAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  card    Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, position])
+  @@index([attemptId])
+  @@index([cardId, createdAt])
 }
 
 model AiCredential {
