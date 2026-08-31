@@ -735,6 +735,8 @@ model Folder {
   sets        FolderSet[]
   postmortems FolderPostmortem[]
   notes       FolderNote[]
+  children    FolderFolder[]     @relation("FolderChildren")
+  parents     FolderFolder[]     @relation("FolderParents")
 
   @@unique([userId, name])
   @@index([userId, updatedAt])
@@ -774,6 +776,22 @@ model FolderNote {
 
   @@unique([folderId, noteId])
   @@index([noteId])
+}
+
+/// Folders can contain other folders. The application keeps this graph
+/// acyclic before inserting a row; named relations make both directions
+/// queryable without making membership implicit.
+model FolderFolder {
+  id        String   @id @default(cuid())
+  parentId  String
+  childId   String
+  createdAt DateTime @default(now())
+
+  parent Folder @relation("FolderChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  child  Folder @relation("FolderParents", fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, childId])
+  @@index([childId])
 }
 
 /// A raw study note and its optional structured analysis. The analysis is a

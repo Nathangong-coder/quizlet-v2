@@ -13,12 +13,16 @@ const h = vi.hoisted(() => ({
   folderSetDeleteMany: vi.fn(),
   folderPostmortemDeleteMany: vi.fn(),
   folderNoteDeleteMany: vi.fn(),
+  folderFolderFindMany: vi.fn(),
+  folderFolderUpsert: vi.fn(),
+  folderFolderDeleteMany: vi.fn(),
   setFindMany: vi.fn(),
   setFindFirst: vi.fn(),
   postmortemFindMany: vi.fn(),
   postmortemFindFirst: vi.fn(),
   noteFindMany: vi.fn(),
   noteFindFirst: vi.fn(),
+  studyEventFindMany: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -28,9 +32,11 @@ vi.mock('@/lib/db', () => ({
     folderSet: { upsert: h.folderSetUpsert, deleteMany: h.folderSetDeleteMany },
     folderPostmortem: { upsert: h.folderPostmortemUpsert, deleteMany: h.folderPostmortemDeleteMany },
     folderNote: { upsert: h.folderNoteUpsert, deleteMany: h.folderNoteDeleteMany },
+    folderFolder: { findMany: h.folderFolderFindMany, upsert: h.folderFolderUpsert, deleteMany: h.folderFolderDeleteMany },
     set: { findMany: h.setFindMany, findFirst: h.setFindFirst },
     postmortemSession: { findMany: h.postmortemFindMany, findFirst: h.postmortemFindFirst },
     studyNote: { findMany: h.noteFindMany, findFirst: h.noteFindFirst },
+    studyEvent: { findMany: h.studyEventFindMany },
   },
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
@@ -51,6 +57,9 @@ const OWNER = 'user-owner'
 beforeEach(() => {
   vi.clearAllMocks()
   h.auth.mockResolvedValue({ user: { id: OWNER } })
+  h.studyEventFindMany.mockResolvedValue([])
+  h.folderFindMany.mockResolvedValue([])
+  h.folderFolderFindMany.mockResolvedValue([])
 })
 
 describe('folder persistence', () => {
@@ -65,13 +74,13 @@ describe('folder persistence', () => {
   })
 
   it('lists only the owner folders and returns counts', async () => {
-    h.folderFindMany.mockResolvedValue([{ id: 'folder-1', name: 'IB prep', description: null, updatedAt: new Date('2026-08-30'), _count: { sets: 2, postmortems: 1, notes: 3 } }])
+    h.folderFindMany.mockResolvedValue([{ id: 'folder-1', name: 'IB prep', description: null, updatedAt: new Date('2026-08-30'), _count: { sets: 2, postmortems: 1, notes: 3, children: 0 } }])
 
     const result = await listFolders()
 
     expect(result.success).toBe(true)
     if (!result.success) throw new Error(result.error)
-    expect(result.data).toEqual([{ id: 'folder-1', name: 'IB prep', description: null, updatedAt: expect.any(Date), counts: { sets: 2, postmortems: 1, notes: 3 } }])
+    expect(result.data).toEqual([{ id: 'folder-1', name: 'IB prep', description: null, updatedAt: expect.any(Date), counts: { sets: 2, postmortems: 1, notes: 3, folders: 0 } }])
     expect(h.folderFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: OWNER } }))
   })
 
@@ -91,17 +100,18 @@ describe('folder membership', () => {
   it('maps member links to navigable set, postmortem, and note entries', async () => {
     h.folderFindFirst.mockResolvedValue({
       id: 'folder-1', name: 'IB prep', description: 'A sprint', createdAt: new Date('2026-08-01'), updatedAt: new Date('2026-08-30'),
-      sets: [{ set: { id: 'set-1', title: 'DCF', description: 'Valuation' } }],
-      postmortems: [{ postmortem: { id: 'pm-1', title: 'Mock interview', format: 'mock_interview' } }],
-      notes: [{ note: { id: 'note-1', title: 'Working capital', analyzedAt: new Date('2026-08-30') } }],
+      sets: [{ createdAt: new Date('2026-08-03'), set: { id: 'set-1', title: 'DCF', description: 'Valuation', createdAt: new Date('2026-07-01'), updatedAt: new Date('2026-08-02'), _count: { cards: 12 } } }],
+      postmortems: [{ createdAt: new Date('2026-08-04'), postmortem: { id: 'pm-1', title: 'Mock interview', format: 'mock_interview', createdAt: new Date('2026-07-02'), updatedAt: new Date('2026-08-03') } }],
+      notes: [{ createdAt: new Date('2026-08-05'), note: { id: 'note-1', title: 'Working capital', analyzedAt: new Date('2026-08-30'), createdAt: new Date('2026-07-03'), updatedAt: new Date('2026-08-04') } }],
+      children: [],
     })
 
     const result = await getFolder('folder-1')
 
     expect(result).toEqual({ success: true, data: expect.objectContaining({
-      sets: [{ id: 'set-1', title: 'DCF', href: '/sets/set-1', meta: 'Valuation' }],
-      postmortems: [{ id: 'pm-1', title: 'Mock interview', href: '/postmortem/pm-1', meta: 'mock_interview' }],
-      notes: [{ id: 'note-1', title: 'Working capital', href: '/notes/note-1', meta: 'Analyzed' }],
+      sets: [{ id: 'set-1', title: 'DCF', href: '/sets/set-1', meta: 'Valuation', addedAt: new Date('2026-08-03'), createdAt: new Date('2026-07-01'), updatedAt: new Date('2026-08-02'), studiedAt: null }],
+      postmortems: [{ id: 'pm-1', title: 'Mock interview', href: '/postmortem/pm-1', meta: 'mock_interview', addedAt: new Date('2026-08-04'), createdAt: new Date('2026-07-02'), updatedAt: new Date('2026-08-03') }],
+      notes: [{ id: 'note-1', title: 'Working capital', href: '/notes/note-1', meta: 'Analyzed', addedAt: new Date('2026-08-05'), createdAt: new Date('2026-07-03'), updatedAt: new Date('2026-08-04') }],
     }) })
     expect(h.folderFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'folder-1', userId: OWNER } }))
   })
@@ -122,6 +132,15 @@ describe('folder membership', () => {
     expect(h.folderSetUpsert).toHaveBeenCalled()
     expect(h.folderPostmortemUpsert).toHaveBeenCalled()
     expect(h.folderNoteUpsert).toHaveBeenCalled()
+  })
+
+  it('supports nesting an owned folder without allowing a loop', async () => {
+    h.folderFindFirst.mockResolvedValueOnce({ id: 'folder-1' }).mockResolvedValueOnce({ id: 'folder-2' })
+
+    const result = await addFolderItem('folder-1', 'folder', 'folder-2')
+
+    expect(result).toEqual({ success: true, data: { added: true } })
+    expect(h.folderFolderUpsert).toHaveBeenCalledWith(expect.objectContaining({ where: { parentId_childId: { parentId: 'folder-1', childId: 'folder-2' } } }))
   })
 
   it('removes only a membership in an owner folder', async () => {
@@ -145,6 +164,7 @@ describe('folder membership', () => {
       sets: [{ id: 'set-1', title: 'DCF' }],
       postmortems: [{ id: 'pm-1', title: 'Mock interview' }],
       notes: [{ id: 'note-1', title: 'Working capital' }],
+      folders: [],
     } })
     expect(h.postmortemFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: OWNER } }))
     expect(h.noteFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: OWNER } }))

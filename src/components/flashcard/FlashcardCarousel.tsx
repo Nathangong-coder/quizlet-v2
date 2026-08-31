@@ -73,7 +73,7 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
           >
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Term</p>
             {termBlocks.length > 0 ? (
-              <div className="w-full space-y-2">
+              <div className="w-full space-y-2 text-center">
                 {termBlocks.map((block, i) => (
                   <ContentBlockView
                     key={i}
@@ -85,7 +85,7 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
                 ))}
               </div>
             ) : (
-              <p className="text-xl font-semibold">{card.term}</p>
+              <p className="mx-auto text-center text-xl font-semibold">{card.term}</p>
             )}
           </div>
 

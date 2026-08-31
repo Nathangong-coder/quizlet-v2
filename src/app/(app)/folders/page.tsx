@@ -30,7 +30,7 @@ export default async function FoldersPage() {
                   <div className="flex items-start justify-between gap-3"><div className="rounded-lg bg-primary/10 p-2 text-primary"><Folder className="h-5 w-5" aria-hidden="true" /></div><ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" aria-hidden="true" /></div>
                   <h2 className="mt-5 truncate text-lg font-semibold group-hover:text-primary">{folder.name}</h2>
                   <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-relaxed text-muted-foreground">{folder.description || 'A quiet place for the work around one goal.'}</p>
-                  <div className="mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-6 text-xs text-muted-foreground"><span>{folder.counts.sets} sets</span><span>{folder.counts.notes} notes</span><span>{folder.counts.postmortems} postmortems</span></div>
+                  <div className="mt-auto flex flex-wrap gap-x-3 gap-y-1 pt-6 text-xs text-muted-foreground"><span>{folder.counts.sets} sets</span><span>{folder.counts.notes} notes</span><span>{folder.counts.postmortems} postmortems</span><span>{folder.counts.folders} folders</span></div>
                 </CardContent>
               </Card>
             </Link>
