@@ -16,6 +16,7 @@ import { recordReview } from '@/actions/confidence'
 import { startStudySession, finishStudySession } from '@/actions/study-session'
 import { cn } from '@/lib/utils'
 import { ContentBlockView } from '@/components/cards/ContentBlockView'
+import { getNumberedListIndex } from '@/lib/cards/content'
 
 interface ReviewSessionProps {
   cards: ReviewCard[]
@@ -185,6 +186,7 @@ export default function ReviewSession({ cards, setId }: ReviewSessionProps) {
                   <ContentBlockView
                     key={i}
                     block={block}
+                    index={getNumberedListIndex(termBlocks, i)}
                     compact
                     assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
                   />
@@ -208,6 +210,7 @@ export default function ReviewSession({ cards, setId }: ReviewSessionProps) {
                   <ContentBlockView
                     key={i}
                     block={block}
+                    index={getNumberedListIndex(defBlocks, i)}
                     compact
                     assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
                   />

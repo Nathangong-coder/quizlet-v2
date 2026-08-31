@@ -24,6 +24,8 @@ interface InitialContentBlock {
   text?: string | null
   assetId?: string | null
   position?: number
+  listType?: string | null
+  indent?: number | null
 }
 
 interface InitialCard {
@@ -62,12 +64,14 @@ function cardToEditorBlocks(card: InitialCard) {
         type: (b.type as ContentBlock['type']) ?? 'text',
         text: b.text ?? undefined,
         assetId: b.assetId ?? undefined,
+        listType: (b.listType === 'bullet' || b.listType === 'numbered' ? b.listType : null) as ContentBlock['listType'],
+        indent: b.indent ?? 0,
         position: i,
         side,
       }))
 
     if (blocks.length > 0) return blocks
-    return [{ id: `${Date.now()}-${Math.random()}`, type: 'text', text: fallback, position: 0, side }]
+    return [{ id: `${Date.now()}-${Math.random()}`, type: 'text', text: fallback, position: 0, side, listType: null, indent: 0 }]
   }
 
   return {

@@ -88,6 +88,36 @@ export const CardAutofillSchema = z.object({
 
 export type CardAutofill = z.infer<typeof CardAutofillSchema>;
 
+/** AI output for a study note. Source line references are only UI hints. */
+export const StudyNoteAnalysisSchema = z.object({
+  summaryLines: z.array(z.object({
+    text: z.string().trim().min(1),
+    sourceLine: z.number().int().min(0).optional(),
+    kind: z.enum(['insight', 'definition', 'question', 'action']).default('insight'),
+  })).min(1).max(24),
+  keyTerms: z.array(z.string().trim().min(1)).max(20),
+  followUps: z.array(z.string().trim().min(1)).max(12),
+});
+
+export type StudyNoteAnalysis = z.infer<typeof StudyNoteAnalysisSchema>;
+
+export const StudyNoteStoredLineSchema = z.object({
+  id: z.string().min(1),
+  text: z.string().trim().min(1),
+  sourceLine: z.number().int().min(0).optional(),
+  kind: z.enum(['insight', 'definition', 'question', 'action']),
+  highlighted: z.boolean(),
+  comment: z.string().max(2000),
+});
+
+export const StudyNoteStoredAnalysisSchema = z.object({
+  summaryLines: z.array(StudyNoteStoredLineSchema).max(24),
+  keyTerms: z.array(z.string().min(1)).max(20),
+  followUps: z.array(z.string().min(1)).max(12),
+});
+
+export type StudyNoteStoredAnalysis = z.infer<typeof StudyNoteStoredAnalysisSchema>;
+
 export const TrainingPlanSchema = z.object({
   title: z.string().min(1),
   summary: z.string().min(1),

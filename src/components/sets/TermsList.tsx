@@ -7,7 +7,7 @@ import StarButton from '@/components/sets/StarButton';
 import ConfidenceRate from '@/components/sets/ConfidenceRate';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
-import { ContentBlock } from '@/lib/cards/content';
+import { ContentBlock, getNumberedListIndex } from '@/lib/cards/content';
 import { ContentBlockView } from '@/components/cards/ContentBlockView';
 import { CategoryChip } from '@/components/cards/CategoryChip';
 
@@ -70,6 +70,7 @@ export function TermsList({ cards, progressMap, userId, setId }: TermsListProps)
                       <ContentBlockView
                         key={i}
                         block={block}
+                        index={getNumberedListIndex(termBlocks, i)}
                         assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
                       />
                     ))}
@@ -88,6 +89,7 @@ export function TermsList({ cards, progressMap, userId, setId }: TermsListProps)
                       <ContentBlockView
                         key={i}
                         block={block}
+                        index={getNumberedListIndex(defBlocks, i)}
                         assetUrl={block.assetId ? `/api/assets/${block.assetId}` : undefined}
                       />
                     ))}

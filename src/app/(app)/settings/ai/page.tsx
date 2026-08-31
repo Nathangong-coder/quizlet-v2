@@ -30,7 +30,7 @@ export default async function AiSettingsPage() {
     <div className="max-w-2xl space-y-8">
       <PageHeader
         title="AI settings"
-        lede="The provider credentials used for grading, distractor generation, training plans, and card autocomplete/autofill. Add as many as you like across providers; primaries are tried first and backups cover a failure."
+        lede="The provider credentials used for grading, distractor generation, training plans, card autocomplete/autofill, and study-note analysis. Add as many as you like across providers; primaries are tried first and backups cover a failure."
       />
 
       <CredentialList />

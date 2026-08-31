@@ -2,7 +2,7 @@
 
 import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ContentBlock } from "@/lib/cards/content";
-import { Trash2, Plus, Upload, Loader2 } from "lucide-react";
+import { Trash2, Plus, Upload, Loader2, List, ListOrdered, IndentIncrease, IndentDecrease } from "lucide-react";
 import { AIAutocompleteButton } from "./AIAutocompleteButton";
 import { uploadCardAsset } from "@/actions/uploads";
 import { toast } from "sonner";
@@ -10,9 +10,11 @@ import { toast } from "sonner";
 function AutoResizeTextarea({
   value,
   onChange,
+  onKeyDown,
 }: {
   value: string;
   onChange: React.ChangeEventHandler<HTMLTextAreaElement>;
+  onKeyDown?: React.KeyboardEventHandler<HTMLTextAreaElement>;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -36,6 +38,7 @@ function AutoResizeTextarea({
       value={value}
       onChange={onChange}
       onInput={resize}
+      onKeyDown={onKeyDown}
     />
   );
 }
@@ -71,7 +74,9 @@ export function RichCardSideEditor({
         id: `${Date.now()}-${Math.random()}`, // Unique ID for stable React key
         type,
         position: blocks.length,
-        text: type === "text" ? "" : undefined
+        text: type === "text" ? "" : undefined,
+        listType: null,
+        indent: 0,
       },
     ]);
   };
@@ -85,6 +90,16 @@ export function RichCardSideEditor({
       blocks.map((b, i) => (i === index ? { ...b, ...updates } : b))
     );
   };
+
+  const toggleList = (index: number, listType: 'bullet' | 'numbered') => {
+    const block = blocks[index]
+    updateBlock(index, { listType: block.listType === listType ? null : listType })
+  }
+
+  const changeIndent = (index: number, delta: number) => {
+    const current = blocks[index]?.indent ?? 0
+    updateBlock(index, { indent: Math.min(6, Math.max(0, current + delta)) })
+  }
 
   const handleFileUpload = async (index: number, file: File) => {
     setUploadingIndex(index);
@@ -128,10 +143,60 @@ export function RichCardSideEditor({
         <div key={block.id || i} className="flex min-w-0 items-start gap-2">
           <div className="relative min-w-0 flex-grow">
             {block.type === "text" ? (
-              <div className="relative">
+              <div className="relative rounded-[6px] border border-input bg-card focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+                <div className="flex flex-wrap items-center gap-1 border-b border-border/70 px-2 py-1.5" aria-label="Text formatting">
+                  <span className="mr-1 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Paragraph {i + 1}</span>
+                  <button
+                    type="button"
+                    aria-label="Bulleted list"
+                    aria-pressed={block.listType === 'bullet'}
+                    title="Bulleted list"
+                    onClick={() => toggleList(i, 'bullet')}
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${block.listType === 'bullet' ? 'bg-primary/10 text-primary' : ''}`}
+                  >
+                    <List className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Numbered list"
+                    aria-pressed={block.listType === 'numbered'}
+                    title="Numbered list"
+                    onClick={() => toggleList(i, 'numbered')}
+                    className={`inline-flex h-7 w-7 items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${block.listType === 'numbered' ? 'bg-primary/10 text-primary' : ''}`}
+                  >
+                    <ListOrdered className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <span className="mx-1 h-4 w-px bg-border" aria-hidden="true" />
+                  <button
+                    type="button"
+                    aria-label="Decrease paragraph indent"
+                    title="Decrease indent"
+                    onClick={() => changeIndent(i, -1)}
+                    disabled={(block.indent ?? 0) === 0}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-35"
+                  >
+                    <IndentDecrease className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Increase paragraph indent"
+                    title="Increase indent"
+                    onClick={() => changeIndent(i, 1)}
+                    disabled={(block.indent ?? 0) >= 6}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-35"
+                  >
+                    <IndentIncrease className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <span className="ml-auto text-[0.68rem] text-muted-foreground">Tab to indent</span>
+                </div>
                 <AutoResizeTextarea
                   value={block.text || ""}
                   onChange={(e) => updateBlock(i, { text: e.target.value })}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Tab') return
+                    event.preventDefault()
+                    changeIndent(i, event.shiftKey ? -1 : 1)
+                  }}
                 />
                 <div className="absolute right-2 top-2">
                   <AIAutocompleteButton
@@ -213,7 +278,7 @@ export function RichCardSideEditor({
       ))}
       <div className="flex gap-2 pt-2">
         <button type="button" className="flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs hover:bg-muted" onClick={() => addBlock("text")}>
-          <Plus size={12} /> Text
+          <Plus size={12} /> Paragraph
         </button>
         <button type="button" className="flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs hover:bg-muted" onClick={() => addBlock("image")}>
           <Plus size={12} /> Image

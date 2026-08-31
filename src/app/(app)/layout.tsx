@@ -9,6 +9,7 @@ import { AvatarMark } from '@/components/shell/AvatarMark'
 import { AvatarDialog } from '@/components/shell/AvatarDialog'
 import { loadRecentSets } from '@/lib/sets/recents'
 import { RAIL_RECENTS_LIMIT } from '@/lib/shell/nav'
+import { loadRecentFolders, RAIL_FOLDERS_LIMIT } from '@/lib/folders/recents'
 
 /**
  * The application shell: rail on the left, topbar above, content between.
@@ -32,8 +33,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const signedIn = userId !== null
 
   // Both reads are skipped entirely for a signed-out visitor, who has neither.
-  const [recents, user] = await Promise.all([
+  const [recents, folders, user] = await Promise.all([
     userId ? loadRecentSets(userId, RAIL_RECENTS_LIMIT) : Promise.resolve([]),
+    userId ? loadRecentFolders(userId, RAIL_FOLDERS_LIMIT) : Promise.resolve([]),
     userId
       ? prisma.user.findUnique({
           where: { id: userId },
@@ -43,11 +45,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ])
 
   const railRecents = recents.map((r) => ({ id: r.id, title: r.title, isOwn: r.isOwn }))
+  const railFolders = folders.map((folder) => ({ id: folder.id, name: folder.name }))
 
   return (
     <CollapsibleShell
       signedIn={signedIn}
       recents={railRecents}
+      folders={railFolders}
       account={
         user ? (
           <ProfileMenu

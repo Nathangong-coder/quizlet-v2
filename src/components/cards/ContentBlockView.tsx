@@ -8,6 +8,7 @@ import { parseSpreadsheet } from '@/lib/cards/spreadsheet';
 
 interface ContentBlockViewProps {
   block: ContentBlock;
+  index?: number;
   assetUrl?: string; // e.g., `/api/assets/{assetId}` for non-text blocks
   assetMimeType?: string;
   assetOriginalName?: string;
@@ -27,6 +28,7 @@ interface ContentBlockViewProps {
  */
 export function ContentBlockView({
   block,
+  index,
   assetUrl,
   assetMimeType,
   assetOriginalName,
@@ -41,9 +43,18 @@ export function ContentBlockView({
 
   // Text block
   if (block.type === 'text') {
+    const indent = Math.min(Math.max(block.indent ?? 0, 0), 6);
+    const listIndex = index ?? block.position ?? 0;
+    const listMarker = block.listType === 'bullet' ? '•' : block.listType === 'numbered' ? `${listIndex + 1}.` : null;
     return (
-      <div className={`prose prose-sm max-w-none ${className}`}>
-        <p className="whitespace-pre-wrap">{block.text}</p>
+      <div
+        className={`prose prose-sm max-w-none ${className}`}
+        style={{ marginLeft: `${indent * 1.25}rem` }}
+      >
+        <div className="flex items-start gap-2">
+          {listMarker && <span className="min-w-5 shrink-0 text-right font-semibold text-primary" aria-hidden="true">{listMarker}</span>}
+          <p className="whitespace-pre-wrap">{block.text}</p>
+        </div>
       </div>
     );
   }

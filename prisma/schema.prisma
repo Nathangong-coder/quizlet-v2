@@ -106,6 +106,9 @@ model User {
   trainingPlans    TrainingPlan[]
   assets           CardAsset[]
   studySessions    StudySession[]
+  postmortems      PostmortemSession[]
+  folders          Folder[]
+  studyNotes       StudyNote[]
   klpStates        KlpState[]
   learnerTuning    LearnerTuning?
   setViews         SetView[]
@@ -191,6 +194,8 @@ model Set {
   categories    CardCategory[]
   assets        CardAsset[]
   studySessions StudySession[]
+  postmortems   PostmortemSession[]
+  folderLinks   FolderSet[]
   kltNodes      SetKltNode[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -506,6 +511,8 @@ model CardContentBlock {
   text      String?    @db.Text
   assetId   String?
   position  Int
+  listType  String?    // "bullet" | "numbered" for text blocks
+  indent    Int        @default(0)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   card      Card       @relation(fields: [cardId], references: [id], onDelete: Cascade)
@@ -676,6 +683,115 @@ model StudySession {
   @@index([userId, kind, startedAt])
 }
 
+/// A learner's own debrief of an offline study session.
+///
+/// This is intentionally separate from StudySession/StudyEvent: a paper test,
+/// real interview, or mock session has no trustworthy per-card answer events.
+/// It is personal evidence and a useful journal, but must not silently change
+/// confidence or mastery until the learner explicitly promotes something later.
+/// `setTitleSnapshot` keeps the log readable when its optional linked set is
+/// deleted.
+model PostmortemSession {
+  id               String   @id @default(cuid())
+  userId           String
+  setId            String?
+  setTitleSnapshot String?
+  title            String
+  format           String // paper_test | mock_interview | real_interview | case_study | technical_test | other
+  occurredAt       DateTime
+  durationMin      Int?
+  confidence       Int? // 1-5 self-reported feeling after the session
+  whatCameUp       String   @db.Text
+  wins             String?  @db.Text
+  gaps             String?  @db.Text
+  nextSteps        String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  set  Set?  @relation(fields: [setId], references: [id], onDelete: SetNull)
+  folderLinks FolderPostmortem[]
+
+  @@index([userId, occurredAt])
+  @@index([setId])
+}
+
+/// A private container for the learner's working context. Membership is
+/// explicit through join rows so one set, note, or postmortem can be useful in
+/// more than one preparation folder.
+model Folder {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sets        FolderSet[]
+  postmortems FolderPostmortem[]
+  notes       FolderNote[]
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+}
+
+model FolderSet {
+  id        String   @id @default(cuid())
+  folderId  String
+  setId     String
+  createdAt DateTime @default(now())
+  folder    Folder   @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  set       Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, setId])
+  @@index([setId])
+}
+
+model FolderPostmortem {
+  id           String            @id @default(cuid())
+  folderId     String
+  postmortemId String
+  createdAt    DateTime          @default(now())
+  folder       Folder            @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  postmortem   PostmortemSession @relation(fields: [postmortemId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, postmortemId])
+  @@index([postmortemId])
+}
+
+model FolderNote {
+  id        String    @id @default(cuid())
+  folderId  String
+  noteId    String
+  createdAt DateTime  @default(now())
+  folder    Folder    @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  note      StudyNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, noteId])
+  @@index([noteId])
+}
+
+/// A raw study note and its optional structured analysis. The analysis is a
+/// snapshot, not a replacement for the source note: users can edit each
+/// summary line, highlight it, and attach their own comment without losing the
+/// original text or the fact that the summary came from AI.
+model StudyNote {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String
+  body       String   @db.Text
+  analysis   Json?
+  analyzedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderLinks FolderNote[]
+
+  @@index([userId, updatedAt])
+}
+
 model AiCredential {
   id              String          @id @default(cuid())
   userId          String
@@ -703,7 +819,7 @@ model AiCredential {
 model AiTaskRouting {
   id           String        @id @default(cuid())
   userId       String
-  task         String // grade|plan|distractors|autocomplete
+  task         String // grade|plan|distractors|autocomplete|note-analysis
   credentialId String?
   model        String?
   createdAt    DateTime      @default(now())
