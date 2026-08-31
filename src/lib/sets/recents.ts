@@ -103,10 +103,11 @@ export async function recordSetView(userId: string, setId: string): Promise<void
 export async function loadRecentSets(
   userId: string,
   limit: number = RECENTS_LIMIT,
+  readableWhere: Record<string, unknown> = readableSetWhere(userId),
 ): Promise<RecentSet[]> {
   const { prisma } = await import('@/lib/db')
   const rows = await prisma.setView.findMany({
-    where: { userId, set: readableSetWhere(userId) },
+    where: { userId, set: readableWhere },
     orderBy: { viewedAt: 'desc' },
     take: limit,
     select: {

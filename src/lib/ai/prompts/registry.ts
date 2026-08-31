@@ -38,6 +38,9 @@ export type { AutocompleteBuildInput, CardAutofillBuildInput } from './autocompl
 export { STUDY_NOTE_ANALYSIS_PROMPT } from './study-note';
 export type { StudyNoteAnalysisBuildInput } from './study-note';
 
+export { DIAGNOSTIC_QUESTIONS_PROMPT, DIAGNOSTIC_GRADING_PROMPT, DIAGNOSTIC_REPORT_PROMPT } from './diagnostic';
+export type { DiagnosticQuestionsBuildInput, DiagnosticGradingBuildInput, DiagnosticReportBuildInput } from './diagnostic';
+
 export { SESSION_INSIGHT_PROMPT } from './session-insight';
 export type { SessionInsightBuildInput } from './session-insight';
 
@@ -66,6 +69,7 @@ import { TRAINING_PLAN_PROMPT } from './training-plan';
 import { AUTOCOMPLETE_PROMPT } from './autocomplete';
 import { CARD_AUTOFILL_PROMPT } from './autocomplete';
 import { STUDY_NOTE_ANALYSIS_PROMPT } from './study-note';
+import { DIAGNOSTIC_QUESTIONS_PROMPT, DIAGNOSTIC_GRADING_PROMPT, DIAGNOSTIC_REPORT_PROMPT } from './diagnostic';
 import { SESSION_INSIGHT_PROMPT } from './session-insight';
 import { EXTRACT_KLPS_PROMPT } from './extract-klps';
 import { TRUE_FALSE_PROMPT } from './true-false';
@@ -83,6 +87,9 @@ export const PROMPT_REGISTRY = {
   [AUTOCOMPLETE_PROMPT.id]: AUTOCOMPLETE_PROMPT,
   [CARD_AUTOFILL_PROMPT.id]: CARD_AUTOFILL_PROMPT,
   [STUDY_NOTE_ANALYSIS_PROMPT.id]: STUDY_NOTE_ANALYSIS_PROMPT,
+  [DIAGNOSTIC_QUESTIONS_PROMPT.id]: DIAGNOSTIC_QUESTIONS_PROMPT,
+  [DIAGNOSTIC_GRADING_PROMPT.id]: DIAGNOSTIC_GRADING_PROMPT,
+  [DIAGNOSTIC_REPORT_PROMPT.id]: DIAGNOSTIC_REPORT_PROMPT,
   [SESSION_INSIGHT_PROMPT.id]: SESSION_INSIGHT_PROMPT,
   [EXTRACT_KLPS_PROMPT.id]: EXTRACT_KLPS_PROMPT,
   [TRUE_FALSE_PROMPT.id]: TRUE_FALSE_PROMPT,

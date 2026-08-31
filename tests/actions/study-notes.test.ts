@@ -50,6 +50,7 @@ import {
   getStudyNote,
   listStudyNotes,
   updateStudyNote,
+  updateStudyNoteDocument,
   updateStudyNoteSummary,
 } from '@/actions/study-notes'
 
@@ -85,7 +86,7 @@ describe('study note persistence', () => {
     const result = await createStudyNote(input)
 
     expect(result).toEqual({ success: true, data: { id: 'note-1' } })
-    expect(h.noteCreate).toHaveBeenCalledWith({ data: { userId: OWNER, ...input } })
+    expect(h.noteCreate).toHaveBeenCalledWith({ data: { userId: OWNER, ...input, originalBody: input.body } })
   })
 
   it('scopes reads, edits, and deletes to the authenticated user', async () => {
@@ -172,7 +173,34 @@ describe('study note AI analysis', () => {
     expect(h.noteFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'note-1', userId: OWNER } }))
     expect(h.noteUpdate).toHaveBeenCalledWith({
       where: { id: 'note-1' },
-      data: { analysis: { ...storedAnalysis, summaryLines: lines } },
+      data: { analysis: { ...storedAnalysis, summaryLines: lines, suggestions: [], annotations: [] } },
+    })
+  })
+
+  it('saves inline source edits and annotations without changing the analysis contract', async () => {
+    h.noteFindFirst.mockResolvedValue({ analysis: storedAnalysis })
+    h.noteUpdate.mockResolvedValue({})
+    const summaryLines = [{ ...storedAnalysis.summaryLines[0], text: 'Updated definition.' }]
+
+    const result = await updateStudyNoteDocument('note-1', {
+      body: 'Updated source line.\nRevisit cash conversion.',
+      summaryLines,
+      annotations: [{ lineId: 'source-0', highlighted: true, comment: 'Check this against the balance sheet.' }],
+    })
+
+    expect(result).toEqual({ success: true, data: { saved: true } })
+    expect(h.noteFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'note-1', userId: OWNER } }))
+    expect(h.noteUpdate).toHaveBeenCalledWith({
+      where: { id: 'note-1' },
+      data: {
+        body: 'Updated source line.\nRevisit cash conversion.',
+        analysis: {
+          ...storedAnalysis,
+          suggestions: [],
+          annotations: [{ lineId: 'source-0', highlighted: true, comment: 'Check this against the balance sheet.' }],
+          summaryLines,
+        },
+      },
     })
   })
 })

@@ -7,7 +7,7 @@ import { prisma } from '@/lib/db'
 import { readableSetWhere } from '@/lib/sets/visibility'
 import type { ActionResult } from '@/types/action'
 
-const FOLDER_ITEM_TYPES = ['set', 'postmortem', 'note'] as const
+const FOLDER_ITEM_TYPES = ['set', 'postmortem', 'note', 'folder'] as const
 export type FolderItemType = (typeof FOLDER_ITEM_TYPES)[number]
 
 const FolderInputSchema = z.object({
@@ -19,7 +19,7 @@ export interface FolderListRow {
   id: string
   name: string
   description: string | null
-  counts: { sets: number; postmortems: number; notes: number }
+  counts: { sets: number; postmortems: number; notes: number; folders: number }
   updatedAt: Date
 }
 
@@ -28,6 +28,11 @@ export interface FolderMember {
   title: string
   href: string
   meta?: string
+  /** Timestamp for the folder sort controls. */
+  addedAt?: Date
+  createdAt?: Date
+  updatedAt?: Date
+  studiedAt?: Date | null
 }
 
 export interface FolderDetail {
@@ -39,12 +44,14 @@ export interface FolderDetail {
   sets: FolderMember[]
   postmortems: FolderMember[]
   notes: FolderMember[]
+  folders: FolderMember[]
 }
 
 export interface FolderOptions {
   sets: Array<{ id: string; title: string }>
   postmortems: Array<{ id: string; title: string }>
   notes: Array<{ id: string; title: string }>
+  folders: Array<{ id: string; title: string }>
 }
 
 function cleanDescription(value: string | undefined): string | null {
@@ -62,6 +69,27 @@ function refreshFolderViews(id?: string) {
   if (id) revalidatePath(`/folders/${id}`)
 }
 
+/** Walk upward from a prospective parent so a child can never point back to an
+ * ancestor. This is intentionally an application check: Prisma's relational
+ * constraints enforce row ownership, but not graph acyclicity. */
+async function wouldCreateFolderCycle(parentId: string, childId: string) {
+  const seen = new Set<string>([parentId])
+  let frontier = [parentId]
+  while (frontier.length > 0) {
+    const edges = await prisma.folderFolder.findMany({ where: { childId: { in: frontier } }, select: { parentId: true } })
+    const next: string[] = []
+    for (const edge of edges) {
+      if (edge.parentId === childId) return true
+      if (!seen.has(edge.parentId)) {
+        seen.add(edge.parentId)
+        next.push(edge.parentId)
+      }
+    }
+    frontier = next
+  }
+  return false
+}
+
 export async function listFolders(): Promise<ActionResult<FolderListRow[]>> {
   const session = await auth()
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
@@ -75,12 +103,12 @@ export async function listFolders(): Promise<ActionResult<FolderListRow[]>> {
         name: true,
         description: true,
         updatedAt: true,
-        _count: { select: { sets: true, postmortems: true, notes: true } },
+        _count: { select: { sets: true, postmortems: true, notes: true, children: true } },
       },
     })
     return {
       success: true,
-      data: rows.map((row) => ({ id: row.id, name: row.name, description: row.description, updatedAt: row.updatedAt, counts: row._count })),
+      data: rows.map((row) => ({ id: row.id, name: row.name, description: row.description, updatedAt: row.updatedAt, counts: { sets: row._count.sets, postmortems: row._count.postmortems, notes: row._count.notes, folders: row._count.children ?? 0 } })),
     }
   } catch (error) {
     console.error('listFolders error:', error)
@@ -101,12 +129,26 @@ export async function getFolder(id: string): Promise<ActionResult<FolderDetail>>
         description: true,
         createdAt: true,
         updatedAt: true,
-        sets: { select: { set: { select: { id: true, title: true, description: true } } } },
-        postmortems: { select: { postmortem: { select: { id: true, title: true, format: true } } } },
-        notes: { select: { note: { select: { id: true, title: true, analyzedAt: true } } } },
+        sets: { select: { createdAt: true, set: { select: { id: true, title: true, description: true, createdAt: true, updatedAt: true, _count: { select: { cards: true } } } } } },
+        postmortems: { select: { createdAt: true, postmortem: { select: { id: true, title: true, format: true, createdAt: true, updatedAt: true } } } },
+        notes: { select: { createdAt: true, note: { select: { id: true, title: true, analyzedAt: true, createdAt: true, updatedAt: true } } } },
+        children: { select: { createdAt: true, child: { select: { id: true, name: true, description: true, createdAt: true, updatedAt: true } } } },
       },
     })
     if (!row) return { success: false, error: 'Folder not found' }
+
+    const setIds = row.sets.map(({ set }) => set.id)
+    const studiedBySet = new Map<string, Date>()
+    if (setIds.length > 0) {
+      const studiedRows = await prisma.studyEvent.findMany({
+        where: { userId: session.user.id, card: { setId: { in: setIds } } },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true, card: { select: { setId: true } } },
+      })
+      for (const studiedRow of studiedRows) {
+        if (!studiedBySet.has(studiedRow.card.setId)) studiedBySet.set(studiedRow.card.setId, studiedRow.createdAt)
+      }
+    }
 
     return {
       success: true,
@@ -116,9 +158,10 @@ export async function getFolder(id: string): Promise<ActionResult<FolderDetail>>
         description: row.description,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
-        sets: row.sets.map(({ set }) => ({ id: set.id, title: set.title, href: `/sets/${set.id}`, meta: set.description ?? undefined })),
-        postmortems: row.postmortems.map(({ postmortem }) => ({ id: postmortem.id, title: postmortem.title, href: `/postmortem/${postmortem.id}`, meta: postmortem.format })),
-        notes: row.notes.map(({ note }) => ({ id: note.id, title: note.title, href: `/notes/${note.id}`, meta: note.analyzedAt ? 'Analyzed' : 'Not analyzed' })),
+        sets: row.sets.map(({ createdAt: addedAt, set }) => ({ id: set.id, title: set.title, href: `/sets/${set.id}`, meta: set.description ?? `${set._count.cards} ${set._count.cards === 1 ? 'card' : 'cards'}`, addedAt, createdAt: set.createdAt, updatedAt: set.updatedAt, studiedAt: studiedBySet.get(set.id) ?? null })),
+        postmortems: row.postmortems.map(({ createdAt: addedAt, postmortem }) => ({ id: postmortem.id, title: postmortem.title, href: `/postmortem/${postmortem.id}`, meta: postmortem.format, addedAt, createdAt: postmortem.createdAt, updatedAt: postmortem.updatedAt })),
+        notes: row.notes.map(({ createdAt: addedAt, note }) => ({ id: note.id, title: note.title, href: `/notes/${note.id}`, meta: note.analyzedAt ? 'Analyzed' : 'Not analyzed', addedAt, createdAt: note.createdAt, updatedAt: note.updatedAt })),
+        folders: row.children.map(({ createdAt: addedAt, child }) => ({ id: child.id, title: child.name, href: `/folders/${child.id}`, meta: child.description ?? undefined, addedAt, createdAt: child.createdAt, updatedAt: child.updatedAt })),
       },
     }
   } catch (error) {
@@ -127,17 +170,18 @@ export async function getFolder(id: string): Promise<ActionResult<FolderDetail>>
   }
 }
 
-export async function getFolderOptions(): Promise<ActionResult<FolderOptions>> {
+export async function getFolderOptions(excludeFolderId?: string): Promise<ActionResult<FolderOptions>> {
   const session = await auth()
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
 
   try {
-    const [sets, postmortems, notes] = await Promise.all([
+    const [sets, postmortems, notes, folders] = await Promise.all([
       prisma.set.findMany({ where: readableSetWhere(session.user.id), orderBy: { title: 'asc' }, take: 200, select: { id: true, title: true } }),
       prisma.postmortemSession.findMany({ where: { userId: session.user.id }, orderBy: { occurredAt: 'desc' }, take: 200, select: { id: true, title: true } }),
       prisma.studyNote.findMany({ where: { userId: session.user.id }, orderBy: { updatedAt: 'desc' }, take: 200, select: { id: true, title: true } }),
+      prisma.folder.findMany({ where: { userId: session.user.id, ...(excludeFolderId ? { id: { not: excludeFolderId } } : {}) }, orderBy: { updatedAt: 'desc' }, take: 200, select: { id: true, name: true } }),
     ])
-    return { success: true, data: { sets, postmortems, notes } }
+    return { success: true, data: { sets, postmortems, notes, folders: folders.map((folder) => ({ id: folder.id, title: folder.name })) } }
   } catch (error) {
     console.error('getFolderOptions error:', error)
     return { success: false, error: 'Failed to load folder options' }
@@ -218,10 +262,16 @@ export async function addFolderItem(
       const item = await prisma.postmortemSession.findFirst({ where: { id: itemId, userId: session.user.id }, select: { id: true } })
       if (!item) return { success: false, error: 'Postmortem not found' }
       await prisma.folderPostmortem.upsert({ where: { folderId_postmortemId: { folderId, postmortemId: item.id } }, update: {}, create: { folderId, postmortemId: item.id } })
-    } else {
+    } else if (type === 'note') {
       const item = await prisma.studyNote.findFirst({ where: { id: itemId, userId: session.user.id }, select: { id: true } })
       if (!item) return { success: false, error: 'Study note not found' }
       await prisma.folderNote.upsert({ where: { folderId_noteId: { folderId, noteId: item.id } }, update: {}, create: { folderId, noteId: item.id } })
+    } else {
+      const item = await prisma.folder.findFirst({ where: { id: itemId, userId: session.user.id }, select: { id: true } })
+      if (!item) return { success: false, error: 'Folder not found' }
+      if (item.id === folderId) return { success: false, error: 'A folder cannot contain itself' }
+      if (await wouldCreateFolderCycle(folderId, item.id)) return { success: false, error: 'That would create a folder loop' }
+      await prisma.folderFolder.upsert({ where: { parentId_childId: { parentId: folderId, childId: item.id } }, update: {}, create: { parentId: folderId, childId: item.id } })
     }
 
     refreshFolderViews(folderId)
@@ -245,16 +295,13 @@ export async function removeFolderItem(
     const folder = await prisma.folder.findFirst({ where: { id: folderId, userId: session.user.id }, select: { id: true } })
     if (!folder) return { success: false, error: 'Folder not found' }
 
-    const where = type === 'set'
-      ? { folderId, setId: itemId }
-      : type === 'postmortem'
-        ? { folderId, postmortemId: itemId }
-        : { folderId, noteId: itemId }
     const removed = type === 'set'
-      ? await prisma.folderSet.deleteMany({ where })
+      ? await prisma.folderSet.deleteMany({ where: { folderId, setId: itemId } })
       : type === 'postmortem'
-        ? await prisma.folderPostmortem.deleteMany({ where })
-        : await prisma.folderNote.deleteMany({ where })
+        ? await prisma.folderPostmortem.deleteMany({ where: { folderId, postmortemId: itemId } })
+        : type === 'note'
+          ? await prisma.folderNote.deleteMany({ where: { folderId, noteId: itemId } })
+          : await prisma.folderFolder.deleteMany({ where: { parentId: folderId, childId: itemId } })
     if (removed.count === 0) return { success: false, error: 'Item is not in this folder' }
     refreshFolderViews(folderId)
     return { success: true, data: { removed: true } }

@@ -30,7 +30,9 @@ Analyze this note into a compact, useful study surface.
 - Use kind: insight for a key idea, definition for a term, question for something to investigate, and action for a concrete next step.
 - keyTerms should contain the most useful finance/interview terms from the note.
 - followUps should contain specific questions or actions the learner could pursue next. Use [] when none are warranted.
+- summaryLines are appended below the source note in the editor; never rewrite or remove source text.
+- suggestions may point to redundant or obsolete source lines for review, but they must never be applied automatically.
 
-Return structured JSON with exactly: summaryLines, keyTerms, followUps.`;
+Return structured JSON with exactly: summaryLines, keyTerms, followUps, suggestions. For suggestions, only suggest removal of redundant or clearly obsolete source lines; never apply a removal and never rewrite the source note.`;
   },
 };

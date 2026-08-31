@@ -27,7 +27,7 @@ const computed = (mode: string) => ({
 describe('STUDY_SOURCES', () => {
   it('pins the modes that can write to study memory', () => {
     expect([...STUDY_SOURCES]).toEqual([
-      'review', 'quiz-mc', 'quiz-sa', 'quiz-tf', 'matching', 'lesson',
+      'review', 'quiz-mc', 'quiz-sa', 'quiz-tf', 'matching', 'lesson', 'diagnostic',
     ])
   })
 

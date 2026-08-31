@@ -21,6 +21,16 @@ const NoteInputSchema = z.object({
 })
 
 const SummaryLinesSchema = z.array(StudyNoteStoredLineSchema).max(24)
+const NoteAnnotationsSchema = z.array(z.object({
+  lineId: z.string().min(1),
+  highlighted: z.boolean(),
+  comment: z.string().max(2000),
+})).max(500)
+const NoteDocumentSchema = z.object({
+  body: NoteInputSchema.shape.body,
+  summaryLines: SummaryLinesSchema,
+  annotations: NoteAnnotationsSchema,
+})
 type NoteInput = z.input<typeof NoteInputSchema>
 
 export interface StudyNoteRow {
@@ -54,6 +64,11 @@ function normalizeAnalysis(value: z.infer<typeof StudyNoteAnalysisSchema>): Stud
     })),
     keyTerms: value.keyTerms,
     followUps: value.followUps,
+    suggestions: value.suggestions.map((suggestion, index) => ({
+      id: `suggestion-${index + 1}`,
+      ...suggestion,
+    })),
+    annotations: [],
   }
 }
 
@@ -118,7 +133,12 @@ export async function createStudyNote(input: NoteInput): Promise<ActionResult<{ 
 
   try {
     const created = await prisma.studyNote.create({
-      data: { userId: session.user.id, title: parsed.data.title, body: parsed.data.body },
+      data: {
+        userId: session.user.id,
+        title: parsed.data.title,
+        body: parsed.data.body,
+        originalBody: parsed.data.body,
+      },
     })
     revalidatePath('/notes')
     revalidatePath('/folders')
@@ -233,5 +253,51 @@ export async function updateStudyNoteSummary(
   } catch (error) {
     console.error('updateStudyNoteSummary error:', error)
     return { success: false, error: 'Failed to save summary edits' }
+  }
+}
+
+/**
+ * Saves the inline note document. The body is the learner's working text;
+ * summary lines are appended AI additions, and annotations are keyed to either
+ * source-N or summary-N line ids. Re-analysis never calls this action, so it
+ * cannot overwrite the source body or silently apply an AI removal suggestion.
+ */
+export async function updateStudyNoteDocument(
+  id: string,
+  input: z.input<typeof NoteDocumentSchema>,
+): Promise<ActionResult<{ saved: true }>> {
+  const session = await auth()
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+  const parsed = NoteDocumentSchema.safeParse(input)
+  if (!parsed.success) return invalidInput(parsed.error)
+
+  try {
+    const note = await prisma.studyNote.findFirst({
+      where: { id, userId: session.user.id },
+      select: { analysis: true },
+    })
+    if (!note) return { success: false, error: 'Study note not found' }
+    const analysis = parseAnalysis(note.analysis)
+    if (!analysis) return { success: false, error: 'Analyze this note before editing its inline summary' }
+
+    await prisma.studyNote.update({
+      where: { id },
+      data: {
+        body: parsed.data.body,
+        analysis: {
+          ...analysis,
+          summaryLines: parsed.data.summaryLines,
+          annotations: parsed.data.annotations,
+        },
+      },
+    })
+    revalidatePath('/notes')
+    revalidatePath(`/notes/${id}`)
+    revalidatePath('/folders')
+    return { success: true, data: { saved: true } }
+  } catch (error) {
+    console.error('updateStudyNoteDocument error:', error)
+    return { success: false, error: 'Failed to save note edits' }
   }
 }

@@ -97,6 +97,12 @@ export const StudyNoteAnalysisSchema = z.object({
   })).min(1).max(24),
   keyTerms: z.array(z.string().trim().min(1)).max(20),
   followUps: z.array(z.string().trim().min(1)).max(12),
+  suggestions: z.array(z.object({
+    sourceLine: z.number().int().min(0),
+    kind: z.literal('remove'),
+    excerpt: z.string().trim().min(1).max(500),
+    rationale: z.string().trim().min(1).max(1000),
+  })).max(12).default([]),
 });
 
 export type StudyNoteAnalysis = z.infer<typeof StudyNoteAnalysisSchema>;
@@ -114,9 +120,60 @@ export const StudyNoteStoredAnalysisSchema = z.object({
   summaryLines: z.array(StudyNoteStoredLineSchema).max(24),
   keyTerms: z.array(z.string().min(1)).max(20),
   followUps: z.array(z.string().min(1)).max(12),
+  suggestions: z.array(z.object({
+    id: z.string().min(1),
+    sourceLine: z.number().int().min(0),
+    kind: z.literal('remove'),
+    excerpt: z.string().min(1).max(500),
+    rationale: z.string().min(1).max(1000),
+  })).max(12).default([]),
+  annotations: z.array(z.object({
+    lineId: z.string().min(1),
+    highlighted: z.boolean(),
+    comment: z.string().max(2000),
+  })).max(500).default([]),
 });
 
 export type StudyNoteStoredAnalysis = z.infer<typeof StudyNoteStoredAnalysisSchema>;
+
+export const DiagnosticQuestionSetSchema = z.object({
+  questions: z.array(z.object({
+    cardRef: z.number().int().min(0),
+    kind: z.enum(['core', 'follow-up']),
+    learningPoint: z.string().trim().min(1).max(500),
+    question: z.string().trim().min(1).max(1200),
+    expectedAnswer: z.string().trim().min(1).max(1600),
+  })).min(8).max(40),
+});
+
+export type DiagnosticQuestionSet = z.infer<typeof DiagnosticQuestionSetSchema>;
+
+export const DiagnosticGradeSetSchema = z.object({
+  grades: z.array(z.object({
+    questionRef: z.number().int().min(0),
+    score: z.number().int().min(1).max(10),
+    status: z.enum(['mastered', 'partial', 'missed']),
+    feedback: z.string().trim().min(1).max(1200),
+    mistake: z.string().trim().max(800).optional(),
+  })).min(1).max(40),
+});
+
+export type DiagnosticGradeSet = z.infer<typeof DiagnosticGradeSetSchema>;
+
+export const DiagnosticReportSchema = z.object({
+  overview: z.string().trim().min(1).max(1600),
+  strengths: z.array(z.string().trim().min(1).max(500)).max(8),
+  gaps: z.array(z.string().trim().min(1).max(500)).max(12),
+  recommendations: z.array(z.string().trim().min(1).max(700)).min(1).max(12),
+  learningPoints: z.array(z.object({
+    text: z.string().trim().min(1).max(500),
+    score: z.number().int().min(1).max(10),
+    evidence: z.string().trim().min(1).max(700),
+    nextAction: z.string().trim().min(1).max(700),
+  })).max(24),
+});
+
+export type DiagnosticReport = z.infer<typeof DiagnosticReportSchema>;
 
 export const TrainingPlanSchema = z.object({
   title: z.string().min(1),
