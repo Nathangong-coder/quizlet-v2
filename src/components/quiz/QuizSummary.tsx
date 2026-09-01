@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, CheckCircle2, XCircle, MinusCircle, Trash2 } from 'lucide-react';
+import { Trophy, CheckCircle2, XCircle, MinusCircle, Trash2, Clock3 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getQuizAttemptSummary } from '@/actions/quiz';
@@ -16,6 +16,7 @@ import { QuizCardPrompt } from './QuizCardPrompt';
 import { SessionInsightView } from '@/components/memory/SessionInsightView';
 import { labelForErrorType, labelForKlpStatus } from '@/lib/errors/labels';
 import { rollupSessionAnalysis } from '@/lib/analysis/rollup';
+import { formatDuration } from '@/lib/memory/activity-labels';
 
 const MODE_LABELS: Record<string, string> = {
   'multiple-choice': 'Multiple Choice',
@@ -192,7 +193,13 @@ function MatchingReview({ answers }: { answers: any[] }) {
                 </div>
               )}
             </div>
-            <div className="flex-shrink-0">
+            <div className="flex flex-shrink-0 items-end gap-2">
+              {answer.latencyMs !== null && answer.latencyMs !== undefined && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium tabular-nums text-muted-foreground">
+                  <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
+                  {formatDuration(answer.latencyMs)}
+                </span>
+              )}
               {answer.isCorrect ? <CheckCircle2 className="w-5 h-5 text-success" /> : <XCircle className="w-5 h-5 text-destructive" />}
             </div>
           </CardContent>
@@ -339,6 +346,12 @@ export function QuizSummary({ score, setId, attemptId, canReset = false }: QuizS
           </div>
           <CardTitle className="text-3xl font-bold">Quiz Results</CardTitle>
           <div className="text-6xl font-bold text-primary mt-4">{correctCount}/{totalCount}</div>
+          {attempt.session?.durationMs !== null && attempt.session?.durationMs !== undefined && (
+            <p className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium tabular-nums text-muted-foreground">
+              <Clock3 className="h-4 w-4" aria-hidden="true" />
+              Total quiz time: {formatDuration(attempt.session.durationMs)}
+            </p>
+          )}
         </CardHeader>
       </Card>
 
@@ -438,6 +451,12 @@ export function QuizSummary({ score, setId, attemptId, canReset = false }: QuizS
                               </Button>
                             )}
                           </CardTitle>
+                          {answer.latencyMs !== null && answer.latencyMs !== undefined && (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-medium tabular-nums text-muted-foreground">
+                              <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
+                              Time to answer: {formatDuration(answer.latencyMs)}
+                            </span>
+                          )}
                           {/* Render the actual prompt (incl. images) rather than raw term text */}
                           <div className="pt-2">
                             <QuizCardPrompt card={answer.card} side="term" />

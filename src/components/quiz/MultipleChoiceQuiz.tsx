@@ -13,6 +13,7 @@ import { QuizCardPrompt } from './QuizCardPrompt';
 import { QuizSectionHandle, SectionNav } from './section';
 import { useErrorToast } from '@/components/errors/useErrorToast';
 import { useQuestionTimer } from './useQuestionTimer';
+import { QuestionTimerDisplay } from './QuestionTimer';
 
 type QuizCard = Card & { contentBlocks?: ContentBlock[] };
 
@@ -59,8 +60,7 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
     // Starts (or confirms) this question's clock whenever it becomes the
     // visible one in this one-question-at-a-time carousel. `timer.start` is
     // first-write-wins, so navigating back to an already-seen question does
-    // not restart its clock — it keeps running from its first visit until
-    // the batched commitAll() below reads it at final submit.
+    // not restart its clock.
     useEffect(() => {
       const activeId = cards[currentIndex]?.id;
       if (activeId) timer.start(activeId);
@@ -73,6 +73,7 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
         const selected = selectedAnswers[card.id];
         const data = optionsState[card.id];
         if (!selected || !data) continue;
+        timer.stop(card.id);
         const res = await submitMultipleChoiceAnswer({
           attemptId,
           cardId: card.id,
@@ -116,8 +117,9 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
       <div className="max-w-2xl mx-auto space-y-4 p-4">
         <CardComponent className="space-y-4">
           <CardHeader>
-            <CardTitle className="flex items-baseline gap-2">
+            <CardTitle className="flex items-center justify-between gap-3">
               <span className="shrink-0">Question {currentIndex + 1}:</span>
+              <QuestionTimerDisplay timer={timer} cardId={card.id} />
             </CardTitle>
             <QuizCardPrompt card={card} side="term" />
           </CardHeader>
@@ -130,7 +132,10 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
             ) : (
               <RadioGroup
                 value={selectedAnswers[card.id] || ''}
-                onValueChange={(val) => setSelectedAnswers(prev => ({ ...prev, [card.id]: val }))}
+                onValueChange={(val) => {
+                  timer.stop(card.id);
+                  setSelectedAnswers(prev => ({ ...prev, [card.id]: val }));
+                }}
                 className="space-y-3"
               >
                 {data.options.map((opt, idx) => (

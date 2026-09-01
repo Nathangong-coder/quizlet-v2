@@ -38,7 +38,7 @@ export function CollapsibleShell({
       <aside
         className={cn(
           'sticky top-0 hidden h-screen flex-col border-r border-sidebar-border bg-sidebar py-6 lg:flex',
-          collapsed ? 'gap-8 px-2' : 'gap-8 px-4',
+          collapsed ? 'gap-5 px-2' : 'gap-5 px-4',
         )}
       >
         <div className={cn('flex', collapsed ? 'flex-col items-center gap-3' : 'items-center justify-between gap-2')}>

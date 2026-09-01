@@ -1,5 +1,6 @@
 export interface QuestionTimer {
   start(cardId: string): void;
+  stop(cardId: string): void;
   elapsed(cardId: string): number | undefined;
 }
 
@@ -15,8 +16,10 @@ export interface QuestionTimer {
  * elapsed time to it.
  *
  * `start` is first-write-wins so revisiting a question does not reset its
- * clock, and `elapsed` is non-destructive so a re-submit reports the same
- * figure rather than zero.
+ * clock. `stop` is also first-write-wins, which freezes the duration at the
+ * moment the learner answers instead of billing time spent on later cards.
+ * `elapsed` is non-destructive so a re-submit reports the same figure rather
+ * than zero.
  *
  * A plain factory rather than a hook: the logic is what needs testing, and
  * this keeps it out of the repo's node-only test environment's way. The hook
@@ -24,14 +27,18 @@ export interface QuestionTimer {
  */
 export function createQuestionTimer(now: () => number = Date.now): QuestionTimer {
   const startedAt: Record<string, number> = {};
+  const stoppedAt: Record<string, number> = {};
 
   return {
     start(cardId: string) {
       if (startedAt[cardId] === undefined) startedAt[cardId] = now();
     },
+    stop(cardId: string) {
+      if (startedAt[cardId] !== undefined && stoppedAt[cardId] === undefined) stoppedAt[cardId] = now();
+    },
     elapsed(cardId: string): number | undefined {
       const started = startedAt[cardId];
-      return started === undefined ? undefined : now() - started;
+      return started === undefined ? undefined : (stoppedAt[cardId] ?? now()) - started;
     },
   };
 }
