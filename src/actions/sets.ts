@@ -8,7 +8,7 @@ import { redirect } from 'next/navigation'
 import { after } from 'next/server'
 import { ActionResult } from '@/types/action'
 
-import { ContentBlock } from '@/lib/cards/content';
+import { normalizeTextMarks } from '@/lib/cards/content';
 import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categories'
 import { reconcileCards } from '@/lib/cards/reconcile'
 import { extractKlpsForCards } from '@/actions/klp'
@@ -46,6 +46,10 @@ function sanitizeBlock(
     ? block.listType
     : null
   const rawIndent = Number.isInteger(block?.indent) ? block.indent : 0
+  const text = typeof block?.text === 'string' ? block.text : ''
+  const marks = block?.type === 'text'
+    ? normalizeTextMarks(block?.marks, text.length)
+    : []
 
   return {
     side,
@@ -55,6 +59,7 @@ function sanitizeBlock(
     position,
     listType,
     indent: Math.min(Math.max(rawIndent, 0), 6),
+    marks: marks.length > 0 ? marks : undefined,
   }
 }
 

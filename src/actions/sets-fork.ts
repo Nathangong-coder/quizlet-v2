@@ -189,6 +189,9 @@ export async function forkSet(setId: string): Promise<ActionResult<{ setId: stri
                 text: b.text,
                 position: b.position,
                 assetId: b.assetId ? (newAssetIdByOldId.get(b.assetId) ?? null) : null,
+                listType: b.listType,
+                indent: b.indent,
+                marks: b.marks === null ? undefined : b.marks,
               })),
             },
             categoryAssignments: {

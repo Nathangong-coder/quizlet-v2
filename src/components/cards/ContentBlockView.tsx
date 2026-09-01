@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ContentBlock } from '@/lib/cards/content';
+import { ContentBlock, getTextMarkSegments } from '@/lib/cards/content';
 import { SpreadsheetTable } from './SpreadsheetTable';
 import { Download, ChevronDown, FileSpreadsheet } from 'lucide-react';
-import { parseSpreadsheet } from '@/lib/cards/spreadsheet';
 
 interface ContentBlockViewProps {
   block: ContentBlock;
@@ -46,14 +45,30 @@ export function ContentBlockView({
     const indent = Math.min(Math.max(block.indent ?? 0, 0), 6);
     const listIndex = index ?? block.position ?? 0;
     const listMarker = block.listType === 'bullet' ? '•' : block.listType === 'numbered' ? `${listIndex + 1}.` : null;
+    const text = block.text ?? '';
+    const textSegments = getTextMarkSegments(text, block.marks);
     return (
       <div
-        className={`prose prose-sm max-w-none ${className}`}
+        className={`max-w-none ${className}`}
         style={{ marginLeft: `${indent * 1.25}rem` }}
       >
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-2 leading-6">
           {listMarker && <span className="min-w-5 shrink-0 text-right font-semibold text-primary" aria-hidden="true">{listMarker}</span>}
-          <p className="whitespace-pre-wrap">{block.text}</p>
+          <p className="m-0 whitespace-pre-wrap">
+            {textSegments.map((segment, segmentIndex) => (
+              <span
+                key={segmentIndex}
+                className={[
+                  segment.marks.bold && 'font-semibold',
+                  segment.marks.italic && 'italic',
+                  segment.marks.underline && 'underline decoration-1 underline-offset-2',
+                  segment.marks.highlight && 'rounded-[0.2em] bg-warning/25 px-[0.12em] dark:bg-warning/35',
+                ].filter(Boolean).join(' ')}
+              >
+                {segment.text}
+              </span>
+            ))}
+          </p>
         </div>
       </div>
     );

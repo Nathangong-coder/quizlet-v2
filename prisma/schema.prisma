@@ -516,6 +516,7 @@ model CardContentBlock {
   position  Int
   listType  String?    // "bullet" | "numbered" for text blocks
   indent    Int        @default(0)
+  marks     Json?      // inline text marks: bold, italic, underline, highlight
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   card      Card       @relation(fields: [cardId], references: [id], onDelete: Cascade)

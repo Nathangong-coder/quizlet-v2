@@ -13,7 +13,7 @@ import { Plus, Loader2 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
 import { ContentBlock } from '@/lib/cards/content'
-import { contentBlocksToPlainText, legacyCardToContentBlocks } from '@/lib/cards/content'
+import { contentBlocksToPlainText, legacyCardToContentBlocks, normalizeTextMarks } from '@/lib/cards/content'
 import { CategoryManager } from './CategoryManager'
 import { normalizeCategoryName, pickDefaultColor } from '@/lib/cards/categories'
 
@@ -26,6 +26,7 @@ interface InitialContentBlock {
   position?: number
   listType?: string | null
   indent?: number | null
+  marks?: unknown
 }
 
 interface InitialCard {
@@ -66,12 +67,13 @@ function cardToEditorBlocks(card: InitialCard) {
         assetId: b.assetId ?? undefined,
         listType: (b.listType === 'bullet' || b.listType === 'numbered' ? b.listType : null) as ContentBlock['listType'],
         indent: b.indent ?? 0,
+        marks: normalizeTextMarks(b.marks, (b.text ?? '').length),
         position: i,
         side,
       }))
 
     if (blocks.length > 0) return blocks
-    return [{ id: `${Date.now()}-${Math.random()}`, type: 'text', text: fallback, position: 0, side, listType: null, indent: 0 }]
+    return [{ id: `${Date.now()}-${Math.random()}`, type: 'text', text: fallback, position: 0, side, listType: null, indent: 0, marks: [] }]
   }
 
   return {
@@ -90,7 +92,7 @@ function hasTypedText(blocks: ContentBlock[]) {
 function withGeneratedText(blocks: ContentBlock[], text: string, side: 'term' | 'definition') {
   const textIndex = blocks.findIndex((block) => block.type === 'text')
   if (textIndex >= 0) {
-    return blocks.map((block, index) => (index === textIndex ? { ...block, text } : block))
+    return blocks.map((block, index) => (index === textIndex ? { ...block, text, marks: [] } : block))
   }
 
   return [
@@ -131,8 +133,8 @@ export function SetForm({
   const addCard = () => {
     setCards([...cards, {
       id: undefined as string | undefined,
-      term: [{ type: 'text', text: '', position: 0 }],
-      definition: [{ type: 'text', text: '', position: 0 }],
+      term: [{ id: `${Date.now()}-${Math.random()}-term`, type: 'text', text: '', position: 0, listType: null, indent: 0, marks: [] }],
+      definition: [{ id: `${Date.now()}-${Math.random()}-definition`, type: 'text', text: '', position: 0, listType: null, indent: 0, marks: [] }],
       categoryNames: [],
       position: cards.length
     }])
