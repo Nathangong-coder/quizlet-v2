@@ -3,6 +3,7 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { recordStudyEvent } from '@/lib/memory/record';
+import { normalizeLatency } from '@/lib/memory/latency';
 
 type ActionResult<T> = {
   success: boolean;
@@ -12,7 +13,7 @@ type ActionResult<T> = {
 
 export async function submitMatchingAnswers(input: {
   attemptId: string;
-  matches: { cardId: string; matchedWithId: string }[];
+  matches: { cardId: string; matchedWithId: string; latencyMs?: number }[];
 }): Promise<ActionResult<{ score: number }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
@@ -57,6 +58,7 @@ export async function submitMatchingAnswers(input: {
           selectedOption: matchedCard?.definition || 'No match',
           isCorrect,
           score: isCorrect ? 100 : 0,
+          latencyMs: normalizeLatency(match.latencyMs),
           feedback: isCorrect ? 'Correct match!' : 'Incorrect match.',
         }
       });
@@ -80,12 +82,14 @@ export async function submitMatchingAnswers(input: {
           if (alreadyRecorded > 0) return;
 
           for (const outcome of matchOutcomes) {
+            const latencyMs = input.matches.find((match) => match.cardId === outcome.cardId)?.latencyMs;
             await recordStudyEvent({
               userId: session.user.id,
               cardId: outcome.cardId,
               source: 'matching',
               outcome: { correct: outcome.isCorrect },
               sessionId: attempt.sessionId ?? undefined,
+              ...(latencyMs === undefined ? {} : { meta: { latencyMs } }),
             }, tx);
           }
         });
@@ -100,12 +104,14 @@ export async function submitMatchingAnswers(input: {
       // did before this task — unguarded, per-card — rather than silently
       // dropping these writes.
       for (const outcome of matchOutcomes) {
+        const latencyMs = input.matches.find((match) => match.cardId === outcome.cardId)?.latencyMs;
         try {
           await recordStudyEvent({
             userId: session.user.id,
             cardId: outcome.cardId,
             source: 'matching',
             outcome: { correct: outcome.isCorrect },
+            ...(latencyMs === undefined ? {} : { meta: { latencyMs } }),
           });
         } catch (memErr) {
           console.error('recordStudyEvent failed for matching (legacy, no session):', memErr);

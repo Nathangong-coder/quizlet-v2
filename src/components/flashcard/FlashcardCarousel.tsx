@@ -96,7 +96,7 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
           >
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Definition</p>
             {defBlocks.length > 0 ? (
-              <div className="w-full space-y-2">
+              <div className="w-full space-y-2 text-center">
                 {defBlocks.map((block, i) => (
                   <ContentBlockView
                     key={i}
@@ -108,7 +108,7 @@ export default function FlashcardCarousel({ cards }: { cards: FlashcardCarouselC
                 ))}
               </div>
             ) : (
-              <p className="text-base">{card.definition}</p>
+              <p className="mx-auto text-center text-base">{card.definition}</p>
             )}
           </div>
         </div>

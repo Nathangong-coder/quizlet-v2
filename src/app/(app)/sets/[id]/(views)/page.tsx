@@ -5,6 +5,7 @@ import FlashcardSection from '@/components/flashcard/FlashcardSection'
 import { TermsList } from '@/components/sets/TermsList'
 import { ActivityTiles } from '@/components/sets/ActivityTiles'
 import { readableSetWhere } from '@/lib/sets/visibility'
+import { normalizeTextMarks } from '@/lib/cards/content'
 
 /**
  * Study — what you DO with the set.
@@ -71,6 +72,7 @@ export default async function SetStudyPage({ params }: { params: Promise<{ id: s
       side: b.side as 'term' | 'definition',
       text: b.text ?? undefined,
       assetId: b.assetId ?? undefined,
+      marks: normalizeTextMarks(b.marks, (b.text ?? '').length),
     })),
   }))
 

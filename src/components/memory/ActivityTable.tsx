@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { sourceLabel } from '@/lib/memory/source-labels'
 import type { StudyEventHistoryRow } from '@/actions/memory'
 import { cn } from '@/lib/utils'
+import { formatDuration } from '@/lib/memory/activity-labels'
 
 /**
  * How one answer's outcome reads in the Accuracy column.
@@ -27,7 +28,7 @@ export function outcomeText(event: Pick<StudyEventHistoryRow, 'score' | 'correct
 
 /** Grid template shared by the header and every row, so columns line up. */
 const GRID =
-  'grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_7.5rem_6.5rem_5rem_4.5rem_4.5rem] items-center gap-3'
+  'grid grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_7.5rem_4.5rem_6.5rem_5rem_4.5rem_4.5rem] items-center gap-3'
 
 function HeaderCell({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
@@ -57,11 +58,12 @@ export interface ActivityTableProps {
 export default function ActivityTable({ events, onScopeToCard, onDelete }: ActivityTableProps) {
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[46rem]">
+      <div className="min-w-[50rem]">
         <div className={cn(GRID, 'border-b px-3 pb-2')}>
           <HeaderCell>Card</HeaderCell>
           <HeaderCell>Set</HeaderCell>
           <HeaderCell>Type</HeaderCell>
+          <HeaderCell>Time</HeaderCell>
           <HeaderCell>Date</HeaderCell>
           <HeaderCell className="text-right">Accuracy</HeaderCell>
           <HeaderCell className="text-right">Conf.</HeaderCell>
@@ -111,6 +113,10 @@ export default function ActivityTable({ events, onScopeToCard, onDelete }: Activ
 
                 <div className="truncate text-xs text-muted-foreground" title={sourceLabel(event.source)}>
                   {sourceLabel(event.source)}
+                </div>
+
+                <div className="text-xs tabular-nums text-muted-foreground" title="Time to answer">
+                  {formatDuration(event.latencyMs)}
                 </div>
 
                 <div className="text-xs text-muted-foreground" title={format(when, 'PPpp')}>

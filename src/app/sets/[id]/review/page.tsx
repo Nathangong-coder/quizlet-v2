@@ -2,12 +2,13 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Button, buttonVariants } from '@/components/ui/button'
+import { buttonVariants } from '@/components/ui/button'
 import ReviewSession from '@/components/review/ReviewSession'
 import { cn } from '@/lib/utils'
 import { filterCardsByCategories } from '@/lib/cards/categories'
 import { CategoryUrlFilter } from '@/components/sets/CategoryUrlFilter'
 import { readableSetWhere } from '@/lib/sets/visibility'
+import { normalizeTextMarks } from '@/lib/cards/content'
 
 export default async function ReviewPage({
   params,
@@ -72,6 +73,7 @@ export default async function ReviewPage({
       side: b.side as 'term' | 'definition',
       text: b.text ?? undefined,
       assetId: b.assetId ?? undefined,
+      marks: normalizeTextMarks(b.marks, (b.text ?? '').length),
     })),
     confidence: card.progress[0]?.confidence ?? 5,
   }))

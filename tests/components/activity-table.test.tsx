@@ -16,6 +16,7 @@ function event(over: Partial<StudyEventHistoryRow> = {}): StudyEventHistoryRow {
     source: 'quiz-sa',
     correct: null,
     score: 82,
+    latencyMs: 2400,
     confidenceAfter: 7,
     createdAt: new Date(2026, 7, 14, 9, 30).toISOString(),
     sessionId: 'sess1',
@@ -100,6 +101,7 @@ describe('ActivityTable columns', () => {
     // The short label, not "Quiz (Short Answer)" — the column is already
     // headed "Type" and the prefix repeated on every row.
     expect(screen.getByText('Short Answer')).toBeTruthy()
+    expect(screen.getByText('2s')).toBeTruthy()
     expect(screen.getByText('82%')).toBeTruthy()
     expect(screen.getByText('7')).toBeTruthy()
   })

@@ -44,4 +44,24 @@ describe('createQuestionTimer', () => {
     expect(timer.elapsed('c1')).toBe(2000)
     expect(timer.elapsed('c1')).toBe(2000)
   })
+
+  it('freezes the duration when the learner answers', () => {
+    const clock = fakeClock()
+    const timer = createQuestionTimer(clock.now)
+
+    timer.start('c1')
+    clock.advance(2400)
+    timer.stop('c1')
+    clock.advance(9000)
+
+    expect(timer.elapsed('c1')).toBe(2400)
+  })
+
+  it('does not stop a question that was never started', () => {
+    const clock = fakeClock()
+    const timer = createQuestionTimer(clock.now)
+
+    timer.stop('never')
+    expect(timer.elapsed('never')).toBeUndefined()
+  })
 })

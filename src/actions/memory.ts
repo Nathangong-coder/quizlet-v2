@@ -30,6 +30,7 @@ export interface StudyEventHistoryRow {
   source: string;
   correct: boolean | null;
   score: number | null;
+  latencyMs: number | null;
   confidenceAfter: number;
   createdAt: string;
   /**
@@ -84,6 +85,7 @@ export async function getStudyEventHistory(
         source: true,
         correct: true,
         score: true,
+        latencyMs: true,
         confidenceAfter: true,
         createdAt: true,
         sessionId: true,
@@ -103,6 +105,7 @@ export async function getStudyEventHistory(
       source: r.source,
       correct: r.correct,
       score: r.score,
+      latencyMs: r.latencyMs,
       confidenceAfter: r.confidenceAfter,
       createdAt: r.createdAt.toISOString(),
       sessionId: r.sessionId,

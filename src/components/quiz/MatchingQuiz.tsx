@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useImperativeHandle, forwardRef } from "react";
+import React, { useState, useRef, useEffect, useImperativeHandle, forwardRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card as PrismaCard } from "@prisma/client";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { ContentBlock, getNumberedListIndex } from "@/lib/cards/content";
 import { ContentBlockView } from "@/components/cards/ContentBlockView";
 import { QuizSectionHandle } from "./section";
+import { useQuestionTimer } from './useQuestionTimer';
+import { QuestionTimerDisplay } from './QuestionTimer';
 
 type MatchCard = PrismaCard & { contentBlocks?: ContentBlock[] };
 
@@ -67,6 +69,11 @@ export const MatchingQuiz = forwardRef<QuizSectionHandle, MatchingQuizProps>(
   const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const committedRef = useRef(false);
+  const timer = useQuestionTimer();
+
+  useEffect(() => {
+    cards.forEach((card) => timer.start(card.id));
+  }, [cards, timer]);
 
   const handleDefSelect = (id: string) => {
     setSelectedDefId(id);
@@ -84,6 +91,7 @@ export const MatchingQuiz = forwardRef<QuizSectionHandle, MatchingQuizProps>(
       newMatches[termId] = selectedDefId;
       setMatches(newMatches);
       setSelectedDefId(null);
+      timer.stop(termId);
     }
   };
 
@@ -92,6 +100,7 @@ export const MatchingQuiz = forwardRef<QuizSectionHandle, MatchingQuizProps>(
     const matchesArray = Object.entries(matches).map(([termId, defId]) => ({
       cardId: termId,
       matchedWithId: defId,
+      latencyMs: timer.elapsed(termId),
     }));
     if (matchesArray.length === 0) return; // nothing matched → contributes 0
 
@@ -118,7 +127,7 @@ export const MatchingQuiz = forwardRef<QuizSectionHandle, MatchingQuizProps>(
   // `matches` is in the dep array, so the handle is rebuilt whenever a pair is
   // placed or removed and never reports a stale count. Verified deliberately:
   // a stale 0 would let the container discard an attempt the learner took.
-  useImperativeHandle(ref, () => ({ commitAll, answeredCount }), [matches, attemptId]);
+  useImperativeHandle(ref, () => ({ commitAll, answeredCount }), [matches, attemptId, timer]);
 
   const matchedDefIds = Object.values(matches);
 
@@ -166,7 +175,11 @@ export const MatchingQuiz = forwardRef<QuizSectionHandle, MatchingQuizProps>(
 
             return (
               <div key={c.id} className="flex items-center gap-4 p-4 border rounded-xl bg-card group transition-colors hover:border-primary/50">
-                <div className="flex-1 font-medium text-base">
+                <div className="min-w-0 flex-1 font-medium text-base">
+                  <div className="mb-1 flex items-center justify-between gap-3">
+                    <span className="text-xs font-normal uppercase tracking-wide text-muted-foreground">Term</span>
+                    <QuestionTimerDisplay timer={timer} cardId={c.id} />
+                  </div>
                   <SideContent card={c} side="term" />
                 </div>
                 <div className="w-72">

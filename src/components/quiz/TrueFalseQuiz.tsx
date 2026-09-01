@@ -11,6 +11,7 @@ import { QuizCardPrompt } from './QuizCardPrompt';
 import { QuizSectionHandle, SectionNav } from './section';
 import { useErrorToast } from '@/components/errors/useErrorToast';
 import { useQuestionTimer } from './useQuestionTimer';
+import { QuestionTimerDisplay } from './QuestionTimer';
 
 type QuizCard = PrismaCard & { contentBlocks?: ContentBlock[] };
 
@@ -31,8 +32,7 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
     // Starts (or confirms) this question's clock whenever it becomes the
     // visible one in this one-question-at-a-time carousel. `timer.start` is
     // first-write-wins, so navigating back to an already-seen question does
-    // not restart its clock — it keeps running from its first visit until
-    // the batched commitAll() below reads it at final submit.
+    // not restart its clock.
     useEffect(() => {
       const activeId = cards[currentIndex]?.id;
       if (activeId) timer.start(activeId);
@@ -64,6 +64,7 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
       for (const card of cards) {
         const selected = selectedAnswers[card.id];
         if (!selected) continue;
+        timer.stop(card.id);
         const res = await submitTrueFalseAnswer({
           attemptId,
           cardId: card.id,
@@ -89,10 +90,14 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
     useImperativeHandle(ref, () => ({ commitAll, answeredCount }), [cards, selectedAnswers, attemptId]);
 
     function goNext() {
+      const activeId = cards[currentIndex]?.id;
+      if (activeId) timer.stop(activeId);
       setCurrentIndex(i => Math.min(i + 1, cards.length - 1));
     }
 
     function goPrev() {
+      const activeId = cards[currentIndex]?.id;
+      if (activeId) timer.stop(activeId);
       setCurrentIndex(i => Math.max(i - 1, 0));
     }
 
@@ -105,7 +110,10 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
       <div className="max-w-2xl mx-auto space-y-4 p-4">
         <CardUI className="space-y-4">
           <CardHeader>
-            <CardTitle className="mb-2">Question {currentIndex + 1}</CardTitle>
+            <CardTitle className="mb-2 flex items-center justify-between gap-3">
+              <span>Question {currentIndex + 1}</span>
+              <QuestionTimerDisplay timer={timer} cardId={card.id} />
+            </CardTitle>
             <QuizCardPrompt card={card} side="term" />
           </CardHeader>
           <CardContent className="space-y-6 text-center">
@@ -131,7 +139,10 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
                   type="button"
                   disabled={!statementReady}
                   variant={selectedAnswers[card.id] === val ? 'default' : 'outline'}
-                  onClick={() => setSelectedAnswers(prev => ({ ...prev, [card.id]: val }))}
+                  onClick={() => {
+                    timer.stop(card.id);
+                    setSelectedAnswers(prev => ({ ...prev, [card.id]: val }));
+                  }}
                   className={cn(
                     'px-8 capitalize transition-all',
                     selectedAnswers[card.id] === val && 'bg-primary text-primary-foreground',
