@@ -86,7 +86,7 @@ const EXPLICIT_GATE_ALLOWLIST: Record<string, string[]> = {
   'klt.ts': ['retryKltSummarization'],
 }
 
-const FILES = ['klt-seed.ts', 'klt-tree.ts', 'klt-presets.ts', 'klt.ts', 'staff.ts']
+const FILES = ['klt-seed.ts', 'klt-tree.ts', 'klt-presets.ts', 'klt.ts', 'staff.ts', 'staff-roles.ts']
 
 interface Violation {
   file: string

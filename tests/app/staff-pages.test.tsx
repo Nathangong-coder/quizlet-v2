@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
   setFindMany: vi.fn(),
   learnerIndex: vi.fn(),
   learnerRecord: vi.fn(),
+  userFindMany: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -28,12 +29,15 @@ vi.mock('@/lib/staff/queries', () => ({
   loadLearnerIndex: h.learnerIndex,
   loadLearnerRecord: h.learnerRecord,
 }))
-vi.mock('@/lib/db', () => ({ prisma: { set: { findMany: h.setFindMany } } }))
+vi.mock('@/lib/db', () => ({
+  prisma: { set: { findMany: h.setFindMany }, user: { findMany: h.userFindMany } },
+}))
 
 import StaffPage from '@/app/(app)/staff/page'
 import StaffKlpsPage from '@/app/(app)/staff/klps/page'
 import StaffCoveragePage from '@/app/(app)/staff/coverage/page'
 import StaffLearnerPage from '@/app/(app)/staff/learners/[id]/page'
+import StaffRolesPage from '@/app/(app)/staff/roles/page'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -46,6 +50,7 @@ beforeEach(() => {
   })
   h.klps.mockResolvedValue([])
   h.setFindMany.mockResolvedValue([])
+  h.userFindMany.mockResolvedValue([])
 })
 afterEach(cleanup)
 
@@ -170,5 +175,19 @@ describe('/staff/learners/[id]', () => {
     // analysisStatus matters: a relational tag table cannot distinguish
     // "analyzed and clean" from "could not analyze" — both are zero rows.
     expect(screen.getByText(/no_klps/)).toBeInTheDocument()
+  })
+})
+
+describe('/staff/roles', () => {
+  it('404s for STAFF — reading the engine is not granting access to it', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u1', role: 'staff' } })
+    await expect(StaffRolesPage()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('404s for a learner and a signed-out visitor', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u1', role: 'learner' } })
+    await expect(StaffRolesPage()).rejects.toThrow('NEXT_NOT_FOUND')
+    h.auth.mockResolvedValue(null)
+    await expect(StaffRolesPage()).rejects.toThrow('NEXT_NOT_FOUND')
   })
 })
