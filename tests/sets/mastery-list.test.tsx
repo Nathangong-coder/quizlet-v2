@@ -1,8 +1,16 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { MasteryList } from '@/components/sets/knowledge/MasteryList'
 import type { TopicMasteryRow } from '@/lib/sets/knowledge'
+
+// MasteryList renders ConceptKlps (collapsed by default), which imports the
+// 'use server' module @/actions/klt-tree. None of the tests below open a
+// key-points panel, but the static import still runs at module load time —
+// importing the real module drags in src/lib/db.ts, which throws when
+// DATABASE_URL isn't set in this test environment. Same idiom as
+// tests/components/concept-tree.test.tsx.
+vi.mock('@/actions/klt-tree', () => ({ listTopicKlps: vi.fn() }))
 
 afterEach(cleanup)
 

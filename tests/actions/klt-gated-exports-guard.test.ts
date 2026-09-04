@@ -70,7 +70,10 @@ const READ_GATE_PATTERN = /requireSetKltView\s*\(/
 const READ_GATE_ALLOWLIST: Record<string, string[]> = {
   // Reads one set's structure, and what is filed under one of its concepts.
   // Neither writes anything; both are what a shared-set viewer sees.
-  'klt-tree.ts': ['listConceptTree', 'listConceptCards'],
+  // listTopicKlps: the live key points behind one concept's mastery number —
+  // reading them is exactly as safe as listConceptCards, which reads the
+  // cards behind the same number.
+  'klt-tree.ts': ['listConceptTree', 'listConceptCards', 'listTopicKlps'],
 }
 
 /**

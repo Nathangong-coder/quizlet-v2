@@ -721,3 +721,52 @@ export async function listConceptCards(
     data: { conceptName: self.name, direct: finish(direct), descendants: finish(descendants) },
   };
 }
+
+/**
+ * The live key points filed under one concept in one set, with this viewer's
+ * own posterior on each.
+ *
+ * On `requireSetKltView`, the READ gate — a link-shared set's key points are
+ * readable by anyone who can already read its cards, which is the same argument
+ * `listConceptCards` makes. Never `requireSetKltAccess`: reading is not editing.
+ */
+export async function listTopicKlps(
+  setId: string,
+  topicKey: string,
+): Promise<ActionResult<{ id: string; text: string; pKnown: number | null; observations: number }[]>> {
+  const view = await requireSetKltView(setId);
+  if (!view) return NOT_FOUND;
+
+  const links = await prisma.klpTopic.findMany({
+    where: {
+      klt: { normalizedName: topicKey },
+      klp: { supersededAt: null, card: { setId: view.setId } },
+    },
+    select: { klp: { select: { id: true, text: true, label: true } } },
+    orderBy: { rank: 'asc' },
+    take: 50,
+  });
+  if (links.length === 0) return { success: true, data: [] };
+
+  const states = view.viewerId
+    ? await prisma.klpState.findMany({
+        where: { userId: view.viewerId, klpId: { in: links.map((l) => l.klp.id) } },
+        select: { klpId: true, pKnown: true, observations: true },
+      })
+    : [];
+  const stateBy = new Map(states.map((s) => [s.klpId, s]));
+
+  return {
+    success: true,
+    data: links.map((l) => {
+      const state = stateBy.get(l.klp.id);
+      return {
+        id: l.klp.id,
+        text: l.klp.label ?? l.klp.text,
+        // Null is NO EVIDENCE, not zero knowledge.
+        pKnown: state?.pKnown ?? null,
+        observations: state?.observations ?? 0,
+      };
+    }),
+  };
+}

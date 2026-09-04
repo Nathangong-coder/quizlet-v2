@@ -353,4 +353,8 @@ describe('selectConceptRows', () => {
     const rows = selectConceptRows([topicForest('vocab', null, null)])
     expect(rows[0].parentKey).toBeNull()
   })
+
+  it('returns an empty list for no topics', () => {
+    expect(selectConceptRows([])).toEqual([])
+  })
 })
