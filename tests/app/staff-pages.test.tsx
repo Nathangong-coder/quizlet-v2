@@ -9,6 +9,8 @@ const h = vi.hoisted(() => ({
   klps: vi.fn(),
   coverage: vi.fn(),
   setFindMany: vi.fn(),
+  learnerIndex: vi.fn(),
+  learnerRecord: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -23,12 +25,15 @@ vi.mock('@/lib/staff/queries', () => ({
   loadStaffOverview: h.overview,
   loadStaffKlps: h.klps,
   loadStaffCoverage: h.coverage,
+  loadLearnerIndex: h.learnerIndex,
+  loadLearnerRecord: h.learnerRecord,
 }))
 vi.mock('@/lib/db', () => ({ prisma: { set: { findMany: h.setFindMany } } }))
 
 import StaffPage from '@/app/(app)/staff/page'
 import StaffKlpsPage from '@/app/(app)/staff/klps/page'
 import StaffCoveragePage from '@/app/(app)/staff/coverage/page'
+import StaffLearnerPage from '@/app/(app)/staff/learners/[id]/page'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -129,5 +134,41 @@ describe('/staff/coverage', () => {
     render(await StaffCoveragePage())
     expect(screen.getByRole('columnheader', { name: /key points/i })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /topics/i })).toBeInTheDocument()
+  })
+})
+
+describe('/staff/learners/[id]', () => {
+  beforeEach(() => {
+    h.learnerRecord.mockResolvedValue({
+      label: 'nathan',
+      weakest: [{ klpId: 'k1', text: 'EBIT falls by the full depreciation', pKnown: 0.18, observations: 4 }],
+      recentAnswers: [],
+      analysisStatusCounts: { analyzed: 12, no_klps: 3 },
+    })
+  })
+
+  it('404s for a learner reading another learner', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u9', role: 'learner' } })
+    await expect(
+      StaffLearnerPage({ params: Promise.resolve({ id: 'u1' }) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(h.learnerRecord).not.toHaveBeenCalled()
+  })
+
+  it('404s for an unknown learner rather than rendering an empty record', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u9', role: 'staff' } })
+    h.learnerRecord.mockResolvedValue(null)
+    await expect(
+      StaffLearnerPage({ params: Promise.resolve({ id: 'nope' }) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
+  it('shows the weakest key points and the analysis-status denominator', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u9', role: 'staff' } })
+    render(await StaffLearnerPage({ params: Promise.resolve({ id: 'u1' }) }))
+    expect(screen.getByText('EBIT falls by the full depreciation')).toBeInTheDocument()
+    // analysisStatus matters: a relational tag table cannot distinguish
+    // "analyzed and clean" from "could not analyze" — both are zero rows.
+    expect(screen.getByText(/no_klps/)).toBeInTheDocument()
   })
 })

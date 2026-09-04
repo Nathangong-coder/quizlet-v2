@@ -192,3 +192,121 @@ export async function loadStaffOverview(): Promise<StaffOverview> {
     sets,
   }
 }
+
+export interface LearnerRecord {
+  label: string
+  weakest: { klpId: string; text: string; pKnown: number; observations: number }[]
+  recentAnswers: {
+    id: string
+    createdAt: Date
+    mode: string
+    /** 'legacy' stands in for a NULL column — see analysisStatusCounts. */
+    analysisStatus: string
+    cardTerm: string
+    verdicts: { status: string; klpText: string }[]
+    tags: { dimension: string; type: string; significance: number }[]
+  }[]
+  /**
+   * WHY THIS IS HERE: a relational tag table cannot distinguish "analyzed and
+   * clean" from "could not analyze" — both are zero rows. Error rates need a
+   * denominator of ANALYZED answers, or a legacy-heavy corpus silently reads
+   * as a better learner.
+   *
+   * `QuizAnswer.analysisStatus` is NULLABLE, and null means one specific
+   * thing: a row written before Spec 2a shipped. It is bucketed as 'legacy'
+   * rather than left as a null key — `Object.fromEntries` would stringify it
+   * to "null", which reads as a status the vocabulary does not contain.
+   */
+  analysisStatusCounts: Record<string, number>
+}
+
+export async function loadLearnerIndex() {
+  const grouped = await prisma.klpState.groupBy({
+    by: ['userId'],
+    _count: { _all: true },
+    _max: { lastObservedAt: true },
+  })
+  if (grouped.length === 0) return []
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: grouped.map((g) => g.userId) } },
+    select: { id: true, handle: true, name: true, email: true },
+  })
+  const labelBy = new Map(users.map((u) => [u.id, u.handle ?? u.name ?? u.email]))
+
+  return grouped
+    .map((g) => ({
+      userId: g.userId,
+      label: labelBy.get(g.userId) ?? g.userId,
+      klpStates: g._count._all,
+      lastObservedAt: g._max.lastObservedAt,
+    }))
+    .sort((a, b) => (b.lastObservedAt?.getTime() ?? 0) - (a.lastObservedAt?.getTime() ?? 0))
+}
+
+export async function loadLearnerRecord(userId: string): Promise<LearnerRecord | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { handle: true, name: true, email: true },
+  })
+  if (!user) return null
+
+  const [states, answers, statuses] = await Promise.all([
+    prisma.klpState.findMany({
+      where: { userId },
+      select: { klpId: true, pKnown: true, observations: true, klp: { select: { text: true, label: true } } },
+      orderBy: { pKnown: 'asc' },
+      take: 25,
+    }),
+    // `QuizAnswer.userId` exists directly and is indexed (@@index([userId,
+    // createdAt])). Filtering through `attempt: { userId }` would be a join
+    // that skips that index for the exact ordering asked for.
+    prisma.quizAnswer.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        createdAt: true,
+        mode: true,
+        analysisStatus: true,
+        card: { select: { term: true } },
+        klpResults: { select: { status: true, klp: { select: { text: true, label: true } } } },
+        errorTags: { select: { dimension: true, type: true, significance: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    }),
+    prisma.quizAnswer.groupBy({
+      by: ['analysisStatus'],
+      where: { userId },
+      _count: { _all: true },
+    }),
+  ])
+
+  return {
+    label: user.handle ?? user.name ?? user.email,
+    weakest: states.map((s) => ({
+      klpId: s.klpId,
+      text: s.klp.label ?? s.klp.text,
+      pKnown: s.pKnown,
+      observations: s.observations,
+    })),
+    recentAnswers: answers.map((a) => ({
+      id: a.id,
+      createdAt: a.createdAt,
+      mode: a.mode,
+      // Null means "written before Spec 2a", which is a real category and not
+      // an absence. Naming it keeps it out of the analysed denominator.
+      analysisStatus: a.analysisStatus ?? 'legacy',
+      cardTerm: a.card.term,
+      verdicts: a.klpResults.map((r) => ({ status: r.status, klpText: r.klp.label ?? r.klp.text })),
+      tags: a.errorTags.map((t) => ({
+        dimension: t.dimension,
+        type: t.type,
+        significance: t.significance,
+      })),
+    })),
+    analysisStatusCounts: Object.fromEntries(
+      statuses.map((s) => [s.analysisStatus ?? 'legacy', s._count._all]),
+    ),
+  }
+}

@@ -14,6 +14,7 @@ import {
   loadStaffKlps,
   loadStaffCoverage,
   loadStaffOverview,
+  loadLearnerIndex,
   type StaffKlpRow,
   type StaffKlpQuery,
   type StaffCoverageRow,
@@ -36,4 +37,11 @@ export async function listStaffCoverage(): Promise<ActionResult<StaffCoverageRow
 export async function listStaffOverview(): Promise<ActionResult<StaffOverview>> {
   if (!(await requireStaff())) return NOT_FOUND
   return { success: true, data: await loadStaffOverview() }
+}
+
+export async function listStaffLearners(): Promise<
+  ActionResult<Awaited<ReturnType<typeof loadLearnerIndex>>>
+> {
+  if (!(await requireStaff())) return NOT_FOUND
+  return { success: true, data: await loadLearnerIndex() }
 }
