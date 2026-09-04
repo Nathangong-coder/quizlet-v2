@@ -36,8 +36,23 @@ import ts from 'typescript'
 const GATE_PATTERNS = [
   /requireSetKltAccess\s*\(/,
   /isCallerKltAdmin\s*\(\s*\)/,
-  /isKltEditor\s*\(/,
+  /requireAdmin\s*\(/,
 ]
+
+// `requireStaff` is deliberately NOT in GATE_PATTERNS, for the same reason
+// `requireSetKltView` isn't: it is a WEAKER gate than everything above (staff
+// is not admin), so admitting it globally would let a write action silently
+// downgrade its own check and still pass this guard.
+//
+// It counts as a gate ONLY inside `staff.ts`, mirroring READ_GATE_ALLOWLIST's
+// approach of scoping a weaker-but-real gate to exactly the file(s) it is
+// verified safe for. Unlike READ_GATE_ALLOWLIST it is not keyed by function
+// name: `staff.ts` exists to be the staff-only surface, so every export in it
+// (including ones added by later tasks) is expected to gate with `requireStaff`
+// specifically, and the point of this guard is still enforced — a `staff.ts`
+// export that calls no gate at all still fails below.
+const STAFF_GATE_PATTERN = /requireStaff\s*\(/
+const STAFF_GATE_FILES = new Set(['staff.ts'])
 
 /**
  * `requireSetKltView` is a REAL gate, but a weaker one: it admits anyone who
@@ -55,7 +70,10 @@ const READ_GATE_PATTERN = /requireSetKltView\s*\(/
 const READ_GATE_ALLOWLIST: Record<string, string[]> = {
   // Reads one set's structure, and what is filed under one of its concepts.
   // Neither writes anything; both are what a shared-set viewer sees.
-  'klt-tree.ts': ['listConceptTree', 'listConceptCards'],
+  // listTopicKlps: the live key points behind one concept's mastery number —
+  // reading them is exactly as safe as listConceptCards, which reads the
+  // cards behind the same number.
+  'klt-tree.ts': ['listConceptTree', 'listConceptCards', 'listTopicKlps'],
 }
 
 /**
@@ -71,7 +89,7 @@ const EXPLICIT_GATE_ALLOWLIST: Record<string, string[]> = {
   'klt.ts': ['retryKltSummarization'],
 }
 
-const FILES = ['klt-seed.ts', 'klt-tree.ts', 'klt-presets.ts', 'klt.ts']
+const FILES = ['klt-seed.ts', 'klt-tree.ts', 'klt-presets.ts', 'klt.ts', 'staff.ts', 'staff-roles.ts']
 
 interface Violation {
   file: string
@@ -87,7 +105,8 @@ function checkFile(fileName: string, text: string): Violation[] {
 
   const isGated = (name: string, body: string) =>
     GATE_PATTERNS.some((p) => p.test(body)) ||
-    (readGated.has(name) && READ_GATE_PATTERN.test(body))
+    (readGated.has(name) && READ_GATE_PATTERN.test(body)) ||
+    (STAFF_GATE_FILES.has(fileName) && STAFF_GATE_PATTERN.test(body))
 
   const isExported = (node: ts.Node & { modifiers?: ts.NodeArray<ts.ModifierLike> }) =>
     node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
@@ -124,7 +143,7 @@ function checkFile(fileName: string, text: string): Violation[] {
         violations.push({
           file: fileName,
           name,
-          reason: 'calls no known access gate (requireSetKltAccess / isCallerKltAdmin / isKltEditor, or requireSetKltView on a read-allowlisted export) and is not on the explicit allowlist',
+          reason: 'calls no known access gate (requireSetKltAccess / isCallerKltAdmin / requireAdmin, or requireSetKltView on a read-allowlisted export) and is not on the explicit allowlist',
         })
       }
       continue
@@ -158,7 +177,11 @@ function checkFile(fileName: string, text: string): Violation[] {
 }
 
 describe('every export of a KLT `use server` action module is gated, type-only, or explicitly justified', () => {
-  it('flags no ungated, non-allowlisted async export from klt-seed.ts, klt-tree.ts, klt-presets.ts, or klt.ts', () => {
+  // FINDING 7 (review, 2026-09-03): this title used to enumerate every file
+  // in FILES by name and drifted the moment a sixth (staff-roles.ts) was
+  // added without the title being updated. Kept generic on purpose so
+  // adding another file to FILES below can never leave the title stale again.
+  it('flags no ungated, non-allowlisted async export from any file in FILES', () => {
     const violations: string[] = []
     for (const file of FILES) {
       const fullPath = path.resolve(__dirname, '..', '..', 'src', 'actions', file)

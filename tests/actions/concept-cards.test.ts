@@ -36,7 +36,7 @@ const VIEW = {
   setId: SET_ID,
   setTitle: 'Finance 101',
   canEdit: false,
-  viaAllowlist: false,
+  viaRole: false,
 }
 
 /**

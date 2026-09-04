@@ -17,6 +17,7 @@
     "backfill:klts": "tsx --conditions=react-server --env-file=.env scripts/backfill-klts.ts",
     "seed:dev-user": "tsx --env-file=.env scripts/seed-dev-user.ts",
     "invite": "tsx --env-file=.env scripts/mint-invite.ts",
+    "grant-role": "tsx --env-file=.env scripts/grant-role.ts",
     "verify:klt:baseline": "tsx --env-file=.env scripts/verify-klt-rebuild.ts baseline",
     "verify:klt": "tsx --env-file=.env scripts/verify-klt-rebuild.ts verify"
   },

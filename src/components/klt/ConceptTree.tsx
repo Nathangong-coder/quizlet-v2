@@ -101,10 +101,10 @@ interface ConceptTreeProps {
   /** Pre-fills the AI seeding subject, so the owner rarely has to type it. */
   setTitle: string
   /**
-   * Whether the viewer reached this set through the `KLT_EDITORS` allowlist
-   * rather than by owning it. Gates ONE control — saving this set's structure
-   * as a shared preset, which is an operator capability (spec §3b). Defaults
-   * to false so an omitted prop never accidentally grants it.
+   * Whether the viewer reached this set through the admin role rather than
+   * by owning it. Gates ONE control — saving this set's structure as a
+   * shared preset, which is an operator capability (spec §3b). Defaults to
+   * false so an omitted prop never accidentally grants it.
    */
   isAdmin?: boolean
   /**

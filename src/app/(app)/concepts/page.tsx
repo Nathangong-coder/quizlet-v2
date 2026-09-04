@@ -1,8 +1,7 @@
-import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { isKltEditor } from '@/lib/klt/editors'
+import { requireAdmin } from '@/lib/staff/access'
 
 /**
  * The admin concept-tree PICKER. Structure moved from one global tree to a
@@ -11,19 +10,18 @@ import { isKltEditor } from '@/lib/klt/editors'
  * to `/sets/[id]/concepts`, which renders the SAME `ConceptTree` component
  * the set's own owner uses (spec Decision 3: two entry points, one editor).
  *
- * Gated by `isKltEditor` — an operator allowlist, not a per-row permission,
- * because picking a set here is itself the operator capability: an ordinary
- * owner reaches their own set's editor directly from the set page, never
- * through this list.
+ * Gated by `requireAdmin` — the admin role, not a per-row permission, because
+ * picking a set here is itself the operator capability: an ordinary owner
+ * reaches their own set's editor directly from the set page, never through
+ * this list.
  *
- * A non-editor gets a REAL 404 via `notFound()`, never a redirect or a
+ * A non-admin gets a REAL 404 via `notFound()`, never a redirect or a
  * "you are not allowed" message — someone who should not know this route
  * exists must not learn that it does.
  */
 export default async function ConceptsPage() {
-  const session = await auth()
-  const userId = session?.user?.id
-  if (!userId || !isKltEditor(userId)) notFound()
+  const admin = await requireAdmin()
+  if (!admin) notFound()
 
   const sets = await prisma.set.findMany({
     select: {

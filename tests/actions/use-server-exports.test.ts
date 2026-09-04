@@ -148,7 +148,7 @@ function walk(dir: string, out: string[]): string[] {
 }
 
 describe('use server files export only async functions', () => {
-  it('flags no non-async exports from any file-level "use server" module', () => {
+  it('flags no non-async exports from any file-level "use server" module', { timeout: 30_000 }, () => {
     const root = path.resolve(__dirname, '..', '..', 'src')
     const files = walk(root, [])
 

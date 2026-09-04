@@ -40,6 +40,7 @@ function topic(over: Partial<LearnerTopicProfile> & { key: string }): LearnerTop
     name: over.key,
     color: null,
     depth: null,
+    parentKey: null,
     klpCount: 4,
     measuredKlpCount: 4,
     knowledge: 0.6,

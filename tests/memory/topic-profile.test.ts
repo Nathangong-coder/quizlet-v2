@@ -365,3 +365,31 @@ describe('tunable observation floor (Spec 3B)', () => {
     expect(out.verbosityIndex).toBe(-5)
   })
 })
+
+describe('parentKey on the profile', () => {
+  it('carries through, first non-undefined wins, mirroring depth', () => {
+    const out = shapeTopicProfile({
+      topics: [
+        { normalizedName: 'a', displayName: 'A', color: null, depth: 0, parentKey: null, klpIds: ['k1'], supersededKlpIds: [], cardIds: ['c1'] },
+        { normalizedName: 'b', displayName: 'B', color: null, depth: 1, parentKey: 'a', klpIds: ['k2'], supersededKlpIds: [], cardIds: ['c1'] },
+      ],
+      knowledge: {},
+      tags: [],
+      analyzedAnswersByTopic: {},
+    })
+    expect(out.find((t) => t.key === 'b')!.parentKey).toBe('a')
+    expect(out.find((t) => t.key === 'a')!.parentKey).toBeNull()
+  })
+
+  it('is null for a user-authored category, which has no tree position', () => {
+    const out = shapeTopicProfile({
+      topics: [
+        { normalizedName: 'vocab', displayName: 'Vocab', color: '#fff', klpIds: ['k1'], supersededKlpIds: [], cardIds: ['c1'] },
+      ],
+      knowledge: {},
+      tags: [],
+      analyzedAnswersByTopic: {},
+    })
+    expect(out[0].parentKey).toBeNull()
+  })
+})

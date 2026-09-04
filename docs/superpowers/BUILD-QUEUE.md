@@ -1,9 +1,379 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-08-28 (items **10-14 added as a new backlog section** at the bottom, from the user's 2026-08-28 request — question-type labels, a shareable misconception library, a mastery-engine rework, an error DAG, and writing-vs-learning signals. Item 12 carries an **audit of the current mastery engine**, and it found that there is no speed multiplier at all; read it before touching scoring. Earlier: item 9's concept-tree editor rebuilt as a drag-and-drop canvas, `ee1bcb7` — not yet seen rendered; item 9's per-set structure BUILT and reviewed — the live rebuild, the live gate and the column drop are OWED and need the owner; item 8's two human gates reported PASSED by the user 2026-08-24)
+**Last updated:** 2026-09-03 (**third update same day.** The user added the full edge-type set, promoted the accuracy types into per-KLP verdict labels, **DEFERRED the communication split entirely** ("basically pretend I didn't say it"), and specified **insight generation + matched learning plans** — recorded at the END of the queue as the payoff layer. Design of record is "The KLP engine rebuild" below; build order is the eight-spec cut with **visibility FIRST**. Also today: the `codex` branch reconciled after 6 days of drift, and the engine audit recorded as gaps G1-G10)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
+
+## The codex branch — reconciled 2026-09-03
+
+**The user works on branch `codex` with a parallel Codex agent.** That branch merges to `main`
+through PRs (#38-#44 so far) and this queue did not know about any of it. Run `git log
+6f6f745..codex` before assuming the queue describes the code.
+
+**Baseline on `codex` at 2026-09-03: 204 test files, 2,505 tests, all passing.**
+
+Shipped there between 2026-08-28 and 2026-09-03 — **7 migrations, 9 new models**, no design docs:
+
+| Feature | Models | Routes |
+| --- | --- | --- |
+| Postmortems — debrief of an *offline* session (paper test, mock/real interview) | `PostmortemSession` | `/postmortem/*` |
+| Folders — nested, pinnable, tagged; joins sets + notes + postmortems | `Folder`, `FolderSet`, `FolderNote`, `FolderPostmortem`, `FolderFolder` | `/folders/*` |
+| Study notes — AI-summarized, source-linked | `StudyNote` | `/notes/*` |
+| Diagnostic tests | `DiagnosticAttempt`, `DiagnosticQuestion` | `/diagnostic` |
+| Rich text formatting on card blocks | `CardContentBlock.marks/listType/indent` | — |
+| Timed quiz, dark mode, home recents, library toolbar, collapsible shell | `StudySession.kind += 'diagnostic'` | — |
+
+**Two things to know before building on it:**
+- `PostmortemSession`'s doc comment already states the right rule — it deliberately does **not**
+  touch confidence or mastery, because an offline session has no trustworthy per-card events.
+  Same principle as Spec 2a's refusal to fabricate a tag. Do not "improve" this.
+- **`'diagnostic'` was added to `STUDY_SOURCES` but NOT to `EVIDENCE_STRENGTH`**, so it silently
+  falls back to `DEFAULT_STRENGTH = 0.75` — a guess rate of 0.25, identical to four-option MC. If
+  diagnostic questions are not four-option MC, every BKT posterior they produce is wrong. This is
+  gap **G8** below. The fallback's own comment says a guessed number for an unreasoned mode is
+  worse than none; this is that case, arriving through the back door.
+
+---
+
+## Engine audit, 2026-09-03 — the ten gaps
+
+Requested by the user as the thing that "will guide the specs for the foreseeable future."
+Published as an artifact; the durable findings live here because the artifact is not in the repo.
+
+Three findings are arithmetic, not opinion:
+
+- **G1 — the significance scale does not span 1-10 and never has.** `relevance` carries the
+  LARGER coefficient (0.55) and reads `CardKlp.weight`, but **92% of live KLPs are weight 4 or 5**
+  (178 at w5, 82 at w4, exactly one at w2, none at w1). Substituting the real distribution:
+  accuracy on a w5 KLP can only reach **6-10**; conciseness on a w5 KLP only **4-7**. **No accuracy
+  error can score below 5. No conciseness error can score above 7.** The bands are nearly disjoint,
+  so `significance` largely encodes *which dimension the error was* rather than how bad it was —
+  and severity, the only genuinely per-answer AI judgment, moves it by at most four points while
+  `dimWeight` sets the band it lands in.
+- **G2 — 57% of the library cannot be diagnosed.** 166 of 291 cards are `klpStatus: 'pending'`
+  with a **null source hash — never attempted, zero failures**. `selectRefreshableStaleCardIds`
+  deliberately excludes never-extracted cards from the edit path, so extraction is demand-driven
+  and coverage records *what you happened to quiz*, not what you are learning. Two identical
+  68-card sets sit at 100% and 0%; M&A (82 cards) is 96% dark. **Blind-spot detection is
+  unbuildable on this trigger** — the card you have never been quizzed on is exactly the one most
+  likely to hold missing knowledge, and it has no KLPs to detect a gap with.
+- **G3 — calibration is not computable.** `CardProgress.confidence` is an outcome-derived counter,
+  and `StudyEvent.confidenceBefore` stores the *system's* prior value, not the learner's. Nothing
+  captures what the learner *thought* they knew at answer time. **A data-capture gap, not a
+  modelling gap — no formula change recovers it retroactively.**
+
+The rest: **G4** speed multiplies nothing (`latencyMs` reaches only `paceIndex`, never
+`masteryScore`/`stepBkt`/`nextDueAt`/`rankCandidates`/`computeSignificance`, while `pace.ts`'s own
+comment says a card answered at 2.4x baseline is not mastered); **G5** two knowledge estimates that
+never reconcile (card grain: 10-event window at `0.8^i`; KLP grain: full-history BKT, no decay);
+**G6** knowledge and writing summed into one number — the `too_terse` pKnown check in
+`computeArticulation` is exactly the right shape but applies to that ONE tag type, so `rambling`
+and `kitchen_sink` are booked as writing failures even when the learner plainly does not know the
+material; **G7** extraction quality is a hard ceiling on diagnostic resolution (a learner can only
+be wrong in ways the KLP list permits; the corpus shows both duplicates and un-judgeable run-ons);
+**G8** the diagnostic-mode guess rate above; **G9** no follow-up, so `partial` cannot distinguish
+"knows it, said it badly" from "half-knows it"; **G10** no `User.role` at all — `KLT_EDITORS` is an
+env var of user IDs, so granting access requires a redeploy. **G10 CLOSED 2026-09-03 by Spec 1** —
+`User.role` (`learner | staff | admin`) plus the `RoleGrant` audit table and `npm run grant-role`
+replaced the env allowlist; see the build-order entry above and `CLAUDE.md`'s Roles paragraph.
+
+**Load-bearing things a rework must NOT break:** MC as a zero-cost diagnostic via distractor
+provenance; the closed error vocabulary; never defaulting a tag into existence; `analysisStatus`
+distinguishing "analyzed and clean" from "could not analyze"; significance *inputs* persisted for
+recompute; `stepBkt` reading `STATUS_CREDIT` and `EVIDENCE_STRENGTH` in their two different
+positions and never the stored `credit` product.
+
+---
+
+## The KLP engine rebuild — design of record, 2026-09-03
+
+**Specified by the user, and it supersedes the "two-pass extract-then-critique" approach agreed
+earlier the same day.** The difference is not cosmetic and is worth stating plainly: a critique
+pass is a *second opinion*; this is a *test*. Quality is a matter of taste, discrimination is a
+checkable property.
+
+### The per-question authoring pipeline
+
+1. **Write a reference answer first**, at the quality bar expected of a strong candidate. Deriving
+   propositions from a concrete artifact produces far better grain than generating them from the
+   question in the abstract. *(Side benefit not in the original ask: grading today compares the
+   learner's answer to `card.definition` — often a terse personal note. A real reference answer
+   improves grading on its own, and can be shown to the learner after they respond.)*
+2. **Extract draft KLPs from that answer.**
+3. **Write 3-4 realistic wrong answers** at different competence levels — the confident-but-wrong
+   one, the vague one, the memorized-template one.
+4. **Grade the wrong answers against the draft KLPs. THIS IS THE STEP.** Any KLP that fires
+   identically across a strong and a weak answer is not discriminating and gets cut or split.
+   **If the vague answer scores 6/7, the KLPs are too loose.**
+5. **Revise and re-grade until the wrong answers separate cleanly.** A loop with a numeric exit
+   condition, not a review someone signs off on.
+6. **Extract relations on the surviving set** (perturbation + order violation — below).
+7. **Validate mechanically:** no compound KLPs (nothing joined by "and" that could half-fail), no
+   restatements of the question, each independently checkable, each tagged to exactly one node,
+   numbers stated where numbers matter, **5-9 per question**.
+
+**Consequences to plan for:**
+- This is **per-question**. The current 10-cards-per-call batching on the cheap `autocomplete` tier
+  is incompatible and goes away. Authoring cost rises a lot; runtime cost does not.
+- Grain target moves from 1-5 to **5-9**, against an observed corpus mode of **2**. Expect ~3x the
+  KLPs, ~3x the BKT evidence per card, and a materially larger short-answer grading response.
+  `MAX_KLPS_PER_CARD = 5` must change.
+- The count is a **smell test, not a quota** — an atomic card genuinely has one point, and the
+  discrimination test is authoritative over the range. Padding to reach 5 is exactly what step 4
+  catches, since a padded KLP fires the same way on every answer.
+
+### Relations
+
+The user's worked example ($10 depreciation, 40% tax): K1 EBIT −10 · K2 NI −6 · K3 non-cash,
+added back · K4 CFO +4 · K5 PP&E −10 · K6 Cash +4 · K7 BS balances (A −6, E −6). Edges:
+R1 `causes` K3→K4 · R2 `precedes` K2→K4 · R3 `causes` K1→K2 · R4 `contrasts` K5↔K6 ·
+R5 `requires` K7←K5,K6.
+
+**Two extraction techniques, neither requiring the model to introspect about pedagogy:**
+- **Perturbation.** For each KLP: if this were false, which others break? That asymmetry IS the
+  causal structure — read the dependency graph off the blast radius. K3 false breaks K4 and K6,
+  leaves K1/K2/K5 untouched. **Design detail that decides whether this works: the perturbation must
+  be a substantive COUNTERFACTUAL PREMISE, not a negation.** "K3 is false" cannot be propagated;
+  "depreciation is a cash charge" can. Ask for the counterfactual world, then re-derive inside it.
+- **Order violation.** Shuffle and ask which orderings are incoherent. Pairs that cannot swap are
+  `precedes`. K2-before-K4 fails; K5/K6 swap freely, so no edge. **Require a reason with each
+  rejection** and keep only those where the later point's derivation consumes the earlier one's
+  output — otherwise you collect stylistic ordering preferences, which are now *communication*
+  findings and belong to a different dimension entirely.
+- Neither yields `contrasts`. That comes from asking which pairs get substituted for each other —
+  which makes **a `contrasts` edge a PREDICTED CONFLATION**, on the same axis as the *observed*
+  conflations `metrics/misconceptions.ts` already derives from `(klpId, secondaryKlpId)`. That is
+  the predicted-vs-observed provenance split backlog item 13 demands, arriving early and free.
+
+**Prune hard — it is the same test one level up.** 7 KLPs = 21 possible pairs, maybe 4 that matter.
+Keep only relations where a learner could plausibly hold both endpoints and still miss the link.
+K1→K2 is real (people know EBIT drops 10 and NI drops 6 without connecting them through the 40%
+rate). "PP&E is on the balance sheet" is definitional, carries zero information, costs grading
+tokens. **Mechanically: for each candidate edge, generate an answer that gets both endpoints
+demonstrably correct and the link wrong. If none can be written, the edge is definitional — cut it.**
+
+**And that adversarial artifact IS the grading instrument** — proving an edge informative produces,
+in the same step, the exact near-miss the probe must discriminate against. Same economy as
+generating a distractor from a named corruption.
+
+**Grade relations with dedicated probes, never by inference.** Extracting relation verdicts from an
+unprompted walkthrough marks them absent constantly: the learner may know why CFO rises and simply
+not have said so, because nobody asked. **Absence of stated reasoning is not absence of reasoning.**
+So relations are their own item type — a one-line follow-up right after the main answer, templated
+on *what the learner actually said* (not the reference, or it leaks the answer):
+
+> You said net income falls by 6 and cash flow rises by 4. What connects those?
+
+2-3 probes per relation-dense question, chosen from which KLPs the learner hit, and
+**only where BOTH endpoints came back correct** — that is exactly where the connectivity signal
+lives and where a miss is unambiguous rather than a knowledge gap in disguise.
+
+**This fixes G1 for free.** Perturbation makes centrality *measurable*: a KLP's weight is how many
+others break when it does. K3 has two dependents; a leaf has none. **Weight stops being an AI
+opinion and becomes a computed graph property** — a better fix than asking the model to try harder,
+and it recomputes whenever the graph changes.
+
+### Edge types — the full set, specified by the user 2026-09-03
+
+An edge type is admitted only if it makes a **specific failure nameable**. That is the test.
+
+| Type | Shape | Derived by | Failure it makes nameable |
+| --- | --- | --- | --- |
+| `causes` | directed | perturbation | Knows both facts, misses the mechanism linking them |
+| `requires` | directed, conjunctive | perturbation | Prerequisite missing — **drives blame propagation** |
+| `precedes` | directed | order violation | Derivation sequenced wrongly |
+| `confused_with` | **symmetric** | substitution probe | Conflation, detectable **structurally** instead of hoping the model notices |
+| `applies_within` | directed, to a condition | boundary probe | Boundary failure — rule applied outside its scope |
+| `analogous_to` | **symmetric, cross-question** | corpus pass | Transfer — and it is what *builds* transfer items |
+| `part_of` | directed, hierarchical | — already exists — | Lives in the `Klt` tree. **Do not duplicate it here.** |
+
+`confused_with` **replaces the earlier `contrasts`** — the user's name is better, and it says what
+the edge detects rather than what it looks like.
+
+**Three structural consequences:**
+- `confused_with` and `analogous_to` are **symmetric**: store once under a canonical endpoint
+  ordering, and exempt from the acyclicity check, which governs only the directed types.
+- `analogous_to` is the only **cross-question** type — its endpoints live on different cards, so
+  **the relation table must not assume same-card endpoints**, and it comes from a corpus pass rather
+  than per-question authoring. Build it last.
+- `applies_within` fits what already exists: `condition` is already a `CardKlp.kind`, so a scope
+  edge links a claim KLP to a condition KLP with no new node type. Pairs with the `misapplication`
+  verdict and the in-scope/out-of-scope insight pairing.
+
+### Verdicts: promote the accuracy types into per-KLP labels
+
+The user's direction: keep credit separate from the labels, **and turn the existing accuracy types
+(`omission`, `incomplete`, …) into labels too**, raising the precision at which the model can name a
+mistake. Merged vocabulary — **13 labels**:
+
+`correct` · `partial` · `failed` · `omission` · `incomplete` · `contradicted` · `inversion` ·
+`conflation` · `misapplication` · `factual_error` · `overgeneralization` · `unsupported_leap` ·
+`fabrication`
+
+**USE THE EXISTING SPELLINGS. This is not a style choice.** The user proposed `inverted`,
+`mislabeled`, `misapplied`. Five of these strings are members of `CORRUPTIONS`
+(`src/lib/quiz/options.ts`) — written straight onto every generated distractor as its provenance,
+**persisted**, and guarded by a subset test in `tests/errors/taxonomy.test.ts` precisely because a
+rename strands rows. Renaming would cost the entire existing distractor corpus its diagnosis. Only
+genuinely new concepts get new names: `correct` and `contradicted`.
+
+**Credit stays separate.** The labels are not ordered — `inversion` is not "more wrong" than
+`omission`, it is differently wrong — so mapping 13 labels onto one number invents a ranking nobody
+chose. `STATUS_CREDIT` keeps its three values (`correct`/`incomplete`→ 1.0/0.5, rest 0.0) and BKT is
+untouched, preserving the subtlest correct thing in the engine: `stepBkt` reads the categorical
+fraction and `EVIDENCE_STRENGTH` in two different positions and never the stored product.
+
+**`partial` and `failed` survive as FALLBACKS**, usable only when the grader cannot commit to a
+specific label — and they are what every historical row already holds. A migration cannot know which
+specific failure a legacy `failed` was, and inventing one is exactly the fabrication this engine
+refuses everywhere else. One extra enum member keeps months of history truthful.
+
+### Communication: DEFERRED, at the user's explicit instruction
+
+The user's words: *"let's make that a later step (and basically pretend I didn't say it now), as i
+need to first figure out how i'm actually going to be diagnosing communication errors (presumably
+similar to a KLP-type system that can later recombine to show errors on both a communication &
+knowledge scale)."*
+
+So **clarity and conciseness stay exactly where they are.** `AnswerErrorTag` is NOT migrated, and
+the runtime verdict change touches only `AnswerKlpResult.status`. Do not reintroduce the
+communication split as a near-term step. The eventual direction is recorded above: its own
+decomposition unit, parallel to KLPs, recombining with knowledge verdicts for a reading on both
+scales.
+
+**Consequence to remember:** the `expression` diagnosis in the insight layer (bottom of this file)
+is therefore not computable yet. That is what the deferred work unlocks — not an abstract tidiness
+win.
+
+
+---
+
+## Build order — RE-CUT 2026-09-03 (second pass)
+
+**Visibility goes FIRST, at the user's explicit request** — "I want to see if what I think you're
+building is good or not." Everything after it is inspectable rather than taken on faith, and the
+engine rebuild ships against a pilot set reviewed in that view before it touches the corpus.
+
+1. **Spec 1 — Visibility: staff view, roles, grant dashboard. ✅ BUILT 2026-09-03.** A real
+   `User.role` plus a grant table replacing the `KLT_EDITORS` env var, so access is assignable from
+   a dashboard instead of a redeploy. Every KLP with weight and posterior; per-learner verdicts and
+   tags; **the concept ladder expanded to every generated topic rather than just the roots** (the
+   user reports `/concepts` shows only e.g. DCF and accounting with no dropdown for generated
+   sub-topics). **Build against the TARGET schema with empty states for relations and verdicts**, so
+   Specs 2 and 3 light up panels that already exist instead of forcing a rebuild. **Closes G10.**
+   **`/staff/coverage` also shipped** — optional in the design, built anyway at the owner's explicit
+   call. Full suite 213 files / 2580 tests, `tsc --noEmit` clean, lint below the standing ceiling;
+   see Task 18's report. Live browser verification and the `requireStaff` mutation test are
+   **deferred** pending the repository owner running `npm run grant-role` to grant themselves a
+   role — see `.superpowers/sdd/2026-09-03-staff-visibility/task-18-report.md`.
+2. **Spec 2 — KLP engine: discrimination-tested authoring.** The seven-step pipeline above.
+   Relation extraction rides along as step 6 so **the corpus is only ever walked once**. Weight
+   becomes blast radius. The seven-label vocabulary lands here as a shared module (the
+   `CARD_KLP_STATUSES` / `AI_TASKS` pattern) and is used by the authoring grader immediately.
+   **Ships against a PILOT SET only**, reviewed in Spec 1's view before going near the other 290
+   cards. **Absorbs item 10. Closes G1, G7.**
+3. **Spec 3 — Relations: probes, verdicts, DAG.** Relations as their own item type; probes served
+   after the main answer, templated on the learner's own words, fired only where both endpoints
+   came back correct, capped at 2-3 per question. Verdicts stored **with provenance** so a predicted
+   edge is never confused with an observed one. **Acyclicity enforced on write** — an AI will
+   happily emit X→Y and Y→X across two calls, and `src/lib/klt/invariants.ts` was needed for a
+   strictly easier invariant. DAG rendered in the staff view. **Closes half of G9; largely absorbs
+   item 13.** `/staff/klps` (Spec 1) already has a `Relations` column, shipped empty and rendering
+   an em dash (`src/components/staff/KlpTable.tsx`) — fill it, don't add a new one.
+4. **Spec 4 — Coverage: full corpus walk, permanent self-healing.** Only once the pipeline is proven
+   on the pilot. Extraction stops being demand-driven; all 166 pending filled and the 124 existing
+   re-authored. **Take the window while only 5 `KlpState` rows exist.** Background claim loop holds
+   coverage at 100% so no user ever meets a card without KLPs. **Closes G2.**
+5. **Spec 5 — Verdict labels at runtime.** `AnswerKlpResult.status` widens to the 13 labels;
+   `STATUS_CREDIT` gains the new members mapping to the same three credit values; BKT untouched.
+   **`AnswerErrorTag` is deliberately LEFT ALONE — no communication split.** Small and low-risk
+   precisely because it moves no table; the `CORRUPTIONS` subset test keeps passing unchanged.
+   `/staff/klps` (Spec 1) already has a status-agnostic `Verdicts` column — it reads whatever
+   statuses actually exist rather than a hardcoded three, so the widening to 13 labels needs no
+   change there.
+6. **Spec 6 — Self-rated confidence capture.** One tap before the answer is revealed. Changes no
+   formula, blocks nothing, nothing blocks it — **pull it forward into any gap.** Every week it
+   waits is a week of history that can never be calibrated. **Closes G3.**
+7. **Spec 7 — Mastery engine rework.** Speed as a SECOND AXIS, not a multiplier (latency is
+   untrusted by construction; a multiplier propagates noise into the knowledge estimate — model
+   fluency separately, degrade to no-signal below 3 timed observations, gate `mastered` on both).
+   KLP grain authoritative, card mastery a rollup. Calibration from Spec 6. Plus a test asserting
+   every KLP-crediting `STUDY_SOURCES` member has an explicit `EVIDENCE_STRENGTH`. **Item 12.
+   Closes G4, G5, G8.**
+8. **Spec 8 — Misconception library & KLP-level follow-ups.** Curated, shareable, per-topic, kept
+   schema-distinct from the observed misconceptions the engine derives. Also a generator: a curated
+   misconception is a high-quality corruption. **Needs the seed content the user is writing in a
+   separate chat — poke them.** **Absorbs item 11. Closes the rest of G9.**
+
+9. **Spec 9 — Insight generation + matched learning plans.** The payoff layer — see "Insight generation" at the END of this file. Replaces Stage 8 Spec 4's plan half.
+
+**Then** Stage 8 Spec 4's remaining lesson work. Note this leaves the Analysis tab's
+in-progress block (item 6g) pointing at lessons that will not exist for a while — stub it honestly
+or repoint it.
+
+---
+
+<details>
+<summary>The superseded first-pass seven-spec order from earlier on 2026-09-03</summary>
+
+## Build order — REPLACED 2026-09-03
+
+Items 1, 6c, 6f and 6g are done. Item 7 moved to the back at the user's direction. Backlog items
+10, 11, 12 and 14 are absorbed into the specs below.
+
+1. **Spec 1 — two-pass extraction & the question-type axis.** Pass 1 extracts, pass 2 critiques and
+   repairs: dedup within the card, split run-ons into separately judgeable propositions, enforce a
+   real weight spread. Question type assigned in the SAME pass so the corpus is walked once.
+   Decides whether type generalises `CardKlp.kind` or replaces it. **Absorbs item 10. Closes G1, G7.**
+   Approach chosen with the user: **card-scoped critique.** Set-scoped was ruled out for v1 —
+   merging KLPs across cards needs a KLP-identity concept the schema lacks, and lexical similarity
+   provably fails here (a Jaccard pass missed the real LBO duplicate and returned the two inverse
+   beta formulas at 1.00 as a false positive; **dedup must be semantic**).
+2. **Spec 2 — eager coverage, self-healing, one-time backfill.** Extraction stops being
+   demand-driven. Backfill all 166 pending AND re-extract the 124 ready cards on the new algorithm.
+   **Take the window: only 5 `KlpState` rows exist today, so superseding every KLP costs almost
+   nothing now and will not be cheap in a month.** A background claim loop keeps coverage at 100%
+   permanently. **User's addition #2. Closes G2.**
+3. **Spec 3 — self-rated confidence capture.** One-tap certainty before the answer is revealed,
+   persisted on the answer row. Changes no formula. **Deliberately early: it is the only
+   prerequisite that gets strictly more expensive the longer it waits.** Also improves diagnosis
+   immediately and independently — wrong-and-certain is a misconception, wrong-and-guessing is a
+   gap, and today they are the same row. **Closes G3. Prerequisite for Specs 5, 6, 7.**
+4. **Spec 4 — staff view, roles, grant dashboard.** A real `User.role` plus a grant table replacing
+   the `KLT_EDITORS` env var, so access is assignable from a dashboard rather than a redeploy.
+   The view: KLPs with weights and posteriors, per-learner error tags, and **the concept ladder
+   expanded to every generated topic rather than just the roots** (the user reports the `/concepts`
+   list view shows only e.g. DCF and accounting, with no dropdown for generated sub-topics — fix
+   that here). Owner-only first, teacher-shaped by construction. **User's addition #1. Closes G10.**
+5. **Spec 5 — knowledge vs. expression, separated properly.** Generalise the pKnown check to every
+   expression tag; stop summing the two axes into one `significance` via `DIM_WEIGHTS`. **This is
+   the research week the user asked to be reminded to book** — now scoped, with real accumulated
+   tags to design against. **Absorbs item 14. User's addition #3. Closes G6.**
+6. **Spec 6 — mastery engine rework.** The week with expert analysis. Speed as a SECOND AXIS, not a
+   multiplier (latency is untrusted by construction — a multiplier propagates noise into the
+   knowledge estimate itself; model fluency separately, degrade to no-signal below 3 timed
+   observations, gate `mastered` on both). KLP grain made authoritative with card mastery as a
+   rollup. Calibration from Spec 3's data. Plus a test asserting every KLP-crediting
+   `STUDY_SOURCES` member has an explicit `EVIDENCE_STRENGTH`. **Item 12. Closes G4, G5, G8.**
+7. **Spec 7 — misconception library & adaptive follow-ups.** Curated, shareable, per-topic library,
+   kept schema-distinct from the observed misconceptions `metrics/misconceptions.ts` derives, so a
+   seeded entry is never mistaken for measured evidence. Follow-ups probe a specific `partial` KLP —
+   a curated misconception is a high-quality corruption, which is exactly what a probe needs.
+   **Needs the seed content the user is writing in a separate chat — poke them.** **Absorbs item
+   11. User's addition #3. Closes G9.**
+
+**Then:** backlog item 13 (error DAG) — unchanged, still behind Spec 7 since curated misconceptions
+are its natural nodes. **Then** Stage 8 Spec 4 (plans + AI lessons), moved to the back on
+2026-09-03. Note this leaves the Analysis tab's in-progress block (item 6g) pointing at lessons
+that will not exist for a while — stub it honestly or repoint it.
+
+</details>
+
+---
+
+<details>
+<summary>The superseded 2026-08-20 build order, kept for the record</summary>
 
 **Build order for what remains, decided with the user 2026-08-20 — the numbers do NOT sort into it:**
 
@@ -13,6 +383,8 @@ This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirror
 4. ~~**Item 6c — sharing & discovery.**~~ **BUILT 2026-08-27** as public sets, fork & discovery. Live gate owed. Collaborators deliberately cut.
 5. ~~**Item 6f — app shell.**~~ **BUILT 2026-08-28.** Left rail, profile menu, settings split, avatar, feedback. Live gate owed.
 6. ~~**Item 6g — set views & Atlas.**~~ **BUILT 2026-08-28.** Study / Knowledge / Analysis with mastery shading. Live gate owed. **This completes the two-part UI request made on 2026-08-27. Next action is item 7 (Spec 4)**, whose lesson half is now also the thing the Analysis tab's in-progress block points at.
+
+</details>
 
 **Items 10-14 are a BACKLOG, not part of that order** — see "Backlog" at the bottom of the queue. They were requested on 2026-08-28 and none of them is next. Two need something from the user before they can start: **item 11** needs seed misconception content written in a separate chat and pasted in, and **item 14** is a research week the user asked to be reminded to book. **Item 12** (mastery rework) is the one the user said they want to spend a week on with expert analysis, and its entry already carries the audit of what exists today.
 
@@ -828,7 +1200,10 @@ and 200 when allowlisted — the load-bearing check, since a gate that opens on 
 gate. Tree renders indented with per-row link/child counts; Delete is disabled with a visible reason
 on a node with children. 91 concepts, 0 invariant violations, `KlpState` byte-identical.
 
-**To use it:** set `KLT_EDITORS` to the user id that owns your sets — NOT the seeded `dev_user`.
+**To use it (superseded 2026-09-03 by Spec 1):** at the time this shipped, set `KLT_EDITORS` to the
+user id that owns your sets — NOT the seeded `dev_user`. `KLT_EDITORS` no longer exists; `/concepts`
+is now gated by `requireAdmin` (`src/lib/staff/access.ts`). Grant yourself the admin role with
+`npm run grant-role` instead.
 
 **Two deliberate deviations from spec §5.1/§9:** "Move under" is a `<select>`, not drag-and-drop
 (equivalent in function, keyboard-accessible, testable); and merge's confirm is an inline block rather
@@ -863,7 +1238,8 @@ point at `Klt` and wrongly permit a parent with no node in this set; `checkTreeI
 `parent_not_in_set` kind is the only enforcement.
 
 **What shipped:** two editors over one table — `/sets/[id]/concepts` (owner-gated) and `/concepts`
-(`KLT_EDITORS`, spans every set, picks a set first). **Every edit affects exactly one set, admin
+(`KLT_EDITORS` at the time, spans every set, picks a set first — `KLT_EDITORS` was replaced by the
+admin role on 2026-09-03, Spec 1; `/concepts` is now gated by `requireAdmin`). **Every edit affects exactly one set, admin
 included** — the admin view differs in what it can REACH, never in what an edit DOES. Plus
 `createConcept` (manual base nodes — the half of "seed the top" that had never existed; only the AI
 could create a node before), a "Place under…" control on unplaced concepts, an empty-structure panel
@@ -999,7 +1375,8 @@ structure in either place).
 3. `npm run verify:klt` — exits 0 only if `KlpState` is IDENTICAL, invariants are clean per set, and
    every set with linked concepts has structure
 4. Live gate: `/sets/[id]/concepts` renders for the owner and 404s for a stranger; `/concepts` 404s
-   with `KLT_EDITORS` unset; **a re-parent in set A leaves set B untouched — the load-bearing check
+   for a signed-in non-admin (superseded 2026-09-03 — `KLT_EDITORS` no longer exists, the gate is
+   now `requireAdmin`); **a re-parent in set A leaves set B untouched — the load-bearing check
    of this whole change**; mastery unchanged after an edit
 5. The contraction migration dropping the three deprecated `Klt` columns + the `KltTree` relation
 
@@ -1193,7 +1570,8 @@ the same failure Spec 2a refuses when it rules that degradation must never fabri
   root-first paths of concept **names, not ids**, precisely so a preset survives being applied to a
   set whose concepts do not exist yet. A shareable misconception library needs the same
   name-keyed-not-id-keyed property for the same reason.
-- **"A separate view for the customizable stuff."** Today `/concepts` (behind `KLT_EDITORS`) owns
+- **"A separate view for the customizable stuff."** Today `/concepts` (admin-gated via
+  `requireAdmin`, `KLT_EDITORS` having been replaced 2026-09-03 by Spec 1) owns
   the concept tree and set sharing owns flashcards; there is no home for "the things I have tuned".
   This view would hold the concept tree, the misconception library, and plausibly `LearnerTuning`
   and the saved study scope. Requested as a **list view**, not the drag-and-drop canvas.
@@ -1423,3 +1801,73 @@ Never in memory — always in a spec's own section.
 - **`npm run lint`:** **175 problems** (131 errors, 44 warnings) — unchanged from the item 6e baseline; all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b, 6d, 6f and 8 → 175 after item 6e.)
 - Branch is **not merged**. `origin` carries item 6e's work as of 2026-08-20 (through `f5c4615`), pushed manually; item 8 (through `fb8a851` plus this doc commit) has **not yet been pushed** — `git status -sb` showed `ahead 24` of `origin/spec3b-tunable-scoring` at the time this was written. Check `git status -sb` before believing the remote is current.
 - **There is NO auto-push hook**, despite what this file assumed for several items — `.git/hooks/` contains nothing but samples. Every earlier entry that says "a commit hook pushes automatically, so `origin` tracks HEAD" was wrong.
+
+
+---
+
+## Insight generation & learning plans — specified by the user 2026-09-03
+
+**Recorded at the end of the queue at the user's request.** This is the payoff layer: it is why the
+KLP engine, the edges and the verdict labels are shaped the way they are. Spec 9.
+
+### The method: pair parts of the history together
+
+A single verdict says what happened once. An insight comes from holding two records of the *same*
+knowledge side by side and reading the **difference**. The user's list, with what each needs —
+**this list is explicitly incomplete and a fuller one is owed**:
+
+| Pairing | Reading | Needs |
+| --- | --- | --- |
+| **Recognition vs production** (MC + short answer, same KLP) | right MC / weak SA → **expression or schema**; wrong on both → **content** | **NOTHING — computable today** |
+| **Compute vs explain** | strong `quantitative` / weak `mechanism` → procedural only | nothing new; `CardKlp.kind` exists and is read by no metric |
+| **Node vs edge** ("what is X" vs "what happens to X if Y changes") | high node / low edge → **connectivity** | Spec 3 relation probes |
+| **In-scope vs out-of-scope** | right in-scope / wrong out → **boundary failure** | Spec 3 `applies_within` |
+| **Familiar vs novel framing** | right textbook / wrong novel → **transfer** | a framing axis on items; `analogous_to` |
+
+**Two findings worth acting on:**
+- **Recognition vs production needs no new capture at all.** `AnswerKlpResult` already stores `mode`
+  and `klpId` on every row, so grouping one KLP's verdicts by mode is a query against data that has
+  been accumulating this whole time. Nothing computes it. **The cheapest real insight available.**
+  The user calls this the pairing that "collapses your biggest ambiguity."
+- **Node vs edge is the single biggest instrument gap.** In the user's words: *"You cannot detect
+  connectivity without relational items — this is probably your single biggest instrument gap right
+  now."* Nothing in the system currently asks a question whose answer is a *link*; every question
+  tests a node. Connectivity is not hard to detect today, it is **impossible**. This is the
+  justification for Spec 3.
+
+Each pairing is a **hypothesis about what a difference means** and needs checking against real
+learner data before its reading is trusted.
+
+### Diagnoses — the output of insight, the input to a plan
+
+`gap` · `misconception` · `brittleness` · `conflation` · `boundary` · `connectivity` · `transfer` ·
+`expression` · `template_anchoring`
+
+**`template_anchoring` comes free from the authoring pipeline.** Step 3 already requires writing a
+*memorized-template* wrong answer as a test fixture — and that artifact is exactly the near-miss
+that punishes a rehearsed response. The instrument is manufactured while proving the KLPs
+discriminate, the same way the relation prune manufactures its own probe.
+
+**`expression` is not computable until the deferred communication work lands.**
+
+### Learning plans — match the intervention to the failure
+
+**Do not emit a topic list.** Emit, per item: **the specific claim being repaired** (a klpId, not a
+topic), **a task type matched to the diagnosis**, and **a verification item**. 20-40 minutes,
+ending in something testable.
+
+| Diagnosis | Intervention |
+| --- | --- |
+| Gap | Instruction, then spaced retrieval |
+| Misconception | **Confrontation.** Re-explaining does not work. Make the person state their belief, then show it predicting something false: **elicit → predict → contradict → reconcile** |
+| Brittleness | Same concept, many surface forms, spaced |
+| Transfer | Contrast cases, novel contexts, "what's the same and what's different" |
+| Expression | Structural templates and rewriting, **not** more content |
+| Conflation | Side-by-side discrimination drills — **never study the two separately** |
+| Boundary | Edge cases and counterexamples specifically |
+| Template anchoring | Near-miss questions that punish the rehearsed answer |
+
+**Three rows actively contradict what a generic study plan would do**, which is the whole argument
+for diagnosing first: a misconception gets *worse* under re-explanation (the learner assimilates the
+explanation into the belief they already hold); a conflation studied one side at a time reinforces
+itself; and brittleness needs no more explanation at all, only the same thing in unfamiliar clothes.

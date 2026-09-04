@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Compass, FileText, Folder, FolderPlus, Home, Library, LogIn, NotebookPen, Plus, Stethoscope } from 'lucide-react'
+import { Compass, FileText, Folder, FolderPlus, Gauge, Home, Library, LogIn, NotebookPen, Plus, Stethoscope } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isRailItemCurrent, isRecentCurrent, railItems, type RailIcon } from '@/lib/shell/nav'
 
@@ -12,6 +12,7 @@ const ICONS: Record<RailIcon, React.ComponentType<{ className?: string }>> = {
   library: Library,
   plus: Plus,
   login: LogIn,
+  gauge: Gauge,
 }
 
 export interface RailRecent {
@@ -32,19 +33,21 @@ export interface RailFolder {
  */
 export function RailNav({
   signedIn,
+  role,
   recents,
   folders,
   onNavigate,
   collapsed = false,
 }: {
   signedIn: boolean
+  role?: string | null
   recents: RailRecent[]
   folders: RailFolder[]
   onNavigate?: () => void
   collapsed?: boolean
 }) {
   const pathname = usePathname()
-  const items = railItems(signedIn)
+  const items = railItems(signedIn, role)
   const diagnosticCurrent = pathname === '/diagnostic' || pathname.startsWith('/diagnostic/')
   const postmortemCurrent = pathname === '/postmortem' || pathname.startsWith('/postmortem/')
   const notesCurrent = pathname === '/notes' || pathname.startsWith('/notes/')

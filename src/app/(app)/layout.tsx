@@ -39,7 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     userId
       ? prisma.user.findUnique({
           where: { id: userId },
-          select: { id: true, name: true, handle: true, image: true, avatarUrl: true },
+          select: { id: true, name: true, handle: true, image: true, avatarUrl: true, role: true },
         })
       : Promise.resolve(null),
   ])
@@ -50,6 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <CollapsibleShell
       signedIn={signedIn}
+      role={user?.role}
       recents={railRecents}
       folders={railFolders}
       account={

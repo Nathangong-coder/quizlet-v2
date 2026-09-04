@@ -249,3 +249,33 @@ describe('per-set-then-union rollup (Task 3, spec §6.2)', () => {
     ).toEqual([])
   })
 })
+
+describe('parentKey', () => {
+  it('reads the DIRECT parent off the last ancestor id, translated to a normalized name', () => {
+    const rows = rollUpKltLinks([
+      { kltId: 'a', normalizedName: 'accounting', name: 'Accounting', depth: 0, ancestorIds: [], links: [] },
+      { kltId: 'b', normalizedName: 'income statement', name: 'Income statement', depth: 1, ancestorIds: ['a'], links: [link('k1')] },
+      { kltId: 'c', normalizedName: 'depreciation', name: 'Depreciation', depth: 2, ancestorIds: ['a', 'b'], links: [link('k2')] },
+    ])
+
+    expect(rows.find((r) => r.normalizedName === 'accounting')!.parentName).toBeNull()
+    expect(rows.find((r) => r.normalizedName === 'income statement')!.parentName).toBe('accounting')
+    // The LAST ancestor, not the first — ancestorIds is root-first.
+    expect(rows.find((r) => r.normalizedName === 'depreciation')!.parentName).toBe('income statement')
+  })
+
+  it('is null when the parent id is not among the rows', () => {
+    const rows = rollUpKltLinks([
+      { kltId: 'b', normalizedName: 'orphan', name: 'Orphan', depth: 1, ancestorIds: ['gone'], links: [link('k1')] },
+    ])
+    expect(rows[0].parentName).toBeNull()
+  })
+
+  it('survives kltRowsToTopicRows', () => {
+    const topicRows = kltRowsToTopicRows(
+      [{ normalizedName: 'depreciation', name: 'Depreciation', depth: 2, parentName: 'income statement', links: [link('k2')] }],
+      2,
+    )
+    expect(topicRows[0].parentKey).toBe('income statement')
+  })
+})

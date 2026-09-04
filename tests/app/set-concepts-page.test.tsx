@@ -55,7 +55,7 @@ describe('/sets/[id]/concepts', () => {
       setId: 'set-1',
       setTitle: 'Finance 101',
       canEdit: true,
-      viaAllowlist: false,
+      viaRole: false,
     })
 
     render(await SetConceptsPage({ params: Promise.resolve({ id: 'set-1' }) }))
@@ -65,13 +65,13 @@ describe('/sets/[id]/concepts', () => {
     expect(screen.getByTestId('concept-tree')).toHaveAttribute('data-can-edit', 'true')
   })
 
-  it('renders ConceptTree for an allowlisted operator who does not own the set', async () => {
+  it('renders ConceptTree for an admin who does not own the set', async () => {
     h.view.mockResolvedValue({
       viewerId: 'admin-1',
       setId: 'set-1',
       setTitle: 'Someone Else’s Deck',
       canEdit: true,
-      viaAllowlist: true,
+      viaRole: true,
     })
 
     render(await SetConceptsPage({ params: Promise.resolve({ id: 'set-1' }) }))
@@ -89,7 +89,7 @@ describe('/sets/[id]/concepts', () => {
       setId: 'set-1',
       setTitle: 'Shared Deck',
       canEdit: false,
-      viaAllowlist: false,
+      viaRole: false,
     })
 
     render(await SetConceptsPage({ params: Promise.resolve({ id: 'set-1' }) }))
@@ -104,7 +104,7 @@ describe('/sets/[id]/concepts', () => {
       setId: 'set-1',
       setTitle: 'Shared Deck',
       canEdit: false,
-      viaAllowlist: false,
+      viaRole: false,
     })
 
     render(await SetConceptsPage({ params: Promise.resolve({ id: 'set-1' }) }))

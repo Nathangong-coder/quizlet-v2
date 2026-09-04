@@ -293,9 +293,9 @@ import {
 const OWNER = 'owner-1'
 const SET_A = 'set-a'
 const SET_B = 'set-b'
-const ACCESS_A = { userId: OWNER, setId: SET_A, setTitle: 'Finance 101', viaAllowlist: false }
+const ACCESS_A = { userId: OWNER, setId: SET_A, setTitle: 'Finance 101', viaRole: false }
 /** What `requireSetKltView` resolves for the owner: the read gate, plus the verdict on writing. */
-const VIEW_A = { viewerId: OWNER, setId: SET_A, setTitle: 'Finance 101', canEdit: true, viaAllowlist: false }
+const VIEW_A = { viewerId: OWNER, setId: SET_A, setTitle: 'Finance 101', canEdit: true, viaRole: false }
 
 /**
  * A small real tree in SET_A:
@@ -471,7 +471,7 @@ describe('createConcept', () => {
   })
 
   it('succeeds for the same name in a DIFFERENT set — placement, not vocabulary, is scoped', async () => {
-    h.access.mockResolvedValue({ userId: OWNER, setId: SET_B, setTitle: 'Bio 101', viaAllowlist: false })
+    h.access.mockResolvedValue({ userId: OWNER, setId: SET_B, setTitle: 'Bio 101', viaRole: false })
     const before = h.state.klts.length
     const res = await createConcept(SET_B, 'Accounting', null)
     expect(res.success).toBe(true)
@@ -552,10 +552,10 @@ describe('renameConcept (ruling 3 — narrowed to non-shared concepts)', () => {
     expect(h.state.klts.find((k: { id: string }) => k.id === 'k-a')?.name).toBe('Bookkeeping')
   })
 
-  it('allows an operator (viaAllowlist) to rename a concept shared with another owner’s set', async () => {
+  it('allows an admin (viaRole) to rename a concept shared with another owner’s set', async () => {
     h.state.setOwners[SET_B] = 'other-user'
     h.state.nodes.push({ id: 'n-a-in-b', setId: SET_B, kltId: 'k-a', parentKltId: null, depth: 0, ancestorIds: [], color: null, icon: null })
-    h.access.mockResolvedValue({ ...ACCESS_A, viaAllowlist: true })
+    h.access.mockResolvedValue({ ...ACCESS_A, viaRole: true })
 
     const res = await renameConcept(SET_A, 'k-a', 'Bookkeeping')
     expect(res.success).toBe(true)

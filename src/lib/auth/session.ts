@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db'
+import { DEFAULT_ROLE } from '@/lib/auth/roles'
 
 /**
  * The token claim holding `User.sessionVersion`.
@@ -7,7 +8,12 @@ import { prisma } from '@/lib/db'
  */
 export const SESSION_VERSION_CLAIM = 'sv' as const
 
-type TokenLike = { sub?: string; [SESSION_VERSION_CLAIM]?: number; [key: string]: unknown }
+type TokenLike = {
+  sub?: string
+  [SESSION_VERSION_CLAIM]?: number
+  role?: string
+  [key: string]: unknown
+}
 
 /**
  * The `user` argument, as loosely as it can honestly be described.
@@ -26,7 +32,7 @@ type UserLike = { id?: string }
  * them — they exist so that a session object which carries only, say, a name
  * still satisfies the constraint.
  */
-type SessionUserLike = { id?: string; name?: unknown; email?: unknown; image?: unknown }
+type SessionUserLike = { id?: string; role?: string; name?: unknown; email?: unknown; image?: unknown }
 
 /**
  * Revocation for a strategy that has none.
@@ -58,19 +64,24 @@ export async function jwtCallback<U extends UserLike>({
   if (user?.id) {
     const row = await prisma.user.findUnique({
       where: { id: user.id },
-      select: { sessionVersion: true },
+      select: { sessionVersion: true, role: true },
     })
     // Read from the database rather than from `user`: the argument's shape
     // depends on the provider and adapter, and a missing field would silently
     // stamp `undefined`.
-    return { ...token, sub: user.id, [SESSION_VERSION_CLAIM]: row?.sessionVersion ?? 0 }
+    return {
+      ...token,
+      sub: user.id,
+      [SESSION_VERSION_CLAIM]: row?.sessionVersion ?? 0,
+      role: row?.role ?? DEFAULT_ROLE,
+    }
   }
 
   if (!token.sub) return null
 
   const current = await prisma.user.findUnique({
     where: { id: token.sub },
-    select: { sessionVersion: true },
+    select: { sessionVersion: true, role: true },
   })
   if (!current) return null
 
@@ -79,7 +90,11 @@ export async function jwtCallback<U extends UserLike>({
   // them permanently unrevokable.
   if (token[SESSION_VERSION_CLAIM] !== current.sessionVersion) return null
 
-  return token
+  // REWRITTEN every resolution, never trusted from the incoming token. The
+  // token is a cache the browser holds; the database is the answer. A revoked
+  // admin must stop being an admin on their next request, not when their token
+  // expires.
+  return { ...token, role: current.role ?? DEFAULT_ROLE }
 }
 
 /**
@@ -95,9 +110,12 @@ export async function sessionCallback<S extends { user?: SessionUserLike }>({
 }: {
   session: S
   token: TokenLike
-}): Promise<S & { user?: { id?: string } }> {
+}): Promise<S & { user?: { id?: string; role?: string } }> {
   if (session.user && token.sub) {
     session.user.id = token.sub
+  }
+  if (session.user) {
+    session.user.role = typeof token.role === 'string' ? token.role : DEFAULT_ROLE
   }
   // `sv` is deliberately not copied across: it is a revocation mechanism, not
   // information the browser has any use for.

@@ -68,11 +68,17 @@ export function rollUpKltLinks(rows: KltNodeRow[]): RawKltRow[] {
     for (const ancestorId of row.ancestorIds) addLinks(ancestorId, row.links)
   }
 
+  const nameByKltId = new Map(rows.map((r) => [r.kltId, r.normalizedName]))
+
   return rows.map((row) => ({
     normalizedName: row.normalizedName,
     name: row.name,
     depth: row.depth,
     links: rolled.get(row.kltId) ?? [],
+    parentName:
+      row.ancestorIds.length === 0
+        ? null
+        : (nameByKltId.get(row.ancestorIds[row.ancestorIds.length - 1]) ?? null),
   }))
 }
 
