@@ -38,6 +38,10 @@ export interface TopicMasteryRow {
    * See `shapeTopicMastery` for the coverage rule and why it lives here.
    */
   shade: MasteryShade
+  /** Parent row key, or null for a root. Rows form a forest, not one rung. */
+  parentKey: string | null
+  /** Whether any other row names this one as its parent. */
+  hasChildren: boolean
 }
 
 /**
@@ -85,6 +89,10 @@ export function shapeTopicMastery(topics: LearnerTopicProfile[]): TopicMasteryRo
       klpCount: t.klpCount,
       measuredKlpCount: t.measuredKlpCount,
       shade: shadeForCoverage(t.knowledge, t.measuredKlpCount, t.klpCount),
+      parentKey: t.parentKey,
+      // Filled in by selectConceptRows, which alone has the full row set
+      // needed to know who has children.
+      hasChildren: false,
     }))
     .sort((a, b) => {
       if (a.knowledge === null && b.knowledge === null) return a.name.localeCompare(b.name)
@@ -121,57 +129,61 @@ export function shadeForCoverage(
 }
 
 /**
- * Which rung of the concept tree the Knowledge list shows.
+ * Every concept, parented — the whole forest, not one rung.
  *
- * A tree is drawn all at once on the MAP; a list has to pick a level, and the
- * two useful constraints are "deep enough to be about something" and "short
- * enough to read". `PREFERRED_LIST_DEPTH` is the third rung (depth 2, counting
- * the root as the first) — deep enough that the names are real subjects rather
- * than the one-or-two headline nodes at the top of a tree. `MAX_CONCEPTS_LISTED`
- * is the cap that actually decides: a rung wider than that is a wall of rows,
- * so the search walks UPWARD until a layer fits.
+ * THIS USED TO PICK A DEPTH. `selectConceptListDepth` walked upward from a
+ * preferred rung until one fit under a cap of five, falling back to the
+ * shallowest populated rung; on a tree whose depth-1 and depth-2 rungs both
+ * exceeded five that fallback was depth 0, and the list showed two roots and
+ * nothing else. The premise was the bug: a list only has to pick a level when
+ * it renders a flat array. `MasteryList` renders a disclosure tree now, so
+ * every node is present and the reader chooses the depth.
  *
- * Upward, never downward: a shallower rung is a rollup of the one below it, so
- * every concept is still represented, just at a coarser grain. Walking deeper
- * to find a small layer would show a handful of leaves and silently omit whole
- * branches that have no node at that depth.
- *
- * The final fallback is the SHALLOWEST populated rung even when it too exceeds
- * the cap — a tree with nine roots and nothing else has no smaller layer to
- * offer, and a long list beats an empty one.
- */
-export const PREFERRED_LIST_DEPTH = 2
-export const MAX_CONCEPTS_LISTED = 5
-
-export function selectConceptListDepth(countsByDepth: Map<number, number>): number | null {
-  const depths = [...countsByDepth.keys()].filter((d) => (countsByDepth.get(d) ?? 0) > 0)
-  if (depths.length === 0) return null
-  depths.sort((a, b) => a - b)
-
-  const candidates = depths.filter((d) => d <= PREFERRED_LIST_DEPTH).reverse()
-  for (const d of candidates) {
-    if ((countsByDepth.get(d) ?? 0) <= MAX_CONCEPTS_LISTED) return d
-  }
-  return depths[0]
-}
-
-/**
- * Reduce the KLT axis to the one rung the list shows.
- *
- * Takes EVERY depth and does the counting itself, so the depth rule and the
- * rows it produces cannot disagree — an earlier shape where the caller counted
- * and this function filtered is exactly how a "max 5" cap ends up rendering
- * seven rows.
+ * TWO INVARIANTS, both load-bearing, both tested:
+ *  - An ORPHAN becomes a root. `kltRowsToTopicRows` drops a topic whose links
+ *    are all superseded, so a named parent genuinely may not be here. Dropping
+ *    the child too would hide a concept the learner is being tested on.
+ *  - A CYCLE is broken by rooting. Two sets may file one concept under
+ *    different parents and `shapeTopicProfile` merges them by name, so a cycle
+ *    is reachable — and would hang the renderer.
  */
 export function selectConceptRows(topics: LearnerTopicProfile[]): TopicMasteryRow[] {
-  const counts = new Map<number, number>()
-  for (const t of topics) {
-    if (t.depth === null) continue
-    counts.set(t.depth, (counts.get(t.depth) ?? 0) + 1)
+  const rows = shapeTopicMastery(topics)
+  const byKey = new Map(rows.map((r) => [r.key, r]))
+
+  const resolvedParent = new Map<string, string | null>()
+  for (const row of rows) {
+    let parent = row.parentKey
+    if (parent === null || !byKey.has(parent)) {
+      resolvedParent.set(row.key, null)
+      continue
+    }
+    // Walk to a root. Revisiting this row means a cycle; root it.
+    const seen = new Set<string>([row.key])
+    let cursor: string | null = parent
+    let cyclic = false
+    while (cursor !== null) {
+      if (seen.has(cursor)) {
+        cyclic = true
+        break
+      }
+      seen.add(cursor)
+      const next: string | null = byKey.get(cursor)?.parentKey ?? null
+      cursor = next !== null && byKey.has(next) ? next : null
+    }
+    resolvedParent.set(row.key, cyclic ? null : parent)
   }
-  const depth = selectConceptListDepth(counts)
-  if (depth === null) return []
-  return shapeTopicMastery(topics.filter((t) => t.depth === depth))
+
+  const childCount = new Map<string, number>()
+  for (const [, parent] of resolvedParent) {
+    if (parent !== null) childCount.set(parent, (childCount.get(parent) ?? 0) + 1)
+  }
+
+  return rows.map((r) => ({
+    ...r,
+    parentKey: resolvedParent.get(r.key) ?? null,
+    hasChildren: (childCount.get(r.key) ?? 0) > 0,
+  }))
 }
 
 /** Shades keyed by concept name, for the canvas. */
@@ -232,8 +244,8 @@ export function shapeConfidenceHistogram(rows: ConfidenceRow[], now: Date): Conf
 
 export interface SetKnowledge {
   /**
-   * The CONCEPT axis — `Klt` nodes from this set's concept tree, at the one
-   * rung `selectConceptListDepth` picked. What the list renders.
+   * The CONCEPT axis — `Klt` nodes from this set's concept tree. Every concept,
+   * parented. What the list renders as a disclosure tree.
    *
    * This used to be the user-authored CATEGORY axis, which is why the list and
    * the map disagreed about what a "concept" was: the map draws `Klt` nodes,

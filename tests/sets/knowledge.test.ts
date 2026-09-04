@@ -5,7 +5,6 @@ import {
   shapeCategoryMastery,
   shadesByKey,
   shadeForCoverage,
-  selectConceptListDepth,
   selectConceptRows,
   UNCATEGORIZED_KEY,
 } from '@/lib/sets/knowledge'
@@ -286,70 +285,72 @@ describe('shadeForCoverage', () => {
   })
 })
 
-describe('selectConceptListDepth', () => {
-  it('prefers the third rung when it fits the cap', () => {
-    expect(selectConceptListDepth(new Map([[0, 1], [1, 3], [2, 4], [3, 30]]))).toBe(2)
-  })
-
-  it('walks UPWARD when the preferred rung is too wide', () => {
-    // Never downward: a shallower rung rolls up everything below it, so no
-    // branch goes unrepresented. A deeper one would silently omit whole
-    // subtrees that have no node at that depth.
-    expect(selectConceptListDepth(new Map([[0, 1], [1, 4], [2, 12]]))).toBe(1)
-  })
-
-  it('keeps walking up past several oversized rungs', () => {
-    expect(selectConceptListDepth(new Map([[0, 2], [1, 9], [2, 20]]))).toBe(0)
-  })
-
-  it('never goes DEEPER than the preferred rung even when a deeper one is smaller', () => {
-    expect(selectConceptListDepth(new Map([[0, 1], [1, 2], [2, 3], [3, 1]]))).toBe(2)
-  })
-
-  it('falls back to the shallowest rung when even that exceeds the cap', () => {
-    // Nine roots and nothing else: there is no smaller layer to offer, and a
-    // long list beats an empty one.
-    expect(selectConceptListDepth(new Map([[0, 9]]))).toBe(0)
-  })
-
-  it('uses the deepest available rung on a tree shallower than the preference', () => {
-    expect(selectConceptListDepth(new Map([[0, 1], [1, 3]]))).toBe(1)
-  })
-
-  it('returns null for a set with no concept structure', () => {
-    expect(selectConceptListDepth(new Map())).toBe(null)
-  })
-
-  it('ignores a depth present with a zero count', () => {
-    expect(selectConceptListDepth(new Map([[0, 1], [1, 0]]))).toBe(0)
-  })
-})
+function topicForest(key: string, parentKey: string | null, depth: number | null): LearnerTopicProfile {
+  return {
+    key,
+    name: key,
+    color: null,
+    depth,
+    parentKey,
+    klpCount: 2,
+    measuredKlpCount: 2,
+    knowledge: 0.5,
+    verbosityIndex: null as unknown as number,
+    knowledgeGapTerseness: null as unknown as number,
+    readiness: null,
+  }
+}
 
 describe('selectConceptRows', () => {
-  it('returns only the chosen rung, never the whole tree', () => {
-    const rows = selectConceptRows([
-      topic({ key: 'root', depth: 0 }),
-      topic({ key: 'a', depth: 2 }),
-      topic({ key: 'b', depth: 2 }),
-      topic({ key: 'leaf', depth: 3 }),
-    ])
-    expect(rows.map((r) => r.key).sort()).toEqual(['a', 'b'])
+  /**
+   * THE REPORTED BUG. Both the depth-1 and depth-2 rungs exceeded the old
+   * MAX_CONCEPTS_LISTED of 5, so selectConceptListDepth fell back to the
+   * shallowest rung and the list showed exactly two roots. Every node must now
+   * be present.
+   */
+  it('returns every concept at every depth, not one rung', () => {
+    const topics = [
+      topicForest('dcf', null, 0),
+      topicForest('accounting', null, 0),
+      ...Array.from({ length: 6 }, (_, i) => topicForest(`mid${i}`, 'dcf', 1)),
+      ...Array.from({ length: 9 }, (_, i) => topicForest(`leaf${i}`, 'mid0', 2)),
+    ]
+    const rows = selectConceptRows(topics)
+    expect(rows).toHaveLength(17)
+    expect(rows.map((r) => r.key)).toContain('leaf8')
   })
 
-  it('counts and filters in ONE place, so the cap cannot be exceeded', () => {
-    // Seven concepts at the preferred rung: the depth rule must reject it and
-    // the rows must follow that same decision, not a second one.
-    const wide = Array.from({ length: 7 }, (_, i) => topic({ key: `w${i}`, depth: 2 }))
-    const rows = selectConceptRows([topic({ key: 'root', depth: 0 }), ...wide])
+  it('marks interior nodes as having children and leaves as not', () => {
+    const rows = selectConceptRows([topicForest('a', null, 0), topicForest('b', 'a', 1)])
+    expect(rows.find((r) => r.key === 'a')!.hasChildren).toBe(true)
+    expect(rows.find((r) => r.key === 'b')!.hasChildren).toBe(false)
+  })
+
+  /**
+   * kltRowsToTopicRows DROPS a topic whose links are all superseded, so a
+   * parent genuinely can be absent. An orphan must render as a root — never
+   * vanish, which is the bug this whole task exists to fix, recreated one level
+   * down.
+   */
+  it('reparents an orphan to the root instead of dropping it', () => {
+    const rows = selectConceptRows([topicForest('child', 'gone', 2)])
     expect(rows).toHaveLength(1)
-    expect(rows[0].key).toBe('root')
+    expect(rows[0].parentKey).toBeNull()
   })
 
-  it('skips category rows, which have no tree position to select on', () => {
-    expect(selectConceptRows([topic({ key: 'a-category', depth: null })])).toEqual([])
+  /**
+   * Two sets may file the same concept under different parents, and
+   * shapeTopicProfile merges them by name — so a cycle is reachable. A cycle
+   * would hang the renderer.
+   */
+  it('breaks a parent cycle by rooting the offending node', () => {
+    const rows = selectConceptRows([topicForest('a', 'b', 1), topicForest('b', 'a', 1)])
+    expect(rows).toHaveLength(2)
+    expect(rows.filter((r) => r.parentKey === null).length).toBeGreaterThanOrEqual(1)
   })
 
-  it('returns nothing for a set with no concept structure', () => {
-    expect(selectConceptRows([])).toEqual([])
+  it('treats a category (null depth, null parent) as a root', () => {
+    const rows = selectConceptRows([topicForest('vocab', null, null)])
+    expect(rows[0].parentKey).toBeNull()
   })
 })
