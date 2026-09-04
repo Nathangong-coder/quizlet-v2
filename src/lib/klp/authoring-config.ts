@@ -34,6 +34,20 @@ export const MAX_REVISIONS = 2
 export const MIN_KLPS_PER_CARD = 5
 
 /**
+ * The upper end of the grain target FOR THE AUTHORING PIPELINE ONLY.
+ *
+ * This is deliberately separate from `MAX_KLPS_PER_CARD` in
+ * `src/lib/ai/schemas.ts`, which bounds the LEGACY demand-driven extraction
+ * path (`src/lib/ai/prompts/extract-klps.ts`) and stays at 5 until a later
+ * spec retires that path. Two pipelines, two grain targets — conflating them
+ * by widening the shared constant silently changed live extraction-prompt
+ * copy and schema behaviour for cards that never go through authoring at all.
+ * That happened once already on this branch; this constant exists so it
+ * cannot happen again.
+ */
+export const MAX_KLPS_AUTHORED = 9
+
+/**
  * One grading call per candidate answer.
  *
  * TRUE is not merely the careful setting. A grader shown all four candidates

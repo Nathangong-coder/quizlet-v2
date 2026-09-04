@@ -207,9 +207,7 @@ export const KLP_KINDS = [
   'example',
 ] as const;
 
-// Range is 5-9; the discrimination test in src/lib/klp/separation.ts, not
-// this number, is authoritative over whether a KLP set is good.
-export const MAX_KLPS_PER_CARD = 9;
+export const MAX_KLPS_PER_CARD = 5;
 
 export const KlpExtractionSchema = z.object({
   cards: z.array(

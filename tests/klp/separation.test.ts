@@ -61,6 +61,22 @@ describe('evaluateKlps', () => {
     )
     expect(out[0].discriminates).toBe(true)
   })
+
+  /**
+   * MUTATION GUARD for `.some()` vs `.every()`. Two wrong answers that
+   * DISAGREE at this index: one fails the KLP, one passes it. The rule is
+   * "at least one wrong answer fails it" — `.some()` — so this must still
+   * discriminate. Every other test in this file uses either one wrong answer
+   * or several with identical verdicts at each index, so none of them would
+   * catch `.some()` silently becoming `.every()`.
+   */
+  it('discriminates when wrong answers DISAGREE — one failing it is enough', () => {
+    const out = evaluateKlps(
+      { kind: 'reference', verdicts: [ok] },
+      [{ kind: 'vague', verdicts: [no] }, { kind: 'confident_wrong', verdicts: [ok] }],
+    )
+    expect(out[0].discriminates).toBe(true)
+  })
 })
 
 describe('computeSeparation', () => {
@@ -108,5 +124,28 @@ describe('computeSeparation', () => {
   it('fails a card when no wrong answers were produced at all', () => {
     const res = computeSeparation({ kind: 'reference', verdicts: [ok] }, [])
     expect(res.separated).toBe(false)
+  })
+
+  /**
+   * `perKlp` with mixed adversaries, checked directly — no existing
+   * multi-adversary test looks at `perKlp` at all. KLP 0 is passed by both
+   * wrong answers (not discriminating); KLP 1 is failed only by the vague
+   * answer; KLP 2 is failed only by the confident-wrong answer. Each of the
+   * latter two must still discriminate — one failure among several wrong
+   * answers is enough, per `.some()`.
+   */
+  it('reports perKlp correctly when wrong answers disagree KLP-by-KLP', () => {
+    const res = computeSeparation(
+      { kind: 'reference', verdicts: [ok, ok, ok] },
+      [
+        { kind: 'vague', verdicts: [ok, no, ok] },
+        { kind: 'confident_wrong', verdicts: [ok, ok, no] },
+      ],
+    )
+    expect(res.perKlp).toEqual([
+      { index: 0, passesReference: true, failsSomeWrong: false, discriminates: false },
+      { index: 1, passesReference: true, failsSomeWrong: true, discriminates: true },
+      { index: 2, passesReference: true, failsSomeWrong: true, discriminates: true },
+    ])
   })
 })

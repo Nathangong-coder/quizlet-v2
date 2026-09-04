@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  SEPARATION_FLOOR, MAX_REVISIONS, MIN_KLPS_PER_CARD,
+  SEPARATION_FLOOR, MAX_REVISIONS, MIN_KLPS_PER_CARD, MAX_KLPS_AUTHORED,
   GRADE_CANDIDATES_SEPARATELY, PROBE_KINDS,
 } from '@/lib/klp/authoring-config'
 import { MAX_KLPS_PER_CARD } from '@/lib/ai/schemas'
@@ -26,9 +26,20 @@ describe('authoring config', () => {
     expect(MAX_REVISIONS).toBe(2)
   })
 
-  it('targets 5-9 KLPs per card, up from the old cap of 5', () => {
+  it('targets 5-9 KLPs per card for the AUTHORING pipeline', () => {
     expect(MIN_KLPS_PER_CARD).toBe(5)
-    expect(MAX_KLPS_PER_CARD).toBe(9)
+    expect(MAX_KLPS_AUTHORED).toBe(9)
+  })
+
+  /**
+   * The legacy demand-driven extraction path (extract-klps.ts) must stay at
+   * its historical cap of 5 until a later spec retires it. This constant is
+   * shared prompt copy and Zod schema behaviour for cards that never go
+   * through authoring — widening it once already leaked into that path, and
+   * this assertion is what stops it from happening silently again.
+   */
+  it('leaves the legacy cap at 5 — MAX_KLPS_PER_CARD must not silently widen', () => {
+    expect(MAX_KLPS_PER_CARD).toBe(5)
   })
 
   it('grades candidates separately by default', () => {
