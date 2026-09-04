@@ -177,7 +177,11 @@ function checkFile(fileName: string, text: string): Violation[] {
 }
 
 describe('every export of a KLT `use server` action module is gated, type-only, or explicitly justified', () => {
-  it('flags no ungated, non-allowlisted async export from klt-seed.ts, klt-tree.ts, klt-presets.ts, klt.ts, or staff.ts', () => {
+  // FINDING 7 (review, 2026-09-03): this title used to enumerate every file
+  // in FILES by name and drifted the moment a sixth (staff-roles.ts) was
+  // added without the title being updated. Kept generic on purpose so
+  // adding another file to FILES below can never leave the title stale again.
+  it('flags no ungated, non-allowlisted async export from any file in FILES', () => {
     const violations: string[] = []
     for (const file of FILES) {
       const fullPath = path.resolve(__dirname, '..', '..', 'src', 'actions', file)

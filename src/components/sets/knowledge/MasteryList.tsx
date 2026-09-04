@@ -107,15 +107,29 @@ export function MasteryList({ setId, rows }: { setId: string; rows: TopicMastery
                       <span className="w-[1.375rem]" />
                     )}
                     {row.name}
-                    <button
-                      type="button"
-                      onClick={() => toggle(klpsOpen, row.key, setKlpsOpen)}
-                      aria-label={`Key points for ${row.name}`}
-                      aria-expanded={klpsOpen.has(row.key)}
-                      className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      <Sparkles className="h-3 w-3" />
-                    </button>
+                    {row.hasChildren ? (
+                      // Key points are filed on LEAVES only — listTopicKlps
+                      // (src/actions/klt-tree.ts) returns links made directly
+                      // to a concept, and klt-rollup.ts is explicit that an
+                      // interior node "holds none — every key point sits on a
+                      // leaf beneath it." Offering the sparkle here could only
+                      // ever open a false "No key points here yet" empty
+                      // state that contradicts the row's own mastery/count
+                      // columns. Reserve the same width so this row still
+                      // lines up with leaf rows below it (mirrors the chevron
+                      // placeholder above).
+                      <span className="w-4" />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => toggle(klpsOpen, row.key, setKlpsOpen)}
+                        aria-label={`Key points for ${row.name}`}
+                        aria-expanded={klpsOpen.has(row.key)}
+                        className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                      </button>
+                    )}
                   </span>
                 </td>
                 <td className="py-2.5 pr-4 align-middle">

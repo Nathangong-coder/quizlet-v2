@@ -48,6 +48,19 @@ describe('MasteryList', () => {
     expect(screen.getByRole('button', { name: /key points for solo/i })).toBeInTheDocument()
   })
 
+  // FINDING 1 (2026-09-03 review): listTopicKlps only returns key points
+  // linked DIRECTLY to a concept, and interior nodes hold none — every key
+  // point sits on a leaf beneath them (klt-rollup.ts). An interior row's
+  // sparkle button could therefore only ever open a false "no key points"
+  // empty state, even while its own mastery/count columns show real numbers.
+  it('gives an interior (non-leaf) row a chevron but no key-points expander', () => {
+    render(<MasteryList setId="s1" rows={[row('accounting', null, true)]} />)
+    expect(screen.getByRole('button', { name: /expand accounting/i })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /key points for accounting/i }),
+    ).not.toBeInTheDocument()
+  })
+
   it('renders the empty state unchanged', () => {
     render(<MasteryList setId="s1" rows={[]} />)
     expect(screen.getByText(/no concept structure/i)).toBeInTheDocument()

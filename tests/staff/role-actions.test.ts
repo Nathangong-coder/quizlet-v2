@@ -4,6 +4,7 @@ const h = vi.hoisted(() => ({
   auth: vi.fn(),
   userUpdate: vi.fn(),
   userFindUnique: vi.fn(),
+  userFindMany: vi.fn(),
   grantCreate: vi.fn(),
   grantUpdateMany: vi.fn(),
   transaction: vi.fn(),
@@ -16,7 +17,7 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     user: {
       update: h.userUpdate,
-      findMany: vi.fn().mockResolvedValue([]),
+      findMany: h.userFindMany,
       findUnique: h.userFindUnique,
     },
     roleGrant: { create: h.grantCreate, updateMany: h.grantUpdateMany },
@@ -24,11 +25,12 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
-import { grantRole, revokeRole } from '@/actions/staff-roles'
+import { grantRole, revokeRole, searchUsers } from '@/actions/staff-roles'
 
 beforeEach(() => {
   vi.clearAllMocks()
   h.transaction.mockResolvedValue([])
+  h.userFindMany.mockResolvedValue([])
   // Default: the target id exists. Tests for the missing-user path override
   // this to null explicitly, so every other test keeps exercising the write
   // path rather than silently short-circuiting on a false "not found".
@@ -81,7 +83,7 @@ describe('grantRole', () => {
     const res = await grantRole({ userId: 'admin-1', role: 'learner' })
     expect(res).toEqual({
       success: false,
-      error: 'You cannot revoke your own role. Use npm run grant-role.',
+      error: 'You cannot change your own role. Use npm run grant-role.',
     })
     expect(h.transaction).not.toHaveBeenCalled()
   })
@@ -91,7 +93,7 @@ describe('grantRole', () => {
     const res = await grantRole({ userId: 'admin-1', role: 'staff' })
     expect(res).toEqual({
       success: false,
-      error: 'You cannot revoke your own role. Use npm run grant-role.',
+      error: 'You cannot change your own role. Use npm run grant-role.',
     })
     expect(h.transaction).not.toHaveBeenCalled()
   })
@@ -123,7 +125,7 @@ describe('revokeRole', () => {
     const res = await revokeRole({ userId: 'admin-1' })
     expect(res).toEqual({
       success: false,
-      error: 'You cannot revoke your own role. Use npm run grant-role.',
+      error: 'You cannot change your own role. Use npm run grant-role.',
     })
     expect(h.transaction).not.toHaveBeenCalled()
   })
@@ -146,5 +148,21 @@ describe('revokeRole', () => {
     const res = await revokeRole({ userId: 'ghost' })
     expect(res).toEqual({ success: false, error: 'Not found' })
     expect(h.transaction).not.toHaveBeenCalled()
+  })
+})
+
+describe('searchUsers', () => {
+  /**
+   * FINDING 3 (review, 2026-09-03): grantRole and revokeRole each had a
+   * hand-written gating test in this file; searchUsers had none — the
+   * generic every-export loop in tests/staff/actions-gating.test.ts covers
+   * @/actions/staff only, not staff-roles.ts. Assert the refusal AND that
+   * the lookup never ran, the same shape every other refusal test here uses.
+   */
+  it('refuses a staff caller and never looks a user up', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u1', role: 'staff' } })
+    const res = await searchUsers({ q: 'nathan' })
+    expect(res).toEqual({ success: false, error: 'Not found' })
+    expect(h.userFindMany).not.toHaveBeenCalled()
   })
 })

@@ -19,7 +19,7 @@ import type { ActionResult } from '@/types/action'
 const NOT_FOUND: ActionResult<never> = { success: false, error: 'Not found' }
 const SELF_TARGET: ActionResult<never> = {
   success: false,
-  error: 'You cannot revoke your own role. Use npm run grant-role.',
+  error: 'You cannot change your own role. Use npm run grant-role.',
 }
 
 /**

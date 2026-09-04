@@ -36,6 +36,7 @@ vi.mock('@/lib/db', () => ({
 import StaffPage from '@/app/(app)/staff/page'
 import StaffKlpsPage from '@/app/(app)/staff/klps/page'
 import StaffCoveragePage from '@/app/(app)/staff/coverage/page'
+import StaffLearnersPage from '@/app/(app)/staff/learners/page'
 import StaffLearnerPage from '@/app/(app)/staff/learners/[id]/page'
 import StaffRolesPage from '@/app/(app)/staff/roles/page'
 
@@ -51,6 +52,7 @@ beforeEach(() => {
   h.klps.mockResolvedValue([])
   h.setFindMany.mockResolvedValue([])
   h.userFindMany.mockResolvedValue([])
+  h.learnerIndex.mockResolvedValue([])
 })
 afterEach(cleanup)
 
@@ -142,6 +144,32 @@ describe('/staff/coverage', () => {
   })
 })
 
+// FINDING 4 (review, 2026-09-03): the index page was the only /staff/*
+// route with zero tests. Same gate-before-read shape as every other page
+// here: 404 for a learner and a signed-out visitor with the query mock
+// never called, and a render for staff.
+describe('/staff/learners', () => {
+  it('404s for a learner and never reads the learner index', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u1', role: 'learner' } })
+    await expect(StaffLearnersPage()).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(h.learnerIndex).not.toHaveBeenCalled()
+  })
+
+  it('404s for a signed-out visitor', async () => {
+    h.auth.mockResolvedValue(null)
+    await expect(StaffLearnersPage()).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(h.learnerIndex).not.toHaveBeenCalled()
+  })
+
+  it('renders for staff', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u1', role: 'staff' } })
+    h.learnerIndex.mockResolvedValue([{ userId: 'u2', label: 'nathan', klpStates: 7 }])
+    render(await StaffLearnersPage())
+    expect(h.notFound).not.toHaveBeenCalled()
+    expect(screen.getByText('nathan')).toBeInTheDocument()
+  })
+})
+
 describe('/staff/learners/[id]', () => {
   beforeEach(() => {
     h.learnerRecord.mockResolvedValue({
@@ -182,12 +210,30 @@ describe('/staff/roles', () => {
   it('404s for STAFF — reading the engine is not granting access to it', async () => {
     h.auth.mockResolvedValue({ user: { id: 'u1', role: 'staff' } })
     await expect(StaffRolesPage()).rejects.toThrow('NEXT_NOT_FOUND')
+    // FINDING 5: the gate must sit before the role-holders read, not just
+    // before rendering — the shape /staff/klps already got in an earlier
+    // fix round and this page was missing.
+    expect(h.userFindMany).not.toHaveBeenCalled()
   })
 
-  it('404s for a learner and a signed-out visitor', async () => {
+  it('404s for a learner and a signed-out visitor, reading no role holders', async () => {
     h.auth.mockResolvedValue({ user: { id: 'u1', role: 'learner' } })
     await expect(StaffRolesPage()).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(h.userFindMany).not.toHaveBeenCalled()
     h.auth.mockResolvedValue(null)
     await expect(StaffRolesPage()).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(h.userFindMany).not.toHaveBeenCalled()
+  })
+
+  // FINDING 5: no positive render test existed for an admin — every other
+  // /staff/* page here has one.
+  it('renders for an admin', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } })
+    h.userFindMany.mockResolvedValue([
+      { id: 'u2', handle: 'nathan', name: null, email: 'n@x.com', role: 'staff', roleGrants: [] },
+    ])
+    render(await StaffRolesPage())
+    expect(h.notFound).not.toHaveBeenCalled()
+    expect(screen.getByText('nathan')).toBeInTheDocument()
   })
 })

@@ -40,10 +40,19 @@ describe('KlpTable', () => {
 
   // The G1 finding: no evidence is not zero knowledge, and rendering 0% would
   // make an unasked key point indistinguishable from a failed one.
-  it('renders an em dash, never 0%, when no learner has evidence', () => {
-    render(<KlpTable rows={[row({ learnerCount: 0, meanPKnown: null })]} />)
+  //
+  // FINDING 6 (review, 2026-09-03): the original assertion checked for ANY
+  // em dash anywhere in the document, which cannot fail — the Relations
+  // column always renders one regardless of meanPKnown. Scope it to the
+  // mean-known cell specifically (columns: key point, card, kind, weight,
+  // topics, learners, mean known, verdicts, relations — mean known is
+  // index 6), so this actually exercises the null-meanPKnown rendering.
+  it('renders an em dash, never 0%, in the mean-known cell when no learner has evidence', () => {
+    const { container } = render(<KlpTable rows={[row({ learnerCount: 0, meanPKnown: null })]} />)
     expect(screen.queryByText('0%')).not.toBeInTheDocument()
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
+    const cells = container.querySelectorAll('tbody td')
+    const meanKnownCell = cells[6]
+    expect(meanKnownCell.textContent?.trim()).toBe('—')
   })
 
   it('renders the verdict mix from whatever statuses are present, not a fixed three', () => {
