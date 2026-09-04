@@ -6,6 +6,8 @@ const h = vi.hoisted(() => ({
   auth: vi.fn(),
   notFound: vi.fn(),
   overview: vi.fn(),
+  klps: vi.fn(),
+  setFindMany: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -16,9 +18,11 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/staff',
 }))
 vi.mock('@/auth', () => ({ auth: h.auth }))
-vi.mock('@/lib/staff/queries', () => ({ loadStaffOverview: h.overview }))
+vi.mock('@/lib/staff/queries', () => ({ loadStaffOverview: h.overview, loadStaffKlps: h.klps }))
+vi.mock('@/lib/db', () => ({ prisma: { set: { findMany: h.setFindMany } } }))
 
 import StaffPage from '@/app/(app)/staff/page'
+import StaffKlpsPage from '@/app/(app)/staff/klps/page'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -29,6 +33,8 @@ beforeEach(() => {
     learnersWithEvidence: 2,
     sets: 4,
   })
+  h.klps.mockResolvedValue([])
+  h.setFindMany.mockResolvedValue([])
 })
 afterEach(cleanup)
 
@@ -57,5 +63,22 @@ describe('/staff', () => {
     h.auth.mockResolvedValue({ user: { id: 'u1', role: 'admin' } })
     render(await StaffPage())
     expect(h.notFound).not.toHaveBeenCalled()
+  })
+})
+
+describe('/staff/klps', () => {
+  it('404s for a learner and reads no key points', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u1', role: 'learner' } })
+    await expect(
+      StaffKlpsPage({ searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(h.klps).not.toHaveBeenCalled()
+  })
+
+  it('404s for a signed-out visitor', async () => {
+    h.auth.mockResolvedValue(null)
+    await expect(
+      StaffKlpsPage({ searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND')
   })
 })
