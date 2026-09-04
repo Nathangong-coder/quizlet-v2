@@ -1,6 +1,6 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-09-03 (**second update same day.** The user specified the KLP authoring pipeline and the relation model — see "The KLP engine rebuild" below, which is now the design of record and supersedes the two-pass critique approach agreed earlier that morning. Build order re-cut to **eight specs, visibility FIRST** at the user's request. Earlier today: the `codex` branch reconciled after 6 days of drift, and the engine audit recorded as gaps G1-G10. Item 12 carries an audit of the mastery engine — read it before touching scoring)
+**Last updated:** 2026-09-03 (**third update same day.** The user added the full edge-type set, promoted the accuracy types into per-KLP verdict labels, **DEFERRED the communication split entirely** ("basically pretend I didn't say it"), and specified **insight generation + matched learning plans** — recorded at the END of the queue as the payoff layer. Design of record is "The KLP engine rebuild" below; build order is the eight-spec cut with **visibility FIRST**. Also today: the `codex` branch reconciled after 6 days of drift, and the engine audit recorded as gaps G1-G10)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -172,28 +172,78 @@ others break when it does. K3 has two dependents; a leaf has none. **Weight stop
 opinion and becomes a computed graph property** — a better fix than asking the model to try harder,
 and it recomputes whenever the graph changes.
 
-### Verdicts: seven labels, not a boolean
+### Edge types — the full set, specified by the user 2026-09-03
 
-Per-KLP outcome becomes `correct | partial | absent | contradicted | inverted | mislabeled |
-misapplied`, replacing `passed | partial | failed` plus a separate error-tag table that may or may
-not target the KLP.
+An edge type is admitted only if it makes a **specific failure nameable**. That is the test.
 
-**Keep credit SEPARATE from the label.** The seven are not ordered — `inverted` is not "more wrong"
-than `absent`, it is differently wrong — so mapping them onto one number invents a ranking nobody
-chose. Retain the existing three-value credit mapping into BKT (`correct` 1.0, `partial` 0.5, rest
-0.0). Credit answers *how much evidence is this*; the label answers *what happened*. This also
-preserves the subtlest correct thing in the engine: `stepBkt` reads `STATUS_CREDIT` and
-`EVIDENCE_STRENGTH` in two different positions and never the stored product.
+| Type | Shape | Derived by | Failure it makes nameable |
+| --- | --- | --- | --- |
+| `causes` | directed | perturbation | Knows both facts, misses the mechanism linking them |
+| `requires` | directed, conjunctive | perturbation | Prerequisite missing — **drives blame propagation** |
+| `precedes` | directed | order violation | Derivation sequenced wrongly |
+| `confused_with` | **symmetric** | substitution probe | Conflation, detectable **structurally** instead of hoping the model notices |
+| `applies_within` | directed, to a condition | boundary probe | Boundary failure — rule applied outside its scope |
+| `analogous_to` | **symmetric, cross-question** | corpus pass | Transfer — and it is what *builds* transfer items |
+| `part_of` | directed, hierarchical | — already exists — | Lives in the `Klt` tree. **Do not duplicate it here.** |
 
-**Clarity and conciseness move OUT of the knowledge path** into a new `communication` dimension,
-graded separately. This closes G6 structurally rather than by patching one tag type, and ends G1's
-arithmetic collapse where summing dimensions made `significance` encode which dimension fired.
+`confused_with` **replaces the earlier `contrasts`** — the user's name is better, and it says what
+the edge detects rather than what it looks like.
 
-**Biggest structural risk in the whole plan:** `AnswerErrorTag` becomes communication-only and
-accuracy moves wholly onto the per-KLP verdict row. Spec 2b's results UI and Spec 3's metrics both
-read those rows today, and **the misconception engine reads `conflation` tags by
-`(klpId, secondaryKlpId)` — that pair MUST survive the move onto the verdict row, or the
-misconception engine goes quiet without erroring.**
+**Three structural consequences:**
+- `confused_with` and `analogous_to` are **symmetric**: store once under a canonical endpoint
+  ordering, and exempt from the acyclicity check, which governs only the directed types.
+- `analogous_to` is the only **cross-question** type — its endpoints live on different cards, so
+  **the relation table must not assume same-card endpoints**, and it comes from a corpus pass rather
+  than per-question authoring. Build it last.
+- `applies_within` fits what already exists: `condition` is already a `CardKlp.kind`, so a scope
+  edge links a claim KLP to a condition KLP with no new node type. Pairs with the `misapplication`
+  verdict and the in-scope/out-of-scope insight pairing.
+
+### Verdicts: promote the accuracy types into per-KLP labels
+
+The user's direction: keep credit separate from the labels, **and turn the existing accuracy types
+(`omission`, `incomplete`, …) into labels too**, raising the precision at which the model can name a
+mistake. Merged vocabulary — **13 labels**:
+
+`correct` · `partial` · `failed` · `omission` · `incomplete` · `contradicted` · `inversion` ·
+`conflation` · `misapplication` · `factual_error` · `overgeneralization` · `unsupported_leap` ·
+`fabrication`
+
+**USE THE EXISTING SPELLINGS. This is not a style choice.** The user proposed `inverted`,
+`mislabeled`, `misapplied`. Five of these strings are members of `CORRUPTIONS`
+(`src/lib/quiz/options.ts`) — written straight onto every generated distractor as its provenance,
+**persisted**, and guarded by a subset test in `tests/errors/taxonomy.test.ts` precisely because a
+rename strands rows. Renaming would cost the entire existing distractor corpus its diagnosis. Only
+genuinely new concepts get new names: `correct` and `contradicted`.
+
+**Credit stays separate.** The labels are not ordered — `inversion` is not "more wrong" than
+`omission`, it is differently wrong — so mapping 13 labels onto one number invents a ranking nobody
+chose. `STATUS_CREDIT` keeps its three values (`correct`/`incomplete`→ 1.0/0.5, rest 0.0) and BKT is
+untouched, preserving the subtlest correct thing in the engine: `stepBkt` reads the categorical
+fraction and `EVIDENCE_STRENGTH` in two different positions and never the stored product.
+
+**`partial` and `failed` survive as FALLBACKS**, usable only when the grader cannot commit to a
+specific label — and they are what every historical row already holds. A migration cannot know which
+specific failure a legacy `failed` was, and inventing one is exactly the fabrication this engine
+refuses everywhere else. One extra enum member keeps months of history truthful.
+
+### Communication: DEFERRED, at the user's explicit instruction
+
+The user's words: *"let's make that a later step (and basically pretend I didn't say it now), as i
+need to first figure out how i'm actually going to be diagnosing communication errors (presumably
+similar to a KLP-type system that can later recombine to show errors on both a communication &
+knowledge scale)."*
+
+So **clarity and conciseness stay exactly where they are.** `AnswerErrorTag` is NOT migrated, and
+the runtime verdict change touches only `AnswerKlpResult.status`. Do not reintroduce the
+communication split as a near-term step. The eventual direction is recorded above: its own
+decomposition unit, parallel to KLPs, recombining with knowledge verdicts for a reading on both
+scales.
+
+**Consequence to remember:** the `expression` diagnosis in the insight layer (bottom of this file)
+is therefore not computable yet. That is what the deferred work unlocks — not an abstract tidiness
+win.
+
 
 ---
 
@@ -227,8 +277,10 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
    on the pilot. Extraction stops being demand-driven; all 166 pending filled and the 124 existing
    re-authored. **Take the window while only 5 `KlpState` rows exist.** Background claim loop holds
    coverage at 100% so no user ever meets a card without KLPs. **Closes G2.**
-5. **Spec 5 — Verdict migration & the communication dimension.** The riskiest migration; see the
-   warning above about `(klpId, secondaryKlpId)`. **Absorbs item 14. Closes G6 and G1's collapse.**
+5. **Spec 5 — Verdict labels at runtime.** `AnswerKlpResult.status` widens to the 13 labels;
+   `STATUS_CREDIT` gains the new members mapping to the same three credit values; BKT untouched.
+   **`AnswerErrorTag` is deliberately LEFT ALONE — no communication split.** Small and low-risk
+   precisely because it moves no table; the `CORRUPTIONS` subset test keeps passing unchanged.
 6. **Spec 6 — Self-rated confidence capture.** One tap before the answer is revealed. Changes no
    formula, blocks nothing, nothing blocks it — **pull it forward into any gap.** Every week it
    waits is a week of history that can never be calibrated. **Closes G3.**
@@ -243,7 +295,9 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
    misconception is a high-quality corruption. **Needs the seed content the user is writing in a
    separate chat — poke them.** **Absorbs item 11. Closes the rest of G9.**
 
-**Then** Stage 8 Spec 4 (plans + AI lessons), still at the back. Note this leaves the Analysis tab's
+9. **Spec 9 — Insight generation + matched learning plans.** The payoff layer — see "Insight generation" at the END of this file. Replaces Stage 8 Spec 4's plan half.
+
+**Then** Stage 8 Spec 4's remaining lesson work. Note this leaves the Analysis tab's
 in-progress block (item 6g) pointing at lessons that will not exist for a while — stub it honestly
 or repoint it.
 
@@ -1730,3 +1784,73 @@ Never in memory — always in a spec's own section.
 - **`npm run lint`:** **175 problems** (131 errors, 44 warnings) — unchanged from the item 6e baseline; all pre-existing. Compare against this; do not fix unrelated ones. (187 on 2026-08-09 → 186 after the deletion work → 185 after 2b, unchanged by Spec 3B and 3C → 178 after item 5 removed 7 dead imports → 176 after item 6 removed four `as any` casts, unchanged by items 6b, 6d, 6f and 8 → 175 after item 6e.)
 - Branch is **not merged**. `origin` carries item 6e's work as of 2026-08-20 (through `f5c4615`), pushed manually; item 8 (through `fb8a851` plus this doc commit) has **not yet been pushed** — `git status -sb` showed `ahead 24` of `origin/spec3b-tunable-scoring` at the time this was written. Check `git status -sb` before believing the remote is current.
 - **There is NO auto-push hook**, despite what this file assumed for several items — `.git/hooks/` contains nothing but samples. Every earlier entry that says "a commit hook pushes automatically, so `origin` tracks HEAD" was wrong.
+
+
+---
+
+## Insight generation & learning plans — specified by the user 2026-09-03
+
+**Recorded at the end of the queue at the user's request.** This is the payoff layer: it is why the
+KLP engine, the edges and the verdict labels are shaped the way they are. Spec 9.
+
+### The method: pair parts of the history together
+
+A single verdict says what happened once. An insight comes from holding two records of the *same*
+knowledge side by side and reading the **difference**. The user's list, with what each needs —
+**this list is explicitly incomplete and a fuller one is owed**:
+
+| Pairing | Reading | Needs |
+| --- | --- | --- |
+| **Recognition vs production** (MC + short answer, same KLP) | right MC / weak SA → **expression or schema**; wrong on both → **content** | **NOTHING — computable today** |
+| **Compute vs explain** | strong `quantitative` / weak `mechanism` → procedural only | nothing new; `CardKlp.kind` exists and is read by no metric |
+| **Node vs edge** ("what is X" vs "what happens to X if Y changes") | high node / low edge → **connectivity** | Spec 3 relation probes |
+| **In-scope vs out-of-scope** | right in-scope / wrong out → **boundary failure** | Spec 3 `applies_within` |
+| **Familiar vs novel framing** | right textbook / wrong novel → **transfer** | a framing axis on items; `analogous_to` |
+
+**Two findings worth acting on:**
+- **Recognition vs production needs no new capture at all.** `AnswerKlpResult` already stores `mode`
+  and `klpId` on every row, so grouping one KLP's verdicts by mode is a query against data that has
+  been accumulating this whole time. Nothing computes it. **The cheapest real insight available.**
+  The user calls this the pairing that "collapses your biggest ambiguity."
+- **Node vs edge is the single biggest instrument gap.** In the user's words: *"You cannot detect
+  connectivity without relational items — this is probably your single biggest instrument gap right
+  now."* Nothing in the system currently asks a question whose answer is a *link*; every question
+  tests a node. Connectivity is not hard to detect today, it is **impossible**. This is the
+  justification for Spec 3.
+
+Each pairing is a **hypothesis about what a difference means** and needs checking against real
+learner data before its reading is trusted.
+
+### Diagnoses — the output of insight, the input to a plan
+
+`gap` · `misconception` · `brittleness` · `conflation` · `boundary` · `connectivity` · `transfer` ·
+`expression` · `template_anchoring`
+
+**`template_anchoring` comes free from the authoring pipeline.** Step 3 already requires writing a
+*memorized-template* wrong answer as a test fixture — and that artifact is exactly the near-miss
+that punishes a rehearsed response. The instrument is manufactured while proving the KLPs
+discriminate, the same way the relation prune manufactures its own probe.
+
+**`expression` is not computable until the deferred communication work lands.**
+
+### Learning plans — match the intervention to the failure
+
+**Do not emit a topic list.** Emit, per item: **the specific claim being repaired** (a klpId, not a
+topic), **a task type matched to the diagnosis**, and **a verification item**. 20-40 minutes,
+ending in something testable.
+
+| Diagnosis | Intervention |
+| --- | --- |
+| Gap | Instruction, then spaced retrieval |
+| Misconception | **Confrontation.** Re-explaining does not work. Make the person state their belief, then show it predicting something false: **elicit → predict → contradict → reconcile** |
+| Brittleness | Same concept, many surface forms, spaced |
+| Transfer | Contrast cases, novel contexts, "what's the same and what's different" |
+| Expression | Structural templates and rewriting, **not** more content |
+| Conflation | Side-by-side discrimination drills — **never study the two separately** |
+| Boundary | Edge cases and counterexamples specifically |
+| Template anchoring | Near-miss questions that punish the rehearsed answer |
+
+**Three rows actively contradict what a generic study plan would do**, which is the whole argument
+for diagnosing first: a misconception gets *worse* under re-explanation (the learner assimilates the
+explanation into the belief they already hold); a conflation studied one side at a time reinforces
+itself; and brittleness needs no more explanation at all, only the same thing in unfamiliar clothes.
