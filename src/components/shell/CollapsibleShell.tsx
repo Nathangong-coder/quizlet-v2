@@ -16,12 +16,14 @@ import { SynapseLogo } from '@/components/shell/SynapseLogo'
 export function CollapsibleShell({
   children,
   signedIn,
+  role,
   recents,
   folders,
   account,
 }: {
   children: React.ReactNode
   signedIn: boolean
+  role?: string | null
   recents: RailRecent[]
   folders: RailFolder[]
   account: React.ReactNode
@@ -70,13 +72,13 @@ export function CollapsibleShell({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <RailNav signedIn={signedIn} recents={recents} folders={folders} collapsed={collapsed} />
+          <RailNav signedIn={signedIn} role={role} recents={recents} folders={folders} collapsed={collapsed} />
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-col">
         <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-border/70 bg-background/95 px-5 backdrop-blur lg:px-10">
-          <MobileRail signedIn={signedIn} recents={recents} folders={folders} />
+          <MobileRail signedIn={signedIn} role={role} recents={recents} folders={folders} />
           <Link href="/" className="lg:hidden" aria-label="synapseHQ home">
             <SynapseLogo id="topbar" className="h-7 w-auto text-foreground" />
           </Link>

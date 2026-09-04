@@ -96,3 +96,19 @@ describe('RAIL_RECENTS_LIMIT', () => {
     expect(RAIL_RECENTS_LIMIT).toBeLessThanOrEqual(8)
   })
 })
+
+describe('railItems and the staff entry', () => {
+  it('hides Staff from a learner and from a signed-out visitor', () => {
+    expect(railItems(true, 'learner').map((i) => i.href)).not.toContain('/staff')
+    expect(railItems(false, 'admin').map((i) => i.href)).not.toContain('/staff')
+  })
+
+  it('shows Staff to staff and admin', () => {
+    expect(railItems(true, 'staff').map((i) => i.href)).toContain('/staff')
+    expect(railItems(true, 'admin').map((i) => i.href)).toContain('/staff')
+  })
+
+  it('defaults to hidden when no role is passed', () => {
+    expect(railItems(true).map((i) => i.href)).not.toContain('/staff')
+  })
+})

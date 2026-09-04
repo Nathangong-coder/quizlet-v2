@@ -6,7 +6,9 @@
  * be provable without mounting a component or faking `usePathname`.
  */
 
-export type RailIcon = 'home' | 'compass' | 'library' | 'plus' | 'login'
+import { isStaff } from '@/lib/auth/roles'
+
+export type RailIcon = 'home' | 'compass' | 'library' | 'plus' | 'login' | 'gauge'
 
 export interface RailItem {
   href: string
@@ -23,7 +25,7 @@ export interface RailItem {
  * product look smaller than it is. What they do NOT get is Library and New set,
  * which would both bounce them straight to a sign-in wall.
  */
-export function railItems(signedIn: boolean): RailItem[] {
+export function railItems(signedIn: boolean, role?: string | null): RailItem[] {
   if (!signedIn) {
     return [
       { href: '/', label: 'Home', icon: 'home' },
@@ -31,12 +33,16 @@ export function railItems(signedIn: boolean): RailItem[] {
       { href: '/login', label: 'Sign in', icon: 'login' },
     ]
   }
-  return [
+  const items: RailItem[] = [
     { href: '/', label: 'Home', icon: 'home' },
     { href: '/browse', label: 'Browse', icon: 'compass' },
     { href: '/sets', label: 'Library', icon: 'library' },
     { href: '/sets/new', label: 'New set', icon: 'plus' },
   ]
+  // A signed-out visitor never sees it regardless of role — there is no role
+  // without a session, and the early return above already guarantees that.
+  if (isStaff(role)) items.push({ href: '/staff', label: 'Staff', icon: 'gauge' })
+  return items
 }
 
 /**

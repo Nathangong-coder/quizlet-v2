@@ -18,7 +18,7 @@ import { SynapseLogo } from '@/components/shell/SynapseLogo'
  * a nav that derives everything from `usePathname` cost nothing and stay in
  * sync for free.
  */
-export function MobileRail({ signedIn, recents, folders }: { signedIn: boolean; recents: RailRecent[]; folders: RailFolder[] }) {
+export function MobileRail({ signedIn, role, recents, folders }: { signedIn: boolean; role?: string | null; recents: RailRecent[]; folders: RailFolder[] }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -66,7 +66,7 @@ export function MobileRail({ signedIn, recents, folders }: { signedIn: boolean; 
               </button>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <RailNav signedIn={signedIn} recents={recents} folders={folders} onNavigate={() => setOpen(false)} />
+              <RailNav signedIn={signedIn} role={role} recents={recents} folders={folders} onNavigate={() => setOpen(false)} />
             </div>
           </div>
         </div>
