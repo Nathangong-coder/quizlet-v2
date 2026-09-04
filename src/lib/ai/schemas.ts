@@ -2,6 +2,9 @@ import { z } from 'zod';
 import { CORRUPTIONS } from '@/lib/quiz/options';
 import { DIMENSIONS, MAX_TAGS_PER_ANSWER } from '@/lib/errors/taxonomy';
 import { KLP_STATUSES } from '@/lib/errors/klp-credit';
+import { PROBE_KINDS, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
+import { KLP_VERDICTS } from '@/lib/klp/verdicts';
+import { RELATION_TYPES, RELATION_PROVENANCES } from '@/lib/klp/relations';
 
 export const MultipleChoiceOptionsSchema = z.object({
   options: z.array(z.string().min(1)).length(4),
@@ -314,3 +317,80 @@ export const KltSkeletonSchema = z.object({
 });
 
 export type KltSkeleton = z.infer<typeof KltSkeletonSchema>;
+
+/**
+ * The KLP authoring pipeline (Stage 8 rebuild, Spec 2). Four schemas for the
+ * four calls in `src/lib/klp/authoring.ts`'s loop — author, grade, revise,
+ * relate. See `docs/superpowers/specs/2026-09-04-klp-authoring-pipeline-design.md`.
+ *
+ * Bounded by `MAX_KLPS_AUTHORED` (9), NOT the legacy `MAX_KLPS_PER_CARD` (5)
+ * above. The two are deliberately separate constants — see the doc comment
+ * on `MAX_KLPS_AUTHORED` in `src/lib/klp/authoring-config.ts`: conflating them
+ * once already silently changed the legacy extraction prompt's behaviour on
+ * this branch, for cards that never go through authoring at all.
+ */
+
+/**
+ * Call A's output. Deliberately has NO `weight` field — weight is COMPUTED
+ * from the relation graph (`blastRadius` -> `weightFromBlastRadius`) in the
+ * orchestrator, never asked of the model. Audit finding G1: a model asked
+ * "how central is this?" says "very" — 92% of AI-assigned weights were 4 or 5.
+ */
+export const AuthorDraftSchema = z.object({
+  referenceAnswer: z.string().min(1),
+  klps: z.array(z.object({
+    text: z.string().min(1),
+    kind: z.enum(KLP_KINDS),
+  })).min(1).max(MAX_KLPS_AUTHORED),
+  wrongAnswers: z.array(z.object({
+    kind: z.enum(PROBE_KINDS),
+    text: z.string().min(1),
+  })).min(1).max(PROBE_KINDS.length),
+});
+
+export type AuthorDraft = z.infer<typeof AuthorDraftSchema>;
+
+/**
+ * Call B's output: one verdict per KLP for ONE candidate answer. `klpIndex`
+ * is a position in the prompt's KLP list, never a cuid — the grader never
+ * sees the KLPs' real ids, only their text.
+ */
+export const CandidateGradeSchema = z.object({
+  verdicts: z.array(z.object({
+    klpIndex: z.number().int().min(0),
+    verdict: z.enum(KLP_VERDICTS),
+    evidence: z.string().optional(),
+  })),
+});
+
+export type CandidateGrade = z.infer<typeof CandidateGradeSchema>;
+
+/** Call C's output: a revised KLP set, same shape as call A's `klps`. */
+export const ReviseKlpsSchema = z.object({
+  klps: z.array(z.object({
+    text: z.string().min(1),
+    kind: z.enum(KLP_KINDS),
+  })).min(1).max(MAX_KLPS_AUTHORED),
+});
+
+export type ReviseKlps = z.infer<typeof ReviseKlpsSchema>;
+
+/**
+ * Call D's output. `from`/`to` are KLP INDEXES within the card, not ids —
+ * the orchestrator maps them onto real `CardKlp` ids once they exist
+ * (`persistAuthoring`). `analogous_to` is a valid vocabulary member but the
+ * prompt built by `RELATE_KLPS_PROMPT` must never offer it — it is cross-card
+ * and not extracted by this call.
+ */
+export const RelationDraftSchema = z.object({
+  relations: z.array(z.object({
+    from: z.number().int().min(0),
+    to: z.number().int().min(0),
+    type: z.enum(RELATION_TYPES),
+    provenance: z.enum(RELATION_PROVENANCES),
+    rationale: z.string().min(1),
+    probe: z.string().min(1),
+  })),
+});
+
+export type RelationDraft = z.infer<typeof RelationDraftSchema>;

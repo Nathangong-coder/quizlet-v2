@@ -21,6 +21,7 @@ const TASK_LABELS: Record<Task, string> = {
   autocomplete: 'Card autocomplete & autofill',
   'note-analysis': 'Study note analysis',
   diagnostic: 'Diagnostic test generation & grading',
+  author: 'KLP authoring (reference answers & discrimination test)',
 };
 
 interface RowState {
@@ -39,6 +40,7 @@ export default function TaskRoutingPanel() {
     autocomplete: { ...EMPTY_ROW },
     'note-analysis': { ...EMPTY_ROW },
     diagnostic: { ...EMPTY_ROW },
+    author: { ...EMPTY_ROW },
   });
   const [loading, setLoading] = useState(true);
   const [savingTask, setSavingTask] = useState<Task | null>(null);
