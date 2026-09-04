@@ -12,11 +12,48 @@
  */
 import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/staff/access'
+import { requireAdmin, type StaffSession } from '@/lib/staff/access'
 import { isKnownRole, DEFAULT_ROLE, USER_ROLES } from '@/lib/auth/roles'
 import type { ActionResult } from '@/types/action'
 
 const NOT_FOUND: ActionResult<never> = { success: false, error: 'Not found' }
+const SELF_TARGET: ActionResult<never> = {
+  success: false,
+  error: 'You cannot revoke your own role. Use npm run grant-role.',
+}
+
+/**
+ * Refuse any write that targets the caller's own role.
+ *
+ * The last admin demoting themselves locks the install out of /staff/roles
+ * permanently, recoverable only from `npm run grant-role`. revokeRole and
+ * grantRole are two doors to that same state, so the check lives in one
+ * place both must pass through — a second copy is a second thing to forget.
+ *
+ * ALL self-targeting is refused, not merely self-demotion: an admin granting
+ * themselves 'admin' is a no-op, so every self-grant that changes anything is
+ * a downgrade. Deliberately NOT exported — an exported helper in a
+ * 'use server' module is itself an RPC endpoint, and the structural guard
+ * (tests/actions/klt-gated-exports-guard.test.ts) treats an exported,
+ * non-gated function as a violation.
+ */
+function refuseSelfTarget(admin: StaffSession, userId: string): ActionResult<never> | null {
+  return userId === admin.userId ? SELF_TARGET : null
+}
+
+/**
+ * Existence check ahead of the write, not a catch around it. `user.update`
+ * inside the transaction throws P2025 on a missing row, and grantRole's
+ * roleGrant.create would additionally hit a foreign-key violation (P2003) on
+ * the same missing id — two different Prisma error shapes to translate for
+ * one outcome. Checking first keeps both callers returning the same
+ * ActionResult shape every other failure here uses, instead of leaking a
+ * raw Prisma error message out of the action.
+ */
+async function userExists(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } })
+  return user !== null
+}
 
 export async function grantRole(input: {
   userId: string
@@ -25,9 +62,14 @@ export async function grantRole(input: {
   const admin = await requireAdmin()
   if (!admin) return NOT_FOUND
 
+  const selfTarget = refuseSelfTarget(admin, input.userId)
+  if (selfTarget) return selfTarget
+
   if (!isKnownRole(input.role)) {
     return { success: false, error: `Role must be one of: ${USER_ROLES.join(', ')}` }
   }
+
+  if (!(await userExists(input.userId))) return NOT_FOUND
 
   await prisma.$transaction([
     // Close any open grant first, so the history reads as a sequence of states.
@@ -51,9 +93,10 @@ export async function revokeRole(input: { userId: string }): Promise<ActionResul
 
   // The last admin revoking themselves locks the install out of this page
   // permanently. Refuse it here rather than trusting a disabled button.
-  if (input.userId === admin.userId) {
-    return { success: false, error: 'You cannot revoke your own role. Use npm run grant-role.' }
-  }
+  const selfTarget = refuseSelfTarget(admin, input.userId)
+  if (selfTarget) return selfTarget
+
+  if (!(await userExists(input.userId))) return NOT_FOUND
 
   await prisma.$transaction([
     prisma.user.update({ where: { id: input.userId }, data: { role: DEFAULT_ROLE } }),
