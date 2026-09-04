@@ -300,6 +300,7 @@ model Card {
   contentBlocks       CardContentBlock[]
   categoryAssignments CardCategoryAssignment[]
   assets              CardAsset[]
+  authorings          CardAuthoring[]
   createdAt           DateTime                 @default(now())
   updatedAt           DateTime                 @updatedAt
   /// Vocabulary: CARD_KLP_STATUSES in src/lib/cards/klp-status.ts
@@ -357,6 +358,8 @@ model CardKlp {
   secondaryErrorTags AnswerErrorTag[]  @relation("ErrorTagSecondaryKlp")
   states             KlpState[]
   topics             KlpTopic[]
+  relationsFrom      KlpRelation[]     @relation("RelationFrom")
+  relationsTo        KlpRelation[]     @relation("RelationTo")
 
   @@unique([cardId, version, index])
   @@index([cardId, supersededAt])
@@ -1244,4 +1247,76 @@ model InviteCode {
   createdAt DateTime  @default(now())
 
   redeemedBy User[]
+}
+
+/// One authoring RUN for one card version. The audit trail for why a card's
+/// KLPs are what they are.
+model CardAuthoring {
+  id              String   @id @default(cuid())
+  cardId          String
+  klpVersion      Int
+  promptVersion   Int
+  /// The strong-candidate answer the KLPs were derived from. Also improves
+  /// short-answer grading, which today compares against `card.definition` —
+  /// often a terse personal note — and can be shown to the learner after they
+  /// answer.
+  referenceAnswer String   @db.Text
+  separationScore Float
+  revisions       Int
+  /// separated | low_discrimination | failed
+  status          String
+  createdAt       DateTime @default(now())
+  card            Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  probes          AuthoringProbe[]
+
+  @@index([cardId, createdAt])
+}
+
+/// A deliberately wrong answer, written to fail specific KLPs.
+model AuthoringProbe {
+  id          String @id @default(cuid())
+  authoringId String
+  /// confident_wrong | vague | memorized_template
+  kind        String
+  text        String @db.Text
+  /// Fraction of KLPs this answer satisfied, 0-1.
+  score       Float
+  /// Per-KLP verdicts for THIS answer, keyed by the KLP's index within the
+  /// card: { "0": "passed", "1": "omission", ... }.
+  ///
+  /// JSON, deliberately, and this is the one place in the codebase where that
+  /// is the right call. Spec 2a's rule — a JSON blob cannot be indexed or
+  /// FK'd — was written about ANSWER analysis, which Spec 3 aggregates across
+  /// learners and cards. This matrix is authoring diagnostics: it is always
+  /// read for exactly one card, in the staff view, to explain one separation
+  /// score. It is never aggregated and never joined.
+  verdicts    Json
+  authoring   CardAuthoring @relation(fields: [authoringId], references: [id], onDelete: Cascade)
+
+  @@index([authoringId])
+}
+
+/// A link between two KLPs on the same card. Extracted here; SERVED in Spec 3.
+model KlpRelation {
+  id         String   @id @default(cuid())
+  fromKlpId  String
+  toKlpId    String
+  /// causes | requires | precedes | confused_with | applies_within | analogous_to
+  type       String
+  /// perturbation | order_violation | substitution
+  provenance String
+  rationale  String   @db.Text
+  /// The adversarial artifact that proved this edge informative: an answer
+  /// getting BOTH endpoints right and the link wrong. Spec 3 serves this as
+  /// the probe — proving the edge worth keeping manufactures the instrument
+  /// that tests it, the same economy as generating a distractor from a named
+  /// corruption.
+  probe      String   @db.Text
+  createdAt  DateTime @default(now())
+  from       CardKlp  @relation("RelationFrom", fields: [fromKlpId], references: [id], onDelete: Cascade)
+  to         CardKlp  @relation("RelationTo", fields: [toKlpId], references: [id], onDelete: Cascade)
+
+  @@unique([fromKlpId, toKlpId, type])
+  @@index([fromKlpId])
+  @@index([toKlpId])
 }
