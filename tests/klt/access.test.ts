@@ -21,6 +21,7 @@ import { readableSetWhere } from '@/lib/sets/visibility'
 
 const OWNER = 'owner-1'
 const STRANGER = 'stranger-1'
+const STAFF = 'staff-1'
 const ADMIN = 'admin-1'
 const SET_ID = 'set-1'
 
@@ -54,6 +55,24 @@ describe('requireSetKltAccess', () => {
     expect(access).toBeNull()
     expect(h.setFindFirst).toHaveBeenCalledWith({
       where: { id: SET_ID, userId: STRANGER },
+      select: { id: true, title: true },
+    })
+  })
+
+  it('refuses a staff member reaching for a set they do not own, scoped to their own userId in the query — a staff member is not an admin', async () => {
+    // Regression guard: isStaff(role) admits 'staff' as well as 'admin', so a
+    // gate mistakenly written as isStaff instead of isAdmin would leave this
+    // green if it only checked the RETURNED value. Asserting the exact Prisma
+    // `where` shape is what actually catches that swap — a staff-as-admin bug
+    // would query `{ id: SET_ID }` (unscoped), never `{ id: SET_ID, userId }`.
+    h.auth.mockResolvedValue({ user: { id: STAFF, role: 'staff' } })
+    h.setFindFirst.mockResolvedValue(null)
+
+    const access = await requireSetKltAccess(SET_ID)
+
+    expect(access).toBeNull()
+    expect(h.setFindFirst).toHaveBeenCalledWith({
+      where: { id: SET_ID, userId: STAFF },
       select: { id: true, title: true },
     })
   })
@@ -165,6 +184,30 @@ describe('requireSetKltView', () => {
     const view = await requireSetKltView(SET_ID)
 
     expect(view?.canEdit).toBe(true)
+  })
+
+  it('reports viaRole and canEdit false for a staff member on a set they do not own, still scoped by the read fragment — a staff member is not an admin', async () => {
+    // Same regression guard as requireSetKltAccess's staff case: isAdmin, not
+    // isStaff, must gate viaRole here too. A staff-as-admin swap would make
+    // viaRole true and switch the query to the unscoped `{ id: SET_ID }`,
+    // which the where-shape assertion below would catch even though the
+    // resolved row looks identical either way.
+    h.auth.mockResolvedValue({ user: { id: STAFF, role: 'staff' } })
+    h.setFindFirst.mockResolvedValue({ id: SET_ID, title: 'Finance 101', userId: OWNER })
+
+    const view = await requireSetKltView(SET_ID)
+
+    expect(view).toEqual({
+      viewerId: STAFF,
+      setId: SET_ID,
+      setTitle: 'Finance 101',
+      canEdit: false,
+      viaRole: false,
+    })
+    expect(h.setFindFirst).toHaveBeenCalledWith({
+      where: { id: SET_ID, ...readableSetWhere(STAFF) },
+      select: { id: true, title: true, userId: true },
+    })
   })
 
   it('reports canEdit for an operator on a set they do not own, unscoped by the read fragment', async () => {

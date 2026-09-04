@@ -237,6 +237,7 @@ import { listConceptTree, createConcept } from '@/actions/klt-tree'
 
 const OWNER = 'owner-1'
 const ADMIN = 'admin-1'
+const STAFF = 'staff-1'
 const SET_A = 'set-a'
 const SET_B = 'set-b'
 const ACCESS_OWNER = { userId: OWNER, setId: SET_A, setTitle: 'Finance 101', viaRole: false }
@@ -322,6 +323,19 @@ describe('savePreset / deletePreset — admin gate', () => {
     h.auth.mockResolvedValue(null)
     const res = await savePreset('x', [['finance']])
     expect(res.success).toBe(false)
+  })
+
+  it('refuses a staff session for savePreset — staff is not admin, touching no store', async () => {
+    // Regression guard: the `beforeEach` default session carries no `role` at
+    // all, so a requireAdmin -> requireStaff swap in isCallerKltAdmin would
+    // stay green against every OTHER test here too — isStaff(undefined) and
+    // isAdmin(undefined) are both false. An explicit 'staff' role is the only
+    // session shape that actually distinguishes the two predicates.
+    h.auth.mockResolvedValue({ user: { id: STAFF, role: 'staff' } })
+    const res = await savePreset('Finance skeleton', [['finance']])
+    expect(res.success).toBe(false)
+    expect(res.success === false && res.error).toMatch(/not found/i)
+    expect(h.presetUpsert).not.toHaveBeenCalled()
   })
 })
 

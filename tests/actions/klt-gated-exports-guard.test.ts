@@ -37,8 +37,14 @@ const GATE_PATTERNS = [
   /requireSetKltAccess\s*\(/,
   /isCallerKltAdmin\s*\(\s*\)/,
   /requireAdmin\s*\(/,
-  /requireStaff\s*\(/,
 ]
+
+// `requireStaff` is deliberately NOT in GATE_PATTERNS, for the same reason
+// `requireSetKltView` isn't: it is a WEAKER gate than everything above (staff
+// is not admin), so admitting it globally would let a write action silently
+// downgrade its own check and still pass this guard. It will be added
+// file-scoped to `staff.ts` only, mirroring READ_GATE_ALLOWLIST below, when
+// that module exists.
 
 /**
  * `requireSetKltView` is a REAL gate, but a weaker one: it admits anyone who
@@ -125,7 +131,7 @@ function checkFile(fileName: string, text: string): Violation[] {
         violations.push({
           file: fileName,
           name,
-          reason: 'calls no known access gate (requireSetKltAccess / isCallerKltAdmin / requireAdmin / requireStaff, or requireSetKltView on a read-allowlisted export) and is not on the explicit allowlist',
+          reason: 'calls no known access gate (requireSetKltAccess / isCallerKltAdmin / requireAdmin, or requireSetKltView on a read-allowlisted export) and is not on the explicit allowlist',
         })
       }
       continue
