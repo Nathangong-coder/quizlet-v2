@@ -47,6 +47,12 @@ export interface TopicRow {
    * fixture to invent one to satisfy the type checker.
    */
   depth?: number
+  /**
+   * The parent topic's normalizedName, or null at a root. OPTIONAL for the same
+   * reason `depth` is: a user-authored category has no tree position, so it has
+   * no parent either.
+   */
+  parentKey?: string | null
 }
 
 export interface LearnerTopicProfile {
@@ -87,6 +93,8 @@ export interface LearnerTopicProfile {
   verbosityIndex: number
   knowledgeGapTerseness: number
   readiness: number | null
+  /** Parent topic key, or null for a root and for every category. */
+  parentKey: string | null
 }
 
 /** The composite injected into prompts — both grains, one object. */
@@ -182,6 +190,10 @@ export function shapeTopicProfile(input: ShapeTopicProfileInput): LearnerTopicPr
       // optional for exactly that reason) — `null` says "no tree position",
       // not "root".
       depth: rows.find((r) => r.depth !== undefined)?.depth ?? null,
+      // First non-undefined wins, mirroring `depth` immediately above. Two sets
+      // may file the same concept under different parents; selectConceptRows
+      // reparents anything inconsistent rather than trusting this.
+      parentKey: rows.find((r) => r.parentKey !== undefined)?.parentKey ?? null,
       klpCount: klpIds.length,
       measuredKlpCount: scored.length,
       knowledge,
@@ -268,6 +280,15 @@ export interface RawKltRow {
   /** 0 at a subject root. Passed through so the UI can group by level. */
   depth: number
   links: { rank: number; klp: { id: string; supersededAt: Date | null; cardId: string } }[]
+  /**
+   * The DIRECT parent's normalizedName within this set, or null at a root.
+   *
+   * `ancestorIds` is root-first and excludes self, so the parent is its LAST
+   * element — not its first, which is the subject root. Null when the parent id
+   * is not among the rows handed in, which happens legitimately: a node whose
+   * links are all superseded is dropped by kltRowsToTopicRows.
+   */
+  parentName: string | null
 }
 
 /**
@@ -300,6 +321,7 @@ export function kltRowsToTopicRows(rows: RawKltRow[], maxRank: number): TopicRow
       // KLTs are AI-derived; only user-authored categories carry a colour.
       color: null,
       depth: row.depth,
+      parentKey: row.parentName,
       klpIds,
       supersededKlpIds: [
         ...new Set(inRank.filter((l) => l.klp.supersededAt !== null).map((l) => l.klp.id)),

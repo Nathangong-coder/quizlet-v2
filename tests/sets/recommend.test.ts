@@ -15,6 +15,7 @@ const topic = (over: Partial<LearnerTopicProfile> = {}): LearnerTopicProfile => 
   name: 'Valuation',
   color: null,
   depth: null,
+  parentKey: null,
   klpCount: 10,
   measuredKlpCount: 10,
   knowledge: 0.3,

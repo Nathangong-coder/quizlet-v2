@@ -16,6 +16,7 @@ const topic = (over: Partial<LearnerTopicProfile> = {}): LearnerTopicProfile => 
   name: 'Valuation',
   color: null,
   depth: 1,
+  parentKey: null,
   klpCount: 8,
   // FULLY MEASURED by default. `shapeTopicMastery` now withholds a shade when
   // too few of a concept's key points cleared the observation floor, so a
