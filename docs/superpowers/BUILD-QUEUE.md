@@ -1,6 +1,13 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-09-04 (Spec 2's code — the discrimination-tested authoring pipeline, Tasks 1-12 of `.superpowers/sdd/2026-09-04-klp-authoring-pipeline/` — is built, unit-tested, and wired into `/staff/klps`. Its required pilot run on the LBO set is **not** done: two full foreground runs both failed every card on Google API free-tier quota exhaustion before producing a single KLP. G1 and G7 stay open pending a pilot that actually runs. See the Spec 2 build-order entry and the caveats on G1/G7 below.)
+**Last updated:** 2026-09-04 (**second update same day** — increment A is built: the weight
+histogram check (`npm run klp-histogram`, run against the live corpus and reproducing the G1
+baseline exactly at 92.3%), the two-signal weight blend, definition-anchored authoring with
+`concerns`, semantic ordering with the `precedes` cross-check, and adaptive sizing floored at 4.
+Suite 2770 passing, tsc clean, lint 164 — all unchanged from baseline except the added tests. The
+pilot is still owed and still blocked on quota. See the Spec 2 build-order entry and the G1 caveat.)
+
+**Last updated (previous):** 2026-09-04 (Spec 2's code — the discrimination-tested authoring pipeline, Tasks 1-12 of `.superpowers/sdd/2026-09-04-klp-authoring-pipeline/` — is built, unit-tested, and wired into `/staff/klps`. Its required pilot run on the LBO set is **not** done: two full foreground runs both failed every card on Google API free-tier quota exhaustion before producing a single KLP. G1 and G7 stay open pending a pilot that actually runs. See the Spec 2 build-order entry and the caveats on G1/G7 below.)
 
 **Last updated (previous):** 2026-09-03 (**third update same day.** The user added the full edge-type set, promoted the accuracy types into per-KLP verdict labels, **DEFERRED the communication split entirely** ("basically pretend I didn't say it"), and specified **insight generation + matched learning plans** — recorded at the END of the queue as the payoff layer. Design of record is "The KLP engine rebuild" below; build order is the eight-spec cut with **visibility FIRST**. Also today: the `codex` branch reconciled after 6 days of drift, and the engine audit recorded as gaps G1-G10)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
@@ -52,11 +59,35 @@ Three findings are arithmetic, not opinion:
   error can score below 5. No conciseness error can score above 7.** The bands are nearly disjoint,
   so `significance` largely encodes *which dimension the error was* rather than how bad it was —
   and severity, the only genuinely per-answer AI judgment, moves it by at most four points while
-  `dimWeight` sets the band it lands in. **G1: the fix (computed blast-radius weight, Spec 2) is
-  BUILT and unit-tested as of 2026-09-04, but NOT CLOSED — unverified.** The LBO pilot that would
-  produce a real weight histogram to check the spread against failed entirely (Google API quota
-  exhaustion, 0 cards authored across two full foreground runs); see the Spec 2 build-order entry
-  below. Do not treat G1 as closed until a pilot actually authors cards and the histogram is read.
+  `dimWeight` sets the band it lands in. **G1: the fix is BUILT and unit-tested as of 2026-09-04,
+  but NOT CLOSED — unverified.** The LBO pilot that would produce a real weight histogram to check
+  the spread against failed entirely (Google API quota exhaustion, 0 cards authored across two full
+  foreground runs); see the Spec 2 build-order entry below. Do not treat G1 as closed until a pilot
+  actually authors cards and the histogram is read.
+
+  **The measuring instrument now exists and was run: `npm run klp-histogram` (increment A, built
+  2026-09-04).** Read-only, splits the corpus into authored-vs-legacy by `(cardId, klpVersion)`, and
+  names three failure modes with different causes — `clustered_high` (≥75% at 4-5, i.e. G1 itself),
+  `clustered_low` (≥75% at 1-2, meaning both weight terms are flat), and `uniform` (any single value
+  ≥60%, which catches flatness in the middle that neither tail check sees). **Measured baseline,
+  whole live corpus, 2026-09-04: 272 live KLPs on 124 cards, ALL legacy — 92.3% at 4-5, mean 4.54,
+  and 62.5% at the single value 5, so it fires `clustered_high` AND `uniform`. Authored slice: 0
+  KLPs, 0 `CardAuthoring` rows** — independent confirmation that no pilot output has ever been
+  persisted. `npm run author-klps` prints the same histogram over its own run, so a run that posts a
+  healthy mean separation and a useless weight signal is visible without a second command.
+
+  **The fix also changed shape, because blast radius alone cannot close G1.** Weight is now
+  `weightFromSignals` — the blast-radius term blended with a **discrimination-breadth** term (how
+  many of the three adversaries fail a KLP, read off call B's verdict matrix at no extra AI cost).
+  Blast radius measures dependency DEPTH, which a derivation chain has and an enumeration does not;
+  the first pilot card was an enumeration and produced weights 2,1,2,1,1 off two edges, and two
+  edges was very likely CORRECT. Pushing the relate prompt for more would fabricate `causes` links
+  that Spec 3 then serves grading probes for. **Watch for this when the histogram is finally read:**
+  the two terms are weighted to sum to 1, so a KLP reaches 5 only by scoring on BOTH — meaning a
+  purely enumeration-shaped card tops out at weight 3 under the current equal weighting. If the
+  authored slice comes back clustered at 2-3, that is the ceiling and not the breadth term failing;
+  check the breadth histogram printed beside it before rebalancing, and rebalance in
+  `authoring-config.ts` rather than in the prompt.
 - **G2 — 57% of the library cannot be diagnosed.** 166 of 291 cards are `klpStatus: 'pending'`
   with a **null source hash — never attempted, zero failures**. `selectRefreshableStaleCardIds`
   deliberately excludes never-extracted cards from the edit path, so extraction is demand-driven
@@ -311,6 +342,24 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
    raise that key's quota tier or add inter-call pacing/backoff to the `--direct` path, then re-run
    this exact pilot and read the real histogram in `/staff/klps`. **Does NOT close G1 or G7 yet** —
    see the caveats added next to each finding above.
+
+   **Increment A is BUILT (2026-09-04), still unpiloted** — design:
+   `docs/superpowers/specs/2026-09-04-klp-authoring-increment-design.md`, written from the owner's
+   review of the one card that completed before the quota wall. Five changes, in the order they were
+   built: (1) `npm run klp-histogram` and the run-summary histogram — deliberately FIRST, because a
+   check that lands after the corpus is rewritten is a check you cannot act on; (2) the two-signal
+   weight blend; (3) definition-anchored authoring — the card's definition is now the SKELETON the
+   reference answer expands, and a disagreement with it goes into a `concerns` field that is printed
+   and never applied, because a pipeline that silently corrects the owner's cards is worse than one
+   that flags them; (4) semantic ordering (setup → mechanism → payoff, the last KLP landing the
+   answer asked) cross-checked mechanically against `precedes` edges by `findOrderingDefects`; (5)
+   adaptive sizing — `MIN_KLPS_PER_CARD` drops 5 → 4, a mechanical prior is computed in TypeScript
+   and passed to the prompt as a floor, and the author call returns a per-point detail assessment
+   that TypeScript sums, so no fifth AI call was added to a pipeline the free tier already cannot
+   afford. `AUTHOR_KLPS_PROMPT` and `REVISE_KLPS_PROMPT` are both **version 2** — `promptVersion` is
+   persisted, so pre- and post-increment rows stay distinguishable. **The cost of (5), stated:** a
+   fixed 5-9 range made the KLP count a weak quality signal on its own; adaptive sizing removes it,
+   so read a low count beside its separation score, never alone.
 3. **Spec 3 — Relations: probes, verdicts, DAG.** Relations as their own item type; probes served
    after the main answer, templated on the learner's own words, fired only where both endpoints
    came back correct, capped at 2-3 per question. Verdicts stored **with provenance** so a predicted

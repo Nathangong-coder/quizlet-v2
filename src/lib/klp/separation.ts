@@ -91,3 +91,43 @@ export function computeSeparation(
     perKlp: evaluateKlps(reference, wrong),
   }
 }
+
+/**
+ * Per KLP, the FRACTION of wrong answers that fail it — the evidence half of
+ * the weight formula (increment A §1).
+ *
+ * This is centrality measured by evidence rather than opinion, and it is free:
+ * the verdict matrix it reads is computed for the discrimination test whether
+ * or not anything uses it for weight. Before this it was computed and
+ * discarded.
+ *
+ * A KLP all three adversaries fail is load-bearing — every way of being wrong
+ * about this card runs through it. One that only the vague answer misses is
+ * peripheral: you can be confidently wrong about the card and still get it
+ * right, so getting it right says little.
+ *
+ * It exists BECAUSE blast radius does not work on every card shape. Blast
+ * radius measures dependency depth: a derivation chain has depth, an
+ * enumeration of parallel drivers does not, and on the latter the graph term is
+ * flat no matter how good the relate call is. This term carries those cards.
+ *
+ * A missing verdict does NOT count as a failure, matching `evaluateKlps` —
+ * `toOrderedVerdicts` has already filled every gap with an explicit `failed` by
+ * the time the orchestrator gets here, so the only way to see `undefined` is a
+ * caller that skipped that step, and inferring a failure from an absence there
+ * would inflate the very signal this is supposed to measure honestly.
+ *
+ * No wrong answers means no evidence, so the term is 0 rather than 1: the
+ * discrimination test did not run, and an untested KLP must not be handed the
+ * maximum weight for it.
+ */
+export function discriminationBreadth(wrong: CandidateGrade[], klpCount: number): number[] {
+  return Array.from({ length: klpCount }, (_, index) => {
+    if (wrong.length === 0) return 0
+    const fails = wrong.filter((w) => {
+      const v = w.verdicts[index]
+      return v !== undefined && VERDICT_CREDIT[v] === 0
+    }).length
+    return fails / wrong.length
+  })
+}

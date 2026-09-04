@@ -117,7 +117,13 @@ describe('authorCard', () => {
     expect(out.klps.length).toBeGreaterThan(0)
   })
 
-  it('computes weight from the relation graph, never from the model', async () => {
+  /**
+   * Weight comes from the relation graph AND the adversarial verdict matrix
+   * (increment A §1), never from the model. In this fixture every wrong answer
+   * fails every KLP, so the evidence term is at its maximum for all of them and
+   * the graph term is what separates them.
+   */
+  it('computes weight from the graph and the adversarial evidence, never from the model', async () => {
     const g = gen({
       relate: vi.fn().mockResolvedValue({
         relations: [
@@ -127,8 +133,33 @@ describe('authorCard', () => {
       }),
     })
     const out = await authorCard(card, g as never)
-    expect(out.klps[0].weight).toBe(3)  // reaches 1 and 2
-    expect(out.klps[2].weight).toBe(1)  // leaf
+    expect(out.klps[0].weight).toBe(4)  // reaches 1 and 2, and every adversary fails it
+    expect(out.klps[2].weight).toBe(3)  // a leaf, but still universally failed
+    expect(out.klps[0].weight).toBeGreaterThan(out.klps[2].weight)
+  })
+
+  /**
+   * THE CASE THE GRAPH-ONLY FORMULA FAILED. An enumeration card — parallel
+   * points, no real dependencies, so the relate call correctly returns nothing —
+   * used to give every KLP a weight of 1. The adversarial evidence still
+   * separates them: a point every adversary misses is load-bearing, one they
+   * all get right is peripheral.
+   */
+  it('still spreads weight on an enumeration card, where the relation graph is empty', async () => {
+    const klps = Array.from({ length: 6 }, (_, i) => ({ text: `Proposition ${i}`, kind: 'mechanism' }))
+    const g = gen({
+      // KLP 0 is failed by all three adversaries; KLP 5 by none.
+      grade: vi.fn().mockImplementation(({ candidateAnswer }: { candidateAnswer: string }) => ({
+        verdicts: klps.map((_, i) => ({
+          klpIndex: i,
+          verdict: candidateAnswer === 'ref' ? ok : i === 0 ? no : ok,
+        })),
+      })),
+      relate: vi.fn().mockResolvedValue({ relations: [] }),
+    })
+    const out = await authorCard(card, g as never)
+    expect(out.relations).toHaveLength(0)
+    expect(out.klps[0].weight).toBeGreaterThan(out.klps[5].weight)
   })
 
   /**
@@ -211,5 +242,122 @@ describe('authorCard', () => {
     expect(out.status).toBe('failed')
     expect(g.grade).not.toHaveBeenCalled()
     expect(out.relationStats).toEqual({ candidates: 0, accepted: 0, droppedForCycles: 0, droppedOutOfRange: 0 })
+  })
+})
+
+describe('authorCard — increment A', () => {
+  /**
+   * The mechanical prior is computed BEFORE the call so it can be stated in
+   * the prompt as a floor. A card whose definition makes six points must ask
+   * for six, not for the global floor of four.
+   */
+  it('passes a per-card sizing floor into the author call', async () => {
+    const g = gen()
+    const sixClause = {
+      ...card,
+      definition: 'debt funds the price; equity is small; interest is deductible; cash pays debt down; the stake grows; the exit multiple is larger',
+    }
+    await authorCard(sixClause, g as never)
+    expect(g.author.mock.calls[0][0].minKlps).toBe(6)
+
+    const terse = gen()
+    await authorCard({ ...card, definition: 'It amplifies returns.' }, terse as never)
+    expect(terse.author.mock.calls[0][0].minKlps).toBe(4)
+  })
+
+  /**
+   * The model assesses detail PER POINT and TypeScript adds it up — it never
+   * states a total, the same division of labour separation and weight use.
+   */
+  it("raises the target from the model's per-point assessment, summed in TypeScript", async () => {
+    const klps = Array.from({ length: 6 }, (_, i) => ({ text: `Proposition ${i}`, kind: 'mechanism' }))
+    const g = gen({
+      author: vi.fn().mockResolvedValue({
+        referenceAnswer: 'ref',
+        klps,
+        wrongAnswers: [
+          { kind: 'confident_wrong', text: 'w1' },
+          { kind: 'vague', text: 'w2' },
+          { kind: 'memorized_template', text: 'w3' },
+        ],
+        definitionPoints: [
+          { point: 'equity cheque', klpsNeeded: 3 },
+          { point: 'tax shield', klpsNeeded: 3 },
+        ],
+      }),
+    })
+    const out = await authorCard(card, g as never)
+    expect(out.targetKlpCount).toBe(6)
+  })
+
+  /** Revision must not silently undo the sizing decision. */
+  it('threads the sized target into the revise call', async () => {
+    const g = gen({
+      grade: vi.fn().mockResolvedValue({
+        verdicts: Array.from({ length: 6 }, (_, i) => ({ klpIndex: i, verdict: ok })),
+      }),
+    })
+    await authorCard(card, g as never)
+    expect(g.revise).toHaveBeenCalled()
+    expect(g.revise.mock.calls[0][0].targetCount).toBe(4)
+  })
+
+  /**
+   * A pipeline that silently corrects the owner's own cards is worse than one
+   * that flags them, because the owner never learns their card was wrong. The
+   * objection is carried out; nothing is applied to the card.
+   */
+  it("carries the model's objections to the card's definition without applying them", async () => {
+    const klps = Array.from({ length: 6 }, (_, i) => ({ text: `Proposition ${i}`, kind: 'mechanism' }))
+    const g = gen({
+      author: vi.fn().mockResolvedValue({
+        referenceAnswer: 'ref',
+        klps,
+        wrongAnswers: [
+          { kind: 'confident_wrong', text: 'w1' },
+          { kind: 'vague', text: 'w2' },
+          { kind: 'memorized_template', text: 'w3' },
+        ],
+        concerns: ['the definition says interest is not deductible, which is backwards'],
+      }),
+    })
+    const out = await authorCard(card, g as never)
+    expect(out.concerns).toEqual(['the definition says interest is not deductible, which is backwards'])
+  })
+
+  it('defaults concerns to an empty array when the model omits the field', async () => {
+    const out = await authorCard(card, gen() as never)
+    expect(out.concerns).toEqual([])
+  })
+
+  /** Index means delivery order now, and a backwards `precedes` edge contradicts it. */
+  it('reports an ordering defect when a precedes edge points backwards', async () => {
+    const g = gen({
+      relate: vi.fn().mockResolvedValue({
+        relations: [
+          { from: 4, to: 1, type: 'precedes', provenance: 'order_violation', rationale: 'r', probe: 'p' },
+        ],
+      }),
+    })
+    const out = await authorCard(card, g as never)
+    expect(out.defects.map((d) => d.rule)).toContain('ordering')
+  })
+
+  /**
+   * An edge dropped for pointing out of range is not evidence of anything — the
+   * pipeline itself refused it — so a card's order must not be flagged against
+   * one. This is why validation runs after pruning rather than beside the text.
+   */
+  it('does not flag ordering against an edge that was pruned', async () => {
+    const g = gen({
+      relate: vi.fn().mockResolvedValue({
+        relations: [
+          { from: 99, to: 1, type: 'precedes', provenance: 'order_violation', rationale: 'r', probe: 'p' },
+        ],
+      }),
+    })
+    const out = await authorCard(card, g as never)
+    expect(out.relationStats.droppedOutOfRange).toBe(1)
+    expect(out.defects.map((d) => d.rule)).not.toContain('ordering')
   })
 })

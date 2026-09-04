@@ -337,7 +337,38 @@ export type KltSkeleton = z.infer<typeof KltSkeletonSchema>;
  * "how central is this?" says "very" — 92% of AI-assigned weights were 4 or 5.
  */
 export const AuthorDraftSchema = z.object({
+  /**
+   * The points the card's own definition already makes, and how many KLPs each
+   * needs once expanded — the judgment half of adaptive sizing (increment A
+   * §5), returned by the call that is ALREADY reading the definition rather
+   * than by a fifth AI call whose entire output would be one number.
+   *
+   * `klpsNeeded` is loosely typed on purpose: `z.number()` rather than an
+   * `int().min(1).max(3)`. `src/lib/klp/sizing.ts` floors, clamps and sums it,
+   * and a tight bound here would fail the WHOLE call — reference answer, KLPs
+   * and all three adversaries, 1 of the run's 6-16 requests — over a model
+   * writing 2.5 in a field that only ever contributes to a maximum.
+   *
+   * OPTIONAL, so a model that omits it degrades the sizing rather than the run:
+   * `targetKlpCount` still has the mechanical prior and the floor.
+   */
+  definitionPoints: z.array(z.object({
+    point: z.string().min(1),
+    klpsNeeded: z.number(),
+  })).optional(),
   referenceAnswer: z.string().min(1),
+  /**
+   * Where the model believes the card's own definition is wrong or incomplete
+   * (increment A §2).
+   *
+   * The definition is the SKELETON the reference answer expands, so the model
+   * needs somewhere to put a disagreement. This field is that somewhere, and it
+   * exists specifically so the model does NOT silently "correct" the owner's
+   * card: a pipeline that quietly rewrites what the owner wrote is worse than
+   * one that flags it, because the owner never learns their card was wrong.
+   * Surfaced by `scripts/author-klps.ts` at the end of a run; not persisted.
+   */
+  concerns: z.array(z.string().min(1)).optional(),
   klps: z.array(z.object({
     text: z.string().min(1),
     kind: z.enum(KLP_KINDS),

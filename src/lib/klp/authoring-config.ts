@@ -26,12 +26,24 @@ export const SEPARATION_FLOOR = 0.4
 export const MAX_REVISIONS = 2
 
 /**
- * The lower end of the grain target. A SMELL TEST, NOT A QUOTA — an atomic
- * card genuinely has one point, and the discrimination test is authoritative
- * over this range. Padding to reach five is precisely what the test catches,
- * because a padded KLP fires identically on every answer.
+ * The smallest number of KLPs the sizing layer will ever target — the owner's
+ * "base of 4+ KLPs" (increment A §5), and the lower end of the grain target
+ * `validateKlpSet` and the prompts state.
+ *
+ * A SMELL TEST, NOT A QUOTA — the discrimination test is authoritative over
+ * this range, and padding to reach the floor is precisely what that test
+ * catches, because a padded KLP fires identically on every answer.
+ *
+ * It dropped from 5 to 4 when sizing became adaptive (`src/lib/klp/sizing.ts`).
+ * The cost of that, stated plainly: a fixed 5-9 range made the COUNT itself a
+ * weak quality signal — a card returning 3 was visibly under-authored — and an
+ * adaptive target removes it, so 4 KLPs may now be correctly small or quietly
+ * thin. Read the separation score beside a low count, never the count alone.
  */
-export const MIN_KLPS_PER_CARD = 5
+export const MIN_KLPS_FLOOR = 4
+
+/** The name the prompts and `validateKlpSet` use for {@link MIN_KLPS_FLOOR}. */
+export const MIN_KLPS_PER_CARD = MIN_KLPS_FLOOR
 
 /**
  * The upper end of the grain target FOR THE AUTHORING PIPELINE ONLY.
@@ -82,3 +94,69 @@ export const GRADE_CANDIDATES_SEPARATELY = true
 export const PROBE_KINDS = ['confident_wrong', 'vague', 'memorized_template'] as const
 
 export type ProbeKind = (typeof PROBE_KINDS)[number]
+
+/**
+ * How the two weight signals are blended (increment A §1).
+ *
+ * `weightFromSignals` (`src/lib/klp/relations.ts`) is
+ * `w_graph · blastRadiusTerm + w_evidence · discriminationBreadthTerm`.
+ *
+ * BOTH terms exist because neither works on every card shape. Blast radius
+ * measures dependency DEPTH: on a derivation chain ($10 depreciation: EBIT
+ * -10 -> NI -6 -> CFO +4) each step consumes the previous one's output and the
+ * graph term spans its whole range. On an ENUMERATION ("why do LBOs use
+ * leverage" — several parallel value drivers) there is no dependency to
+ * measure, the relate call correctly returns almost no edges, and the graph
+ * term collapses to a flat 1 for every KLP. The first real pilot card produced
+ * weights 2,1,2,1,1 for exactly that reason, and the wrong fix — pushing the
+ * relate prompt to find more edges — would fabricate `causes` links that Spec
+ * 3 then serves grading probes for, marking a learner wrong for not making a
+ * connection nobody should make.
+ *
+ * The evidence term is call B's verdict matrix, already computed for the
+ * discrimination test and previously discarded: a KLP all three adversaries
+ * fail is load-bearing, one only the vague answer misses is peripheral. It
+ * costs no extra AI call, and it carries the enumeration cards the graph term
+ * cannot.
+ *
+ * Equal weighting is a STARTING POINT, to be revisited against the first real
+ * histogram (`npm run klp-histogram`) — that histogram, not this constant, is
+ * the acceptance criterion for the fix.
+ */
+export const WEIGHT_GRAPH_TERM = 0.5
+export const WEIGHT_EVIDENCE_TERM = 0.5
+
+/**
+ * The blast radius at which the graph term saturates.
+ *
+ * 4 keeps `weightFromSignals(radius, breadth)` with `WEIGHT_EVIDENCE_TERM = 0`
+ * numerically identical to the old `weightFromBlastRadius` (0 dependents -> 1,
+ * 4 or more -> 5), so the change is a strict generalisation rather than a
+ * silent re-scaling of every weight already written.
+ */
+export const BLAST_RADIUS_FULL = 4
+
+/**
+ * A definition longer than this reads as multi-part even when it is punctuated
+ * as one clause, and earns one extra KLP in the mechanical prior.
+ * `src/lib/klp/sizing.ts` owns the arithmetic.
+ */
+export const LONG_DEFINITION_CHARS = 320
+
+/** A question this many words or longer is asking more than one thing. */
+export const LONG_QUESTION_WORDS = 12
+
+/**
+ * Histogram failure thresholds (`src/lib/klp/histogram.ts`).
+ *
+ * `CLUSTER_SHARE` fires `clustered_high` / `clustered_low` when three quarters
+ * of all live weights sit in one two-value tail. The G1 baseline — 92.3% of
+ * AI-assigned weights at 4 or 5 — is far past it, which is the point: the
+ * threshold must reject the condition this whole increment exists to fix,
+ * with room to spare rather than sitting on the boundary.
+ *
+ * `UNIFORM_SHARE` is lower because it is a weaker claim: one weight value
+ * accounting for 60% of the corpus is flat even when it is not in a tail.
+ */
+export const HISTOGRAM_CLUSTER_SHARE = 0.75
+export const HISTOGRAM_UNIFORM_SHARE = 0.6

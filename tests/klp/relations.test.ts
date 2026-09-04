@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   RELATION_TYPES, DIRECTED_TYPES, SYMMETRIC_TYPES, RELATABLE_TYPES, isRelationType,
-  canonicalizeEdges, findCycles, blastRadius, weightFromBlastRadius,
+  canonicalizeEdges, findCycles, blastRadius, weightFromBlastRadius, weightFromSignals,
 } from '@/lib/klp/relations'
+import type { RelationEdge } from '@/lib/klp/relations'
 
 describe('the vocabulary', () => {
   it('has no part_of — that is the concept tree, not a KLP relation', () => {
@@ -145,5 +146,73 @@ describe('weightFromBlastRadius', () => {
     expect(weightFromBlastRadius(1)).toBe(2)
     expect(weightFromBlastRadius(4)).toBe(5)
     expect(weightFromBlastRadius(50)).toBe(5)
+  })
+})
+
+describe('weightFromSignals', () => {
+  /**
+   * The blend must be a GENERALISATION of the graph-only formula, not a
+   * re-scaling of it — otherwise every weight already written silently means
+   * something different. With the evidence term at zero the two agree exactly.
+   */
+  it('reduces to weightFromBlastRadius when the evidence term is weighted out', () => {
+    const graphOnly = { graph: 1, evidence: 0 }
+    for (const radius of [0, 1, 2, 3, 4, 5, 50]) {
+      expect(weightFromSignals(radius, 0.5, graphOnly)).toBe(weightFromBlastRadius(radius))
+    }
+  })
+
+  /**
+   * The cost of weighting the two terms to sum to 1, pinned so it cannot be
+   * rediscovered as a surprise: a KLP reaches 5 only by scoring on BOTH terms.
+   * An enumeration card has no graph term at all, so under equal weighting its
+   * most load-bearing point tops out at 3 — and weight is `relevance` in
+   * `computeSignificance`, which aggregates across cards. This is precisely
+   * what the weight histogram is watching for.
+   */
+  it('caps a card that can only score on one term at 3 under equal weighting', () => {
+    expect(weightFromSignals(0, 1)).toBe(3)
+    expect(weightFromSignals(99, 0)).toBe(3)
+    expect(weightFromSignals(99, 1)).toBe(5)
+  })
+
+  /**
+   * A DERIVATION CHAIN — the shape the original formula was designed around.
+   * The graph term does the work and the weights span the range.
+   */
+  it('spreads weights on a chain-shaped card', () => {
+    const chain: RelationEdge[] = [
+      { from: 0, to: 1, type: 'causes' },
+      { from: 1, to: 2, type: 'causes' },
+      { from: 2, to: 3, type: 'causes' },
+      { from: 3, to: 4, type: 'causes' },
+    ]
+    const radii = blastRadius(5, chain)
+    const weights = radii.map((r) => weightFromSignals(r, 1))
+    expect(new Set(weights).size).toBeGreaterThan(2)
+    expect(Math.max(...weights)).toBe(5)
+    expect(Math.min(...weights)).toBeLessThan(5)
+  })
+
+  /**
+   * AN ENUMERATION — the case the graph-only formula fails, and the reason this
+   * function exists. Five parallel drivers, no dependencies, so every blast
+   * radius is 0; the old formula gave all five a weight of 1. The adversarial
+   * evidence still separates them.
+   */
+  it('spreads weights on an enumeration-shaped card, where the graph term is flat', () => {
+    const radii = blastRadius(5, [])
+    expect(radii).toEqual([0, 0, 0, 0, 0])
+    expect(new Set(radii.map(weightFromBlastRadius)).size).toBe(1)
+
+    const breadths = [1, 2 / 3, 2 / 3, 1 / 3, 0]
+    const weights = radii.map((r, i) => weightFromSignals(r, breadths[i]))
+    expect(new Set(weights).size).toBeGreaterThan(1)
+    expect(weights[0]).toBeGreaterThan(weights[4])
+  })
+
+  it('clamps both inputs into 1-5', () => {
+    expect(weightFromSignals(-3, -1)).toBe(1)
+    expect(weightFromSignals(99, 99)).toBe(5)
   })
 })

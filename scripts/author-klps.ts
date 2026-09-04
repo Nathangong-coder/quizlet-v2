@@ -11,6 +11,15 @@ import { REVISE_KLPS_PROMPT } from '../src/lib/ai/prompts/revise-klps'
 import { RELATE_KLPS_PROMPT } from '../src/lib/ai/prompts/relate-klps'
 import type { CardKlpStatus } from '../src/lib/cards/klp-status'
 import {
+  buildWeightHistogram,
+  diagnoseWeightHistogram,
+  buildBreadthHistogram,
+  failCountsFromVerdicts,
+  formatWeightHistogram,
+  formatBreadthHistogram,
+} from '../src/lib/klp/histogram'
+import { PROBE_KINDS } from '../src/lib/klp/authoring-config'
+import {
   Pacer,
   RunHaltedError,
   callWithPacingAndRetry,
@@ -51,6 +60,7 @@ function defaultGenerator(userId: string): AuthoringGenerator {
           setTitle: input.setTitle,
           term: input.question,
           definition: input.definition,
+          minKlps: input.minKlps,
         }),
         schema: AUTHOR_KLPS_PROMPT.schema,
       }),
@@ -132,7 +142,12 @@ function directGenerator(rpm: number): AuthoringGenerator {
   return {
     author: (input) =>
       call(
-        AUTHOR_KLPS_PROMPT.build({ setTitle: input.setTitle, term: input.question, definition: input.definition }),
+        AUTHOR_KLPS_PROMPT.build({
+          setTitle: input.setTitle,
+          term: input.question,
+          definition: input.definition,
+          minKlps: input.minKlps,
+        }),
         AUTHOR_KLPS_PROMPT.schema,
       ),
     grade: (input) => call(GRADE_CANDIDATE_PROMPT.build(input), GRADE_CANDIDATE_PROMPT.schema),
@@ -156,6 +171,22 @@ interface RunStats {
   totalKlps: number
   totalRelations: number
   separationSum: number
+  /**
+   * Every weight this run computed, and how many adversaries failed each KLP.
+   *
+   * Collected so the run ends with its own weight histogram
+   * (`src/lib/klp/histogram.ts`) rather than only a mean separation. Weight is
+   * the number audit finding G1 was about, and a run that produces flat weights
+   * has failed at something a per-card summary line cannot show — the shape only
+   * exists across cards. `npm run klp-histogram` reads the same distribution
+   * back off the database; this is the same check without a second command, on
+   * exactly the rows just written.
+   */
+  weights: number[]
+  failCounts: number[]
+  probesPerCard: number
+  /** Cards whose reference answer flagged something wrong in the owner's own definition. */
+  concerns: { term: string; concerns: string[] }[]
 }
 
 /** Best-effort. Never throws — see `extractKlpsForCards`'s identical posture. */
@@ -190,8 +221,17 @@ function printOutcomeDetail(term: string, outcome: AuthoringOutcome): void {
   console.log(`\n=== ${term} ===`)
   console.log(`-- Reference answer --\n${outcome.referenceAnswer}`)
 
-  console.log(`\n-- KLPs (${outcome.klps.length}) --`)
+  console.log(`\n-- KLPs (${outcome.klps.length}, sized for ${outcome.targetKlpCount}) --`)
+  console.log('  In delivery order: setup -> mechanism -> payoff, the last one landing the answer.')
   outcome.klps.forEach((k, i) => console.log(`  [${i}] (${k.kind}, weight ${k.weight}) ${k.text}`))
+
+  // Printed per card as well as in the run summary: a --dry-run operator is
+  // reading one card at a time and judging it, and "your definition may be
+  // wrong" belongs next to the answer built on it.
+  if (outcome.concerns.length > 0) {
+    console.log(`\n-- Concerns about this card's own definition (NOT applied) --`)
+    for (const c of outcome.concerns) console.log(`  - ${c}`)
+  }
 
   console.log(`\n-- Wrong answers (${outcome.probes.length}) --`)
   for (const p of outcome.probes) {
@@ -292,7 +332,17 @@ async function main() {
 
   const gen = direct ? directGenerator(rpm) : defaultGenerator(set.userId)
 
-  const stats: RunStats = { authored: 0, lowDiscrimination: 0, totalKlps: 0, totalRelations: 0, separationSum: 0 }
+  const stats: RunStats = {
+    authored: 0,
+    lowDiscrimination: 0,
+    totalKlps: 0,
+    totalRelations: 0,
+    separationSum: 0,
+    weights: [],
+    failCounts: [],
+    probesPerCard: PROBE_KINDS.length,
+    concerns: [],
+  }
 
   for (let i = 0; i < cards.length; i++) {
     const card = cards[i]
@@ -396,6 +446,14 @@ async function main() {
     stats.totalKlps += outcome.klps.length
     stats.totalRelations += outcome.relations.length
     if (outcome.status === 'low_discrimination') stats.lowDiscrimination += 1
+
+    stats.weights.push(...outcome.klps.map((k) => k.weight))
+    const { failCounts, wrongAnswerCount } = failCountsFromVerdicts(outcome.probes, outcome.klps.length)
+    if (wrongAnswerCount > 0) {
+      stats.failCounts.push(...failCounts)
+      stats.probesPerCard = Math.max(stats.probesPerCard, wrongAnswerCount)
+    }
+    if (outcome.concerns.length > 0) stats.concerns.push({ term: card.term, concerns: outcome.concerns })
   }
 
   const meanSeparation = stats.authored > 0 ? stats.separationSum / stats.authored : 0
@@ -404,6 +462,36 @@ async function main() {
       `${stats.lowDiscrimination} low_discrimination, ${stats.totalKlps} total KLPs, ` +
       `${stats.totalRelations} total relations`,
   )
+
+  // The weight histogram, on this run's own output. A run can post a healthy
+  // mean separation and still produce a useless weight signal — the two measure
+  // different things, and only the distribution shows the second.
+  if (stats.weights.length > 0) {
+    const hist = buildWeightHistogram(stats.weights)
+    console.log()
+    console.log(formatWeightHistogram(hist, diagnoseWeightHistogram(hist)))
+    console.log()
+    console.log(formatBreadthHistogram(buildBreadthHistogram(stats.failCounts, stats.probesPerCard)))
+    console.log()
+    console.log('Corpus-wide distribution (this run plus everything already stored): npm run klp-histogram')
+  }
+
+  // Concerns are printed LAST and never persisted: a pipeline that silently
+  // corrects the owner's own cards is worse than one that flags them, because
+  // the owner never learns their card was wrong. There is no column for these
+  // (increment A adds no migration), so this printout is the only place they
+  // exist — which is why they go at the bottom, where a run ends.
+  if (stats.concerns.length > 0) {
+    console.log()
+    console.log(`=== CONCERNS RAISED ABOUT ${stats.concerns.length} CARD DEFINITION(S) ===`)
+    console.log('The author call believes these cards say something wrong or incomplete. It did NOT')
+    console.log('silently rewrite them — nothing below has been applied to any card.')
+    for (const c of stats.concerns) {
+      console.log()
+      console.log(`  ${c.term}`)
+      for (const line of c.concerns) console.log(`    - ${line}`)
+    }
+  }
 }
 
 main()

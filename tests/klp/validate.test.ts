@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { validateKlpSet } from '@/lib/klp/validate'
+import { validateKlpSet, findOrderingDefects } from '@/lib/klp/validate'
 import { MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config'
 
 const k = (text: string) => ({ text })
@@ -81,5 +81,79 @@ describe('validateKlpSet', () => {
     const six = Array.from({ length: 5 }, (_, i) => k(`Proposition ${i}`))
     const out = validateKlpSet([...six, k('Proposition 0')], 'q')
     expect(out.some((d) => d.rule === 'duplicate')).toBe(true)
+  })
+})
+
+describe('findOrderingDefects', () => {
+  /**
+   * `CardKlp.index` means DELIVERY ORDER since increment A §3, and a `precedes`
+   * edge pointing backwards against it is a contradiction between two things
+   * the same run produced — detectable with no extra AI call.
+   */
+  it('flags a precedes edge that points backwards against the stored order', () => {
+    const out = findOrderingDefects([{ from: 3, to: 1, type: 'precedes' }])
+    expect(out).toHaveLength(1)
+    expect(out[0]).toMatchObject({ index: 3, rule: 'ordering' })
+    expect(out[0].detail).toContain('must precede')
+  })
+
+  it('accepts a precedes edge that agrees with the stored order', () => {
+    expect(findOrderingDefects([{ from: 1, to: 3, type: 'precedes' }])).toEqual([])
+  })
+
+  /**
+   * Only `precedes` claims delivery order. `requires` and `causes` are
+   * dependency claims — a strong answer may legitimately state a conclusion
+   * before the mechanism producing it — so flagging those would manufacture
+   * defects out of good answers.
+   */
+  it('ignores dependency edges, which say nothing about delivery order', () => {
+    expect(
+      findOrderingDefects([
+        { from: 3, to: 1, type: 'requires' },
+        { from: 4, to: 0, type: 'causes' },
+        { from: 2, to: 0, type: 'confused_with' },
+      ]),
+    ).toEqual([])
+  })
+
+  it('reports every violation, not just the first', () => {
+    expect(
+      findOrderingDefects([
+        { from: 3, to: 1, type: 'precedes' },
+        { from: 4, to: 2, type: 'precedes' },
+      ]),
+    ).toHaveLength(2)
+  })
+})
+
+describe('validateKlpSet ordering and sizing', () => {
+  const enough = Array.from({ length: 4 }, (_, i) => k(`Distinct proposition number ${i}`))
+
+  it('runs the ordering cross-check as part of the set validation', () => {
+    const out = validateKlpSet(enough, 'q', { edges: [{ from: 3, to: 0, type: 'precedes' }] })
+    expect(out.map((d) => d.rule)).toContain('ordering')
+  })
+
+  /** No graph means nothing to check against — not a clean bill of health. */
+  it('reports no ordering defect when no edges are supplied', () => {
+    expect(validateKlpSet(enough, 'q').map((d) => d.rule)).not.toContain('ordering')
+  })
+
+  /**
+   * The count rule follows the card's ADAPTIVE target now, not a fixed range —
+   * four KLPs is correct for a terse card and short for a card sized at six.
+   */
+  it('measures the count against the card\u2019s sized target', () => {
+    expect(validateKlpSet(enough, 'q').map((d) => d.rule)).not.toContain('count')
+    const short = validateKlpSet(enough, 'q', { targetCount: 6 })
+    expect(short.map((d) => d.rule)).toContain('count')
+    expect(short.find((d) => d.rule === 'count')?.detail).toContain('expected 6-')
+  })
+
+  /** A caller cannot ask for a target below the floor the owner set. */
+  it('never lets a supplied target drop below MIN_KLPS_PER_CARD', () => {
+    const out = validateKlpSet([k('only one point')], 'q', { targetCount: 1 })
+    expect(out.map((d) => d.rule)).toContain('count')
   })
 })

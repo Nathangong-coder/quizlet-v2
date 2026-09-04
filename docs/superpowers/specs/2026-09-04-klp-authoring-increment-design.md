@@ -1,7 +1,8 @@
 # Spec 2, increment A — grain, ordering, and evidence-based weight
 
 **Date:** 2026-09-04
-**Status:** approved in principle, not yet built
+**Status:** BUILT 2026-09-04. Suite 2770 passing, tsc clean, lint 164 (baseline, unchanged).
+The pilot run remains owed and still blocked on Google free-tier quota.
 **Amends:** `docs/superpowers/specs/2026-09-04-klp-authoring-pipeline-design.md` (Spec 2, built)
 **Trigger:** the owner's review of the first real pipeline output — one LBO card, 5 KLPs, separation 0.70.
 
@@ -143,6 +144,39 @@ read the separation score beside it, not the count alone.
 - The legacy extraction path, which still serves new cards until Spec 4.
 
 ## 7. Verification
+
+**What was built, and what the pure-function tests actually pin** (added 2026-09-04):
+
+- `src/lib/klp/histogram.ts` + `npm run klp-histogram` + the same histogram at the end of every
+  `author-klps` run. Built FIRST, ahead of everything else in this document, because a check that
+  lands after the corpus is rewritten cannot be acted on. **Run against the live corpus the day it
+  was built: 272 live KLPs on 124 cards, all legacy — 92.3% at weight 4-5, mean 4.54, 62.5% at the
+  single value 5; authored slice empty, confirming independently that no pilot output was ever
+  persisted.** The three failure modes are `clustered_high`, `clustered_low` and `uniform`, and all
+  that fire are reported rather than one verdict. A **discrimination-breadth histogram** is printed
+  beside the weight one so an operator can tell WHICH term is flat when weights come out flat —
+  rebalancing the formula against a flat breadth input would be tuning against broken adversaries.
+- `discriminationBreadth` (`separation.ts`) and `weightFromSignals` (`relations.ts`), with the term
+  weights injectable and defaulting to `authoring-config.ts`. A test pins that the blend REDUCES to
+  the old `weightFromBlastRadius` when the evidence term is weighted out, so this is demonstrably a
+  generalisation rather than a silent re-scaling of every weight already written. Both the
+  chain-shaped and the enumeration-shaped fixture are tested, the second being the case the previous
+  formula fails.
+- `src/lib/klp/sizing.ts`, `findOrderingDefects` (`validate.ts`), and `AUTHOR_KLPS_PROMPT` /
+  `REVISE_KLPS_PROMPT` at **version 2** — `promptVersion` is persisted, so rows written before and
+  after this increment stay distinguishable.
+
+**One consequence discovered during the build, not anticipated by §1.** Because the two terms are
+weighted to sum to 1, a KLP reaches weight 5 only by scoring high on BOTH — so a purely
+enumeration-shaped card, which has no graph term to score on, tops out at **3** under equal
+weighting. That matters beyond this file: `computeSignificance` uses weight as `relevance` and
+aggregates across cards, so a corpus of only enumeration cards could not produce a top-band error —
+the mirror image of G1, where nothing could score low. It is pinned by a test rather than left to be
+rediscovered, and it is the specific thing to look for in the first real histogram: **weights
+clustered at 2-3 in the authored slice mean the ceiling, not a failing evidence term.** Check the
+breadth histogram before rebalancing.
+
+### Original verification plan
 
 Pure functions first, as before: `discriminationBreadth` against a matrix where all three adversaries
 fail one KLP and only one fails another; the combined weight formula showing a real spread on BOTH a

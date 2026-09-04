@@ -15,17 +15,24 @@
  * prompts in `src/lib/ai/prompts/`) is assembled by the caller, not exported
  * from here.
  */
-import { computeSeparation, scoreCandidate, type CandidateGrade, type SeparationResult } from '@/lib/klp/separation'
+import {
+  computeSeparation,
+  discriminationBreadth,
+  scoreCandidate,
+  type CandidateGrade,
+  type SeparationResult,
+} from '@/lib/klp/separation'
 import { validateKlpSet, type KlpDefect } from '@/lib/klp/validate'
 import {
   canonicalizeEdges,
   findCycles,
   blastRadius,
-  weightFromBlastRadius,
+  weightFromSignals,
   type RelationEdge,
   type RelationProvenance,
 } from '@/lib/klp/relations'
 import { MAX_REVISIONS, GRADE_CANDIDATES_SEPARATELY, type ProbeKind } from '@/lib/klp/authoring-config'
+import { mechanicalKlpPrior, targetKlpCount, type DefinitionPointAssessment } from '@/lib/klp/sizing'
 import type { KlpVerdict } from '@/lib/klp/verdicts'
 import type { KlpDiscrimination } from '@/lib/klp/separation'
 
@@ -33,12 +40,21 @@ export interface AuthorInput {
   question: string
   definition: string
   setTitle: string
+  /**
+   * The mechanical sizing prior, computed by `authorCard` before the call. A
+   * floor the model may exceed, never a quota — see `src/lib/klp/sizing.ts`.
+   */
+  minKlps: number
 }
 
 export interface AuthorResult {
   referenceAnswer: string
   klps: { text: string; kind: string }[]
   wrongAnswers: { kind: ProbeKind; text: string }[]
+  /** The judgment half of adaptive sizing; absent means the prior alone sizes the card. */
+  definitionPoints?: DefinitionPointAssessment[]
+  /** Where the model thinks the owner's own definition is wrong. Never applied to the card. */
+  concerns?: string[]
 }
 
 export interface GradeInput {
@@ -56,6 +72,8 @@ export interface ReviseInput {
   question: string
   klps: { text: string; kind: string }[]
   discrimination: KlpDiscrimination[]
+  /** The card's sized target, so revision cannot silently undo the sizing decision. */
+  targetCount: number
 }
 
 export interface ReviseResult {
@@ -125,6 +143,20 @@ export interface AuthoringOutcome {
   /** `failed` only when the author call produced no KLPs at all. */
   status: 'separated' | 'low_discrimination' | 'failed'
   defects: KlpDefect[]
+  /**
+   * How many KLPs this card was sized for (`src/lib/klp/sizing.ts`), carried
+   * out so a reader can tell a correctly-small card from a thin one. With
+   * sizing adaptive, the COUNT alone no longer says which it is.
+   */
+  targetKlpCount: number
+  /**
+   * The model's objections to the card's own definition, verbatim and
+   * NEVER APPLIED. A pipeline that silently corrects the owner's cards is worse
+   * than one that flags them, because the owner never learns their card was
+   * wrong. Surfaced at the end of an `author-klps` run; there is no column for
+   * these and increment A adds no migration.
+   */
+  concerns: string[]
 }
 
 /** Fills any klpIndex the grader skipped with the honest 'failed' fallback, never a fabricated pass. */
@@ -186,7 +218,15 @@ export async function authorCard(
   input: { question: string; definition: string; setTitle: string },
   gen: AuthoringGenerator,
 ): Promise<AuthoringOutcome> {
-  const draft = await gen.author(input)
+  // Sizing, in two halves (increment A §5). The mechanical prior is free and
+  // is computed BEFORE the call so it can be stated in the prompt as a floor;
+  // the model's per-point detail assessment comes back FROM the call and can
+  // only raise the target. Both are combined in TypeScript — the model never
+  // states a total, for the same reason it never states a weight.
+  const prior = mechanicalKlpPrior({ question: input.question, definition: input.definition })
+  const draft = await gen.author({ ...input, minKlps: Math.max(prior, targetKlpCount({ prior })) })
+  const target = targetKlpCount({ prior, points: draft.definitionPoints })
+  const concerns = draft.concerns ?? []
 
   if (draft.klps.length === 0) {
     return {
@@ -198,7 +238,9 @@ export async function authorCard(
       separationScore: 0,
       revisions: 0,
       status: 'failed',
-      defects: validateKlpSet([], input.question),
+      defects: validateKlpSet([], input.question, { targetCount: target }),
+      targetKlpCount: target,
+      concerns,
     }
   }
 
@@ -235,6 +277,7 @@ export async function authorCard(
       question: input.question,
       klps: klps.map((k) => ({ text: k.text, kind: k.kind })),
       discrimination: separation.perKlp,
+      targetCount: target,
     })
     klps = revised.klps
     revisions += 1
@@ -269,8 +312,18 @@ export async function authorCard(
   }
   const droppedForCycles = canonical.length - accepted.length
 
+  // Weight from BOTH signals (increment A §1). The graph term carries
+  // derivation chains and the evidence term carries enumerations; a card that
+  // is one shape has almost no spread in the other term, which is why the
+  // blend exists rather than a choice between them. `wrong` here is the FINAL
+  // round's grades — the ones that produced the separation actually reported,
+  // not an earlier revision's.
   const radii = blastRadius(klps.length, accepted)
-  const weights = radii.map(weightFromBlastRadius)
+  const breadths = discriminationBreadth(
+    wrong.map((w) => ({ kind: w.kind, verdicts: w.verdicts })),
+    klps.length,
+  )
+  const weights = radii.map((radius, i) => weightFromSignals(radius, breadths[i]))
 
   const probes = wrong.map((w) => ({
     kind: w.kind as ProbeKind,
@@ -293,6 +346,17 @@ export async function authorCard(
     separationScore: separation.separation,
     revisions,
     status: separation.separated ? 'separated' : 'low_discrimination',
-    defects: validateKlpSet(klps.map((k) => ({ text: k.text })), input.question),
+    // The ordering cross-check needs the ACCEPTED edges, so validation runs
+    // after pruning rather than beside the KLP text: an edge dropped for
+    // introducing a cycle or pointing out of range is not evidence of anything,
+    // and flagging a card's order against one would be a defect invented from a
+    // relation the pipeline itself refused.
+    defects: validateKlpSet(
+      klps.map((k) => ({ text: k.text })),
+      input.question,
+      { edges: accepted, targetCount: target },
+    ),
+    targetKlpCount: target,
+    concerns,
   }
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { scoreCandidate, evaluateKlps, computeSeparation } from '@/lib/klp/separation'
+import { scoreCandidate, evaluateKlps, computeSeparation, discriminationBreadth } from '@/lib/klp/separation'
+import type { CandidateGrade } from '@/lib/klp/separation'
 import type { KlpVerdict } from '@/lib/klp/verdicts'
 
 const ok: KlpVerdict = 'correct'
@@ -147,5 +148,39 @@ describe('computeSeparation', () => {
       { index: 1, passesReference: true, failsSomeWrong: true, discriminates: true },
       { index: 2, passesReference: true, failsSomeWrong: true, discriminates: true },
     ])
+  })
+})
+
+describe('discriminationBreadth', () => {
+  /**
+   * The signal the pilot proved was needed. A KLP every adversary fails is
+   * load-bearing; one only the vague answer misses is peripheral — and that
+   * distinction exists on cards where the relation graph is (correctly) empty.
+   */
+  it('is the fraction of wrong answers that fail each KLP', () => {
+    const wrong: CandidateGrade[] = [
+      { kind: 'confident_wrong', verdicts: [no, ok, ok] },
+      { kind: 'vague', verdicts: [no, no, ok] },
+      { kind: 'memorized_template', verdicts: [no, ok, ok] },
+    ]
+    expect(discriminationBreadth(wrong, 3)).toEqual([1, 1 / 3, 0])
+  })
+
+  it('counts a partial credit as a pass, not a failure', () => {
+    expect(discriminationBreadth([{ kind: 'vague', verdicts: [half] }], 1)).toEqual([0])
+  })
+
+  /**
+   * `toOrderedVerdicts` fills every gap with an explicit `failed` before this
+   * runs, so a missing verdict means a caller skipped that step. Inferring a
+   * failure from the absence would inflate the exact signal this measures.
+   */
+  it('does not treat a missing verdict as a failure', () => {
+    expect(discriminationBreadth([{ kind: 'vague', verdicts: [] }], 1)).toEqual([0])
+  })
+
+  /** No adversaries means no evidence — an untested KLP must not score maximum. */
+  it('is 0 for every KLP when there are no wrong answers', () => {
+    expect(discriminationBreadth([], 2)).toEqual([0, 0])
   })
 })

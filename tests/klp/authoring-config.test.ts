@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
-  SEPARATION_FLOOR, MAX_REVISIONS, MIN_KLPS_PER_CARD, MAX_KLPS_AUTHORED,
+  SEPARATION_FLOOR, MAX_REVISIONS, MIN_KLPS_PER_CARD, MIN_KLPS_FLOOR, MAX_KLPS_AUTHORED,
+  WEIGHT_GRAPH_TERM, WEIGHT_EVIDENCE_TERM, BLAST_RADIUS_FULL,
+  HISTOGRAM_CLUSTER_SHARE, HISTOGRAM_UNIFORM_SHARE,
   GRADE_CANDIDATES_SEPARATELY, PROBE_KINDS,
 } from '@/lib/klp/authoring-config'
 import { MAX_KLPS_PER_CARD } from '@/lib/ai/schemas'
@@ -26,9 +28,37 @@ describe('authoring config', () => {
     expect(MAX_REVISIONS).toBe(2)
   })
 
-  it('targets 5-9 KLPs per card for the AUTHORING pipeline', () => {
-    expect(MIN_KLPS_PER_CARD).toBe(5)
+  /**
+   * The floor dropped from 5 to 4 with increment A's adaptive sizing — the
+   * owner's "base of 4+". The upper bound is unchanged.
+   */
+  it('floors the AUTHORING pipeline at 4 KLPs per card and caps it at 9', () => {
+    expect(MIN_KLPS_FLOOR).toBe(4)
+    expect(MIN_KLPS_PER_CARD).toBe(MIN_KLPS_FLOOR)
     expect(MAX_KLPS_AUTHORED).toBe(9)
+  })
+
+  /**
+   * Increment A §1's two weight signals. Equal weighting is a declared STARTING
+   * POINT, to be revisited against the first real histogram — this assertion
+   * exists so a rebalance is a deliberate edit with a test to update, not a
+   * silent drift that changes every weight the pipeline writes.
+   */
+  it('blends the two weight signals equally, for now', () => {
+    expect(WEIGHT_GRAPH_TERM).toBe(0.5)
+    expect(WEIGHT_EVIDENCE_TERM).toBe(0.5)
+    expect(WEIGHT_GRAPH_TERM + WEIGHT_EVIDENCE_TERM).toBe(1)
+    expect(BLAST_RADIUS_FULL).toBe(4)
+  })
+
+  /**
+   * The histogram thresholds must REJECT the condition the increment exists to
+   * fix — 92.3% of live weights at 4-5 — with room to spare rather than sitting
+   * on the boundary.
+   */
+  it('sets histogram thresholds that reject the measured G1 baseline', () => {
+    expect(HISTOGRAM_CLUSTER_SHARE).toBeLessThan(0.923)
+    expect(HISTOGRAM_UNIFORM_SHARE).toBeLessThan(HISTOGRAM_CLUSTER_SHARE)
   })
 
   /**

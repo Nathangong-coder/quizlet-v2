@@ -73,6 +73,8 @@ const outcome = {
   revisions: 1,
   status: 'separated' as const,
   defects: [],
+  targetKlpCount: 4,
+  concerns: [],
 }
 
 /** The card this outcome was authored from. Deliberately distinct term/definition text. */

@@ -7,6 +7,12 @@
  * (SetKltNode) and duplicating it here would give one hierarchy two homes.
  */
 
+import {
+  WEIGHT_GRAPH_TERM,
+  WEIGHT_EVIDENCE_TERM,
+  BLAST_RADIUS_FULL,
+} from '@/lib/klp/authoring-config'
+
 export const DIRECTED_TYPES = ['causes', 'requires', 'precedes', 'applies_within'] as const
 export const SYMMETRIC_TYPES = ['confused_with', 'analogous_to'] as const
 export const RELATION_TYPES = [...DIRECTED_TYPES, ...SYMMETRIC_TYPES] as const
@@ -159,7 +165,68 @@ export function blastRadius(klpCount: number, edges: RelationEdge[]): number[] {
   })
 }
 
-/** 0 dependents is a leaf (1); 4 or more is a root cause (5). */
+/**
+ * The GRAPH term alone: 0 dependents is a leaf (1); 4 or more is a root cause (5).
+ *
+ * Kept as its own function because it is the term `weightFromSignals` reduces
+ * to when the evidence term is weighted 0, and a test pins that equivalence —
+ * so the blend is demonstrably a generalisation of this rather than a silent
+ * re-scaling of every weight already written.
+ */
 export function weightFromBlastRadius(radius: number): number {
   return Math.min(5, Math.max(1, radius + 1))
+}
+
+/**
+ * The weight a KLP actually gets: a blend of dependency depth and adversarial
+ * evidence (increment A §1).
+ *
+ *     weight = clamp(round(1 + 4 · (w_graph · radiusTerm + w_evidence · breadth)), 1, 5)
+ *
+ * WHY TWO TERMS. `blastRadius` measures how much of the card breaks if this KLP
+ * is false, which is the right question on a DERIVATION CHAIN — the $10
+ * depreciation walkthrough, where each step consumes the previous one's output.
+ * It is the wrong question on an ENUMERATION — "why do LBOs use leverage",
+ * several parallel value drivers that genuinely do not depend on one another.
+ * The first real pilot card was an enumeration and produced weights 2,1,2,1,1
+ * off two edges. That was not the relate call under-performing; two edges was
+ * very likely correct, and the fix of pushing the prompt to find more would
+ * fabricate `causes` links that Spec 3 then serves grading probes for, marking
+ * a learner wrong for failing to make a connection nobody should make.
+ *
+ * `discriminationBreadth` (`src/lib/klp/separation.ts`) answers the same
+ * question — how central is this point — from the adversarial verdict matrix
+ * instead of the graph, and it has spread on exactly the cards where the graph
+ * has none. Neither term is a fallback for the other; each dominates on one
+ * card shape.
+ *
+ * BOTH INPUTS ARE STILL COMPUTED IN TYPESCRIPT from categorical AI output. The
+ * model supplies edges and per-KLP verdicts; it never supplies a number. That
+ * rule is what audit finding G1 broke and is not relaxed here.
+ *
+ * `radius` is clamped, not just capped: `BLAST_RADIUS_FULL` is where the graph
+ * term saturates, and a negative radius is impossible but would otherwise pull
+ * a weight below the floor.
+ *
+ * THE CEILING THIS BUYS, STATED PLAINLY. Because the two terms are weighted to
+ * sum to 1, a KLP reaches weight 5 only by scoring high on BOTH — and a card
+ * that is purely an enumeration has no graph term to score on, so under equal
+ * weighting its most load-bearing point tops out at 3. That matters beyond this
+ * file: `computeSignificance` (`src/lib/errors/significance.ts`) uses weight as
+ * `relevance` and aggregates significance ACROSS cards, so a corpus of only
+ * enumeration cards could not produce a top-band error — the mirror image of
+ * G1, where nothing could score low. Equal weighting is the design's declared
+ * starting point, to be revisited against the first real histogram; this is the
+ * specific thing that histogram is looking for, and `terms` is here so the
+ * rebalance is a config edit rather than a rewrite.
+ */
+export function weightFromSignals(
+  radius: number,
+  breadth: number,
+  terms: { graph: number; evidence: number } = { graph: WEIGHT_GRAPH_TERM, evidence: WEIGHT_EVIDENCE_TERM },
+): number {
+  const radiusTerm = Math.min(1, Math.max(0, radius / BLAST_RADIUS_FULL))
+  const breadthTerm = Math.min(1, Math.max(0, breadth))
+  const blended = terms.graph * radiusTerm + terms.evidence * breadthTerm
+  return Math.min(5, Math.max(1, Math.round(1 + blended * 4)))
 }

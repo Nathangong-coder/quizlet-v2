@@ -1,5 +1,5 @@
 import { ReviseKlpsSchema, KLP_KINDS } from '@/lib/ai/schemas';
-import { MIN_KLPS_PER_CARD, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
+import { MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
 
 export interface ReviseKlpsBuildInput {
   question: string;
@@ -11,6 +11,14 @@ export interface ReviseKlpsBuildInput {
     failsSomeWrong: boolean;
     discriminates: boolean;
   }[];
+  /**
+   * The card's adaptive KLP target (`src/lib/klp/sizing.ts`), passed through
+   * from call A so revision cannot silently undo the sizing decision. Without
+   * it this prompt stated a fixed range, and a revision that cut two useless
+   * KLPs would leave a card sized for four holding two, with nothing saying it
+   * had shrunk below what the definition needed.
+   */
+  targetCount: number;
 }
 
 /**
@@ -27,7 +35,7 @@ export interface ReviseKlpsBuildInput {
  */
 export const REVISE_KLPS_PROMPT = {
   id: 'revise-klps',
-  version: 1,
+  version: 2,
   schema: ReviseKlpsSchema,
 
   build(input: ReviseKlpsBuildInput): string {
@@ -54,7 +62,7 @@ Fix ONLY the KLPs marked "CARRIES NO INFORMATION" or "FAILS ON THE REFERENCE". A
 
 Leave the KLPs marked "DISCRIMINATES" alone — they already earned their place.
 
-Target ${MIN_KLPS_PER_CARD}-${MAX_KLPS_AUTHORED} KLPs total after revision, same smell-test range as before — not a quota.
+Aim for ${input.targetCount}-${MAX_KLPS_AUTHORED} KLPs total after revision — the same target this card was sized for, not a quota. If splitting a useless point into its specific claims takes you above it, that is the right outcome; if honestly cutting one takes you below it, say the fewer true things rather than padding.
 kind: one of ${KLP_KINDS.join(', ')}.
 
 Output JSON:

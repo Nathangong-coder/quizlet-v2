@@ -5,7 +5,7 @@ import { RELATE_KLPS_PROMPT } from '@/lib/ai/prompts/relate-klps'
 import { AI_TASKS } from '@/lib/ai/model-routing'
 import { KLP_VERDICTS } from '@/lib/klp/verdicts'
 import { AuthorDraftSchema, RelationDraftSchema } from '@/lib/ai/schemas'
-import { PROBE_KINDS } from '@/lib/klp/authoring-config'
+import { PROBE_KINDS, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config'
 
 describe('AI_TASKS', () => {
   it('has an author task, separate from grade', () => {
@@ -18,6 +18,7 @@ describe('AUTHOR_KLPS_PROMPT', () => {
   const built = AUTHOR_KLPS_PROMPT.build({
     setTitle: 'Accounting', term: 'Depreciation walkthrough',
     definition: 'A $10 depreciation expense, 40% tax rate.',
+    minKlps: 4,
   })
 
   it('asks for the reference answer FIRST — KLPs are derived from an artifact', () => {
@@ -31,9 +32,60 @@ describe('AUTHOR_KLPS_PROMPT', () => {
     }
   })
 
-  it('states the 5-9 range as a smell test, not a quota', () => {
-    expect(built).toMatch(/5\D{0,4}9/)
-    expect(built.toLowerCase()).toContain('not a quota')
+  it('states the sized floor as a floor, not a quota', () => {
+    expect(built).toContain(`AT LEAST 4 KLPs, up to ${MAX_KLPS_AUTHORED}`)
+    expect(built.toUpperCase()).toContain('NOT A QUOTA')
+  })
+
+  /**
+   * Increment A §5: the floor is per-card, computed in TypeScript before the
+   * call. A prompt that hardcoded it would make the whole sizing layer inert.
+   */
+  it('carries the per-card floor it was built with', () => {
+    const bigger = AUTHOR_KLPS_PROMPT.build({
+      setTitle: 'Accounting', term: 'Depreciation walkthrough',
+      definition: 'A $10 depreciation expense, 40% tax rate.',
+      minKlps: 7,
+    })
+    expect(bigger).toContain('AT LEAST 7 KLPs')
+  })
+
+  /**
+   * Increment A §2. Version 1 let the model write a reference answer freely,
+   * which is how inaccurate claims got in; the definition is now the skeleton,
+   * and a disagreement with it goes to `concerns` rather than a silent rewrite.
+   */
+  it('makes the definition the skeleton and routes disagreement to concerns', () => {
+    expect(built).toContain('SKELETON')
+    expect(built.toLowerCase()).toContain('do not silently correct it')
+    expect(built).toContain('"concerns"')
+  })
+
+  /** Increment A §3: index means delivery order, and the last KLP lands the answer. */
+  it('asks for setup -> mechanism -> payoff ordering', () => {
+    const lower = built.toLowerCase()
+    expect(lower).toContain('setup first')
+    expect(lower).toContain('the final klp must land the answer')
+  })
+
+  /**
+   * Increment A §4. A concrete contrast pair moves model output; an abstract
+   * instruction to "be clear" does not — which is why this is prompt copy and
+   * not a validator.
+   */
+  it("teaches practitioner phrasing with the owner's own contrast pair", () => {
+    expect(built).toContain("reducing the calculation's denominator")
+    expect(built).toContain('smaller equity base')
+  })
+
+  /** The model assesses detail per point; TypeScript does the adding up. */
+  it('asks for a per-point detail assessment rather than a total', () => {
+    expect(built).toContain('klpsNeeded')
+    expect(built.toLowerCase()).toContain('not a total to hit')
+  })
+
+  it('is version 2 — promptVersion is persisted, so the change must be visible', () => {
+    expect(AUTHOR_KLPS_PROMPT.version).toBe(2)
   })
 })
 

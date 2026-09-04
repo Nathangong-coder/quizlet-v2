@@ -5,11 +5,12 @@
  * self-detect, so they are checked with code rather than asked about.
  */
 import { MIN_KLPS_PER_CARD, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config'
+import type { RelationEdge } from '@/lib/klp/relations'
 
 export interface KlpDefect {
   /** The offending KLP, or null for a whole-set defect. */
   index: number | null
-  rule: 'compound' | 'restatement' | 'count' | 'duplicate'
+  rule: 'compound' | 'restatement' | 'count' | 'duplicate' | 'ordering'
   detail: string
 }
 
@@ -56,17 +57,65 @@ function isCompound(text: string): boolean {
   return parts.filter((p) => segmentHasSubjectAndVerb(p)).length >= 2
 }
 
+/**
+ * KLPs stored out of the order a strong answer delivers them (increment A §3).
+ *
+ * `CardKlp.index` used to be array position and carry no meaning. It now means
+ * delivery order — setup, then mechanism, then payoff — and half of that claim
+ * is mechanically checkable with machinery already built: order-violation
+ * extraction produces `precedes` edges, meaning the later point CONSUMES the
+ * earlier one's output. A `precedes` edge pointing backwards against the stored
+ * index order is a genuine contradiction between two things the same run
+ * produced, and it costs no AI call to find.
+ *
+ * THE LIMIT, kept deliberately: `precedes` covers only consumption order. It
+ * says nothing about the setup/payoff framing — whether the final KLP actually
+ * lands the answer to the question asked — which stays a prompt instruction and
+ * is not mechanically enforceable. This check catches contradictions, not
+ * blandness, and reading a clean result as "the ordering is good" over-reads it.
+ *
+ * Only `precedes` is used. `requires` and `causes` are dependency claims, not
+ * delivery-order claims: a strong answer may legitimately state a conclusion
+ * before the mechanism that produces it, so flagging those would manufacture
+ * defects out of good answers.
+ */
+export function findOrderingDefects(edges: RelationEdge[]): KlpDefect[] {
+  return edges
+    .filter((e) => e.type === 'precedes' && e.from > e.to)
+    .map((e) => ({
+      index: e.from,
+      rule: 'ordering' as const,
+      detail: `KLP ${e.from} must precede KLP ${e.to}, but is stored after it`,
+    }))
+}
+
+export interface ValidateOptions {
+  /**
+   * The accepted relation edges, for the ordering cross-check. Omitted means
+   * "no graph to check against", not "the order is fine".
+   */
+  edges?: RelationEdge[]
+  /**
+   * The card's adaptive KLP target (`src/lib/klp/sizing.ts`). Defaults to
+   * `MIN_KLPS_PER_CARD` so a caller with no sizing information still gets the
+   * floor rather than no check at all.
+   */
+  targetCount?: number
+}
+
 export function validateKlpSet(
   klps: { text: string }[],
   question: string,
+  options: ValidateOptions = {},
 ): KlpDefect[] {
   const defects: KlpDefect[] = []
+  const target = Math.max(MIN_KLPS_PER_CARD, options.targetCount ?? MIN_KLPS_PER_CARD)
 
-  if (klps.length < MIN_KLPS_PER_CARD || klps.length > MAX_KLPS_AUTHORED) {
+  if (klps.length < target || klps.length > MAX_KLPS_AUTHORED) {
     defects.push({
       index: null,
       rule: 'count',
-      detail: `${klps.length} KLPs; expected ${MIN_KLPS_PER_CARD}-${MAX_KLPS_AUTHORED}`,
+      detail: `${klps.length} KLPs; expected ${target}-${MAX_KLPS_AUTHORED}`,
     })
   }
 
@@ -88,6 +137,8 @@ export function validateKlpSet(
       seen.set(n, index)
     }
   })
+
+  defects.push(...findOrderingDefects(options.edges ?? []))
 
   return defects
 }
