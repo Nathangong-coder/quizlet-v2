@@ -2633,8 +2633,8 @@ git commit -m "feat(staff): add the /staff/roles grant dashboard"
 
 **Files:**
 - Modify: `src/lib/shell/nav.ts`, `src/components/shell/RailNav.tsx`
-- Modify: whichever component renders `<RailNav>` (find with `grep -rn "<RailNav" src`)
-- Test: `tests/shell/nav.test.ts` (extend the existing file if present; create if not)
+- Modify: `src/app/(app)/layout.tsx:33-52`, `src/components/shell/CollapsibleShell.tsx:18-79`, `src/components/shell/MobileRail.tsx:69` — the full threading chain, verified: `layout.tsx` holds the session, passes `signedIn` to `CollapsibleShell`, which renders **both** `RailNav` and `MobileRail`, and `MobileRail` renders a second `RailNav`. `role` follows `signedIn` at every hop. Missing the `MobileRail` hop leaves the staff link absent on mobile only.
+- Test: `tests/shell/nav.test.ts` (exists — append)
 
 **Interfaces:**
 - Consumes: `isStaff` (Task 1).
@@ -3100,7 +3100,8 @@ function row(key: string, parentKey: string | null, hasChildren: boolean): Topic
     knowledge: 0.5,
     klpCount: 2,
     measuredKlpCount: 2,
-    shade: 'shaky',
+    // MasteryShade is 'unknown' | 'weak' | 'developing' | 'solid' | 'strong'.
+    shade: 'developing',
   }
 }
 
