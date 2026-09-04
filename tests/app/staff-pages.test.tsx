@@ -79,6 +79,9 @@ describe('/staff/klps', () => {
       StaffKlpsPage({ searchParams: Promise.resolve({}) }),
     ).rejects.toThrow('NEXT_NOT_FOUND')
     expect(h.klps).not.toHaveBeenCalled()
+    // The page also reads prisma.set.findMany() for the set picker — the gate
+    // must sit before THAT read too, not just before loadStaffKlps.
+    expect(h.setFindMany).not.toHaveBeenCalled()
   })
 
   it('404s for a signed-out visitor', async () => {
@@ -86,6 +89,7 @@ describe('/staff/klps', () => {
     await expect(
       StaffKlpsPage({ searchParams: Promise.resolve({}) }),
     ).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(h.setFindMany).not.toHaveBeenCalled()
   })
 })
 
