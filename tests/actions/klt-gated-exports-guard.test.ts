@@ -42,9 +42,17 @@ const GATE_PATTERNS = [
 // `requireStaff` is deliberately NOT in GATE_PATTERNS, for the same reason
 // `requireSetKltView` isn't: it is a WEAKER gate than everything above (staff
 // is not admin), so admitting it globally would let a write action silently
-// downgrade its own check and still pass this guard. It will be added
-// file-scoped to `staff.ts` only, mirroring READ_GATE_ALLOWLIST below, when
-// that module exists.
+// downgrade its own check and still pass this guard.
+//
+// It counts as a gate ONLY inside `staff.ts`, mirroring READ_GATE_ALLOWLIST's
+// approach of scoping a weaker-but-real gate to exactly the file(s) it is
+// verified safe for. Unlike READ_GATE_ALLOWLIST it is not keyed by function
+// name: `staff.ts` exists to be the staff-only surface, so every export in it
+// (including ones added by later tasks) is expected to gate with `requireStaff`
+// specifically, and the point of this guard is still enforced — a `staff.ts`
+// export that calls no gate at all still fails below.
+const STAFF_GATE_PATTERN = /requireStaff\s*\(/
+const STAFF_GATE_FILES = new Set(['staff.ts'])
 
 /**
  * `requireSetKltView` is a REAL gate, but a weaker one: it admits anyone who
@@ -78,7 +86,7 @@ const EXPLICIT_GATE_ALLOWLIST: Record<string, string[]> = {
   'klt.ts': ['retryKltSummarization'],
 }
 
-const FILES = ['klt-seed.ts', 'klt-tree.ts', 'klt-presets.ts', 'klt.ts']
+const FILES = ['klt-seed.ts', 'klt-tree.ts', 'klt-presets.ts', 'klt.ts', 'staff.ts']
 
 interface Violation {
   file: string
@@ -94,7 +102,8 @@ function checkFile(fileName: string, text: string): Violation[] {
 
   const isGated = (name: string, body: string) =>
     GATE_PATTERNS.some((p) => p.test(body)) ||
-    (readGated.has(name) && READ_GATE_PATTERN.test(body))
+    (readGated.has(name) && READ_GATE_PATTERN.test(body)) ||
+    (STAFF_GATE_FILES.has(fileName) && STAFF_GATE_PATTERN.test(body))
 
   const isExported = (node: ts.Node & { modifiers?: ts.NodeArray<ts.ModifierLike> }) =>
     node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)
@@ -165,7 +174,7 @@ function checkFile(fileName: string, text: string): Violation[] {
 }
 
 describe('every export of a KLT `use server` action module is gated, type-only, or explicitly justified', () => {
-  it('flags no ungated, non-allowlisted async export from klt-seed.ts, klt-tree.ts, klt-presets.ts, or klt.ts', () => {
+  it('flags no ungated, non-allowlisted async export from klt-seed.ts, klt-tree.ts, klt-presets.ts, klt.ts, or staff.ts', () => {
     const violations: string[] = []
     for (const file of FILES) {
       const fullPath = path.resolve(__dirname, '..', '..', 'src', 'actions', file)
