@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   notFound: vi.fn(),
   overview: vi.fn(),
   klps: vi.fn(),
+  coverage: vi.fn(),
   setFindMany: vi.fn(),
 }))
 
@@ -18,11 +19,16 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/staff',
 }))
 vi.mock('@/auth', () => ({ auth: h.auth }))
-vi.mock('@/lib/staff/queries', () => ({ loadStaffOverview: h.overview, loadStaffKlps: h.klps }))
+vi.mock('@/lib/staff/queries', () => ({
+  loadStaffOverview: h.overview,
+  loadStaffKlps: h.klps,
+  loadStaffCoverage: h.coverage,
+}))
 vi.mock('@/lib/db', () => ({ prisma: { set: { findMany: h.setFindMany } } }))
 
 import StaffPage from '@/app/(app)/staff/page'
 import StaffKlpsPage from '@/app/(app)/staff/klps/page'
+import StaffCoveragePage from '@/app/(app)/staff/coverage/page'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -80,5 +86,44 @@ describe('/staff/klps', () => {
     await expect(
       StaffKlpsPage({ searchParams: Promise.resolve({}) }),
     ).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+})
+
+describe('/staff/coverage', () => {
+  beforeEach(() => {
+    h.coverage.mockResolvedValue([
+      {
+        setId: 's1',
+        setTitle: 'Accounting - Knowledge',
+        ownerLabel: 'nathan',
+        total: 50,
+        byKlpStatus: { pending: 50, ready: 0, failed: 0, skipped: 0 },
+        byKltStatus: { pending: 50, ready: 0, failed: 0, skipped: 0 },
+        failures: [],
+      },
+    ])
+  })
+
+  it('404s for a learner and reads no coverage', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u1', role: 'learner' } })
+    await expect(StaffCoveragePage()).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(h.coverage).not.toHaveBeenCalled()
+  })
+
+  it('shows the extraction gap that demand-driven extraction left invisible', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u1', role: 'staff' } })
+    render(await StaffCoveragePage())
+    expect(screen.getByText('Accounting - Knowledge')).toBeInTheDocument()
+    // Both the key-points and topics columns read 0/50 for this fixture (both
+    // passes are equally un-run), so this is a genuine double match rather
+    // than an ambiguous query.
+    expect(screen.getAllByText('0/50').length).toBe(2)
+  })
+
+  it('reports klpStatus and kltStatus separately — the two passes fail independently', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u1', role: 'staff' } })
+    render(await StaffCoveragePage())
+    expect(screen.getByRole('columnheader', { name: /key points/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /topics/i })).toBeInTheDocument()
   })
 })
