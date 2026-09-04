@@ -1,32 +1,13 @@
-import { createHash } from 'node:crypto'
 import { prisma } from '@/lib/db'
 import { writeKlpVersion, type KlpRowInput } from '@/lib/cards/klp-write'
+import { klpSourceHash, type HashableBlock } from '@/lib/cards/klp-hash'
 import type { AuthoringOutcome } from '@/lib/klp/authoring'
 
-/**
- * `writeKlpVersion` needs a source fingerprint for `CardKlp.sourceHash` (and,
- * via it, `Card.klpSourceHash`). The legacy extraction path
- * (`src/actions/klp.ts`) fingerprints the card's own term/definition/blocks
- * with `klpSourceHash` (`src/lib/cards/klp-hash.ts`) so `selectStaleCardIds`
- * can tell whether a later edit invalidated the KLPs. `persistAuthoring` has
- * no access to the card's raw fields — only to what `authorCard` already
- * derived from them (`outcome`) — so this fingerprints the AUTHORED ARTIFACT
- * instead: the reference answer plus every KLP's kind and text.
- *
- * KNOWN GAP, flagged rather than silently accepted: this is NOT the same
- * contract the legacy path relies on. An authored card's stored hash will not
- * equal a fresh `klpSourceHash(term, definition)`, so `selectStaleCardIds`
- * will read every authored card as permanently stale and queue it for legacy
- * re-extraction on the next set save — which would silently clobber the
- * discrimination-tested KLPs with the crude 1-call extractor. Reconciling the
- * two staleness mechanisms is out of scope for this task (the brief pins
- * `persistAuthoring`'s signature to `(cardId, outcome, promptVersion)`, with
- * no card content available to hash) and is called out in the task report as
- * a gap for a later task.
- */
-function authoredContentHash(outcome: AuthoringOutcome): string {
-  const parts = [outcome.referenceAnswer, ...outcome.klps.map((k) => `${k.kind}:${k.text}`)]
-  return createHash('sha256').update(parts.join('\n')).digest('hex')
+/** The card content `persistAuthoring` needs — exactly what `klpSourceHash` takes. */
+export interface AuthoredCardContent {
+  term: string
+  definition: string
+  blocks?: HashableBlock[]
 }
 
 /**
@@ -46,11 +27,32 @@ function authoredContentHash(outcome: AuthoringOutcome): string {
  *
  * Each `createMany` is skipped entirely when its input is empty, rather than
  * issuing a no-op query.
+ *
+ * `content` MUST be the card's own current `term`/`definition`/content blocks,
+ * hashed with `klpSourceHash` — the exact same function the legacy extraction
+ * path (`src/actions/klp.ts`) uses. This is not a preference, it is the only
+ * correct value: `writeKlpVersion` writes whatever hash it is given into
+ * `CardKlp.sourceHash` / `Card.klpSourceHash`, and that column is the ONLY
+ * signal `selectStaleCardIds` (`src/lib/cards/stale.ts`) has for whether a
+ * card's KLPs still match its content — it recomputes `klpSourceHash` fresh
+ * from the card's CURRENT fields on every set save and compares it to what's
+ * stored. A hash derived from anything else (an earlier version of this
+ * function hashed the authored artifact — the reference answer and KLP
+ * texts — instead) will never equal that fresh recomputation, so the card
+ * reads as permanently stale and gets queued for the legacy extractor on the
+ * owner's very next set save. That extractor calls `writeKlpVersion` again
+ * and SUPERSEDES whatever is there — five discrimination-tested KLPs
+ * replaced by roughly two cheap ones, silently, with no error and no log.
+ * Passing a precomputed hash instead of card content was considered and
+ * rejected: a caller that can pass a hash can pass the WRONG hash, and there
+ * is exactly one correct value here, so computing it in the one place that
+ * writes it removes an entire class of mistake.
  */
 export async function persistAuthoring(
   cardId: string,
   outcome: AuthoringOutcome,
   promptVersion: number,
+  content: AuthoredCardContent,
 ): Promise<{ authoringId: string; klpIds: string[] }> {
   const rows: KlpRowInput[] = outcome.klps.map((k) => ({
     text: k.text,
@@ -60,7 +62,8 @@ export async function persistAuthoring(
     promptVersion,
   }))
 
-  const { version, klpIds } = await writeKlpVersion(cardId, rows, authoredContentHash(outcome))
+  const hash = klpSourceHash({ term: content.term, definition: content.definition, blocks: content.blocks })
+  const { version, klpIds } = await writeKlpVersion(cardId, rows, hash)
 
   const authoring = await prisma.cardAuthoring.create({
     data: {

@@ -221,7 +221,19 @@ async function main() {
   const allCards = await prisma.card.findMany({
     where: { setId: set.id },
     orderBy: { position: 'asc' },
-    select: { id: true, term: true, definition: true, position: true, klpVersion: true },
+    select: {
+      id: true,
+      term: true,
+      definition: true,
+      position: true,
+      klpVersion: true,
+      // Content blocks are part of `klpSourceHash`'s fingerprint (see
+      // `persistAuthoring`'s doc comment) — a rich card that omitted them
+      // here would hash the same as its own text-only stub, and
+      // `selectStaleCardIds` would then treat a real content change (adding
+      // or editing a block) as invisible.
+      contentBlocks: { select: { side: true, type: true, text: true, assetId: true, position: true } },
+    },
   })
 
   const cards = limit !== undefined ? allCards.slice(0, limit) : allCards
@@ -279,7 +291,11 @@ async function main() {
 
     try {
       if (!dryRun) {
-        await persistAuthoring(card.id, outcome, AUTHOR_KLPS_PROMPT.version)
+        await persistAuthoring(card.id, outcome, AUTHOR_KLPS_PROMPT.version, {
+          term: card.term,
+          definition: card.definition,
+          blocks: card.contentBlocks,
+        })
       }
     } catch (err) {
       console.error(`${tag} — FAILED to persist: ${err instanceof Error ? err.message : String(err)}`)
