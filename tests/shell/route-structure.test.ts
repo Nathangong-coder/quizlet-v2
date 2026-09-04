@@ -65,6 +65,12 @@ const SHELLED_ROUTES = [
   'settings/ai/page.tsx',
   'settings/ai/[provider]/page.tsx',
   'settings/study/page.tsx',
+  'staff/page.tsx',
+  'staff/coverage/page.tsx',
+  'staff/klps/page.tsx',
+  'staff/learners/page.tsx',
+  'staff/learners/[id]/page.tsx',
+  'staff/roles/page.tsx',
   'help/page.tsx',
   'concepts/page.tsx',
 ]
