@@ -1,13 +1,10 @@
 import { RelationDraftSchema } from '@/lib/ai/schemas';
-import { DIRECTED_TYPES, SYMMETRIC_TYPES } from '@/lib/klp/relations';
+import { RELATABLE_TYPES } from '@/lib/klp/relations';
 
 export interface RelateKlpsBuildInput {
   question: string;
   klps: { text: string }[];
 }
-
-/** Every offered type except `analogous_to` — cross-card, not extracted here. */
-const OFFERED_TYPES = [...DIRECTED_TYPES, ...SYMMETRIC_TYPES.filter((t) => t !== 'analogous_to')];
 
 /**
  * Call D of the authoring pipeline: relations among the surviving KLPs of
@@ -28,6 +25,10 @@ const OFFERED_TYPES = [...DIRECTED_TYPES, ...SYMMETRIC_TYPES.filter((t) => t !==
  * `part_of` is NOT in this vocabulary at all — that is the concept tree
  * (`SetKltNode`), a different hierarchy. `analogous_to` IS a valid relation
  * type generally, but is cross-card and must never be emitted by this call.
+ * The prompt text below and `RelationDraftSchema` both read `RELATABLE_TYPES`
+ * — the same constant — so the offered list and the enforced list cannot
+ * drift apart. Prompt copy alone is not a defence against a model that
+ * ignores it; the schema is what actually rejects `analogous_to`.
  */
 export const RELATE_KLPS_PROMPT = {
   id: 'relate-klps',
@@ -56,7 +57,7 @@ For every candidate edge you consider, write a PROBE: an answer that gets BOTH e
 
 Prune hard. Seven KLPs have 21 possible pairs and perhaps four edges that matter. Only keep an edge where a learner could plausibly hold both endpoints and still miss the link.
 
-Offer only these relation types: ${OFFERED_TYPES.join(', ')}. Do not use any other type.
+Offer only these relation types: ${RELATABLE_TYPES.join(', ')}. Do not use any other type.
 
 Output JSON:
 { "relations": [ { "from": number, "to": number, "type": string, "provenance": "perturbation" | "order_violation" | "substitution", "rationale": string, "probe": string } ] }

@@ -4,6 +4,8 @@ import { GRADE_CANDIDATE_PROMPT } from '@/lib/ai/prompts/grade-candidate'
 import { RELATE_KLPS_PROMPT } from '@/lib/ai/prompts/relate-klps'
 import { AI_TASKS } from '@/lib/ai/model-routing'
 import { KLP_VERDICTS } from '@/lib/klp/verdicts'
+import { AuthorDraftSchema, RelationDraftSchema } from '@/lib/ai/schemas'
+import { PROBE_KINDS } from '@/lib/klp/authoring-config'
 
 describe('AI_TASKS', () => {
   it('has an author task, separate from grade', () => {
@@ -62,6 +64,29 @@ describe('GRADE_CANDIDATE_PROMPT', () => {
     expect(built).toContain('Uh, something goes down.')
     expect(built.toLowerCase()).not.toContain('candidate 2')
   })
+
+  /**
+   * Review Fix 1: `authorCard` grades the reference candidate too, in its
+   * own call, with `candidateAnswer === referenceAnswer`. Showing the
+   * reference block unconditionally would put the identical text in the
+   * prompt twice — once labelled "the strong reference answer" and once as
+   * "the candidate's answer" — pre-telling the grader the text is the gold
+   * standard before asking it to judge that same text. That breaks design
+   * §2's first condition (a KLP must genuinely PASS on the reference) and
+   * inflates `referenceScore` on every card.
+   */
+  it('omits the reference block when grading the reference itself, so its text appears exactly once', () => {
+    const same = 'EBIT falls 10...'
+    const selfGraded = GRADE_CANDIDATE_PROMPT.build({
+      question: 'Walk me through it',
+      referenceAnswer: same,
+      klps: [{ text: 'EBIT falls by the full 10' }],
+      candidateAnswer: same,
+    })
+    const occurrences = selfGraded.split(same).length - 1
+    expect(occurrences).toBe(1)
+    expect(selfGraded.toLowerCase()).not.toContain('reference answer')
+  })
 })
 
 describe('RELATE_KLPS_PROMPT', () => {
@@ -85,5 +110,88 @@ describe('RELATE_KLPS_PROMPT', () => {
 
   it('does not offer part_of — that is the concept tree', () => {
     expect(built).not.toContain('part_of')
+  })
+
+  /**
+   * Review Fix 3: `analogous_to` is a real member of the general relation
+   * vocabulary but is cross-card; this call only ever sees one card's KLPs.
+   * The prompt must not offer it, and `RelationDraftSchema` below is the
+   * actual enforcement — prompt copy alone is not a defence against a model
+   * that ignores it.
+   */
+  it('does not offer analogous_to — cross-card, not extracted here', () => {
+    expect(built).not.toContain('analogous_to')
+  })
+})
+
+describe('AuthorDraftSchema', () => {
+  const validKlps = [{ text: 'a', kind: 'mechanism' as const }]
+
+  const wrongAnswers = (kinds: readonly string[]) =>
+    kinds.map((kind, i) => ({ kind, text: `w${i}` }))
+
+  it('accepts exactly three wrong answers, one per archetype', () => {
+    const result = AuthorDraftSchema.safeParse({
+      referenceAnswer: 'ref',
+      klps: validKlps,
+      wrongAnswers: wrongAnswers(PROBE_KINDS),
+    })
+    expect(result.success).toBe(true)
+  })
+
+  /**
+   * Review Fix 6: `.min(1)` alone let a model return one adversary, and
+   * `computeSeparation` reads the BEST wrong answer — so a card with only
+   * one (easy) wrong answer silently loses most of its discrimination test.
+   */
+  it('rejects fewer than three wrong answers', () => {
+    const result = AuthorDraftSchema.safeParse({
+      referenceAnswer: 'ref',
+      klps: validKlps,
+      wrongAnswers: wrongAnswers(PROBE_KINDS.slice(0, 2)),
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects more than three wrong answers', () => {
+    const result = AuthorDraftSchema.safeParse({
+      referenceAnswer: 'ref',
+      klps: validKlps,
+      wrongAnswers: wrongAnswers([...PROBE_KINDS, 'vague']),
+    })
+    expect(result.success).toBe(false)
+  })
+
+  /**
+   * Three answers of the same archetype pass a bare `.length(3)` but are not
+   * the three-archetype design the prompt asks for — distinctness must be
+   * checked separately.
+   */
+  it('rejects three wrong answers of the same archetype', () => {
+    const result = AuthorDraftSchema.safeParse({
+      referenceAnswer: 'ref',
+      klps: validKlps,
+      wrongAnswers: wrongAnswers(['vague', 'vague', 'vague']),
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('RelationDraftSchema', () => {
+  const base = { from: 0, to: 1, provenance: 'substitution' as const, rationale: 'r', probe: 'p' }
+
+  it('accepts a relatable type', () => {
+    const result = RelationDraftSchema.safeParse({ relations: [{ ...base, type: 'confused_with' }] })
+    expect(result.success).toBe(true)
+  })
+
+  /**
+   * Review Fix 3: the schema is the actual enforcement that `analogous_to`
+   * — cross-card, not extracted by this call — never reaches persistence,
+   * regardless of what the prompt asked for.
+   */
+  it('rejects a draft containing analogous_to', () => {
+    const result = RelationDraftSchema.safeParse({ relations: [{ ...base, type: 'analogous_to' }] })
+    expect(result.success).toBe(false)
   })
 })

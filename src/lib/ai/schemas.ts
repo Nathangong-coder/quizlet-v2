@@ -4,7 +4,7 @@ import { DIMENSIONS, MAX_TAGS_PER_ANSWER } from '@/lib/errors/taxonomy';
 import { KLP_STATUSES } from '@/lib/errors/klp-credit';
 import { PROBE_KINDS, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
 import { KLP_VERDICTS } from '@/lib/klp/verdicts';
-import { RELATION_TYPES, RELATION_PROVENANCES } from '@/lib/klp/relations';
+import { RELATABLE_TYPES, RELATION_PROVENANCES } from '@/lib/klp/relations';
 
 export const MultipleChoiceOptionsSchema = z.object({
   options: z.array(z.string().min(1)).length(4),
@@ -342,10 +342,25 @@ export const AuthorDraftSchema = z.object({
     text: z.string().min(1),
     kind: z.enum(KLP_KINDS),
   })).min(1).max(MAX_KLPS_AUTHORED),
+  /**
+   * EXACTLY `PROBE_KINDS.length`, one per archetype, no duplicates. `.min(1)`
+   * alone (the original bound) let a model return one adversary, or three
+   * `vague` ones, and neither `computeSeparation` (which reads the BEST wrong
+   * answer) nor anything downstream would notice — a card silently loses
+   * most of its discrimination test with nothing flagging it. `.length()`
+   * pins the count; `.refine` pins distinctness, since three answers of the
+   * same kind pass `.length(3)` but still aren't the three-archetype design
+   * the prompt asks for.
+   */
   wrongAnswers: z.array(z.object({
     kind: z.enum(PROBE_KINDS),
     text: z.string().min(1),
-  })).min(1).max(PROBE_KINDS.length),
+  }))
+    .length(PROBE_KINDS.length)
+    .refine(
+      (arr) => new Set(arr.map((w) => w.kind)).size === arr.length,
+      { message: 'wrongAnswers must cover each archetype exactly once, with no duplicates' },
+    ),
 });
 
 export type AuthorDraft = z.infer<typeof AuthorDraftSchema>;
@@ -378,15 +393,22 @@ export type ReviseKlps = z.infer<typeof ReviseKlpsSchema>;
 /**
  * Call D's output. `from`/`to` are KLP INDEXES within the card, not ids —
  * the orchestrator maps them onto real `CardKlp` ids once they exist
- * (`persistAuthoring`). `analogous_to` is a valid vocabulary member but the
- * prompt built by `RELATE_KLPS_PROMPT` must never offer it — it is cross-card
- * and not extracted by this call.
+ * (`persistAuthoring`).
+ *
+ * `type` is bounded by `RELATABLE_TYPES`, NOT the full `RELATION_TYPES` —
+ * `analogous_to` is a real vocabulary member but is cross-card, and this
+ * call only ever sees one card's KLPs. Review finding: the prompt telling
+ * the model not to emit it was the ONLY defence before this bound existed;
+ * models ignore instructions routinely, and without a schema-level reject a
+ * stray `analogous_to` would sail through `canonicalizeEdges` (exempted from
+ * the cycle check as symmetric) and get persisted as a relation this spec
+ * explicitly promised not to create.
  */
 export const RelationDraftSchema = z.object({
   relations: z.array(z.object({
     from: z.number().int().min(0),
     to: z.number().int().min(0),
-    type: z.enum(RELATION_TYPES),
+    type: z.enum(RELATABLE_TYPES),
     provenance: z.enum(RELATION_PROVENANCES),
     rationale: z.string().min(1),
     probe: z.string().min(1),

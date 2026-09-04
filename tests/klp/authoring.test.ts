@@ -46,12 +46,21 @@ describe('authorCard', () => {
     expect(g.grade).toHaveBeenCalledTimes(4)
   })
 
-  /** The grader must never be told which archetype it is looking at. */
-  it('passes no probe kind into the grade call', async () => {
+  /**
+   * The grader must never be told which archetype it is looking at.
+   *
+   * Review finding (Fix 5): a blacklist of one key name
+   * (`not.toContain('kind')`) stays green if `GradeInput` grows a
+   * differently-named leak — `probeKind`, `archetype`, `candidateIndex` for
+   * logging — that a production generator could still interpolate into the
+   * prompt. Asserting the EXACT key set is the only form of this guard that
+   * actually catches an added field, whatever it's called.
+   */
+  it('passes exactly the isolated fields into the grade call — no probe kind, no other leak', async () => {
     const g = gen()
     await authorCard(card, g as never)
     for (const call of g.grade.mock.calls) {
-      expect(Object.keys(call[0])).not.toContain('kind')
+      expect(Object.keys(call[0]).sort()).toEqual(['candidateAnswer', 'klps', 'question', 'referenceAnswer'])
     }
   })
 
@@ -122,6 +131,14 @@ describe('authorCard', () => {
     expect(out.klps[2].weight).toBe(1)  // leaf
   })
 
+  /**
+   * The design requires dropping the SPECIFIC OFFENDER, not the whole batch.
+   * `toBeLessThan(2)` (the original assertion) is satisfied by 0 survivors
+   * too, which would also pass if `authorCard` dropped every edge the moment
+   * any cycle appeared — exactly the "whole batch" failure mode this
+   * behaviour exists to avoid. Pinning the exact survivor is what actually
+   * guards it.
+   */
   it('drops a relation that would create a cycle rather than persisting it', async () => {
     const g = gen({
       relate: vi.fn().mockResolvedValue({
@@ -132,7 +149,8 @@ describe('authorCard', () => {
       }),
     })
     const out = await authorCard(card, g as never)
-    expect(out.relations.length).toBeLessThan(2)
+    expect(out.relations).toHaveLength(1)
+    expect(out.relations[0]).toMatchObject({ from: 0, to: 1, type: 'causes' })
   })
 
   it('reports mechanical defects without failing the card', async () => {

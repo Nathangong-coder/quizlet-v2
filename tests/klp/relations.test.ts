@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  RELATION_TYPES, DIRECTED_TYPES, SYMMETRIC_TYPES, isRelationType,
+  RELATION_TYPES, DIRECTED_TYPES, SYMMETRIC_TYPES, RELATABLE_TYPES, isRelationType,
   canonicalizeEdges, findCycles, blastRadius, weightFromBlastRadius,
 } from '@/lib/klp/relations'
 
@@ -18,6 +18,18 @@ describe('the vocabulary', () => {
     expect(isRelationType('causes')).toBe(true)
     expect(isRelationType('contrasts')).toBe(false)
     expect(isRelationType(undefined)).toBe(false)
+  })
+
+  /**
+   * The authoring pipeline's relate call (Spec 2) is only allowed to emit
+   * this subset — `analogous_to` is cross-card. Pinned here so the two
+   * consumers (the prompt's offered-types list and `RelationDraftSchema`)
+   * cannot silently diverge from what this constant actually contains.
+   */
+  it('RELATABLE_TYPES is exactly RELATION_TYPES minus analogous_to', () => {
+    expect([...RELATABLE_TYPES].sort())
+      .toEqual(RELATION_TYPES.filter((t) => t !== 'analogous_to').sort())
+    expect(RELATABLE_TYPES).not.toContain('analogous_to')
   })
 })
 

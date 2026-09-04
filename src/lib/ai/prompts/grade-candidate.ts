@@ -28,6 +28,22 @@ export interface GradeCandidateBuildInput {
  * written to be wrong, never name an archetype, and never mention another
  * candidate — the grader's whole job is judging THIS answer against THESE
  * propositions, with no other context to lean on.
+ *
+ * ONE MORE CASE the isolation rule covers, found in review: grading the
+ * REFERENCE candidate. `authorCard` calls this with
+ * `candidateAnswer === referenceAnswer` once per card — the reference is
+ * graded like any other candidate, in its own call. If the reference block
+ * below were shown unconditionally, that call would contain the identical
+ * text twice: once labelled "the strong reference answer" and once as "the
+ * candidate's answer", which pre-tells the grader the text is the gold
+ * standard before asking it to judge that same text. It would mark
+ * everything "correct" by construction, `passesReference` (design §2's
+ * FIRST condition — the reference must genuinely support a KLP, or the KLP
+ * was hallucinated past its artifact) would never actually fail, and
+ * `referenceScore` — half of `separation` — would be inflated on every
+ * card. So the reference block is OMITTED entirely when the candidate being
+ * graded IS the reference; the KLPs are judged directly against the same
+ * text with no "here is the standard" framing to lean on.
  */
 export const GRADE_CANDIDATE_PROMPT = {
   id: 'grade-candidate',
@@ -36,15 +52,20 @@ export const GRADE_CANDIDATE_PROMPT = {
 
   build(input: GradeCandidateBuildInput): string {
     const klps = input.klps.map((k, i) => `[${i}] ${k.text}`).join('\n');
+    const gradingReferenceItself = input.candidateAnswer === input.referenceAnswer;
+
+    const referenceBlock = gradingReferenceItself
+      ? ''
+      : `A strong reference answer, for context on what a complete response looks like (do not compare the candidate's WORDING against it — judge only whether the candidate's OWN claims satisfy each KLP below):
+${input.referenceAnswer}
+
+`;
 
     return `You are grading a candidate's answer to one interview question against a fixed list of Key Learning Points (KLPs). Judge only what this answer itself claims — you have no information about how it was produced.
 
 Question: ${input.question}
 
-A strong reference answer, for context on what a complete response looks like (do not compare the candidate's WORDING against it — judge only whether the candidate's OWN claims satisfy each KLP below):
-${input.referenceAnswer}
-
-Key Learning Points:
+${referenceBlock}Key Learning Points:
 ${klps}
 
 Candidate's answer:

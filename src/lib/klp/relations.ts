@@ -17,6 +17,22 @@ export function isRelationType(value: unknown): value is RelationType {
   return typeof value === 'string' && (RELATION_TYPES as readonly string[]).includes(value)
 }
 
+/**
+ * `RELATION_TYPES` minus `analogous_to`: the subset the authoring pipeline's
+ * relate call (`RELATE_KLPS_PROMPT`, Spec 2) is allowed to emit.
+ * `analogous_to` is a real member of the general vocabulary — it is
+ * CROSS-CARD, and this spec's relate call only ever sees the KLPs of ONE
+ * card, so it has no business producing it. Defined ONCE, here, and
+ * consumed by both the prompt (`relate-klps.ts`, so the offered-types list
+ * in its own text) and the schema that validates the model's response
+ * (`RelationDraftSchema` in `src/lib/ai/schemas.ts`) — a single source
+ * rather than two independently-maintained filters that could drift apart,
+ * which review found: the prompt telling the model not to emit
+ * `analogous_to` was the ONLY thing stopping it before this fix, and models
+ * ignore instructions routinely.
+ */
+export const RELATABLE_TYPES = [...DIRECTED_TYPES, 'confused_with'] as const
+
 export const RELATION_PROVENANCES = ['perturbation', 'order_violation', 'substitution'] as const
 export type RelationProvenance = (typeof RELATION_PROVENANCES)[number]
 

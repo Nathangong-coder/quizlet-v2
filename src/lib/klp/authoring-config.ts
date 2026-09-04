@@ -56,8 +56,18 @@ export const MAX_KLPS_AUTHORED = 9
  * comparison. That manufactures separation the KLPs never earned, and the
  * score would report success exactly when it was measuring nothing.
  *
- * Flipping this to false roughly halves authoring spend and costs that
- * guarantee. It exists as a constant so the trade is deliberate and visible.
+ * FALSE is NOT a cheaper batched mode — this spec does not build one, and
+ * flipping this constant does not change spend. `GRADE_CANDIDATE_PROMPT`
+ * (`src/lib/ai/prompts/grade-candidate.ts`) is deliberately single-candidate
+ * only: a prompt that accepted several answers at once would reintroduce the
+ * exact ranking risk described above, which is the whole reason isolation
+ * exists. `src/lib/klp/authoring.ts`'s `gradeAllCandidates` still issues one
+ * `grade` call per candidate when this is false — the only difference is
+ * that the calls fire concurrently (`Promise.all`) instead of being run as
+ * an ordered isolation boundary. This constant is kept only as the visible,
+ * named toggle the design calls for; it is not exercised by any test, and a
+ * future batched-cost mode would need a new prompt and schema, not a flip of
+ * this flag.
  */
 export const GRADE_CANDIDATES_SEPARATELY = true
 
