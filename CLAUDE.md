@@ -47,6 +47,16 @@ A redesigned Quizlet-style study app with first-class **short-answer** practice 
   compared on every session resolution and bumped on password change **and on reset**; without it
   a password change is theatre. Accounts are required for starring/confidence memory, saved quiz
   history, and (later) multiplayer.
+
+  **Roles (Spec 1, 2026-09-03).** `User.role` (`learner | staff | admin`, vocabulary in
+  `src/lib/auth/roles.ts`) replaced the `KLT_EDITORS` env allowlist. It is resolved on every
+  session by the primary-key lookup `jwtCallback` already makes for `sessionVersion` — never
+  stored as a JWT claim, which would leave a revoked admin admin until their token expired.
+  Pure predicates (`isStaff`/`isAdmin`, Prisma-free, client-importable) are separate from the
+  async gates (`requireStaff`/`requireAdmin` in `src/lib/staff/access.ts`); only gates
+  authorize. Bootstrap and recovery are `npm run grant-role` — the migration deliberately does
+  not read the old env var, because `prisma migrate deploy` runs inside `npm run build` where
+  it may be absent, and a silent no-op grant locks the operator out.
 - **AI access:** Each user stores their own AI provider credentials (`AiCredential`, many per user) in settings; all AI calls on their behalf run against those credentials. See "AI integration" below.
 - **Multiplayer:** Single-player first; live vs-friends matching is a later add-on (Supabase Realtime or WebSockets when built).
 

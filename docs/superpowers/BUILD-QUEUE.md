@@ -74,7 +74,9 @@ material; **G7** extraction quality is a hard ceiling on diagnostic resolution (
 be wrong in ways the KLP list permits; the corpus shows both duplicates and un-judgeable run-ons);
 **G8** the diagnostic-mode guess rate above; **G9** no follow-up, so `partial` cannot distinguish
 "knows it, said it badly" from "half-knows it"; **G10** no `User.role` at all — `KLT_EDITORS` is an
-env var of user IDs, so granting access requires a redeploy.
+env var of user IDs, so granting access requires a redeploy. **G10 CLOSED 2026-09-03 by Spec 1** —
+`User.role` (`learner | staff | admin`) plus the `RoleGrant` audit table and `npm run grant-role`
+replaced the env allowlist; see the build-order entry above and `CLAUDE.md`'s Roles paragraph.
 
 **Load-bearing things a rework must NOT break:** MC as a zero-cost diagnostic via distractor
 provenance; the closed error vocabulary; never defaulting a tag into existence; `analysisStatus`
@@ -253,13 +255,18 @@ win.
 building is good or not." Everything after it is inspectable rather than taken on faith, and the
 engine rebuild ships against a pilot set reviewed in that view before it touches the corpus.
 
-1. **Spec 1 — Visibility: staff view, roles, grant dashboard.** A real `User.role` plus a grant
-   table replacing the `KLT_EDITORS` env var, so access is assignable from a dashboard instead of a
-   redeploy. Every KLP with weight and posterior; per-learner verdicts and tags; **the concept
-   ladder expanded to every generated topic rather than just the roots** (the user reports
-   `/concepts` shows only e.g. DCF and accounting with no dropdown for generated sub-topics).
-   **Build against the TARGET schema with empty states for relations and verdicts**, so Specs 2 and
-   3 light up panels that already exist instead of forcing a rebuild. **Closes G10.**
+1. **Spec 1 — Visibility: staff view, roles, grant dashboard. ✅ BUILT 2026-09-03.** A real
+   `User.role` plus a grant table replacing the `KLT_EDITORS` env var, so access is assignable from
+   a dashboard instead of a redeploy. Every KLP with weight and posterior; per-learner verdicts and
+   tags; **the concept ladder expanded to every generated topic rather than just the roots** (the
+   user reports `/concepts` shows only e.g. DCF and accounting with no dropdown for generated
+   sub-topics). **Build against the TARGET schema with empty states for relations and verdicts**, so
+   Specs 2 and 3 light up panels that already exist instead of forcing a rebuild. **Closes G10.**
+   **`/staff/coverage` also shipped** — optional in the design, built anyway at the owner's explicit
+   call. Full suite 213 files / 2580 tests, `tsc --noEmit` clean, lint below the standing ceiling;
+   see Task 18's report. Live browser verification and the `requireStaff` mutation test are
+   **deferred** pending the repository owner running `npm run grant-role` to grant themselves a
+   role — see `.superpowers/sdd/2026-09-03-staff-visibility/task-18-report.md`.
 2. **Spec 2 — KLP engine: discrimination-tested authoring.** The seven-step pipeline above.
    Relation extraction rides along as step 6 so **the corpus is only ever walked once**. Weight
    becomes blast radius. The seven-label vocabulary lands here as a shared module (the
@@ -272,7 +279,8 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
    edge is never confused with an observed one. **Acyclicity enforced on write** — an AI will
    happily emit X→Y and Y→X across two calls, and `src/lib/klt/invariants.ts` was needed for a
    strictly easier invariant. DAG rendered in the staff view. **Closes half of G9; largely absorbs
-   item 13.**
+   item 13.** `/staff/klps` (Spec 1) already has a `Relations` column, shipped empty and rendering
+   an em dash (`src/components/staff/KlpTable.tsx`) — fill it, don't add a new one.
 4. **Spec 4 — Coverage: full corpus walk, permanent self-healing.** Only once the pipeline is proven
    on the pilot. Extraction stops being demand-driven; all 166 pending filled and the 124 existing
    re-authored. **Take the window while only 5 `KlpState` rows exist.** Background claim loop holds
@@ -281,6 +289,9 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
    `STATUS_CREDIT` gains the new members mapping to the same three credit values; BKT untouched.
    **`AnswerErrorTag` is deliberately LEFT ALONE — no communication split.** Small and low-risk
    precisely because it moves no table; the `CORRUPTIONS` subset test keeps passing unchanged.
+   `/staff/klps` (Spec 1) already has a status-agnostic `Verdicts` column — it reads whatever
+   statuses actually exist rather than a hardcoded three, so the widening to 13 labels needs no
+   change there.
 6. **Spec 6 — Self-rated confidence capture.** One tap before the answer is revealed. Changes no
    formula, blocks nothing, nothing blocks it — **pull it forward into any gap.** Every week it
    waits is a week of history that can never be calibrated. **Closes G3.**
@@ -1189,7 +1200,10 @@ and 200 when allowlisted — the load-bearing check, since a gate that opens on 
 gate. Tree renders indented with per-row link/child counts; Delete is disabled with a visible reason
 on a node with children. 91 concepts, 0 invariant violations, `KlpState` byte-identical.
 
-**To use it:** set `KLT_EDITORS` to the user id that owns your sets — NOT the seeded `dev_user`.
+**To use it (superseded 2026-09-03 by Spec 1):** at the time this shipped, set `KLT_EDITORS` to the
+user id that owns your sets — NOT the seeded `dev_user`. `KLT_EDITORS` no longer exists; `/concepts`
+is now gated by `requireAdmin` (`src/lib/staff/access.ts`). Grant yourself the admin role with
+`npm run grant-role` instead.
 
 **Two deliberate deviations from spec §5.1/§9:** "Move under" is a `<select>`, not drag-and-drop
 (equivalent in function, keyboard-accessible, testable); and merge's confirm is an inline block rather
@@ -1224,7 +1238,8 @@ point at `Klt` and wrongly permit a parent with no node in this set; `checkTreeI
 `parent_not_in_set` kind is the only enforcement.
 
 **What shipped:** two editors over one table — `/sets/[id]/concepts` (owner-gated) and `/concepts`
-(`KLT_EDITORS`, spans every set, picks a set first). **Every edit affects exactly one set, admin
+(`KLT_EDITORS` at the time, spans every set, picks a set first — `KLT_EDITORS` was replaced by the
+admin role on 2026-09-03, Spec 1; `/concepts` is now gated by `requireAdmin`). **Every edit affects exactly one set, admin
 included** — the admin view differs in what it can REACH, never in what an edit DOES. Plus
 `createConcept` (manual base nodes — the half of "seed the top" that had never existed; only the AI
 could create a node before), a "Place under…" control on unplaced concepts, an empty-structure panel
@@ -1360,7 +1375,8 @@ structure in either place).
 3. `npm run verify:klt` — exits 0 only if `KlpState` is IDENTICAL, invariants are clean per set, and
    every set with linked concepts has structure
 4. Live gate: `/sets/[id]/concepts` renders for the owner and 404s for a stranger; `/concepts` 404s
-   with `KLT_EDITORS` unset; **a re-parent in set A leaves set B untouched — the load-bearing check
+   for a signed-in non-admin (superseded 2026-09-03 — `KLT_EDITORS` no longer exists, the gate is
+   now `requireAdmin`); **a re-parent in set A leaves set B untouched — the load-bearing check
    of this whole change**; mastery unchanged after an edit
 5. The contraction migration dropping the three deprecated `Klt` columns + the `KltTree` relation
 
@@ -1554,7 +1570,8 @@ the same failure Spec 2a refuses when it rules that degradation must never fabri
   root-first paths of concept **names, not ids**, precisely so a preset survives being applied to a
   set whose concepts do not exist yet. A shareable misconception library needs the same
   name-keyed-not-id-keyed property for the same reason.
-- **"A separate view for the customizable stuff."** Today `/concepts` (behind `KLT_EDITORS`) owns
+- **"A separate view for the customizable stuff."** Today `/concepts` (admin-gated via
+  `requireAdmin`, `KLT_EDITORS` having been replaced 2026-09-03 by Spec 1) owns
   the concept tree and set sharing owns flashcards; there is no home for "the things I have tuned".
   This view would hold the concept tree, the misconception library, and plausibly `LearnerTuning`
   and the saved study scope. Requested as a **list view**, not the drag-and-drop canvas.
