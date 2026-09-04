@@ -1,6 +1,8 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-09-03 (**third update same day.** The user added the full edge-type set, promoted the accuracy types into per-KLP verdict labels, **DEFERRED the communication split entirely** ("basically pretend I didn't say it"), and specified **insight generation + matched learning plans** — recorded at the END of the queue as the payoff layer. Design of record is "The KLP engine rebuild" below; build order is the eight-spec cut with **visibility FIRST**. Also today: the `codex` branch reconciled after 6 days of drift, and the engine audit recorded as gaps G1-G10)
+**Last updated:** 2026-09-04 (Spec 2's code — the discrimination-tested authoring pipeline, Tasks 1-12 of `.superpowers/sdd/2026-09-04-klp-authoring-pipeline/` — is built, unit-tested, and wired into `/staff/klps`. Its required pilot run on the LBO set is **not** done: two full foreground runs both failed every card on Google API free-tier quota exhaustion before producing a single KLP. G1 and G7 stay open pending a pilot that actually runs. See the Spec 2 build-order entry and the caveats on G1/G7 below.)
+
+**Last updated (previous):** 2026-09-03 (**third update same day.** The user added the full edge-type set, promoted the accuracy types into per-KLP verdict labels, **DEFERRED the communication split entirely** ("basically pretend I didn't say it"), and specified **insight generation + matched learning plans** — recorded at the END of the queue as the payoff layer. Design of record is "The KLP engine rebuild" below; build order is the eight-spec cut with **visibility FIRST**. Also today: the `codex` branch reconciled after 6 days of drift, and the engine audit recorded as gaps G1-G10)
 **Read this first** before starting any Stage 8 work. The order below is not derivable from spec filenames or dates.
 
 This file is the canonical queue. A Claude-Code memory (`build-queue.md`) mirrors it, but **this file wins** — it is in the repo and readable by any tool.
@@ -50,7 +52,11 @@ Three findings are arithmetic, not opinion:
   error can score below 5. No conciseness error can score above 7.** The bands are nearly disjoint,
   so `significance` largely encodes *which dimension the error was* rather than how bad it was —
   and severity, the only genuinely per-answer AI judgment, moves it by at most four points while
-  `dimWeight` sets the band it lands in.
+  `dimWeight` sets the band it lands in. **G1: the fix (computed blast-radius weight, Spec 2) is
+  BUILT and unit-tested as of 2026-09-04, but NOT CLOSED — unverified.** The LBO pilot that would
+  produce a real weight histogram to check the spread against failed entirely (Google API quota
+  exhaustion, 0 cards authored across two full foreground runs); see the Spec 2 build-order entry
+  below. Do not treat G1 as closed until a pilot actually authors cards and the histogram is read.
 - **G2 — 57% of the library cannot be diagnosed.** 166 of 291 cards are `klpStatus: 'pending'`
   with a **null source hash — never attempted, zero failures**. `selectRefreshableStaleCardIds`
   deliberately excludes never-extracted cards from the edit path, so extraction is demand-driven
@@ -71,7 +77,10 @@ never reconcile (card grain: 10-event window at `0.8^i`; KLP grain: full-history
 `computeArticulation` is exactly the right shape but applies to that ONE tag type, so `rambling`
 and `kitchen_sink` are booked as writing failures even when the learner plainly does not know the
 material; **G7** extraction quality is a hard ceiling on diagnostic resolution (a learner can only
-be wrong in ways the KLP list permits; the corpus shows both duplicates and un-judgeable run-ons);
+be wrong in ways the KLP list permits; the corpus shows both duplicates and un-judgeable run-ons)
+— **the discrimination-tested pipeline that fixes this (Spec 2) is BUILT and unit-tested as of
+2026-09-04, but NOT CLOSED**, same caveat as G1: the LBO pilot has not yet successfully authored a
+single card, so no live evidence of improved extraction quality exists yet;
 **G8** the diagnostic-mode guess rate above; **G9** no follow-up, so `partial` cannot distinguish
 "knows it, said it badly" from "half-knows it"; **G10** no `User.role` at all — `KLT_EDITORS` is an
 env var of user IDs, so granting access requires a redeploy. **G10 CLOSED 2026-09-03 by Spec 1** —
@@ -267,12 +276,41 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
    see Task 18's report. Live browser verification and the `requireStaff` mutation test are
    **deferred** pending the repository owner running `npm run grant-role` to grant themselves a
    role — see `.superpowers/sdd/2026-09-03-staff-visibility/task-18-report.md`.
-2. **Spec 2 — KLP engine: discrimination-tested authoring.** The seven-step pipeline above.
-   Relation extraction rides along as step 6 so **the corpus is only ever walked once**. Weight
-   becomes blast radius. The seven-label vocabulary lands here as a shared module (the
-   `CARD_KLP_STATUSES` / `AI_TASKS` pattern) and is used by the authoring grader immediately.
-   **Ships against a PILOT SET only**, reviewed in Spec 1's view before going near the other 290
-   cards. **Absorbs item 10. Closes G1, G7.**
+2. **Spec 2 — KLP engine: discrimination-tested authoring. ✅ CODE BUILT 2026-09-04, PILOT
+   BLOCKED — see below.** The seven-step pipeline: draft a reference answer + KLPs + three
+   adversary candidates (`confident_wrong`, `vague`, `memorized_template`); grade every candidate
+   in an ISOLATED call against the current KLPs (`GRADE_CANDIDATES_SEPARATELY` — a grader shown all
+   four at once ranks them against each other and manufactures separation); compute a separation
+   score in TypeScript (`src/lib/klp/separation.ts`), never an AI opinion; revise and re-grade up to
+   `MAX_REVISIONS` (2) times; persist even a card that still won't separate, flagged
+   `low_discrimination` rather than retried silently; weight from computed blast radius
+   (`weightFromBlastRadius`, relation edges surviving cycle/out-of-range pruning) rather than an AI
+   centrality rating. Relation extraction rides along as step 6 so **the corpus is only ever walked
+   once**. `/staff/klps` gained a Separation column (Task 12) joining each `CardKlp` to its most
+   recent `CardAuthoring` row by `(cardId, klpVersion)` — an em dash for a legacy KLP with no
+   authoring run (never `0.00`, same convention as `meanPKnown`), and a visible `low discrimination`
+   flag rather than a silently-equivalent score. Full suite 223 files / 2687 tests, 0 failures;
+   `tsc --noEmit` clean; lint 164 (ceiling 175). **Absorbs item 10.**
+
+   **The pilot did not run.** `npm run author-klps -- --set cmtj7pxfc000005l4rv4krxxy --direct`
+   (the 10-card LBO set) was run twice, in the foreground, to completion (exit code 0 both times).
+   **Every single card failed on every single attempt** with
+   `AI_APICallError: quota exceeded — generativelanguage.googleapis.com/generate_content_free_tier_requests`
+   (reported limit 20, dropping to 5 partway through the second run), starting on card 1's very
+   first call — not a mid-run rate limit, a block that held for the entire duration of both runs.
+   Result, both times: **0 cards authored, 0 KLPs, 0 relations, 0 `CardAuthoring` rows** (verified
+   directly against the database, not just the script's own summary line, which reports "mean
+   separation 0.00" as its no-data floor — the same null-vs-zero distinction Task 12 just encoded in
+   the staff view, so read that 0.00 as "no runs succeeded," not "runs succeeded with zero
+   separation"). **No weight histogram exists, because no authoring outcome exists.** `--direct`
+   uses a single `GOOGLE_API_KEY` on (evidently) the Gemini free tier with no pacing between calls;
+   one card alone costs roughly 1 (author) + ~4 (isolated grades, one per candidate) + up to 2
+   revision rounds' worth of re-grades + 1 (relate) ≈ 6-10 calls fired back to back, which a 5-20
+   req/min free tier cannot survive even once, let alone across 10 cards run without delay. Before
+   the acceptance run on `Accounting - Knowledge` — or before treating G1/G7 as closed — either
+   raise that key's quota tier or add inter-call pacing/backoff to the `--direct` path, then re-run
+   this exact pilot and read the real histogram in `/staff/klps`. **Does NOT close G1 or G7 yet** —
+   see the caveats added next to each finding above.
 3. **Spec 3 — Relations: probes, verdicts, DAG.** Relations as their own item type; probes served
    after the main answer, templated on the learner's own words, fired only where both endpoints
    came back correct, capped at 2-3 per question. Verdicts stored **with provenance** so a predicted
