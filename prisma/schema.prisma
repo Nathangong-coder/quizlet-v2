@@ -53,6 +53,19 @@ model User {
   /// `handle`; `checkHandle` returns both so a caller cannot persist one alone.
   normalizedHandle String? @unique
 
+  /// Install-wide capability. Vocabulary: USER_ROLES in src/lib/auth/roles.ts
+  /// (learner|staff|admin). Import that const rather than writing a literal —
+  /// this is a String column, so a typo compiles and never matches.
+  ///
+  /// Read on EVERY session resolution by jwtCallback, which already performs
+  /// this primary-key lookup for sessionVersion. Deliberately NOT a JWT claim:
+  /// a claim is written at sign-in and lives until the token expires, so
+  /// revoking staff would leave the person staff for days — the exact failure
+  /// sessionVersion exists to prevent, reintroduced one field over.
+  role             String  @default("learner")
+  roleGrants       RoleGrant[] @relation("RoleGrantSubject")
+  rolesGranted     RoleGrant[] @relation("RoleGrantActor")
+
   /// Optional "write to me here" address, separate from `email` above.
   /// Separate BECAUSE it is safe to change: a contact address cannot be used to
   /// take over an account, so it needs no verification round trip to be edited.
@@ -117,6 +130,28 @@ model User {
   feedback         Feedback[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+}
+
+/// How a User.role got to be what it is.
+///
+/// `User.role` is the live answer; this is the history. "Who made this person
+/// staff, and when" is the first question asked when something goes wrong, and
+/// it is unrecoverable if not written at the time.
+///
+/// `grantedById` is nullable with SetNull: a grant made by the CLI has no
+/// actor, and deleting the granter must not delete the record of the grant.
+/// Revocation writes `revokedAt` and updates User.role. Rows are never deleted.
+model RoleGrant {
+  id          String    @id @default(cuid())
+  userId      String
+  role        String
+  grantedById String?
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+  user        User      @relation("RoleGrantSubject", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy   User?     @relation("RoleGrantActor", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
 }
 
 /// A message someone sent through /help.
