@@ -10,6 +10,14 @@ import { GRADE_CANDIDATE_PROMPT } from '../src/lib/ai/prompts/grade-candidate'
 import { REVISE_KLPS_PROMPT } from '../src/lib/ai/prompts/revise-klps'
 import { RELATE_KLPS_PROMPT } from '../src/lib/ai/prompts/relate-klps'
 import type { CardKlpStatus } from '../src/lib/cards/klp-status'
+import {
+  Pacer,
+  RunHaltedError,
+  callWithPacingAndRetry,
+  realClock,
+  rpmToIntervalMs,
+  DEFAULT_RPM,
+} from '../src/lib/klp/authoring-pacing'
 
 /**
  * Runs the full KLP authoring pipeline (`src/lib/klp/authoring.ts`) against
@@ -81,18 +89,44 @@ function defaultGenerator(userId: string): AuthoringGenerator {
  *
  * Same rename seam as `defaultGenerator`: `input.question` maps onto
  * `AuthorKlpsBuildInput.term` for Call A only.
+ *
+ * Pacing and retry-honoring (`src/lib/klp/authoring-pacing.ts`) live here,
+ * not in `defaultGenerator` — the credential pool already has its own
+ * rotation/failover in `src/lib/ai/generate.ts`, and this path is the one
+ * that failed on every card of the pilot with no pacing at all. ONE `Pacer`
+ * is created per `directGenerator()` call (i.e. per script run) and shared
+ * across every `author`/`grade`/`revise`/`relate` call it makes, so the
+ * minimum spacing applies WITHIN a card's 6-16 calls, not just between
+ * cards — that's where the pilot's burst actually was.
  */
-function directGenerator(): AuthoringGenerator {
+function directGenerator(rpm: number): AuthoringGenerator {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) throw new Error('--direct needs GOOGLE_API_KEY in the environment')
   const google = createGoogle({ apiKey })
   const model = process.env.KLP_DIRECT_MODEL ?? 'gemini-3.6-flash'
 
+  const pacer = new Pacer(rpmToIntervalMs(rpm), realClock, (waitMs) => {
+    console.log(`[author-klps] pacing — waiting ${(waitMs / 1000).toFixed(1)}s to stay under ${rpm} req/min`)
+  })
+
   // generateObject does not exist in AI SDK v7; structured output is
   // generateText + Output.object.
   async function call<T>(prompt: string, schema: z.ZodSchema<T>): Promise<T> {
-    const res = await generateText({ model: google(model), prompt, output: Output.object({ schema }) })
-    return res.output
+    return callWithPacingAndRetry(
+      async () => {
+        const res = await generateText({ model: google(model), prompt, output: Output.object({ schema }) })
+        return res.output
+      },
+      {
+        pacer,
+        clock: realClock,
+        onRetryWait: ({ attempt, waitMs, kind }) =>
+          console.log(
+            `[author-klps] ${kind} — retry ${attempt}, waiting ${(waitMs / 1000).toFixed(1)}s ` +
+              `(honoring the provider's own hint when it gave one)`,
+          ),
+      },
+    )
   }
 
   return {
@@ -206,8 +240,19 @@ async function main() {
   const limitRaw = opt(args, '--limit')
   const limit = limitRaw !== undefined ? Number.parseInt(limitRaw, 10) : undefined
 
+  const rpmRaw = opt(args, '--rpm')
+  const rpm = rpmRaw !== undefined ? Number.parseInt(rpmRaw, 10) : DEFAULT_RPM
+  if (!Number.isFinite(rpm) || rpm <= 0) {
+    console.error(`[author-klps] --rpm must be a positive number, got ${JSON.stringify(rpmRaw)}`)
+    process.exitCode = 1
+    return
+  }
+
   if (direct) {
-    console.log('[author-klps] --direct: using GOOGLE_API_KEY, bypassing stored credentials')
+    console.log(
+      `[author-klps] --direct: using GOOGLE_API_KEY, bypassing stored credentials ` +
+        `(pacing at ${rpm} req/min, min ${(rpmToIntervalMs(rpm) / 1000).toFixed(2)}s between calls)`,
+    )
   }
   if (dryRun) {
     console.log('[author-klps] --dry-run: pipeline will run, nothing will be written')
@@ -245,7 +290,7 @@ async function main() {
   const cards = limit !== undefined ? allCards.slice(0, limit) : allCards
   const total = cards.length
 
-  const gen = direct ? directGenerator() : defaultGenerator(set.userId)
+  const gen = direct ? directGenerator(rpm) : defaultGenerator(set.userId)
 
   const stats: RunStats = { authored: 0, lowDiscrimination: 0, totalKlps: 0, totalRelations: 0, separationSum: 0 }
 
@@ -286,6 +331,19 @@ async function main() {
         gen,
       )
     } catch (err) {
+      // A rate-limit/quota halt is NOT a card failure — the card is left
+      // completely untouched (never marked `klpStatus: 'failed'`), and the
+      // whole run stops here so the next invocation of the same command
+      // retries this exact card instead of skipping it (REQUIREMENTS 3 & 4,
+      // and the "must stay resumable" constraint).
+      if (err instanceof RunHaltedError) {
+        console.error(`\n[author-klps] STOPPING RUN — ${err.message}`)
+        console.error(
+          `[author-klps] ${stats.authored}/${total} card(s) completed before stopping. ` +
+            `Re-run the same command to resume — already-authored cards are skipped automatically.`,
+        )
+        break
+      }
       console.error(`${tag} — FAILED: ${err instanceof Error ? err.message : String(err)}`)
       if (!dryRun) await markCardFailed(card.id, err)
       continue
