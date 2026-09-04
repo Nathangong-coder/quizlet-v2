@@ -36,7 +36,8 @@ import ts from 'typescript'
 const GATE_PATTERNS = [
   /requireSetKltAccess\s*\(/,
   /isCallerKltAdmin\s*\(\s*\)/,
-  /isKltEditor\s*\(/,
+  /requireAdmin\s*\(/,
+  /requireStaff\s*\(/,
 ]
 
 /**
@@ -124,7 +125,7 @@ function checkFile(fileName: string, text: string): Violation[] {
         violations.push({
           file: fileName,
           name,
-          reason: 'calls no known access gate (requireSetKltAccess / isCallerKltAdmin / isKltEditor, or requireSetKltView on a read-allowlisted export) and is not on the explicit allowlist',
+          reason: 'calls no known access gate (requireSetKltAccess / isCallerKltAdmin / requireAdmin / requireStaff, or requireSetKltView on a read-allowlisted export) and is not on the explicit allowlist',
         })
       }
       continue

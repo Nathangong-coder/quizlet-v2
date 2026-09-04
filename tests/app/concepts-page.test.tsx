@@ -21,38 +21,37 @@ import ConceptsPage from '@/app/(app)/concepts/page'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  delete process.env.KLT_EDITORS
   h.setFindMany.mockResolvedValue([])
 })
 afterEach(cleanup)
 
 describe('/concepts (admin picker)', () => {
-  it('calls notFound() — a real 404 — for a signed-in non-editor, never a redirect or a message', async () => {
-    h.auth.mockResolvedValue({ user: { id: 'someone' } })
-    process.env.KLT_EDITORS = 'someone-else'
-
+  it('calls notFound() for a signed-in learner', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'someone', role: 'learner' } })
     await expect(ConceptsPage()).rejects.toThrow('NEXT_NOT_FOUND')
     expect(h.notFound).toHaveBeenCalledTimes(1)
     expect(h.setFindMany).not.toHaveBeenCalled()
   })
 
+  it('calls notFound() for staff — reading the engine is not editing structure', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'someone', role: 'staff' } })
+    await expect(ConceptsPage()).rejects.toThrow('NEXT_NOT_FOUND')
+  })
+
   it('calls notFound() for a signed-out visitor', async () => {
     h.auth.mockResolvedValue(null)
-    process.env.KLT_EDITORS = 'anyone'
 
     await expect(ConceptsPage()).rejects.toThrow('NEXT_NOT_FOUND')
   })
 
-  it('calls notFound() when KLT_EDITORS is unset, even for a real user', async () => {
+  it('calls notFound() for a signed-in user with no recognised role', async () => {
     h.auth.mockResolvedValue({ user: { id: 'someone' } })
-    // KLT_EDITORS deliberately left unset by beforeEach's delete.
 
     await expect(ConceptsPage()).rejects.toThrow('NEXT_NOT_FOUND')
   })
 
   it('lists sets, each linking to that set’s own /sets/[id]/concepts editor — the SAME editor an owner uses', async () => {
-    h.auth.mockResolvedValue({ user: { id: 'editor-1' } })
-    process.env.KLT_EDITORS = 'editor-1'
+    h.auth.mockResolvedValue({ user: { id: 'editor-1', role: 'admin' } })
     h.setFindMany.mockResolvedValue([
       {
         id: 'set-a',

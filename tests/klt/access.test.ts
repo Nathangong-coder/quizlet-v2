@@ -26,7 +26,6 @@ const SET_ID = 'set-1'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  process.env.KLT_EDITORS = ADMIN
 })
 
 describe('requireSetKltAccess', () => {
@@ -36,7 +35,7 @@ describe('requireSetKltAccess', () => {
 
     const access = await requireSetKltAccess(SET_ID)
 
-    expect(access).toEqual({ userId: OWNER, setId: SET_ID, setTitle: 'Finance 101', viaAllowlist: false })
+    expect(access).toEqual({ userId: OWNER, setId: SET_ID, setTitle: 'Finance 101', viaRole: false })
     expect(h.setFindFirst).toHaveBeenCalledWith({
       where: { id: SET_ID, userId: OWNER },
       select: { id: true, title: true },
@@ -59,8 +58,8 @@ describe('requireSetKltAccess', () => {
     })
   })
 
-  it('refuses a nonexistent set even for the operator allowlist', async () => {
-    h.auth.mockResolvedValue({ user: { id: ADMIN } })
+  it('refuses a nonexistent set even for an admin', async () => {
+    h.auth.mockResolvedValue({ user: { id: ADMIN, role: 'admin' } })
     h.setFindFirst.mockResolvedValue(null)
 
     const access = await requireSetKltAccess('does-not-exist')
@@ -77,8 +76,8 @@ describe('requireSetKltAccess', () => {
     expect(h.setFindFirst).not.toHaveBeenCalled()
   })
 
-  it('admits an allowlisted operator who does not own the set, querying by id alone (no userId filter)', async () => {
-    h.auth.mockResolvedValue({ user: { id: ADMIN } })
+  it('admits an admin who does not own the set, querying by id alone (no userId filter)', async () => {
+    h.auth.mockResolvedValue({ user: { id: ADMIN, role: 'admin' } })
     h.setFindFirst.mockResolvedValue({ id: SET_ID, title: 'Someone Else’s Deck' })
 
     const access = await requireSetKltAccess(SET_ID)
@@ -87,7 +86,7 @@ describe('requireSetKltAccess', () => {
       userId: ADMIN,
       setId: SET_ID,
       setTitle: 'Someone Else’s Deck',
-      viaAllowlist: true,
+      viaRole: true,
     })
     // The operator's query is NOT scoped by userId — that is what makes it
     // reach a set owned by someone else at all.
@@ -126,7 +125,7 @@ describe('requireSetKltView', () => {
       setId: SET_ID,
       setTitle: 'Finance 101',
       canEdit: false,
-      viaAllowlist: false,
+      viaRole: false,
     })
     expect(h.setFindFirst).toHaveBeenCalledWith({
       where: { id: SET_ID, ...readableSetWhere(STRANGER) },
@@ -169,7 +168,7 @@ describe('requireSetKltView', () => {
   })
 
   it('reports canEdit for an operator on a set they do not own, unscoped by the read fragment', async () => {
-    h.auth.mockResolvedValue({ user: { id: ADMIN } })
+    h.auth.mockResolvedValue({ user: { id: ADMIN, role: 'admin' } })
     h.setFindFirst.mockResolvedValue({ id: SET_ID, title: 'Someone Else’s Deck', userId: OWNER })
 
     const view = await requireSetKltView(SET_ID)
@@ -179,7 +178,7 @@ describe('requireSetKltView', () => {
       setId: SET_ID,
       setTitle: 'Someone Else’s Deck',
       canEdit: true,
-      viaAllowlist: true,
+      viaRole: true,
     })
     expect(h.setFindFirst).toHaveBeenCalledWith({
       where: { id: SET_ID },

@@ -5,7 +5,8 @@
  * once someone is already an admin, and this is how the first one exists — and
  * how an operator who revoked themselves gets back in without a redeploy.
  *
- * The migration does NOT read KLT_EDITORS, so after deploying, run this once.
+ * The migration does NOT seed any admin from the old operator allowlist, so
+ * after deploying, run this once.
  *
  * Run:
  *   npm run grant-role -- --list

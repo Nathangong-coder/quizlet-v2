@@ -64,7 +64,7 @@ import { PROMPT_REGISTRY } from '@/lib/ai/prompts/registry'
 
 const OWNER = 'user-1'
 const SET_ID = 'set-1'
-const ACCESS = { userId: OWNER, setId: SET_ID, setTitle: 'Finance 101', viaAllowlist: false }
+const ACCESS = { userId: OWNER, setId: SET_ID, setTitle: 'Finance 101', viaRole: false }
 
 /** A `SetKltNode` row as `setKltNode.findMany` (via `loadSetTree`) returns it. */
 const node = (kltId: string, name: string, parentKltId: string | null, depth: number) => ({

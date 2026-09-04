@@ -3,10 +3,10 @@
  *
  * Structure lives on `SetKltNode`, one row per (set, concept), so — unlike
  * the global tree this replaced — there IS an owner to compare against. The
- * rule is therefore "the set's owner, OR a `KLT_EDITORS` operator": the
- * per-set editor is for a power user tending their own deck, the admin view
- * is how the operator helps someone else and authors presets (spec Decision
- * 3, both editors kept).
+ * rule is therefore "the set's owner, OR an **admin**": the per-set editor is
+ * for a power user tending their own deck, the admin view is how the
+ * operator helps someone else and authors presets (spec Decision 3, both
+ * editors kept).
  *
  * Decision 4 is what makes handing this to any owner safe: an admin edit is
  * not a broader edit, only a reachable one. This helper returns the ONE
@@ -21,7 +21,7 @@
  */
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
-import { isKltEditor } from '@/lib/klt/editors'
+import { isAdmin } from '@/lib/auth/roles'
 import { readableSetWhere } from '@/lib/sets/visibility'
 
 export interface SetKltAccess {
@@ -30,8 +30,8 @@ export interface SetKltAccess {
   setId: string
   /** The set's title — what pre-fills the AI seeding subject. */
   setTitle: string
-  /** True when access came from the operator allowlist, not from ownership. */
-  viaAllowlist: boolean
+  /** True when access came from the admin role, not from ownership. */
+  viaRole: boolean
 }
 
 /**
@@ -54,14 +54,14 @@ export async function requireSetKltAccess(setId: string): Promise<SetKltAccess |
   const userId = session?.user?.id
   if (!userId) return null
 
-  const viaAllowlist = isKltEditor(userId)
+  const viaRole = isAdmin(session?.user?.role)
   const set = await prisma.set.findFirst({
-    where: viaAllowlist ? { id: setId } : { id: setId, userId },
+    where: viaRole ? { id: setId } : { id: setId, userId },
     select: { id: true, title: true },
   })
   if (!set) return null
 
-  return { userId, setId: set.id, setTitle: set.title, viaAllowlist }
+  return { userId, setId: set.id, setTitle: set.title, viaRole }
 }
 
 export interface SetKltView {
@@ -72,8 +72,8 @@ export interface SetKltView {
   setTitle: string
   /** True exactly when `requireSetKltAccess` would also have succeeded. */
   canEdit: boolean
-  /** True when edit access came from the operator allowlist, not ownership. */
-  viaAllowlist: boolean
+  /** True when edit access came from the admin role, not ownership. */
+  viaRole: boolean
 }
 
 /**
@@ -89,7 +89,7 @@ export interface SetKltView {
  * handing over the territory.
  *
  * `canEdit` is computed by the SAME rule the write gate applies (owner, or
- * operator), not by re-deriving a looser one — but it is only a UI hint.
+ * admin), not by re-deriving a looser one — but it is only a UI hint.
  * Every write still calls `requireSetKltAccess` itself; nothing trusts this
  * flag to authorize anything.
  *
@@ -101,12 +101,12 @@ export async function requireSetKltView(setId: string): Promise<SetKltView | nul
   const session = await auth()
   const viewerId = session?.user?.id ?? null
 
-  const viaAllowlist = viewerId !== null && isKltEditor(viewerId)
+  const viaRole = viewerId !== null && isAdmin(session?.user?.role)
   const set = await prisma.set.findFirst({
-    // An operator reaches any set, exactly as on the edit gate. Everyone else
+    // An admin reaches any set, exactly as on the edit gate. Everyone else
     // goes through the read fragment, so a forgotten guard here returns
     // nothing rather than everything.
-    where: viaAllowlist ? { id: setId } : { id: setId, ...readableSetWhere(viewerId) },
+    where: viaRole ? { id: setId } : { id: setId, ...readableSetWhere(viewerId) },
     select: { id: true, title: true, userId: true },
   })
   if (!set) return null
@@ -115,7 +115,7 @@ export async function requireSetKltView(setId: string): Promise<SetKltView | nul
     viewerId,
     setId: set.id,
     setTitle: set.title,
-    canEdit: viaAllowlist || (viewerId !== null && set.userId === viewerId),
-    viaAllowlist,
+    canEdit: viaRole || (viewerId !== null && set.userId === viewerId),
+    viaRole,
   }
 }

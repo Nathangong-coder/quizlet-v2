@@ -305,7 +305,7 @@ export async function reparentConcept(
  * own — every `SetKltNode` placing it, and every `KlpTopic` citing it via
  * `klp -> card -> set`, must belong to a set THEY own. When some other set
  * also places or cites it, the name is genuinely shared and only an operator
- * (`viaAllowlist`) may change it; the failure says so rather than pretending
+ * (`viaRole`) may change it; the failure says so rather than pretending
  * the concept does not exist, since the caller already proved they may see
  * it (it is in their own set).
  *
@@ -327,7 +327,7 @@ export async function renameConcept(
   const inSet = await isConceptInSet(access.setId, kltId);
   if (!inSet) return { success: false, error: 'Concept not found in this set' };
 
-  if (!access.viaAllowlist) {
+  if (!access.viaRole) {
     const sharedElsewhere = await isConceptUsedOutsideOwnedSets(access.userId, kltId);
     if (sharedElsewhere) {
       return {

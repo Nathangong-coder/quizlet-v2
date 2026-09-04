@@ -14,18 +14,17 @@
  *   `resolvePlacementPath` for every path. A path that would re-parent an
  *   existing node is refused there, not honoured — this module never
  *   second-guesses that refusal or works around it.
- * - Authoring (`savePreset`/`deletePreset`) is `KLT_EDITORS`-only: a preset
- *   is shared, install-wide structure, the same operator capability as the
+ * - Authoring (`savePreset`/`deletePreset`) is admin-only: a preset is
+ *   shared, install-wide structure, the same operator capability as the
  *   global concept tree used to be before Decision 4 split editing per set.
  *   Applying, by contrast, is per-set and open to that set's own owner (or an
- *   operator) via `requireSetKltAccess` — exactly Decision 4's split between
+ *   admin) via `requireSetKltAccess` — exactly Decision 4's split between
  *   "who may see/apply shared structure" and "who may author it".
  * - Decision 7: nothing here is ever auto-applied. `applyPreset` only runs
  *   when a set owner explicitly picks a preset and clicks Apply.
  */
 import { prisma } from '@/lib/db';
-import { auth } from '@/auth';
-import { isKltEditor } from '@/lib/klt/editors';
+import { requireAdmin } from '@/lib/staff/access';
 import { requireSetKltAccess } from '@/lib/klt/access';
 import { loadSetTree, applyPaths } from '@/lib/klt/structure';
 import { parseKltName } from '@/lib/klt/normalize';
@@ -41,19 +40,17 @@ export interface KltPresetSummary {
 }
 
 /**
- * Is the current session an operator? A plain `auth()` + `isKltEditor` check
- * — unlike every action in `klt-tree.ts`/`klt-seed.ts`, preset AUTHORING
+ * Is the current session an admin? A plain `requireAdmin()` check — unlike
+ * every action in `klt-tree.ts`/`klt-seed.ts`, preset AUTHORING
  * (`savePreset`/`deletePreset`) has no `setId` to resolve access against: a
  * preset is not scoped to any one set, so there is no `requireSetKltAccess`
  * call to make here. `savePresetFromSet` is the exception — it DOES have a
- * set in view, and uses `requireSetKltAccess`'s own `viaAllowlist` instead
- * (see below), for the same reason `renameConcept` does: access should be
+ * set in view, and uses `requireSetKltAccess`'s own `viaRole` instead (see
+ * below), for the same reason `renameConcept` does: access should be
  * resolved once, from the database, not re-derived a second way.
  */
 async function isCallerKltAdmin(): Promise<boolean> {
-  const session = await auth();
-  const userId = session?.user?.id;
-  return !!userId && isKltEditor(userId);
+  return (await requireAdmin()) !== null;
 }
 
 /** Every segment of every path must still be a legal concept name. */
@@ -200,19 +197,19 @@ export async function applyPreset(
  * were dropped this way so the admin isn't left thinking the capture was
  * complete when it silently wasn't.
  *
- * Uses `requireSetKltAccess`'s own `viaAllowlist` to decide admin-ness,
- * rather than a second, independent `isCallerKltAdmin()` check — access to
- * THIS set has already been resolved once, from the database; asking a
- * second, unrelated question ("is this caller an operator at all") the same
- * way `renameConcept` does keeps there being exactly one source of truth for
- * "was this access via the allowlist".
+ * Uses `requireSetKltAccess`'s own `viaRole` to decide admin-ness, rather
+ * than a second, independent `isCallerKltAdmin()` check — access to THIS set
+ * has already been resolved once, from the database; asking a second,
+ * unrelated question ("is this caller an operator at all") the same way
+ * `renameConcept` does keeps there being exactly one source of truth for
+ * "was this access via the admin role".
  */
 export async function savePresetFromSet(
   setId: string,
   name: string,
 ): Promise<ActionResult<{ id: string; skipped: number }>> {
   const access = await requireSetKltAccess(setId);
-  if (!access || !access.viaAllowlist) return NOT_FOUND;
+  if (!access || !access.viaRole) return NOT_FOUND;
 
   const rows = await loadSetTree(access.setId);
   const byKltId = new Map(rows.map((r) => [r.kltId, r]));

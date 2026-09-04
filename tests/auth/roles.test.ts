@@ -17,9 +17,9 @@ describe('isStaff', () => {
     expect(isStaff('learner')).toBe(false)
   })
 
-  // The analogue of the empty-id case isKltEditor guarded. A role read from a
-  // session that failed to resolve must not admit anyone — a gate that opens
-  // on missing input is not a gate.
+  // The analogue of the empty-id case the old KLT operator allowlist guarded.
+  // A role read from a session that failed to resolve must not admit anyone —
+  // a gate that opens on missing input is not a gate.
   it('refuses undefined, null, empty string and any unknown value', () => {
     expect(isStaff(undefined)).toBe(false)
     expect(isStaff(null)).toBe(false)

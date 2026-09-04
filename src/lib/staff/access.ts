@@ -34,7 +34,7 @@ export function requireStaff(): Promise<StaffSession | null> {
   return resolve(isStaff)
 }
 
-/** Grant roles, and everything KLT_EDITORS used to gate. Admin only. */
+/** Grant roles, and everything the old KLT operator allowlist used to gate. Admin only. */
 export function requireAdmin(): Promise<StaffSession | null> {
   return resolve(isAdmin)
 }

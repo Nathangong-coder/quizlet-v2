@@ -239,8 +239,8 @@ const OWNER = 'owner-1'
 const ADMIN = 'admin-1'
 const SET_A = 'set-a'
 const SET_B = 'set-b'
-const ACCESS_OWNER = { userId: OWNER, setId: SET_A, setTitle: 'Finance 101', viaAllowlist: false }
-const ACCESS_ADMIN = { userId: ADMIN, setId: SET_A, setTitle: 'Finance 101', viaAllowlist: true }
+const ACCESS_OWNER = { userId: OWNER, setId: SET_A, setTitle: 'Finance 101', viaRole: false }
+const ACCESS_ADMIN = { userId: ADMIN, setId: SET_A, setTitle: 'Finance 101', viaRole: true }
 
 function seedTree() {
   // finance (root) -> accounting (child)
@@ -266,10 +266,9 @@ beforeEach(() => {
   // access does not accidentally leave the read gate open behind it.
   h.view.mockImplementation(async (setId: string) => {
     const a = await h.access(setId)
-    return a && { viewerId: a.userId, setId: a.setId, setTitle: a.setTitle, canEdit: true, viaAllowlist: a.viaAllowlist }
+    return a && { viewerId: a.userId, setId: a.setId, setTitle: a.setTitle, canEdit: true, viaRole: a.viaRole }
   })
   h.auth.mockResolvedValue({ user: { id: OWNER } })
-  process.env.KLT_EDITORS = ADMIN
 })
 
 describe('listPresets', () => {
@@ -305,7 +304,7 @@ describe('savePreset / deletePreset — admin gate', () => {
   })
 
   it('admits an admin for savePreset', async () => {
-    h.auth.mockResolvedValue({ user: { id: ADMIN } })
+    h.auth.mockResolvedValue({ user: { id: ADMIN, role: 'admin' } })
     const res = await savePreset('Finance skeleton', [['finance', 'accounting']])
     expect(res.success).toBe(true)
     expect(h.state.presets).toHaveLength(1)
@@ -313,7 +312,7 @@ describe('savePreset / deletePreset — admin gate', () => {
 
   it('admits an admin for deletePreset', async () => {
     h.state.presets = [{ id: 'p1', name: 'x', paths: [['finance']] }]
-    h.auth.mockResolvedValue({ user: { id: ADMIN } })
+    h.auth.mockResolvedValue({ user: { id: ADMIN, role: 'admin' } })
     const res = await deletePreset('p1')
     expect(res.success).toBe(true)
     expect(h.state.presets).toHaveLength(0)
@@ -328,7 +327,7 @@ describe('savePreset / deletePreset — admin gate', () => {
 
 describe('savePreset validation', () => {
   beforeEach(() => {
-    h.auth.mockResolvedValue({ user: { id: ADMIN } })
+    h.auth.mockResolvedValue({ user: { id: ADMIN, role: 'admin' } })
   })
 
   it('rejects an empty name', async () => {
@@ -455,15 +454,15 @@ describe('applyPreset', () => {
 })
 
 describe('savePresetFromSet', () => {
-  it('is admin-only — a plain owner (viaAllowlist: false) is refused', async () => {
+  it('is admin-only — a plain owner (viaRole: false) is refused', async () => {
     seedTree()
-    // Isolates savePresetFromSet's OWN `access.viaAllowlist` check from
+    // Isolates savePresetFromSet's OWN `access.viaRole` check from
     // savePreset's independent auth()-based admin check (which would also
     // refuse an ordinary OWNER/OWNER pairing and mask a broken guard here) —
     // the caller resolves as an operator via auth(), but access to THIS
     // particular set is mocked as ordinary ownership, so only a real
-    // `viaAllowlist` check inside savePresetFromSet can refuse it.
-    h.auth.mockResolvedValue({ user: { id: ADMIN } })
+    // `viaRole` check inside savePresetFromSet can refuse it.
+    h.auth.mockResolvedValue({ user: { id: ADMIN, role: 'admin' } })
     h.access.mockResolvedValue(ACCESS_OWNER)
     const res = await savePresetFromSet(SET_A, 'Captured')
     expect(res.success).toBe(false)
@@ -474,7 +473,7 @@ describe('savePresetFromSet', () => {
   it('derives root-to-node paths from the set’s current structure and saves them', async () => {
     seedTree()
     h.access.mockResolvedValue(ACCESS_ADMIN)
-    h.auth.mockResolvedValue({ user: { id: ADMIN } })
+    h.auth.mockResolvedValue({ user: { id: ADMIN, role: 'admin' } })
 
     const res = await savePresetFromSet(SET_A, 'Captured')
 
@@ -515,7 +514,7 @@ describe('savePresetFromSet', () => {
       },
     ]
     h.access.mockResolvedValue(ACCESS_ADMIN)
-    h.auth.mockResolvedValue({ user: { id: ADMIN } })
+    h.auth.mockResolvedValue({ user: { id: ADMIN, role: 'admin' } })
 
     const res = await savePresetFromSet(SET_A, 'Captured')
 

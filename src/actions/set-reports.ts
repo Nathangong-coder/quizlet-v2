@@ -3,7 +3,7 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
-import { isKltEditor } from '@/lib/klt/editors'
+import { requireAdmin } from '@/lib/staff/access'
 import { toReportReason, REPORT_DETAIL_MAX } from '@/lib/sets/moderation'
 import { composeSetWhere } from '@/lib/sets/visibility'
 import type { ActionResult } from '@/types/action'
@@ -88,19 +88,17 @@ export async function reportSet(
  * The set stays READABLE by anyone holding its id. Moderation removes it from
  * the shop window; it does not retroactively break every link already shared.
  *
- * Gated by `isKltEditor` — the existing operator allowlist, which already has
- * the right posture: unset means NOBODY, never everybody.
+ * Gated by `requireAdmin` — the admin role, which already has the right
+ * posture: an unrecognised or absent role means NOBODY, never everybody.
  */
 export async function setListingBlocked(
   setId: string,
   blocked: boolean,
 ): Promise<ActionResult<void>> {
   try {
-    const session = await auth()
-    if (!session?.user?.id) return { success: false, error: 'Not found' }
     // Not-found rather than forbidden, for the same reason every read path
     // 404s: a distinguishable error tells a stranger the operator gate exists.
-    if (!isKltEditor(session.user.id)) return { success: false, error: 'Not found' }
+    if (!(await requireAdmin())) return { success: false, error: 'Not found' }
 
     // `updateMany`, not `update`. `update` throws P2025 on a missing row, and
     // the catch below would surface Prisma's own message — which names the
