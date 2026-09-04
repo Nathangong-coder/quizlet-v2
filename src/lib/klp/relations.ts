@@ -37,13 +37,24 @@ function isSymmetric(type: RelationType): boolean {
  * Without this, `confused_with` between 1 and 3 can be persisted twice — once
  * from each direction — and the unique constraint cannot see that they are the
  * same fact.
+ *
+ * GENERIC over `T extends RelationEdge`, not fixed to the bare shape. The
+ * authoring pipeline's edges (`src/lib/klp/authoring.ts`) carry `provenance`,
+ * `rationale` and `probe` alongside `from`/`to`/`type` — persisted fields a
+ * caller needs back. A version fixed to `RelationEdge[]` would silently drop
+ * them for exactly the edges this function reorders (symmetric, `from > to`),
+ * since the reordering branch used to build a bare `{ from, to, type }`
+ * rather than copy the input through. Spreading `...e` before overriding
+ * `from`/`to` keeps every extra field the caller attached; the unreordered
+ * branch already returned `e` untouched, so this only fixes the branch that
+ * was actually losing data.
  */
-export function canonicalizeEdges(edges: RelationEdge[]): RelationEdge[] {
+export function canonicalizeEdges<T extends RelationEdge>(edges: T[]): T[] {
   const seen = new Set<string>()
-  const out: RelationEdge[] = []
+  const out: T[] = []
   for (const e of edges) {
     const edge = isSymmetric(e.type) && e.from > e.to
-      ? { from: e.to, to: e.from, type: e.type }
+      ? { ...e, from: e.to, to: e.from }
       : e
     const key = `${edge.from}>${edge.to}:${edge.type}`
     if (seen.has(key)) continue
