@@ -22,6 +22,8 @@ function row(over: Partial<StaffKlpRow> = {}): StaffKlpRow {
     learnerCount: 3,
     meanPKnown: 0.62,
     verdicts: { passed: 4, failed: 2 },
+    separation: null,
+    authoringStatus: null,
     ...over,
   }
 }
@@ -69,5 +71,27 @@ describe('KlpTable', () => {
   it('marks a superseded row as superseded', () => {
     render(<KlpTable rows={[row({ supersededAt: new Date('2026-08-01') })]} />)
     expect(screen.getByText(/superseded/i)).toBeInTheDocument()
+  })
+
+  it('shows the separation score for a discrimination-tested KLP', () => {
+    render(<KlpTable rows={[row({ separation: 0.83, authoringStatus: 'separated' })]} />)
+    expect(screen.getByText('0.83')).toBeInTheDocument()
+  })
+
+  /**
+   * A card that would not separate must be visible, not silently equivalent to
+   * one that did. That flag is the whole reason the loop writes instead of
+   * retrying.
+   */
+  it('flags a low-discrimination card', () => {
+    render(<KlpTable rows={[row({ separation: 0.12, authoringStatus: 'low_discrimination' })]} />)
+    expect(screen.getByText(/low discrimination/i)).toBeInTheDocument()
+  })
+
+  /** Legacy KLPs predate the pipeline; an em dash, never a zero. */
+  it('shows an em dash for a KLP authored by the legacy path', () => {
+    const { container } = render(<KlpTable rows={[row({ separation: null, authoringStatus: null })]} />)
+    expect(screen.queryByText('0.00')).not.toBeInTheDocument()
+    expect(container.textContent).toContain('—')
   })
 })

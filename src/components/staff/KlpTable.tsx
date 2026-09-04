@@ -32,6 +32,7 @@ export function KlpTable({ rows }: { rows: StaffKlpRow[] }) {
             <th scope="col" className="pb-2 font-normal text-muted-foreground">Topics</th>
             <th scope="col" className="pb-2 font-normal text-muted-foreground text-right">Learners</th>
             <th scope="col" className="pb-2 font-normal text-muted-foreground text-right">Mean known</th>
+            <th scope="col" className="pb-2 font-normal text-muted-foreground text-right">Separation</th>
             <th scope="col" className="pb-2 font-normal text-muted-foreground">Verdicts</th>
             <th scope="col" className="pb-2 font-normal text-muted-foreground">Relations</th>
           </tr>
@@ -69,6 +70,22 @@ export function KlpTable({ rows }: { rows: StaffKlpRow[] }) {
                 {/* Null is NO EVIDENCE. 0% would read as "nobody knows this",
                     which is a different and much stronger claim. */}
                 {r.meanPKnown === null ? '—' : `${Math.round(r.meanPKnown * 100)}%`}
+              </td>
+              <td className="py-2 pr-4 text-right font-mono tabular-nums">
+                {/* Null means no CardAuthoring run — a legacy KLP. An em dash,
+                    never 0.00, for the same reason meanPKnown is null. */}
+                {r.separation === null ? (
+                  '—'
+                ) : (
+                  <>
+                    {r.separation.toFixed(2)}
+                    {r.authoringStatus === 'low_discrimination' && (
+                      <span className="ml-2 rounded bg-destructive/10 px-1 text-[10px] uppercase tracking-wide text-destructive">
+                        low discrimination
+                      </span>
+                    )}
+                  </>
+                )}
               </td>
               <td className="py-2 pr-4 text-xs text-muted-foreground">
                 {Object.keys(r.verdicts).length === 0

@@ -26,6 +26,14 @@ export interface StaffKlpRow {
   meanPKnown: number | null
   /** AnswerKlpResult.status -> count. Three keys today, thirteen after Spec 5. */
   verdicts: Record<string, number>
+  /**
+   * The discrimination-test score from the CardAuthoring run that produced
+   * this KLP's version. NULL for a legacy KLP with no matching authoring
+   * run — never 0, for the same reason meanPKnown is null rather than 0.
+   */
+  separation: number | null
+  /** CardAuthoring.status ('separated' | 'low_discrimination' | 'failed'). NULL alongside separation. */
+  authoringStatus: string | null
 }
 
 export interface StaffKlpQuery {
@@ -66,11 +74,12 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
 
   if (klps.length === 0) return []
   const ids = klps.map((k) => k.id)
+  const cardIds = Array.from(new Set(klps.map((k) => k.cardId)))
 
   // Two grouped aggregates rather than nested includes: a per-KLP include of
   // every KlpState and AnswerKlpResult row would load the whole evidence table
   // to render a count.
-  const [states, verdicts] = await Promise.all([
+  const [states, verdicts, authorings] = await Promise.all([
     prisma.klpState.groupBy({
       by: ['klpId'],
       where: { klpId: { in: ids } },
@@ -82,6 +91,14 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
       where: { klpId: { in: ids } },
       _count: { _all: true },
     }),
+    // Fetched per-card (not per-KLP-version) and matched in memory below: a
+    // card is re-authored as a whole, so its CardAuthoring rows are keyed by
+    // cardId + klpVersion, not by individual KLP id.
+    prisma.cardAuthoring.findMany({
+      where: { cardId: { in: cardIds } },
+      select: { cardId: true, klpVersion: true, separationScore: true, status: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    }),
   ])
 
   const stateBy = new Map(states.map((s) => [s.klpId, s]))
@@ -91,10 +108,21 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
     bucket[v.status] = v._count._all
     verdictBy.set(v.klpId, bucket)
   }
+  // Most recent CardAuthoring row per (cardId, klpVersion): the query above
+  // is already ordered createdAt desc, so the first match wins and later
+  // ones are skipped.
+  const authoringBy = new Map<string, { separationScore: number; status: string }>()
+  for (const a of authorings) {
+    const key = `${a.cardId}:${a.klpVersion}`
+    if (!authoringBy.has(key)) {
+      authoringBy.set(key, { separationScore: a.separationScore, status: a.status })
+    }
+  }
 
   return klps.map((k) => {
     const state = stateBy.get(k.id)
     const learnerCount = state?._count._all ?? 0
+    const authoring = authoringBy.get(`${k.cardId}:${k.version}`)
     return {
       id: k.id,
       text: k.text,
@@ -111,6 +139,10 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
       // Zero learners means NO EVIDENCE, which is not zero knowledge.
       meanPKnown: learnerCount === 0 ? null : (state?._avg.pKnown ?? null),
       verdicts: verdictBy.get(k.id) ?? {},
+      // No matching CardAuthoring run means no score — a legacy KLP predates
+      // this pipeline. Never 0, for the same reason meanPKnown is null.
+      separation: authoring?.separationScore ?? null,
+      authoringStatus: authoring?.status ?? null,
     }
   })
 }
