@@ -94,6 +94,10 @@ beforeEach(() => {
   vi.clearAllMocks()
   h.aggregate.mockResolvedValue({ _max: { version: 0 } })
   h.createMany.mockResolvedValue({})
+  // Default for the id read-back writeKlpVersion does inside its own
+  // transaction (`tx.cardKlp.findMany`) — tests exercising the write path but
+  // not asserting on the returned ids don't need to set this themselves.
+  h.klpFindMany.mockResolvedValue([])
   h.klpUpdateMany.mockResolvedValue({})
   h.update.mockResolvedValue({})
   h.updateMany.mockResolvedValue({})

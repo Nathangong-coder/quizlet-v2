@@ -6,6 +6,7 @@ const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
 
 const sets = read('src/actions/sets.ts')
 const klp = read('src/actions/klp.ts')
+const klpWrite = read('src/lib/cards/klp-write.ts')
 const editor = read('src/components/sets/KlpEditor.tsx')
 
 describe('KLT trigger wiring', () => {
@@ -47,7 +48,7 @@ describe('KLT trigger wiring', () => {
   it('resets kltStatus whenever a new KLP version is written', () => {
     // A new version has new klpIds, so the old labels and topics describe
     // propositions the card no longer teaches.
-    const body = klp.split('async function writeKlpVersion')[1].split('\n}')[0]
+    const body = klpWrite.split('export async function writeKlpVersion')[1].split('\n}')[0]
     expect(body).toMatch(/kltStatus: 'pending'/)
   })
 
@@ -56,8 +57,8 @@ describe('KLT trigger wiring', () => {
   })
 
   it('keeps the narrowed append-only rule documented on writeKlpVersion', () => {
-    expect(klp).toContain('ONE EXCEPTION')
-    expect(klp).toMatch(/`label` is a derived\n \* display annotation/)
+    expect(klpWrite).toContain('ONE EXCEPTION')
+    expect(klpWrite).toMatch(/`label` is a derived\n \* display annotation/)
   })
 
   it('returns the label and topic status to the editor', () => {
