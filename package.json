@@ -19,7 +19,8 @@
     "invite": "tsx --env-file=.env scripts/mint-invite.ts",
     "grant-role": "tsx --env-file=.env scripts/grant-role.ts",
     "verify:klt:baseline": "tsx --env-file=.env scripts/verify-klt-rebuild.ts baseline",
-    "verify:klt": "tsx --env-file=.env scripts/verify-klt-rebuild.ts verify"
+    "verify:klt": "tsx --env-file=.env scripts/verify-klt-rebuild.ts verify",
+    "author-klps": "tsx --conditions=react-server --env-file=.env scripts/author-klps.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.22",
