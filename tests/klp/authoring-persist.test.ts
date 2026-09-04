@@ -1,25 +1,62 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const h = vi.hoisted(() => ({
-  write: vi.fn(), authoringCreate: vi.fn(), probeCreateMany: vi.fn(), relationCreateMany: vi.fn(),
+  write: vi.fn(),
+  authoringCreate: vi.fn(),
+  probeCreateMany: vi.fn(),
+  relationCreateMany: vi.fn(),
+  // What a later resumability check would see. Mimics Prisma's real
+  // interactive-transaction guarantee closely enough to prove atomicity: a
+  // row created through `tx` inside the `$transaction` callback is only
+  // appended here if the callback RESOLVES. If it throws, nothing this
+  // "transaction" wrote becomes visible — the property Fix 1 depends on.
+  committedAuthoringRows: [] as { id: string; cardId: string; klpVersion: number }[],
 }))
+
 vi.mock('@/lib/cards/klp-write', () => ({ writeKlpVersion: h.write }))
 vi.mock('@/lib/db', () => ({
   prisma: {
-    cardAuthoring: { create: h.authoringCreate },
-    authoringProbe: { createMany: h.probeCreateMany },
-    klpRelation: { createMany: h.relationCreateMany },
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
+      const staged: { id: string; cardId: string; klpVersion: number }[] = []
+      const tx = {
+        cardAuthoring: {
+          create: async (args: { data: Record<string, unknown> }) => {
+            const row = await h.authoringCreate(args)
+            staged.push(row)
+            return row
+          },
+        },
+        authoringProbe: { createMany: h.probeCreateMany },
+        klpRelation: { createMany: h.relationCreateMany },
+      }
+      const result = await fn(tx) // a throw here skips the push below — nothing commits
+      h.committedAuthoringRows.push(...staged)
+      return result
+    }),
+    cardAuthoring: {
+      // The exact shape `scripts/author-klps.ts`'s resumability check calls.
+      findFirst: vi.fn(async ({ where }: { where: { cardId: string; klpVersion: number } }) =>
+        h.committedAuthoringRows.find(
+          (r) => r.cardId === where.cardId && r.klpVersion === where.klpVersion,
+        ) ?? null,
+      ),
+    },
   },
 }))
 
 import { persistAuthoring } from '@/lib/klp/authoring-persist'
 import { klpSourceHash } from '@/lib/cards/klp-hash'
 import { selectStaleCardIds } from '@/lib/cards/stale'
+import { prisma } from '@/lib/db'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  h.committedAuthoringRows.length = 0
   h.write.mockResolvedValue({ version: 4, klpIds: ['k0', 'k1', 'k2'] })
-  h.authoringCreate.mockResolvedValue({ id: 'a1' })
+  h.authoringCreate.mockImplementation(async (args: { data: Record<string, unknown> }) => ({
+    id: 'a1',
+    ...args.data,
+  }))
 })
 
 const outcome = {
@@ -31,6 +68,7 @@ const outcome = {
   ],
   probes: [{ kind: 'vague' as const, text: 'w', score: 0.2, verdicts: { '0': 'omission' as const } }],
   relations: [{ from: 0, to: 1, type: 'causes' as const, provenance: 'perturbation' as const, rationale: 'r', probe: 'p' }],
+  relationStats: { candidates: 1, accepted: 1, droppedForCycles: 0, droppedOutOfRange: 0 },
   separationScore: 0.8,
   revisions: 1,
   status: 'separated' as const,
@@ -108,5 +146,36 @@ describe('persistAuthoring', () => {
     await persistAuthoring('c1', outcome, 1, { ...content, blocks })
     expect(h.write.mock.calls[0][2]).toBe(klpSourceHash({ ...content, blocks }))
     expect(h.write.mock.calls[0][2]).not.toBe(klpSourceHash(content))
+  })
+})
+
+describe('persistAuthoring — transactional atomicity (Fix 1)', () => {
+  /**
+   * THE GUARD for the strand-forever bug. Steps 2-4 (cardAuthoring.create,
+   * authoringProbe.createMany, klpRelation.createMany) must commit or fail
+   * TOGETHER. Before the fix, `cardAuthoring.create` committed independently,
+   * so a later probe/relation write failing left a `CardAuthoring` row at
+   * `klpVersion: 4` that `scripts/author-klps.ts`'s resumability check
+   * (`cardAuthoring.findFirst({ cardId, klpVersion })`) would find FOREVER —
+   * the card silently never gets authored again without `--force`. This test
+   * makes `authoringProbe.createMany` reject inside the transaction and
+   * asserts the row a resumability check would see is gone.
+   */
+  it('leaves no CardAuthoring row when a later write in the same transaction fails', async () => {
+    h.probeCreateMany.mockRejectedValueOnce(new Error('transient db error'))
+
+    await expect(persistAuthoring('c1', outcome, 1, content)).rejects.toThrow('transient db error')
+
+    // The whole point of the fix: a resumability check run right after this
+    // failure must find NOTHING at this card/klpVersion, so the next run
+    // re-authors instead of skipping a stranded, incomplete row forever.
+    const survivor = await prisma.cardAuthoring.findFirst({ where: { cardId: 'c1', klpVersion: 4 } })
+    expect(survivor).toBeNull()
+  })
+
+  it('still commits cleanly when nothing fails, for contrast', async () => {
+    await persistAuthoring('c1', outcome, 1, content)
+    const survivor = await prisma.cardAuthoring.findFirst({ where: { cardId: 'c1', klpVersion: 4 } })
+    expect(survivor).not.toBeNull()
   })
 })

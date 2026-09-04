@@ -153,6 +153,44 @@ describe('authorCard', () => {
     expect(out.relations[0]).toMatchObject({ from: 0, to: 1, type: 'causes' })
   })
 
+  /**
+   * Fix 2 (review, Tasks 10-11): `RelationDraftSchema` bounds `from`/`to` at
+   * `.min(0)` only — the upper bound is `klps.length`, which is dynamic and
+   * cannot live in the schema. A hallucinated out-of-range index must be
+   * dropped here, not left to throw at the Prisma layer in `persistAuthoring`
+   * (`klpIds[r.from]` on a missing index). Same posture as
+   * `extractKlpsForCards`'s "a hallucinated ref must not write another
+   * card's KLPs onto this one" (`src/actions/klp.ts`).
+   */
+  it('drops a relation whose endpoint references a KLP index that does not exist on this card', async () => {
+    const g = gen({
+      relate: vi.fn().mockResolvedValue({
+        relations: [
+          { from: 0, to: 1, type: 'causes', provenance: 'perturbation', rationale: 'r', probe: 'p' },
+          // Only 6 KLPs exist (indices 0-5); 6 is out of range.
+          { from: 2, to: 6, type: 'causes', provenance: 'perturbation', rationale: 'r', probe: 'p' },
+        ],
+      }),
+    })
+    const out = await authorCard(card, g as never)
+    expect(out.relations).toHaveLength(1)
+    expect(out.relations[0]).toMatchObject({ from: 0, to: 1 })
+    expect(out.relationStats).toEqual({ candidates: 2, accepted: 1, droppedForCycles: 0, droppedOutOfRange: 1 })
+  })
+
+  it('threads relation diagnostics through relationStats: candidates, accepted, cycle-drops', async () => {
+    const g = gen({
+      relate: vi.fn().mockResolvedValue({
+        relations: [
+          { from: 0, to: 1, type: 'causes', provenance: 'perturbation', rationale: 'r', probe: 'p' },
+          { from: 1, to: 0, type: 'causes', provenance: 'perturbation', rationale: 'r', probe: 'p' },
+        ],
+      }),
+    })
+    const out = await authorCard(card, g as never)
+    expect(out.relationStats).toEqual({ candidates: 2, accepted: 1, droppedForCycles: 1, droppedOutOfRange: 0 })
+  })
+
   it('reports mechanical defects without failing the card', async () => {
     const g = gen({
       author: vi.fn().mockResolvedValue({
@@ -172,5 +210,6 @@ describe('authorCard', () => {
     const out = await authorCard(card, g as never)
     expect(out.status).toBe('failed')
     expect(g.grade).not.toHaveBeenCalled()
+    expect(out.relationStats).toEqual({ candidates: 0, accepted: 0, droppedForCycles: 0, droppedOutOfRange: 0 })
   })
 })

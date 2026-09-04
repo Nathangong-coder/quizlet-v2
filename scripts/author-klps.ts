@@ -173,7 +173,12 @@ function printOutcomeDetail(term: string, outcome: AuthoringOutcome): void {
       `separation ${outcome.separationScore.toFixed(2)} (revisions: ${outcome.revisions})`,
   )
 
-  console.log(`\n-- Relations (${outcome.relations.length}) --`)
+  console.log(
+    `\n-- Relations (${outcome.relations.length}) -- ` +
+      `candidates ${outcome.relationStats.candidates}, accepted ${outcome.relationStats.accepted}, ` +
+      `dropped for cycles ${outcome.relationStats.droppedForCycles}, ` +
+      `dropped out-of-range ${outcome.relationStats.droppedOutOfRange}`,
+  )
   for (const r of outcome.relations) {
     console.log(`  [${r.from}] --${r.type}--> [${r.to}] (${r.provenance})`)
     console.log(`    rationale: ${r.rationale}`)
@@ -227,6 +232,7 @@ async function main() {
       definition: true,
       position: true,
       klpVersion: true,
+      klpStatus: true,
       // Content blocks are part of `klpSourceHash`'s fingerprint (see
       // `persistAuthoring`'s doc comment) — a rich card that omitted them
       // here would hash the same as its own text-only stub, and
@@ -251,7 +257,18 @@ async function main() {
     // RESUMABLE: a card already authored at its current klpVersion is
     // skipped unless --force. A failure partway through a set must not force
     // a full restart, and must not re-spend AI budget on cards already done.
-    if (!force && card.klpVersion > 0) {
+    //
+    // `klpStatus !== 'failed'` is belt-and-braces on top of the row check
+    // (Fix 1b, review round). `persistAuthoring`'s steps 2-4 now commit
+    // atomically (Fix 1a), so a genuinely partial write can no longer leave
+    // a `CardAuthoring` row at the card's CURRENT `klpVersion` with no
+    // matching content. But the row check alone trusts row existence as
+    // proof of success regardless of WHY `klpStatus` currently reads
+    // 'failed' — this makes that trust conditional: whatever the reason a
+    // card is marked failed, it is retried rather than silently skipped
+    // because some CardAuthoring row happens to exist at its current
+    // version.
+    if (!force && card.klpVersion > 0 && card.klpStatus !== 'failed') {
       const existing = await prisma.cardAuthoring.findFirst({
         where: { cardId: card.id, klpVersion: card.klpVersion },
         select: { id: true },
@@ -304,9 +321,16 @@ async function main() {
     }
 
     const flagSuffix = outcome.status === 'low_discrimination' ? ' [low_discrimination]' : ''
+    // Relation candidates/accepted/dropped breakdown (Fix 3, review round):
+    // printed for every card, not just --dry-run — only the final accepted
+    // edge set survived anywhere before this, and telling "genuinely sparse"
+    // apart from "over-pruned" needs the numbers behind it, which is exactly
+    // what a later multi-card run has to judge.
     console.log(
       `${tag} — separation ${outcome.separationScore.toFixed(2)}, ${outcome.klps.length} KLPs, ` +
-        `${outcome.relations.length} relations${flagSuffix}`,
+        `${outcome.relations.length} relations (candidates ${outcome.relationStats.candidates}, ` +
+        `cycles-dropped ${outcome.relationStats.droppedForCycles}, ` +
+        `out-of-range-dropped ${outcome.relationStats.droppedOutOfRange})${flagSuffix}`,
     )
 
     stats.authored += 1

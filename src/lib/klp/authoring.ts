@@ -96,11 +96,30 @@ export interface AuthoringGenerator {
   relate(input: RelateInput): Promise<RelateResult>
 }
 
+/**
+ * Diagnostics for the relate step, DISPLAY-ONLY — nothing here is persisted
+ * (the `KlpRelation` schema is closed; see the design doc). Without this,
+ * nothing distinguishes "this card genuinely has independent leaves" from
+ * "the relate call returned little, or its edges were pruned" — only the
+ * final accepted set survives otherwise, even in verbose printouts.
+ */
+export interface RelationStats {
+  /** Raw count of edges `gen.relate` returned, before any filtering. */
+  candidates: number
+  /** Final count after both filters, i.e. `relations.length`. */
+  accepted: number
+  /** Dropped because adding them would introduce a cycle. */
+  droppedForCycles: number
+  /** Dropped because an endpoint referenced a KLP index that doesn't exist on this card. */
+  droppedOutOfRange: number
+}
+
 export interface AuthoringOutcome {
   referenceAnswer: string
   klps: { text: string; kind: string; weight: number }[]
   probes: { kind: ProbeKind; text: string; score: number; verdicts: Record<string, KlpVerdict> }[]
   relations: AuthoredRelationDraft[]
+  relationStats: RelationStats
   separationScore: number
   revisions: number
   /** `failed` only when the author call produced no KLPs at all. */
@@ -175,6 +194,7 @@ export async function authorCard(
       klps: [],
       probes: [],
       relations: [],
+      relationStats: { candidates: 0, accepted: 0, droppedForCycles: 0, droppedOutOfRange: 0 },
       separationScore: 0,
       revisions: 0,
       status: 'failed',
@@ -225,15 +245,29 @@ export async function authorCard(
     klps: klps.map((k) => ({ text: k.text })),
   })
 
+  // `RelationDraftSchema` bounds `from`/`to` at `.min(0)` only — the upper
+  // bound is `klps.length`, which is dynamic and cannot live in the schema.
+  // A hallucinated out-of-range index would otherwise reach `klpIds[r.from]`
+  // in `persistAuthoring` and be caught only by Prisma throwing on a
+  // missing foreign key, mid-run. Dropped here instead, the same posture
+  // `extractKlpsForCards` (`src/actions/klp.ts`) takes toward a hallucinated
+  // batch ref: "a hallucinated ref must not write another card's KLPs onto
+  // this one" — silently dropping beats throwing mid-run.
+  const candidateCount = relateResult.relations.length
+  const inRange = relateResult.relations.filter((r) => r.from < klps.length && r.to < klps.length)
+  const droppedOutOfRange = candidateCount - inRange.length
+
   // Add edges ONE AT A TIME and drop any whose addition introduces a cycle,
   // so the specific offender is dropped rather than the whole batch — an AI
   // will happily emit X causes Y and Y causes X across two calls with no way
   // to see the conflict itself.
+  const canonical = canonicalizeEdges(inRange)
   const accepted: AuthoredRelationDraft[] = []
-  for (const edge of canonicalizeEdges(relateResult.relations)) {
+  for (const edge of canonical) {
     accepted.push(edge)
     if (findCycles(accepted).length > 0) accepted.pop()
   }
+  const droppedForCycles = canonical.length - accepted.length
 
   const radii = blastRadius(klps.length, accepted)
   const weights = radii.map(weightFromBlastRadius)
@@ -250,6 +284,12 @@ export async function authorCard(
     klps: klps.map((k, i) => ({ text: k.text, kind: k.kind, weight: weights[i] })),
     probes,
     relations: accepted,
+    relationStats: {
+      candidates: candidateCount,
+      accepted: accepted.length,
+      droppedForCycles,
+      droppedOutOfRange,
+    },
     separationScore: separation.separation,
     revisions,
     status: separation.separated ? 'separated' : 'low_discrimination',
