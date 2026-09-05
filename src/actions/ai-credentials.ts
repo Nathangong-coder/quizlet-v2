@@ -10,6 +10,7 @@ import { AI_PROVIDERS, PROVIDER_META, resolveLanguageModel, type ProviderId } fr
 import { fetchModelList } from '@/lib/ai/model-catalog';
 import { classifyProviderError, describeFailure } from '@/lib/errors/classify';
 import { AI_TASKS } from '@/lib/ai/model-routing';
+import { isModelAllowed, GOOGLE_APPROVED_MODELS } from '@/lib/ai/model-policy';
 import type { ActionResult } from '@/types/action';
 
 const CredentialInput = z.object({
@@ -315,9 +316,25 @@ export async function saveTaskRouting(
     // Guard cross-user assignment: the credential must belong to this user.
     if (credentialId) {
       const owned = await prisma.aiCredential.findFirst({
-        where: { id: credentialId, userId }, select: { id: true },
+        where: { id: credentialId, userId }, select: { id: true, provider: true, defaultModel: true },
       });
       if (!owned) return { success: false, error: 'Credential not found' };
+
+      // Reject an unapproved model AT SAVE TIME as well as substituting it at
+      // resolve time. Both exist on purpose: the substitution keeps generation
+      // working for someone who never opens this form, and the rejection tells
+      // someone who DOES open it that their choice would not have been honoured
+      // — silently accepting a value the engine then ignores is how a settings
+      // page starts lying about what the system is doing.
+      const chosenModel = trimmedModel ?? owned.defaultModel;
+      if (!isModelAllowed(owned.provider, chosenModel, parsedTask.data)) {
+        return {
+          success: false,
+          error:
+            `${chosenModel} is not approved for ${parsedTask.data}. This task writes results that are ` +
+            `stored and reused, so Google credentials are limited to: ${GOOGLE_APPROVED_MODELS.join(', ')}.`,
+        };
+      }
     }
 
     await prisma.aiTaskRouting.upsert({

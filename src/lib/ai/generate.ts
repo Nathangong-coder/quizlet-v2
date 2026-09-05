@@ -25,6 +25,7 @@ import { toSdkContent, type GeminiPart } from '@/lib/ai/media-adapter';
 // AiTask is declared once, in model-routing.ts (it already exports it today).
 // Do not re-declare it here — two definitions would drift.
 import type { AiTask } from '@/lib/ai/model-routing';
+import { enforceModelPolicy } from '@/lib/ai/model-policy';
 
 /**
  * What the executor needs to know about its position in the rotation.
@@ -231,11 +232,20 @@ async function resolveCandidates(
   const byId = new Map(credentials.map((c) => [c.id, c]));
   const candidates = ordered.map((o) => {
     const cred = byId.get(o.id)!;
+    // The quality floor is applied HERE, not only in `saveTaskRouting`,
+    // because the model reaches this point from two places and the form can
+    // only validate one of them. `AiTaskRouting.model` is a per-task override
+    // and is checked on save; `AiCredential.defaultModel` is not, and cannot
+    // be — one credential serves every task, so a default that is wrong for
+    // grading may be perfectly reasonable elsewhere. Most users never set a
+    // per-task override at all, so validating only the form would leave the
+    // common path unpoliced. See `src/lib/ai/model-policy.ts`.
+    const { model } = enforceModelPolicy(cred.provider, overrideModel ?? cred.defaultModel, task);
     return {
       id: cred.id,
       label: cred.label,
       provider: cred.provider,
-      model: overrideModel ?? cred.defaultModel,
+      model,
     };
   });
 
