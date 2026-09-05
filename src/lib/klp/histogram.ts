@@ -19,7 +19,11 @@
  * just produced, so an operator sees the shape of what they authored without a
  * second command.
  */
-import { HISTOGRAM_CLUSTER_SHARE, HISTOGRAM_UNIFORM_SHARE } from '@/lib/klp/authoring-config'
+import {
+  HISTOGRAM_CLUSTER_SHARE,
+  HISTOGRAM_UNIFORM_SHARE,
+  HISTOGRAM_MIN_SAMPLE,
+} from '@/lib/klp/authoring-config'
 import { VERDICT_CREDIT, isKlpVerdict } from '@/lib/klp/verdicts'
 
 /** `CardKlp.weight` is an integer 1-5; every array here is indexed weight - 1. */
@@ -106,12 +110,15 @@ export interface HistogramFinding {
  * a single verdict: a corpus of nothing but 5s is both `clustered_high` and
  * `uniform`, and collapsing that to one label discards half the diagnosis.
  *
- * An empty corpus fires nothing. Zero rows is not a flat distribution, it is no
- * distribution, and reporting a failure there would train an operator to ignore
- * the check on exactly the run where it has not yet had anything to measure.
+ * A corpus below `HISTOGRAM_MIN_SAMPLE` fires NOTHING, and an empty one is the
+ * limiting case of that. Zero rows is not a flat distribution, it is no
+ * distribution; four rows at 75% one value is arithmetic, not evidence. Both
+ * would train an operator to ignore the check on exactly the runs where it has
+ * not yet had enough to measure — which are the runs it is printed on most
+ * often, since a single card carries 4-9 KLPs.
  */
 export function diagnoseWeightHistogram(h: WeightHistogram): HistogramFinding[] {
-  if (h.total === 0) return []
+  if (h.total < HISTOGRAM_MIN_SAMPLE) return []
 
   const findings: HistogramFinding[] = []
 
@@ -266,6 +273,11 @@ export function formatWeightHistogram(h: WeightHistogram, findings: HistogramFin
 
   if (h.total === 0) {
     lines.push('  (no weights to judge)')
+  } else if (h.total < HISTOGRAM_MIN_SAMPLE) {
+    lines.push(
+      `  Shape only — ${h.total} KLP(s) is below the ${HISTOGRAM_MIN_SAMPLE} needed to tell clustering ` +
+        'from small-sample noise, so no failure mode is reported.',
+    )
   } else if (findings.length === 0) {
     lines.push('  OK — no failure mode fired.')
   } else {

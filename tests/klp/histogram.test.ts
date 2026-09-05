@@ -7,7 +7,11 @@ import {
   formatBreadthHistogram,
   HISTOGRAM_FAILURE_MODES,
 } from '@/lib/klp/histogram'
-import { HISTOGRAM_CLUSTER_SHARE, HISTOGRAM_UNIFORM_SHARE } from '@/lib/klp/authoring-config'
+import {
+  HISTOGRAM_CLUSTER_SHARE,
+  HISTOGRAM_UNIFORM_SHARE,
+  HISTOGRAM_MIN_SAMPLE,
+} from '@/lib/klp/authoring-config'
 
 /** Repeats a weight, so a fixture reads as a distribution rather than a list. */
 function rep(weight: number, times: number): number[] {
@@ -75,6 +79,18 @@ describe('diagnoseWeightHistogram', () => {
     expect(modes).toEqual(['uniform'])
   })
 
+  /**
+   * FOUND BY RUNNING IT. The first real single-card run produced weights
+   * 3,3,3,2 and fired `uniform` at 75% — arithmetically true, evidentially
+   * worthless, and printed on every single-card run. A check that cries wolf
+   * there teaches an operator to skip the place the real finding will appear.
+   */
+  it('fires nothing below the sample floor, however clustered the few values are', () => {
+    expect(modesOf([3, 3, 3, 2])).toEqual([])
+    expect(modesOf(rep(5, HISTOGRAM_MIN_SAMPLE - 1))).toEqual([])
+    expect(modesOf(rep(5, HISTOGRAM_MIN_SAMPLE))).toContain('clustered_high')
+  })
+
   it('reports every mode that fires rather than one verdict', () => {
     const modes = modesOf(rep(5, 40))
     expect(modes).toContain('clustered_high')
@@ -97,16 +113,16 @@ describe('diagnoseWeightHistogram', () => {
   it('sits strictly on the configured thresholds', () => {
     // 3 of 4 in the high tail is exactly HISTOGRAM_CLUSTER_SHARE.
     expect(HISTOGRAM_CLUSTER_SHARE).toBe(0.75)
-    expect(modesOf([4, 4, 5, 1])).toContain('clustered_high')
-    expect(modesOf([4, 4, 1, 2])).not.toContain('clustered_high')
+    expect(modesOf([...rep(4, 15), ...rep(5, 6), ...rep(1, 7)])).toContain('clustered_high')
+    expect(modesOf([...rep(4, 10), ...rep(1, 5), ...rep(2, 5)])).not.toContain('clustered_high')
 
     expect(HISTOGRAM_UNIFORM_SHARE).toBe(0.6)
-    expect(modesOf([3, 3, 3, 1, 5])).toContain('uniform')
-    expect(modesOf([3, 3, 1, 4, 5])).not.toContain('uniform')
+    expect(modesOf([...rep(3, 15), ...rep(1, 5), ...rep(5, 5)])).toContain('uniform')
+    expect(modesOf([...rep(3, 10), ...rep(1, 5), ...rep(4, 5), ...rep(5, 5)])).not.toContain('uniform')
   })
 
   it('names only modes in the declared vocabulary', () => {
-    for (const mode of modesOf(rep(5, 10))) {
+    for (const mode of modesOf(rep(5, 40))) {
       expect(HISTOGRAM_FAILURE_MODES).toContain(mode)
     }
   })
@@ -142,10 +158,17 @@ describe('buildBreadthHistogram', () => {
 
 describe('formatWeightHistogram', () => {
   it('prints every failure detail so the printout is self-explanatory', () => {
-    const h = buildWeightHistogram(rep(5, 10))
+    const h = buildWeightHistogram(rep(5, 40))
     const text = formatWeightHistogram(h, diagnoseWeightHistogram(h))
     expect(text).toContain('FAIL clustered_high')
     expect(text).toContain('G1')
+  })
+
+  it('says the sample is too small rather than passing it as healthy', () => {
+    const h = buildWeightHistogram([3, 3, 3, 2])
+    const text = formatWeightHistogram(h, diagnoseWeightHistogram(h))
+    expect(text).toContain('Shape only')
+    expect(text).not.toContain('OK')
   })
 
   it('says so plainly when nothing fired', () => {

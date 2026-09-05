@@ -160,3 +160,20 @@ export const LONG_QUESTION_WORDS = 12
  */
 export const HISTOGRAM_CLUSTER_SHARE = 0.75
 export const HISTOGRAM_UNIFORM_SHARE = 0.6
+
+/**
+ * Below this many KLPs, the histogram reports its shape but fires NO failure
+ * mode.
+ *
+ * Found by running the check on its first real single-card run: four KLPs came
+ * back as 3,3,3,2 and `uniform` fired at 75%, which is arithmetically true and
+ * evidentially worthless — with five buckets and four observations, clustering
+ * cannot be told from noise. A FAIL that cries wolf on every single-card run is
+ * worse than no check, because it trains the operator to skip the one place the
+ * real finding will eventually appear.
+ *
+ * 20 is roughly four observations per weight bucket. The distribution is still
+ * PRINTED below it — an operator reading one card's weights is doing something
+ * legitimate — but it is printed without a verdict.
+ */
+export const HISTOGRAM_MIN_SAMPLE = 20
