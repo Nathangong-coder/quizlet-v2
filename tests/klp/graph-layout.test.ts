@@ -5,6 +5,12 @@ import {
   edgeGeometry,
   RELATION_STYLE,
   NODE_WIDTH,
+  clampScale,
+  fitScale,
+  applyOverrides,
+  graphExtent,
+  MIN_SCALE,
+  MAX_SCALE,
 } from '@/lib/klp/graph-layout'
 import { RELATION_TYPES, type RelationEdge } from '@/lib/klp/relations'
 
@@ -132,5 +138,79 @@ describe('RELATION_STYLE', () => {
   it('gives each derivation type its own dash pattern, so they are distinguishable', () => {
     const derivation = ['causes', 'requires', 'precedes', 'applies_within'].map((t) => RELATION_STYLE[t].dash)
     expect(new Set(derivation).size).toBe(derivation.length)
+  })
+})
+
+describe('zoom, drag and fit', () => {
+  it('clamps zoom to a readable range', () => {
+    expect(clampScale(0.01)).toBe(MIN_SCALE)
+    expect(clampScale(99)).toBe(MAX_SCALE)
+    expect(clampScale(1.4)).toBe(1.4)
+    expect(clampScale(Number.NaN)).toBe(1)
+  })
+
+  /**
+   * Only SHRINKING is automatic. Blowing a three-box graph up until it fills a
+   * wide pane is not a fit, it is a distortion — and overflow is the only
+   * problem the reader cannot solve by looking.
+   */
+  it('shrinks to fit but never enlarges past natural size', () => {
+    expect(fitScale(1000, 400, 500, 400)).toBeCloseTo(0.5)
+    expect(fitScale(200, 100, 2000, 2000)).toBe(1)
+  })
+
+  it('fits the tighter of the two axes', () => {
+    expect(fitScale(1000, 1000, 500, 800)).toBeCloseTo(0.5)
+    expect(fitScale(1000, 1000, 800, 500)).toBeCloseTo(0.5)
+  })
+
+  /**
+   * A graph too large to fit even at the floor is left overflowing to be
+   * panned, rather than shrunk into an unreadable smear. Below MIN_SCALE the
+   * labels cannot be read, so "fitting" further shows everything and tells
+   * you nothing.
+   */
+  it('stops shrinking at the readable floor rather than fitting at any cost', () => {
+    expect(fitScale(10000, 10000, 500, 250)).toBe(MIN_SCALE)
+  })
+
+  it('returns 1 rather than NaN or Infinity for a degenerate container', () => {
+    expect(fitScale(100, 100, 0, 0)).toBe(1)
+    expect(fitScale(0, 0, 500, 500)).toBe(1)
+  })
+})
+
+describe('applyOverrides', () => {
+  const base = layoutKlpGraph(3, []).nodes
+
+  /**
+   * Overrides stay SEPARATE from the computed layout, so recomputing the layout
+   * does not need to know what the reader dragged, and "reset" is deleting a
+   * map rather than recomputing anything.
+   */
+  it('moves only the dragged node and leaves the rest alone', () => {
+    const moved = applyOverrides(base, { 1: { x: 500, y: 300 } })
+    expect(moved[1]).toMatchObject({ x: 500, y: 300 })
+    expect(moved[0]).toEqual(base[0])
+    expect(moved[2]).toEqual(base[2])
+  })
+
+  it('returns the same array when nothing has been dragged', () => {
+    expect(applyOverrides(base, {})).toBe(base)
+  })
+})
+
+describe('graphExtent', () => {
+  /** Otherwise dragging a box to the right simply hides it off-canvas. */
+  it('grows to include a node dragged beyond the original bounds', () => {
+    const base = layoutKlpGraph(2, []).nodes
+    const before = graphExtent(base)
+    const after = graphExtent(applyOverrides(base, { 0: { x: 2000, y: 1200 } }))
+    expect(after.width).toBeGreaterThan(before.width)
+    expect(after.height).toBeGreaterThan(before.height)
+  })
+
+  it('is zero for an empty graph rather than -Infinity', () => {
+    expect(graphExtent([])).toEqual({ width: 0, height: 0 })
   })
 })

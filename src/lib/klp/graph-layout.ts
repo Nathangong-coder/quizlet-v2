@@ -173,3 +173,57 @@ export const RELATION_STYLE: Record<
   confused_with: { dash: '7 5', tone: 'confusion', description: 'learners mix these two up' },
   analogous_to: { dash: '7 5', tone: 'confusion', description: 'similar shape, different topic' },
 }
+
+/** Zoom bounds. Below the floor labels are unreadable; above the ceiling one box fills the view. */
+export const MIN_SCALE = 0.3
+export const MAX_SCALE = 2.5
+
+export function clampScale(scale: number): number {
+  if (!Number.isFinite(scale)) return 1
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale))
+}
+
+/**
+ * The scale that makes a graph fit the space it has.
+ *
+ * Capped at 1: a small graph in a wide pane should sit at its natural size
+ * rather than being blown up until three boxes fill the screen. Only shrinking
+ * is automatic, because only overflow is a problem the reader cannot solve by
+ * looking.
+ */
+export function fitScale(graphWidth: number, graphHeight: number, viewWidth: number, viewHeight: number): number {
+  if (graphWidth <= 0 || graphHeight <= 0 || viewWidth <= 0 || viewHeight <= 0) return 1
+  return clampScale(Math.min(1, viewWidth / graphWidth, viewHeight / graphHeight))
+}
+
+/** A node's position after the reader has dragged it, keyed by node index. */
+export type PositionOverrides = Record<number, { x: number; y: number }>
+
+/**
+ * The laid-out nodes with any dragged positions applied.
+ *
+ * Overrides are kept SEPARATE from the computed layout rather than mutating it,
+ * so re-running the layout (a card reloads, an edge is added) does not have to
+ * know what the reader moved, and "reset" is deleting a map rather than
+ * recomputing anything.
+ */
+export function applyOverrides(nodes: LaidOutNode[], overrides: PositionOverrides): LaidOutNode[] {
+  if (Object.keys(overrides).length === 0) return nodes
+  return nodes.map((n) => {
+    const moved = overrides[n.index]
+    return moved ? { ...n, x: moved.x, y: moved.y } : n
+  })
+}
+
+/**
+ * The bounding box of a set of nodes, padded.
+ *
+ * Recomputed after dragging so the canvas grows to follow a node pulled beyond
+ * the original extent — otherwise dragging a box to the right simply hides it.
+ */
+export function graphExtent(nodes: LaidOutNode[]): { width: number; height: number } {
+  if (nodes.length === 0) return { width: 0, height: 0 }
+  const right = Math.max(...nodes.map((n) => n.x + NODE_WIDTH))
+  const bottom = Math.max(...nodes.map((n) => n.y + NODE_HEIGHT))
+  return { width: right + PADDING, height: bottom + PADDING }
+}

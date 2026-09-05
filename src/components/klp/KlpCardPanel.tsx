@@ -1,13 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import {
-  layoutKlpGraph,
-  edgeGeometry,
-  RELATION_STYLE,
-  NODE_WIDTH,
-  NODE_HEIGHT,
-} from '@/lib/klp/graph-layout'
+import { RELATION_STYLE } from '@/lib/klp/graph-layout'
+import { KlpGraphCanvas, type AnswerOverlay } from '@/components/klp/KlpGraphCanvas'
 import type { RelationEdge } from '@/lib/klp/relations'
 
 export interface KlpNode {
@@ -34,6 +29,8 @@ export interface KlpCardPanelProps {
   /** Shown beside the card title when the card has been through authoring. */
   separation?: number | null
   status?: string | null
+  /** When present, the graph offers a Solution / learner-answer toggle. */
+  answer?: AnswerOverlay | null
 }
 
 /** K1, K2, … — 1-based, because nobody reading a list counts from zero. */
@@ -68,12 +65,11 @@ export function KlpCardPanel({
   relations,
   separation,
   status,
+  answer,
 }: KlpCardPanelProps) {
   const [active, setActive] = useState<number | null>(null)
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null)
   const [hoveredEdge, setHoveredEdge] = useState<string | null>(null)
-
-  const layout = useMemo(() => layoutKlpGraph(klps.length, relations), [klps.length, relations])
 
   // Only edges whose endpoints both exist can be drawn. Out-of-range endpoints
   // are pruned before persistence, so this is belt-and-braces — but a bad row
@@ -153,101 +149,19 @@ export function KlpCardPanel({
           parallel &mdash; an enumeration has nothing to derive from anything else.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <svg
-            viewBox={`0 0 ${layout.width} ${layout.height + 40}`}
-            width={layout.width}
-            height={layout.height + 40}
-            className="max-w-full"
-            role="img"
-            aria-label={`Relation graph for ${cardTerm}`}
-          >
-            <defs>
-              <marker id="klp-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" className="fill-teal-600 dark:fill-teal-400" />
-              </marker>
-              <marker id="klp-arrow-confusion" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" className="fill-orange-600 dark:fill-orange-400" />
-              </marker>
-            </defs>
-
-            {drawable.map((r, i) => {
-              const from = layout.nodes[r.from]
-              const to = layout.nodes[r.to]
-              const geo = edgeGeometry(from, to)
-              const style = RELATION_STYLE[r.type] ?? RELATION_STYLE.causes
-              const confusion = style.tone === 'confusion'
-              const dimmed = edgeDimmed(r)
-              return (
-                <g
-                  key={r.id}
-                  className={`cursor-pointer transition-opacity ${dimmed ? 'opacity-15' : ''}`}
-                  onClick={() => setSelectedEdge((prev) => (prev === r.id ? null : r.id))}
-                  onMouseEnter={() => setHoveredEdge(r.id)}
-                  onMouseLeave={() => setHoveredEdge(null)}
-                >
-                  {/* A wide transparent path under the visible one, so a 1.5px
-                      line is still clickable without demanding pixel accuracy. */}
-                  <path d={geo.path} fill="none" stroke="transparent" strokeWidth={14} />
-                  <path
-                    d={geo.path}
-                    fill="none"
-                    strokeWidth={selectedEdge === r.id ? 2.5 : 1.5}
-                    strokeDasharray={style.dash}
-                    markerEnd={`url(#${confusion ? 'klp-arrow-confusion' : 'klp-arrow'})`}
-                    markerStart={confusion ? `url(#klp-arrow-confusion)` : undefined}
-                    className={
-                      confusion
-                        ? 'stroke-orange-600 dark:stroke-orange-400'
-                        : 'stroke-teal-600 dark:stroke-teal-400'
-                    }
-                  />
-                  <text
-                    x={geo.labelX}
-                    y={geo.labelY}
-                    textAnchor="middle"
-                    className="fill-muted-foreground font-mono"
-                    style={{ fontSize: 10 }}
-                  >
-                    {rLabel(i)}
-                  </text>
-                </g>
-              )
-            })}
-
-            {layout.nodes.map((n) => {
-              const klp = klps[n.index]
-              return (
-                <g
-                  key={klp.id}
-                  transform={`translate(${n.x} ${n.y})`}
-                  className={`cursor-pointer transition-opacity ${isDimmed(n.index) ? 'opacity-25' : ''}`}
-                  onMouseEnter={() => setActive(n.index)}
-                  onMouseLeave={() => setActive(null)}
-                  onClick={() => setActive((prev) => (prev === n.index ? null : n.index))}
-                >
-                  <rect
-                    width={NODE_WIDTH}
-                    height={NODE_HEIGHT}
-                    rx={8}
-                    className={`fill-muted stroke-border ${active === n.index ? 'stroke-teal-500' : ''}`}
-                    strokeWidth={active === n.index ? 2 : 1}
-                  />
-                  <text x={10} y={20} className="fill-teal-700 dark:fill-teal-400 font-mono" style={{ fontSize: 11 }}>
-                    {kLabel(n.index)}
-                  </text>
-                  <text x={10} y={38} className="fill-foreground" style={{ fontSize: 11 }}>
-                    {truncate(klp.label ?? klp.text, 26)}
-                  </text>
-                  <text x={10} y={52} className="fill-muted-foreground font-mono" style={{ fontSize: 9 }}>
-                    {klp.kind} · w{klp.weight}
-                  </text>
-                  <title>{klp.text}</title>
-                </g>
-              )
-            })}
-          </svg>
-        </div>
+        <KlpGraphCanvas
+          klps={klps}
+          relations={relations}
+          answer={answer}
+          activeIndex={active}
+          onActiveChange={setActive}
+          hoveredEdgeId={hoveredEdge}
+          onHoveredEdgeChange={setHoveredEdge}
+          selectedEdgeId={selectedEdge}
+          onSelectedEdgeChange={setSelectedEdge}
+          kLabel={kLabel}
+          rLabel={rLabel}
+        />
       )}
 
       {drawable.length > 0 && (
@@ -342,8 +256,4 @@ export function KlpCardPanel({
       )}
     </section>
   )
-}
-
-function truncate(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max - 1)}…`
 }
