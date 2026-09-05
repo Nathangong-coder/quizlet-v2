@@ -15,6 +15,12 @@
  * `src/lib/klp/authoring.ts`'s injected `AuthoringGenerator`.
  */
 import { classifyProviderError } from '@/lib/errors/classify'
+// Both live in `src/lib/errors/quota.ts` so production (`classifyProviderError`)
+// and this operator script read one implementation. Re-exported because the
+// script's tests and callers already import them from here.
+import { collectErrorText, parseQuotaViolation, type QuotaViolation } from '@/lib/errors/quota'
+
+export { parseQuotaViolation, type QuotaViolation }
 
 /**
  * Proactive pacing ceiling for `--direct` runs. The pilot's free-tier key
@@ -119,62 +125,6 @@ export class RunHaltedError extends Error {
 }
 
 /**
- * Flattens an error into searchable text, WALKING THE NESTED ERROR CHAIN.
- *
- * The nesting is not defensive programming, it is the actual shape. What the
- * pipeline catches from the AI SDK is an `AI_RetryError`, whose own enumerable
- * keys are exactly `name, cause, reason, errors, lastError` — the underlying
- * `APICallError`, and with it the `responseBody` carrying Google's
- * `google.rpc.QuotaFailure` detail, is a LEVEL DOWN.
- *
- * A top-level-only version therefore saw the RetryError's message and nothing
- * else. That was enough for `parseRetryDelayMs` by luck — the RetryError's
- * message embeds the last error's message, which includes "Please retry in
- * 52.3s" — and NOT enough for `parseQuotaViolation`, which needs `quotaId`
- * from the body. The daily-quota halt was consequently dead on arrival against
- * real traffic while passing against a hand-built fixture: the exact shape of
- * a guard that cannot fail. Found by reading a live 429 rather than a test.
- *
- * Depth-capped and visited-guarded, because `cause` chains can loop.
- */
-function collectErrorText(err: unknown, depth = 0, seen = new Set<unknown>()): string {
-  if (depth > 4 || (err !== null && typeof err === 'object' && seen.has(err))) return ''
-  if (typeof err === 'string') return err
-  if (!err || typeof err !== 'object') return ''
-  seen.add(err)
-
-  const parts: string[] = []
-  const rec = err as Record<string, unknown>
-  if (typeof rec.message === 'string') parts.push(rec.message)
-  if (typeof rec.responseBody === 'string') parts.push(rec.responseBody)
-  if (rec.data !== undefined) {
-    try {
-      parts.push(JSON.stringify(rec.data))
-    } catch {
-      // Not JSON-serializable (e.g. a circular structure) — skip it, the
-      // message/responseBody sources usually carry the hint anyway.
-    }
-  }
-  const headers = rec.responseHeaders
-  if (headers && typeof headers === 'object') {
-    const retryAfter = (headers as Record<string, unknown>)['retry-after']
-    if (typeof retryAfter === 'string') parts.push(`retry-after:${retryAfter}`)
-  }
-
-  // `lastError` and `errors` are AI_RetryError's own fields; `cause` is the
-  // standard chain. All three are followed so the body is reachable however the
-  // SDK happens to wrap it.
-  for (const nested of [rec.lastError, rec.cause]) {
-    if (nested !== undefined) parts.push(collectErrorText(nested, depth + 1, seen))
-  }
-  if (Array.isArray(rec.errors)) {
-    for (const nested of rec.errors) parts.push(collectErrorText(nested, depth + 1, seen))
-  }
-
-  return parts.filter(Boolean).join(' ')
-}
-
-/**
  * Defensively extracts a retry delay from a provider error. Tried against
  * every shape actually seen or plausible for Google's generativelanguage
  * API, in order:
@@ -206,61 +156,6 @@ export function parseRetryDelayMs(err: unknown): number | undefined {
   if (headerMatch) return Math.ceil(Number.parseFloat(headerMatch[1]) * 1000)
 
   return undefined
-}
-
-/**
- * What a provider's 429 says about WHICH quota was hit, read off the structured
- * payload rather than inferred from the retry delay.
- *
- * Google returns a `google.rpc.QuotaFailure` detail whose `quotaId` names the
- * period outright — `GenerateRequestsPerDayPerProjectPerModel-FreeTier` versus
- * the `...PerMinute...` variants. That is decisive evidence, and it is the
- * evidence the original delay-magnitude heuristic did not know existed: a real
- * daily cap arrived with a 34-second hint, so magnitude alone classified it as
- * a per-minute throttle and the run retried a limit that resets tomorrow.
- *
- * Regex over the collected error text rather than `JSON.parse`, because
- * `collectErrorText` deliberately concatenates several shapes (message,
- * `responseBody`, `data`) and the result is not reliably a single JSON
- * document. `quotaValue` and the model dimension are read from AFTER the
- * matched id so a response carrying several violations attributes the limit to
- * the right one.
- *
- * A DAILY violation wins over a per-minute one when both are present: the daily
- * cap is the binding constraint, and waiting out the minute would just walk
- * back into it.
- */
-export interface QuotaViolation {
-  period: 'day' | 'minute'
-  quotaId: string
-  /** The limit as the provider stated it, when it stated one. */
-  limit?: string
-  /** The model the quota is scoped to, when the violation names one. */
-  model?: string
-}
-
-export function parseQuotaViolation(err: unknown): QuotaViolation | undefined {
-  const blob = collectErrorText(err)
-  if (!blob) return undefined
-
-  const ids = [...blob.matchAll(/"quotaId"\s*:\s*"([^"]+)"/gi)]
-  if (ids.length === 0) return undefined
-
-  const daily = ids.find((m) => /perday/i.test(m[1]))
-  const minute = ids.find((m) => /perminute/i.test(m[1]))
-  const chosen = daily ?? minute
-  if (!chosen) return undefined
-
-  const after = blob.slice((chosen.index ?? 0) + chosen[0].length)
-  const limit = /"quotaValue"\s*:\s*"?(\d+)"?/i.exec(after)?.[1]
-  const model = /"model"\s*:\s*"([^"]+)"/i.exec(after)?.[1]
-
-  return {
-    period: daily ? 'day' : 'minute',
-    quotaId: chosen[1],
-    ...(limit !== undefined ? { limit } : {}),
-    ...(model !== undefined ? { model } : {}),
-  }
 }
 
 export function exponentialBackoffMs(attempt: number): number {

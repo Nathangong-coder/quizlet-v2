@@ -26,6 +26,18 @@ import { toSdkContent, type GeminiPart } from '@/lib/ai/media-adapter';
 // Do not re-declare it here — two definitions would drift.
 import type { AiTask } from '@/lib/ai/model-routing';
 
+/**
+ * What the executor needs to know about its position in the rotation.
+ *
+ * Only `isLast` so far, and it exists for retry policy: with another credential
+ * still to try, rotating is a better answer to a failure than retrying the same
+ * key, so the SDK's own retries are turned off. On the LAST credential there is
+ * nothing to rotate to, and the SDK's retry is the only resilience left.
+ */
+export interface AttemptMeta {
+  isLast: boolean;
+}
+
 /** One credential resolved far enough to attempt a call with. */
 export interface AttemptCandidate {
   id: string;
@@ -66,7 +78,7 @@ function mostActionable(kinds: FailureKind[]): FailureKind {
  */
 export async function runAttempts<T>(
   candidates: AttemptCandidate[],
-  execute: (candidate: AttemptCandidate) => Promise<T>,
+  execute: (candidate: AttemptCandidate, meta: AttemptMeta) => Promise<T>,
 ): Promise<AttemptSuccess<T>> {
   if (candidates.length === 0) {
     throw new AiGenerationError({
@@ -77,9 +89,9 @@ export async function runAttempts<T>(
 
   const failures: AttemptRow[] = [];
 
-  for (const candidate of candidates) {
+  for (const [index, candidate] of candidates.entries()) {
     try {
-      const value = await execute(candidate);
+      const value = await execute(candidate, { isLast: index === candidates.length - 1 });
       return { value, usedId: candidate.id, failures };
     } catch (err) {
       const kind = classifyProviderError(err);
@@ -291,7 +303,7 @@ export async function generateJson<T>({
 
   let result: AttemptSuccess<T>;
   try {
-    result = await runAttempts(candidates, async (candidate) => {
+    result = await runAttempts(candidates, async (candidate, { isLast }) => {
       const cred = byId.get(candidate.id)!;
 
       // Stamped BEFORE the attempt, not after it. The field is therefore
@@ -314,9 +326,23 @@ export async function generateJson<T>({
         model: candidate.model,
       });
 
+      // TWO RETRY AUTHORITIES MULTIPLY RATHER THAN COMPOSE. The SDK's default
+      // `maxRetries` is 2, i.e. three attempts, all against the SAME key —
+      // so a rate-limited credential burned three requests before this loop
+      // ever saw a failure and rotated. On a per-day quota (Gemini's free tier
+      // is 20 requests/day/model) that is three times the waste, and it also
+      // tripled the latency before failover on a key that was never going to
+      // work.
+      //
+      // So: while another credential remains, rotation IS the retry — a
+      // different key is a strictly better second attempt than the same one.
+      // On the last credential there is nothing to rotate to, and the SDK's
+      // retry is the only resilience left, so it is kept. A single-credential
+      // user therefore sees no change at all.
       const { output } = await generateText({
         model,
         output: Output.object({ schema }),
+        maxRetries: isLast ? 2 : 0,
         ...(parts ? { messages: [{ role: 'user' as const, content: toSdkContent(parts) }] } : { prompt: prompt ?? '' }),
       });
       return output as T;
