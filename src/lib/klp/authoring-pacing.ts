@@ -118,28 +118,60 @@ export class RunHaltedError extends Error {
   }
 }
 
-function collectErrorText(err: unknown): string {
+/**
+ * Flattens an error into searchable text, WALKING THE NESTED ERROR CHAIN.
+ *
+ * The nesting is not defensive programming, it is the actual shape. What the
+ * pipeline catches from the AI SDK is an `AI_RetryError`, whose own enumerable
+ * keys are exactly `name, cause, reason, errors, lastError` — the underlying
+ * `APICallError`, and with it the `responseBody` carrying Google's
+ * `google.rpc.QuotaFailure` detail, is a LEVEL DOWN.
+ *
+ * A top-level-only version therefore saw the RetryError's message and nothing
+ * else. That was enough for `parseRetryDelayMs` by luck — the RetryError's
+ * message embeds the last error's message, which includes "Please retry in
+ * 52.3s" — and NOT enough for `parseQuotaViolation`, which needs `quotaId`
+ * from the body. The daily-quota halt was consequently dead on arrival against
+ * real traffic while passing against a hand-built fixture: the exact shape of
+ * a guard that cannot fail. Found by reading a live 429 rather than a test.
+ *
+ * Depth-capped and visited-guarded, because `cause` chains can loop.
+ */
+function collectErrorText(err: unknown, depth = 0, seen = new Set<unknown>()): string {
+  if (depth > 4 || (err !== null && typeof err === 'object' && seen.has(err))) return ''
+  if (typeof err === 'string') return err
+  if (!err || typeof err !== 'object') return ''
+  seen.add(err)
+
   const parts: string[] = []
-  if (typeof err === 'string') parts.push(err)
-  if (err && typeof err === 'object') {
-    const rec = err as Record<string, unknown>
-    if (typeof rec.message === 'string') parts.push(rec.message)
-    if (typeof rec.responseBody === 'string') parts.push(rec.responseBody)
-    if (rec.data !== undefined) {
-      try {
-        parts.push(JSON.stringify(rec.data))
-      } catch {
-        // Not JSON-serializable (e.g. a circular structure) — skip it, the
-        // message/responseBody sources usually carry the hint anyway.
-      }
-    }
-    const headers = rec.responseHeaders
-    if (headers && typeof headers === 'object') {
-      const retryAfter = (headers as Record<string, unknown>)['retry-after']
-      if (typeof retryAfter === 'string') parts.push(`retry-after:${retryAfter}`)
+  const rec = err as Record<string, unknown>
+  if (typeof rec.message === 'string') parts.push(rec.message)
+  if (typeof rec.responseBody === 'string') parts.push(rec.responseBody)
+  if (rec.data !== undefined) {
+    try {
+      parts.push(JSON.stringify(rec.data))
+    } catch {
+      // Not JSON-serializable (e.g. a circular structure) — skip it, the
+      // message/responseBody sources usually carry the hint anyway.
     }
   }
-  return parts.join(' ')
+  const headers = rec.responseHeaders
+  if (headers && typeof headers === 'object') {
+    const retryAfter = (headers as Record<string, unknown>)['retry-after']
+    if (typeof retryAfter === 'string') parts.push(`retry-after:${retryAfter}`)
+  }
+
+  // `lastError` and `errors` are AI_RetryError's own fields; `cause` is the
+  // standard chain. All three are followed so the body is reachable however the
+  // SDK happens to wrap it.
+  for (const nested of [rec.lastError, rec.cause]) {
+    if (nested !== undefined) parts.push(collectErrorText(nested, depth + 1, seen))
+  }
+  if (Array.isArray(rec.errors)) {
+    for (const nested of rec.errors) parts.push(collectErrorText(nested, depth + 1, seen))
+  }
+
+  return parts.filter(Boolean).join(' ')
 }
 
 /**

@@ -1,8 +1,8 @@
 # Spec 2, increment A — grain, ordering, and evidence-based weight
 
 **Date:** 2026-09-04
-**Status:** BUILT 2026-09-04. Suite 2770 passing, tsc clean, lint 164 (baseline, unchanged).
-The pilot run remains owed and still blocked on Google free-tier quota.
+**Status:** BUILT and FIRST-CARD VERIFIED 2026-09-04. See §9 for the pilot output read against the
+owner's own criticisms — all five are addressed on the exact card that prompted them.
 **Amends:** `docs/superpowers/specs/2026-09-04-klp-authoring-pipeline-design.md` (Spec 2, built)
 **Trigger:** the owner's review of the first real pipeline output — one LBO card, 5 KLPs, separation 0.70.
 
@@ -195,3 +195,73 @@ rebalancing before Spec 4 walks the corpus.
 - The full corpus walk (Spec 4).
 - The communication/clarity dimension, deferred at the owner's explicit instruction.
 - Re-authoring `Accounting - Knowledge`. That remains the acceptance run and the owner's call.
+
+## 9. Pilot output, read against the criticisms that prompted this (2026-09-04)
+
+The card is the same one §"What prompted this" quotes: *"Why do LBOs use leverage? How do they use
+leverage to increase returns?"* Run on `gemini-3.5-flash` (the default `gemini-3.6-flash` was out of
+its daily bucket — see the quota note below). Separation **0.63**, 0 revisions, 4 KLPs, 4 relations.
+
+| The owner's criticism | What the increment produced |
+| --- | --- |
+| "the claims on debt … weren't in order" | KLP order is now setup → mechanism → mechanism → payoff: reduce the equity cheque; cash flows pay down principal; paydown converts EV into equity value; the return is measured against the smaller base. |
+| "[the IRR point] should be at the end & state that IRR is the return answering the original question" | KLP[3] is last and ends "…yielding a much higher percentage return (IRR)". |
+| "it's not explained clearly … overkill since you just calculate IRR based on % change from original" | The word *denominator* is gone. The KLP reads "measured against a significantly smaller initial equity base" — the contrast pair in §4 landed verbatim. |
+| "the beginning should talk a bit more about how the equity outlay is reduced from taking on debt" | KLP[0] is exactly that, and is now first. |
+| "should follow the 'answer' given in the flashcard … each point expanded + new points added" | The reference answer tracks the definition's points in order and extends them; §2's skeleton rule. |
+
+**The `concerns` field earned its place on its first run.** It returned: *"The card says leverage
+decreases the 'upfront capital required.' To be precise, it decreases the upfront **equity** capital
+required; the total transaction capital (purchase price) remains exactly the same."* That is a real
+precision error in the owner's own card, surfaced rather than silently patched — which is the whole
+argument for the field.
+
+**Relations went from 2 to 4** on the same card, including a `precedes` edge (1 → 2) that agrees
+with the stored order, so the §3 cross-check passed rather than merely not running.
+
+### The weight ceiling, now measured rather than predicted
+
+Weights came out **3, 3, 3, 2**. Working it through: radii `[1,1,0,0]`, breadths
+`[0.67, 0.67, 1.0, 0.33]`.
+
+Both terms are doing their job — the breadth histogram spans three distinct values, so the evidence
+term is emphatically not flat. **The averaging is what collapses them.** KLP[2], the only point all
+three adversaries failed, is the most load-bearing claim on the card, and equal weighting hands it
+the same 3 as two KLPs that scored lower on breadth but happen to have one dependent each. The two
+signals disagree and the mean lands in the middle.
+
+This is the §1 ceiling arriving exactly as the tests predicted, and it is now backed by a real card
+rather than an argument. **Recommended rebalance, for the owner's call:** take `max(graphTerm,
+breadthTerm)` rather than a weighted mean. On this card that yields **4, 4, 5, 2** — three distinct
+values spanning 2-5, with the universally-failed KLP correctly at the top. It also matches what §1
+already says the design intends ("graph term dominates on chains, evidence term carries
+enumerations"): `max` is precisely "whichever signal has something to say about this KLP", where a
+mean is "both signals must agree before anything can be important". Not applied unilaterally —
+`weightFromSignals` takes its term weights as an injectable parameter so the change is one config
+edit plus one test.
+
+**Do not read the single-card histogram as evidence of clustering.** Four KLPs across five buckets
+cannot distinguish clustering from noise, and the check now says so instead of firing `uniform` —
+see the sample-floor note below.
+
+### Two defects this run found, both fixed
+
+1. **The daily-quota classifier was wrong, and it cost seven minutes per attempt.** Google's free
+   tier is **20 requests per day, per model** (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`),
+   and it returns that cap with a **34-second** retry hint. The pacing code's only discriminator was
+   the hint's magnitude, so it honored the hint and retried a limit that resets tomorrow, halting
+   with "rate limit did not clear" — which reads as transient. The 429 carries a
+   `google.rpc.QuotaFailure` detail naming the period outright; `parseQuotaViolation` now reads it
+   and halts on the first failure, naming the model and the limit.
+2. **The histogram fired a FAIL on four data points.** `uniform` at 75% of four KLPs is arithmetic,
+   not evidence — and since a single card carries 4-9 KLPs, it would have fired on essentially every
+   run summary an operator ever saw. Findings now require `HISTOGRAM_MIN_SAMPLE` (20); below it the
+   shape is printed without a verdict.
+
+**Consequence for the pilot, worth stating plainly:** at ~6 calls per card against a 20/day
+per-model cap, one model authors roughly **three cards a day**. A 10-card pilot therefore needs
+either several models rotated via `KLP_DIRECT_MODEL` (each has its own bucket — verified working on
+`gemini-3.5-flash`, `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-2.5-flash`), several
+days, or a paid tier. Rotating models is fine for the weight histogram, which is model-independent
+given the verdicts and edges, but it is a confound for judging authoring QUALITY across cards, and
+the model used is not recorded on `CardAuthoring`.

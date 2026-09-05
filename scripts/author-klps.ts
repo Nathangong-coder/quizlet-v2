@@ -124,7 +124,20 @@ function directGenerator(rpm: number): AuthoringGenerator {
   async function call<T>(prompt: string, schema: z.ZodSchema<T>): Promise<T> {
     return callWithPacingAndRetry(
       async () => {
-        const res = await generateText({ model: google(model), prompt, output: Output.object({ schema }) })
+        // maxRetries: 0 — THE PACING LAYER OWNS RETRY, and two retry
+        // authorities multiply rather than compose. The SDK's default is 2
+        // (three attempts), so a rate-limited call cost 3 real requests before
+        // `callWithPacingAndRetry` ever saw the error, and its own 8 attempts
+        // therefore spent up to 24. Against a 20-requests-per-DAY free tier
+        // that is the entire day's budget burned retrying a wall. It also
+        // delayed classification: the daily-quota halt cannot fire until the
+        // error surfaces, and the SDK swallowed the first two.
+        const res = await generateText({
+          model: google(model),
+          prompt,
+          output: Output.object({ schema }),
+          maxRetries: 0,
+        })
         return res.output
       },
       {

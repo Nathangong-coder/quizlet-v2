@@ -83,6 +83,49 @@ function dailyQuotaError(retrySeconds = 34): Error {
   )
 }
 
+/**
+ * THE SHAPE THE PIPELINE ACTUALLY CATCHES, captured from a live 429 on
+ * 2026-09-04 rather than imagined: the AI SDK wraps the provider error in an
+ * `AI_RetryError` whose own keys are `name, cause, reason, errors, lastError`.
+ * The `APICallError` carrying `responseBody` — and with it the only statement
+ * of WHICH quota was hit — is a level down.
+ */
+function sdkRetryWrapped(inner: Error): Error {
+  return Object.assign(
+    new Error(
+      `Failed after 3 attempts. Last error: AI_APICallError: ${inner.message}`,
+    ),
+    { name: 'AI_RetryError', reason: 'maxRetriesExceeded', lastError: inner, errors: [inner] },
+  )
+}
+
+describe('collectErrorText via the parsers — nested SDK errors', () => {
+  /**
+   * THE REGRESSION. `parseQuotaViolation` passed against a hand-built flat
+   * fixture and was dead on arrival against real traffic, because the body it
+   * needs is never on the top-level object. The live pilot halted with "rate
+   * limit did not clear after 8 retries" — the fallback path — on an error that
+   * said `PerDay` one level down.
+   */
+  it('finds the quota violation on a nested AI_RetryError, not just a flat one', () => {
+    const wrapped = sdkRetryWrapped(dailyQuotaError())
+    expect(Object.keys(wrapped)).not.toContain('responseBody')
+    expect(parseQuotaViolation(wrapped)).toMatchObject({ period: 'day', limit: '20' })
+  })
+
+  it('finds the retry hint through the wrapper too', () => {
+    expect(parseRetryDelayMs(sdkRetryWrapped(dailyQuotaError(52)))).toBe(52000)
+  })
+
+  it('survives a self-referential cause chain instead of hanging', () => {
+    const a = new Error('outer') as Error & { cause?: unknown }
+    const b = new Error('inner') as Error & { cause?: unknown }
+    a.cause = b
+    b.cause = a
+    expect(() => parseQuotaViolation(a)).not.toThrow()
+  })
+})
+
 describe('parseQuotaViolation', () => {
   it('reads the period, limit and model off a real daily-quota payload', () => {
     expect(parseQuotaViolation(dailyQuotaError())).toEqual({
@@ -376,5 +419,28 @@ describe('callWithPacingAndRetry — daily quota, decided by the payload', () =>
 
     await expect(callWithPacingAndRetry(fn, { pacer, clock, jitterMs: 0 })).resolves.toBe('ok')
     expect(clock.sleeps).toEqual([2000])
+  })
+})
+
+describe('callWithPacingAndRetry — the shape real traffic arrives in', () => {
+  /**
+   * End to end on the captured shape: a daily cap wrapped in the SDK's
+   * AI_RetryError must halt on the first failure without sleeping, exactly as
+   * it does for the flat fixture. This is the assertion that would have caught
+   * the dead guard.
+   */
+  it('halts immediately on a daily cap wrapped in an AI_RetryError', async () => {
+    const clock = fakeClock()
+    const pacer = new Pacer(0, clock)
+    const fn = vi.fn(async () => {
+      throw sdkRetryWrapped(dailyQuotaError(34))
+    })
+
+    const err = await callWithPacingAndRetry(fn, { pacer, clock, jitterMs: 0 }).catch((e: Error) => e)
+    expect(err).toBeInstanceOf(RunHaltedError)
+    expect((err as RunHaltedError).haltReason).toBe('daily_quota')
+    expect(err.message).toContain('gemini-3.6-flash')
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(clock.sleeps).toEqual([])
   })
 })
