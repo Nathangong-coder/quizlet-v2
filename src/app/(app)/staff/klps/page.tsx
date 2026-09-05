@@ -1,10 +1,11 @@
 import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import { requireStaff } from '@/lib/staff/access'
-import { loadStaffKlps } from '@/lib/staff/queries'
+import { loadStaffKlps, loadCardKlpGraphs } from '@/lib/staff/queries'
 import { isAdmin } from '@/lib/auth/roles'
 import { StaffNav } from '../StaffNav'
 import { KlpTable } from '@/components/staff/KlpTable'
+import { KlpCardPanel } from '@/components/klp/KlpCardPanel'
 
 /**
  * Set-scoped by default, with a search across text and label.
@@ -16,7 +17,7 @@ import { KlpTable } from '@/components/staff/KlpTable'
 export default async function StaffKlpsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ set?: string; q?: string; superseded?: string }>
+  searchParams: Promise<{ set?: string; q?: string; superseded?: string; view?: string }>
 }) {
   const staff = await requireStaff()
   if (!staff) notFound()
@@ -28,11 +29,24 @@ export default async function StaffKlpsPage({
   })
 
   const setId = params.set ?? sets[0]?.id
-  const rows = await loadStaffKlps({
-    setId: params.q ? undefined : setId,
-    search: params.q,
-    includeSuperseded: params.superseded === '1',
-  })
+
+  // The card view is per-SET by construction: it draws one relation graph per
+  // card, and a cross-set text search returns key points from cards whose other
+  // points are not in the result — a graph drawn from that would be missing
+  // nodes without saying so. So a search falls back to the table, which is
+  // honest about being a flat list.
+  const view = params.q ? 'table' : (params.view === 'table' ? 'table' : 'cards')
+
+  const [rows, graphs] = await Promise.all([
+    view === 'table'
+      ? loadStaffKlps({
+          setId: params.q ? undefined : setId,
+          search: params.q,
+          includeSuperseded: params.superseded === '1',
+        })
+      : Promise.resolve([]),
+    view === 'cards' && setId ? loadCardKlpGraphs(setId) : Promise.resolve([]),
+  ])
 
   return (
     <div className="space-y-6">
@@ -61,10 +75,38 @@ export default async function StaffKlpsPage({
           <input type="checkbox" name="superseded" value="1" defaultChecked={params.superseded === '1'} />
           Show superseded
         </label>
+        <label className="text-sm">
+          <span className="block text-xs text-muted-foreground">View</span>
+          <select name="view" defaultValue={view} className="rounded-md border px-2 py-1.5 text-sm">
+            <option value="cards">Cards &amp; graphs</option>
+            <option value="table">Table</option>
+          </select>
+        </label>
         <button type="submit" className="rounded-md border px-3 py-1.5 text-sm">Apply</button>
       </form>
 
-      <KlpTable rows={rows} />
+      {view === 'table' ? (
+        <KlpTable rows={rows} />
+      ) : graphs.length === 0 ? (
+        <p className="py-8 text-sm text-muted-foreground">
+          No key points in this set yet. A set whose cards are all still <code>pending</code> has
+          none &mdash; check Coverage.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {graphs.map((g) => (
+            <KlpCardPanel
+              key={g.cardId}
+              cardTerm={g.cardTerm}
+              cardDefinition={g.cardDefinition}
+              klps={g.klps}
+              relations={g.relations}
+              separation={g.separation}
+              status={g.status}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

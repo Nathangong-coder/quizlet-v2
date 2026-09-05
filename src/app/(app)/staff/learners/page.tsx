@@ -17,7 +17,12 @@ export default async function StaffLearnersPage() {
       <StaffNav isAdmin={isAdmin(staff.role)} />
       <p className="text-sm text-muted-foreground">
         Every account, whether or not they have studied anything yet &mdash;{' '}
-        {learners.length} total, {learners.filter((l) => l.klpStates > 0).length} with measured knowledge.
+        {learners.length} total, {learners.filter((l) => l.active).length} active,{' '}
+        {learners.filter((l) => l.klpStates > 0).length} with measured knowledge.{' '}
+        <span className="text-xs">
+          Active means activity in the last year. The app has not been live that long, so every
+          inactive account today is one that has never studied at all.
+        </span>
       </p>
 
       {learners.length === 0 ? (
@@ -37,6 +42,20 @@ export default async function StaffLearnersPage() {
                   <span className="ml-2 text-xs text-muted-foreground">{l.email}</span>
                 )}
                 <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span
+                    className={
+                      l.active
+                        ? 'rounded border border-emerald-600/40 px-1.5 font-mono text-emerald-600 dark:text-emerald-400'
+                        : 'rounded border px-1.5 font-mono'
+                    }
+                    title={
+                      l.lastActiveAt
+                        ? `Last activity ${l.lastActiveAt.toISOString().slice(0, 10)}`
+                        : 'Has never answered anything'
+                    }
+                  >
+                    {l.active ? 'active' : 'inactive'}
+                  </span>
                   <span className="font-mono">{l.signIn}</span>
                   {l.role !== 'learner' && (
                     <span className="rounded border px-1.5 font-mono">{l.role}</span>
