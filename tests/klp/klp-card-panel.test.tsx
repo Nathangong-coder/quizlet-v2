@@ -72,8 +72,11 @@ describe('the graph', () => {
 
   it('only legends the relation types actually present', () => {
     renderPanel()
-    expect(screen.getByText('causes')).toBeInTheDocument()
-    expect(screen.getByText('requires')).toBeInTheDocument()
+    // The type name appears in the legend AND in each caption, so the legend is
+    // identified by its description text, which is unique to it.
+    expect(screen.getByText(/one step produces another/)).toBeInTheDocument()
+    expect(screen.getByText(/only true if the first is/)).toBeInTheDocument()
+    expect(screen.queryByText(/learners mix these two up/)).toBeNull()
     expect(screen.queryByText('confused_with')).toBeNull()
   })
 })
@@ -108,20 +111,50 @@ describe('interactivity', () => {
   })
 
   /**
-   * The probe is the whole reason an edge was kept: an answer that gets both
-   * endpoints right and the link wrong. Showing it is showing why the edge
-   * exists at all.
+   * An R-number on a line says an edge exists and nothing about what it claims.
+   * The rationale is the intended connection in words, so it is shown outright
+   * rather than hidden behind a click.
    */
-  it('opens an edge to reveal its rationale and probe', () => {
-    const { container } = renderPanel()
-
-    expect(screen.queryByText(/tax shields part of it/)).toBeNull()
-
-    const hitTarget = container.querySelectorAll('svg path[stroke="transparent"]')[0]
-    fireEvent.click(hitTarget)
-
+  it('captions every relation with its intended connection, without a click', () => {
+    renderPanel()
     expect(screen.getByText(/tax shields part of it/)).toBeInTheDocument()
+    expect(screen.getByText(/the add-back is what lifts CFO/)).toBeInTheDocument()
+  })
+
+  it('captions name the endpoints and the relation type', () => {
+    renderPanel()
+    const caption = screen.getByText(/tax shields part of it/).closest('div')!
+    expect(caption).toHaveTextContent('R1')
+    expect(caption).toHaveTextContent('K1 → K2')
+    expect(caption).toHaveTextContent('causes')
+  })
+
+  /**
+   * The probe is a different kind of thing from the rationale — not what the
+   * link means, but the wrong answer proving the link carries information (one
+   * that gets BOTH endpoints right and the connection wrong). Worth reading
+   * deliberately, not while scanning, so it stays behind a click.
+   */
+  it('keeps the probe behind a click', () => {
+    renderPanel()
+    expect(screen.queryByText(/says net income falls 10/)).toBeNull()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'probe' })[0])
     expect(screen.getByText(/says net income falls 10/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'hide probe' }))
+    expect(screen.queryByText(/says net income falls 10/)).toBeNull()
+  })
+
+  /** Hovering a caption is the same act as hovering its line. */
+  it('dims the other relations when one caption is hovered', () => {
+    renderPanel()
+    const caption = screen.getByText(/tax shields part of it/).closest('div')!
+    fireEvent.mouseEnter(caption)
+
+    const other = screen.getByText(/the add-back is what lifts CFO/).closest('div')!
+    expect(other.className).toContain('opacity-40')
+    expect(caption.className).not.toContain('opacity-40')
   })
 })
 

@@ -71,6 +71,7 @@ export function KlpCardPanel({
 }: KlpCardPanelProps) {
   const [active, setActive] = useState<number | null>(null)
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null)
+  const [hoveredEdge, setHoveredEdge] = useState<string | null>(null)
 
   const layout = useMemo(() => layoutKlpGraph(klps.length, relations), [klps.length, relations])
 
@@ -93,9 +94,9 @@ export function KlpCardPanel({
   }, [active, drawable])
 
   const isDimmed = (index: number) => touched !== null && !touched.has(index)
-  const edgeDimmed = (r: KlpEdge) => active !== null && r.from !== active && r.to !== active
-
-  const openEdge = drawable.find((r) => r.id === selectedEdge) ?? null
+  const edgeDimmed = (r: KlpEdge) =>
+    (active !== null && r.from !== active && r.to !== active) ||
+    (hoveredEdge !== null && hoveredEdge !== r.id)
 
   return (
     <section className="space-y-4 rounded-lg border p-4">
@@ -182,6 +183,8 @@ export function KlpCardPanel({
                   key={r.id}
                   className={`cursor-pointer transition-opacity ${dimmed ? 'opacity-15' : ''}`}
                   onClick={() => setSelectedEdge((prev) => (prev === r.id ? null : r.id))}
+                  onMouseEnter={() => setHoveredEdge(r.id)}
+                  onMouseLeave={() => setHoveredEdge(null)}
                 >
                   {/* A wide transparent path under the visible one, so a 1.5px
                       line is still clickable without demanding pixel accuracy. */}
@@ -276,31 +279,66 @@ export function KlpCardPanel({
         </div>
       )}
 
-      {/* Clicking an edge opens the evidence behind it. The probe is the whole
-          reason the edge was kept: an answer that gets both endpoints right and
-          the link wrong. An edge nobody can write one for carries no
-          information, so showing it is showing why the edge exists. */}
-      {openEdge && (
-        <div className="space-y-2 rounded border bg-muted/40 p-3 text-xs">
-          <p className="font-mono">
-            {kLabel(openEdge.from)} &mdash;{openEdge.type}&rarr; {kLabel(openEdge.to)}
-          </p>
-          <p>
-            <span className="text-muted-foreground">Why: </span>
-            {openEdge.rationale}
-          </p>
-          <p>
-            <span className="text-muted-foreground">Probe: </span>
-            {openEdge.probe}
-          </p>
-          <button
-            type="button"
-            className="text-muted-foreground underline"
-            onClick={() => setSelectedEdge(null)}
-          >
-            close
-          </button>
-        </div>
+      {/* CAPTIONS. An R-number on a line tells you an edge exists and nothing
+          about what it claims — the reader still has to guess why K3 points at
+          K4. The rationale is the intended connection stated in words, and it
+          is already stored on every relation, so it is shown outright rather
+          than hidden behind a click.
+
+          The probe stays click-to-open, because it is a different kind of
+          thing: not what the link means, but the wrong answer that proves the
+          link carries information — one that gets BOTH endpoints right and the
+          connection wrong. That is worth reading deliberately, not while
+          scanning. */}
+      {drawable.length > 0 && (
+        <dl className="space-y-1.5 text-xs">
+          {drawable.map((r, i) => {
+            const style = RELATION_STYLE[r.type] ?? RELATION_STYLE.causes
+            const dimmed = edgeDimmed(r)
+            const open = selectedEdge === r.id
+            return (
+              <div
+                key={r.id}
+                className={`rounded px-1.5 py-1 transition-opacity ${dimmed ? 'opacity-40' : ''} ${
+                  open ? 'bg-muted/60' : ''
+                }`}
+                onMouseEnter={() => setHoveredEdge(r.id)}
+                onMouseLeave={() => setHoveredEdge(null)}
+              >
+                <dt className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-mono text-muted-foreground">{rLabel(i)}</span>
+                  <span className="font-mono">
+                    {kLabel(r.from)} &rarr; {kLabel(r.to)}
+                  </span>
+                  <span
+                    className={`font-mono ${
+                      style.tone === 'confusion'
+                        ? 'text-orange-700 dark:text-orange-400'
+                        : 'text-teal-700 dark:text-teal-400'
+                    }`}
+                  >
+                    {r.type}
+                  </span>
+                  <button
+                    type="button"
+                    className="ml-auto text-muted-foreground underline decoration-dotted"
+                    onClick={() => setSelectedEdge((prev) => (prev === r.id ? null : r.id))}
+                    aria-expanded={open}
+                  >
+                    {open ? 'hide probe' : 'probe'}
+                  </button>
+                </dt>
+                <dd className="mt-0.5 leading-5">{r.rationale}</dd>
+                {open && (
+                  <dd className="mt-1 border-l-2 pl-2 text-muted-foreground">
+                    <span className="font-medium">Probe: </span>
+                    {r.probe}
+                  </dd>
+                )}
+              </div>
+            )
+          })}
+        </dl>
       )}
     </section>
   )
