@@ -1,8 +1,8 @@
 # Spec 2, increment A — grain, ordering, and evidence-based weight
 
 **Date:** 2026-09-04
-**Status:** BUILT and FIRST-CARD VERIFIED 2026-09-04. See §9 for the pilot output read against the
-owner's own criticisms — all five are addressed on the exact card that prompted them.
+**Status:** BUILT and PILOT-VERIFIED 2026-09-04. All 10 LBO cards authored; §9 reads the output
+against the owner's own criticisms, and §10 records the weight histogram that **closes G1**.
 **Amends:** `docs/superpowers/specs/2026-09-04-klp-authoring-pipeline-design.md` (Spec 2, built)
 **Trigger:** the owner's review of the first real pipeline output — one LBO card, 5 KLPs, separation 0.70.
 
@@ -265,3 +265,53 @@ either several models rotated via `KLP_DIRECT_MODEL` (each has its own bucket �
 days, or a paid tier. Rotating models is fine for the weight histogram, which is model-independent
 given the verdicts and edges, but it is a confound for judging authoring QUALITY across cards, and
 the model used is not recorded on `CardAuthoring`.
+
+## 10. The pilot, complete — and G1 closed by measurement (2026-09-04)
+
+All 10 cards of the LBO set authored. **9 separated, 1 flagged `low_discrimination`** (separation
+0.13 after both revisions — the cap doing its job: written, flagged, not silently retried until it
+looked clean). Mean separation 0.52, range 0.13-0.90. Every card ends `klpStatus: ready`.
+
+### The acceptance criterion, met
+
+| | legacy baseline (272 KLPs) | authored (50 KLPs) |
+| --- | --- | --- |
+| weight 4-5 | **92.3%** | **22.0%** |
+| weight 1-2 | 0.4% | 40.0% |
+| mean weight | 4.54 | 2.86 |
+| modal share | 62.5% at 5 | 38.0% at 3 |
+| values present | 2 meaningful | 4 of 5 |
+| verdict | `clustered_high` + `uniform` | **OK — no failure mode fired** |
+
+G1 was "no accuracy error can score below 5, no conciseness error above 7, so significance encodes
+which DIMENSION the error was rather than how bad it was." The relevance term now spans its range,
+so it can no longer pin significance to one band. **That is the finding closed, on the measurement
+that opened it.**
+
+The breadth histogram is the reason to trust it rather than a lucky draw: 32% / 32% / 34% across
+one, two and three adversary failures. The evidence term has real spread on real cards, which is
+exactly what the enumeration case needed and what blast radius alone could never supply.
+
+### The recommended rebalance is WITHDRAWN
+
+§9 read weights 3,3,3,2 off one card, concluded the mean was collapsing the two signals, and
+recommended `max(graphTerm, breadthTerm)`. **At n=50 that recommendation is wrong and is withdrawn.**
+Weight 5 is reachable under the mean — two KLPs earned it by scoring on both terms — and the
+resulting distribution passes the check on its own terms. The single-card reading was four data
+points, which is precisely the sample size the histogram now refuses to render a verdict on; the
+author of that recommendation should have taken his own check's advice. Equal weighting stays.
+
+### What the run exposed about running it
+
+- **`gemini-2.5-flash` is unusable two different ways**, and neither is a code fault: it returned
+  `No object generated: response did not match schema` on the older key, and
+  `no longer available to new users` on the two newer ones. Models differ materially in
+  structured-output compliance, so a card that one model cannot author another authors cleanly
+  minutes later — which is why a failed combo now moves the card to the next model rather than
+  marking it failed (bounded at `MAX_COMBO_ATTEMPTS_PER_CARD`). Card 3 and card 8 were both saved by
+  exactly that fallback.
+- **Rotation is over (key x model), pinned per card.** `src/lib/klp/direct-pool.ts` reuses
+  `selectAttemptOrder` — the website's own LRU ordering — rather than growing a second
+  implementation. The pin is load-bearing: a card's separation score subtracts candidate scores, so
+  grading its four candidates on different models would fold the gap between two GRADERS into the
+  number meant to measure the gap between a strong and a weak ANSWER.

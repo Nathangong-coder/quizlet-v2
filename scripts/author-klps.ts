@@ -20,6 +20,15 @@ import {
 } from '../src/lib/klp/histogram'
 import { PROBE_KINDS } from '../src/lib/klp/authoring-config'
 import {
+  parseList,
+  buildDirectPool,
+  nextCombo,
+  markTried,
+  markExhausted,
+  poolStatus,
+  type DirectCombo,
+} from '../src/lib/klp/direct-pool'
+import {
   Pacer,
   RunHaltedError,
   callWithPacingAndRetry,
@@ -109,15 +118,42 @@ function defaultGenerator(userId: string): AuthoringGenerator {
  * minimum spacing applies WITHIN a card's 6-16 calls, not just between
  * cards — that's where the pilot's burst actually was.
  */
-function directGenerator(rpm: number): AuthoringGenerator {
-  const apiKey = process.env.GOOGLE_API_KEY
-  if (!apiKey) throw new Error('--direct needs GOOGLE_API_KEY in the environment')
-  const google = createGoogle({ apiKey })
-  const model = process.env.KLP_DIRECT_MODEL ?? 'gemini-3.6-flash'
+/**
+ * Reads the `--direct` pool from the environment.
+ *
+ * `GOOGLE_API_KEYS` (comma or whitespace separated) and `KLP_DIRECT_MODELS`
+ * are the plural forms; the original singular `GOOGLE_API_KEY` /
+ * `KLP_DIRECT_MODEL` still work and are merged in, so an existing `.env` keeps
+ * running unchanged. Keys are read from the environment only — never a flag,
+ * because argv is visible to every other process on the machine and lands in
+ * shell history.
+ */
+function readDirectPool(): DirectCombo[] {
+  const keys = [...new Set([...parseList(process.env.GOOGLE_API_KEYS), ...parseList(process.env.GOOGLE_API_KEY)])]
+  if (keys.length === 0) {
+    throw new Error('--direct needs GOOGLE_API_KEY or GOOGLE_API_KEYS in the environment')
+  }
 
-  const pacer = new Pacer(rpmToIntervalMs(rpm), realClock, (waitMs) => {
-    console.log(`[author-klps] pacing — waiting ${(waitMs / 1000).toFixed(1)}s to stay under ${rpm} req/min`)
-  })
+  const models = parseList(process.env.KLP_DIRECT_MODELS ?? process.env.KLP_DIRECT_MODEL)
+  return buildDirectPool(keys, models.length > 0 ? models : ['gemini-3.6-flash'])
+}
+
+/**
+ * A generator pinned to ONE key+model combo, for ONE card.
+ *
+ * The pin is deliberate — see `src/lib/klp/direct-pool.ts`. A card's separation
+ * score is a subtraction between candidates graded in separate calls, so
+ * grading them with different models would fold the gap between two graders
+ * into the number that is supposed to measure the gap between a strong and a
+ * weak answer.
+ *
+ * The `Pacer` is passed IN rather than created here, so one instance spans the
+ * whole run: pacing exists because a single card fires 6-16 calls back to back,
+ * and a per-card pacer would reset that spacing at every card boundary.
+ */
+function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
+  const google = createGoogle({ apiKey: combo.apiKey })
+  const model = combo.model
 
   // generateObject does not exist in AI SDK v7; structured output is
   // generateText + Output.object.
@@ -168,6 +204,17 @@ function directGenerator(rpm: number): AuthoringGenerator {
     relate: (input) => call(RELATE_KLPS_PROMPT.build(input), RELATE_KLPS_PROMPT.schema),
   }
 }
+
+/**
+ * How many key x model combos one card may be tried on before it is recorded as
+ * failed.
+ *
+ * Bounds the model-capability retry above. A card that is genuinely unauthorable
+ * would otherwise walk the entire pool proving it, spending the day's budget on
+ * the one card that cannot use it. Three is enough to clear a single weak model
+ * without turning a real failure into an expensive one.
+ */
+const MAX_COMBO_ATTEMPTS_PER_CARD = 3
 
 function flag(args: string[], name: string): boolean {
   return args.includes(name)
@@ -343,8 +390,21 @@ async function main() {
   const cards = limit !== undefined ? allCards.slice(0, limit) : allCards
   const total = cards.length
 
-  const gen = direct ? directGenerator(rpm) : defaultGenerator(set.userId)
+  // ONE pacer for the whole run — a card's 6-16 calls are where the burst is,
+  // so a per-card pacer would reset the spacing at every card boundary.
+  const pacer = new Pacer(rpmToIntervalMs(rpm), realClock, (waitMs) => {
+    console.log(`[author-klps] pacing — waiting ${(waitMs / 1000).toFixed(1)}s to stay under ${rpm} req/min`)
+  })
+  const pool = direct ? readDirectPool() : []
+  if (direct) {
+    const status = poolStatus(pool)
+    console.log(
+      `[author-klps] --direct pool: ${status.total} key x model combo(s) — ` +
+        `${new Set(pool.map((c) => c.keyIndex)).size} key(s), models: ${status.modelsLeft.join(', ')}`,
+    )
+  }
 
+  let halted = false
   const stats: RunStats = {
     authored: 0,
     lowDiscrimination: 0,
@@ -387,30 +447,90 @@ async function main() {
       }
     }
 
-    let outcome: AuthoringOutcome
-    try {
-      outcome = await authorCard(
-        { question: card.term, definition: card.definition, setTitle: set.title },
-        gen,
-      )
-    } catch (err) {
-      // A rate-limit/quota halt is NOT a card failure — the card is left
-      // completely untouched (never marked `klpStatus: 'failed'`), and the
-      // whole run stops here so the next invocation of the same command
-      // retries this exact card instead of skipping it (REQUIREMENTS 3 & 4,
-      // and the "must stay resumable" constraint).
-      if (err instanceof RunHaltedError) {
-        console.error(`\n[author-klps] STOPPING RUN — ${err.message}`)
-        console.error(
-          `[author-klps] ${stats.authored}/${total} card(s) completed before stopping. ` +
-            `Re-run the same command to resume — already-authored cards are skipped automatically.`,
+    // Try this card on successive key x model combos. A per-DAY quota retires
+    // the combo it was hit on and the card is re-attempted on the next one —
+    // the pool exists exactly so one exhausted bucket does not end the run.
+    // Only an empty pool, or a halt that is not a daily cap, stops everything.
+    let outcome: AuthoringOutcome | undefined
+    let cardFailed = false
+    let attemptsLeft = MAX_COMBO_ATTEMPTS_PER_CARD
+
+    for (;;) {
+      let gen: AuthoringGenerator
+      let combo: DirectCombo | undefined
+
+      if (direct) {
+        combo = nextCombo(pool)
+        if (!combo) {
+          console.error(`\n[author-klps] STOPPING RUN — every key x model combo is out of daily quota.`)
+          console.error(
+            `[author-klps] ${stats.authored}/${total} card(s) completed. Re-run tomorrow, add another ` +
+              `model to KLP_DIRECT_MODELS, or raise the key's quota tier — the run resumes where it stopped.`,
+          )
+          halted = true
+          break
+        }
+        markTried(combo, new Date())
+        gen = directGenerator(combo, pacer)
+        console.log(`${tag} — using ${combo.id}`)
+      } else {
+        gen = defaultGenerator(set.userId)
+      }
+
+      try {
+        outcome = await authorCard(
+          { question: card.term, definition: card.definition, setTitle: set.title },
+          gen,
         )
         break
+      } catch (err) {
+        // A rate-limit/quota halt is NOT a card failure — the card is left
+        // completely untouched (never marked `klpStatus: 'failed'`), so the
+        // next attempt (the next combo, or the next invocation of the command)
+        // retries this exact card rather than skipping it.
+        if (err instanceof RunHaltedError) {
+          if (combo && err.haltReason === 'daily_quota') {
+            markExhausted(combo)
+            console.error(
+              `${tag} — ${combo.id} is out of daily quota; ${poolStatus(pool).available} combo(s) left`,
+            )
+            continue
+          }
+          console.error(`\n[author-klps] STOPPING RUN — ${err.message}`)
+          console.error(
+            `[author-klps] ${stats.authored}/${total} card(s) completed before stopping. ` +
+              `Re-run the same command to resume — already-authored cards are skipped automatically.`,
+          )
+          halted = true
+          break
+        }
+        // NOT a quota problem — the model produced something unusable, most
+        // often `No object generated: response did not match schema`. Models
+        // differ markedly in structured-output compliance: `gemini-2.5-flash`
+        // could not satisfy `AuthorDraftSchema` on a card that
+        // `gemini-3.1-flash-lite` authored cleanly minutes later. Retrying the
+        // SAME combo would just fail the same way, so the card moves to the
+        // next one — routing around a capability gap is what a pool of models
+        // is for, and the alternative is marking a perfectly authorable card
+        // failed because the first model drawn happened to be the weak one.
+        //
+        // Bounded, because a card that is genuinely unauthorable would
+        // otherwise walk the whole pool and spend the day's budget proving it.
+        const detail = err instanceof Error ? err.message : String(err)
+        attemptsLeft -= 1
+        if (combo && attemptsLeft > 0) {
+          console.error(`${tag} — ${combo.id} failed (${detail}); trying another model`)
+          continue
+        }
+        console.error(`${tag} — FAILED: ${detail}`)
+        if (!dryRun) await markCardFailed(card.id, err)
+        cardFailed = true
+        break
       }
-      console.error(`${tag} — FAILED: ${err instanceof Error ? err.message : String(err)}`)
-      if (!dryRun) await markCardFailed(card.id, err)
-      continue
     }
+
+    if (halted) break
+    if (cardFailed || !outcome) continue
 
     // Full verbatim detail, not just the summary line: --dry-run exists so an
     // operator can judge grain and quality BEFORE committing real spend
