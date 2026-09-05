@@ -1,6 +1,12 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-09-04 (**second update same day** — increment A is built: the weight
+**Last updated:** 2026-09-04 (**third update same day** — the 10-card LBO pilot RAN TO COMPLETION
+and **G1 is closed by measurement**: authored weights 22.0% at 4-5 against the 92.3% baseline,
+histogram verdict OK. 9 separated, 1 low_discrimination. Four defects found by running it, listed in
+the Spec 2 entry — including one where my own daily-quota guard passed its test and was dead against
+real traffic. Still owed: reading the output in `/staff/klps`, which needs a signed-in browser.)
+
+**Last updated (previous):** 2026-09-04 (**second update same day** — increment A is built: the weight
 histogram check (`npm run klp-histogram`, run against the live corpus and reproducing the G1
 baseline exactly at 92.3%), the two-signal weight blend, definition-anchored authoring with
 `concerns`, semantic ordering with the `precedes` cross-check, and adaptive sizing floored at 4.
@@ -65,8 +71,15 @@ Three findings are arithmetic, not opinion:
   foreground runs); see the Spec 2 build-order entry below. Do not treat G1 as closed until a pilot
   actually authors cards and the histogram is read.
 
-  **The measuring instrument now exists and was run: `npm run klp-histogram` (increment A, built
-  2026-09-04).** Read-only, splits the corpus into authored-vs-legacy by `(cardId, klpVersion)`, and
+  **G1 IS CLOSED, 2026-09-04, on the measurement that opened it.** The 10-card LBO pilot ran to
+  completion (9 separated, 1 `low_discrimination`, mean separation 0.52). Authored slice, 50 KLPs:
+  **22.0% at 4-5 (was 92.3%), 40.0% at 1-2 (was 0.4%), mean 2.86 (was 4.54), 4 of 5 values present,
+  and `npm run klp-histogram` returns OK — no failure mode.** Relevance spans its range, so
+  significance can no longer be pinned to one band by the weight term. The breadth histogram shows
+  32/32/34% across one, two and three adversary failures, so the spread is earned rather than lucky.
+  **Do not reopen G1 without a new measurement.**
+
+  **The measuring instrument: `npm run klp-histogram` (increment A, built 2026-09-04).** Read-only, splits the corpus into authored-vs-legacy by `(cardId, klpVersion)`, and
   names three failure modes with different causes — `clustered_high` (≥75% at 4-5, i.e. G1 itself),
   `clustered_low` (≥75% at 1-2, meaning both weight terms are flat), and `uniform` (any single value
   ≥60%, which catches flatness in the middle that neither tail check sees). **Measured baseline,
@@ -82,12 +95,14 @@ Three findings are arithmetic, not opinion:
   Blast radius measures dependency DEPTH, which a derivation chain has and an enumeration does not;
   the first pilot card was an enumeration and produced weights 2,1,2,1,1 off two edges, and two
   edges was very likely CORRECT. Pushing the relate prompt for more would fabricate `causes` links
-  that Spec 3 then serves grading probes for. **Watch for this when the histogram is finally read:**
-  the two terms are weighted to sum to 1, so a KLP reaches 5 only by scoring on BOTH — meaning a
-  purely enumeration-shaped card tops out at weight 3 under the current equal weighting. If the
-  authored slice comes back clustered at 2-3, that is the ceiling and not the breadth term failing;
-  check the breadth histogram printed beside it before rebalancing, and rebalance in
-  `authoring-config.ts` rather than in the prompt.
+  that Spec 3 then serves grading probes for. **The ceiling was real but not binding, and the
+  rebalance was WITHDRAWN.** Because the terms sum to 1, a KLP reaches 5 only by scoring on both,
+  and one card's early weights (3,3,3,2) looked like the mean collapsing the two signals —
+  `max(graph, breadth)` was recommended on that basis. At n=50 it is wrong: weight 5 is reachable,
+  two KLPs earned it, and the distribution passes. **Four data points is exactly the sample the
+  histogram now refuses to judge** (`HISTOGRAM_MIN_SAMPLE = 20`, added after it fired a FAIL on 4
+  KLPs). Equal weighting stays; if a future corpus says otherwise, rebalance in
+  `authoring-config.ts` and never in the prompt.
 - **G2 — 57% of the library cannot be diagnosed.** 166 of 291 cards are `klpStatus: 'pending'`
   with a **null source hash — never attempted, zero failures**. `selectRefreshableStaleCardIds`
   deliberately excludes never-extracted cards from the edit path, so extraction is demand-driven
@@ -343,7 +358,32 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
    this exact pilot and read the real histogram in `/staff/klps`. **Does NOT close G1 or G7 yet** —
    see the caveats added next to each finding above.
 
-   **Increment A is BUILT (2026-09-04), still unpiloted** — design:
+   **THE PILOT IS DONE (2026-09-04). Spec 2 Task 13's authoring half is complete; what remains is
+   reading it in `/staff/klps`, which needs a signed-in browser.** All 10 cards authored, every one
+   `klpStatus: ready`. Four defects were found by RUNNING it that the whole mocked suite could not —
+   the same argument Task 11 made: (a) the free tier is 20 requests per day **per model**, and Google
+   returns that cap with a **34-second** retry hint, so the delay-magnitude heuristic retried a limit
+   that resets tomorrow — the 429's `QuotaFailure.quotaId` states the period and now decides; (b)
+   that fix did not fire against real traffic, because the SDK wraps the provider error in an
+   `AI_RetryError` and `collectErrorText` read only the top level — a guard that passed its
+   hand-built fixture and was dead in production; (c) the AI SDK **retries 3x internally** before the
+   pacing layer sees anything, so 8 pacing attempts were up to 24 real requests — `--direct` now sets
+   `maxRetries: 0`, and note **`maxRetries` is set NOWHERE else in the codebase, so `generateJson`
+   has the same 3x multiplication on every production call** (left alone deliberately: it trades SDK
+   resilience against faster credential failover and affects grading and quizzing, not just
+   authoring); (d) the histogram fired a FAIL on 4 KLPs, so findings now need `HISTOGRAM_MIN_SAMPLE`.
+
+   **Rotation for `--direct` (`src/lib/klp/direct-pool.ts`)**: the pool is the cross product of
+   `GOOGLE_API_KEYS` x `KLP_DIRECT_MODELS`, ordered by the website's own `selectAttemptOrder` rather
+   than a second LRU implementation. A combo is **pinned per card** — grading one card's four
+   candidates on different models would fold the gap between two graders into the separation score,
+   where it is indistinguishable from the gap between a strong and a weak answer. A per-day quota
+   retires the combo and the run continues; a non-quota failure moves the card to the next model
+   (bounded at 3 attempts), because models differ in structured-output compliance —
+   `gemini-2.5-flash` returned "response did not match schema" on one key and "no longer available
+   to new users" on two others. Cards 3 and 8 were saved by that fallback.
+
+   **Increment A is BUILT (2026-09-04)** — design:
    `docs/superpowers/specs/2026-09-04-klp-authoring-increment-design.md`, written from the owner's
    review of the one card that completed before the quota wall. Five changes, in the order they were
    built: (1) `npm run klp-histogram` and the run-summary histogram — deliberately FIRST, because a
