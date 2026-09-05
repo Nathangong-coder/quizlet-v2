@@ -3,16 +3,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const h = vi.hoisted(() => ({
   userFindMany: vi.fn(),
   klpStateGroupBy: vi.fn(),
+  quizAnswerGroupBy: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({
   prisma: {
     user: { findMany: h.userFindMany },
     klpState: { groupBy: h.klpStateGroupBy },
+    quizAnswer: { groupBy: h.quizAnswerGroupBy },
   },
 }))
 
-import { loadLearnerIndex } from '@/lib/staff/queries'
+import { loadLearnerIndex, isActiveAt, INACTIVE_AFTER_DAYS } from '@/lib/staff/queries'
+
+const NOW = new Date('2026-09-04T00:00:00Z')
 
 interface UserRowInput {
   id: string
@@ -41,6 +45,7 @@ function userRow(u: UserRowInput) {
 beforeEach(() => {
   vi.clearAllMocks()
   h.klpStateGroupBy.mockResolvedValue([])
+  h.quizAnswerGroupBy.mockResolvedValue([])
 })
 
 describe('loadLearnerIndex', () => {
@@ -56,7 +61,7 @@ describe('loadLearnerIndex', () => {
       userRow({ id: 'u1', name: 'Minihotpot', email: 'james@example.com', provider: 'github' }),
     ])
 
-    const rows = await loadLearnerIndex()
+    const rows = await loadLearnerIndex(NOW)
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ userId: 'u1', label: 'Minihotpot', klpStates: 0, answers: 0 })
   })
@@ -71,7 +76,7 @@ describe('loadLearnerIndex', () => {
       { userId: 'u1', _count: { _all: 4 }, _max: { lastObservedAt: new Date('2026-09-01') } },
     ])
 
-    const rows = await loadLearnerIndex()
+    const rows = await loadLearnerIndex(NOW)
     expect(rows.map((r) => r.userId).sort()).toEqual(['u1', 'u2', 'u3'])
     expect(rows.find((r) => r.userId === 'u1')?.klpStates).toBe(4)
     expect(rows.find((r) => r.userId === 'u2')?.klpStates).toBe(0)
@@ -80,7 +85,7 @@ describe('loadLearnerIndex', () => {
   /** An empty account table is the only reason to render nothing. */
   it('is empty only when there are no accounts', async () => {
     h.userFindMany.mockResolvedValue([])
-    expect(await loadLearnerIndex()).toEqual([])
+    expect(await loadLearnerIndex(NOW)).toEqual([])
   })
 
   describe('identity', () => {
@@ -90,7 +95,7 @@ describe('loadLearnerIndex', () => {
         userRow({ id: 'u2', name: 'n', email: 'e@x.com' }),
         userRow({ id: 'u3', email: 'e@x.com' }),
       ])
-      const rows = await loadLearnerIndex()
+      const rows = await loadLearnerIndex(NOW)
       expect(rows.find((r) => r.userId === 'u1')?.label).toBe('h')
       expect(rows.find((r) => r.userId === 'u2')?.label).toBe('n')
       expect(rows.find((r) => r.userId === 'u3')?.label).toBe('e@x.com')
@@ -99,12 +104,12 @@ describe('loadLearnerIndex', () => {
     /** Otherwise the row renders blank and unclickable. The schema permits it. */
     it('falls back to the id when a row has no handle, name or email', async () => {
       h.userFindMany.mockResolvedValue([userRow({ id: 'u-blank' })])
-      expect((await loadLearnerIndex())[0].label).toBe('u-blank')
+      expect((await loadLearnerIndex(NOW))[0].label).toBe('u-blank')
     })
 
     it('carries the email separately so a row is findable by either identity', async () => {
       h.userFindMany.mockResolvedValue([userRow({ id: 'u1', handle: 'h', email: 'e@x.com' })])
-      expect((await loadLearnerIndex())[0].email).toBe('e@x.com')
+      expect((await loadLearnerIndex(NOW))[0].email).toBe('e@x.com')
     })
 
     /**
@@ -117,7 +122,7 @@ describe('loadLearnerIndex', () => {
         userRow({ id: 'u1', handle: 'gh', provider: 'github' }),
         userRow({ id: 'u2', handle: 'pw' }),
       ])
-      const rows = await loadLearnerIndex()
+      const rows = await loadLearnerIndex(NOW)
       expect(rows.find((r) => r.userId === 'u1')?.signIn).toBe('github')
       expect(rows.find((r) => r.userId === 'u2')?.signIn).toBe('credentials')
     })
@@ -135,7 +140,7 @@ describe('loadLearnerIndex', () => {
         { userId: 'recent', _count: { _all: 2 }, _max: { lastObservedAt: new Date('2026-09-01') } },
       ])
 
-      expect((await loadLearnerIndex()).map((r) => r.userId)).toEqual(['recent', 'old', 'idle'])
+      expect((await loadLearnerIndex(NOW)).map((r) => r.userId)).toEqual(['recent', 'old', 'idle'])
     })
 
     /** Newest signup first among the inactive — "did the person I invited get in?" */
@@ -144,7 +149,69 @@ describe('loadLearnerIndex', () => {
         userRow({ id: 'older', handle: 'older', createdAt: new Date('2026-01-01') }),
         userRow({ id: 'newer', handle: 'newer', createdAt: new Date('2026-08-01') }),
       ])
-      expect((await loadLearnerIndex()).map((r) => r.userId)).toEqual(['newer', 'older'])
+      expect((await loadLearnerIndex(NOW)).map((r) => r.userId)).toEqual(['newer', 'older'])
     })
+  })
+})
+
+describe('active vs inactive', () => {
+  /**
+   * A year, per the owner. The column looks broken at first glance and is not:
+   * the app has not been live for a year, so nobody can age out yet, and every
+   * inactive account today is one that has never studied at all.
+   */
+  it('uses a one-year window', () => {
+    expect(INACTIVE_AFTER_DAYS).toBe(365)
+    expect(isActiveAt(new Date('2026-09-03'), NOW)).toBe(true)
+    expect(isActiveAt(new Date('2025-09-05'), NOW)).toBe(true)
+    expect(isActiveAt(new Date('2025-08-01'), NOW)).toBe(false)
+  })
+
+  it('treats never having done anything as inactive, not as recent', () => {
+    expect(isActiveAt(null, NOW)).toBe(false)
+  })
+
+  it('marks an account with no activity inactive', async () => {
+    h.userFindMany.mockResolvedValue([userRow({ id: 'u1', handle: 'idle' })])
+    const [row] = await loadLearnerIndex(NOW)
+    expect(row).toMatchObject({ active: false, lastActiveAt: null })
+  })
+
+  /**
+   * BOTH signals are needed. `KlpState.lastObservedAt` misses anyone who
+   * answered on a card that has no key points yet — which is the entire legacy
+   * corpus — so an answer alone has to count as activity.
+   */
+  it('counts a recent answer as activity even with no measured knowledge', async () => {
+    h.userFindMany.mockResolvedValue([userRow({ id: 'u1', handle: 'answered', answers: 3 })])
+    h.quizAnswerGroupBy.mockResolvedValue([{ userId: 'u1', _max: { createdAt: new Date('2026-09-01') } }])
+
+    const [row] = await loadLearnerIndex(NOW)
+    expect(row.active).toBe(true)
+    expect(row.lastActiveAt).toEqual(new Date('2026-09-01'))
+    expect(row.klpStates).toBe(0)
+  })
+
+  it('takes the later of the two signals', async () => {
+    h.userFindMany.mockResolvedValue([userRow({ id: 'u1', handle: 'both' })])
+    h.klpStateGroupBy.mockResolvedValue([
+      { userId: 'u1', _count: { _all: 2 }, _max: { lastObservedAt: new Date('2026-03-01') } },
+    ])
+    h.quizAnswerGroupBy.mockResolvedValue([{ userId: 'u1', _max: { createdAt: new Date('2026-08-01') } }])
+
+    expect((await loadLearnerIndex(NOW))[0].lastActiveAt).toEqual(new Date('2026-08-01'))
+  })
+
+  it('sorts by real activity, so an answer with no measurement still leads', async () => {
+    h.userFindMany.mockResolvedValue([
+      userRow({ id: 'measured', handle: 'measured' }),
+      userRow({ id: 'answered', handle: 'answered' }),
+    ])
+    h.klpStateGroupBy.mockResolvedValue([
+      { userId: 'measured', _count: { _all: 9 }, _max: { lastObservedAt: new Date('2026-01-01') } },
+    ])
+    h.quizAnswerGroupBy.mockResolvedValue([{ userId: 'answered', _max: { createdAt: new Date('2026-08-01') } }])
+
+    expect((await loadLearnerIndex(NOW)).map((r) => r.userId)).toEqual(['answered', 'measured'])
   })
 })
