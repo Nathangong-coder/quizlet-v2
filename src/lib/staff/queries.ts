@@ -26,6 +26,14 @@ export interface StaffKlpRow {
   meanPKnown: number | null
   /** AnswerKlpResult.status -> count. Three keys today, thirteen after Spec 5. */
   verdicts: Record<string, number>
+  /**
+   * The discrimination-test score from the CardAuthoring run that produced
+   * this KLP's version. NULL for a legacy KLP with no matching authoring
+   * run — never 0, for the same reason meanPKnown is null rather than 0.
+   */
+  separation: number | null
+  /** CardAuthoring.status ('separated' | 'low_discrimination' | 'failed'). NULL alongside separation. */
+  authoringStatus: string | null
 }
 
 export interface StaffKlpQuery {
@@ -66,11 +74,12 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
 
   if (klps.length === 0) return []
   const ids = klps.map((k) => k.id)
+  const cardIds = Array.from(new Set(klps.map((k) => k.cardId)))
 
   // Two grouped aggregates rather than nested includes: a per-KLP include of
   // every KlpState and AnswerKlpResult row would load the whole evidence table
   // to render a count.
-  const [states, verdicts] = await Promise.all([
+  const [states, verdicts, authorings] = await Promise.all([
     prisma.klpState.groupBy({
       by: ['klpId'],
       where: { klpId: { in: ids } },
@@ -82,6 +91,14 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
       where: { klpId: { in: ids } },
       _count: { _all: true },
     }),
+    // Fetched per-card (not per-KLP-version) and matched in memory below: a
+    // card is re-authored as a whole, so its CardAuthoring rows are keyed by
+    // cardId + klpVersion, not by individual KLP id.
+    prisma.cardAuthoring.findMany({
+      where: { cardId: { in: cardIds } },
+      select: { cardId: true, klpVersion: true, separationScore: true, status: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    }),
   ])
 
   const stateBy = new Map(states.map((s) => [s.klpId, s]))
@@ -91,10 +108,21 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
     bucket[v.status] = v._count._all
     verdictBy.set(v.klpId, bucket)
   }
+  // Most recent CardAuthoring row per (cardId, klpVersion): the query above
+  // is already ordered createdAt desc, so the first match wins and later
+  // ones are skipped.
+  const authoringBy = new Map<string, { separationScore: number; status: string }>()
+  for (const a of authorings) {
+    const key = `${a.cardId}:${a.klpVersion}`
+    if (!authoringBy.has(key)) {
+      authoringBy.set(key, { separationScore: a.separationScore, status: a.status })
+    }
+  }
 
   return klps.map((k) => {
     const state = stateBy.get(k.id)
     const learnerCount = state?._count._all ?? 0
+    const authoring = authoringBy.get(`${k.cardId}:${k.version}`)
     return {
       id: k.id,
       text: k.text,
@@ -111,6 +139,10 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
       // Zero learners means NO EVIDENCE, which is not zero knowledge.
       meanPKnown: learnerCount === 0 ? null : (state?._avg.pKnown ?? null),
       verdicts: verdictBy.get(k.id) ?? {},
+      // No matching CardAuthoring run means no score — a legacy KLP predates
+      // this pipeline. Never 0, for the same reason meanPKnown is null.
+      separation: authoring?.separationScore ?? null,
+      authoringStatus: authoring?.status ?? null,
     }
   })
 }
@@ -220,28 +252,99 @@ export interface LearnerRecord {
   analysisStatusCounts: Record<string, number>
 }
 
-export async function loadLearnerIndex() {
-  const grouped = await prisma.klpState.groupBy({
-    by: ['userId'],
-    _count: { _all: true },
-    _max: { lastObservedAt: true },
-  })
-  if (grouped.length === 0) return []
+export interface LearnerIndexRow {
+  userId: string
+  /** Best available human identity: handle, else display name, else email. */
+  label: string
+  /** Shown under the label when it is not already the label, so a row is searchable by either. */
+  email: string | null
+  handle: string | null
+  name: string | null
+  role: string
+  /** 'github', 'credentials', … — how this person gets in. */
+  signIn: string
+  klpStates: number
+  answers: number
+  lastObservedAt: Date | null
+  createdAt: Date
+}
 
-  const users = await prisma.user.findMany({
-    where: { id: { in: grouped.map((g) => g.userId) } },
-    select: { id: true, handle: true, name: true, email: true },
-  })
-  const labelBy = new Map(users.map((u) => [u.id, u.handle ?? u.name ?? u.email]))
+/**
+ * EVERY ACCOUNT, not every account with evidence.
+ *
+ * This used to start from `KlpState.groupBy` — so the page listed only people
+ * who had answered enough to have measured knowledge, and silently omitted
+ * everyone else. On the live database that was **2 rows out of 10 accounts**:
+ * a real user who had signed up through GitHub and not yet answered anything
+ * was invisible here while being perfectly findable on `/staff/roles`. The
+ * page's own empty state ("Nobody has answered anything yet") is the giveaway
+ * that it was built to answer a different question than the one staff actually
+ * ask it, which is "who is on this thing?"
+ *
+ * So the query starts from `User` and LEFT-JOINS the evidence. A user with no
+ * `KlpState` rows now appears with zeroes rather than not appearing, which is a
+ * materially different claim: "this person has done nothing yet" instead of
+ * "this person does not exist".
+ *
+ * Two queries, not N+1: one `findMany` over users and one `groupBy` over
+ * `KlpState`, joined in memory. `_count` on the relation gives answer counts in
+ * the same pass.
+ */
+export async function loadLearnerIndex(): Promise<LearnerIndexRow[]> {
+  const [users, grouped] = await Promise.all([
+    prisma.user.findMany({
+      select: {
+        id: true,
+        handle: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+        accounts: { select: { provider: true } },
+        _count: { select: { quizAnswers: true } },
+      },
+    }),
+    prisma.klpState.groupBy({
+      by: ['userId'],
+      _count: { _all: true },
+      _max: { lastObservedAt: true },
+    }),
+  ])
 
-  return grouped
-    .map((g) => ({
-      userId: g.userId,
-      label: labelBy.get(g.userId) ?? g.userId,
-      klpStates: g._count._all,
-      lastObservedAt: g._max.lastObservedAt,
-    }))
-    .sort((a, b) => (b.lastObservedAt?.getTime() ?? 0) - (a.lastObservedAt?.getTime() ?? 0))
+  const evidenceBy = new Map(grouped.map((g) => [g.userId, g]))
+
+  return users
+    .map((u) => {
+      const evidence = evidenceBy.get(u.id)
+      return {
+        userId: u.id,
+        // Falls back to the id only when a row has no handle, name AND no
+        // email — which the schema permits and which would otherwise render a
+        // blank, unclickable row.
+        label: u.handle ?? u.name ?? u.email ?? u.id,
+        email: u.email,
+        handle: u.handle,
+        name: u.name,
+        role: u.role,
+        // An OAuth user has an `Account` row naming the provider; a
+        // credentials user has none, because the password lives on `User`.
+        signIn: u.accounts[0]?.provider ?? 'credentials',
+        klpStates: evidence?._count._all ?? 0,
+        answers: u._count.quizAnswers,
+        lastObservedAt: evidence?._max.lastObservedAt ?? null,
+        createdAt: u.createdAt,
+      }
+    })
+    .sort((a, b) => {
+      // Anyone with measured knowledge leads, most recently active first —
+      // that is what staff came to look at. Everyone else follows by newest
+      // signup, because the reason to scroll past the active learners is
+      // usually "did that person I just invited actually get in?".
+      const aSeen = a.lastObservedAt?.getTime() ?? 0
+      const bSeen = b.lastObservedAt?.getTime() ?? 0
+      if (aSeen !== bSeen) return bSeen - aSeen
+      return b.createdAt.getTime() - a.createdAt.getTime()
+    })
 }
 
 export async function loadLearnerRecord(userId: string): Promise<LearnerRecord | null> {

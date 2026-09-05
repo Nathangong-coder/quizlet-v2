@@ -167,3 +167,57 @@ describe('isRetryable', () => {
     expect(isRetryable('credentials_unavailable')).toBe(false);
   });
 });
+
+describe('classifyProviderError — structured quota violations', () => {
+  /**
+   * A live 429 from Google, wrapped the way the AI SDK actually delivers it
+   * (`AI_RetryError` with the `APICallError` nested in `lastError`).
+   */
+  const quotaError = (quotaId: string) =>
+    Object.assign(new Error('Failed after 3 attempts. Last error: AI_APICallError: You exceeded your current quota'), {
+      name: 'AI_RetryError',
+      lastError: Object.assign(new Error('You exceeded your current quota'), {
+        statusCode: 429,
+        responseBody: JSON.stringify({
+          error: {
+            code: 429,
+            status: 'RESOURCE_EXHAUSTED',
+            details: [
+              {
+                '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+                violations: [{ quotaId, quotaDimensions: { model: 'gemini-3.6-flash' }, quotaValue: '20' }],
+              },
+            ],
+          },
+        }),
+      }),
+    })
+
+  /**
+   * THE BADGE BUG. `quota_exhausted` is non-retryable and therefore flagworthy,
+   * so classifying Google's PER-MINUTE throttle by its wording ("You exceeded
+   * your current quota" — identical to the daily cap's) marked a perfectly
+   * healthy credential as broken in settings every time the key was briefly
+   * busy. That is precisely what `flagworthyFailures` says must not happen.
+   */
+  it('treats a per-minute quota as retryable rate limiting, not a broken key', () => {
+    const kind = classifyProviderError(quotaError('GenerateRequestsPerMinutePerProjectPerModel-FreeTier'))
+    expect(kind).toBe('rate_limited')
+    expect(isRetryable(kind)).toBe(true)
+  })
+
+  /** A real daily cap does need the user to act, so it must still badge. */
+  it('treats a per-day quota as exhaustion the user has to act on', () => {
+    const kind = classifyProviderError(quotaError('GenerateRequestsPerDayPerProjectPerModel-FreeTier'))
+    expect(kind).toBe('quota_exhausted')
+    expect(isRetryable(kind)).toBe(false)
+  })
+
+  /**
+   * The wording path is unchanged for providers that send no structured
+   * violation — depleted prepaid credits must still read as exhaustion.
+   */
+  it('falls back to wording when no violation is present', () => {
+    expect(classifyProviderError(new Error('Your prepayment credits are depleted'))).toBe('quota_exhausted')
+  })
+})

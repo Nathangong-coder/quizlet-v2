@@ -1,3 +1,5 @@
+import { parseQuotaViolation } from '@/lib/errors/quota';
+
 export type FailureAttribution = 'user' | 'system';
 
 export type FailureKind =
@@ -85,6 +87,16 @@ function statusFromMessage(msg: string): number | undefined {
  * Order matters: quota exhaustion and plain rate limiting are both HTTP 429,
  * so the billing-specific wording must be tested before the generic 429 check
  * or every depleted-credits failure would be misreported as "try again soon".
+ *
+ * A STRUCTURED QUOTA VIOLATION OUTRANKS BOTH, because wording cannot separate
+ * the two cases that matter most. Google says "You exceeded your current quota"
+ * for a per-MINUTE throttle and for a per-DAY cap alike. `quota_exhausted` is
+ * non-retryable and therefore flagworthy (`flagworthyFailures`), so classifying
+ * the per-minute case by wording badged a perfectly healthy credential as
+ * broken in settings every time the key was briefly busy — the precise outcome
+ * that function's own doc comment says must not happen. The response states the
+ * period; `parseQuotaViolation` reads it, and only a genuine per-day cap now
+ * reaches `quota_exhausted`.
  */
 export function classifyProviderError(err: unknown): FailureKind {
   // Checked by error name, before any message-needle check, so this file
@@ -107,6 +119,12 @@ export function classifyProviderError(err: unknown): FailureKind {
   ) {
     return 'schema_invalid';
   }
+
+  // Before any wording check: the provider may have said outright which quota
+  // it was. A per-minute throttle is transient and must stay retryable; a
+  // per-day cap needs the user to act and must not be retried into.
+  const violation = parseQuotaViolation(err);
+  if (violation) return violation.period === 'day' ? 'quota_exhausted' : 'rate_limited';
 
   const msg = messageOf(err).toLowerCase();
   const is = (...needles: string[]) => needles.some((n) => msg.includes(n));

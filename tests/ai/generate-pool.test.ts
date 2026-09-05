@@ -113,8 +113,34 @@ describe('resolveTaskModel / resolveCandidates', () => {
   });
 
   it('prefers routing.model over the credential default for a pinned credential', async () => {
+    // An APPROVED model that differs from the credential default, so this still
+    // demonstrates precedence. It used to be `gemini-3-pro`, which the quality
+    // policy now substitutes — see the downgrade test below.
+    setup([GOOGLE, ANTHROPIC], { credentialId: GOOGLE.id, model: 'gemini-3.5-flash' });
+    expect(await resolveTaskModel('u1', 'grade')).toBe('gemini-3.5-flash');
+  });
+
+  /**
+   * The quality floor (`src/lib/ai/model-policy.ts`) applies at RESOLVE time,
+   * not only in the settings form, because a model reaches here from two places
+   * and the form can validate only one of them: a per-task override (validated
+   * on save) and the credential's own `defaultModel` (not validated, because
+   * one credential serves every task).
+   *
+   * NOTE THE DIRECTION: the list is an exact allowlist, so it also replaces
+   * models that are arguably BETTER. `gemini-3-pro` is downgraded to
+   * `gemini-3.6-flash` here. That is the owner's stated list, and widening it is
+   * a one-line edit in `GOOGLE_APPROVED_MODELS`.
+   */
+  it('substitutes an unapproved Google model on a policed task, even a stronger one', async () => {
     setup([GOOGLE, ANTHROPIC], { credentialId: GOOGLE.id, model: 'gemini-3-pro' });
-    expect(await resolveTaskModel('u1', 'grade')).toBe('gemini-3-pro');
+    expect(await resolveTaskModel('u1', 'grade')).toBe('gemini-3.6-flash');
+  });
+
+  /** A non-Google provider is never policed — the allowlist is Google ids. */
+  it('leaves an Anthropic override alone', async () => {
+    setup([GOOGLE, ANTHROPIC], { credentialId: ANTHROPIC.id, model: 'claude-opus-5' });
+    expect(await resolveTaskModel('u1', 'grade')).toBe('claude-opus-5');
   });
 
   it('falls back to the credential default when the pin carries no model', async () => {
@@ -153,9 +179,9 @@ describe('generateJson', () => {
   });
 
   it('applies the model override when the task IS pinned to a credential', async () => {
-    setup([GOOGLE, ANTHROPIC], { credentialId: GOOGLE.id, model: 'gemini-3-pro' });
+    setup([GOOGLE, ANTHROPIC], { credentialId: GOOGLE.id, model: 'gemini-3.5-flash' });
     await expect(call()).resolves.toEqual({ ok: true });
-    expect(attemptedModels()).toEqual(['gemini-3-pro']);
+    expect(attemptedModels()).toEqual(['gemini-3.5-flash']);
   });
 
   it('stamps lastUsedAt before each attempt, including ones that fail', async () => {

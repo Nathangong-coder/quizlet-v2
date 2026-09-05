@@ -161,3 +161,58 @@ describe('saveTaskRouting model override validation', () => {
     );
   });
 });
+
+describe('saveTaskRouting model policy', () => {
+  /** The credential the pin targets, owned by OWNER so the ownership guard passes. */
+  function ownGoogleCredential(defaultModel: string) {
+    h.findFirst.mockResolvedValue({ id: 'cred-1', provider: 'google', defaultModel });
+  }
+
+  /**
+   * Rejecting on save AND substituting at resolve time are both deliberate.
+   * The substitution keeps generation working for someone who never opens this
+   * form; the rejection tells someone who DOES open it that their choice would
+   * not have been honoured. Silently storing a value the engine then ignores is
+   * how a settings page starts lying about what the system is doing.
+   */
+  it('refuses an unapproved Google model on a task whose output is stored', async () => {
+    ownGoogleCredential('gemini-3.6-flash');
+    const result = await saveTaskRouting('grade', 'cred-1', 'gemini-2.5-flash');
+
+    expect(result.success).toBe(false);
+    expect(result.success === false && result.error).toContain('not approved');
+    expect(h.upsert).not.toHaveBeenCalled();
+  });
+
+  it('accepts an approved Google model', async () => {
+    ownGoogleCredential('gemini-3.6-flash');
+    h.upsert.mockResolvedValue({});
+    const result = await saveTaskRouting('grade', 'cred-1', 'gemini-3.5-flash-lite');
+
+    expect(result.success).toBe(true);
+    expect(h.upsert).toHaveBeenCalled();
+  });
+
+  /**
+   * With no override the credential's OWN default is what would run, so that is
+   * what has to be checked — otherwise the form happily saves a pin that the
+   * resolver then silently downgrades.
+   */
+  it('checks the credential default when no override is given', async () => {
+    ownGoogleCredential('gemini-2.5-flash');
+    const result = await saveTaskRouting('grade', 'cred-1', null);
+
+    expect(result.success).toBe(false);
+    expect(h.upsert).not.toHaveBeenCalled();
+  });
+
+  /** The allowlist is Google ids; policing other providers with it would be an outage. */
+  it('never restricts a non-Google credential', async () => {
+    h.findFirst.mockResolvedValue({ id: 'cred-2', provider: 'openai', defaultModel: 'gpt-5.2' });
+    h.upsert.mockResolvedValue({});
+    const result = await saveTaskRouting('grade', 'cred-2', 'gpt-5.2-mini');
+
+    expect(result.success).toBe(true);
+    expect(h.upsert).toHaveBeenCalled();
+  });
+})

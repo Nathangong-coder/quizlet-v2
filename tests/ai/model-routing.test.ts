@@ -15,9 +15,13 @@ import { AI_TASKS } from '@/lib/ai/model-routing'
  * runtime array, so there is nothing to assert about it beyond "this file
  * compiles" (Fix round 1, reviewer finding #5: a prior version of this test
  * asserted exactly that and could never fail).
+ *
+ * `author` (Stage 8 rebuild, Spec 2) is the seventh: authoring is
+ * judgment-heavy and runs rarely, runtime grading is latency-sensitive and
+ * runs constantly, so they get separate routing decisions.
  */
 describe('AI_TASKS', () => {
-  it('contains exactly the six expected task names', () => {
-    expect(AI_TASKS).toEqual(['grade', 'plan', 'distractors', 'autocomplete', 'note-analysis', 'diagnostic'])
+  it('contains exactly the seven expected task names', () => {
+    expect(AI_TASKS).toEqual(['grade', 'plan', 'distractors', 'autocomplete', 'note-analysis', 'diagnostic', 'author'])
   })
 })

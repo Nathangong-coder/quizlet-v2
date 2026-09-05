@@ -2,6 +2,9 @@ import { z } from 'zod';
 import { CORRUPTIONS } from '@/lib/quiz/options';
 import { DIMENSIONS, MAX_TAGS_PER_ANSWER } from '@/lib/errors/taxonomy';
 import { KLP_STATUSES } from '@/lib/errors/klp-credit';
+import { PROBE_KINDS, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
+import { KLP_VERDICTS } from '@/lib/klp/verdicts';
+import { RELATABLE_TYPES, RELATION_PROVENANCES } from '@/lib/klp/relations';
 
 export const MultipleChoiceOptionsSchema = z.object({
   options: z.array(z.string().min(1)).length(4),
@@ -314,3 +317,133 @@ export const KltSkeletonSchema = z.object({
 });
 
 export type KltSkeleton = z.infer<typeof KltSkeletonSchema>;
+
+/**
+ * The KLP authoring pipeline (Stage 8 rebuild, Spec 2). Four schemas for the
+ * four calls in `src/lib/klp/authoring.ts`'s loop — author, grade, revise,
+ * relate. See `docs/superpowers/specs/2026-09-04-klp-authoring-pipeline-design.md`.
+ *
+ * Bounded by `MAX_KLPS_AUTHORED` (9), NOT the legacy `MAX_KLPS_PER_CARD` (5)
+ * above. The two are deliberately separate constants — see the doc comment
+ * on `MAX_KLPS_AUTHORED` in `src/lib/klp/authoring-config.ts`: conflating them
+ * once already silently changed the legacy extraction prompt's behaviour on
+ * this branch, for cards that never go through authoring at all.
+ */
+
+/**
+ * Call A's output. Deliberately has NO `weight` field — weight is COMPUTED
+ * from the relation graph (`blastRadius` -> `weightFromBlastRadius`) in the
+ * orchestrator, never asked of the model. Audit finding G1: a model asked
+ * "how central is this?" says "very" — 92% of AI-assigned weights were 4 or 5.
+ */
+export const AuthorDraftSchema = z.object({
+  /**
+   * The points the card's own definition already makes, and how many KLPs each
+   * needs once expanded — the judgment half of adaptive sizing (increment A
+   * §5), returned by the call that is ALREADY reading the definition rather
+   * than by a fifth AI call whose entire output would be one number.
+   *
+   * `klpsNeeded` is loosely typed on purpose: `z.number()` rather than an
+   * `int().min(1).max(3)`. `src/lib/klp/sizing.ts` floors, clamps and sums it,
+   * and a tight bound here would fail the WHOLE call — reference answer, KLPs
+   * and all three adversaries, 1 of the run's 6-16 requests — over a model
+   * writing 2.5 in a field that only ever contributes to a maximum.
+   *
+   * OPTIONAL, so a model that omits it degrades the sizing rather than the run:
+   * `targetKlpCount` still has the mechanical prior and the floor.
+   */
+  definitionPoints: z.array(z.object({
+    point: z.string().min(1),
+    klpsNeeded: z.number(),
+  })).optional(),
+  referenceAnswer: z.string().min(1),
+  /**
+   * Where the model believes the card's own definition is wrong or incomplete
+   * (increment A §2).
+   *
+   * The definition is the SKELETON the reference answer expands, so the model
+   * needs somewhere to put a disagreement. This field is that somewhere, and it
+   * exists specifically so the model does NOT silently "correct" the owner's
+   * card: a pipeline that quietly rewrites what the owner wrote is worse than
+   * one that flags it, because the owner never learns their card was wrong.
+   * Surfaced by `scripts/author-klps.ts` at the end of a run; not persisted.
+   */
+  concerns: z.array(z.string().min(1)).optional(),
+  klps: z.array(z.object({
+    text: z.string().min(1),
+    kind: z.enum(KLP_KINDS),
+  })).min(1).max(MAX_KLPS_AUTHORED),
+  /**
+   * EXACTLY `PROBE_KINDS.length`, one per archetype, no duplicates. `.min(1)`
+   * alone (the original bound) let a model return one adversary, or three
+   * `vague` ones, and neither `computeSeparation` (which reads the BEST wrong
+   * answer) nor anything downstream would notice — a card silently loses
+   * most of its discrimination test with nothing flagging it. `.length()`
+   * pins the count; `.refine` pins distinctness, since three answers of the
+   * same kind pass `.length(3)` but still aren't the three-archetype design
+   * the prompt asks for.
+   */
+  wrongAnswers: z.array(z.object({
+    kind: z.enum(PROBE_KINDS),
+    text: z.string().min(1),
+  }))
+    .length(PROBE_KINDS.length)
+    .refine(
+      (arr) => new Set(arr.map((w) => w.kind)).size === arr.length,
+      { message: 'wrongAnswers must cover each archetype exactly once, with no duplicates' },
+    ),
+});
+
+export type AuthorDraft = z.infer<typeof AuthorDraftSchema>;
+
+/**
+ * Call B's output: one verdict per KLP for ONE candidate answer. `klpIndex`
+ * is a position in the prompt's KLP list, never a cuid — the grader never
+ * sees the KLPs' real ids, only their text.
+ */
+export const CandidateGradeSchema = z.object({
+  verdicts: z.array(z.object({
+    klpIndex: z.number().int().min(0),
+    verdict: z.enum(KLP_VERDICTS),
+    evidence: z.string().optional(),
+  })),
+});
+
+export type CandidateGrade = z.infer<typeof CandidateGradeSchema>;
+
+/** Call C's output: a revised KLP set, same shape as call A's `klps`. */
+export const ReviseKlpsSchema = z.object({
+  klps: z.array(z.object({
+    text: z.string().min(1),
+    kind: z.enum(KLP_KINDS),
+  })).min(1).max(MAX_KLPS_AUTHORED),
+});
+
+export type ReviseKlps = z.infer<typeof ReviseKlpsSchema>;
+
+/**
+ * Call D's output. `from`/`to` are KLP INDEXES within the card, not ids —
+ * the orchestrator maps them onto real `CardKlp` ids once they exist
+ * (`persistAuthoring`).
+ *
+ * `type` is bounded by `RELATABLE_TYPES`, NOT the full `RELATION_TYPES` —
+ * `analogous_to` is a real vocabulary member but is cross-card, and this
+ * call only ever sees one card's KLPs. Review finding: the prompt telling
+ * the model not to emit it was the ONLY defence before this bound existed;
+ * models ignore instructions routinely, and without a schema-level reject a
+ * stray `analogous_to` would sail through `canonicalizeEdges` (exempted from
+ * the cycle check as symmetric) and get persisted as a relation this spec
+ * explicitly promised not to create.
+ */
+export const RelationDraftSchema = z.object({
+  relations: z.array(z.object({
+    from: z.number().int().min(0),
+    to: z.number().int().min(0),
+    type: z.enum(RELATABLE_TYPES),
+    provenance: z.enum(RELATION_PROVENANCES),
+    rationale: z.string().min(1),
+    probe: z.string().min(1),
+  })),
+});
+
+export type RelationDraft = z.infer<typeof RelationDraftSchema>;
