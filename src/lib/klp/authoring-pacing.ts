@@ -27,11 +27,21 @@ export const DEFAULT_RPM = 12
 
 /**
  * A retry hint above this is not a per-minute throttle clearing shortly — it
- * reads as the account being out of budget for the day. Sleeping a
- * foreground script for that long would look identical to a hang, so the run
- * stops cleanly instead (see `callWithPacingAndRetry`'s daily-vs-per-minute
- * doc comment for why this threshold is load-bearing, not just a safety
- * cap).
+ * reads as the account being out of budget for the day. Sleeping a foreground
+ * script for that long would look identical to a hang, so the run stops
+ * cleanly instead.
+ *
+ * DEMOTED TO A FALLBACK on 2026-09-04. This threshold was originally the ONLY
+ * daily-vs-per-minute discriminator, on the belief that Google words the two
+ * identically and only the delay magnitude separates them. **A live 429 proved
+ * that wrong in the worst direction**: a genuine
+ * `GenerateRequestsPerDayPerProjectPerModel-FreeTier` block (limit 20) came
+ * back with a retry hint of THIRTY-FOUR SECONDS, well under this threshold, so
+ * the run honored it and retried a cap that resets tomorrow — eight attempts,
+ * about seven minutes, ending in a misleading "rate limit did not clear"
+ * instead of "you are out of daily quota for this model". `parseQuotaViolation`
+ * now reads the period off the structured payload, which states it outright;
+ * this constant only decides cases where no structured violation is present.
  */
 export const DAILY_QUOTA_THRESHOLD_MS = 5 * 60 * 1000
 
@@ -166,6 +176,61 @@ export function parseRetryDelayMs(err: unknown): number | undefined {
   return undefined
 }
 
+/**
+ * What a provider's 429 says about WHICH quota was hit, read off the structured
+ * payload rather than inferred from the retry delay.
+ *
+ * Google returns a `google.rpc.QuotaFailure` detail whose `quotaId` names the
+ * period outright — `GenerateRequestsPerDayPerProjectPerModel-FreeTier` versus
+ * the `...PerMinute...` variants. That is decisive evidence, and it is the
+ * evidence the original delay-magnitude heuristic did not know existed: a real
+ * daily cap arrived with a 34-second hint, so magnitude alone classified it as
+ * a per-minute throttle and the run retried a limit that resets tomorrow.
+ *
+ * Regex over the collected error text rather than `JSON.parse`, because
+ * `collectErrorText` deliberately concatenates several shapes (message,
+ * `responseBody`, `data`) and the result is not reliably a single JSON
+ * document. `quotaValue` and the model dimension are read from AFTER the
+ * matched id so a response carrying several violations attributes the limit to
+ * the right one.
+ *
+ * A DAILY violation wins over a per-minute one when both are present: the daily
+ * cap is the binding constraint, and waiting out the minute would just walk
+ * back into it.
+ */
+export interface QuotaViolation {
+  period: 'day' | 'minute'
+  quotaId: string
+  /** The limit as the provider stated it, when it stated one. */
+  limit?: string
+  /** The model the quota is scoped to, when the violation names one. */
+  model?: string
+}
+
+export function parseQuotaViolation(err: unknown): QuotaViolation | undefined {
+  const blob = collectErrorText(err)
+  if (!blob) return undefined
+
+  const ids = [...blob.matchAll(/"quotaId"\s*:\s*"([^"]+)"/gi)]
+  if (ids.length === 0) return undefined
+
+  const daily = ids.find((m) => /perday/i.test(m[1]))
+  const minute = ids.find((m) => /perminute/i.test(m[1]))
+  const chosen = daily ?? minute
+  if (!chosen) return undefined
+
+  const after = blob.slice((chosen.index ?? 0) + chosen[0].length)
+  const limit = /"quotaValue"\s*:\s*"?(\d+)"?/i.exec(after)?.[1]
+  const model = /"model"\s*:\s*"([^"]+)"/i.exec(after)?.[1]
+
+  return {
+    period: daily ? 'day' : 'minute',
+    quotaId: chosen[1],
+    ...(limit !== undefined ? { limit } : {}),
+    ...(model !== undefined ? { model } : {}),
+  }
+}
+
 export function exponentialBackoffMs(attempt: number): number {
   return Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** attempt)
 }
@@ -193,23 +258,33 @@ export interface RetryOptions {
  * Daily-vs-per-minute (REQUIREMENT 4) is NOT decided by
  * `classifyProviderError`'s kind alone. Google's own free-tier per-minute
  * throttle message literally contains the phrase "exceeded your current
- * quota" (see the pilot's reproduced error text) — the exact wording
- * `classifyProviderError`'s `quotaWording()` heuristic keys off to return
- * `quota_exhausted`, indistinguishable BY WORDING ALONE from a real daily
- * cap. Only the retry hint tells them apart in practice: a per-minute
- * throttle carries a short, usable `retryDelay` (6-59s were all observed in
- * the pilot); a genuine daily/billing block either carries none or one that
- * is implausibly long. So the decision is:
+ * quota" — the exact wording `classifyProviderError`'s `quotaWording()`
+ * heuristic keys off to return `quota_exhausted`, indistinguishable BY WORDING
+ * ALONE from a real daily cap.
  *
- *   - A hinted delay was found and it's <= `DAILY_QUOTA_THRESHOLD_MS`: honor
- *     it and retry, REGARDLESS of which kind `classifyProviderError` chose.
- *   - A hinted delay was found but it's implausibly long, OR no hint was
- *     found at all and the kind is `quota_exhausted` (the provider gave no
- *     recovery time AND used quota wording — the one case with no evidence
- *     this clears soon): halt the whole run via `RunHaltedError`.
- *   - No hint was found and the kind is plain `rate_limited` (no quota
- *     wording): fall back to exponential backoff and retry, since nothing
- *     suggests this is a daily block.
+ * THE STRUCTURED VIOLATION DECIDES IT, and the retry hint is only a fallback.
+ * That order was reversed until a live 429 on 2026-09-04 disproved the
+ * assumption behind it: a genuine daily cap
+ * (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, limit 20) arrived with
+ * a THIRTY-FOUR SECOND retry hint. Magnitude alone therefore classified a
+ * limit that resets tomorrow as a throttle clearing shortly, and the run slept
+ * and retried it eight times — roughly seven minutes — before halting with the
+ * wrong reason. `parseQuotaViolation` reads the period straight off the
+ * payload, where Google states it outright. The decision is now:
+ *
+ *   - The payload names a PER-DAY quota: halt immediately via `RunHaltedError`,
+ *     naming the model and the limit. No amount of waiting clears it today, and
+ *     honoring its short hint is the exact mistake described above.
+ *   - The payload names a PER-MINUTE quota: retry, and do NOT halt for a
+ *     missing hint — the provider has positively said this is the short kind.
+ *   - No structured violation, and a hinted delay <= `DAILY_QUOTA_THRESHOLD_MS`:
+ *     honor it and retry, REGARDLESS of which kind `classifyProviderError` chose.
+ *   - No structured violation, and either an implausibly long hint or no hint
+ *     at all with kind `quota_exhausted` (no recovery time AND quota wording —
+ *     the one case with no evidence this clears soon): halt the run.
+ *   - No structured violation, no hint, kind plain `rate_limited` (no quota
+ *     wording): exponential backoff and retry, since nothing suggests a daily
+ *     block.
  */
 export async function callWithPacingAndRetry<T>(fn: () => Promise<T>, opts: RetryOptions): Promise<T> {
   const maxAttempts = opts.maxAttempts ?? DEFAULT_MAX_ATTEMPTS
@@ -225,8 +300,28 @@ export async function callWithPacingAndRetry<T>(fn: () => Promise<T>, opts: Retr
       if (kind !== 'rate_limited' && kind !== 'quota_exhausted') throw err
 
       const hinted = parseRetryDelayMs(err)
+      const violation = parseQuotaViolation(err)
+
+      // The provider said outright that this is the daily bucket. Its retry
+      // hint is worthless here — a real one read 34s for a limit that resets
+      // tomorrow — so it is deliberately not consulted.
+      if (violation?.period === 'day') {
+        const scope = violation.model ? ` for model ${violation.model}` : ''
+        const limit = violation.limit ? ` (limit ${violation.limit})` : ''
+        throw new RunHaltedError(
+          `Daily AI quota exhausted${scope}${limit}: ${violation.quotaId}. This does not clear by waiting — ` +
+            'the run is resumable, so re-run the same command tomorrow, point KLP_DIRECT_MODEL at a model ' +
+            "with its own unused daily bucket, or raise the key's quota tier.",
+          'daily_quota',
+          err,
+        )
+      }
+
       const isImplausiblyLong = hinted !== undefined && hinted > DAILY_QUOTA_THRESHOLD_MS
-      const isUnexplainedQuotaClaim = hinted === undefined && kind === 'quota_exhausted'
+      // A named per-minute violation is positive evidence this is the short
+      // kind, so a missing retry hint is no longer grounds to halt.
+      const isUnexplainedQuotaClaim =
+        hinted === undefined && kind === 'quota_exhausted' && violation?.period !== 'minute'
 
       if (isImplausiblyLong || isUnexplainedQuotaClaim) {
         throw new RunHaltedError(

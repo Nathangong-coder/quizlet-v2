@@ -3,6 +3,7 @@ import {
   Pacer,
   callWithPacingAndRetry,
   parseRetryDelayMs,
+  parseQuotaViolation,
   rpmToIntervalMs,
   exponentialBackoffMs,
   RunHaltedError,
@@ -30,8 +31,14 @@ function errorWithMessage(message: string, extra: Record<string, unknown> = {}):
   return Object.assign(new Error(message), extra)
 }
 
-/** Shaped exactly like the pilot's reproduced failure: Google's free-tier
- *  per-minute throttle, wording that says "quota" but a short retry hint. */
+/**
+ * MESSAGE TEXT ONLY, with no structured detail — which is precisely the
+ * ambiguous case. This wording is byte-for-byte what a DAILY cap also produces,
+ * so nothing here identifies the period; the short retry hint is the only
+ * evidence available, and the code treats it as the short kind on that basis.
+ * `dailyQuotaError` below is the same failure WITH the detail Google actually
+ * sends, which settles it.
+ */
 function perMinuteThrottleError(retrySeconds: number): Error {
   return errorWithMessage(
     `You exceeded your current quota\n` +
@@ -40,6 +47,86 @@ function perMinuteThrottleError(retrySeconds: number): Error {
       `Please retry in ${retrySeconds}s.`,
   )
 }
+
+/**
+ * The real 429 body observed live on 2026-09-04, trimmed to the fields that
+ * matter. Note the retry hint: THIRTY-FOUR SECONDS for a limit that resets
+ * tomorrow. That is what defeated the original delay-magnitude heuristic.
+ */
+function dailyQuotaError(retrySeconds = 34): Error {
+  return errorWithMessage(
+    'You exceeded your current quota, please check your plan and billing details.\n' +
+      'Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, ' +
+      `limit: 20, model: gemini-3.6-flash\nPlease retry in ${retrySeconds}s.`,
+    {
+      responseBody: JSON.stringify({
+        error: {
+          code: 429,
+          status: 'RESOURCE_EXHAUSTED',
+          details: [
+            {
+              '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+              violations: [
+                {
+                  quotaMetric: 'generativelanguage.googleapis.com/generate_content_free_tier_requests',
+                  quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier',
+                  quotaDimensions: { model: 'gemini-3.6-flash', location: 'global' },
+                  quotaValue: '20',
+                },
+              ],
+            },
+            { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: `${retrySeconds}s` },
+          ],
+        },
+      }),
+    },
+  )
+}
+
+describe('parseQuotaViolation', () => {
+  it('reads the period, limit and model off a real daily-quota payload', () => {
+    expect(parseQuotaViolation(dailyQuotaError())).toEqual({
+      period: 'day',
+      quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier',
+      limit: '20',
+      model: 'gemini-3.6-flash',
+    })
+  })
+
+  it('reads a per-minute violation as the short kind', () => {
+    const err = errorWithMessage('429', {
+      responseBody: JSON.stringify({
+        error: { details: [{ violations: [{ quotaId: 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier' }] }] },
+      }),
+    })
+    expect(parseQuotaViolation(err)?.period).toBe('minute')
+  })
+
+  /** The daily cap is the binding one — waiting out the minute walks back into it. */
+  it('prefers the daily violation when a payload carries both', () => {
+    const err = errorWithMessage('429', {
+      responseBody: JSON.stringify({
+        error: {
+          details: [
+            {
+              violations: [
+                { quotaId: 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier', quotaValue: '5' },
+                { quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', quotaValue: '20' },
+              ],
+            },
+          ],
+        },
+      }),
+    })
+    expect(parseQuotaViolation(err)).toMatchObject({ period: 'day', limit: '20' })
+  })
+
+  it('returns undefined for an error with no structured violation', () => {
+    expect(parseQuotaViolation(perMinuteThrottleError(13.8))).toBeUndefined()
+    expect(parseQuotaViolation(errorWithMessage('429 Too Many Requests'))).toBeUndefined()
+    expect(parseQuotaViolation(undefined)).toBeUndefined()
+  })
+})
 
 describe('rpmToIntervalMs', () => {
   it('converts a requests-per-minute ceiling into a minimum interval', () => {
@@ -228,5 +315,66 @@ describe('callWithPacingAndRetry', () => {
     await callWithPacingAndRetry(fn, { pacer, clock })
 
     expect(clock.sleeps).toEqual([500])
+  })
+})
+
+describe('callWithPacingAndRetry — daily quota, decided by the payload', () => {
+  /**
+   * THE REGRESSION THIS FIX EXISTS FOR. A real daily cap arrived with a
+   * 34-second retry hint, so the delay-magnitude heuristic classified it as a
+   * throttle clearing shortly and the run slept and retried it eight times —
+   * about seven minutes — before halting with the wrong reason. It must halt on
+   * the FIRST failure, without sleeping at all.
+   */
+  it('halts immediately on a daily cap, however short the provider says to retry', async () => {
+    const clock = fakeClock()
+    const pacer = new Pacer(0, clock)
+    const fn = vi.fn(async () => {
+      throw dailyQuotaError(34)
+    })
+
+    await expect(callWithPacingAndRetry(fn, { pacer, clock, jitterMs: 0 })).rejects.toThrow(RunHaltedError)
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(clock.sleeps).toEqual([])
+  })
+
+  it('names the model and the limit, so the halt is actionable', async () => {
+    const clock = fakeClock()
+    const pacer = new Pacer(0, clock)
+    const fn = vi.fn(async () => {
+      throw dailyQuotaError()
+    })
+
+    await expect(callWithPacingAndRetry(fn, { pacer, clock, jitterMs: 0 })).rejects.toMatchObject({
+      haltReason: 'daily_quota',
+    })
+    const err = await callWithPacingAndRetry(fn, { pacer, clock, jitterMs: 0 }).catch((e: Error) => e)
+    expect(err.message).toContain('gemini-3.6-flash')
+    expect(err.message).toContain('limit 20')
+    expect(err.message).toContain('KLP_DIRECT_MODEL')
+  })
+
+  /**
+   * A named per-minute violation is positive evidence this is the short kind,
+   * so a missing retry hint must no longer be read as "no evidence it clears".
+   */
+  it('retries a named per-minute violation even with no retry hint', async () => {
+    const clock = fakeClock()
+    const pacer = new Pacer(0, clock)
+    let calls = 0
+    const fn = vi.fn(async () => {
+      calls += 1
+      if (calls === 1) {
+        throw Object.assign(new Error('You exceeded your current quota'), {
+          responseBody: JSON.stringify({
+            error: { details: [{ violations: [{ quotaId: 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier' }] }] },
+          }),
+        })
+      }
+      return 'ok'
+    })
+
+    await expect(callWithPacingAndRetry(fn, { pacer, clock, jitterMs: 0 })).resolves.toBe('ok')
+    expect(clock.sleeps).toEqual([2000])
   })
 })
