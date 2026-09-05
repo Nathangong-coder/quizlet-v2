@@ -59,23 +59,42 @@ describe('outcomeOf', () => {
 })
 
 describe('controls', () => {
-  it('offers zoom, fit, reset and full screen', () => {
+  it('offers zoom and full screen', () => {
     renderCanvas()
     expect(screen.getByLabelText('Zoom in')).toBeInTheDocument()
     expect(screen.getByLabelText('Zoom out')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Fit' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Full screen' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Full screen')).toBeInTheDocument()
   })
 
-  /** Reset only means something once something has been moved. */
-  it('disables reset until a node has been dragged', () => {
+  /**
+   * The zoom percentage IS the fit control: it says what the buttons either
+   * side of it are for, and clicking it refits. A separate button labelled
+   * "Fit" was a third thing to read for the same job.
+   */
+  it('shows the zoom level as the fit control rather than a separate Fit button', () => {
     renderCanvas()
-    expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Fit' })).toBeNull()
+    expect(screen.getByTitle('Fit to view')).toHaveTextContent('%')
   })
 
-  it('renders nothing at all when the card has no relations', () => {
+  /** Reset is meaningless until something has moved, so it is absent, not greyed. */
+  it('hides reset until a node has been dragged', () => {
+    renderCanvas()
+    expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull()
+  })
+
+  /**
+   * A card whose points are parallel still draws, as a vertical column. A
+   * reader flipping between cards should meet the same object every time, not a
+   * graph on some and a paragraph of apology on others.
+   */
+  it('still draws parallel points when there are no relations', () => {
     const { container } = renderCanvas({ relations: [] })
-    expect(container.firstChild).toBeNull()
+    // Direct children of the pan/zoom wrapper, which is itself a translate group.
+    const boxes = container.querySelectorAll('svg > g > g[transform^="translate"]')
+    expect(boxes).toHaveLength(klps.length)
+    const xs = new Set([...boxes].map((g) => (g.getAttribute('transform') || '').split(' ')[0]))
+    expect(xs.size).toBe(1)
   })
 })
 
@@ -108,6 +127,8 @@ describe('the answer overlay', () => {
     expect(container.querySelectorAll('rect[class*="stroke-emerald"]')).toHaveLength(1)
     // K3 has no recorded status, so it stays neutral rather than reading as wrong.
     expect(container.querySelectorAll('rect[class*="stroke-border"]')).toHaveLength(1)
+    // The grid backdrop is a rect too, and must not be counted as a node.
+    expect(container.querySelector('rect[fill="url(#klp-grid)"]')).toBeInTheDocument()
   })
 
   /**

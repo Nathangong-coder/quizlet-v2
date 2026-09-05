@@ -27,7 +27,8 @@ describe('the list', () => {
   /** The shape the owner asked for: K1..Kn beside the full proposition. */
   it('numbers key points from K1, in order, with their full text', () => {
     renderPanel()
-    const list = screen.getByRole('list')
+    // The graph legend is a list too, so the key-point list is taken by position.
+    const list = screen.getAllByRole('list')[0]
     const items = within(list).getAllByRole('listitem')
 
     expect(items).toHaveLength(4)
@@ -47,14 +48,16 @@ describe('the list', () => {
 describe('the graph', () => {
   it('draws one node per key point and one edge per relation', () => {
     const { container } = renderPanel()
-    expect(container.querySelectorAll('svg rect')).toHaveLength(4)
+    // Node boxes only: the grid backdrop is also a rect.
+    expect(container.querySelectorAll('svg g[transform^="translate"] rect')).toHaveLength(4)
     // Two paths per edge: a wide transparent hit target plus the visible line.
     expect(container.querySelectorAll('svg g[class*="cursor-pointer"] path[stroke="transparent"]')).toHaveLength(2)
   })
 
   it('labels relations R1, R2, … in order', () => {
     const { container } = renderPanel()
-    const text = container.querySelector('svg')?.textContent ?? ''
+    // The control bar's icons are svgs too, and come first in the DOM.
+    const text = container.querySelector('svg[aria-label="Relation graph"]')?.textContent ?? ''
     expect(text).toContain('R1')
     expect(text).toContain('R2')
   })
@@ -125,7 +128,8 @@ describe('interactivity', () => {
     renderPanel()
     const caption = screen.getByText(/tax shields part of it/).closest('div')!
     expect(caption).toHaveTextContent('R1')
-    expect(caption).toHaveTextContent('K1 → K2')
+    expect(caption).toHaveTextContent('K1')
+    expect(caption).toHaveTextContent('K2')
     expect(caption).toHaveTextContent('causes')
   })
 
@@ -139,10 +143,10 @@ describe('interactivity', () => {
     renderPanel()
     expect(screen.queryByText(/says net income falls 10/)).toBeNull()
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'probe' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'Test it' })[0])
     expect(screen.getByText(/says net income falls 10/)).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'hide probe' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide test' }))
     expect(screen.queryByText(/says net income falls 10/)).toBeNull()
   })
 
@@ -158,20 +162,36 @@ describe('interactivity', () => {
   })
 })
 
-describe('authoring status', () => {
-  it('shows the separation score when the card has been authored', () => {
+describe('authoring diagnostics are admin-only', () => {
+  /**
+   * These numbers grade the QUESTION, not the reader. A "low discrimination
+   * 0.13" badge on somebody's own study material reads as a verdict on them,
+   * and the set page is public now.
+   */
+  it('hides the separation score from a normal reader', () => {
     renderPanel({ separation: 0.63, status: 'separated' })
-    expect(screen.getByText(/separation 0\.63/)).toBeInTheDocument()
+    expect(screen.queryByText(/separation/)).toBeNull()
   })
 
-  /** The flag is the deliverable of the discrimination loop, so it must be visible. */
-  it('flags a low-discrimination card', () => {
+  it('hides the low-discrimination flag from a normal reader', () => {
     renderPanel({ separation: 0.13, status: 'low_discrimination' })
+    expect(screen.queryByText('low discrimination')).toBeNull()
+  })
+
+  it('shows both to an admin', () => {
+    renderPanel({ separation: 0.13, status: 'low_discrimination', isAdmin: true })
+    expect(screen.getByText(/separation 0\.13/)).toBeInTheDocument()
     expect(screen.getByText('low discrimination')).toBeInTheDocument()
   })
 
-  it('shows no score for a legacy card that was never authored', () => {
-    renderPanel({ separation: null, status: null })
+  it('shows no score to an admin for a legacy card that was never authored', () => {
+    renderPanel({ separation: null, status: null, isAdmin: true })
     expect(screen.queryByText(/separation/)).toBeNull()
+  })
+
+  /** Weight is an internal ranking input; it meant nothing to a reader. */
+  it('never shows raw weight tags', () => {
+    renderPanel({ isAdmin: true })
+    expect(screen.queryByText(/^w\d$/)).toBeNull()
   })
 })

@@ -31,6 +31,13 @@ export interface KlpCardPanelProps {
   status?: string | null
   /** When present, the graph offers a Solution / learner-answer toggle. */
   answer?: AnswerOverlay | null
+  /**
+   * Admins see the authoring diagnostics — separation score, low-discrimination
+   * flag. A learner reading their own set does not: those numbers grade the
+   * QUESTION rather than the reader, and a "low discrimination 0.13" badge on
+   * someone's study material reads as a verdict on them.
+   */
+  isAdmin?: boolean
 }
 
 /** K1, K2, … — 1-based, because nobody reading a list counts from zero. */
@@ -66,6 +73,7 @@ export function KlpCardPanel({
   separation,
   status,
   answer,
+  isAdmin = false,
 }: KlpCardPanelProps) {
   const [active, setActive] = useState<number | null>(null)
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null)
@@ -97,17 +105,23 @@ export function KlpCardPanel({
   return (
     <section className="space-y-4 rounded-lg border p-4">
       <header className="space-y-1">
-        <h3 className="font-medium">{cardTerm}</h3>
+        <h3 className="text-base font-medium leading-6">{cardTerm}</h3>
         {cardDefinition && <p className="text-xs text-muted-foreground">{cardDefinition}</p>}
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs text-muted-foreground">
           <span>{klps.length} key points</span>
-          <span>{drawable.length} relations</span>
-          {typeof separation === 'number' && (
-            <span className="font-mono tabular-nums">separation {separation.toFixed(2)}</span>
+          <span aria-hidden>&middot;</span>
+          <span>{drawable.length} connections</span>
+          {isAdmin && typeof separation === 'number' && (
+            <>
+              <span aria-hidden>&middot;</span>
+              <span className="font-mono tabular-nums" title="How far the correct answer outscored the best deliberately-wrong one. Higher is better; below 0.40 is flagged.">
+                separation {separation.toFixed(2)}
+              </span>
+            </>
           )}
-          {status === 'low_discrimination' && (
+          {isAdmin && status === 'low_discrimination' && (
             <span
-              className="rounded border border-amber-600/40 px-1.5 font-mono text-amber-700 dark:text-amber-400"
+              className="rounded-full border border-amber-600/40 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400"
               title="The best wrong answer scored nearly as well as the right one, so these points do not yet tell them apart."
             >
               low discrimination
@@ -133,11 +147,10 @@ export function KlpCardPanel({
                 isDimmed(i) ? 'opacity-40' : ''
               }`}
             >
-              <span className="shrink-0 font-mono text-xs text-teal-700 dark:text-teal-400">{kLabel(i)}</span>
-              <span className="font-mono text-xs leading-5">{k.text}</span>
-              <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">
-                w{k.weight}
+              <span className="shrink-0 pt-px font-mono text-xs text-teal-700 dark:text-teal-400">
+                {kLabel(i)}
               </span>
+              <span className="text-sm leading-6">{k.text}</span>
             </button>
           </li>
         ))}
@@ -164,88 +177,69 @@ export function KlpCardPanel({
         />
       )}
 
-      {drawable.length > 0 && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-          {Array.from(new Set(drawable.map((r) => r.type))).map((type) => {
-            const style = RELATION_STYLE[type] ?? RELATION_STYLE.causes
-            return (
-              <span key={type} className="flex items-center gap-1.5">
-                <svg width="26" height="8" aria-hidden>
-                  <line
-                    x1="0"
-                    y1="4"
-                    x2="26"
-                    y2="4"
-                    strokeWidth="1.5"
-                    strokeDasharray={style.dash}
-                    className={
-                      style.tone === 'confusion'
-                        ? 'stroke-orange-600 dark:stroke-orange-400'
-                        : 'stroke-teal-600 dark:stroke-teal-400'
-                    }
-                  />
-                </svg>
-                <span className="font-mono">{type}</span>
-                <span>&mdash; {style.description}</span>
-              </span>
-            )
-          })}
-        </div>
-      )}
+      {/* CAPTIONS. An R-number on a line says an edge exists and nothing about
+          what it claims. The rationale is that connection in words, and it is
+          already stored, so it is shown outright rather than hidden.
 
-      {/* CAPTIONS. An R-number on a line tells you an edge exists and nothing
-          about what it claims — the reader still has to guess why K3 points at
-          K4. The rationale is the intended connection stated in words, and it
-          is already stored on every relation, so it is shown outright rather
-          than hidden behind a click.
-
-          The probe stays click-to-open, because it is a different kind of
-          thing: not what the link means, but the wrong answer that proves the
-          link carries information — one that gets BOTH endpoints right and the
-          connection wrong. That is worth reading deliberately, not while
-          scanning. */}
+          The layout does the work the earlier version made the reader do: the
+          endpoints read as a single K1 -> K2 chip so the eye lands on the
+          relationship before the prose, the type is a coloured pill rather than
+          a third monospace run, and the rationale gets its own line at reading
+          width. Same information, fewer things competing for the same spot. */}
       {drawable.length > 0 && (
-        <dl className="space-y-1.5 text-xs">
+        <dl className="space-y-1">
           {drawable.map((r, i) => {
             const style = RELATION_STYLE[r.type] ?? RELATION_STYLE.causes
             const dimmed = edgeDimmed(r)
             const open = selectedEdge === r.id
+            const confusion = style.tone === 'confusion'
             return (
               <div
                 key={r.id}
-                className={`rounded px-1.5 py-1 transition-opacity ${dimmed ? 'opacity-40' : ''} ${
-                  open ? 'bg-muted/60' : ''
-                }`}
+                className={`rounded-md border border-transparent px-2 py-1.5 transition-colors ${
+                  dimmed ? 'opacity-40' : ''
+                } ${open ? 'border-border bg-muted/50' : 'hover:bg-muted/40'}`}
                 onMouseEnter={() => setHoveredEdge(r.id)}
                 onMouseLeave={() => setHoveredEdge(null)}
               >
-                <dt className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="font-mono text-muted-foreground">{rLabel(i)}</span>
-                  <span className="font-mono">
-                    {kLabel(r.from)} &rarr; {kLabel(r.to)}
+                <dt className="flex items-center gap-2">
+                  <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                    {rLabel(i)}
+                  </span>
+                  <span className="flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px]">
+                    {kLabel(r.from)}
+                    <span aria-hidden className={confusion ? 'text-orange-600 dark:text-orange-400' : 'text-teal-600 dark:text-teal-400'}>
+                      {confusion ? '↔' : '→'}
+                    </span>
+                    {kLabel(r.to)}
                   </span>
                   <span
-                    className={`font-mono ${
-                      style.tone === 'confusion'
-                        ? 'text-orange-700 dark:text-orange-400'
-                        : 'text-teal-700 dark:text-teal-400'
+                    className={`rounded-full px-2 py-0.5 text-[11px] ${
+                      confusion
+                        ? 'bg-orange-500/10 text-orange-700 dark:text-orange-400'
+                        : 'bg-teal-500/10 text-teal-700 dark:text-teal-400'
                     }`}
                   >
-                    {r.type}
+                    {r.type.replace(/_/g, ' ')}
                   </span>
                   <button
                     type="button"
-                    className="ml-auto text-muted-foreground underline decoration-dotted"
+                    className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
                     onClick={() => setSelectedEdge((prev) => (prev === r.id ? null : r.id))}
                     aria-expanded={open}
+                    title="A wrong answer that gets both points right but the connection between them wrong"
                   >
-                    {open ? 'hide probe' : 'probe'}
+                    {open ? 'Hide test' : 'Test it'}
                   </button>
                 </dt>
-                <dd className="mt-0.5 leading-5">{r.rationale}</dd>
+                <dd className="mt-1 max-w-prose pl-1 text-sm leading-6 text-muted-foreground">
+                  {r.rationale}
+                </dd>
                 {open && (
-                  <dd className="mt-1 border-l-2 pl-2 text-muted-foreground">
-                    <span className="font-medium">Probe: </span>
+                  <dd className="mt-2 max-w-prose rounded border-l-2 border-l-muted-foreground/40 bg-background/60 px-3 py-2 text-sm leading-6">
+                    <span className="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Gets both points right, the link wrong
+                    </span>
                     {r.probe}
                   </dd>
                 )}
@@ -254,6 +248,7 @@ export function KlpCardPanel({
           })}
         </dl>
       )}
+
     </section>
   )
 }

@@ -1263,6 +1263,12 @@ model CardAuthoring {
   referenceAnswer String   @db.Text
   separationScore Float
   revisions       Int
+  /// The model id that authored this run, e.g. "gemini-3.6-flash".
+  ///
+  /// NULLABLE because rows written before this column existed have no honest
+  /// value — the pilot rotated across three models and the only record was the
+  /// script's console output. NULL means "not recorded", never "unknown model".
+  model           String?
   /// separated | low_discrimination | failed
   status          String
   createdAt       DateTime @default(now())

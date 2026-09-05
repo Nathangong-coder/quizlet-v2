@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
-import { Minus, Plus, Maximize2, ChevronDown, ChevronRight } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Minus, Plus, Maximize2, Minimize2, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { layoutTree, LAYOUT_DEFAULTS, type LayoutNode } from '@/lib/klt/layout'
 import { evaluateDrop, type DragSource } from '@/lib/klt/drag'
@@ -74,6 +74,8 @@ export function ConceptCanvas({
   onDrop,
 }: ConceptCanvasProps) {
   const [zoom, setZoom] = useState(1)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const shellRef = useRef<HTMLDivElement>(null)
   const [hoverTarget, setHoverTarget] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null)
@@ -125,11 +127,28 @@ export function ConceptCanvas({
     setZoom(Math.max(MIN_ZOOM, Math.min(1, available / layout.width)))
   }
 
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  async function toggleFullscreen() {
+    const el = shellRef.current
+    if (!el) return
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen()
+      else await el.requestFullscreen()
+    } catch {
+      // Refused in some embeds; the canvas is fully usable without it.
+    }
+  }
+
   const scaledWidth = layout.width * zoom + CANVAS_PADDING * 2
   const scaledHeight = layout.height * zoom + CANVAS_PADDING * 2
 
   return (
-    <div className="relative rounded-xl border bg-muted/20 overflow-hidden">
+    <div ref={shellRef} className="relative rounded-xl border bg-muted/20 overflow-hidden">
       <div className="absolute right-3 top-3 z-20 flex items-center gap-1 rounded-lg border bg-card/95 p-1 shadow-sm backdrop-blur">
         <Button
           type="button"
@@ -140,9 +159,19 @@ export function ConceptCanvas({
         >
           <Minus className="size-4" />
         </Button>
-        <span className="w-11 text-center text-xs tabular-nums text-muted-foreground">
+        {/* The percentage IS the fit control, matching the KLP relation graph.
+            It was previously inert text beside a Maximize2 button that actually
+            meant "fit to width" — which reads as fullscreen, so the fit control
+            was there and unfindable. Now the number says what the buttons
+            either side of it do, and clicking it refits. */}
+        <button
+          type="button"
+          onClick={fitToWidth}
+          title="Fit to width"
+          className="w-12 rounded px-1 text-center text-xs tabular-nums text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
           {Math.round(zoom * 100)}%
-        </span>
+        </button>
         <Button
           type="button"
           variant="ghost"
@@ -152,8 +181,15 @@ export function ConceptCanvas({
         >
           <Plus className="size-4" />
         </Button>
-        <Button type="button" variant="ghost" size="icon" aria-label="Fit to width" onClick={fitToWidth}>
-          <Maximize2 className="size-4" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
+          title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+          onClick={toggleFullscreen}
+        >
+          {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
         </Button>
       </div>
 

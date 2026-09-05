@@ -454,6 +454,9 @@ async function main() {
     let outcome: AuthoringOutcome | undefined
     let cardFailed = false
     let attemptsLeft = MAX_COMBO_ATTEMPTS_PER_CARD
+    // The model that actually produced the outcome, for CardAuthoring.model.
+    // Captured per card because the pool rotates between cards.
+    let usedModel: string | undefined
 
     for (;;) {
       let gen: AuthoringGenerator
@@ -471,6 +474,7 @@ async function main() {
           break
         }
         markTried(combo, new Date())
+        usedModel = combo.model
         gen = directGenerator(combo, pacer)
         console.log(`${tag} — using ${combo.id}`)
       } else {
@@ -549,11 +553,13 @@ async function main() {
 
     try {
       if (!dryRun) {
-        await persistAuthoring(card.id, outcome, AUTHOR_KLPS_PROMPT.version, {
-          term: card.term,
-          definition: card.definition,
-          blocks: card.contentBlocks,
-        })
+        await persistAuthoring(
+          card.id,
+          outcome,
+          AUTHOR_KLPS_PROMPT.version,
+          { term: card.term, definition: card.definition, blocks: card.contentBlocks },
+          usedModel,
+        )
       }
     } catch (err) {
       console.error(`${tag} — FAILED to persist: ${err instanceof Error ? err.message : String(err)}`)
