@@ -15,17 +15,44 @@ export default async function StaffLearnersPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Learners</h1>
       <StaffNav isAdmin={isAdmin(staff.role)} />
+      <p className="text-sm text-muted-foreground">
+        Every account, whether or not they have studied anything yet &mdash;{' '}
+        {learners.length} total, {learners.filter((l) => l.klpStates > 0).length} with measured knowledge.
+      </p>
+
       {learners.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nobody has answered anything yet.</p>
+        <p className="text-sm text-muted-foreground">No accounts yet.</p>
       ) : (
         <ul className="divide-y rounded-lg border">
           {learners.map((l) => (
-            <li key={l.userId} className="flex items-center justify-between gap-3 p-3">
-              <Link href={`/staff/learners/${l.userId}`} className="font-medium hover:underline">
-                {l.label}
-              </Link>
+            <li key={l.userId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 p-3">
+              <div className="min-w-0">
+                <Link href={`/staff/learners/${l.userId}`} className="font-medium hover:underline">
+                  {l.label}
+                </Link>
+                {/* The email is shown whenever it is not already the label, so a
+                    row can be found by either identity. Staff searching for a
+                    person know one or the other, rarely both. */}
+                {l.email && l.email !== l.label && (
+                  <span className="ml-2 text-xs text-muted-foreground">{l.email}</span>
+                )}
+                <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="font-mono">{l.signIn}</span>
+                  {l.role !== 'learner' && (
+                    <span className="rounded border px-1.5 font-mono">{l.role}</span>
+                  )}
+                  {l.handle && l.handle !== l.label && <span>@{l.handle}</span>}
+                </div>
+              </div>
               <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                {l.klpStates} key points measured
+                {/* "0 key points measured" reads as a measurement that came back
+                    zero. It is not — nothing has been measured at all, and those
+                    are different claims about the same person. */}
+                {l.klpStates > 0
+                  ? `${l.klpStates} key points measured`
+                  : l.answers > 0
+                    ? `${l.answers} answers, nothing measured yet`
+                    : 'no activity yet'}
               </span>
             </li>
           ))}
