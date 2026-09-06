@@ -53,3 +53,27 @@ describe('toQuizMode', () => {
     expect(toQuizMode('garbage')).toBeNull()
   })
 })
+
+describe('diagnostic', () => {
+  it('round-trips, because a submitted diagnostic writes QuizAnswer rows', () => {
+    expect(toStudySource('diagnostic')).toBe('diagnostic')
+    expect(toQuizMode('diagnostic')).toBe('diagnostic')
+  })
+
+  it('is not null — null here silently empties every diagnostic-scoped query', () => {
+    // buildQuizAnswerScopeWhere (src/lib/memory/scope.ts) translates a scope's
+    // StudyEvent sources into QuizAnswer.mode values through toQuizMode, and
+    // treats null as "match nothing". That was true of 'diagnostic' until the
+    // diagnostic started writing answers; leaving it null would make
+    // /profile/memory scoped to diagnostic read as "no activity" rather than
+    // as an error.
+    expect(toQuizMode('diagnostic')).not.toBeNull()
+  })
+
+  it('is the one mode whose two vocabularies share a spelling', () => {
+    // Worth pinning: the bridge exists precisely because the two String
+    // vocabularies are otherwise different, and a reader could reasonably
+    // assume this entry was a copy-paste slip.
+    expect(toStudySource('diagnostic')).toBe('diagnostic')
+  })
+})

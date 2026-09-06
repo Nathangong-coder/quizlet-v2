@@ -9,7 +9,7 @@ import type { StudySource } from '@/lib/memory/scoring'
  * every call site, which is exactly how two string vocabularies drift.
  */
 export const QUIZ_MODES = [
-  'multiple-choice', 'short-answer', 'true-false', 'matching',
+  'multiple-choice', 'short-answer', 'true-false', 'matching', 'diagnostic',
 ] as const
 
 export type QuizMode = (typeof QUIZ_MODES)[number]
@@ -19,6 +19,12 @@ const TO_STUDY_SOURCE: Record<QuizMode, StudySource> = {
   'short-answer': 'quiz-sa',
   'true-false': 'quiz-tf',
   matching: 'matching',
+  // The one entry whose two names are the same string, and not a slip. It is
+  // here because a submitted diagnostic writes QuizAnswer rows — that is how
+  // AnswerKlpResult reaches a required FK. Omit it and `toQuizMode` returns
+  // null, which every caller is instructed to turn into a filter matching
+  // nothing, silently emptying every diagnostic-scoped memory query.
+  diagnostic: 'diagnostic',
 }
 
 /** The memory layer's name for a quiz mode. Total over QUIZ_MODES. */
