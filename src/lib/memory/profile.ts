@@ -298,7 +298,14 @@ export function shapeLearnerProfile(input: ShapeLearnerProfileInput): LearnerCar
   }
 
   const graded: GradedAccuracy[] = []
-  const gradedEvents = recentEvents.filter((e) => e.source === 'quiz-sa' && e.score !== null)
+  // BOTH free-text modes. A diagnostic answer is graded on the same 1-10
+  // rubric by the same kind of call, so excluding it would hide a whole
+  // sitting's worth of written-answer signal from the profile the prompts
+  // read. They share one bucket rather than two near-identical rows: the
+  // label is the prompt-facing name for "written answers", not a mode id.
+  const gradedEvents = recentEvents.filter(
+    (e) => (e.source === 'quiz-sa' || e.source === 'diagnostic') && e.score !== null,
+  )
   if (gradedEvents.length > 0) {
     const avg = average(gradedEvents.map((e) => e.score as number))
     graded.push({
