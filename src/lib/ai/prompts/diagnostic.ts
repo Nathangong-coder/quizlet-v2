@@ -2,6 +2,7 @@ import {
   DiagnosticGradeSetSchema,
   DiagnosticQuestionSetSchema,
   DiagnosticReportSchema,
+  REPORT_LIST_MAX,
 } from '@/lib/ai/schemas';
 import {
   ACCURACY_TYPES,
@@ -149,7 +150,13 @@ export const DIAGNOSTIC_REPORT_PROMPT = {
   build(input: DiagnosticReportBuildInput): string {
     return `Turn the completed diagnostic test for ${input.setTitle} into an immediate learning plan.
 
-Summarize what the learner knows, the highest-value gaps, and concrete next recommendations. Group repeated mistakes by key point. Recommendations must be actionable inside a study app (review, rewrite, practice, or revisit a concept). Do not claim a gap without evidence in the results. Return structured JSON with overview, strengths, gaps, recommendations, and learningPoints.
+Summarize what the learner knows, the highest-value gaps, and concrete next recommendations. Group repeated mistakes by key point. Recommendations must be actionable inside a study app (review, rewrite, practice, or revisit a concept). Do not claim a gap without evidence in the results.
+
+AT MOST ${REPORT_LIST_MAX} strengths, ${REPORT_LIST_MAX} gaps and ${REPORT_LIST_MAX} recommendations, and fewer when fewer are warranted. These are a ranking, not a list: pick the highest-value ones and leave the rest out. Do not restate the per-question results — the learner already sees every question, answer and grade beside this summary, so a "gap" that just repeats one missed question adds nothing. A gap earns its place by naming something that spans more than one answer, or that matters more than its single question suggests.
+
+"learningPoints" is different and is NOT capped that way: give one entry per key point that was tested, with the evidence for it.
+
+Return structured JSON with overview, strengths, gaps, recommendations, and learningPoints.
 
 Results:
 ${input.results.map((item) => `Key point: ${item.keyPoint}\nQuestion: ${item.question}\nAnswer: ${item.answer || '[no answer]'}\nScore: ${item.score}/10 (${item.status})\nMistake: ${item.mistake || 'none noted'}`).join('\n\n')}`;

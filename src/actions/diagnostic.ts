@@ -9,6 +9,7 @@ import {
   DiagnosticGradeSetSchema,
   DiagnosticQuestionSetSchema,
   DiagnosticReportSchema,
+  REPORT_LIST_MAX,
   type DiagnosticGradeSet,
   type DiagnosticReport,
 } from '@/lib/ai/schemas'
@@ -126,16 +127,26 @@ function fallbackReport(
     mistake?: string
   }>,
 ): DiagnosticReport {
-  const strengths = [...new Set(results.filter((result) => result.score >= 8).map((result) => result.learningPoint))].slice(0, 8)
-  const gaps = [...new Set(results.filter((result) => result.score < 8).map((result) => result.learningPoint))].slice(0, 12)
+  // Counted BEFORE the cap, because the overview below reports totals. Saying
+  // "3 points worth another pass" when nine were missed would be wrong, and it
+  // is the cap talking rather than the learner's actual result.
+  const allStrengths = [...new Set(results.filter((result) => result.score >= 8).map((result) => result.learningPoint))]
+  const allGaps = [...new Set(results.filter((result) => result.score < 8).map((result) => result.learningPoint))]
+
+  // REPORT_LIST_MAX, not 8/12/5. These must not exceed the schema's cap: this
+  // function runs inside the catch handler for a failed report call, so a
+  // rejected parse here would throw out of the recovery path and lose the
+  // whole graded sitting — the one place a validation error is unrecoverable.
+  const strengths = allStrengths.slice(0, REPORT_LIST_MAX)
+  const gaps = allGaps.slice(0, REPORT_LIST_MAX)
   const recommendations = gaps.length > 0
-    ? gaps.slice(0, 5).map((gap) => `Revisit “${gap}”, then answer a fresh follow-up without notes.`)
+    ? gaps.map((gap) => `Revisit “${gap}”, then answer a fresh follow-up without notes.`)
     : [`Keep ${setTitle} warm with a short mixed review tomorrow.`]
 
   return DiagnosticReportSchema.parse({
-    overview: gaps.length > 0
-      ? `Your baseline shows ${strengths.length} strong learning point${strengths.length === 1 ? '' : 's'} and ${gaps.length} point${gaps.length === 1 ? '' : 's'} worth another pass.`
-      : 'This baseline is strong across the tested learning points. Keep the set active with spaced review.',
+    overview: allGaps.length > 0
+      ? `Your baseline shows ${allStrengths.length} strong key point${allStrengths.length === 1 ? '' : 's'} and ${allGaps.length} point${allGaps.length === 1 ? '' : 's'} worth another pass.`
+      : 'This baseline is strong across the tested key points. Keep the set active with spaced review.',
     strengths,
     gaps,
     recommendations,

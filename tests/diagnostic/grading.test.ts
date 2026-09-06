@@ -10,7 +10,7 @@ import {
   shouldRetryPerQuestion,
   failureKindsOf,
 } from '@/lib/diagnostic/grading'
-import { DiagnosticGradeSetSchema, DiagnosticReportSchema } from '@/lib/ai/schemas'
+import { DiagnosticGradeSetSchema, DiagnosticReportSchema, REPORT_LIST_MAX } from '@/lib/ai/schemas'
 
 describe('isBlankAnswer', () => {
   it('treats empty and whitespace-only answers as blank', () => {
@@ -217,5 +217,33 @@ describe('failureKindsOf', () => {
   it('returns nothing for an error that is not an AI generation failure', () => {
     expect(failureKindsOf(new Error('boom'))).toEqual([])
     expect(failureKindsOf(undefined)).toEqual([])
+  })
+})
+
+describe('report list caps', () => {
+  it('keeps the summary lists short enough to be a ranking', () => {
+    // Twelve gaps from a twelve-question sitting is one gap per question: the
+    // results list restated, which the question review already shows in full.
+    // A generous cap invites the model to pad to it.
+    expect(REPORT_LIST_MAX).toBeLessThanOrEqual(3)
+  })
+
+  it('rejects more entries than the cap', () => {
+    const tooMany = Array.from({ length: REPORT_LIST_MAX + 1 }, (_, i) => `gap ${i}`)
+    expect(DiagnosticReportSchema.safeParse({
+      overview: 'o', strengths: [], gaps: tooMany, recommendations: ['r'], learningPoints: [],
+    }).success).toBe(false)
+  })
+
+  it('does NOT cap learningPoints the same way', () => {
+    // That field is the per-key-point readout, one entry per point tested —
+    // a detail list, not a synthesis. Capping it at three would silently drop
+    // most of a twelve-question sitting's evidence.
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      text: `point ${i}`, score: 5, evidence: 'e', nextAction: 'n',
+    }))
+    expect(DiagnosticReportSchema.safeParse({
+      overview: 'o', strengths: [], gaps: [], recommendations: ['r'], learningPoints: many,
+    }).success).toBe(true)
   })
 })

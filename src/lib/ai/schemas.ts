@@ -219,11 +219,31 @@ export const DiagnosticGradeSetSchema = z.object({
 
 export type DiagnosticGradeSet = z.infer<typeof DiagnosticGradeSetSchema>;
 
+/**
+ * How many strengths, gaps and recommendations a diagnostic report may carry.
+ *
+ * Exported because `fallbackReport` must slice to the SAME number: it runs
+ * inside the catch handler for a failed report call, so an over-long array
+ * would fail this schema and throw out of the recovery path, losing the whole
+ * graded sitting. Two hand-kept numbers is exactly how that happens.
+ */
+export const REPORT_LIST_MAX = 3
+
 export const DiagnosticReportSchema = z.object({
   overview: cappedText(1600),
-  strengths: z.array(cappedText(500)).max(8),
-  gaps: z.array(cappedText(500)).max(12),
-  recommendations: z.array(cappedText(700)).min(1).max(12),
+  // THREE EACH, not 8/12/12.
+  //
+  // Not a token-budget decision — a quality one. Twelve gaps from a
+  // twelve-question sitting is one gap per question: the results list
+  // restated, which the question review already shows in full. The value of
+  // these fields is picking the FEW things worth acting on, and a generous cap
+  // invites the model to pad to it. Three forces a ranking.
+  //
+  // `learningPoints` below is deliberately NOT cut the same way: it is the
+  // per-key-point readout, one entry per point tested, not a synthesis.
+  strengths: z.array(cappedText(500)).max(REPORT_LIST_MAX),
+  gaps: z.array(cappedText(500)).max(REPORT_LIST_MAX),
+  recommendations: z.array(cappedText(700)).min(1).max(REPORT_LIST_MAX),
   learningPoints: z.array(z.object({
     text: cappedText(500),
     score: z.number().int().min(1).max(10),

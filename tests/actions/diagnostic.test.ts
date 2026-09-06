@@ -673,6 +673,32 @@ describe('submitDiagnosticTest', () => {
     if (result.success) expect(result.data.score).toBe(90)
   })
 
+  it('falls back to a TypeScript report when the report call fails, and it parses', async () => {
+    // fallbackReport runs INSIDE the catch handler for a failed report call,
+    // so if what it composes does not satisfy DiagnosticReportSchema it throws
+    // out of the recovery path and loses the whole graded sitting. That is the
+    // one place a validation error is unrecoverable, and it is exactly what
+    // shrinking the list caps to 3 would have caused if the fallback had kept
+    // slicing to 8/12/5.
+    submitTx()
+    const answers = attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' }))
+    mockGradingFor([0, 1, 2, 3], 3)
+    mockGradingFor([4, 5, 6, 7], 3)
+    mockGradingFor([8, 9, 10, 11], 3)
+    h.generateJson.mockRejectedValueOnce(aiFailure('schema_invalid')) // the report
+
+    const result = await submitDiagnosticTest({ attemptId: 'attempt-1', answers })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.report.recommendations.length).toBeGreaterThan(0)
+      expect(result.data.report.gaps.length).toBeLessThanOrEqual(3)
+      // The prose counts TOTALS, not the capped arrays — "3 points worth
+      // another pass" when twelve were missed would be the cap talking.
+      expect(result.data.report.overview).toMatch(/12 points worth another pass/)
+    }
+  })
+
   it('aborts on an exhausted quota instead of burning per-question retries', async () => {
     // A quota failure is transient and total: retrying four questions
     // individually is four guaranteed failures against an empty budget, and
