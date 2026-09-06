@@ -92,7 +92,25 @@ export function resolveLanguageModel({ provider, apiKey, baseUrl, model }: Resol
           `${PROVIDER_META[provider].label} needs a base URL. Add one in AI settings.`,
         );
       }
-      return createOpenAICompatible({ name: provider, apiKey, baseURL: url })(model);
+      // `supportsStructuredOutputs` DEFAULTS TO FALSE in the SDK, and when it
+      // is false the JSON schema is silently DROPPED from the request - the
+      // model is asked for "some JSON" with no shape, returns free-form
+      // output, and Zod rejects it. That surfaces as `schema_invalid`, which
+      // reads as "this model is bad at schemas" rather than "we never sent it
+      // one". Measured 2026-09-06 on minimax via OpenRouter: the SDK logged
+      // `The feature "responseFormat" is not supported` and the probe failed.
+      //
+      // Every generation in this app goes through `Output.object({ schema })`,
+      // so a provider that genuinely cannot do structured output cannot serve
+      // it at all. Sending the schema makes that failure EXPLICIT — an API
+      // error naming the unsupported feature — instead of silently producing
+      // unparseable text that looks like a model quality problem.
+      return createOpenAICompatible({
+        name: provider,
+        apiKey,
+        baseURL: url,
+        supportsStructuredOutputs: true,
+      })(model);
     }
     default:
       throw new ProviderConfigError(`Unknown AI provider: ${String(provider)}`);
