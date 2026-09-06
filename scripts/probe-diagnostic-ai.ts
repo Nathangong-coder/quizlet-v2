@@ -144,8 +144,14 @@ async function main() {
     const used = res.usage?.outputTokens ?? 0
     gradeOutputTokens += used
     maxGradeOutput = Math.max(maxGradeOutput, used)
-    if (res.finishReason !== 'stop') console.log(`  finishReason: ${res.finishReason}`)
-    return res.output
+    console.log(`  finishReason: ${res.finishReason}, usage: ${JSON.stringify(res.usage)}`)
+    try {
+      return res.output
+    } catch (err) {
+      console.log(`  OUTPUT THREW: ${(err as Error).name} — ${(err as Error).message}`)
+      console.log(`  raw text (first 600): ${JSON.stringify(res.text?.slice(0, 600))}`)
+      throw err
+    }
   }
 
   for (const batch of batched(probes.map((_, i) => i), DIAGNOSTIC_BATCH_SIZE)) {

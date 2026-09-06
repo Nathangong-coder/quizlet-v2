@@ -24,9 +24,14 @@ import {
   selectDiagnosticProbes,
   MIN_DIAGNOSTIC_KLPS,
   DIAGNOSTIC_BATCH_SIZE,
-  DIAGNOSTIC_MAX_OUTPUT_TOKENS,
   batched,
 } from '@/lib/diagnostic/select'
+import {
+  isBlankAnswer,
+  blankAnswerGrade,
+  diagnosticOutputCap,
+  averageDiagnosticScore,
+} from '@/lib/diagnostic/grading'
 import { buildAnalysisWrites, type ErrorTagDraft } from '@/lib/analysis/persist'
 import { createAnswerWithAnalysis, DIAGNOSTIC_TX_OPTIONS } from '@/lib/analysis/write-answer'
 import type { ActionResult } from '@/types/action'
@@ -66,8 +71,9 @@ export interface DiagnosticQuestionView {
 export interface DiagnosticResultQuestion extends DiagnosticQuestionView {
   learningPoint: string
   answer: string
-  score: number
-  status: 'mastered' | 'partial' | 'missed'
+  /** NULL when the grader could not grade this question even on its own. */
+  score: number | null
+  status: 'mastered' | 'partial' | 'missed' | null
   feedback: string
   mistake: string | null
 }
@@ -75,7 +81,8 @@ export interface DiagnosticResultQuestion extends DiagnosticQuestionView {
 export interface DiagnosticResult {
   attemptId: string
   setTitle: string
-  score: number
+  /** NULL when nothing in the sitting could be graded. */
+  score: number | null
   /**
    * 1 = ran before questions were anchored to key points. The results view
    * uses it to say so rather than letting the reader assume the run moved
@@ -242,7 +249,7 @@ export async function startDiagnosticTest(input: DiagnosticStartInput): Promise<
           }),
         }),
         schema: DIAGNOSTIC_QUESTIONS_PROMPT.schema,
-        maxOutputTokens: DIAGNOSTIC_MAX_OUTPUT_TOKENS,
+        maxOutputTokens: diagnosticOutputCap(batch.length),
       })
       const questionSet = DiagnosticQuestionSetSchema.parse(generated)
 
@@ -404,57 +411,101 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
 
     const answers = new Map(parsed.data.answers.map((answer) => [answer.questionId, answer]))
 
-    // BATCHED, for the same reason generation is: grading one question costs
-    // ~900 reasoning tokens, so a whole sitting in one call exhausts the output
-    // budget and returns nothing. Failing here is the worst case available —
-    // the learner has already answered everything — so the call is kept small
-    // enough that the budget is never the binding constraint.
-    //
-    // Refs are LOCAL to the batch and mapped back by position, so a grader that
-    // renumbers cannot silently attach one question's verdict to another.
+    const answerFor = (question: { id: string }) => answers.get(question.id)?.answer.trim() ?? ''
+
+    // Blank answers NEVER reach the grader. There is no text to read, so the
+    // grade is computed (`blankAnswerGrade`) — and asking for one was actively
+    // harmful: given an empty answer, gemini-3.6-flash fell into a degenerate
+    // repetition loop, spent 15,001 text tokens, hit the output ceiling and
+    // returned no parseable object, taking a whole twelve-question sitting with
+    // it. See src/lib/diagnostic/grading.ts.
     const grades = new Map<number, DiagnosticGradeSet['grades'][number]>()
-    for (const batch of batched(attempt.questions, DIAGNOSTIC_BATCH_SIZE)) {
-      const generated = await generateJson({
-        userId: session.user.id,
-        task: 'diagnostic',
-        prompt: DIAGNOSTIC_GRADING_PROMPT.build({
-          questions: batch.map((question, ref) => ({
-            ref,
-            question: question.prompt,
-            expectedAnswer: question.expectedAnswer,
-            keyPoint: question.learningPoint,
-            answer: answers.get(question.id)?.answer.trim() ?? '',
-          })),
-        }),
-        schema: DIAGNOSTIC_GRADING_PROMPT.schema,
-        maxOutputTokens: DIAGNOSTIC_MAX_OUTPUT_TOKENS,
-      })
-      const gradeSet = DiagnosticGradeSetSchema.parse(generated)
+    const ungraded = new Set<number>()
+    const needsGrading: typeof attempt.questions = []
+    for (const question of attempt.questions) {
+      if (isBlankAnswer(answerFor(question))) {
+        grades.set(question.position, blankAnswerGrade(0))
+      } else {
+        needsGrading.push(question)
+      }
+    }
+
+    /**
+     * Grade a set of questions in ONE call, with refs LOCAL to that call and
+     * mapped back by position — so a grader that renumbers cannot attach one
+     * question's verdict to another.
+     *
+     * Returns false rather than throwing when the reply is unusable, so the
+     * caller can decide whether to retry smaller or give up on these questions.
+     */
+    const gradeChunk = async (chunk: typeof attempt.questions): Promise<boolean> => {
+      let gradeSet: DiagnosticGradeSet
+      try {
+        const generated = await generateJson({
+          userId: session.user!.id,
+          task: 'diagnostic',
+          prompt: DIAGNOSTIC_GRADING_PROMPT.build({
+            questions: chunk.map((question, ref) => ({
+              ref,
+              question: question.prompt,
+              expectedAnswer: question.expectedAnswer,
+              keyPoint: question.learningPoint,
+              answer: answerFor(question),
+            })),
+          }),
+          schema: DIAGNOSTIC_GRADING_PROMPT.schema,
+          maxOutputTokens: diagnosticOutputCap(chunk.length),
+        })
+        gradeSet = DiagnosticGradeSetSchema.parse(generated)
+      } catch (gradingError) {
+        // Swallowed ON PURPOSE, and only here. A model that rambles past its
+        // output ceiling surfaces as `schema_invalid`, which is indistinguishable
+        // from a real schema problem and must not cost the learner the sitting.
+        console.error('Diagnostic grading chunk failed:', gradingError)
+        return false
+      }
       const byRef = new Map(gradeSet.grades.map((grade) => [grade.questionRef, grade]))
       const complete =
         byRef.size === gradeSet.grades.length &&
-        byRef.size === batch.length &&
-        batch.every((_, ref) => byRef.has(ref))
-      if (!complete) {
-        return { success: false, error: 'The diagnostic grader returned an incomplete result. Please try again.' }
+        byRef.size === chunk.length &&
+        chunk.every((_, ref) => byRef.has(ref))
+      if (!complete) return false
+      chunk.forEach((question, ref) => grades.set(question.position, byRef.get(ref)!))
+      return true
+    }
+
+    // One call per batch; on failure, retry those questions ONE AT A TIME so a
+    // single unusable response costs one question instead of the whole sitting.
+    // A question that fails alone as well is recorded ungraded rather than
+    // guessed at — see the score and analysisStatus handling below.
+    for (const batch of batched(needsGrading, DIAGNOSTIC_BATCH_SIZE)) {
+      if (await gradeChunk(batch)) continue
+      for (const question of batch) {
+        if (!(await gradeChunk([question]))) ungraded.add(question.position)
       }
-      batch.forEach((question, ref) => grades.set(question.position, byRef.get(ref)!))
+    }
+
+    // Nothing gradeable at all is a failure worth surfacing: the learner should
+    // retry rather than be handed a report built on no evidence. A PARTIAL
+    // failure is not — the rest of the sitting is real and is kept.
+    if (grades.size === 0) {
+      return { success: false, error: 'The diagnostic grader could not grade any of your answers. Please try again.' }
     }
 
     const graded = attempt.questions.map((question) => {
-      const grade = grades.get(question.position)!
-      const score = grade.score
+      const grade = grades.get(question.position) ?? null
       return {
         question,
         // The whole grade, not three fields of it: `klpResults` and
         // `errorTags` are what buildAnalysisWrites turns into evidence.
+        // NULL means the grader could not grade this question even on its own.
         grade,
-        answer: answers.get(question.id)?.answer.trim() ?? '',
+        answer: answerFor(question),
         latencyMs: answers.get(question.id)?.latencyMs,
-        score,
-        status: statusForScore(score),
-        feedback: grade.feedback,
-        mistake: grade.mistake?.trim() || null,
+        score: grade?.score ?? null,
+        status: grade ? statusForScore(grade.score) : null,
+        feedback: grade?.feedback ?? 'This answer could not be graded. It has been left out of your score.',
+        mistake: grade?.mistake?.trim() || null,
       }
     })
 
@@ -465,12 +516,14 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
         task: 'diagnostic',
         prompt: DIAGNOSTIC_REPORT_PROMPT.build({
           setTitle: attempt.set.title,
-          results: graded.map((item) => ({
+          // Ungraded questions are omitted: the report must not describe a
+          // gap it has no evidence for.
+          results: graded.filter((item) => item.grade !== null).map((item) => ({
             question: item.question.prompt,
             keyPoint: item.question.learningPoint,
             answer: item.answer,
-            score: item.score,
-            status: item.status,
+            score: item.score as number,
+            status: item.status as string,
             mistake: item.mistake ?? undefined,
           })),
         }),
@@ -479,16 +532,20 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
       report = DiagnosticReportSchema.parse(reportOutput)
     } catch (reportError) {
       if (!(reportError instanceof AiGenerationError)) console.error('Diagnostic report fallback:', reportError)
-      report = fallbackReport(attempt.set.title, graded.map((item) => ({
-        learningPoint: item.question.learningPoint,
-        score: item.score,
-        status: item.status,
-        feedback: item.feedback,
-        mistake: item.mistake ?? undefined,
-      })))
+      report = fallbackReport(attempt.set.title, graded
+        .filter((item) => item.grade !== null)
+        .map((item) => ({
+          learningPoint: item.question.learningPoint,
+          score: item.score as number,
+          status: item.status as string,
+          feedback: item.feedback,
+          mistake: item.mistake ?? undefined,
+        })))
     }
 
-    const score = Math.round((graded.reduce((sum, item) => sum + item.score, 0) / graded.length) * 10)
+    // Ungraded questions are excluded from the denominator, not counted as
+    // zero: scoring a model failure as a miss reports it as the learner's.
+    const score = averageDiagnosticScore(graded.map((item) => item.score))
     const completedAt = new Date()
     const durationMs = Math.max(0, completedAt.getTime() - attempt.session.startedAt.getTime())
 
@@ -509,7 +566,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
         // way to tell "analyzed and clean" from "could not analyze", since a
         // relational tag table records both as zero rows.
         const forcedStatus =
-          klps.length > 0 && (item.grade.klpResults ?? []).length === 0
+          klps.length > 0 && (item.grade?.klpResults ?? []).length === 0
             ? ('no_provenance' as const)
             : undefined
 
@@ -517,9 +574,12 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
           mode: 'diagnostic',
           klps,
           starred: starredByCard.get(item.question.cardId) ?? false,
-          klpResults: item.grade.klpResults ?? [],
-          errorTags: (item.grade.errorTags ?? []) as ErrorTagDraft[],
-          forcedStatus,
+          klpResults: item.grade?.klpResults ?? [],
+          errorTags: (item.grade?.errorTags ?? []) as ErrorTagDraft[],
+          // An ungraded question writes its raw record with `failed` — the
+          // spec's own degradation status for "grading did not produce a
+          // grade". Zero rows alone cannot be told apart from a clean answer.
+          forcedStatus: item.grade === null ? ('failed' as const) : forcedStatus,
         })
 
         const answer = await createAnswerWithAnalysis(
@@ -531,9 +591,11 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
             prompt: item.question.prompt,
             answer: item.answer,
             correctAnswer: item.question.expectedAnswer,
-            grade: { ...item.grade, promptVersion: DIAGNOSTIC_GRADING_PROMPT.version },
-            score: item.score * 10,
-            isCorrect: item.score >= 8,
+            grade: item.grade
+              ? { ...item.grade, promptVersion: DIAGNOSTIC_GRADING_PROMPT.version }
+              : undefined,
+            score: item.score === null ? null : item.score * 10,
+            isCorrect: item.score === null ? null : item.score >= 8,
             latencyMs: normalizeLatency(item.latencyMs),
             feedback: item.feedback,
           },
@@ -557,18 +619,23 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
             quizAnswerId: answer.id,
           },
         })
-        await recordStudyEvent({
-          userId: session.user!.id,
-          cardId: item.question.cardId,
-          source: 'diagnostic',
-          sessionId: attempt.sessionId,
-          // NEW. Without it the event outlives the answer it describes, and
-          // erasing one leaves the other behind to disagree about what
-          // happened.
-          quizAnswerId: answer.id,
-          outcome: { overall: item.score },
-          meta: { latencyMs: item.latencyMs },
-        }, tx)
+        // ONLY for a graded question. An ungraded one has no outcome, and
+        // inventing one would move confidence on evidence that does not exist
+        // — the same refusal `PostmortemSession` makes for an offline session.
+        if (item.score !== null) {
+          await recordStudyEvent({
+            userId: session.user!.id,
+            cardId: item.question.cardId,
+            source: 'diagnostic',
+            sessionId: attempt.sessionId,
+            // Without it the event outlives the answer it describes, and
+            // erasing one leaves the other behind to disagree about what
+            // happened.
+            quizAnswerId: answer.id,
+            outcome: { overall: item.score },
+            meta: { latencyMs: item.latencyMs },
+          }, tx)
+        }
       }
       await tx.quizAttempt.update({ where: { id: quizAttempt.id }, data: { score } })
       await tx.diagnosticAttempt.update({
@@ -695,7 +762,7 @@ export async function getDiagnosticAttempt(attemptId: string): Promise<ActionRes
       data: {
         attemptId: attempt.id,
         setTitle: attempt.set.title,
-        score: attempt.score ?? 0,
+        score: attempt.score,
         engineVersion: attempt.engineVersion,
         report: report.data,
         questions: attempt.questions.map((question) => ({
@@ -705,8 +772,8 @@ export async function getDiagnosticAttempt(attemptId: string): Promise<ActionRes
           prompt: question.prompt,
           learningPoint: question.learningPoint,
           answer: question.answer ?? '',
-          score: question.score ?? 0,
-          status: (question.status ?? 'missed') as 'mastered' | 'partial' | 'missed',
+          score: question.score,
+          status: question.status as 'mastered' | 'partial' | 'missed' | null,
           feedback: question.feedback ?? '',
           mistake: question.mistake,
         })),

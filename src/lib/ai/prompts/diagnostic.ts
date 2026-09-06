@@ -100,6 +100,13 @@ export const DIAGNOSTIC_GRADING_PROMPT = {
 
 Use score 1-10: mastered means 8-10, partial means 5-7, missed means 1-4. Identify the specific misconception or omission when the answer is partial or missed. Do not reward an answer that merely repeats the question. Return exactly one grade per questionRef and do not invent missing responses.
 
+LENGTH LIMITS, and they are strict:
+- "feedback": one or two sentences, 300 characters maximum.
+- "mistake": ONE sentence naming the single specific misconception, 200 characters maximum. Omit the field entirely when the answer is correct.
+- WITHIN a field, say each thing once: do not restate the question, and do not list the same omission phrased several ways. A blank or vague answer gets one short sentence, not a paragraph — it does not earn more words than a good answer.
+
+These limits are about the length of each field. They are NOT permission to leave a question out. Grade EVERY questionRef separately, including when two answers are identical or equally poor — two identical answers get two identical grades, not one.
+
 For EACH question also return:
 
 "klpResults": exactly one entry, with klpRef 0, judging the key point that
