@@ -25,16 +25,41 @@ import type { AiTask } from '@/lib/ai/model-routing'
  * The Google models approved for grading and background generation.
  *
  * ADDING ONE IS A ONE-LINE EDIT, deliberately — this is a list to curate, not
- * a rule to reason about. Note what is NOT here: `gemini-3.7-flash` and
- * `gemini-3.8-flash` exist on the account and are newer than everything listed,
- * but no card has been authored with either, so they are excluded until
- * somebody checks. `gemini-2.5-flash` is excluded on evidence: it failed
- * structured output outright during the pilot.
+ * a rule to reason about. But curate it on EVIDENCE: run
+ * `npm run probe-models` (scripts/probe-model-policy.ts), which makes a real
+ * generation call against the diagnostic grading schema. A listing call and a
+ * benchmark both say nothing about nested-schema compliance, which is the only
+ * property that matters here.
+ *
+ * What is deliberately NOT here, and why — all measured 2026-09-06:
+ *
+ *  - `gemini-2.5-flash` — failed structured output outright during the pilot.
+ *  - `gemini-3.4-flash` — **does not exist.** `generateContent` 404s. It was
+ *    requested by name; asking the API is how that was settled.
+ *  - `gemma-4-31b-it`, `gemma-4-26b-a4b-it` — "No object generated: could not
+ *    parse the response." The Gemma instruction-tuned models do not hold this
+ *    engine's structured-output contract, so they cannot be grading backups
+ *    however cheap they are.
+ *  - `gemini-3.7-flash` — spent **4,185 output tokens** on a two-question
+ *    grading probe that `gemini-3.1-flash-lite` answered in 300, and hit the
+ *    ceiling with `finishReason: length`. Provisional: a re-test at a larger
+ *    ceiling was inconclusive (the model returned "high demand"). Even if it
+ *    can comply, ~14x the output for the same verdict is a poor backup.
+ *  - `gemini-3.8-flash` — untested. Both attempts returned "high demand".
  */
 export const GOOGLE_APPROVED_MODELS = [
   'gemini-3.6-flash',
   'gemini-3.5-flash',
   'gemini-3.5-flash-lite',
+  /**
+   * Added 2026-09-06 on evidence, via `npm run probe-models`. It graded the
+   * two-question probe correctly — one verdict per key point, separating a
+   * correct answer from "IDK" — in **300 output tokens and 1.5s**, the
+   * cheapest and fastest of everything tested by a wide margin. The pilot had
+   * already recorded it authoring a card cleanly where `gemini-2.5-flash`
+   * could not.
+   */
+  'gemini-3.1-flash-lite',
 ] as const
 
 export type GoogleApprovedModel = (typeof GOOGLE_APPROVED_MODELS)[number]
