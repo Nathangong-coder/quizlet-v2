@@ -1,10 +1,16 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { ArrowLeft, ArrowRight, CheckCircle2, CircleAlert, Loader2, RefreshCw, Sparkles, Stethoscope } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, ChevronRight, History, Loader2, RefreshCw, Sparkles, Stethoscope } from 'lucide-react'
 import Link from 'next/link'
 import { startDiagnosticTest, submitDiagnosticTest } from '@/actions/diagnostic'
-import type { DiagnosticQuestionView, DiagnosticResult, DiagnosticSetOption } from '@/actions/diagnostic'
+import type {
+  DiagnosticHistoryItem,
+  DiagnosticQuestionView,
+  DiagnosticResult,
+  DiagnosticSetOption,
+} from '@/actions/diagnostic'
+import { DiagnosticAttemptView } from '@/components/diagnostic/DiagnosticAttemptView'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -14,7 +20,7 @@ type Phase = 'setup' | 'generating' | 'testing' | 'submitting' | 'results'
 
 const QUESTION_COUNTS = [12, 20, 30]
 
-export function DiagnosticClient({ sets }: { sets: DiagnosticSetOption[] }) {
+export function DiagnosticClient({ sets, history }: { sets: DiagnosticSetOption[]; history: DiagnosticHistoryItem[] }) {
   const [phase, setPhase] = useState<Phase>('setup')
   const [setId, setSetId] = useState(sets[0]?.id ?? '')
   const [questionCount, setQuestionCount] = useState(12)
@@ -162,7 +168,19 @@ export function DiagnosticClient({ sets }: { sets: DiagnosticSetOption[] }) {
     )
   }
 
-  if (phase === 'results' && result) return <DiagnosticResults result={result} onReset={reset} />
+  if (phase === 'results' && result) {
+    return (
+      <DiagnosticAttemptView
+        result={result}
+        action={
+          <Button variant="outline" onClick={reset}>
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            Run another diagnostic
+          </Button>
+        }
+      />
+    )
+  }
 
   return (
     <div className="w-full max-w-4xl space-y-8">
@@ -184,32 +202,53 @@ export function DiagnosticClient({ sets }: { sets: DiagnosticSetOption[] }) {
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5"><p className="max-w-lg text-xs leading-relaxed text-muted-foreground">You need an AI credential configured in Settings → AI. The diagnostic will not silently fall back to ungraded questions.</p><Button size="lg" onClick={begin} disabled={isPending || sets.length === 0}>{isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Stethoscope className="h-4 w-4" aria-hidden="true" />}Start diagnostic</Button></div>
         </CardContent>
       </Card>
+
+      <PastDiagnostics history={history} />
     </div>
+  )
+}
+
+/**
+ * Finished diagnostics, so a run is something you can return to rather than a
+ * page that vanishes when the tab closes.
+ *
+ * A pre-key-point attempt is labelled here as well as on its own page: the
+ * reader should be able to tell, from the list, which of their results moved
+ * their key-point mastery and which did not.
+ */
+function PastDiagnostics({ history }: { history: DiagnosticHistoryItem[] }) {
+  if (history.length === 0) return null
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <History className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        Past diagnostics
+      </div>
+      <div className="space-y-2">
+        {history.map((attempt) => (
+          <Link
+            key={attempt.id}
+            href={`/diagnostic/${attempt.id}`}
+            className="flex items-center justify-between gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-muted/40"
+          >
+            <div className="min-w-0 space-y-1">
+              <p className="truncate text-sm font-semibold">{attempt.setTitle}</p>
+              <p className="text-xs text-muted-foreground">
+                {new Date(attempt.completedAt).toLocaleDateString()} · {attempt.questionCount} questions
+                {attempt.engineVersion < 2 && ' · not linked to key points'}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <span className="text-sm font-semibold tabular-nums">{attempt.score ?? '—'}%</span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
   )
 }
 
 function DiagnosticLoading({ title, body }: { title: string; body: string }) {
   return <div className="flex min-h-[min(60vh,560px)] w-full max-w-3xl items-center justify-center"><Card className="w-full shadow-[var(--shadow-sm)]"><CardContent className="flex flex-col items-center px-6 py-16 text-center sm:px-12"><div className="rounded-full bg-primary/10 p-4 text-primary"><Loader2 className="h-7 w-7 animate-spin" aria-hidden="true" /></div><p className="mt-6 text-sm font-semibold text-primary">Preparing your diagnostic</p><h1 className="mt-2 text-2xl font-semibold tracking-tight">{title}</h1><p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">{body}</p></CardContent></Card></div>
-}
-
-function DiagnosticResults({ result, onReset }: { result: DiagnosticResult; onReset: () => void }) {
-  const strengths = result.report.strengths
-  const gaps = result.report.gaps
-  return (
-    <div className="w-full max-w-5xl space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4"><div className="max-w-2xl space-y-2"><div className="flex items-center gap-2 text-sm font-semibold text-primary"><CheckCircle2 className="h-4 w-4" aria-hidden="true" />Baseline complete · {result.setTitle}</div><h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Your starting point is clear.</h1><p className="text-base leading-relaxed text-muted-foreground">{result.report.overview}</p></div><Button variant="outline" onClick={onReset}><RefreshCw className="h-4 w-4" aria-hidden="true" />Run another diagnostic</Button></header>
-      <section aria-label="Diagnostic score" className="grid gap-3 sm:grid-cols-3"><Card className="bg-primary/[0.04] sm:col-span-1"><CardContent className="p-6"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Baseline score</p><p className="mt-2 text-5xl font-semibold tracking-tight text-primary">{result.score}<span className="text-2xl text-muted-foreground">%</span></p><p className="mt-2 text-sm text-muted-foreground">Across {result.questions.length} questions</p></CardContent></Card><ResultList title="Strengths" items={strengths} tone="positive" /><ResultList title="Gaps to work" items={gaps} tone="attention" /></section>
-
-      <Card><CardContent className="space-y-5 p-6 sm:p-8"><div><h2 className="text-lg font-semibold">What to do next</h2><p className="mt-1 text-sm text-muted-foreground">These recommendations are grounded in this baseline, so your next study session has somewhere specific to start.</p></div><div className="grid gap-3 md:grid-cols-2">{result.report.recommendations.map((recommendation, index) => <div key={`${recommendation}-${index}`} className="flex gap-3 rounded-lg border border-border bg-muted/10 p-4"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{index + 1}</span><p className="text-sm leading-relaxed">{recommendation}</p></div>)}</div></CardContent></Card>
-
-      <section className="space-y-3"><div><h2 className="text-lg font-semibold">Learning-point readout</h2><p className="mt-1 text-sm text-muted-foreground">Each point is tied back to evidence from your answers.</p></div>{result.report.learningPoints.map((point, index) => <Card key={`${point.text}-${index}`}><CardContent className="grid gap-4 p-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]"><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Learning point</p><p className="mt-2 text-sm font-semibold leading-relaxed">{point.text}</p></div><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Evidence · {point.score}/10</p><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{point.evidence}</p></div><div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Next action</p><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{point.nextAction}</p></div></CardContent></Card>)}</section>
-
-      <section className="space-y-3"><div><h2 className="text-lg font-semibold">Question review</h2><p className="mt-1 text-sm text-muted-foreground">Your answers remain attached to the diagnostic so the feedback is concrete.</p></div>{result.questions.map((question) => <Card key={question.id}><CardContent className="space-y-4 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><Badge variant={question.status === 'mastered' ? 'secondary' : 'outline'}>{question.status}</Badge><span className="text-xs text-muted-foreground">{question.kind === 'follow-up' ? 'Follow-up' : 'Core question'}</span></div><span className="text-sm font-semibold tabular-nums">{question.score}/10</span></div><h3 className="font-semibold leading-relaxed">{question.prompt}</h3><div className="grid gap-3 md:grid-cols-2"><div className="rounded-lg bg-muted/20 p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Your answer</p><p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{question.answer || 'No answer submitted'}</p></div><div className="rounded-lg border border-border p-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Feedback</p><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{question.feedback}</p>{question.mistake && <p className="mt-3 inline-flex gap-1.5 text-sm text-amber-700 dark:text-amber-200"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{question.mistake}</p>}</div></div></CardContent></Card>)}</section>
-      <p className="text-sm text-muted-foreground">Want to keep the context nearby? <Link href="/notes/new" className="font-semibold text-primary underline-offset-4 hover:underline">Capture a study note</Link>.</p>
-    </div>
-  )
-}
-
-function ResultList({ title, items, tone }: { title: string; items: string[]; tone: 'positive' | 'attention' }) {
-  return <Card className={tone === 'attention' ? 'border-amber-400/40 bg-amber-300/[0.06]' : 'bg-muted/10'}><CardContent className="p-6"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{title}</p>{items.length > 0 ? <ul className="mt-3 space-y-2">{items.map((item) => <li key={item} className="flex gap-2 text-sm leading-relaxed"><span className={tone === 'attention' ? 'mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500' : 'mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary'} aria-hidden="true" />{item}</li>)}</ul> : <p className="mt-3 text-sm text-muted-foreground">Nothing surfaced here in this pass.</p>}</CardContent></Card>
 }

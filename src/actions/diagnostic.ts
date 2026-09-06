@@ -69,8 +69,23 @@ export interface DiagnosticResult {
   attemptId: string
   setTitle: string
   score: number
+  /**
+   * 1 = ran before questions were anchored to key points. The results view
+   * uses it to say so rather than letting the reader assume the run moved
+   * their key-point mastery when it did not.
+   */
+  engineVersion: number
   report: DiagnosticReport
   questions: DiagnosticResultQuestion[]
+}
+
+export interface DiagnosticHistoryItem {
+  id: string
+  setTitle: string
+  score: number | null
+  questionCount: number
+  engineVersion: number
+  completedAt: Date
 }
 
 function invalidInput(error: z.ZodError) {
@@ -538,6 +553,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
         attemptId: attempt.id,
         setTitle: attempt.set.title,
         score,
+        engineVersion: attempt.engineVersion,
         report,
         questions: graded.map((item) => ({
           id: item.question.id,
@@ -557,5 +573,110 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
     if (error instanceof AiGenerationError) return { success: false, error: error.detail.title, detail: error.detail }
     console.error('submitDiagnosticTest error:', error)
     return { success: false, error: 'Failed to score the diagnostic test' }
+  }
+}
+
+/**
+ * The signed-in user's completed diagnostics, newest first.
+ *
+ * OWNER-SCOPED, like quiz attempts and unlike sets: a diagnostic is personal
+ * study data — what somebody did not know, in their own words — not a shareable
+ * artifact.
+ *
+ * Completed only. An abandoned or in-flight attempt is not a result, and
+ * listing one would offer a link to a page that has nothing to render.
+ */
+export async function getDiagnosticHistory(): Promise<ActionResult<DiagnosticHistoryItem[]>> {
+  const session = await auth()
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+  try {
+    const attempts = await prisma.diagnosticAttempt.findMany({
+      where: { userId: session.user.id, status: 'completed' },
+      orderBy: { completedAt: 'desc' },
+      take: 50,
+      select: {
+        id: true,
+        score: true,
+        questionCount: true,
+        engineVersion: true,
+        completedAt: true,
+        createdAt: true,
+        set: { select: { title: true } },
+      },
+    })
+    return {
+      success: true,
+      data: attempts.map((attempt) => ({
+        id: attempt.id,
+        setTitle: attempt.set.title,
+        score: attempt.score,
+        questionCount: attempt.questionCount,
+        engineVersion: attempt.engineVersion,
+        // `completedAt` is set on the same update that sets status 'completed',
+        // so it is non-null for every row this query returns. `createdAt` is
+        // the fallback only so the type is honest about the column's nullability.
+        completedAt: attempt.completedAt ?? attempt.createdAt,
+      })),
+    }
+  } catch (error) {
+    console.error('getDiagnosticHistory error:', error)
+    return { success: false, error: 'Failed to load your diagnostics' }
+  }
+}
+
+/**
+ * One completed diagnostic, for reading back later.
+ *
+ * Before this existed there was no way to view a finished diagnostic at all:
+ * the report was written to the database and rendered nowhere once the tab was
+ * closed.
+ *
+ * Scoped to the owner in the `where`, not checked afterwards — a forgotten
+ * comparison returns somebody else's answers, while a forgotten `where` clause
+ * returns nothing.
+ */
+export async function getDiagnosticAttempt(attemptId: string): Promise<ActionResult<DiagnosticResult>> {
+  const session = await auth()
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+  try {
+    const attempt = await prisma.diagnosticAttempt.findFirst({
+      where: { id: attemptId, userId: session.user.id, status: 'completed' },
+      include: {
+        set: { select: { title: true } },
+        questions: { orderBy: { position: 'asc' } },
+      },
+    })
+    if (!attempt) return { success: false, error: 'Diagnostic test not found' }
+
+    const report = DiagnosticReportSchema.safeParse(attempt.report)
+    if (!report.success) return { success: false, error: 'This diagnostic report could not be read' }
+
+    return {
+      success: true,
+      data: {
+        attemptId: attempt.id,
+        setTitle: attempt.set.title,
+        score: attempt.score ?? 0,
+        engineVersion: attempt.engineVersion,
+        report: report.data,
+        questions: attempt.questions.map((question) => ({
+          id: question.id,
+          position: question.position,
+          kind: question.kind as 'core' | 'follow-up',
+          prompt: question.prompt,
+          learningPoint: question.learningPoint,
+          answer: question.answer ?? '',
+          score: question.score ?? 0,
+          status: (question.status ?? 'missed') as 'mastered' | 'partial' | 'missed',
+          feedback: question.feedback ?? '',
+          mistake: question.mistake,
+        })),
+      },
+    }
+  } catch (error) {
+    console.error('getDiagnosticAttempt error:', error)
+    return { success: false, error: 'Failed to load that diagnostic' }
   }
 }
