@@ -18,6 +18,10 @@ import {
 } from '@/lib/ai/prompts/registry'
 import { readableSetWhere } from '@/lib/sets/visibility'
 import { recordStudyEvent } from '@/lib/memory/record'
+import { normalizeLatency } from '@/lib/memory/latency'
+import { selectDiagnosticProbes, MIN_DIAGNOSTIC_KLPS } from '@/lib/diagnostic/select'
+import { buildAnalysisWrites, type ErrorTagDraft } from '@/lib/analysis/persist'
+import { createAnswerWithAnalysis, DIAGNOSTIC_TX_OPTIONS } from '@/lib/analysis/write-answer'
 import type { ActionResult } from '@/types/action'
 
 const DiagnosticStartSchema = z.object({
@@ -148,43 +152,99 @@ export async function startDiagnosticTest(input: DiagnosticStartInput): Promise<
   try {
     const set = await prisma.set.findFirst({
       where: { id: parsed.data.setId, ...readableSetWhere(session.user.id) },
-      select: {
-        id: true,
-        title: true,
-        cards: {
-          orderBy: { position: 'asc' },
-          take: 120,
-          select: { id: true, term: true, definition: true },
-        },
-      },
+      select: { id: true, title: true },
     })
     if (!set) return { success: false, error: 'That study set is not available' }
-    if (set.cards.length === 0) return { success: false, error: 'Add at least one card before running a diagnostic' }
+
+    // ONE query for the whole set's live key points. Deliberately NOT
+    // `ensureKlpsReady` per card: that gap-fills by invoking AI extraction, so
+    // across a 120-card set pressing Start would fire a burst of calls against
+    // a free tier capped at 20 requests per day per model.
+    const klps = await prisma.cardKlp.findMany({
+      where: { card: { setId: set.id }, supersededAt: null },
+      orderBy: [{ card: { position: 'asc' } }, { index: 'asc' }],
+      select: {
+        id: true,
+        cardId: true,
+        index: true,
+        text: true,
+        weight: true,
+        card: { select: { term: true, definition: true } },
+      },
+    })
+    if (klps.length < MIN_DIAGNOSTIC_KLPS) {
+      return {
+        success: false,
+        error: `This set has ${klps.length} key point${klps.length === 1 ? '' : 's'}. A diagnostic needs at least ${MIN_DIAGNOSTIC_KLPS} to be worth your time. Open the set and let its key points finish extracting, then try again.`,
+      }
+    }
+
+    const states = await prisma.klpState.findMany({
+      where: { userId: session.user.id, klpId: { in: klps.map((klp) => klp.id) } },
+      select: { klpId: true, pKnown: true },
+    })
+
+    // Capped at what exists: asking for 30 questions from a 15-key-point set
+    // would either repeat points or invent them.
+    const questionCount = Math.min(parsed.data.questionCount, klps.length)
+    const probes = selectDiagnosticProbes({
+      klps: klps.map((klp) => ({
+        id: klp.id, cardId: klp.cardId, index: klp.index, weight: klp.weight,
+      })),
+      states,
+      count: questionCount,
+    })
+    const klpById = new Map(klps.map((klp) => [klp.id, klp]))
 
     const generated = await generateJson({
       userId: session.user.id,
       task: 'diagnostic',
       prompt: DIAGNOSTIC_QUESTIONS_PROMPT.build({
         setTitle: set.title,
-        questionCount: parsed.data.questionCount,
-        cards: set.cards.map((card, ref) => ({ ref, term: card.term, definition: card.definition })),
+        probes: probes.map((probe, probeRef) => {
+          const klp = klpById.get(probe.klpId)!
+          return {
+            probeRef,
+            kind: probe.kind,
+            term: klp.card.term,
+            definition: klp.card.definition,
+            keyPoint: klp.text,
+          }
+        }),
       }),
       schema: DIAGNOSTIC_QUESTIONS_PROMPT.schema,
     })
     const questionSet = DiagnosticQuestionSetSchema.parse(generated)
-    if (questionSet.questions.length < parsed.data.questionCount) {
-      return { success: false, error: 'The diagnostic generator returned too few questions. Please try again.' }
+
+    // Same shape of guard the v1 `cardRef` check provided. An unknown,
+    // duplicated or missing ref means the generator did not answer the probes
+    // it was given, and accepting a partial set would silently drop key points
+    // the selector deliberately chose.
+    const byRef = new Map(questionSet.questions.map((question) => [question.probeRef, question]))
+    const answersEveryProbe =
+      byRef.size === questionSet.questions.length &&
+      byRef.size === probes.length &&
+      probes.every((_, probeRef) => byRef.has(probeRef))
+    if (!answersEveryProbe) {
+      return { success: false, error: 'The diagnostic generator returned an incomplete question set. Please try again.' }
     }
 
-    const cardsByRef = new Map(set.cards.map((card, ref) => [ref, card]))
-    const questions = questionSet.questions.slice(0, parsed.data.questionCount).map((question, position) => {
-      const card = cardsByRef.get(question.cardRef)
-      if (!card) throw new Error('Diagnostic generator referenced an unavailable card')
-      return { ...question, position, cardId: card.id }
+    const questions = probes.map((probe, probeRef) => {
+      const klp = klpById.get(probe.klpId)!
+      const question = byRef.get(probeRef)!
+      return {
+        cardId: probe.cardId,
+        klpId: probe.klpId,
+        position: probeRef,
+        kind: probe.kind,
+        // Denormalised from CardKlp.text AT ASK TIME. Editing a card supersedes
+        // its key points; the question must still render what was actually
+        // asked, and the grader must still grade against it.
+        learningPoint: klp.text,
+        prompt: question.question,
+        expectedAnswer: question.expectedAnswer,
+      }
     })
-    if (questions.filter((question) => question.kind === 'follow-up').length < 2) {
-      return { success: false, error: 'The diagnostic generator did not include enough follow-up questions. Please try again.' }
-    }
 
     const created = await prisma.$transaction(async (tx) => {
       const studySession = await tx.studySession.create({
@@ -195,22 +255,29 @@ export async function startDiagnosticTest(input: DiagnosticStartInput): Promise<
           itemCount: questions.length,
         },
       })
+      // The anchor every AnswerKlpResult needs: its quizAnswerId FK is
+      // required, so a diagnostic answer has to BE a QuizAnswer, which has to
+      // hang off a QuizAttempt. Created on the SAME StudySession as the
+      // DiagnosticAttempt, because "forget this set" reaches sessions by setId
+      // — a second session would let erasure take one half and leave the other
+      // pointing at nothing.
+      await tx.quizAttempt.create({
+        data: {
+          userId: session.user!.id,
+          setId: set.id,
+          mode: 'diagnostic',
+          sessionId: studySession.id,
+          questionCount: questions.length,
+        },
+      })
       const attempt = await tx.diagnosticAttempt.create({
         data: {
           userId: session.user!.id,
           setId: set.id,
           sessionId: studySession.id,
           questionCount: questions.length,
-          questions: {
-            create: questions.map((question) => ({
-              cardId: question.cardId,
-              position: question.position,
-              kind: question.kind,
-              learningPoint: question.learningPoint,
-              prompt: question.question,
-              expectedAnswer: question.expectedAnswer,
-            })),
-          },
+          engineVersion: 2,
+          questions: { create: questions },
         },
         include: {
           questions: {
@@ -233,7 +300,7 @@ export async function startDiagnosticTest(input: DiagnosticStartInput): Promise<
           id: created.questions[position].id,
           position,
           kind: question.kind,
-          prompt: question.question,
+          prompt: question.prompt,
         })),
       },
     }
@@ -263,6 +330,43 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
     if (!attempt) return { success: false, error: 'Diagnostic test not found' }
     if (attempt.status !== 'in_progress') return { success: false, error: 'This diagnostic has already been submitted' }
 
+    // The key point behind each question, for the weight that feeds
+    // significance. Read now rather than inside the write transaction, which
+    // is already doing a lock-read-write per key point.
+    const anchorIds = attempt.questions
+      .map((question) => question.klpId)
+      .filter((klpId): klpId is string => klpId !== null)
+    const anchors = new Map(
+      (await prisma.cardKlp.findMany({
+        where: { id: { in: anchorIds } },
+        select: { id: true, weight: true },
+      })).map((klp) => [klp.id, klp]),
+    )
+
+    // `starred` is an input to significance and must be read AS OF THIS ANSWER.
+    // No progress row means the learner has never interacted with the card — a
+    // definite "not starred", not missing data.
+    const starredByCard = new Map(
+      (await prisma.cardProgress.findMany({
+        where: {
+          userId: session.user.id,
+          cardId: { in: attempt.questions.map((question) => question.cardId) },
+        },
+        select: { cardId: true, starred: true },
+      })).map((progress) => [progress.cardId, progress.starred]),
+    )
+
+    // Created alongside the DiagnosticAttempt at start. Absent only for a
+    // pre-key-point attempt, and those were marked abandoned by the migration,
+    // so they cannot reach here — but refuse rather than write half a sitting.
+    const quizAttempt = await prisma.quizAttempt.findFirst({
+      where: { sessionId: attempt.sessionId, mode: 'diagnostic' },
+      select: { id: true },
+    })
+    if (!quizAttempt) {
+      return { success: false, error: 'This diagnostic cannot be scored. Please start a new one.' }
+    }
+
     const answers = new Map(parsed.data.answers.map((answer) => [answer.questionId, answer]))
     const generated = await generateJson({
       userId: session.user.id,
@@ -272,7 +376,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
           ref: question.position,
           question: question.prompt,
           expectedAnswer: question.expectedAnswer,
-          learningPoint: question.learningPoint,
+          keyPoint: question.learningPoint,
           answer: answers.get(question.id)?.answer.trim() ?? '',
         })),
       }),
@@ -290,6 +394,9 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
       const score = grade.score
       return {
         question,
+        // The whole grade, not three fields of it: `klpResults` and
+        // `errorTags` are what buildAnalysisWrites turns into evidence.
+        grade,
         answer: answers.get(question.id)?.answer.trim() ?? '',
         latencyMs: answers.get(question.id)?.latencyMs,
         score,
@@ -308,7 +415,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
           setTitle: attempt.set.title,
           results: graded.map((item) => ({
             question: item.question.prompt,
-            learningPoint: item.question.learningPoint,
+            keyPoint: item.question.learningPoint,
             answer: item.answer,
             score: item.score,
             status: item.status,
@@ -333,8 +440,58 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
     const completedAt = new Date()
     const durationMs = Math.max(0, completedAt.getTime() - attempt.session.startedAt.getTime())
 
+    // ONE transaction for the whole sitting. A half-graded diagnostic is worse
+    // than a failed one: the learner cannot tell which half counted, and
+    // KlpState cannot be stepped backward to undo the half that did.
     await prisma.$transaction(async (tx) => {
       for (const item of graded) {
+        const anchorId = item.question.klpId
+        const anchor = anchorId ? anchors.get(anchorId) : undefined
+        // Exactly the key point this question asked, never the card's others.
+        // A verdict on an unprobed point is a fabricated observation, and once
+        // written it is indistinguishable from a real one.
+        const klps = anchor ? [{ id: anchor.id, weight: anchor.weight }] : []
+        // Empty klpResults on a question that HAD an anchor means the grader
+        // did not do the per-key-point judgment it was asked for — never a
+        // legitimately clean grade. Same rule short answer uses, and the only
+        // way to tell "analyzed and clean" from "could not analyze", since a
+        // relational tag table records both as zero rows.
+        const forcedStatus =
+          klps.length > 0 && (item.grade.klpResults ?? []).length === 0
+            ? ('no_provenance' as const)
+            : undefined
+
+        const writes = buildAnalysisWrites({
+          mode: 'diagnostic',
+          klps,
+          starred: starredByCard.get(item.question.cardId) ?? false,
+          klpResults: item.grade.klpResults ?? [],
+          errorTags: (item.grade.errorTags ?? []) as ErrorTagDraft[],
+          forcedStatus,
+        })
+
+        const answer = await createAnswerWithAnalysis(
+          {
+            attemptId: quizAttempt.id,
+            userId: session.user!.id,
+            cardId: item.question.cardId,
+            mode: 'diagnostic',
+            prompt: item.question.prompt,
+            answer: item.answer,
+            correctAnswer: item.question.expectedAnswer,
+            grade: { ...item.grade, promptVersion: DIAGNOSTIC_GRADING_PROMPT.version },
+            score: item.score * 10,
+            isCorrect: item.score >= 8,
+            latencyMs: normalizeLatency(item.latencyMs),
+            feedback: item.feedback,
+          },
+          writes,
+          // No `replace`: a diagnostic question is answered exactly once, so
+          // there is never a prior answer to supersede.
+          undefined,
+          tx,
+        )
+
         await tx.diagnosticQuestion.update({
           where: { id: item.question.id },
           data: {
@@ -345,6 +502,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
             mistake: item.mistake,
             latencyMs: item.latencyMs ?? null,
             answeredAt: completedAt,
+            quizAnswerId: answer.id,
           },
         })
         await recordStudyEvent({
@@ -352,20 +510,27 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
           cardId: item.question.cardId,
           source: 'diagnostic',
           sessionId: attempt.sessionId,
+          // NEW. Without it the event outlives the answer it describes, and
+          // erasing one leaves the other behind to disagree about what
+          // happened.
+          quizAnswerId: answer.id,
           outcome: { overall: item.score },
           meta: { latencyMs: item.latencyMs },
         }, tx)
       }
+      await tx.quizAttempt.update({ where: { id: quizAttempt.id }, data: { score } })
       await tx.diagnosticAttempt.update({
         where: { id: attempt.id },
         data: { status: 'completed', score, report, reportAt: completedAt, completedAt },
       })
       await tx.studySession.update({ where: { id: attempt.sessionId }, data: { endedAt: completedAt, durationMs } })
-    })
+    }, DIAGNOSTIC_TX_OPTIONS)
 
     revalidatePath('/diagnostic')
     revalidatePath('/profile')
     revalidatePath('/profile/memory')
+    // Key-point mastery moves now, not just card confidence.
+    revalidatePath('/profile/learner')
     revalidatePath('/', 'layout')
     return {
       success: true,
