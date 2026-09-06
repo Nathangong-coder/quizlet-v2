@@ -21,6 +21,12 @@ const CredentialInput = z.object({
   baseUrl: z.string().trim().url().optional().or(z.literal('')),
   defaultModel: z.string().trim().min(1).max(120),
   role: z.enum(['primary', 'backup']),
+  /**
+   * Free-tier or billed. Changes ROTATION, not permission: a free key is fanned
+   * out across approved models because its daily cap is per project per MODEL,
+   * while a paid key is used on the one model its owner chose.
+   */
+  tier: z.enum(['free', 'paid']),
   enabled: z.boolean(),
 });
 
@@ -43,7 +49,7 @@ const RawCredentialInput = z.object({
 
 export interface CredentialRow {
   id: string; provider: string; label: string; keyHint: string;
-  baseUrl: string | null; defaultModel: string; role: string; enabled: boolean;
+  baseUrl: string | null; defaultModel: string; role: string; tier: string; enabled: boolean;
   verifiedAt: string | null; lastUsedAt: string | null; lastErrorKind: string | null;
 }
 
@@ -65,7 +71,7 @@ export async function listCredentials(): Promise<ActionResult<CredentialRow[]>> 
       success: true,
       data: rows.map((r) => ({
         id: r.id, provider: r.provider, label: r.label, keyHint: r.keyHint,
-        baseUrl: r.baseUrl, defaultModel: r.defaultModel, role: r.role, enabled: r.enabled,
+        baseUrl: r.baseUrl, defaultModel: r.defaultModel, role: r.role, tier: r.tier, enabled: r.enabled,
         verifiedAt: r.verifiedAt?.toISOString() ?? null,
         lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
         lastErrorKind: r.lastErrorKind,
@@ -105,7 +111,7 @@ export async function saveCredential(
         where: { id: v.id },
         data: {
           label: v.label, baseUrl, defaultModel: v.defaultModel,
-          role: v.role, enabled: v.enabled,
+          role: v.role, tier: v.tier, enabled: v.enabled,
           ...(v.apiKey
             ? {
                 encryptedApiKey: encryptApiKey(v.apiKey),
@@ -125,7 +131,7 @@ export async function saveCredential(
       data: {
         userId, provider: v.provider, label: v.label,
         encryptedApiKey: encryptApiKey(v.apiKey), keyHint: maskApiKey(v.apiKey),
-        baseUrl, defaultModel: v.defaultModel, role: v.role, enabled: v.enabled,
+        baseUrl, defaultModel: v.defaultModel, role: v.role, tier: v.tier, enabled: v.enabled,
       },
       select: { id: true },
     });

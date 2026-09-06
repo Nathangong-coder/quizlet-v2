@@ -73,6 +73,7 @@ describe('ownership guards', () => {
       label: 'Stolen',
       defaultModel: 'gemini-3.6-flash',
       role: 'primary',
+      tier: 'free',
       enabled: true,
     });
 

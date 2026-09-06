@@ -1,4 +1,3 @@
-import { createGoogle } from '@ai-sdk/google'
 import { generateText, Output } from 'ai'
 import { prisma } from '../src/lib/db'
 import { DIAGNOSTIC_GRADING_PROMPT } from '../src/lib/ai/prompts/diagnostic'
@@ -6,6 +5,7 @@ import { diagnosticOutputCap } from '../src/lib/diagnostic/grading'
 import { temperatureForTask } from '../src/lib/ai/temperature'
 import { GOOGLE_APPROVED_MODELS } from '../src/lib/ai/model-policy'
 import { parseList } from '../src/lib/klp/direct-pool'
+import { resolveLanguageModel, PROVIDER_META, type ProviderId } from '../src/lib/ai/providers'
 
 /**
  * Does a candidate model actually satisfy this engine's structured-output
@@ -17,13 +17,27 @@ import { parseList } from '../src/lib/klp/direct-pool'
  * all, which is the entire reason the allowlist exists. No public benchmark
  * measures nested-schema compliance, so the only honest test is this one.
  *
- * ONE CALL PER MODEL, and each model has its own free-tier daily bucket
- * (the quota is per project per MODEL), so this is cheap and does not spend
- * the budget of the model you are already using.
+ * ONE CALL PER MODEL, and on Google each model has its own free-tier daily
+ * bucket (the quota is per project per MODEL), so this is cheap and does not
+ * spend the budget of the model you are already using.
+ *
+ * WORKS FOR ANY PROVIDER, not just Google. Only Google is subject to
+ * `GOOGLE_APPROVED_MODELS`, but `isModelAllowed` returns TRUE for every other
+ * provider — meaning an OpenRouter or Qwen model reaches the grading path with
+ * no verification at all. That is a bigger risk than the policed case, not a
+ * smaller one, and this is the only thing that checks it.
  *
  * Usage:
  *   npx tsx --env-file=.env scripts/probe-model-policy.ts
- *   npx tsx --env-file=.env scripts/probe-model-policy.ts gemini-3.4-flash gemma-4-31b-it
+ *   npx tsx --env-file=.env scripts/probe-model-policy.ts gemini-3.4-flash
+ *   PROBE_PROVIDER=openrouter PROBE_KEY_ENV=OPENROUTER_API_KEY \
+ *     npx tsx --env-file=.env scripts/probe-model-policy.ts minimax/minimax-m2
+ *
+ * Env:
+ *   PROBE_PROVIDER  google | anthropic | openai | openrouter | custom  (default google)
+ *   PROBE_KEY_ENV   which env var holds the key (default GOOGLE_API_KEYS/GOOGLE_API_KEY)
+ *   PROBE_BASE_URL  required for openrouter/custom; defaults to the provider's own
+ *   PROBE_CAP       output-token ceiling override
  */
 
 /** Checked when no models are named on the command line. */
@@ -37,9 +51,21 @@ const DEFAULT_CANDIDATES = [
 ]
 
 async function main() {
-  const apiKey = parseList(process.env.GOOGLE_API_KEYS)[0] ?? process.env.GOOGLE_API_KEY
-  if (!apiKey) throw new Error('needs GOOGLE_API_KEY or GOOGLE_API_KEYS')
-  const google = createGoogle({ apiKey })
+  const provider = (process.env.PROBE_PROVIDER ?? 'google') as ProviderId
+  const keyEnv = process.env.PROBE_KEY_ENV
+  const apiKey = keyEnv
+    ? process.env[keyEnv]
+    : parseList(process.env.GOOGLE_API_KEYS)[0] ?? process.env.GOOGLE_API_KEY
+  if (!apiKey) {
+    throw new Error(
+      keyEnv
+        ? `${keyEnv} is not set. If it is in .env, check the line is not commented out.`
+        : 'needs GOOGLE_API_KEY or GOOGLE_API_KEYS',
+    )
+  }
+  const baseUrl = process.env.PROBE_BASE_URL ?? PROVIDER_META[provider]?.defaultBaseUrl
+  const languageModel = (model: string) =>
+    resolveLanguageModel({ provider, apiKey, baseUrl, model })
 
   const candidates = process.argv.slice(2).length > 0 ? process.argv.slice(2) : DEFAULT_CANDIDATES
 
@@ -73,7 +99,17 @@ async function main() {
       ],
     })
 
-  console.log(`Currently approved: ${GOOGLE_APPROVED_MODELS.join(', ')}\n`)
+  console.log(`Provider: ${provider}${baseUrl ? ` (${baseUrl})` : ''}`)
+  console.log(`Google approved list: ${GOOGLE_APPROVED_MODELS.join(', ')}`)
+  if (provider !== 'google') {
+    console.log(
+      'NOTE: only Google is policed by that list. Models on this provider are\n' +
+      '      UNRESTRICTED — they reach grading with no allowlist between them and\n' +
+      '      a learner\'s history, so this probe is the only check there is.\n',
+    )
+  } else {
+    console.log('')
+  }
   console.log(`Testing ${candidates.length} candidate(s) against the diagnostic grading schema.\n`)
 
   const results: Array<{ model: string; verdict: string; detail: string }> = []
@@ -82,7 +118,7 @@ async function main() {
     const started = Date.now()
     try {
       const res = await generateText({
-        model: google(model),
+        model: languageModel(model),
         prompt: build(),
         output: Output.object({ schema: DIAGNOSTIC_GRADING_PROMPT.schema }),
         temperature: temperatureForTask('diagnostic'),
@@ -138,8 +174,10 @@ async function main() {
 
   const passed = results.filter((r) => r.verdict === 'PASS').map((r) => r.model)
   console.log('')
-  if (passed.length > 0) {
+  if (passed.length > 0 && provider === 'google') {
     console.log(`Safe to add to GOOGLE_APPROVED_MODELS: ${passed.join(', ')}`)
+  } else if (passed.length > 0) {
+    console.log(`Held the grading contract on ${provider}: ${passed.join(', ')}`)
   } else {
     console.log('Nothing passed. Do not widen the allowlist on this evidence.')
   }
