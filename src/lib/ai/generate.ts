@@ -20,13 +20,15 @@ import {
 } from '@/lib/errors/classify';
 import { decryptApiKey } from '@/lib/security/api-key';
 import { selectAttemptOrder } from '@/lib/ai/key-pool';
+import { buildCredentialPool } from '@/lib/ai/credential-pool';
+import { loadExhaustedCombos } from '@/lib/ai/exhausted';
 import { resolveLanguageModel, type ProviderId } from '@/lib/ai/providers';
 import { toSdkContent, type GeminiPart } from '@/lib/ai/media-adapter';
 // AiTask is declared once, in model-routing.ts (it already exports it today).
 // Do not re-declare it here — two definitions would drift.
 import type { AiTask } from '@/lib/ai/model-routing';
 import { temperatureForTask } from '@/lib/ai/temperature';
-import { enforceModelPolicy } from '@/lib/ai/model-policy';
+import { enforceModelPolicy, approvedAlternates } from '@/lib/ai/model-policy';
 
 /**
  * What the executor needs to know about its position in the rotation.
@@ -254,9 +256,12 @@ async function resolveCandidates(
   userId: string,
   task: AiTask,
 ): Promise<ResolvedPool> {
-  const [credentials, routing] = await Promise.all([
+  const [credentials, routing, exhausted] = await Promise.all([
     prisma.aiCredential.findMany({ where: { userId } }),
     prisma.aiTaskRouting.findUnique({ where: { userId_task: { userId, task } } }),
+    // Combos already known to be out of quota today. Dropping them is the
+    // difference between one honest failure and twelve doomed retries.
+    loadExhaustedCombos(prisma, userId),
   ]);
 
   // A routing row pinned to one credential narrows the pool to it; otherwise
@@ -290,24 +295,44 @@ async function resolveCandidates(
   const overrideModel = routing?.credentialId ? routing.model : null;
 
   const byId = new Map(credentials.map((c) => [c.id, c]));
-  const candidates = ordered.map((o) => {
-    const cred = byId.get(o.id)!;
-    // The quality floor is applied HERE, not only in `saveTaskRouting`,
-    // because the model reaches this point from two places and the form can
-    // only validate one of them. `AiTaskRouting.model` is a per-task override
-    // and is checked on save; `AiCredential.defaultModel` is not, and cannot
-    // be — one credential serves every task, so a default that is wrong for
-    // grading may be perfectly reasonable elsewhere. Most users never set a
-    // per-task override at all, so validating only the form would leave the
-    // common path unpoliced. See `src/lib/ai/model-policy.ts`.
-    const { model } = enforceModelPolicy(cred.provider, overrideModel ?? cred.defaultModel, task);
-    return {
-      id: cred.id,
-      label: cred.label,
-      provider: cred.provider,
-      model,
-    };
-  });
+
+  // (credential x model), not credential alone. The free-tier cap is per
+  // project per MODEL, so rotating keys that share a project and a default
+  // model buys nothing — measured 2026-09-06, two credentials exhausted seven
+  // seconds apart and every retry after that was a guaranteed 429.
+  //
+  // `enforceModelPolicy` still runs per attempt, so the quality floor applies
+  // to a substituted model exactly as it does to a configured one. A pinned
+  // routing override still wins, and a pinned credential still narrows the
+  // pool to one — fanning a deliberate pin across models would defeat the pin.
+  const candidates = buildCredentialPool({
+    credentials: ordered.map((o) => {
+      const cred = byId.get(o.id)!;
+      return {
+        ...o,
+        provider: cred.provider,
+        label: cred.label,
+        // The quality floor is applied HERE, not only in `saveTaskRouting`,
+        // because the model reaches this point from two places and the form
+        // can only validate one of them. `AiTaskRouting.model` is a per-task
+        // override checked on save; `AiCredential.defaultModel` is not, and
+        // cannot be — one credential serves every task, so a default that is
+        // wrong for grading may be fine elsewhere. See model-policy.ts.
+        defaultModel: enforceModelPolicy(cred.provider, overrideModel ?? cred.defaultModel, task).model,
+        tier: cred.tier,
+      };
+    }),
+    // A pinned credential means the user chose this exact key and model;
+    // substituting a different model would quietly undo that choice.
+    extraModels: (provider) =>
+      routing?.credentialId ? [] : approvedAlternates(provider, task),
+    exhausted,
+  }).map((attempt) => ({
+    id: attempt.credentialId,
+    label: attempt.label,
+    provider: attempt.provider,
+    model: attempt.model,
+  }));
 
   return { candidates, byId, allCredentials: credentials, pinned };
 }

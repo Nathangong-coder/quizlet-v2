@@ -147,3 +147,23 @@ export function enforceModelPolicy(provider: string, model: string, task: AiTask
   if (isModelAllowed(provider, model, task)) return { model, substituted: false }
   return { model: GOOGLE_POLICY_FALLBACK, substituted: true }
 }
+
+/**
+ * Other models this provider may be rotated onto for a task.
+ *
+ * Only Google has an allowlist, and only Google has the per-project-per-model
+ * daily cap that makes fanning out worth anything — so every other provider
+ * returns nothing rather than a guess. Widening a provider here without first
+ * verifying its models (`npm run probe-models`) would put unverified models
+ * into the grading path, which is the failure `GOOGLE_APPROVED_MODELS` exists
+ * to prevent.
+ *
+ * Returns nothing for an unpoliced task too: outside the quality floor there
+ * is no curated list to rotate within, and inventing one from the provider's
+ * catalogue would be exactly the unverified-model problem again.
+ */
+export function approvedAlternates(provider: string, task: AiTask): string[] {
+  if (provider !== 'google') return []
+  if (!isPolicedTask(task)) return []
+  return [...GOOGLE_APPROVED_MODELS]
+}

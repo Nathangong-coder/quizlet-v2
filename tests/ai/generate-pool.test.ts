@@ -25,6 +25,10 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     aiCredential: { findMany: h.findMany, update: h.update, updateMany: h.updateMany },
     aiTaskRouting: { findUnique: h.findUnique },
+    // `resolveCandidates` now also reads today's quota_exhausted combos so it
+    // can drop them from the pool. Empty here: these tests are about ordering
+    // and policy, and exclusion has its own tests in credential-pool.test.ts.
+    aiCallLog: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 

@@ -1055,6 +1055,19 @@ model AiCredential {
   baseUrl         String? // required for openrouter + custom
   defaultModel    String          @default("gemini-3.6-flash")
   role            String          @default("primary") // primary|backup
+  /// Whether this key is billed (`paid`) or on a provider free tier (`free`).
+  ///
+  /// It changes ROTATION, not permission. A free key is subject to a daily cap
+  /// that is per PROJECT per MODEL, so the way to get more out of it is to
+  /// spread work across models — which is what `buildCredentialPool` does for
+  /// a free credential and deliberately does not do for a paid one, where
+  /// every extra model is just another price to reason about.
+  ///
+  /// DEFAULTS TO 'free', and the asymmetry is the point: a paid key wrongly
+  /// marked free is merely rotated more widely than it needed to be, while a
+  /// free key wrongly marked paid gets hammered into its daily cap — which is
+  /// exactly the failure this column exists to prevent.
+  tier            String          @default("free") // free|paid
   enabled         Boolean         @default(true)
   lastUsedAt      DateTime? // last ATTEMPT (stamped before the call, not after success); drives LRU rotation in lib/ai/key-pool.ts
   lastErrorAt     DateTime?
