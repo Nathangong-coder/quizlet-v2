@@ -140,6 +140,31 @@ export const StudyNoteStoredAnalysisSchema = z.object({
 export type StudyNoteStoredAnalysis = z.infer<typeof StudyNoteStoredAnalysisSchema>;
 
 /**
+ * A text field that TRUNCATES at `max` instead of rejecting past it.
+ *
+ * Length is not a correctness property. A grader that writes 1,250 characters
+ * of feedback where 1,200 were allowed has not made a mistake worth discarding
+ * its judgment over — but `z.string().max()` rejects, and a rejection fails the
+ * whole batch, which after the retry path costs the learner that question
+ * entirely. Truncating keeps the judgment and drops only the surplus prose.
+ *
+ * This does NOT replace the output-token ceiling. The ceiling stops a model
+ * that is generating without end; this handles one that merely overshot.
+ */
+const cappedText = (max: number) =>
+  z
+    .string()
+    .transform((value) => value.trim().slice(0, max))
+    .refine((value) => value.length > 0, { message: 'must not be empty' });
+
+/** `cappedText`, but an absent value is allowed. */
+const optionalCappedText = (max: number) =>
+  z
+    .string()
+    .transform((value) => value.trim().slice(0, max))
+    .optional();
+
+/**
  * v2: the model no longer picks a card or invents a `learningPoint`. Both come
  * from the probe the pure selector chose (src/lib/diagnostic/select.ts), and
  * `probeRef` is the index into the prompt's probe list.
@@ -151,8 +176,8 @@ export type StudyNoteStoredAnalysis = z.infer<typeof StudyNoteStoredAnalysisSche
 export const DiagnosticQuestionSetSchema = z.object({
   questions: z.array(z.object({
     probeRef: z.number().int().min(0),
-    question: z.string().trim().min(1).max(1200),
-    expectedAnswer: z.string().trim().min(1).max(1600),
+    question: cappedText(1200),
+    expectedAnswer: cappedText(1600),
   }).strict()).min(1).max(40),
 });
 
@@ -174,8 +199,8 @@ export const DiagnosticGradeSetSchema = z.object({
     questionRef: z.number().int().min(0),
     score: z.number().int().min(1).max(10),
     status: z.enum(['mastered', 'partial', 'missed']),
-    feedback: z.string().trim().min(1).max(1200),
-    mistake: z.string().trim().max(800).optional(),
+    feedback: cappedText(1200),
+    mistake: optionalCappedText(800),
     klpResults: z.array(z.object({
       klpRef: z.number().int().min(0),
       status: z.enum(KLP_STATUSES),
@@ -195,15 +220,15 @@ export const DiagnosticGradeSetSchema = z.object({
 export type DiagnosticGradeSet = z.infer<typeof DiagnosticGradeSetSchema>;
 
 export const DiagnosticReportSchema = z.object({
-  overview: z.string().trim().min(1).max(1600),
-  strengths: z.array(z.string().trim().min(1).max(500)).max(8),
-  gaps: z.array(z.string().trim().min(1).max(500)).max(12),
-  recommendations: z.array(z.string().trim().min(1).max(700)).min(1).max(12),
+  overview: cappedText(1600),
+  strengths: z.array(cappedText(500)).max(8),
+  gaps: z.array(cappedText(500)).max(12),
+  recommendations: z.array(cappedText(700)).min(1).max(12),
   learningPoints: z.array(z.object({
-    text: z.string().trim().min(1).max(500),
+    text: cappedText(500),
     score: z.number().int().min(1).max(10),
-    evidence: z.string().trim().min(1).max(700),
-    nextAction: z.string().trim().min(1).max(700),
+    evidence: cappedText(700),
+    nextAction: cappedText(700),
   })).max(24),
 });
 

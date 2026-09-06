@@ -307,6 +307,17 @@ function submitTx() {
  * The local-ref mapping is the part worth mocking faithfully: a grader that
  * renumbers must not be able to attach one question's verdict to another.
  */
+/**
+ * An AiGenerationError-shaped failure of a given kind.
+ *
+ * The shape matters: the retry path reads `detail.attempts[].kind` to decide
+ * whether a smaller call could help. A bare Error has no kind and is therefore
+ * NOT retryable, which is the correct conservative default.
+ */
+function aiFailure(kind: string) {
+  return Object.assign(new Error(kind), { detail: { attempts: [{ kind }] } })
+}
+
 /** One grading response for exactly these question positions, refs local. */
 function mockGradingFor(positions: number[], score = 9) {
   h.generateJson.mockResolvedValueOnce({
@@ -588,7 +599,7 @@ describe('submitDiagnosticTest', () => {
     const answers = attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' }))
     // Batch 1 fails; its four questions then succeed individually. Batches 2
     // and 3 succeed outright.
-    h.generateJson.mockRejectedValueOnce(new Error('schema_invalid'))
+    h.generateJson.mockRejectedValueOnce(aiFailure('schema_invalid'))
     for (let i = 0; i < 4; i++) {
       h.generateJson.mockResolvedValueOnce({
         grades: [{ questionRef: 0, score: 7, status: 'partial', feedback: 'f',
@@ -611,8 +622,8 @@ describe('submitDiagnosticTest', () => {
     submitTx()
     const answers = attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' }))
     // Batch 1 fails, and so does every one of its four retries.
-    h.generateJson.mockRejectedValueOnce(new Error('schema_invalid'))
-    for (let i = 0; i < 4; i++) h.generateJson.mockRejectedValueOnce(new Error('schema_invalid'))
+    h.generateJson.mockRejectedValueOnce(aiFailure('schema_invalid'))
+    for (let i = 0; i < 4; i++) h.generateJson.mockRejectedValueOnce(aiFailure('schema_invalid'))
     mockGradingFor([4, 5, 6, 7])
     mockGradingFor([8, 9, 10, 11])
     h.generateJson.mockResolvedValueOnce({
@@ -636,8 +647,8 @@ describe('submitDiagnosticTest', () => {
   it('excludes ungraded questions from the score rather than counting them zero', async () => {
     submitTx()
     const answers = attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' }))
-    h.generateJson.mockRejectedValueOnce(new Error('schema_invalid'))
-    for (let i = 0; i < 4; i++) h.generateJson.mockRejectedValueOnce(new Error('schema_invalid'))
+    h.generateJson.mockRejectedValueOnce(aiFailure('schema_invalid'))
+    for (let i = 0; i < 4; i++) h.generateJson.mockRejectedValueOnce(aiFailure('schema_invalid'))
     // The eight that DO grade all score 9.
     mockGradingFor([4, 5, 6, 7], 9)
     mockGradingFor([8, 9, 10, 11], 9)
@@ -653,10 +664,55 @@ describe('submitDiagnosticTest', () => {
     if (result.success) expect(result.data.score).toBe(90)
   })
 
+  it('aborts on an exhausted quota instead of burning per-question retries', async () => {
+    // A quota failure is transient and total: retrying four questions
+    // individually is four guaranteed failures against an empty budget, and
+    // would mark them permanently ungraded for a problem that resets overnight.
+    // One call, then stop — and nothing written, so the same answers can be
+    // submitted again later.
+    submitTx()
+    const answers = attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' }))
+    const quotaError = Object.assign(new Error('quota'), {
+      detail: { attempts: [{ kind: 'quota_exhausted' }, { kind: 'quota_exhausted' }] },
+    })
+    h.generateJson.mockRejectedValue(quotaError)
+
+    const result = await submitDiagnosticTest({ attemptId: 'attempt-1', answers })
+
+    expect(result.success).toBe(false)
+    if (!result.success) expect(result.error).toMatch(/quota|try submitting again/i)
+    expect(h.generateJson).toHaveBeenCalledTimes(1)
+    expect(h.createAnswerWithAnalysis).not.toHaveBeenCalled()
+  })
+
+  it('still retries per question when the failure is an unparseable response', async () => {
+    // The contrast with the test above: schema_invalid IS fixed by asking for
+    // less, so it earns the retry that quota does not.
+    submitTx()
+    const answers = attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' }))
+    h.generateJson.mockRejectedValueOnce(aiFailure('schema_invalid'))
+    for (let i = 0; i < 4; i++) {
+      h.generateJson.mockResolvedValueOnce({
+        grades: [{ questionRef: 0, score: 7, status: 'partial', feedback: 'f',
+          klpResults: [{ klpRef: 0, status: 'partial' }] }],
+      })
+    }
+    mockGradingFor([4, 5, 6, 7])
+    mockGradingFor([8, 9, 10, 11])
+    h.generateJson.mockResolvedValueOnce({
+      overview: 'o', strengths: [], gaps: [], recommendations: ['r'], learningPoints: [],
+    })
+
+    const result = await submitDiagnosticTest({ attemptId: 'attempt-1', answers })
+
+    expect(result.success).toBe(true)
+    expect(h.createAnswerWithAnalysis).toHaveBeenCalledTimes(QUESTION_COUNT)
+  })
+
   it('fails the submission only when NOTHING could be graded', async () => {
     submitTx()
     const answers = attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' }))
-    h.generateJson.mockRejectedValue(new Error('schema_invalid'))
+    h.generateJson.mockRejectedValue(aiFailure('schema_invalid'))
 
     const result = await submitDiagnosticTest({ attemptId: 'attempt-1', answers })
 

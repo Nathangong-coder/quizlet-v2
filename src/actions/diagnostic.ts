@@ -30,7 +30,11 @@ import {
   isBlankAnswer,
   blankAnswerGrade,
   diagnosticOutputCap,
+  diagnosticReportOutputCap,
+  excerptForReport,
   averageDiagnosticScore,
+  shouldRetryPerQuestion,
+  failureKindsOf,
 } from '@/lib/diagnostic/grading'
 import { buildAnalysisWrites, type ErrorTagDraft } from '@/lib/analysis/persist'
 import { createAnswerWithAnalysis, DIAGNOSTIC_TX_OPTIONS } from '@/lib/analysis/write-answer'
@@ -438,7 +442,9 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
      * Returns false rather than throwing when the reply is unusable, so the
      * caller can decide whether to retry smaller or give up on these questions.
      */
-    const gradeChunk = async (chunk: typeof attempt.questions): Promise<boolean> => {
+    const gradeChunk = async (
+      chunk: typeof attempt.questions,
+    ): Promise<{ ok: true } | { ok: false; retryable: boolean }> => {
       let gradeSet: DiagnosticGradeSet
       try {
         const generated = await generateJson({
@@ -459,29 +465,57 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
         gradeSet = DiagnosticGradeSetSchema.parse(generated)
       } catch (gradingError) {
         // Swallowed ON PURPOSE, and only here. A model that rambles past its
-        // output ceiling surfaces as `schema_invalid`, which is indistinguishable
-        // from a real schema problem and must not cost the learner the sitting.
+        // output ceiling surfaces as `schema_invalid`, which is
+        // indistinguishable from a real schema problem and must not cost the
+        // learner the sitting.
+        //
+        // But WHY it failed decides what happens next. A smaller call fixes an
+        // oversized response; it does nothing for an exhausted daily quota, and
+        // retrying into one burns four more requests from a budget that is
+        // already empty.
         console.error('Diagnostic grading chunk failed:', gradingError)
-        return false
+        return { ok: false, retryable: shouldRetryPerQuestion(failureKindsOf(gradingError)) }
       }
       const byRef = new Map(gradeSet.grades.map((grade) => [grade.questionRef, grade]))
       const complete =
         byRef.size === gradeSet.grades.length &&
         byRef.size === chunk.length &&
         chunk.every((_, ref) => byRef.has(ref))
-      if (!complete) return false
+      // A structurally incomplete reply IS worth retrying smaller: it is the
+      // same over-generation problem arriving without an exception.
+      if (!complete) return { ok: false, retryable: true }
       chunk.forEach((question, ref) => grades.set(question.position, byRef.get(ref)!))
-      return true
+      return { ok: true }
     }
 
-    // One call per batch; on failure, retry those questions ONE AT A TIME so a
-    // single unusable response costs one question instead of the whole sitting.
-    // A question that fails alone as well is recorded ungraded rather than
-    // guessed at — see the score and analysisStatus handling below.
+    // One call per batch; on a retryable failure, grade those questions ONE AT
+    // A TIME so a single unusable response costs one question instead of the
+    // whole sitting. A question that fails alone as well is recorded ungraded
+    // rather than guessed at — see the score and analysisStatus handling below.
+    //
+    // A NON-retryable failure (an exhausted quota, a missing key) aborts the
+    // whole submission instead. Marking questions permanently ungraded because
+    // today's cap ran out would turn a problem that fixes itself overnight into
+    // a permanent hole in the learner's history, and the attempt stays
+    // `in_progress` so the same answers can simply be submitted again later.
+    let aborted = false
     for (const batch of batched(needsGrading, DIAGNOSTIC_BATCH_SIZE)) {
-      if (await gradeChunk(batch)) continue
+      const result = await gradeChunk(batch)
+      if (result.ok) continue
+      if (!result.retryable) { aborted = true; break }
       for (const question of batch) {
-        if (!(await gradeChunk([question]))) ungraded.add(question.position)
+        const single = await gradeChunk([question])
+        if (single.ok) continue
+        if (!single.retryable) { aborted = true; break }
+        ungraded.add(question.position)
+      }
+      if (aborted) break
+    }
+
+    if (aborted) {
+      return {
+        success: false,
+        error: 'Your AI provider could not be reached to grade this diagnostic — its daily quota may be used up. Your answers are still here; try submitting again later.',
       }
     }
 
@@ -521,13 +555,16 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
           results: graded.filter((item) => item.grade !== null).map((item) => ({
             question: item.question.prompt,
             keyPoint: item.question.learningPoint,
-            answer: item.answer,
+            // An excerpt, not the whole answer: the report generalises over
+            // twelve of these, and an answer may be 10,000 characters.
+            answer: excerptForReport(item.answer),
             score: item.score as number,
             status: item.status as string,
             mistake: item.mistake ?? undefined,
           })),
         }),
         schema: DIAGNOSTIC_REPORT_PROMPT.schema,
+        maxOutputTokens: diagnosticReportOutputCap(graded.length),
       })
       report = DiagnosticReportSchema.parse(reportOutput)
     } catch (reportError) {
