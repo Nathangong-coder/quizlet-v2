@@ -1,6 +1,45 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-09-04 (**third update same day** — the 10-card LBO pilot RAN TO COMPLETION
+**Last updated:** 2026-09-05. Spec 2 increment A is DONE and G1 is closed. Shipped since:
+the public KLP view + interactive relation graph, the model quality floor, production quota/retry
+fixes, `AiCallLog` + `/staff/ai-history`, and the diagnostic gated to "coming soon". **THE NEXT
+THREE ITEMS ARE LISTED UNDER "NEXT UP (2026-09-05)" IMMEDIATELY BELOW — start there.**
+
+## NEXT UP (2026-09-05), in order
+
+1. **Connect the diagnostic to real key points.** THE BIGGEST HOLE IN THE PRODUCT and the reason
+   `/diagnostic` is currently gated to admins with a "coming soon" page
+   (`src/app/(app)/diagnostic/page.tsx` — the gate is one `isAdmin` check, remove it when this
+   lands). `DiagnosticQuestion.learningPoint` is FREE TEXT, not a `CardKlp` foreign key, so a
+   completed diagnostic writes **no `AnswerKlpResult`, no `KlpState`, no `StudyEvent`**. Verified on
+   the live DB: user Minihotpot completed a 12-question run on 2026-09-01 scoring 75 and has
+   `QuizAnswer=0, AnswerKlpResult=0, KlpState=0, StudyEvent=0`. Every card it tested has live KLPs
+   (1-4 each) — the link was simply never made.
+   **Two halves, and the second is the risky one:** (a) generate diagnostic questions FROM
+   `CardKlp` rows and write results through the same memory path every other mode uses; (b) decide
+   whether to backfill existing attempts. Backfilling means matching free-text learning points to
+   KLPs on the same card, and a wrong match writes a false fact into a learner's history — the
+   exact fabrication this engine refuses everywhere else. Recommended: backfill ONLY where a card
+   has exactly one live KLP (unambiguous), leave the rest unattributed, and say so in the UI.
+
+2. **Re-author the whole corpus through the authoring pipeline.** The quality gap the owner noticed
+   is real and measured: **only the LBO set (10 cards, 50 KLPs, median 5) has been authored. Every
+   other set is legacy single-pass extraction — median 2 KLPs, no reference answer, no adversaries,
+   no discrimination test.** `Accounting - Knowledge` is 50 cards / 106 KLPs, `Accounting -
+   "Talking"` 68 cards / 152 KLPs, all `promptVersion: 1`.
+   **NOT DOABLE ON THE FREE TIER.** ~200 cards x ~6 calls = ~1,200 requests against a cap of 20 per
+   day PER MODEL. Even rotating four models is ~80/day, so ~15 days. Needs a paid tier, or an
+   accepted multi-week drip via `npm run author-klps -- --set <id> --direct --rpm 12` (resumable,
+   skips already-authored cards, rotates `GOOGLE_API_KEYS` x `KLP_DIRECT_MODELS` automatically).
+   Results now show up in `/staff/ai-history` per model, since `CardAuthoring.model` is recorded.
+
+3. **Wire the solution/answer overlay to real data.** `KlpGraphCanvas` already takes an `answer`
+   prop and renders correct/partial/failed per key point; nothing passes one yet. Natural homes are
+   quiz results (a learner seeing their own attempt) and `/staff/learners/[id]`. NOTE: a red LINE is
+   currently INFERRED from its endpoints and the UI says so — real link-level verdicts need Spec 3's
+   relation probes.
+
+**Last updated (previous):** 2026-09-04 (**third update same day** — the 10-card LBO pilot RAN TO COMPLETION
 and **G1 is closed by measurement**: authored weights 22.0% at 4-5 against the 92.3% baseline,
 histogram verdict OK. 9 separated, 1 low_discrimination. Four defects found by running it, listed in
 the Spec 2 entry — including one where my own daily-quota guard passed its test and was dead against
