@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 import { masteryBucket } from '@/lib/memory/scoring';
 import { executeErasure } from '@/lib/memory/erase-execute';
-import { ANSWERED_ATTEMPT_WHERE } from '@/lib/quiz/history';
+import { QUIZ_HISTORY_WHERE } from '@/lib/quiz/history';
 
 type ActionResult<T> = {
   success: boolean;
@@ -46,7 +46,7 @@ export async function getUserStats(): Promise<ActionResult<UserStats>> {
         // all four at once. A filter that cleaned up the recent list but left
         // the count inflated is the obvious half-fix, and it would be invisible
         // on a page that shows both.
-        where: { userId, ...ANSWERED_ATTEMPT_WHERE },
+        where: { userId, ...QUIZ_HISTORY_WHERE },
         orderBy: { createdAt: 'desc' },
         include: { set: { select: { id: true, title: true } } },
       }),
