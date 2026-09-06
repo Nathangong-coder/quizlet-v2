@@ -51,11 +51,8 @@ vi.mock('@/actions/klp', () => ({ ensureKlpsReady: h.ensureKlpsReady }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { startDiagnosticTest, submitDiagnosticTest } from '@/actions/diagnostic'
-import {
-  DIAGNOSTIC_BATCH_SIZE,
-  DIAGNOSTIC_MAX_OUTPUT_TOKENS,
-  batched,
-} from '@/lib/diagnostic/select'
+import { DIAGNOSTIC_BATCH_SIZE, batched } from '@/lib/diagnostic/select'
+import { diagnosticOutputCap } from '@/lib/diagnostic/grading'
 
 const OWNER = 'user-owner'
 const SET = { id: 'set-1', title: 'M&A basics' }
@@ -214,7 +211,7 @@ describe('startDiagnosticTest', () => {
     await startDiagnosticTest({ setId: 'set-1', questionCount: 12 })
 
     for (const call of h.generateJson.mock.calls) {
-      expect(call[0].maxOutputTokens).toBe(DIAGNOSTIC_MAX_OUTPUT_TOKENS)
+      expect(call[0].maxOutputTokens).toBe(diagnosticOutputCap(DIAGNOSTIC_BATCH_SIZE))
     }
   })
 
@@ -310,6 +307,19 @@ function submitTx() {
  * The local-ref mapping is the part worth mocking faithfully: a grader that
  * renumbers must not be able to attach one question's verdict to another.
  */
+/** One grading response for exactly these question positions, refs local. */
+function mockGradingFor(positions: number[], score = 9) {
+  h.generateJson.mockResolvedValueOnce({
+    grades: positions.map((position, ref) => ({
+      questionRef: ref,
+      score,
+      status: score >= 8 ? 'mastered' : 'partial',
+      feedback: `Feedback ${position}`,
+      klpResults: [{ klpRef: 0, status: score >= 8 ? 'passed' : 'partial' }],
+    })),
+  })
+}
+
 function mockGrading(options: { withKlpResults?: boolean } = {}) {
   const withKlpResults = options.withKlpResults ?? true
   const batches = batched(
@@ -524,8 +534,134 @@ describe('submitDiagnosticTest', () => {
     const gradingCalls = h.generateJson.mock.calls.slice(0, -1) // last one is the report
     expect(gradingCalls.length).toBeGreaterThan(0)
     for (const call of gradingCalls) {
-      expect(call[0].maxOutputTokens).toBe(DIAGNOSTIC_MAX_OUTPUT_TOKENS)
+      // Scaled to the call, so the per-question retry does not hand one
+      // question a four-question budget to run away inside.
+      expect(call[0].maxOutputTokens).toBe(diagnosticOutputCap(DIAGNOSTIC_BATCH_SIZE))
     }
+  })
+
+  it('never sends a blank answer to the grader', async () => {
+    // Given an empty answer, gemini-3.6-flash fell into a degenerate repetition
+    // loop, spent 15,001 text tokens, hit the output ceiling and returned no
+    // parseable object — losing the whole sitting. A blank answer needs no
+    // judgment, so it never reaches a model.
+    submitTx()
+    // 4 answered, 8 blank => 1 grading batch, then the report.
+    const answers = attemptQuestions().map((question, i) => ({
+      questionId: question.id,
+      answer: i < 4 ? 'a real answer' : '   ',
+    }))
+    mockGradingFor([0, 1, 2, 3])
+
+    const result = await submitDiagnosticTest({ attemptId: 'attempt-1', answers })
+
+    expect(result.success).toBe(true)
+    const gradingCalls = h.generateJson.mock.calls.slice(0, -1)
+    expect(gradingCalls).toHaveLength(1)
+    for (const call of gradingCalls) {
+      expect(call[0].prompt).not.toContain('[no answer]')
+    }
+  })
+
+  it('grades a blank answer deterministically and still credits the key point', async () => {
+    submitTx()
+    const answers = attemptQuestions().map((question) => ({ questionId: question.id, answer: '' }))
+    // Every answer blank => zero grading calls, only the report.
+    h.generateJson.mockResolvedValueOnce({
+      overview: 'o', strengths: [], gaps: ['g'], recommendations: ['r'], learningPoints: [],
+    })
+
+    const result = await submitDiagnosticTest({ attemptId: 'attempt-1', answers })
+
+    expect(result.success).toBe(true)
+    expect(h.createAnswerWithAnalysis).toHaveBeenCalledTimes(QUESTION_COUNT)
+    for (const call of h.createAnswerWithAnalysis.mock.calls) {
+      expect(call[1].klpResults).toHaveLength(1)
+      expect(call[1].klpResults[0].status).toBe('failed')
+      expect(call[1].klpResults[0].credit).toBe(0)
+    }
+  })
+
+  it('retries a failed batch one question at a time', async () => {
+    // A single unusable response must cost one question, not the sitting.
+    submitTx()
+    const answers = attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' }))
+    // Batch 1 fails; its four questions then succeed individually. Batches 2
+    // and 3 succeed outright.
+    h.generateJson.mockRejectedValueOnce(new Error('schema_invalid'))
+    for (let i = 0; i < 4; i++) {
+      h.generateJson.mockResolvedValueOnce({
+        grades: [{ questionRef: 0, score: 7, status: 'partial', feedback: 'f',
+          klpResults: [{ klpRef: 0, status: 'partial' }] }],
+      })
+    }
+    mockGradingFor([4, 5, 6, 7])
+    mockGradingFor([8, 9, 10, 11])
+    h.generateJson.mockResolvedValueOnce({
+      overview: 'o', strengths: [], gaps: ['g'], recommendations: ['r'], learningPoints: [],
+    })
+
+    const result = await submitDiagnosticTest({ attemptId: 'attempt-1', answers })
+
+    expect(result.success).toBe(true)
+    expect(h.createAnswerWithAnalysis).toHaveBeenCalledTimes(QUESTION_COUNT)
+  })
+
+  it('records a question that fails even alone as ungraded, and keeps the rest', async () => {
+    submitTx()
+    const answers = attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' }))
+    // Batch 1 fails, and so does every one of its four retries.
+    h.generateJson.mockRejectedValueOnce(new Error('schema_invalid'))
+    for (let i = 0; i < 4; i++) h.generateJson.mockRejectedValueOnce(new Error('schema_invalid'))
+    mockGradingFor([4, 5, 6, 7])
+    mockGradingFor([8, 9, 10, 11])
+    h.generateJson.mockResolvedValueOnce({
+      overview: 'o', strengths: [], gaps: ['g'], recommendations: ['r'], learningPoints: [],
+    })
+
+    const result = await submitDiagnosticTest({ attemptId: 'attempt-1', answers })
+
+    expect(result.success).toBe(true)
+    // All twelve raw records are written; the four ungraded ones carry 'failed'
+    // rather than zero rows, which cannot be told apart from a clean answer.
+    expect(h.createAnswerWithAnalysis).toHaveBeenCalledTimes(QUESTION_COUNT)
+    const failed = h.createAnswerWithAnalysis.mock.calls.filter((c) => c[1].status === 'failed')
+    expect(failed).toHaveLength(4)
+    for (const call of failed) expect(call[1].klpResults).toHaveLength(0)
+    // And no StudyEvent for them — confidence must not move on evidence that
+    // does not exist.
+    expect(h.recordStudyEvent).toHaveBeenCalledTimes(QUESTION_COUNT - 4)
+  })
+
+  it('excludes ungraded questions from the score rather than counting them zero', async () => {
+    submitTx()
+    const answers = attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' }))
+    h.generateJson.mockRejectedValueOnce(new Error('schema_invalid'))
+    for (let i = 0; i < 4; i++) h.generateJson.mockRejectedValueOnce(new Error('schema_invalid'))
+    // The eight that DO grade all score 9.
+    mockGradingFor([4, 5, 6, 7], 9)
+    mockGradingFor([8, 9, 10, 11], 9)
+    h.generateJson.mockResolvedValueOnce({
+      overview: 'o', strengths: [], gaps: [], recommendations: ['r'], learningPoints: [],
+    })
+
+    const result = await submitDiagnosticTest({ attemptId: 'attempt-1', answers })
+
+    expect(result.success).toBe(true)
+    // 90, not 60. Scoring a model failure as a miss reports it as the
+    // learner's failure — the most misleading thing this could do.
+    if (result.success) expect(result.data.score).toBe(90)
+  })
+
+  it('fails the submission only when NOTHING could be graded', async () => {
+    submitTx()
+    const answers = attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' }))
+    h.generateJson.mockRejectedValue(new Error('schema_invalid'))
+
+    const result = await submitDiagnosticTest({ attemptId: 'attempt-1', answers })
+
+    expect(result.success).toBe(false)
+    expect(h.createAnswerWithAnalysis).not.toHaveBeenCalled()
   })
 
   it('rejects an incomplete grade set and persists nothing', async () => {

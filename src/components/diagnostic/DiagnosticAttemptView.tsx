@@ -24,6 +24,10 @@ export function DiagnosticAttemptView({
 }) {
   const strengths = result.report.strengths
   const gaps = result.report.gaps
+  // An ungraded question is a model failure, not a wrong answer. It is excluded
+  // from the score rather than counted as zero, so the count has to be shown —
+  // a denominator that silently shrinks is worse than one that explains itself.
+  const ungradedCount = result.questions.filter((question) => question.score === null).length
 
   return (
     <div className="w-full max-w-5xl space-y-8">
@@ -46,10 +50,14 @@ export function DiagnosticAttemptView({
           <CardContent className="p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Baseline score</p>
             <p className="mt-2 text-5xl font-semibold tracking-tight text-primary">
-              {result.score}
-              <span className="text-2xl text-muted-foreground">%</span>
+              {result.score ?? '—'}
+              {result.score !== null && <span className="text-2xl text-muted-foreground">%</span>}
             </p>
-            <p className="mt-2 text-sm text-muted-foreground">Across {result.questions.length} questions</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {ungradedCount === 0
+                ? `Across ${result.questions.length} questions`
+                : `Across ${result.questions.length - ungradedCount} of ${result.questions.length} questions · ${ungradedCount} could not be graded`}
+            </p>
           </CardContent>
         </Card>
         <ResultList title="Strengths" items={strengths} tone="positive" />
@@ -108,10 +116,14 @@ export function DiagnosticAttemptView({
             <CardContent className="space-y-4 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={question.status === 'mastered' ? 'secondary' : 'outline'}>{question.status}</Badge>
+                  <Badge variant={question.status === 'mastered' ? 'secondary' : 'outline'}>
+                    {question.status ?? 'not graded'}
+                  </Badge>
                   <span className="text-xs text-muted-foreground">{question.kind === 'follow-up' ? 'Follow-up' : 'Core question'}</span>
                 </div>
-                <span className="text-sm font-semibold tabular-nums">{question.score}/10</span>
+                <span className="text-sm font-semibold tabular-nums">
+                  {question.score === null ? '—' : `${question.score}/10`}
+                </span>
               </div>
               <h3 className="font-semibold leading-relaxed">{question.prompt}</h3>
               {result.engineVersion >= 2 && (
