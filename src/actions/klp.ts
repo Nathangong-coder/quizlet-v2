@@ -155,7 +155,7 @@ async function extractOneBatch(
 
   const result = await generateJson({
     userId,
-    task: 'autocomplete',
+    task: 'klp-extract',
     prompt,
     schema: KlpExtractionSchema,
   });

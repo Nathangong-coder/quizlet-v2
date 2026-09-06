@@ -21,7 +21,29 @@ import { AI_TASKS } from '@/lib/ai/model-routing'
  * runs constantly, so they get separate routing decisions.
  */
 describe('AI_TASKS', () => {
-  it('contains exactly the seven expected task names', () => {
-    expect(AI_TASKS).toEqual(['grade', 'plan', 'distractors', 'autocomplete', 'note-analysis', 'diagnostic', 'author'])
+  it('contains exactly the nine expected task names', () => {
+    expect(AI_TASKS).toEqual([
+      'grade',
+      'plan',
+      'distractors',
+      'autocomplete',
+      'klp-extract',
+      'concept-tree',
+      'note-analysis',
+      'diagnostic',
+      'author',
+    ])
+  })
+
+  /**
+   * `klp-extract` and `concept-tree` were carved out of `autocomplete`, which
+   * had been doing four jobs — card autofill plus three background passes that
+   * write persisted knowledge. One task meant one routing decision for all of
+   * them, so pinning autofill to a cheap model quietly downgraded KLP
+   * extraction, and the per-task benchmark averaged work with nothing in common.
+   */
+  it('keeps background generation separate from card autofill', () => {
+    expect(AI_TASKS).toContain('klp-extract')
+    expect(AI_TASKS).toContain('concept-tree')
   })
 })

@@ -321,13 +321,41 @@ export async function resolveTaskModel(userId: string, task: AiTask): Promise<st
   return candidates[0]?.model ?? null;
 }
 
+/** What actually served a request, once rotation has settled. */
+export interface GenerationMeta {
+  /** The model that produced the value — the one that SUCCEEDED, not the one tried first. */
+  model: string
+  provider: string
+  credentialId: string
+  credentialLabel: string
+  /** How many credentials had to fail before this one worked. 0 on a clean first attempt. */
+  failedAttempts: number
+}
+
 /**
  * The single generation entry point. Call sites name a task; credential
  * selection, decryption, rotation, and failure aggregation happen here.
  */
-export async function generateJson<T>({
+export async function generateJson<T>(input: GenerateJsonInput<T>): Promise<T> {
+  const { value } = await generateJsonWithMeta(input);
+  return value;
+}
+
+/**
+ * `generateJson`, plus which credential and model actually served it.
+ *
+ * Rotation does not make the served model unknowable — it just means it is not
+ * knowable in ADVANCE. By the time the value is in hand, exactly one attempt
+ * succeeded and its model is a fact. Callers that persist an artifact (KLP
+ * authoring writes `CardAuthoring.model`) need that fact, and were previously
+ * told to leave it null on the pooled path for no good reason.
+ *
+ * `generateJson` stays the default so the twenty-odd call sites that do not
+ * care are unaffected.
+ */
+export async function generateJsonWithMeta<T>({
   userId, task, schema, prompt, parts,
-}: GenerateJsonInput<T>): Promise<T> {
+}: GenerateJsonInput<T>): Promise<{ value: T; meta: GenerationMeta }> {
   const { prisma } = await import('@/lib/db');
 
   const pool = await resolveCandidates(prisma, userId, task);
@@ -434,5 +462,19 @@ export async function generateJson<T>({
   await flagFailures(prisma, userId, flagworthyFailures(result.failures));
   await recordAiCalls(prisma, calls);
 
-  return result.value;
+  // The winning attempt is the last one logged: `runAttempts` returns as soon as
+  // one succeeds, so nothing is pushed after it.
+  const won = calls[calls.length - 1];
+  const winner = byId.get(result.usedId)!;
+
+  return {
+    value: result.value,
+    meta: {
+      model: won?.model ?? winner.defaultModel,
+      provider: winner.provider,
+      credentialId: winner.id,
+      credentialLabel: winner.label,
+      failedAttempts: result.failures.length,
+    },
+  };
 }

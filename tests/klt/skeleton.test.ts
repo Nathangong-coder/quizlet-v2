@@ -166,7 +166,7 @@ describe('suggestSkeleton', () => {
     expect(h.listConceptTree).toHaveBeenCalledWith(SET_ID)
     expect(h.generateJson).toHaveBeenCalledTimes(1)
     const call = h.generateJson.mock.calls[0][0]
-    expect(call.task).toBe('autocomplete')
+    expect(call.task).toBe('concept-tree')
     expect(call.prompt).toContain('quick ratio')
     expect(call.prompt).toContain('minority interest')
   })

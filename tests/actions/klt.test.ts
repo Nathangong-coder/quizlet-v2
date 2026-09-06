@@ -233,8 +233,16 @@ describe('summarizeKltsForCards', () => {
     expect(h.topicCreateMany).not.toHaveBeenCalled()
   })
 
-  it('routes to the cheap autocomplete tier, not a new AI task', async () => {
+  /**
+   * SPLIT OUT of `autocomplete` on 2026-09-05. It used to share that task on the
+   * grounds that both are cheap — but sharing a task means sharing a ROUTING
+   * DECISION, so pinning autocomplete to a fast model silently sent concept-tree
+   * summarising there too. It also made the per-task model benchmark useless,
+   * averaging a typeahead together with a background pass that writes persisted
+   * labels.
+   */
+  it('routes to the concept-tree task, not to card autocomplete', async () => {
     await summarizeKltsForCards(OWNER, ['card-1'])
-    expect(h.generateJson).toHaveBeenCalledWith(expect.objectContaining({ task: 'autocomplete' }))
+    expect(h.generateJson).toHaveBeenCalledWith(expect.objectContaining({ task: 'concept-tree' }))
   })
 })

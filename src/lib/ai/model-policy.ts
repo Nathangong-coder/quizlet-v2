@@ -55,13 +55,11 @@ export const GOOGLE_POLICY_FALLBACK: GoogleApprovedModel = 'gemini-3.6-flash'
  * The tasks the policy covers: everything that GRADES, and everything that
  * generates in the BACKGROUND.
  *
- * `autocomplete` is in the list and that will look wrong until you know why:
- * it is not only card autofill. Legacy KLP extraction (`src/actions/klp.ts`,
- * fired from `after()` on set save), KLT seeding, KLT placement and KLT
- * summarising ALL route through `autocomplete` today. So the task that sounds
- * the most cosmetic is in fact the one writing the most persisted knowledge.
- * When that conflation is untangled into its own task, this entry should follow
- * the KLP/KLT work rather than staying with autofill.
+ * `autocomplete` used to be the one to watch here, because it was quietly doing
+ * four jobs. It was split on 2026-09-05: `klp-extract` and `concept-tree` now
+ * carry the background work that writes persisted knowledge, and `autocomplete`
+ * is just card autofill again. All three stay policed — autofill because a
+ * suggestion accepted into a card becomes card content like any other.
  *
  * `distractors` is included because a distractor's `corruption` is persisted as
  * the provenance an error tag is later derived from — a bad distractor does not
@@ -77,6 +75,8 @@ export const POLICED_TASKS: readonly AiTask[] = [
   'diagnostic',
   'author',
   'autocomplete',
+  'klp-extract',
+  'concept-tree',
   'distractors',
   'plan',
   'note-analysis',

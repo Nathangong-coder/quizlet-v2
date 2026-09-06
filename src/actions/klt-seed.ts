@@ -54,7 +54,7 @@ export async function suggestSkeleton(
   try {
     result = await generateJson({
       userId: access.userId,
-      task: 'autocomplete',
+      task: 'concept-tree',
       prompt: SUGGEST_SKELETON_PROMPT.build({ subject: parsedSubject.name, sampleConcepts }),
       schema: KltSkeletonSchema,
     });

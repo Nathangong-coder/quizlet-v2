@@ -2,7 +2,7 @@ import { createGoogle } from '@ai-sdk/google'
 import { generateText, Output } from 'ai'
 import type { z } from 'zod'
 import { prisma } from '../src/lib/db'
-import { generateJson } from '../src/lib/ai/generate'
+import { generateJson, generateJsonWithMeta } from '../src/lib/ai/generate'
 import { authorCard, type AuthoringGenerator, type AuthoringOutcome } from '../src/lib/klp/authoring'
 import { persistAuthoring } from '../src/lib/klp/authoring-persist'
 import { AUTHOR_KLPS_PROMPT } from '../src/lib/ai/prompts/author-klps'
@@ -59,10 +59,14 @@ import {
  * building the reference answer from the card itself, not yet "the
  * question". That is the one seam that needs an explicit rename.
  */
-function defaultGenerator(userId: string): AuthoringGenerator {
+function defaultGenerator(userId: string, onModel?: (model: string) => void): AuthoringGenerator {
   return {
-    author: (input) =>
-      generateJson({
+    author: async (input) => {
+      // The AUTHOR call is the one whose model is worth recording: it writes
+      // the key points. Rotation does not hide which model served it — by the
+      // time the value is in hand exactly one attempt succeeded, and
+      // `generateJsonWithMeta` reports it.
+      const { value, meta } = await generateJsonWithMeta({
         userId,
         task: 'author',
         prompt: AUTHOR_KLPS_PROMPT.build({
@@ -72,7 +76,10 @@ function defaultGenerator(userId: string): AuthoringGenerator {
           minKlps: input.minKlps,
         }),
         schema: AUTHOR_KLPS_PROMPT.schema,
-      }),
+      })
+      onModel?.(meta.model)
+      return value
+    },
     grade: (input) =>
       generateJson({
         userId,
@@ -478,7 +485,9 @@ async function main() {
         gen = directGenerator(combo, pacer)
         console.log(`${tag} — using ${combo.id}`)
       } else {
-        gen = defaultGenerator(set.userId)
+        gen = defaultGenerator(set.userId, (model) => {
+          usedModel = model
+        })
       }
 
       try {

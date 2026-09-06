@@ -5,6 +5,14 @@ the public KLP view + interactive relation graph, the model quality floor, produ
 fixes, `AiCallLog` + `/staff/ai-history`, and the diagnostic gated to "coming soon". **THE NEXT
 THREE ITEMS ARE LISTED UNDER "NEXT UP (2026-09-05)" IMMEDIATELY BELOW — start there.**
 
+**Spec 1's live gate is CLOSED (2026-09-05, confirmed by the owner):** `grant-role` was run, the
+Staff rail item works, and `/staff/klps` renders the authored corpus. Nothing outstanding on Spec 1.
+
+**The `autocomplete` conflation is FIXED (2026-09-05).** It had been doing four jobs; `klp-extract`
+(legacy KLP extraction from `after()` on set save) and `concept-tree` (seeding, placement,
+summarising) are now their own `AI_TASKS` members. Adding task names is additive — `AiTaskRouting`
+stores strings — so existing pins were unaffected and the new tasks start unpinned.
+
 ## NEXT UP (2026-09-05), in order
 
 1. **Connect the diagnostic to real key points.** THE BIGGEST HOLE IN THE PRODUCT and the reason
