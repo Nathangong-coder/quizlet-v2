@@ -1,9 +1,14 @@
 # Build queue & carried-over findings
 
-**Last updated:** 2026-09-05. Spec 2 increment A is DONE and G1 is closed. Shipped since:
+**Last updated:** 2026-09-06. **NEXT UP item 1 (wire the diagnostic to real key points) is DONE
+and the gate is off** - see the struck-through entry below for what shipped, the four defects live
+probes found that the suite could not, and the one human gate still owed. Items 2 and 3 are
+unchanged and are where to start. Note item 1 changed item 2's arithmetic: a 12-question
+diagnostic now costs 7 AI calls, so it competes with re-authoring for the same daily quota.
+
+**Previous:** 2026-09-05. Spec 2 increment A is DONE and G1 is closed. Shipped since:
 the public KLP view + interactive relation graph, the model quality floor, production quota/retry
-fixes, `AiCallLog` + `/staff/ai-history`, and the diagnostic gated to "coming soon". **THE NEXT
-THREE ITEMS ARE LISTED UNDER "NEXT UP (2026-09-05)" IMMEDIATELY BELOW — start there.**
+fixes, `AiCallLog` + `/staff/ai-history`, and the diagnostic gated to "coming soon".
 
 **Spec 1's live gate is CLOSED (2026-09-05, confirmed by the owner):** `grant-role` was run, the
 Staff rail item works, and `/staff/klps` renders the authored corpus. Nothing outstanding on Spec 1.
@@ -13,22 +18,83 @@ Staff rail item works, and `/staff/klps` renders the authored corpus. Nothing ou
 summarising) are now their own `AI_TASKS` members. Adding task names is additive — `AiTaskRouting`
 stores strings — so existing pins were unaffected and the new tasks start unpinned.
 
-## NEXT UP (2026-09-05), in order
+## NEXT UP (2026-09-06), in order
 
-1. **Connect the diagnostic to real key points.** THE BIGGEST HOLE IN THE PRODUCT and the reason
-   `/diagnostic` is currently gated to admins with a "coming soon" page
-   (`src/app/(app)/diagnostic/page.tsx` — the gate is one `isAdmin` check, remove it when this
-   lands). `DiagnosticQuestion.learningPoint` is FREE TEXT, not a `CardKlp` foreign key, so a
-   completed diagnostic writes **no `AnswerKlpResult`, no `KlpState`, no `StudyEvent`**. Verified on
-   the live DB: user Minihotpot completed a 12-question run on 2026-09-01 scoring 75 and has
-   `QuizAnswer=0, AnswerKlpResult=0, KlpState=0, StudyEvent=0`. Every card it tested has live KLPs
-   (1-4 each) — the link was simply never made.
-   **Two halves, and the second is the risky one:** (a) generate diagnostic questions FROM
-   `CardKlp` rows and write results through the same memory path every other mode uses; (b) decide
-   whether to backfill existing attempts. Backfilling means matching free-text learning points to
-   KLPs on the same card, and a wrong match writes a false fact into a learner's history — the
-   exact fabrication this engine refuses everywhere else. Recommended: backfill ONLY where a card
-   has exactly one live KLP (unambiguous), leave the rest unattributed, and say so in the UI.
+1. ~~**Connect the diagnostic to real key points.**~~ **DONE 2026-09-06.** Design:
+   `docs/superpowers/specs/2026-09-05-diagnostic-key-point-wiring-design.md`. Plan:
+   `docs/superpowers/plans/2026-09-05-diagnostic-key-point-wiring.md`. The gate is off;
+   `/diagnostic` is open to everyone.
+
+   **The queue's own description was partly wrong, and the correction matters.** It said a
+   completed diagnostic wrote "no `AnswerKlpResult`, no `KlpState`, no `StudyEvent`". The third
+   was false - `submitDiagnosticTest` already called `recordStudyEvent`, and the completed live
+   attempt has 12 `StudyEvent` rows and a real `CardProgress` effect. Card-grain memory worked
+   all along; **key-point grain was the whole of the gap.**
+
+   **What shipped.** Questions are generated FROM `CardKlp` rows chosen by a pure selector
+   (`src/lib/diagnostic/select.ts` - baseline spread with no history, `(1 - pKnown) x weight`
+   targeting with it, round-robin across cards in both). One key point per question, so "only
+   what it asked was credited" is true by construction. Every submitted answer becomes a
+   `QuizAnswer` under a `QuizAttempt` (`mode: 'diagnostic'`) sharing the diagnostic's
+   `StudySession`, written by the same `createAnswerWithAnalysis` the quiz uses - so
+   `AnswerKlpResult`, `AnswerErrorTag` and `KlpState` all follow, and `StudyEvent` finally
+   carries `quizAnswerId`. **G8 is closed**: `EVIDENCE_STRENGTH['diagnostic'] = 0.95`, with a
+   test asserting the map is total over `GRADED_KLP_MODES` so the next omission is a build
+   failure. There is also now a way to VIEW a past diagnostic at all - there wasn't one.
+
+   **NOTHING WAS BACKFILLED, on measurement.** The whole population was 12 questions from one
+   user, and only **2** sat on a card with exactly one live key point, the only unambiguous
+   match. The other 10 would have needed the AI to guess which key point a free-text string
+   meant - a wrong guess writes a false fact into a real learner's history, indistinguishable
+   from an observation, for a payoff of two rows. The attempt keeps its 12 `StudyEvent` rows and
+   is labelled `engineVersion: 1` with a notice saying exactly what it did and did not move. The
+   one stale `in_progress` attempt was marked `abandoned` by the migration, so submit keeps one
+   code path.
+
+   **FOUR DEFECTS THE 2,948-TEST SUITE COULD NOT SEE.** All four came from running things:
+   - **The grading prompt did not list the closed error-type vocabulary.** A real model returned
+     `missing_response` and `incorrect_answer`, neither in `ACCURACY_TYPES`, so
+     `buildAnalysisWrites` dropped **every** tag - three plainly wrong answers recorded zero
+     errors. The unit tests passed throughout because they hand-wrote a valid type no model
+     produces. **This is the fixture-shaped-guard failure again.**
+   - **One grading call per sitting exhausts the model's output budget.** Grading one answer
+     costs ~900 output tokens, **~92% of them reasoning**. A four-question call returned
+     `finishReason: 'length'`, which the SDK surfaces as `NoObjectGeneratedError` - classified
+     `schema_invalid`, so it reads as a model that cannot follow a schema rather than one that
+     ran out of room. It fails at SUBMIT, after the learner has answered everything.
+     **Batching alone did not fix it** (two batches passed, the third did not - the budget is
+     per call and reasoning varies), so it took both `DIAGNOSTIC_BATCH_SIZE = 4` and an explicit
+     `DIAGNOSTIC_MAX_OUTPUT_TOKENS = 16384` through a new optional `maxOutputTokens` on
+     `generateJson`. **A 12-question run is 7 AI calls, not 3** - relevant to item 2's quota
+     arithmetic below.
+   - **The follow-up budget was wrong at the short end.** A flat 2 consumed both slots of a
+     two-question run, asking one key point twice and never reaching a second card. Now capped
+     at a quarter of the run.
+   - **A route-classification guard caught the new `/diagnostic/[attemptId]` page** before it
+     shipped unclassified. That one worked as designed.
+
+   **Live verification, 2026-09-06.** Two probes, both committed
+   (`scripts/probe-diagnostic-writes.ts`, `scripts/probe-diagnostic-ai.ts`), plus a read-only
+   `npm run verify:diagnostic -- <attemptId>` for checking a real attempt.
+   - *Writes, against the live database:* 6 answers produced 6 `QuizAnswer`, 6
+     `AnswerKlpResult`, 5 `KlpState` (one follow-up re-asked a point), 6 `StudyEvent` all
+     carrying `quizAnswerId`, and 6 linked `DiagnosticQuestion` rows. **9.2s for 6 answers**, so
+     ~1.5s each - a 30-question sitting is ~46s and **would have blown the old 30s per-answer
+     ceiling**, discarding the whole thing. `DIAGNOSTIC_TX_OPTIONS` was necessary, not
+     precautionary.
+   - *AI contract, gemini-3.5-flash, 12 questions:* all 3 generation and all 3 grading batches
+     returned complete, correctly-reffed sets; 12 of 12 graded with exactly one `klpResult` at
+     `klpRef 0`; verdicts separated a correct answer from a blank one; worst grading batch 2,263
+     output tokens against the 16,384 ceiling.
+
+   **STILL OWED - one human gate.** No end-to-end run has happened in a browser as a real
+   signed-in user. It could not: `.env` carries no `GOOGLE_KEY_ENCRYPTION_SECRET`, so no stored
+   `AiCredential` can be decrypted locally, and seeding one would have written a row encrypted
+   with a throwaway secret into the production database. The two probes cover the write path and
+   the AI contract between them; what is unverified is the UI wiring - start screen, question
+   navigation, results render, the history list, and the legacy banner on the 2026-09-01
+   attempt. Run a 12-question diagnostic on `Accounting - "Talking"` and then
+   `npm run verify:diagnostic -- <attemptId>`.
 
 2. **Re-author the whole corpus through the authoring pipeline.** The quality gap the owner noticed
    is real and measured: **only the LBO set (10 cards, 50 KLPs, median 5) has been authored. Every
