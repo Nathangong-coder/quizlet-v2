@@ -27,6 +27,31 @@ export const ANSWERED_ATTEMPT_WHERE = {
 } satisfies Prisma.QuizAttemptWhereInput
 
 /**
+ * `ANSWERED_ATTEMPT_WHERE` plus "not a diagnostic" — for the two surfaces that
+ * mean "quizzes you took".
+ *
+ * A submitted diagnostic creates a QuizAttempt (`mode: 'diagnostic'`) purely
+ * as the anchor `AnswerKlpResult`'s required FK needs. It is not a quiz, and
+ * listing it under the quiz icon or folding it into per-mode quiz averages
+ * would mislabel it.
+ *
+ * A SEPARATE constant, not a change to `ANSWERED_ATTEMPT_WHERE`, because that
+ * one is ALSO the repeatBonus window in `loadAnsweredAttemptIds` — and a
+ * mistake made during a diagnostic is still a repeat of a mistake. Narrowing
+ * it there would make the same tag score differently depending on which
+ * activity the learner happened to make the error in, which is exactly the
+ * disagreement that function's doc exists to prevent.
+ *
+ * Correct call sites (2, both read-only history surfaces):
+ *   - src/actions/user.ts          getUserStats
+ *   - src/app/(app)/sets/page.tsx  the library's recent-attempt list
+ */
+export const QUIZ_HISTORY_WHERE = {
+  ...ANSWERED_ATTEMPT_WHERE,
+  mode: { not: 'diagnostic' },
+} satisfies Prisma.QuizAttemptWhereInput
+
+/**
  * The learner's real attempt sequence for `repeatBonus`: every ANSWERED
  * attempt, oldest first.
  *

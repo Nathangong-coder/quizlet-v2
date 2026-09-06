@@ -20,6 +20,8 @@ const TASK_LABELS: Record<Task, string> = {
   plan: 'Training plan generation',
   distractors: 'Multiple-choice distractors',
   autocomplete: 'Card autocomplete & autofill',
+  'klp-extract': 'Key point extraction (background)',
+  'concept-tree': 'Concept tree (background)',
   'note-analysis': 'Study note analysis',
   diagnostic: 'Diagnostic test generation & grading',
   author: 'KLP authoring (reference answers & discrimination test)',
@@ -44,7 +46,11 @@ const TASK_DESCRIPTIONS: Record<Task, string> = {
   distractors:
     'Writes the wrong options for multiple-choice questions by corrupting one key learning point. That corruption is stored with the question, so a careless option can later be recorded as a misconception you never actually had. Stored and reused.',
   autocomplete:
-    'Suggests terms and definitions while you build cards — and today it also extracts key learning points in the background when you save a set, and seeds and summarises the topic tree. That background work is stored and reused, so this task is far more load-bearing than its name suggests.',
+    'Suggests terms and definitions while you build cards. Latency matters and nothing is kept — a suggestion you ignore leaves no trace — so this is the one task where a fast, cheap model is the right call.',
+  'klp-extract':
+    'Reads a card after you save a set and writes the key learning points behind it, in the background. Those points are what quiz options get built from and what your answers are graded against. Stored and reused.',
+  'concept-tree':
+    'Builds and names the concept tree for a set in the background: placing cards under topics and summarising each one. Stored and reused.',
   'note-analysis': 'Reads a study note and pulls out what is worth testing. Runs when you save a note.',
   diagnostic:
     'Writes and marks the questions in a diagnostic test. The results feed your learner profile. Stored and reused.',
@@ -59,17 +65,23 @@ interface RowState {
 
 const EMPTY_ROW: RowState = { credentialId: '', model: '' };
 
+/**
+ * DERIVED from AI_TASKS, not hand-listed.
+ *
+ * The hand-written version silently went stale the moment a task was added:
+ * `Record<Task, RowState>` demanded every key, so adding `klp-extract` broke the
+ * build here — which is the good outcome — but the same shape would have
+ * happily rendered a task with an undefined row had the type been looser.
+ * Building it from the vocabulary means a new task is configurable the moment
+ * it exists.
+ */
+function emptyRouting(): Record<Task, RowState> {
+  return Object.fromEntries(TASKS.map((t) => [t, { ...EMPTY_ROW }])) as Record<Task, RowState>;
+}
+
 export default function TaskRoutingPanel() {
   const [credentials, setCredentials] = useState<CredentialRow[]>([]);
-  const [routing, setRouting] = useState<Record<Task, RowState>>({
-    grade: { ...EMPTY_ROW },
-    plan: { ...EMPTY_ROW },
-    distractors: { ...EMPTY_ROW },
-    autocomplete: { ...EMPTY_ROW },
-    'note-analysis': { ...EMPTY_ROW },
-    diagnostic: { ...EMPTY_ROW },
-    author: { ...EMPTY_ROW },
-  });
+  const [routing, setRouting] = useState<Record<Task, RowState>>(emptyRouting);
   const [loading, setLoading] = useState(true);
   const [savingTask, setSavingTask] = useState<Task | null>(null);
 

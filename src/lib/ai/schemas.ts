@@ -139,18 +139,36 @@ export const StudyNoteStoredAnalysisSchema = z.object({
 
 export type StudyNoteStoredAnalysis = z.infer<typeof StudyNoteStoredAnalysisSchema>;
 
+/**
+ * v2: the model no longer picks a card or invents a `learningPoint`. Both come
+ * from the probe the pure selector chose (src/lib/diagnostic/select.ts), and
+ * `probeRef` is the index into the prompt's probe list.
+ *
+ * `.strict()` so a v1-shaped response (cardRef/kind/learningPoint) is REJECTED
+ * rather than silently accepted with its extra keys dropped — a question whose
+ * learning point came from the model is exactly what this change removes.
+ */
 export const DiagnosticQuestionSetSchema = z.object({
   questions: z.array(z.object({
-    cardRef: z.number().int().min(0),
-    kind: z.enum(['core', 'follow-up']),
-    learningPoint: z.string().trim().min(1).max(500),
+    probeRef: z.number().int().min(0),
     question: z.string().trim().min(1).max(1200),
     expectedAnswer: z.string().trim().min(1).max(1600),
-  })).min(8).max(40),
+  }).strict()).min(1).max(40),
 });
 
 export type DiagnosticQuestionSet = z.infer<typeof DiagnosticQuestionSetSchema>;
 
+/**
+ * v2: the same per-answer analysis contract `ShortAnswerGradeSchema` defines,
+ * so `buildAnalysisWrites` computes credit and significance in TypeScript from
+ * a categorical status and a 1-10 magnitude. The model's ONLY numbers are the
+ * 1-10 question score and the tag magnitude; it never scores a key point.
+ *
+ * `klpResults` is optional so a grader that returns none still PARSES — the
+ * caller turns that into `analysisStatus: 'no_provenance'` rather than
+ * pretending the answer was clean. Zero rows cannot otherwise be told apart
+ * from an answer that genuinely had nothing wrong with it.
+ */
 export const DiagnosticGradeSetSchema = z.object({
   grades: z.array(z.object({
     questionRef: z.number().int().min(0),
@@ -158,6 +176,19 @@ export const DiagnosticGradeSetSchema = z.object({
     status: z.enum(['mastered', 'partial', 'missed']),
     feedback: z.string().trim().min(1).max(1200),
     mistake: z.string().trim().max(800).optional(),
+    klpResults: z.array(z.object({
+      klpRef: z.number().int().min(0),
+      status: z.enum(KLP_STATUSES),
+      evidence: z.string().optional(),
+    })).optional(),
+    errorTags: z.array(z.object({
+      dimension: z.enum(DIMENSIONS),
+      type: z.string().min(1),
+      klpRef: z.number().int().min(0).optional(),
+      secondaryKlpRef: z.number().int().min(0).optional(),
+      magnitude: z.number().int().min(1).max(10),
+      quote: z.string().optional(),
+    })).max(MAX_TAGS_PER_ANSWER).optional(),
   })).min(1).max(40),
 });
 

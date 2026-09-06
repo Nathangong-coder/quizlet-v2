@@ -2,15 +2,21 @@ import { CATEGORY_PALETTE, UNCATEGORIZED_ID } from "@/lib/cards/categories";
 import { toQuizMode, type QuizMode } from "@/lib/quiz/mode";
 
 /**
- * The only quiz mode that can produce expression evidence.
+ * The quiz modes that can produce expression evidence.
  *
  * MC and TF answers are graded without an AI call and hardcode
  * `dimension: 'accuracy'` (`binaryModeDrafts`), so they can never contribute a
  * clarity or conciseness tag. Counting them in readiness's denominator while
- * only short answers can contribute to its numerator inverts the metric: the
- * more multiple choice a learner does, the more "interview-ready" they look.
+ * only free-text answers can contribute to its numerator inverts the metric:
+ * the more multiple choice a learner does, the more "interview-ready" they
+ * look.
+ *
+ * `diagnostic` is here for the mirror-image reason. It IS free text, and its
+ * grader returns the same `errorTags` contract short answer does, so its tags
+ * reach the NUMERATOR. Leaving it out of the denominator would drift readiness
+ * upward with every diagnostic taken — the same inversion, from the other side.
  */
-const EXPRESSION_QUIZ_MODE: QuizMode = "short-answer";
+const EXPRESSION_QUIZ_MODES: QuizMode[] = ["short-answer", "diagnostic"];
 
 /**
  * A scope narrows the study-history views (feed, stats, filter options).
@@ -305,7 +311,7 @@ export function buildCategoryQuery(
 
 /**
  * Narrow an already-scoped QuizAnswer `where` to the answers that may carry
- * EXPRESSION evidence: analyzed short-answer rows only. This is readiness's
+ * EXPRESSION evidence: analyzed free-text rows only. This is readiness's
  * denominator.
  *
  * The mode constraint goes in `AND` rather than overwriting `base.mode`, so a
@@ -319,7 +325,7 @@ export function buildExpressionAnswerWhere(
   return {
     ...base,
     analysisStatus: "analyzed",
-    AND: [{ mode: EXPRESSION_QUIZ_MODE }],
+    AND: [{ mode: { in: EXPRESSION_QUIZ_MODES } }],
   };
 }
 

@@ -8,7 +8,6 @@
  */
 import { prisma } from '@/lib/db'
 import { CARD_KLP_STATUSES } from '@/lib/cards/klp-status'
-import { isRelationType, type RelationType } from '@/lib/klp/relations'
 
 export interface StaffKlpRow {
   id: string
@@ -454,107 +453,147 @@ export async function loadLearnerRecord(userId: string): Promise<LearnerRecord |
   }
 }
 
-export interface CardKlpGraph {
-  cardId: string
-  cardTerm: string
-  cardDefinition: string
-  setId: string
-  separation: number | null
-  status: string | null
-  klps: { id: string; text: string; label: string | null; kind: string; weight: number }[]
-  /** `from`/`to` are INDEXES into `klps`, which is what the layout and the K-numbers use. */
-  relations: {
+export interface AiTaskStat {
+  model: string
+  provider: string
+  calls: number
+  failures: number
+  /** Successful calls only — a failure's latency measures the error, not the model. */
+  medianLatencyMs: number | null
+  lastUsedAt: Date | null
+  failureKinds: Record<string, number>
+}
+
+export interface AiTaskHistory {
+  task: string
+  totalCalls: number
+  totalFailures: number
+  byModel: AiTaskStat[]
+  recent: {
     id: string
-    from: number
-    to: number
-    type: RelationType
-    rationale: string
-    probe: string
+    model: string
+    provider: string
+    credentialLabel: string
+    ok: boolean
+    failureKind: string | null
+    latencyMs: number
+    createdAt: Date
+    userLabel: string
   }[]
 }
 
 /**
- * A set's cards, each with its live key points and the relations between them.
+ * Per-model performance on one task, for benchmarking.
  *
- * Relation endpoints are stored as `CardKlp` IDs and converted here to INDEXES
- * into this card's own `klps` array. That conversion is the whole reason this
- * function exists rather than the component doing it: the graph, the K1..Kn
- * numbering and the layout all address points by position, and doing the
- * id-to-index mapping in one place means the three can never disagree about
- * which point K3 is.
+ * MEDIAN, not mean, and computed over SUCCESSES only. A mean is dragged around
+ * by one 30-second timeout, and a failed call's latency measures how long the
+ * provider took to say no — which is not a property of the model worth
+ * comparing against a model that answered.
  *
- * An edge whose endpoint is not in the live set — pointing at a superseded
- * version, say — is DROPPED rather than rendered against the wrong node. A
- * relation drawn to the wrong key point is worse than a missing one, because it
- * looks exactly like a real finding.
- *
- * `KlpRelation.type` is a plain string column, so it is VALIDATED here rather
- * than cast. An unrecognised type has no line style and no legend entry, so it
- * would render as an unlabelled solid line indistinguishable from `causes` —
- * a silent lie about the relationship. Dropped instead.
+ * Failure kinds are counted separately rather than folded into a rate, because
+ * they are not interchangeable: `quota_exhausted` says the key ran out,
+ * `schema_invalid` says the MODEL could not follow the contract. Only the
+ * second is evidence about the model, and the pilot proved it varies wildly —
+ * gemini-2.5-flash could not satisfy the authoring schema at all.
  */
-export async function loadCardKlpGraphs(setId: string): Promise<CardKlpGraph[]> {
-  const cards = await prisma.card.findMany({
-    where: { setId },
-    orderBy: { position: 'asc' },
+export async function loadAiTaskHistory(task: string, limit = 50): Promise<AiTaskHistory> {
+  const rows = await prisma.aiCallLog.findMany({
+    where: { task },
+    orderBy: { createdAt: 'desc' },
+    take: 2000,
     select: {
-      id: true,
-      term: true,
-      definition: true,
-      setId: true,
-      klps: {
-        where: { supersededAt: null },
-        orderBy: { index: 'asc' },
-        select: { id: true, text: true, label: true, kind: true, weight: true },
-      },
+      id: true, model: true, provider: true, credentialLabel: true, ok: true,
+      failureKind: true, latencyMs: true, createdAt: true,
+      user: { select: { handle: true, name: true, email: true } },
     },
   })
 
-  const withKlps = cards.filter((c) => c.klps.length > 0)
-  if (withKlps.length === 0) return []
-
-  const klpIds = withKlps.flatMap((c) => c.klps.map((k) => k.id))
-  const [relations, authorings] = await Promise.all([
-    prisma.klpRelation.findMany({
-      where: { fromKlpId: { in: klpIds }, toKlpId: { in: klpIds } },
-      select: { id: true, fromKlpId: true, toKlpId: true, type: true, rationale: true, probe: true },
-      orderBy: { createdAt: 'asc' },
-    }),
-    prisma.cardAuthoring.findMany({
-      where: { cardId: { in: withKlps.map((c) => c.id) } },
-      select: { cardId: true, separationScore: true, status: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-    }),
-  ])
-
-  const latestAuthoring = new Map<string, { separationScore: number; status: string }>()
-  for (const a of authorings) {
-    if (!latestAuthoring.has(a.cardId)) {
-      latestAuthoring.set(a.cardId, { separationScore: a.separationScore, status: a.status })
+  const byModel = new Map<string, { provider: string; latencies: number[]; calls: number; failures: number; last: Date | null; kinds: Record<string, number> }>()
+  for (const r of rows) {
+    const bucket = byModel.get(r.model) ?? {
+      provider: r.provider, latencies: [], calls: 0, failures: 0, last: null, kinds: {},
     }
+    bucket.calls += 1
+    if (r.ok) bucket.latencies.push(r.latencyMs)
+    else {
+      bucket.failures += 1
+      if (r.failureKind) bucket.kinds[r.failureKind] = (bucket.kinds[r.failureKind] ?? 0) + 1
+    }
+    if (!bucket.last || r.createdAt > bucket.last) bucket.last = r.createdAt
+    byModel.set(r.model, bucket)
   }
 
-  return withKlps.map((card) => {
-    const indexById = new Map(card.klps.map((k, i) => [k.id, i]))
-    const authoring = latestAuthoring.get(card.id)
+  return {
+    task,
+    totalCalls: rows.length,
+    totalFailures: rows.filter((r) => !r.ok).length,
+    byModel: [...byModel.entries()]
+      .map(([model, b]) => ({
+        model,
+        provider: b.provider,
+        calls: b.calls,
+        failures: b.failures,
+        medianLatencyMs: median(b.latencies),
+        lastUsedAt: b.last,
+        failureKinds: b.kinds,
+      }))
+      .sort((a, b) => b.calls - a.calls),
+    recent: rows.slice(0, limit).map((r) => ({
+      id: r.id,
+      model: r.model,
+      provider: r.provider,
+      credentialLabel: r.credentialLabel,
+      ok: r.ok,
+      failureKind: r.failureKind,
+      latencyMs: r.latencyMs,
+      createdAt: r.createdAt,
+      userLabel: r.user.handle ?? r.user.name ?? r.user.email ?? 'unknown',
+    })),
+  }
+}
 
-    return {
-      cardId: card.id,
-      cardTerm: card.term,
-      cardDefinition: card.definition,
-      setId: card.setId,
-      separation: authoring?.separationScore ?? null,
-      status: authoring?.status ?? null,
-      klps: card.klps,
-      relations: relations
-        .map((r) => {
-          const from = indexById.get(r.fromKlpId)
-          const to = indexById.get(r.toKlpId)
-          if (from === undefined || to === undefined) return null
-          if (!isRelationType(r.type)) return null
-          return { id: r.id, from, to, type: r.type, rationale: r.rationale, probe: r.probe }
-        })
-        .filter((r): r is NonNullable<typeof r> => r !== null),
-    }
+/** Null for an empty sample — never 0, which would read as an instant response. */
+function median(values: number[]): number | null {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid]
+}
+
+/** Call counts per task, for the sub-tab strip. */
+export async function loadAiTaskCounts(): Promise<Record<string, number>> {
+  const grouped = await prisma.aiCallLog.groupBy({ by: ['task'], _count: { _all: true } })
+  return Object.fromEntries(grouped.map((g) => [g.task, g._count._all]))
+}
+
+/**
+ * Which models have authored key points, and how those cards scored.
+ *
+ * The other half of the benchmarking question: `AiCallLog` says which model was
+ * CALLED, `CardAuthoring.model` says which one produced the artifact that is
+ * still in the corpus. Rows written before that column existed report as
+ * "not recorded" rather than being attributed to a guess.
+ */
+export async function loadAuthoringByModel(): Promise<
+  { model: string; cards: number; meanSeparation: number | null; lowDiscrimination: number }[]
+> {
+  const runs = await prisma.cardAuthoring.findMany({
+    select: { model: true, separationScore: true, status: true },
   })
+  const byModel = new Map<string, { scores: number[]; low: number }>()
+  for (const r of runs) {
+    const key = r.model ?? 'not recorded'
+    const bucket = byModel.get(key) ?? { scores: [], low: 0 }
+    bucket.scores.push(r.separationScore)
+    if (r.status === 'low_discrimination') bucket.low += 1
+    byModel.set(key, bucket)
+  }
+  return [...byModel.entries()]
+    .map(([model, b]) => ({
+      model,
+      cards: b.scores.length,
+      meanSeparation: b.scores.length === 0 ? null : b.scores.reduce((s, v) => s + v, 0) / b.scores.length,
+      lowDiscrimination: b.low,
+    }))
+    .sort((a, b) => b.cards - a.cards)
 }

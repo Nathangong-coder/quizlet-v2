@@ -9,6 +9,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { SignInButton } from '@/components/auth/SignInButton'
 import { loadSetStudySummaries } from '@/lib/sets/study-summary'
+import { QUIZ_HISTORY_WHERE } from '@/lib/quiz/history'
 import { AvatarMark } from '@/components/shell/AvatarMark'
 
 const LIBRARY_TYPES = ['sets', 'folders', 'tests', 'guides'] as const
@@ -84,7 +85,7 @@ export default async function SetsPage({
     prisma.user.findUnique({ where: { id: session.user.id }, select: { id: true, name: true, handle: true, image: true, avatarUrl: true } }),
     prisma.set.findMany({ where: setWhere, orderBy: [{ updatedAt: 'desc' }, { title: 'asc' }], take: 200, select: { id: true, title: true, description: true, createdAt: true, updatedAt: true, _count: { select: { cards: true } } } }),
     prisma.folder.findMany({ where: { userId: session.user.id, ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}) }, orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }], take: 200, select: { id: true, name: true, description: true, createdAt: true, updatedAt: true, _count: { select: { sets: true, notes: true, postmortems: true, children: true } } } }),
-    prisma.quizAttempt.findMany({ where: { userId: session.user.id, ...(q ? { OR: [{ mode: { contains: q, mode: 'insensitive' } }, { set: { title: { contains: q, mode: 'insensitive' } } }] } : {}) }, orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, setId: true, mode: true, score: true, questionCount: true, sessionId: true, createdAt: true, set: { select: { title: true } } } }),
+    prisma.quizAttempt.findMany({ where: { userId: session.user.id, ...QUIZ_HISTORY_WHERE, ...(q ? { OR: [{ mode: { contains: q, mode: 'insensitive' } }, { set: { title: { contains: q, mode: 'insensitive' } } }] } : {}) }, orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, setId: true, mode: true, score: true, questionCount: true, sessionId: true, createdAt: true, set: { select: { title: true } } } }),
     prisma.studyNote.findMany({ where: { userId: session.user.id, ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { body: { contains: q, mode: 'insensitive' } }] } : {}) }, orderBy: [{ updatedAt: 'desc' }, { title: 'asc' }], take: 200, select: { id: true, title: true, body: true, createdAt: true, updatedAt: true } }),
   ])
 

@@ -275,6 +275,19 @@ describe('recent accuracy by mode', () => {
     expect(result.recent.graded).toEqual([{ mode: 'quiz-sa', avgScoreOutOfTen: 6.1, count: 2 }])
   })
 
+  it('counts diagnostic answers in the graded signal alongside short answer', () => {
+    // Both are free text graded on the same 1-10 rubric by the same kind of
+    // call. Excluding the diagnostic would hide a whole sitting's worth of
+    // written-answer signal from the profile the prompts read.
+    const e: EventRow[] = [
+      event({ cardId: 'c1', source: 'quiz-sa', score: 70, createdAt: daysAgo(1) }),
+      event({ cardId: 'c2', source: 'diagnostic', score: 50, createdAt: daysAgo(1) }),
+    ]
+
+    const result = shapeLearnerProfile({ progress: [], events: e, now: NOW })
+    expect(result.recent.graded).toEqual([{ mode: 'quiz-sa', avgScoreOutOfTen: 6, count: 2 }])
+  })
+
   it('ignores events older than the recent window', () => {
     const e: EventRow[] = [
       event({ cardId: 'c1', source: 'quiz-mc', correct: false, createdAt: daysAgo(90) }),

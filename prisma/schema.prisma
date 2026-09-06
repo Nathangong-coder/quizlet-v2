@@ -113,6 +113,7 @@ model User {
   confidenceEvents ConfidenceEvent[]
   studyEvents      StudyEvent[]
   aiCredentials    AiCredential[]
+  aiCallLogs       AiCallLog[]
   aiTaskRoutings   AiTaskRouting[]
   quizAttempts     QuizAttempt[]
   quizAnswers      QuizAnswer[]
@@ -360,6 +361,7 @@ model CardKlp {
   topics             KlpTopic[]
   relationsFrom      KlpRelation[]     @relation("RelationFrom")
   relationsTo        KlpRelation[]     @relation("RelationTo")
+  diagnosticQuestions DiagnosticQuestion[]
 
   @@unique([cardId, version, index])
   @@index([cardId, supersededAt])
@@ -866,7 +868,19 @@ model DiagnosticAttempt {
   userId      String
   setId       String
   sessionId   String   @unique
-  status      String   @default("in_progress") // in_progress | completed
+  status      String   @default("in_progress") // in_progress | completed | abandoned
+  /// Which generation of the diagnostic produced this attempt.
+  ///
+  /// 1 = pre-key-point: questions carried a free-text `learningPoint` with no
+  /// `CardKlp` behind them, so a completed run moved CardProgress/confidence
+  /// but nothing at key-point grain. 2 = every question is anchored to a live
+  /// CardKlp and wrote a QuizAnswer.
+  ///
+  /// A COLUMN even though it looks derivable from
+  /// `questions.some(q => q.klpId)`: the results view needs one field to
+  /// decide whether to show the legacy banner, and that derivation would
+  /// mislabel a NEW attempt on a set whose cards happen to have no key points.
+  engineVersion Int    @default(1)
   questionCount Int
   score       Int?
   report      Json?
@@ -901,12 +915,64 @@ model DiagnosticQuestion {
   answeredAt    DateTime?
   createdAt     DateTime @default(now())
 
-  attempt DiagnosticAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  card    Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  /// The key point this question probes — exactly one, so "only what it asked
+  /// was credited" is true by construction rather than a rule the grader has
+  /// to be trusted to respect.
+  ///
+  /// NULL means a pre-key-point question (engineVersion 1), or one whose KLP
+  /// row was removed afterwards.
+  ///
+  /// SetNull, NOT Cascade. The question text and the learner's answer are a
+  /// record of what happened; they must not disappear because a proposition
+  /// was edited away. An unattributed question is merely incomplete — a
+  /// deleted one is a hole in somebody's history.
+  klpId         String?
+  /// The QuizAnswer this question's grade was written to: the row that carries
+  /// AnswerKlpResult/AnswerErrorTag and steps KlpState. SetNull for the same
+  /// reason as klpId — erasing the answer must not erase the question asked.
+  quizAnswerId  String?  @unique
+
+  attempt    DiagnosticAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  card       Card              @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  klp        CardKlp?          @relation(fields: [klpId], references: [id], onDelete: SetNull)
+  quizAnswer QuizAnswer?       @relation(fields: [quizAnswerId], references: [id], onDelete: SetNull)
 
   @@unique([attemptId, position])
   @@index([attemptId])
   @@index([cardId, createdAt])
+  @@index([klpId])
+}
+
+/// One AI ATTEMPT, for benchmarking models per task.
+///
+/// ATTEMPT, not logical request: `generateJson` rotates credentials on failure,
+/// so one grading call can touch three models. Logging only the winner would
+/// hide the thing most worth measuring — which models fail, on what, how often.
+///
+/// Deliberately NOT linked to AiCredential by foreign key. The log has to
+/// outlive the credential: deleting a key must not erase the record of what it
+/// did, or "which model was worse" becomes unanswerable the moment somebody
+/// tidies their settings. `credentialLabel` is denormalised for the same reason.
+model AiCallLog {
+  id              String   @id @default(cuid())
+  userId          String
+  /// AiTask: grade | plan | distractors | autocomplete | note-analysis | diagnostic | author
+  task            String
+  provider        String
+  model           String
+  credentialId    String?
+  credentialLabel String
+  ok              Boolean
+  /// FailureKind (src/lib/errors/classify.ts). NULL on success.
+  failureKind     String?
+  latencyMs       Int
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([task, createdAt])
+  @@index([userId, createdAt])
+  @@index([model, createdAt])
 }
 
 model AiCredential {
@@ -1018,6 +1084,7 @@ model QuizAnswer {
   klpResults       AnswerKlpResult[]
   errorTags        AnswerErrorTag[]
   studyEvent       StudyEvent?
+  diagnosticQuestion DiagnosticQuestion?
 
   @@index([userId, cardId])
   @@index([userId, createdAt])
@@ -1263,6 +1330,12 @@ model CardAuthoring {
   referenceAnswer String   @db.Text
   separationScore Float
   revisions       Int
+  /// The model id that authored this run, e.g. "gemini-3.6-flash".
+  ///
+  /// NULLABLE because rows written before this column existed have no honest
+  /// value — the pilot rotated across three models and the only record was the
+  /// script's console output. NULL means "not recorded", never "unknown model".
+  model           String?
   /// separated | low_discrimination | failed
   status          String
   createdAt       DateTime @default(now())

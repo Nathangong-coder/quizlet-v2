@@ -26,7 +26,7 @@ import { renderTreeForPrompt, wouldCycle, MAX_TREE_DEPTH, type TreeNodeRow } fro
 export type KltPlacer = (input: { userId: string; prompt: string }) => Promise<KltPlacement>
 
 export const defaultKltPlacer: KltPlacer = ({ userId, prompt }) =>
-  generateJson({ userId, task: 'autocomplete', prompt, schema: KltPlacementSchema })
+  generateJson({ userId, task: 'concept-tree', prompt, schema: KltPlacementSchema })
 
 /**
  * A concept this set has linked (via `KlpTopic`, transitively through its

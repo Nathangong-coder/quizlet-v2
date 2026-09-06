@@ -18,7 +18,9 @@ const TABS = [
  */
 export function StaffNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname()
-  const tabs = isAdmin ? [...TABS, { href: '/staff/roles', label: 'Roles' }] : TABS
+  const tabs = isAdmin
+    ? [...TABS, { href: '/staff/ai-history', label: 'AI task history' }, { href: '/staff/roles', label: 'Roles' }]
+    : TABS
 
   return (
     <nav aria-label="Staff" className="flex gap-1 border-b">

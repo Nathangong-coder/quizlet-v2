@@ -374,19 +374,32 @@ describe("buildCategoryQuery", () => {
 describe("buildExpressionAnswerWhere", () => {
   const userId = "u1";
 
-  it("restricts readiness's denominator to analyzed SHORT-ANSWER rows", () => {
+  it("restricts readiness's denominator to analyzed FREE-TEXT rows", () => {
     // MC/TF answers hardcode dimension 'accuracy' and can never produce a
     // clarity/conciseness tag, so counting them in the denominator while only
-    // short answers feed the numerator inverts readiness: 100 MC answers plus
-    // 3 poor short answers would score ~0.96 instead of ~0.
+    // free-text answers feed the numerator inverts readiness: 100 MC answers
+    // plus 3 poor short answers would score ~0.96 instead of ~0.
+    //
+    // 'diagnostic' belongs for the mirror-image reason: it IS free text and
+    // its grader returns the same errorTags contract, so its tags reach the
+    // numerator. Omitting it would drift readiness upward per diagnostic.
     const where = buildExpressionAnswerWhere(
       buildQuizAnswerScopeWhere(userId, EMPTY_SCOPE, []),
     );
     expect(where).toEqual({
       userId,
       analysisStatus: "analyzed",
-      AND: [{ mode: "short-answer" }],
+      AND: [{ mode: { in: ["short-answer", "diagnostic"] } }],
     });
+  });
+
+  it("still excludes MC and TF from the denominator", () => {
+    const where = buildExpressionAnswerWhere(
+      buildQuizAnswerScopeWhere(userId, EMPTY_SCOPE, []),
+    );
+    const modes = (where.AND as Array<{ mode: { in: string[] } }>)[0].mode.in;
+    expect(modes).not.toContain("multiple-choice");
+    expect(modes).not.toContain("true-false");
   });
 
   it("preserves the set/category scope it is layered on top of", () => {
@@ -394,7 +407,7 @@ describe("buildExpressionAnswerWhere", () => {
       buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, setIds: ["s1"] }, []),
     );
     expect(where).toMatchObject({ userId, card: { setId: { in: ["s1"] } } });
-    expect(where.AND).toEqual([{ mode: "short-answer" }]);
+    expect(where.AND).toEqual([{ mode: { in: ["short-answer", "diagnostic"] } }]);
   });
 
   it("contradicts rather than overwrites a conflicting source scope", () => {
@@ -404,7 +417,7 @@ describe("buildExpressionAnswerWhere", () => {
       buildQuizAnswerScopeWhere(userId, { ...EMPTY_SCOPE, sources: ["quiz-mc"] }, []),
     );
     expect(where.mode).toEqual({ in: ["multiple-choice"] });
-    expect(where.AND).toEqual([{ mode: "short-answer" }]);
+    expect(where.AND).toEqual([{ mode: { in: ["short-answer", "diagnostic"] } }]);
   });
 });
 

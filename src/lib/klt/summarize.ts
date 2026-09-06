@@ -46,7 +46,7 @@ function isNoUsableCredential(err: unknown): boolean {
 export type KltGenerator = (input: { userId: string; prompt: string }) => Promise<KltSummary>;
 
 export const defaultKltGenerator: KltGenerator = ({ userId, prompt }) =>
-  generateJson({ userId, task: 'autocomplete', prompt, schema: KltSummarySchema });
+  generateJson({ userId, task: 'concept-tree', prompt, schema: KltSummarySchema });
 
 interface BatchCard {
   id: string;

@@ -71,6 +71,15 @@ export async function persistAuthoring(
   outcome: AuthoringOutcome,
   promptVersion: number,
   content: AuthoredCardContent,
+  /**
+   * The model that produced this run, when the caller knows it.
+   *
+   * OPTIONAL because `defaultGenerator` routes through the credential pool,
+   * which fails over between credentials mid-run and therefore cannot promise
+   * which model served any given call. `--direct` pins one model per card and
+   * can. Recording it only where it is actually known beats recording a guess.
+   */
+  model?: string,
 ): Promise<{ authoringId: string; klpIds: string[] }> {
   const rows: KlpRowInput[] = outcome.klps.map((k) => ({
     text: k.text,
@@ -93,6 +102,7 @@ export async function persistAuthoring(
         separationScore: outcome.separationScore,
         revisions: outcome.revisions,
         status: outcome.status,
+        model: model ?? null,
       },
     })
 

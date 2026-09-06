@@ -12,21 +12,42 @@ export const STATUS_CREDIT: Record<KlpStatus, number> = {
 
 /**
  * `1 - guessRate`: how much a CORRECT answer in this mode actually proves.
- * Four-option MC can be guessed 1-in-4; true/false is a coin flip.
+ * Four-option MC can be guessed 1-in-4; true/false is a coin flip; free text
+ * has nothing to guess from.
  *
- * Only the three modes Spec 2a actually grades against a KLP. `klpCredit`'s
- * `mode` parameter is typed as the full `StudySource` (review/matching/lesson
- * included) because that's what `AnswerKlpResult.mode` and the callers it
- * flows through are typed as — but this map intentionally does NOT carry an
- * entry for those three: nothing calls `klpCredit` with them today, and a
- * guessed number for a mode nobody has reasoned about would be worse than no
- * number at all. `DEFAULT_STRENGTH` covers them if that ever changes.
+ * Only the modes actually graded against a KLP. `klpCredit`'s `mode` parameter
+ * is typed as the full `StudySource` (review/matching/lesson included) because
+ * that's what `AnswerKlpResult.mode` and the callers it flows through are typed
+ * as — but this map intentionally does NOT carry an entry for those three:
+ * nothing calls `klpCredit` with them today, and a guessed number for a mode
+ * nobody has reasoned about would be worse than no number at all.
+ * `DEFAULT_STRENGTH` covers them if that ever changes.
+ *
+ * `diagnostic` is 0.95, not the `DEFAULT_STRENGTH` it silently took before
+ * (audit gap G8): a diagnostic answer is free text with no options to choose
+ * from, so its guess rate is short answer's. Falling back meant every
+ * diagnostic BKT posterior was computed as though the learner had a 1-in-4
+ * shot at being right by luck.
  */
 export const EVIDENCE_STRENGTH: Record<string, number> = {
   'quiz-sa': 0.95,
   'quiz-mc': 0.75,
   'quiz-tf': 0.5,
+  diagnostic: 0.95,
 }
+
+/**
+ * The modes that can reach `klpCredit` — i.e. that write `AnswerKlpResult`.
+ *
+ * Exists so a test can assert `EVIDENCE_STRENGTH` is TOTAL over it. G8 was a
+ * mode added to `STUDY_SOURCES` and not to the map above, with no failure
+ * anywhere: the fallback quietly supplied a number for a mode nobody had
+ * reasoned about. Adding a graded mode without a strength must now break the
+ * build instead.
+ */
+export const GRADED_KLP_MODES: StudySource[] = [
+  'quiz-sa', 'quiz-mc', 'quiz-tf', 'diagnostic',
+]
 
 /**
  * Fallback for any `StudySource` not in `EVIDENCE_STRENGTH` above. Matches

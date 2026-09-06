@@ -3,6 +3,10 @@ import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import FlashcardSection from '@/components/flashcard/FlashcardSection'
 import { TermsList } from '@/components/sets/TermsList'
+import { SetListToggle } from '@/components/sets/SetListToggle'
+import { KlpCardPanel } from '@/components/klp/KlpCardPanel'
+import { loadCardKlpGraphs } from '@/lib/klp/card-graphs'
+import { isAdmin } from '@/lib/auth/roles'
 import { ActivityTiles } from '@/components/sets/ActivityTiles'
 import { readableSetWhere } from '@/lib/sets/visibility'
 import { normalizeTextMarks } from '@/lib/cards/content'
@@ -26,10 +30,19 @@ import { normalizeTextMarks } from '@/lib/cards/content'
  * carry its own guard — a layout's check is not inherited by a page's query,
  * and relying on it would be a guard that exists somewhere else.
  */
-export default async function SetStudyPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SetStudyPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ list?: string }>
+}) {
   const { id } = await params
+  const { list } = await searchParams
   const session = await auth()
   const viewerId = session?.user?.id ?? null
+  const viewerIsAdmin = isAdmin(session?.user?.role)
+  const listView = list === 'klp' ? 'klp' : 'terms'
 
   const [set, progressList] = await Promise.all([
     prisma.set.findFirst({
@@ -54,6 +67,11 @@ export default async function SetStudyPage({ params }: { params: Promise<{ id: s
   ])
 
   if (!set) notFound()
+
+  // Loaded only for the view that shows it. `readableSetWhere` above has
+  // already authorised this set for this viewer; `loadCardKlpGraphs` gates
+  // nothing itself, so the guard has to be the one immediately above it.
+  const klpGraphs = listView === 'klp' ? await loadCardKlpGraphs(id) : []
 
   const progressByCardId = new Map(progressList.map((p) => [p.cardId, p]))
 
@@ -82,12 +100,40 @@ export default async function SetStudyPage({ params }: { params: Promise<{ id: s
 
       {cards.length > 0 && <FlashcardSection cards={cards} />}
 
-      <TermsList
-        cards={cards}
-        progressMap={progressByCardId}
-        userId={viewerId ?? undefined}
-        setId={id}
-      />
+      <div className="space-y-4">
+        <SetListToggle setId={id} current={listView} />
+
+        {listView === 'klp' ? (
+          klpGraphs.length === 0 ? (
+            <p className="py-8 text-sm text-muted-foreground">
+              This set has no key points yet. They are written when a card is analysed &mdash; a set
+              whose cards were only just added will not have them.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {klpGraphs.map((g) => (
+                <KlpCardPanel
+                  key={g.cardId}
+                  cardTerm={g.cardTerm}
+                  cardDefinition={g.cardDefinition}
+                  klps={g.klps}
+                  relations={g.relations}
+                  separation={g.separation}
+                  status={g.status}
+                  isAdmin={viewerIsAdmin}
+                />
+              ))}
+            </div>
+          )
+        ) : (
+          <TermsList
+            cards={cards}
+            progressMap={progressByCardId}
+            userId={viewerId ?? undefined}
+            setId={id}
+          />
+        )}
+      </div>
     </>
   )
 }

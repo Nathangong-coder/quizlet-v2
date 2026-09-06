@@ -138,12 +138,58 @@ export function flagworthyFailures(failures: AttemptRow[]): AttemptRow[] {
   );
 }
 
+/** One attempt, as it will be stored. */
+export interface AiCallRecord {
+  userId: string;
+  task: AiTask;
+  provider: string;
+  model: string;
+  credentialId: string;
+  credentialLabel: string;
+  ok: boolean;
+  failureKind: FailureKind | null;
+  latencyMs: number;
+}
+
+/**
+ * Persists attempt logs. NEVER THROWS.
+ *
+ * Benchmarking data is worth having and is not worth failing a user's grading
+ * over. If the insert fails the generation still succeeded, and the honest
+ * outcome is a gap in the log rather than an error the caller cannot act on.
+ */
+export async function recordAiCalls(prisma: PrismaClient, calls: AiCallRecord[]): Promise<void> {
+  if (calls.length === 0) return;
+  try {
+    await prisma.aiCallLog.createMany({ data: calls });
+  } catch (err) {
+    console.error('Failed to record AI call log', err);
+  }
+}
+
 export interface GenerateJsonInput<T> {
   userId: string;
   task: AiTask;
   schema: z.ZodSchema<T>;
   prompt?: string;
   parts?: GeminiPart[];
+  /**
+   * Ceiling on the model's OUTPUT tokens, reasoning included. Omitted, the
+   * provider default applies, which is what every call site did until the
+   * diagnostic needed otherwise.
+   *
+   * It exists because reasoning tokens are invisible until they run out.
+   * Measured on gemini-3.5-flash: grading one diagnostic answer costs ~900
+   * output tokens of which ~92% are REASONING, so a four-question grading call
+   * hit the default ceiling and came back `finishReason: 'length'` — which the
+   * SDK surfaces as `NoObjectGeneratedError`, i.e. `schema_invalid`, so it
+   * reads as a model that cannot follow a schema rather than one that ran out
+   * of room. Batching alone did not fix it: two batches succeeded and the
+   * third did not, because the budget is per call and reasoning varies.
+   *
+   * Set it on any task whose output scales with its input.
+   */
+  maxOutputTokens?: number;
 }
 
 /**
@@ -292,13 +338,41 @@ export async function resolveTaskModel(userId: string, task: AiTask): Promise<st
   return candidates[0]?.model ?? null;
 }
 
+/** What actually served a request, once rotation has settled. */
+export interface GenerationMeta {
+  /** The model that produced the value — the one that SUCCEEDED, not the one tried first. */
+  model: string
+  provider: string
+  credentialId: string
+  credentialLabel: string
+  /** How many credentials had to fail before this one worked. 0 on a clean first attempt. */
+  failedAttempts: number
+}
+
 /**
  * The single generation entry point. Call sites name a task; credential
  * selection, decryption, rotation, and failure aggregation happen here.
  */
-export async function generateJson<T>({
-  userId, task, schema, prompt, parts,
-}: GenerateJsonInput<T>): Promise<T> {
+export async function generateJson<T>(input: GenerateJsonInput<T>): Promise<T> {
+  const { value } = await generateJsonWithMeta(input);
+  return value;
+}
+
+/**
+ * `generateJson`, plus which credential and model actually served it.
+ *
+ * Rotation does not make the served model unknowable — it just means it is not
+ * knowable in ADVANCE. By the time the value is in hand, exactly one attempt
+ * succeeded and its model is a fact. Callers that persist an artifact (KLP
+ * authoring writes `CardAuthoring.model`) need that fact, and were previously
+ * told to leave it null on the pooled path for no good reason.
+ *
+ * `generateJson` stays the default so the twenty-odd call sites that do not
+ * care are unaffected.
+ */
+export async function generateJsonWithMeta<T>({
+  userId, task, schema, prompt, parts, maxOutputTokens,
+}: GenerateJsonInput<T>): Promise<{ value: T; meta: GenerationMeta }> {
   const { prisma } = await import('@/lib/db');
 
   const pool = await resolveCandidates(prisma, userId, task);
@@ -310,6 +384,12 @@ export async function generateJson<T>({
   if (candidates.length === 0) {
     throw new AiGenerationError(describeEmptyPool(pool));
   }
+
+  // One row per ATTEMPT, written after the call resolves either way. Collected
+  // rather than written inline so a slow log never sits between the user and
+  // their answer, and so a failed attempt is recorded as faithfully as a
+  // successful one — which models fail, on which task, is the whole point.
+  const calls: AiCallRecord[] = [];
 
   let result: AttemptSuccess<T>;
   try {
@@ -349,13 +429,39 @@ export async function generateJson<T>({
       // On the last credential there is nothing to rotate to, and the SDK's
       // retry is the only resilience left, so it is kept. A single-credential
       // user therefore sees no change at all.
-      const { output } = await generateText({
-        model,
-        output: Output.object({ schema }),
-        maxRetries: isLast ? 2 : 0,
-        ...(parts ? { messages: [{ role: 'user' as const, content: toSdkContent(parts) }] } : { prompt: prompt ?? '' }),
-      });
-      return output as T;
+      const startedAt = Date.now();
+      try {
+        const { output } = await generateText({
+          model,
+          output: Output.object({ schema }),
+          maxRetries: isLast ? 2 : 0,
+          ...(maxOutputTokens ? { maxOutputTokens } : {}),
+          ...(parts ? { messages: [{ role: 'user' as const, content: toSdkContent(parts) }] } : { prompt: prompt ?? '' }),
+        });
+        calls.push({
+          userId, task,
+          provider: cred.provider,
+          model: candidate.model,
+          credentialId: cred.id,
+          credentialLabel: cred.label,
+          ok: true,
+          failureKind: null,
+          latencyMs: Date.now() - startedAt,
+        });
+        return output as T;
+      } catch (err) {
+        calls.push({
+          userId, task,
+          provider: cred.provider,
+          model: candidate.model,
+          credentialId: cred.id,
+          credentialLabel: cred.label,
+          ok: false,
+          failureKind: classifyProviderError(err),
+          latencyMs: Date.now() - startedAt,
+        });
+        throw err;
+      }
     });
   } catch (err) {
     // Every credential failed, so `runAttempts` threw instead of returning —
@@ -364,6 +470,7 @@ export async function generateJson<T>({
     if (err instanceof AiGenerationError && err.detail.attempts?.length) {
       await flagFailures(prisma, userId, flagworthyFailures(err.detail.attempts));
     }
+    await recordAiCalls(prisma, calls);
     throw err;
   }
 
@@ -371,6 +478,21 @@ export async function generateJson<T>({
   // working key as broken. Each row carries its own credentialId, so this never
   // depends on array positions lining up.
   await flagFailures(prisma, userId, flagworthyFailures(result.failures));
+  await recordAiCalls(prisma, calls);
 
-  return result.value;
+  // The winning attempt is the last one logged: `runAttempts` returns as soon as
+  // one succeeds, so nothing is pushed after it.
+  const won = calls[calls.length - 1];
+  const winner = byId.get(result.usedId)!;
+
+  return {
+    value: result.value,
+    meta: {
+      model: won?.model ?? winner.defaultModel,
+      provider: winner.provider,
+      credentialId: winner.id,
+      credentialLabel: winner.label,
+      failedAttempts: result.failures.length,
+    },
+  };
 }

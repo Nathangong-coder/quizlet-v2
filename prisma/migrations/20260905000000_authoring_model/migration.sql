@@ -1,0 +1,16 @@
+-- prisma/migrations/20260905000000_authoring_model/migration.sql
+--
+-- Record WHICH MODEL authored a card's key points.
+--
+-- The 10-card LBO pilot ran across three different Gemini models, because the
+-- free tier caps requests per day PER MODEL and the run had to rotate to
+-- finish. Afterwards there was no way to answer "which model wrote this card"
+-- from the database at all — the only record was the script's console output.
+-- That matters now the owner is judging quality per card: without it, "these
+-- ones look weaker" cannot be traced to anything.
+--
+-- NULLABLE, and staying that way. Every existing row predates the column and
+-- there is no honest value to backfill them with — inventing one would assert
+-- a provenance nobody recorded, which is the same failure as fabricating a
+-- verdict. NULL reads as "not recorded", which is the truth.
+ALTER TABLE "CardAuthoring" ADD COLUMN "model" TEXT;
