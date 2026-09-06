@@ -452,3 +452,148 @@ export async function loadLearnerRecord(userId: string): Promise<LearnerRecord |
     ),
   }
 }
+
+export interface AiTaskStat {
+  model: string
+  provider: string
+  calls: number
+  failures: number
+  /** Successful calls only — a failure's latency measures the error, not the model. */
+  medianLatencyMs: number | null
+  lastUsedAt: Date | null
+  failureKinds: Record<string, number>
+}
+
+export interface AiTaskHistory {
+  task: string
+  totalCalls: number
+  totalFailures: number
+  byModel: AiTaskStat[]
+  recent: {
+    id: string
+    model: string
+    provider: string
+    credentialLabel: string
+    ok: boolean
+    failureKind: string | null
+    latencyMs: number
+    createdAt: Date
+    userLabel: string
+  }[]
+}
+
+/**
+ * Per-model performance on one task, for benchmarking.
+ *
+ * MEDIAN, not mean, and computed over SUCCESSES only. A mean is dragged around
+ * by one 30-second timeout, and a failed call's latency measures how long the
+ * provider took to say no — which is not a property of the model worth
+ * comparing against a model that answered.
+ *
+ * Failure kinds are counted separately rather than folded into a rate, because
+ * they are not interchangeable: `quota_exhausted` says the key ran out,
+ * `schema_invalid` says the MODEL could not follow the contract. Only the
+ * second is evidence about the model, and the pilot proved it varies wildly —
+ * gemini-2.5-flash could not satisfy the authoring schema at all.
+ */
+export async function loadAiTaskHistory(task: string, limit = 50): Promise<AiTaskHistory> {
+  const rows = await prisma.aiCallLog.findMany({
+    where: { task },
+    orderBy: { createdAt: 'desc' },
+    take: 2000,
+    select: {
+      id: true, model: true, provider: true, credentialLabel: true, ok: true,
+      failureKind: true, latencyMs: true, createdAt: true,
+      user: { select: { handle: true, name: true, email: true } },
+    },
+  })
+
+  const byModel = new Map<string, { provider: string; latencies: number[]; calls: number; failures: number; last: Date | null; kinds: Record<string, number> }>()
+  for (const r of rows) {
+    const bucket = byModel.get(r.model) ?? {
+      provider: r.provider, latencies: [], calls: 0, failures: 0, last: null, kinds: {},
+    }
+    bucket.calls += 1
+    if (r.ok) bucket.latencies.push(r.latencyMs)
+    else {
+      bucket.failures += 1
+      if (r.failureKind) bucket.kinds[r.failureKind] = (bucket.kinds[r.failureKind] ?? 0) + 1
+    }
+    if (!bucket.last || r.createdAt > bucket.last) bucket.last = r.createdAt
+    byModel.set(r.model, bucket)
+  }
+
+  return {
+    task,
+    totalCalls: rows.length,
+    totalFailures: rows.filter((r) => !r.ok).length,
+    byModel: [...byModel.entries()]
+      .map(([model, b]) => ({
+        model,
+        provider: b.provider,
+        calls: b.calls,
+        failures: b.failures,
+        medianLatencyMs: median(b.latencies),
+        lastUsedAt: b.last,
+        failureKinds: b.kinds,
+      }))
+      .sort((a, b) => b.calls - a.calls),
+    recent: rows.slice(0, limit).map((r) => ({
+      id: r.id,
+      model: r.model,
+      provider: r.provider,
+      credentialLabel: r.credentialLabel,
+      ok: r.ok,
+      failureKind: r.failureKind,
+      latencyMs: r.latencyMs,
+      createdAt: r.createdAt,
+      userLabel: r.user.handle ?? r.user.name ?? r.user.email ?? 'unknown',
+    })),
+  }
+}
+
+/** Null for an empty sample — never 0, which would read as an instant response. */
+function median(values: number[]): number | null {
+  if (values.length === 0) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid]
+}
+
+/** Call counts per task, for the sub-tab strip. */
+export async function loadAiTaskCounts(): Promise<Record<string, number>> {
+  const grouped = await prisma.aiCallLog.groupBy({ by: ['task'], _count: { _all: true } })
+  return Object.fromEntries(grouped.map((g) => [g.task, g._count._all]))
+}
+
+/**
+ * Which models have authored key points, and how those cards scored.
+ *
+ * The other half of the benchmarking question: `AiCallLog` says which model was
+ * CALLED, `CardAuthoring.model` says which one produced the artifact that is
+ * still in the corpus. Rows written before that column existed report as
+ * "not recorded" rather than being attributed to a guess.
+ */
+export async function loadAuthoringByModel(): Promise<
+  { model: string; cards: number; meanSeparation: number | null; lowDiscrimination: number }[]
+> {
+  const runs = await prisma.cardAuthoring.findMany({
+    select: { model: true, separationScore: true, status: true },
+  })
+  const byModel = new Map<string, { scores: number[]; low: number }>()
+  for (const r of runs) {
+    const key = r.model ?? 'not recorded'
+    const bucket = byModel.get(key) ?? { scores: [], low: 0 }
+    bucket.scores.push(r.separationScore)
+    if (r.status === 'low_discrimination') bucket.low += 1
+    byModel.set(key, bucket)
+  }
+  return [...byModel.entries()]
+    .map(([model, b]) => ({
+      model,
+      cards: b.scores.length,
+      meanSeparation: b.scores.length === 0 ? null : b.scores.reduce((s, v) => s + v, 0) / b.scores.length,
+      lowDiscrimination: b.low,
+    }))
+    .sort((a, b) => b.cards - a.cards)
+}

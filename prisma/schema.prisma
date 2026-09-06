@@ -113,6 +113,7 @@ model User {
   confidenceEvents ConfidenceEvent[]
   studyEvents      StudyEvent[]
   aiCredentials    AiCredential[]
+  aiCallLogs       AiCallLog[]
   aiTaskRoutings   AiTaskRouting[]
   quizAttempts     QuizAttempt[]
   quizAnswers      QuizAnswer[]
@@ -907,6 +908,38 @@ model DiagnosticQuestion {
   @@unique([attemptId, position])
   @@index([attemptId])
   @@index([cardId, createdAt])
+}
+
+/// One AI ATTEMPT, for benchmarking models per task.
+///
+/// ATTEMPT, not logical request: `generateJson` rotates credentials on failure,
+/// so one grading call can touch three models. Logging only the winner would
+/// hide the thing most worth measuring — which models fail, on what, how often.
+///
+/// Deliberately NOT linked to AiCredential by foreign key. The log has to
+/// outlive the credential: deleting a key must not erase the record of what it
+/// did, or "which model was worse" becomes unanswerable the moment somebody
+/// tidies their settings. `credentialLabel` is denormalised for the same reason.
+model AiCallLog {
+  id              String   @id @default(cuid())
+  userId          String
+  /// AiTask: grade | plan | distractors | autocomplete | note-analysis | diagnostic | author
+  task            String
+  provider        String
+  model           String
+  credentialId    String?
+  credentialLabel String
+  ok              Boolean
+  /// FailureKind (src/lib/errors/classify.ts). NULL on success.
+  failureKind     String?
+  latencyMs       Int
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([task, createdAt])
+  @@index([userId, createdAt])
+  @@index([model, createdAt])
 }
 
 model AiCredential {

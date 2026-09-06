@@ -71,6 +71,7 @@ const SHELLED_ROUTES = [
   'staff/learners/page.tsx',
   'staff/learners/[id]/page.tsx',
   'staff/roles/page.tsx',
+  'staff/ai-history/page.tsx',
   'help/page.tsx',
   'concepts/page.tsx',
 ]
