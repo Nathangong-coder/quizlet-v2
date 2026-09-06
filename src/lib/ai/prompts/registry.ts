@@ -39,7 +39,7 @@ export { STUDY_NOTE_ANALYSIS_PROMPT } from './study-note';
 export type { StudyNoteAnalysisBuildInput } from './study-note';
 
 export { DIAGNOSTIC_QUESTIONS_PROMPT, DIAGNOSTIC_GRADING_PROMPT, DIAGNOSTIC_REPORT_PROMPT } from './diagnostic';
-export type { DiagnosticQuestionsBuildInput, DiagnosticGradingBuildInput, DiagnosticReportBuildInput } from './diagnostic';
+export type { DiagnosticQuestionsBuildInput, DiagnosticGradingBuildInput, DiagnosticReportBuildInput, DiagnosticProbePromptInput } from './diagnostic';
 
 export { SESSION_INSIGHT_PROMPT } from './session-insight';
 export type { SessionInsightBuildInput } from './session-insight';
