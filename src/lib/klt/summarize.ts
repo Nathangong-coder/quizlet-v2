@@ -46,6 +46,8 @@ function isNoUsableCredential(err: unknown): boolean {
 export type KltGenerator = (input: { userId: string; prompt: string }) => Promise<KltSummary>;
 
 export const defaultKltGenerator: KltGenerator = ({ userId, prompt }) =>
+  // ATTRIBUTION: deferred with the rest of the concept tree. Summarising writes
+  // shared KltNode rows with no provenance column; see klt-seed.ts.
   generateJson({ userId, task: 'concept-tree', prompt, schema: KltSummarySchema });
 
 interface BatchCard {

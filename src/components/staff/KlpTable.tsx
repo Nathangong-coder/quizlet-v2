@@ -28,6 +28,7 @@ export function KlpTable({ rows }: { rows: StaffKlpRow[] }) {
             <th scope="col" className="pb-2 font-normal text-muted-foreground">Key point</th>
             <th scope="col" className="pb-2 font-normal text-muted-foreground">Card</th>
             <th scope="col" className="pb-2 font-normal text-muted-foreground">Kind</th>
+            <th scope="col" className="pb-2 font-normal text-muted-foreground">Model</th>
             <th scope="col" className="pb-2 font-normal text-muted-foreground text-right">Weight</th>
             <th scope="col" className="pb-2 font-normal text-muted-foreground">Topics</th>
             <th scope="col" className="pb-2 font-normal text-muted-foreground text-right">Learners</th>
@@ -55,6 +56,14 @@ export function KlpTable({ rows }: { rows: StaffKlpRow[] }) {
                 </Link>
               </td>
               <td className="py-2 pr-4 text-muted-foreground">{r.kind}</td>
+              {/*
+                NULL is the honest answer for every KLP written before
+                2026-09-06, and it is permanent: nothing anywhere records what
+                produced them. An em dash says "unknown", not "none".
+              */}
+              <td className="py-2 pr-4 font-mono text-xs text-muted-foreground">
+                {r.model ?? <span title="Written before model attribution existed">&mdash;</span>}
+              </td>
               <td className="py-2 pr-4 text-right font-mono tabular-nums">{r.weight}</td>
               <td className="py-2 pr-4 text-muted-foreground">
                 {r.topics.length === 0

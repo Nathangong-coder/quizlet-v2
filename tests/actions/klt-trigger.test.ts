@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
+// Newlines are normalised: core.autocrlf=true means the working tree carries
+// CRLF on Windows while the repo stores LF, so a regex written against a
+// line break would pass or fail depending on who checked the file out --
+// a property of the clone, not of the source.
+const read = (p: string) =>
+  readFileSync(join(process.cwd(), p), 'utf8').replace(/\r\n/g, '\n')
 
 const sets = read('src/actions/sets.ts')
 const klp = read('src/actions/klp.ts')

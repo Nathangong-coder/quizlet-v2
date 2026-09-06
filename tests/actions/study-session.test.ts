@@ -22,7 +22,13 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
-vi.mock('@/lib/ai/generate', () => ({ generateJson: h.generateJson }))
+vi.mock('@/lib/ai/generate', () => ({
+  generateJson: h.generateJson,
+  generateJsonWithMeta: async (...args: unknown[]) => ({
+    value: await h.generateJson(...args),
+    meta: { model: 'test-model', provider: 'google', credentialId: 'cred-1' },
+  }),
+}))
 vi.mock('@/lib/ai/context', () => ({ safeProfileBlock: h.safeProfileBlock }))
 
 import { startStudySession, finishStudySession, generateSessionInsight } from '@/actions/study-session'

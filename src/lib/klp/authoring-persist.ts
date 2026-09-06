@@ -87,6 +87,10 @@ export async function persistAuthoring(
     kind: k.kind,
     source: 'ai',
     promptVersion,
+    // The same model that `CardAuthoring.model` records, now on the KLP rows
+    // themselves — so "which model wrote this proposition" is answerable
+    // without joining back through the authoring run.
+    model,
   }))
 
   const hash = klpSourceHash({ term: content.term, definition: content.definition, blocks: content.blocks })

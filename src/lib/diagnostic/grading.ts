@@ -95,3 +95,77 @@ export function averageDiagnosticScore(scores: Array<number | null>): number | n
   if (graded.length === 0) return null
   return Math.round((graded.reduce((sum, score) => sum + score, 0) / graded.length) * 10)
 }
+
+/**
+ * The output-token ceiling for the end-of-run report call.
+ *
+ * The report is the LARGEST output the diagnostic asks for — an overview, up to
+ * 8 strengths, 12 gaps, 12 recommendations and 24 key-point readouts of three
+ * text fields each — and until now it was the one call with no ceiling at all,
+ * which made it the most likely place for the next runaway.
+ *
+ * It degrades better than grading does (`fallbackReport` composes a real report
+ * from the grades already in hand), so this is sized generously: the job is to
+ * stop an endless loop, not to police a long report.
+ */
+export function diagnosticReportOutputCap(questionCount: number): number {
+  return 3000 + 1000 * Math.max(1, questionCount)
+}
+
+/**
+ * How much of a learner's answer the REPORT prompt carries per question.
+ *
+ * The report summarises a whole sitting, so it repeats every answer — and an
+ * answer may be up to 10,000 characters. Twelve of those is ~120,000 characters
+ * of input for a call whose job is to generalise, and every one of those tokens
+ * also gives the model more to ramble about.
+ *
+ * GRADING is deliberately NOT truncated: a grade must be made on what the
+ * learner actually wrote. Only the summary sees an excerpt.
+ */
+export const REPORT_ANSWER_EXCERPT = 600
+
+export function excerptForReport(answer: string): string {
+  return answer.length <= REPORT_ANSWER_EXCERPT
+    ? answer
+    : `${answer.slice(0, REPORT_ANSWER_EXCERPT)}…`
+}
+
+/**
+ * Is a failed grading call worth retrying one question at a time?
+ *
+ * ONLY when something failed with `schema_invalid`. That is the kind produced
+ * by a response too large to parse — the degenerate repetition loop — and it is
+ * the one failure a SMALLER call genuinely fixes.
+ *
+ * Everything else must not be retried, and the reason is not politeness about
+ * load. `quota_exhausted` means the daily cap is gone: four per-question
+ * retries are four guaranteed failures that burn four more requests from a
+ * budget that is already empty, and they would then mark four questions
+ * permanently ungraded for a problem that fixes itself tomorrow. The same
+ * argument applies to `no_credentials`, `invalid_key` and `rate_limited` —
+ * asking for less does not make an absent key present.
+ *
+ * `some`, not `every`: with several credentials in the pool one may hit quota
+ * while another returns an unparseable response, and the second is still worth
+ * a smaller retry.
+ */
+export function shouldRetryPerQuestion(failureKinds: readonly string[]): boolean {
+  return failureKinds.some((kind) => kind === 'schema_invalid')
+}
+
+/**
+ * The failure kinds behind an `AiGenerationError`, or `[]` for any other error.
+ *
+ * Reads `detail.attempts` — the aggregate of EVERY credential tried, not just
+ * the last — because a pool where one key hit quota and another produced
+ * garbage needs both facts to be routed correctly.
+ *
+ * Typed structurally rather than importing `AiGenerationError`, so this module
+ * stays free of the generation stack and remains unit-testable without it.
+ */
+export function failureKindsOf(error: unknown): string[] {
+  const detail = (error as { detail?: { attempts?: Array<{ kind?: string }> } })?.detail
+  if (!detail?.attempts) return []
+  return detail.attempts.map((attempt) => attempt.kind).filter((kind): kind is string => Boolean(kind))
+}

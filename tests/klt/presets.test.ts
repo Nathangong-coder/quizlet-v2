@@ -227,6 +227,7 @@ vi.mock('@/auth', () => ({ auth: h.auth }))
 // provider call.
 vi.mock('@/lib/ai/generate', () => ({
   generateJson: vi.fn(),
+  generateJsonWithMeta: vi.fn(),
   AiGenerationError: class extends Error {
     detail = { attempts: [] }
   },

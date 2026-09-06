@@ -10,12 +10,38 @@ import {
 import { AI_TASKS } from '@/lib/ai/model-routing';
 
 describe('the approved list', () => {
-  it('is exactly the three models the owner approved', () => {
+  it('is exactly the models the owner approved, on measured evidence', () => {
+    // This assertion is the point of the guard, not an inconvenience: widening
+    // the list is an owner decision about what may write into a learner's
+    // history, so it must not happen as a side effect of some other change.
+    // Each entry was verified by a real generation call (`npm run probe-models`)
+    // against the diagnostic grading schema — never a listing call, and never a
+    // benchmark, neither of which says anything about nested-schema compliance.
     expect([...GOOGLE_APPROVED_MODELS]).toEqual([
       'gemini-3.6-flash',
       'gemini-3.5-flash',
       'gemini-3.5-flash-lite',
+      // Added 2026-09-06: graded the probe correctly in 300 output tokens and
+      // 1.5s, the cheapest and fastest measured.
+      'gemini-3.1-flash-lite',
     ]);
+  });
+
+  it('excludes the models that were measured and failed', () => {
+    // Named explicitly so a future "just add the newest one" cannot quietly
+    // re-admit something already tested and rejected. Measured 2026-09-06:
+    // 3.4-flash does not exist; the Gemma instruction-tuned models cannot
+    // produce a parseable object; 3.7-flash spent 4,185 output tokens where
+    // 3.1-flash-lite spent 300 and still hit the ceiling.
+    for (const rejected of [
+      'gemini-2.5-flash',
+      'gemini-3.4-flash',
+      'gemini-3.7-flash',
+      'gemma-4-31b-it',
+      'gemma-4-26b-a4b-it',
+    ]) {
+      expect(GOOGLE_APPROVED_MODELS, rejected).not.toContain(rejected);
+    }
   });
 
   it('falls back to an approved model, never to one outside its own list', () => {

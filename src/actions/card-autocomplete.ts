@@ -42,6 +42,9 @@ export async function getCardAutocompleteSuggestions(
     if (!set) return { success: false, error: 'Set not found' };
 
     const prompt = AUTOCOMPLETE_PROMPT.build({ set, currentText, side, categories, referenceText });
+    // ATTRIBUTION: nothing to attribute. Autocomplete suggestions are
+    // cosmetic and discarded the moment the field loses focus; no row is
+    // written, so there is nothing to hang a model on.
     const result = await generateJson({
       userId: session.user.id,
       task: 'autocomplete',
@@ -73,6 +76,9 @@ export async function generateCardAutofill(
     if (!set) return { success: false, error: 'Set not found' };
 
     const prompt = CARD_AUTOFILL_PROMPT.build({ set, term, definition, categories });
+    // ATTRIBUTION: nothing to attribute. Autocomplete suggestions are
+    // cosmetic and discarded the moment the field loses focus; no row is
+    // written, so there is nothing to hang a model on.
     const result = await generateJson({
       userId: session.user.id,
       task: 'autocomplete',

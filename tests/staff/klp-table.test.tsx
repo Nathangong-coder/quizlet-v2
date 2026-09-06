@@ -18,6 +18,7 @@ function row(over: Partial<StaffKlpRow> = {}): StaffKlpRow {
     weight: 5,
     version: 1,
     supersededAt: null,
+  model: null,
     topics: [{ name: 'income statement', rank: 1 }],
     learnerCount: 3,
     meanPKnown: 0.62,
@@ -53,7 +54,8 @@ describe('KlpTable', () => {
     const { container } = render(<KlpTable rows={[row({ learnerCount: 0, meanPKnown: null })]} />)
     expect(screen.queryByText('0%')).not.toBeInTheDocument()
     const cells = container.querySelectorAll('tbody td')
-    const meanKnownCell = cells[6]
+    // 7, not 6: a Model column now sits after Kind.
+    const meanKnownCell = cells[7]
     expect(meanKnownCell.textContent?.trim()).toBe('—')
   })
 

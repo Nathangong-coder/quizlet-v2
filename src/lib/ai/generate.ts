@@ -25,6 +25,7 @@ import { toSdkContent, type GeminiPart } from '@/lib/ai/media-adapter';
 // AiTask is declared once, in model-routing.ts (it already exports it today).
 // Do not re-declare it here — two definitions would drift.
 import type { AiTask } from '@/lib/ai/model-routing';
+import { temperatureForTask } from '@/lib/ai/temperature';
 import { enforceModelPolicy } from '@/lib/ai/model-policy';
 
 /**
@@ -149,6 +150,19 @@ export interface AiCallRecord {
   ok: boolean;
   failureKind: FailureKind | null;
   latencyMs: number;
+  /**
+   * Provider-reported token usage. Undefined on a failure, which normally
+   * returns none — and left undefined rather than zeroed, because a 0 is a
+   * claim that the attempt was free and would make cost totals understate.
+   *
+   * `reasoningTokens` is separate because it is normally the MAJORITY of
+   * output and is invisible in the text: one grading call spent 1,963 output
+   * tokens of which 1,589 were reasoning.
+   */
+  inputTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+  cachedTokens?: number;
 }
 
 /**
@@ -431,10 +445,15 @@ export async function generateJsonWithMeta<T>({
       // user therefore sees no change at all.
       const startedAt = Date.now();
       try {
-        const { output } = await generateText({
+        const { output, usage } = await generateText({
           model,
           output: Output.object({ schema }),
           maxRetries: isLast ? 2 : 0,
+          // Per TASK, and never left unset. Until 2026-09-06 nothing here set a
+          // temperature, so every judgment ran at the provider default of 1.0 —
+          // see src/lib/ai/temperature.ts for the repetition loop and the
+          // cross-script drift that produced.
+          temperature: temperatureForTask(task),
           ...(maxOutputTokens ? { maxOutputTokens } : {}),
           ...(parts ? { messages: [{ role: 'user' as const, content: toSdkContent(parts) }] } : { prompt: prompt ?? '' }),
         });
@@ -447,6 +466,14 @@ export async function generateJsonWithMeta<T>({
           ok: true,
           failureKind: null,
           latencyMs: Date.now() - startedAt,
+          // Reasoning is recorded separately, not folded into output: it is
+          // normally the majority of the spend and invisible in the text, so a
+          // cost review counting only what it can read is wrong by several
+          // times. Left undefined when the provider reports nothing.
+          inputTokens: usage?.inputTokens,
+          outputTokens: usage?.outputTokens,
+          reasoningTokens: usage?.outputTokenDetails?.reasoningTokens,
+          cachedTokens: usage?.inputTokenDetails?.cacheReadTokens,
         });
         return output as T;
       } catch (err) {

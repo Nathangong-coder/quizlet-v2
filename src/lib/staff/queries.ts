@@ -7,6 +7,7 @@
  * RPC endpoint handing the whole install to anyone with the action id.
  */
 import { prisma } from '@/lib/db'
+import { totalCost, type CallUsage, type CostTotal } from '@/lib/ai/pricing'
 import { CARD_KLP_STATUSES } from '@/lib/cards/klp-status'
 
 export interface StaffKlpRow {
@@ -20,6 +21,12 @@ export interface StaffKlpRow {
   weight: number
   version: number
   supersededAt: Date | null
+  /**
+   * The model that wrote this proposition. NULL for every row written before
+   * attribution existed (2026-09-06) — which is all 320 legacy KLPs — and that
+   * is unrecoverable: nothing anywhere records what produced them.
+   */
+  model: string | null
   topics: { name: string; rank: number }[]
   learnerCount: number
   /** NULL when no learner has evidence. Never 0 — see shadeForKnowledge. */
@@ -65,6 +72,7 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
       weight: true,
       version: true,
       supersededAt: true,
+      model: true,
       card: { select: { term: true, setId: true } },
       topics: { select: { rank: true, klt: { select: { name: true } } } },
     },
@@ -125,6 +133,7 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
     const authoring = authoringBy.get(`${k.cardId}:${k.version}`)
     return {
       id: k.id,
+      model: k.model,
       text: k.text,
       label: k.label,
       cardId: k.cardId,
@@ -462,6 +471,22 @@ export interface AiTaskStat {
   medianLatencyMs: number | null
   lastUsedAt: Date | null
   failureKinds: Record<string, number>
+  /**
+   * Tokens summed across EVERY attempt, failures included. A call that rambled
+   * to its ceiling and returned nothing parseable still burned all of them,
+   * and a cost view counting only successes would miss exactly the runaway it
+   * exists to catch.
+   */
+  inputTokens: number
+  outputTokens: number
+  /**
+   * Part of `outputTokens`, not additional to it. Broken out because it is
+   * normally the majority of the spend and invisible in the text: one grading
+   * call measured 1,963 output tokens of which 1,589 were reasoning.
+   */
+  reasoningTokens: number
+  /** Dollars for the calls that had a rate, and a count of those that did not. */
+  cost: CostTotal
 }
 
 export interface AiTaskHistory {
@@ -504,14 +529,27 @@ export async function loadAiTaskHistory(task: string, limit = 50): Promise<AiTas
     select: {
       id: true, model: true, provider: true, credentialLabel: true, ok: true,
       failureKind: true, latencyMs: true, createdAt: true,
+      inputTokens: true, outputTokens: true, reasoningTokens: true, cachedTokens: true,
       user: { select: { handle: true, name: true, email: true } },
     },
   })
 
-  const byModel = new Map<string, { provider: string; latencies: number[]; calls: number; failures: number; last: Date | null; kinds: Record<string, number> }>()
+  const byModel = new Map<string, {
+    provider: string
+    latencies: number[]
+    calls: number
+    failures: number
+    last: Date | null
+    kinds: Record<string, number>
+    inputTokens: number
+    outputTokens: number
+    reasoningTokens: number
+    usages: CallUsage[]
+  }>()
   for (const r of rows) {
     const bucket = byModel.get(r.model) ?? {
       provider: r.provider, latencies: [], calls: 0, failures: 0, last: null, kinds: {},
+      inputTokens: 0, outputTokens: 0, reasoningTokens: 0, usages: [] as CallUsage[],
     }
     bucket.calls += 1
     if (r.ok) bucket.latencies.push(r.latencyMs)
@@ -519,6 +557,20 @@ export async function loadAiTaskHistory(task: string, limit = 50): Promise<AiTas
       bucket.failures += 1
       if (r.failureKind) bucket.kinds[r.failureKind] = (bucket.kinds[r.failureKind] ?? 0) + 1
     }
+    // Summed across FAILURES too. A call that rambled to its ceiling and
+    // returned nothing parseable still burned every one of those tokens, and a
+    // cost view counting only successes would miss the runaway it exists to
+    // catch. `?? 0` because a failure usually reports no usage at all.
+    bucket.inputTokens += r.inputTokens ?? 0
+    bucket.outputTokens += r.outputTokens ?? 0
+    bucket.reasoningTokens += r.reasoningTokens ?? 0
+    bucket.usages.push({
+      provider: r.provider,
+      model: r.model,
+      inputTokens: r.inputTokens,
+      outputTokens: r.outputTokens,
+      cachedTokens: r.cachedTokens,
+    })
     if (!bucket.last || r.createdAt > bucket.last) bucket.last = r.createdAt
     byModel.set(r.model, bucket)
   }
@@ -536,6 +588,10 @@ export async function loadAiTaskHistory(task: string, limit = 50): Promise<AiTas
         medianLatencyMs: median(b.latencies),
         lastUsedAt: b.last,
         failureKinds: b.kinds,
+        inputTokens: b.inputTokens,
+        outputTokens: b.outputTokens,
+        reasoningTokens: b.reasoningTokens,
+        cost: totalCost(b.usages),
       }))
       .sort((a, b) => b.calls - a.calls),
     recent: rows.slice(0, limit).map((r) => ({

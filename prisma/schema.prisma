@@ -351,6 +351,19 @@ model CardKlp {
   /// The ONE column a writer other than `writeKlpVersion` may update in place;
   /// see that function's doc comment and spec section 6.1.
   label              String?           @db.Text
+  /// The AI model that produced this row's generated content.
+  ///
+  /// NULL means it was written before attribution existed (everything before
+  /// 2026-09-06) or by a path with no model — a user edit, a deterministic
+  /// fallback. It stays nullable forever: there is no record anywhere of which
+  /// model wrote the earlier rows, so a NOT NULL default would be a fabricated
+  /// answer to "who made this".
+  ///
+  /// Denormalised deliberately, like `CardAuthoring.model` and
+  /// `AnswerErrorTag.relevance`. `AiCallLog` records every attempt including
+  /// failures, but it is not linked to the artifact and calls run concurrently,
+  /// so joining a row back to its model by user and timestamp is guesswork.
+  model String?
   supersededAt       DateTime?
   createdAt          DateTime          @default(now())
   card               Card              @relation(fields: [cardId], references: [id], onDelete: Cascade)
@@ -716,6 +729,19 @@ model StudySession {
   durationMs  Int?
   itemCount   Int          @default(0)
   categoryIds Json? // what the session was scoped to at launch
+  /// The AI model that produced this row's generated content.
+  ///
+  /// NULL means it was written before attribution existed (everything before
+  /// 2026-09-06) or by a path with no model — a user edit, a deterministic
+  /// fallback. It stays nullable forever: there is no record anywhere of which
+  /// model wrote the earlier rows, so a NOT NULL default would be a fabricated
+  /// answer to "who made this".
+  ///
+  /// Denormalised deliberately, like `CardAuthoring.model` and
+  /// `AnswerErrorTag.relevance`. `AiCallLog` records every attempt including
+  /// failures, but it is not linked to the artifact and calls run concurrently,
+  /// so joining a row back to its model by user and timestamp is guesswork.
+  model String?
   insight     Json? // persisted SessionInsight (src/lib/memory/insight.ts)
   insightAt   DateTime?
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -849,6 +875,19 @@ model StudyNote {
   // Immutable first draft retained so AI-assisted editing can never erase the
   // learner's original source, even when the working body is edited later.
   originalBody String? @db.Text
+  /// The AI model that produced this row's generated content.
+  ///
+  /// NULL means it was written before attribution existed (everything before
+  /// 2026-09-06) or by a path with no model — a user edit, a deterministic
+  /// fallback. It stays nullable forever: there is no record anywhere of which
+  /// model wrote the earlier rows, so a NOT NULL default would be a fabricated
+  /// answer to "who made this".
+  ///
+  /// Denormalised deliberately, like `CardAuthoring.model` and
+  /// `AnswerErrorTag.relevance`. `AiCallLog` records every attempt including
+  /// failures, but it is not linked to the artifact and calls run concurrently,
+  /// so joining a row back to its model by user and timestamp is guesswork.
+  model String?
   analysis   Json?
   analyzedAt DateTime?
   createdAt  DateTime @default(now())
@@ -885,6 +924,10 @@ model DiagnosticAttempt {
   score       Int?
   report      Json?
   reportAt    DateTime?
+  /// The AI model that wrote `report`. NULL when the report came from
+  /// `fallbackReport` (composed in TypeScript from grades already in hand) or
+  /// predates attribution.
+  reportModel String?
   createdAt   DateTime @default(now())
   completedAt DateTime?
 
@@ -926,6 +969,15 @@ model DiagnosticQuestion {
   /// record of what happened; they must not disappear because a proposition
   /// was edited away. An unattributed question is merely incomplete — a
   /// deleted one is a hole in somebody's history.
+  /// The AI model that generated this question.
+  ///
+  /// PER QUESTION, not per attempt: generation is batched and `generateJson`
+  /// rotates credentials on failure, so one sitting's twelve questions can
+  /// legitimately be written by two different models when a key trips a quota
+  /// mid-run. A single per-attempt field would quietly report one of them.
+  ///
+  /// NULL for anything written before attribution existed.
+  model String?
   klpId         String?
   /// The QuizAnswer this question's grade was written to: the row that carries
   /// AnswerKlpResult/AnswerErrorTag and steps KlpState. SetNull for the same
@@ -966,6 +1018,24 @@ model AiCallLog {
   /// FailureKind (src/lib/errors/classify.ts). NULL on success.
   failureKind     String?
   latencyMs       Int
+  /// Tokens this attempt consumed, as the provider reported them.
+  ///
+  /// NULL means no usage was returned — the normal case for a FAILURE, and for
+  /// every row written before 2026-09-06. Nullable rather than 0 for the usual
+  /// reason: a zero is a claim that the call was free, and cost totals built on
+  /// it would silently understate.
+  ///
+  /// `reasoningTokens` is broken out because it is normally the MAJORITY of
+  /// output and is invisible in the text. One grading call measured 1,963
+  /// output tokens of which 1,589 were reasoning; a cost review counting only
+  /// visible text would be wrong by roughly 5x.
+  inputTokens     Int?
+  outputTokens    Int?
+  reasoningTokens Int?
+  /// Input tokens served from the provider's prompt cache, billed at a
+  /// discount. Measured at 0 on every call so far — these prompts are smaller
+  /// than the minimum cacheable prefix.
+  cachedTokens    Int?
   createdAt       DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1070,6 +1140,19 @@ model QuizAnswer {
   latencyMs      Int?
   feedback       String?      @db.Text
   annotations    Annotation[]
+  /// The AI model that produced this row's generated content.
+  ///
+  /// NULL means it was written before attribution existed (everything before
+  /// 2026-09-06) or by a path with no model — a user edit, a deterministic
+  /// fallback. It stays nullable forever: there is no record anywhere of which
+  /// model wrote the earlier rows, so a NOT NULL default would be a fabricated
+  /// answer to "who made this".
+  ///
+  /// Denormalised deliberately, like `CardAuthoring.model` and
+  /// `AnswerErrorTag.relevance`. `AiCallLog` records every attempt including
+  /// failures, but it is not linked to the artifact and calls run concurrently,
+  /// so joining a row back to its model by user and timestamp is guesswork.
+  model String?
   createdAt      DateTime     @default(now())
   attempt        QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1173,6 +1256,19 @@ model QuizQuestion {
   // true variant and the generation-failure fallback.
   // MC keeps its per-option corruption inside `options`.
   options      Json? // MC: [{text, correct, sourceKlpId?, corruption?}]
+  /// The AI model that produced this row's generated content.
+  ///
+  /// NULL means it was written before attribution existed (everything before
+  /// 2026-09-06) or by a path with no model — a user edit, a deterministic
+  /// fallback. It stays nullable forever: there is no record anywhere of which
+  /// model wrote the earlier rows, so a NOT NULL default would be a fabricated
+  /// answer to "who made this".
+  ///
+  /// Denormalised deliberately, like `CardAuthoring.model` and
+  /// `AnswerErrorTag.relevance`. `AiCallLog` records every attempt including
+  /// failures, but it is not linked to the artifact and calls run concurrently,
+  /// so joining a row back to its model by user and timestamp is guesswork.
+  model String?
   targetKlpIds Json
   klpVersion   Int
   createdAt    DateTime    @default(now())
@@ -1203,6 +1299,19 @@ model TrainingPlan {
   focusAreas         Json
   recommendedCardIds Json
   generatedQuestions Json
+  /// The AI model that produced this row's generated content.
+  ///
+  /// NULL means it was written before attribution existed (everything before
+  /// 2026-09-06) or by a path with no model — a user edit, a deterministic
+  /// fallback. It stays nullable forever: there is no record anywhere of which
+  /// model wrote the earlier rows, so a NOT NULL default would be a fabricated
+  /// answer to "who made this".
+  ///
+  /// Denormalised deliberately, like `CardAuthoring.model` and
+  /// `AnswerErrorTag.relevance`. `AiCallLog` records every attempt including
+  /// failures, but it is not linked to the artifact and calls run concurrently,
+  /// so joining a row back to its model by user and timestamp is guesswork.
+  model String?
   promptVersion      Int?
   createdAt          DateTime @default(now())
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)

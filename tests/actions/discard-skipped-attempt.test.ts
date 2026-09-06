@@ -27,6 +27,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/lib/memory/erase-execute', () => ({ executeErasure: h.executeErasure }))
 vi.mock('@/lib/ai/generate', () => ({
   generateJson: vi.fn(),
+  generateJsonWithMeta: vi.fn(),
   resolveTaskModel: vi.fn(),
   AiGenerationError: class extends Error {},
 }))

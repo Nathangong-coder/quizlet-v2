@@ -6,7 +6,7 @@ import { summarizeSession, type SessionItem } from '@/lib/memory/summarize';
 import { SESSION_INSIGHT_VERSION, SessionInsightSchema, type SessionInsight } from '@/lib/memory/insight';
 import type { StudySource } from '@/lib/memory/scoring';
 import type { ActionResult } from '@/types/action';
-import { generateJson } from '@/lib/ai/generate';
+import { generateJsonWithMeta } from '@/lib/ai/generate';
 import { safeProfileBlock } from '@/lib/ai/context';
 import { SESSION_INSIGHT_PROMPT } from '@/lib/ai/prompts/registry';
 import { STUDY_SESSION_KINDS, type StudySessionKind } from '@/lib/memory/session-kind';
@@ -152,7 +152,7 @@ export async function generateSessionInsight(input: {
       'session-insight',
     );
 
-    const ai = await generateJson({
+    const { value: ai, meta } = await generateJsonWithMeta({
       userId: session.user.id,
       task: 'grade',
       prompt: SESSION_INSIGHT_PROMPT.build({
@@ -171,6 +171,7 @@ export async function generateSessionInsight(input: {
       data: {
         insight: { ...parsed.data, ai },
         insightAt: new Date(),
+        model: meta.model,
       },
     });
 

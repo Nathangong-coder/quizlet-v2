@@ -4,11 +4,12 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
-import { generateJson, AiGenerationError } from '@/lib/ai/generate'
+import { generateJsonWithMeta, AiGenerationError } from '@/lib/ai/generate'
 import {
   DiagnosticGradeSetSchema,
   DiagnosticQuestionSetSchema,
   DiagnosticReportSchema,
+  REPORT_LIST_MAX,
   type DiagnosticGradeSet,
   type DiagnosticReport,
 } from '@/lib/ai/schemas'
@@ -30,7 +31,11 @@ import {
   isBlankAnswer,
   blankAnswerGrade,
   diagnosticOutputCap,
+  diagnosticReportOutputCap,
+  excerptForReport,
   averageDiagnosticScore,
+  shouldRetryPerQuestion,
+  failureKindsOf,
 } from '@/lib/diagnostic/grading'
 import { buildAnalysisWrites, type ErrorTagDraft } from '@/lib/analysis/persist'
 import { createAnswerWithAnalysis, DIAGNOSTIC_TX_OPTIONS } from '@/lib/analysis/write-answer'
@@ -122,16 +127,26 @@ function fallbackReport(
     mistake?: string
   }>,
 ): DiagnosticReport {
-  const strengths = [...new Set(results.filter((result) => result.score >= 8).map((result) => result.learningPoint))].slice(0, 8)
-  const gaps = [...new Set(results.filter((result) => result.score < 8).map((result) => result.learningPoint))].slice(0, 12)
+  // Counted BEFORE the cap, because the overview below reports totals. Saying
+  // "3 points worth another pass" when nine were missed would be wrong, and it
+  // is the cap talking rather than the learner's actual result.
+  const allStrengths = [...new Set(results.filter((result) => result.score >= 8).map((result) => result.learningPoint))]
+  const allGaps = [...new Set(results.filter((result) => result.score < 8).map((result) => result.learningPoint))]
+
+  // REPORT_LIST_MAX, not 8/12/5. These must not exceed the schema's cap: this
+  // function runs inside the catch handler for a failed report call, so a
+  // rejected parse here would throw out of the recovery path and lose the
+  // whole graded sitting — the one place a validation error is unrecoverable.
+  const strengths = allStrengths.slice(0, REPORT_LIST_MAX)
+  const gaps = allGaps.slice(0, REPORT_LIST_MAX)
   const recommendations = gaps.length > 0
-    ? gaps.slice(0, 5).map((gap) => `Revisit “${gap}”, then answer a fresh follow-up without notes.`)
+    ? gaps.map((gap) => `Revisit “${gap}”, then answer a fresh follow-up without notes.`)
     : [`Keep ${setTitle} warm with a short mixed review tomorrow.`]
 
   return DiagnosticReportSchema.parse({
-    overview: gaps.length > 0
-      ? `Your baseline shows ${strengths.length} strong learning point${strengths.length === 1 ? '' : 's'} and ${gaps.length} point${gaps.length === 1 ? '' : 's'} worth another pass.`
-      : 'This baseline is strong across the tested learning points. Keep the set active with spaced review.',
+    overview: allGaps.length > 0
+      ? `Your baseline shows ${allStrengths.length} strong key point${allStrengths.length === 1 ? '' : 's'} and ${allGaps.length} point${allGaps.length === 1 ? '' : 's'} worth another pass.`
+      : 'This baseline is strong across the tested key points. Keep the set active with spaced review.',
     strengths,
     gaps,
     recommendations,
@@ -230,9 +245,11 @@ export async function startDiagnosticTest(input: DiagnosticStartInput): Promise<
     // model's output budget and returns nothing — see DIAGNOSTIC_BATCH_SIZE.
     // Sequential, not parallel: fanning several structured-output calls at one
     // credential is how a rate limit turns a slow submit into a failed one.
-    const generatedQuestions: { question: string; expectedAnswer: string }[] = []
+    // `model` is captured PER BATCH, because rotation can serve two batches
+    // from two different models when a key trips a quota mid-run.
+    const generatedQuestions: { question: string; expectedAnswer: string; model: string }[] = []
     for (const batch of batched(probes, DIAGNOSTIC_BATCH_SIZE)) {
-      const generated = await generateJson({
+      const { value: generated, meta } = await generateJsonWithMeta({
         userId: session.user.id,
         task: 'diagnostic',
         prompt: DIAGNOSTIC_QUESTIONS_PROMPT.build({
@@ -267,7 +284,11 @@ export async function startDiagnosticTest(input: DiagnosticStartInput): Promise<
       }
       for (let probeRef = 0; probeRef < batch.length; probeRef++) {
         const question = byRef.get(probeRef)!
-        generatedQuestions.push({ question: question.question, expectedAnswer: question.expectedAnswer })
+        generatedQuestions.push({
+          question: question.question,
+          expectedAnswer: question.expectedAnswer,
+          model: meta.model,
+        })
       }
     }
 
@@ -285,6 +306,7 @@ export async function startDiagnosticTest(input: DiagnosticStartInput): Promise<
         learningPoint: klp.text,
         prompt: question.question,
         expectedAnswer: question.expectedAnswer,
+        model: question.model,
       }
     })
 
@@ -420,6 +442,10 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
     // returned no parseable object, taking a whole twelve-question sitting with
     // it. See src/lib/diagnostic/grading.ts.
     const grades = new Map<number, DiagnosticGradeSet['grades'][number]>()
+    // Which model graded each question. Per QUESTION for the same reason
+    // generation is: the retry path can grade one question on a different
+    // credential, and therefore a different model, than its batch.
+    const gradedBy = new Map<number, string>()
     const ungraded = new Set<number>()
     const needsGrading: typeof attempt.questions = []
     for (const question of attempt.questions) {
@@ -438,10 +464,13 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
      * Returns false rather than throwing when the reply is unusable, so the
      * caller can decide whether to retry smaller or give up on these questions.
      */
-    const gradeChunk = async (chunk: typeof attempt.questions): Promise<boolean> => {
+    const gradeChunk = async (
+      chunk: typeof attempt.questions,
+    ): Promise<{ ok: true } | { ok: false; retryable: boolean }> => {
       let gradeSet: DiagnosticGradeSet
+      let servedBy: string
       try {
-        const generated = await generateJson({
+        const { value: generated, meta } = await generateJsonWithMeta({
           userId: session.user!.id,
           task: 'diagnostic',
           prompt: DIAGNOSTIC_GRADING_PROMPT.build({
@@ -457,31 +486,61 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
           maxOutputTokens: diagnosticOutputCap(chunk.length),
         })
         gradeSet = DiagnosticGradeSetSchema.parse(generated)
+        servedBy = meta.model
       } catch (gradingError) {
         // Swallowed ON PURPOSE, and only here. A model that rambles past its
-        // output ceiling surfaces as `schema_invalid`, which is indistinguishable
-        // from a real schema problem and must not cost the learner the sitting.
+        // output ceiling surfaces as `schema_invalid`, which is
+        // indistinguishable from a real schema problem and must not cost the
+        // learner the sitting.
+        //
+        // But WHY it failed decides what happens next. A smaller call fixes an
+        // oversized response; it does nothing for an exhausted daily quota, and
+        // retrying into one burns four more requests from a budget that is
+        // already empty.
         console.error('Diagnostic grading chunk failed:', gradingError)
-        return false
+        return { ok: false, retryable: shouldRetryPerQuestion(failureKindsOf(gradingError)) }
       }
       const byRef = new Map(gradeSet.grades.map((grade) => [grade.questionRef, grade]))
       const complete =
         byRef.size === gradeSet.grades.length &&
         byRef.size === chunk.length &&
         chunk.every((_, ref) => byRef.has(ref))
-      if (!complete) return false
+      // A structurally incomplete reply IS worth retrying smaller: it is the
+      // same over-generation problem arriving without an exception.
+      if (!complete) return { ok: false, retryable: true }
       chunk.forEach((question, ref) => grades.set(question.position, byRef.get(ref)!))
-      return true
+      chunk.forEach((question) => gradedBy.set(question.position, servedBy))
+      return { ok: true }
     }
 
-    // One call per batch; on failure, retry those questions ONE AT A TIME so a
-    // single unusable response costs one question instead of the whole sitting.
-    // A question that fails alone as well is recorded ungraded rather than
-    // guessed at — see the score and analysisStatus handling below.
+    // One call per batch; on a retryable failure, grade those questions ONE AT
+    // A TIME so a single unusable response costs one question instead of the
+    // whole sitting. A question that fails alone as well is recorded ungraded
+    // rather than guessed at — see the score and analysisStatus handling below.
+    //
+    // A NON-retryable failure (an exhausted quota, a missing key) aborts the
+    // whole submission instead. Marking questions permanently ungraded because
+    // today's cap ran out would turn a problem that fixes itself overnight into
+    // a permanent hole in the learner's history, and the attempt stays
+    // `in_progress` so the same answers can simply be submitted again later.
+    let aborted = false
     for (const batch of batched(needsGrading, DIAGNOSTIC_BATCH_SIZE)) {
-      if (await gradeChunk(batch)) continue
+      const result = await gradeChunk(batch)
+      if (result.ok) continue
+      if (!result.retryable) { aborted = true; break }
       for (const question of batch) {
-        if (!(await gradeChunk([question]))) ungraded.add(question.position)
+        const single = await gradeChunk([question])
+        if (single.ok) continue
+        if (!single.retryable) { aborted = true; break }
+        ungraded.add(question.position)
+      }
+      if (aborted) break
+    }
+
+    if (aborted) {
+      return {
+        success: false,
+        error: 'Your AI provider could not be reached to grade this diagnostic — its daily quota may be used up. Your answers are still here; try submitting again later.',
       }
     }
 
@@ -510,8 +569,11 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
     })
 
     let report: DiagnosticReport
+    // NULL when `fallbackReport` composes it in TypeScript — which is a real
+    // distinction worth recording, not a missing value.
+    let reportModel: string | null = null
     try {
-      const reportOutput = await generateJson({
+      const { value: reportOutput, meta: reportMeta } = await generateJsonWithMeta({
         userId: session.user.id,
         task: 'diagnostic',
         prompt: DIAGNOSTIC_REPORT_PROMPT.build({
@@ -521,15 +583,19 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
           results: graded.filter((item) => item.grade !== null).map((item) => ({
             question: item.question.prompt,
             keyPoint: item.question.learningPoint,
-            answer: item.answer,
+            // An excerpt, not the whole answer: the report generalises over
+            // twelve of these, and an answer may be 10,000 characters.
+            answer: excerptForReport(item.answer),
             score: item.score as number,
             status: item.status as string,
             mistake: item.mistake ?? undefined,
           })),
         }),
         schema: DIAGNOSTIC_REPORT_PROMPT.schema,
+        maxOutputTokens: diagnosticReportOutputCap(graded.length),
       })
       report = DiagnosticReportSchema.parse(reportOutput)
+      reportModel = reportMeta.model
     } catch (reportError) {
       if (!(reportError instanceof AiGenerationError)) console.error('Diagnostic report fallback:', reportError)
       report = fallbackReport(attempt.set.title, graded
@@ -598,6 +664,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
             isCorrect: item.score === null ? null : item.score >= 8,
             latencyMs: normalizeLatency(item.latencyMs),
             feedback: item.feedback,
+            model: gradedBy.get(item.question.position) ?? null,
           },
           writes,
           // No `replace`: a diagnostic question is answered exactly once, so
@@ -640,7 +707,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
       await tx.quizAttempt.update({ where: { id: quizAttempt.id }, data: { score } })
       await tx.diagnosticAttempt.update({
         where: { id: attempt.id },
-        data: { status: 'completed', score, report, reportAt: completedAt, completedAt },
+        data: { status: 'completed', score, report, reportModel, reportAt: completedAt, completedAt },
       })
       await tx.studySession.update({ where: { id: attempt.sessionId }, data: { endedAt: completedAt, durationMs } })
     }, DIAGNOSTIC_TX_OPTIONS)
