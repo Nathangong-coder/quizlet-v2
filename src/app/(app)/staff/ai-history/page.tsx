@@ -91,6 +91,8 @@ export default async function StaffAiHistoryPage({
                     <th className="pb-2 text-right font-normal">Calls</th>
                     <th className="pb-2 text-right font-normal">Failed</th>
                     <th className="pb-2 text-right font-normal">Median latency</th>
+                    <th className="pb-2 text-right font-normal">Output tokens</th>
+                    <th className="pb-2 text-right font-normal">Est. cost</th>
                     <th className="pb-2 font-normal">Failure kinds</th>
                     <th className="pb-2 font-normal">Last used</th>
                   </tr>
@@ -111,6 +113,51 @@ export default async function StaffAiHistoryPage({
                       <td className="py-2 pr-4 text-right font-mono tabular-nums">
                         {/* Null is NO SUCCESSFUL CALL, not an instant one. */}
                         {m.medianLatencyMs === null ? '—' : `${(m.medianLatencyMs / 1000).toFixed(1)}s`}
+                      </td>
+                      <td className="py-2 pr-4 text-right font-mono tabular-nums">
+                        {m.outputTokens === 0 ? (
+                          <span className="text-muted-foreground">&mdash;</span>
+                        ) : (
+                          <>
+                            {m.outputTokens.toLocaleString()}
+                            {m.reasoningTokens > 0 && (
+                              <span
+                                className="ml-1 text-[11px] text-muted-foreground"
+                                title="Reasoning tokens, already included in the output total. Normally the majority, and invisible in the text."
+                              >
+                                ({Math.round((m.reasoningTokens / m.outputTokens) * 100)}% reasoning)
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </td>
+                      <td className="py-2 pr-4 text-right font-mono tabular-nums">
+                        {/*
+                          An em dash means NO RATE IS CONFIGURED, not $0. Showing
+                          zero would read as "this was free", which is the one
+                          thing a cost column must never imply — see
+                          src/lib/ai/pricing.ts.
+                        */}
+                        {m.cost.priced === 0 ? (
+                          <span
+                            className="text-muted-foreground"
+                            title={`No price configured for ${m.model}. Add it to MODEL_RATES in src/lib/ai/pricing.ts.`}
+                          >
+                            &mdash;
+                          </span>
+                        ) : (
+                          <>
+                            ${m.cost.usd.toFixed(4)}
+                            {m.cost.unpriced > 0 && (
+                              <span
+                                className="ml-1 text-[11px] text-amber-600 dark:text-amber-400"
+                                title={`${m.cost.unpriced} call(s) had no configured rate and are NOT in this total.`}
+                              >
+                                +{m.cost.unpriced} unpriced
+                              </span>
+                            )}
+                          </>
+                        )}
                       </td>
                       <td className="py-2 pr-4 text-xs text-muted-foreground">
                         {Object.keys(m.failureKinds).length === 0

@@ -1018,6 +1018,24 @@ model AiCallLog {
   /// FailureKind (src/lib/errors/classify.ts). NULL on success.
   failureKind     String?
   latencyMs       Int
+  /// Tokens this attempt consumed, as the provider reported them.
+  ///
+  /// NULL means no usage was returned — the normal case for a FAILURE, and for
+  /// every row written before 2026-09-06. Nullable rather than 0 for the usual
+  /// reason: a zero is a claim that the call was free, and cost totals built on
+  /// it would silently understate.
+  ///
+  /// `reasoningTokens` is broken out because it is normally the MAJORITY of
+  /// output and is invisible in the text. One grading call measured 1,963
+  /// output tokens of which 1,589 were reasoning; a cost review counting only
+  /// visible text would be wrong by roughly 5x.
+  inputTokens     Int?
+  outputTokens    Int?
+  reasoningTokens Int?
+  /// Input tokens served from the provider's prompt cache, billed at a
+  /// discount. Measured at 0 on every call so far — these prompts are smaller
+  /// than the minimum cacheable prefix.
+  cachedTokens    Int?
   createdAt       DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

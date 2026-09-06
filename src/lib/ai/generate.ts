@@ -150,6 +150,19 @@ export interface AiCallRecord {
   ok: boolean;
   failureKind: FailureKind | null;
   latencyMs: number;
+  /**
+   * Provider-reported token usage. Undefined on a failure, which normally
+   * returns none — and left undefined rather than zeroed, because a 0 is a
+   * claim that the attempt was free and would make cost totals understate.
+   *
+   * `reasoningTokens` is separate because it is normally the MAJORITY of
+   * output and is invisible in the text: one grading call spent 1,963 output
+   * tokens of which 1,589 were reasoning.
+   */
+  inputTokens?: number;
+  outputTokens?: number;
+  reasoningTokens?: number;
+  cachedTokens?: number;
 }
 
 /**
@@ -432,7 +445,7 @@ export async function generateJsonWithMeta<T>({
       // user therefore sees no change at all.
       const startedAt = Date.now();
       try {
-        const { output } = await generateText({
+        const { output, usage } = await generateText({
           model,
           output: Output.object({ schema }),
           maxRetries: isLast ? 2 : 0,
@@ -453,6 +466,14 @@ export async function generateJsonWithMeta<T>({
           ok: true,
           failureKind: null,
           latencyMs: Date.now() - startedAt,
+          // Reasoning is recorded separately, not folded into output: it is
+          // normally the majority of the spend and invisible in the text, so a
+          // cost review counting only what it can read is wrong by several
+          // times. Left undefined when the provider reports nothing.
+          inputTokens: usage?.inputTokens,
+          outputTokens: usage?.outputTokens,
+          reasoningTokens: usage?.outputTokenDetails?.reasoningTokens,
+          cachedTokens: usage?.inputTokenDetails?.cacheReadTokens,
         });
         return output as T;
       } catch (err) {
