@@ -25,6 +25,7 @@ import { toSdkContent, type GeminiPart } from '@/lib/ai/media-adapter';
 // AiTask is declared once, in model-routing.ts (it already exports it today).
 // Do not re-declare it here — two definitions would drift.
 import type { AiTask } from '@/lib/ai/model-routing';
+import { temperatureForTask } from '@/lib/ai/temperature';
 import { enforceModelPolicy } from '@/lib/ai/model-policy';
 
 /**
@@ -435,6 +436,11 @@ export async function generateJsonWithMeta<T>({
           model,
           output: Output.object({ schema }),
           maxRetries: isLast ? 2 : 0,
+          // Per TASK, and never left unset. Until 2026-09-06 nothing here set a
+          // temperature, so every judgment ran at the provider default of 1.0 —
+          // see src/lib/ai/temperature.ts for the repetition loop and the
+          // cross-script drift that produced.
+          temperature: temperatureForTask(task),
           ...(maxOutputTokens ? { maxOutputTokens } : {}),
           ...(parts ? { messages: [{ role: 'user' as const, content: toSdkContent(parts) }] } : { prompt: prompt ?? '' }),
         });
