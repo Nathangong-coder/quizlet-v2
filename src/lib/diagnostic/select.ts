@@ -18,6 +18,55 @@ export const FOLLOW_UP_COUNT = 2
  */
 export const MIN_DIAGNOSTIC_KLPS = 12
 
+/**
+ * How many questions are generated, and graded, per AI call.
+ *
+ * MEASURED, not guessed. A live probe on gemini-3.5-flash spent **1,936 output
+ * tokens to grade two questions — 1,786 of them reasoning tokens**, i.e. ~900
+ * per question. Grading a whole 12-question sitting in one call therefore needs
+ * ~11k output tokens and a 30-question one ~27k; on gemini-3.6-flash a
+ * four-question grading call already came back with NO output at all
+ * (`NoOutputGeneratedError`, which classifies as `schema_invalid`).
+ *
+ * That failure is the worst kind available here: it happens at SUBMIT, after
+ * the learner has spent twenty minutes answering, and it throws the whole
+ * sitting away. Batching keeps each call's output small enough that the
+ * reasoning budget is never the binding constraint.
+ *
+ * Four, not larger: the probe that failed was four questions of GENERATION
+ * output plus reasoning, and the one that passed was two of grading. Four is
+ * the size at which grading output stays near ~4k tokens, comfortably inside
+ * every model in the allowlist.
+ *
+ * The cost is calls, and calls are the scarce resource on a free tier capped at
+ * 20 per day per model: a 12-question run becomes 3 generation + 3 grading + 1
+ * report instead of 1 + 1 + 1. That is the price of a diagnostic that finishes.
+ */
+export const DIAGNOSTIC_BATCH_SIZE = 4
+
+/**
+ * Output-token ceiling for a diagnostic generation or grading call.
+ *
+ * Batching alone did NOT fix the overrun, which is why this exists beside it.
+ * At four questions per call, two grading batches succeeded and the third came
+ * back `finishReason: 'length'` — the budget is per call and reasoning varies
+ * per question, so a size that fits on average still fails sometimes. Sometimes
+ * is enough: it fails at SUBMIT, after twenty minutes of answering.
+ *
+ * 16384 against a measured worst case near 4-5k for four questions, so roughly
+ * three times headroom. Generous on purpose: an unused ceiling costs nothing
+ * (billing is on tokens produced, not on the cap), while a tight one costs the
+ * whole sitting. Every model in the Google allowlist supports far more.
+ */
+export const DIAGNOSTIC_MAX_OUTPUT_TOKENS = 16384
+
+/** Split into consecutive runs of at most `size`. */
+export function batched<T>(items: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
+}
+
 export interface DiagnosticKlpInput {
   id: string
   cardId: string

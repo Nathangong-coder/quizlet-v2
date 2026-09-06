@@ -173,6 +173,23 @@ export interface GenerateJsonInput<T> {
   schema: z.ZodSchema<T>;
   prompt?: string;
   parts?: GeminiPart[];
+  /**
+   * Ceiling on the model's OUTPUT tokens, reasoning included. Omitted, the
+   * provider default applies, which is what every call site did until the
+   * diagnostic needed otherwise.
+   *
+   * It exists because reasoning tokens are invisible until they run out.
+   * Measured on gemini-3.5-flash: grading one diagnostic answer costs ~900
+   * output tokens of which ~92% are REASONING, so a four-question grading call
+   * hit the default ceiling and came back `finishReason: 'length'` — which the
+   * SDK surfaces as `NoObjectGeneratedError`, i.e. `schema_invalid`, so it
+   * reads as a model that cannot follow a schema rather than one that ran out
+   * of room. Batching alone did not fix it: two batches succeeded and the
+   * third did not, because the budget is per call and reasoning varies.
+   *
+   * Set it on any task whose output scales with its input.
+   */
+  maxOutputTokens?: number;
 }
 
 /**
@@ -354,7 +371,7 @@ export async function generateJson<T>(input: GenerateJsonInput<T>): Promise<T> {
  * care are unaffected.
  */
 export async function generateJsonWithMeta<T>({
-  userId, task, schema, prompt, parts,
+  userId, task, schema, prompt, parts, maxOutputTokens,
 }: GenerateJsonInput<T>): Promise<{ value: T; meta: GenerationMeta }> {
   const { prisma } = await import('@/lib/db');
 
@@ -418,6 +435,7 @@ export async function generateJsonWithMeta<T>({
           model,
           output: Output.object({ schema }),
           maxRetries: isLast ? 2 : 0,
+          ...(maxOutputTokens ? { maxOutputTokens } : {}),
           ...(parts ? { messages: [{ role: 'user' as const, content: toSdkContent(parts) }] } : { prompt: prompt ?? '' }),
         });
         calls.push({

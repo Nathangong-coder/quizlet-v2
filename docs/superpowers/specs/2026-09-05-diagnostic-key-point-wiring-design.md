@@ -171,8 +171,45 @@ anchor forces `analysisStatus: 'no_provenance'` — the identical rule short
 answer uses, and the only honest way to record "the grader did not do the
 per-point judgment it was asked for."
 
-Still **three AI calls per diagnostic** (generate, grade, report), unchanged.
-That matters: the Google free tier is 20 requests per day per model.
+**AMENDED 2026-09-06 by live measurement — it is no longer three calls.** Two
+defects were found by running the prompts against a real model, neither of which
+any mocked test could see:
+
+1. **The closed error-type vocabulary must be spelled out in the prompt.** Left
+   implicit, gemini-3.6-flash returned `missing_response` and
+   `incorrect_answer`, neither in `ACCURACY_TYPES`, so `buildAnalysisWrites`
+   dropped **every** tag and three plainly wrong answers recorded zero errors.
+   The unit tests passed throughout because they hand-wrote a valid type the
+   model never produces. The short-answer prompt already enumerates the
+   vocabulary; the v2 grading prompt now does too.
+2. **One grading call per sitting exhausts the model's output budget.**
+   Measured: grading one answer costs ~900 output tokens of which ~92% are
+   **reasoning**. A four-question grading call returned `finishReason: 'length'`
+   — surfaced by the SDK as `NoObjectGeneratedError`, i.e. classified
+   `schema_invalid`, so it reads as a model that cannot follow a schema rather
+   than one that ran out of room. This fails at **submit**, after the learner
+   has answered everything.
+
+   The fix is both halves, because batching alone was not enough — at four per
+   batch, two grading batches succeeded and the third still hit the ceiling,
+   since the budget is per call and reasoning varies per question:
+   - `DIAGNOSTIC_BATCH_SIZE = 4` — generation and grading each run one call per
+     four questions, with refs **local to the batch** and mapped back by
+     position, so a grader that renumbers cannot attach one question's verdict
+     to another.
+   - `DIAGNOSTIC_MAX_OUTPUT_TOKENS = 16384`, passed through a new optional
+     `maxOutputTokens` on `generateJson`. Roughly 7x the measured worst batch.
+     An unused ceiling costs nothing; a tight one costs the sitting.
+
+   A 12-question run is therefore **7 calls** (3 generation + 3 grading + 1
+   report), not 3. That matters against a free tier capped at 20 requests per
+   day per model, and it is the price of a diagnostic that finishes.
+
+**Verified end to end on gemini-3.5-flash, 12 questions, 2026-09-06:** all 3
+generation batches and all 3 grading batches returned complete, correctly-reffed
+sets; 12 of 12 graded with exactly one `klpResult` at `klpRef 0`; verdicts
+separated a correct answer from a blank one; worst grading batch 2,263 output
+tokens against the 16,384 ceiling.
 
 **D7. `EVIDENCE_STRENGTH['diagnostic'] = 0.95`, closing gap G8.**
 
@@ -279,6 +316,12 @@ So:
   A `P2028` here does not degrade: it discards a test the learner spent twenty
   minutes on. The submit path gets its own sized options and the pilot run in
   D12 must be timed.
+
+  **MEASURED 2026-09-06 against the live database: 6 answers took 9.2s**, i.e.
+  ~1.5s each. So a 12-question sitting is ~18s and a 30-question one ~46s —
+  meaning a 30-question diagnostic would have **exceeded the 30s per-answer
+  ceiling** and thrown the whole sitting away. `DIAGNOSTIC_TX_OPTIONS`
+  (`{ maxWait: 15s, timeout: 120s }`) was necessary, not precautionary.
 
 **Preconditions.** A diagnostic requires at least `MIN_DIAGNOSTIC_KLPS` = **12**
 live key points in the set. Twelve, not the generator schema's `.min(8)`, because

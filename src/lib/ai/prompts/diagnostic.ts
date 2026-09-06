@@ -3,6 +3,12 @@ import {
   DiagnosticQuestionSetSchema,
   DiagnosticReportSchema,
 } from '@/lib/ai/schemas';
+import {
+  ACCURACY_TYPES,
+  CLARITY_TYPES,
+  CONCISENESS_TYPES,
+  MAX_TAGS_PER_ANSWER,
+} from '@/lib/errors/taxonomy';
 
 export interface DiagnosticProbePromptInput {
   probeRef: number;
@@ -76,6 +82,14 @@ ${input.probes.map((probe) => `[${probe.probeRef}] (${probe.kind})\nKey point: $
  * that can see them will credit them, and a verdict on a point the question
  * never asked about is a fabricated observation: once written it is
  * indistinguishable from a real one.
+ *
+ * THE ERROR-TYPE VOCABULARY IS SPELLED OUT, as it is in the short-answer
+ * prompt. Left implicit, a real model invents its own words — a live probe on
+ * gemini-3.6-flash returned `missing_response` and `incorrect_answer`, neither
+ * of which is in `ACCURACY_TYPES`, so `buildAnalysisWrites` dropped EVERY tag
+ * and three plainly wrong answers recorded zero errors. The closed vocabulary
+ * is the whole reason error types can be aggregated at all; a grader that has
+ * not been shown it cannot honour it.
  */
 export const DIAGNOSTIC_GRADING_PROMPT = {
   id: 'diagnostic-grading',
@@ -87,8 +101,30 @@ export const DIAGNOSTIC_GRADING_PROMPT = {
 Use score 1-10: mastered means 8-10, partial means 5-7, missed means 1-4. Identify the specific misconception or omission when the answer is partial or missed. Do not reward an answer that merely repeats the question. Return exactly one grade per questionRef and do not invent missing responses.
 
 For EACH question also return:
-- klpResults: exactly one entry, with klpRef 0, judging the key point that question tested. passed means the learner holds it; partial means half-held or hedged; failed means absent or wrong. Judge ONLY that key point — you are not being asked about anything else the card teaches.
-- errorTags: what went wrong, if anything. magnitude is 1-10 for how bad THIS instance is within its type. Omit the array entirely for a clean answer.
+
+"klpResults": exactly one entry, with klpRef 0, judging the key point that
+  question tested.
+  - "passed"  — the learner holds it
+  - "partial" — mentioned but incomplete or imprecise
+  - "failed"  — absent, or stated wrongly
+  Judge ONLY that key point. You are not being asked about anything else the
+  card teaches. Include a short verbatim "evidence" quote where one exists.
+
+"errorTags": at most ${MAX_TAGS_PER_ANSWER} tags, at most 2 per dimension.
+  Tag only what is genuinely wrong; a clean answer returns an empty list.
+
+  dimension "accuracy"     — types: ${ACCURACY_TYPES.join(', ')}
+  dimension "clarity"      — types: ${CLARITY_TYPES.join(', ')}
+  dimension "conciseness"  — types: ${CONCISENESS_TYPES.join(', ')}
+
+  Each tag needs:
+  - "type" from that dimension's list. Use NO other word.
+  - "klpRef" 0 when the error is about the key point; omit it when the error is
+    about the whole answer.
+  - "secondaryKlpRef" for "conflation" only: the point it was confused WITH.
+  - "magnitude" 1-10, how severe THIS instance of that type is. Judge degree
+    WITHIN the type you chose — do not use it to rank one type against another.
+  - "quote": the span of the answer the tag refers to.
 
 Questions and responses:
 ${input.questions.map((item) => `[${item.ref}] Key point [0]: ${item.keyPoint}\nQuestion: ${item.question}\nExpected answer: ${item.expectedAnswer}\nLearner answer: ${item.answer || '[no answer]'}`).join('\n\n')}`;

@@ -5,6 +5,7 @@ import {
   DIAGNOSTIC_REPORT_PROMPT,
 } from '@/lib/ai/prompts/diagnostic'
 import { DiagnosticGradeSetSchema, DiagnosticQuestionSetSchema } from '@/lib/ai/schemas'
+import { ACCURACY_TYPES, CLARITY_TYPES, CONCISENESS_TYPES } from '@/lib/errors/taxonomy'
 
 describe('DIAGNOSTIC_QUESTIONS_PROMPT v2', () => {
   it('is version 2', () => {
@@ -79,6 +80,24 @@ describe('DIAGNOSTIC_GRADING_PROMPT v2', () => {
     expect(grading).toContain('Return exactly one grade per questionRef')
     expect(grading).toContain('Key point [0]: Synergies are value neither company could create alone.')
     expect(grading).toContain('exactly one entry, with klpRef 0')
+  })
+
+  it('spells out the closed error-type vocabulary', () => {
+    // Found by a live probe, not by this suite: left implicit, gemini-3.6-flash
+    // returned `missing_response` and `incorrect_answer`, neither of which is
+    // in ACCURACY_TYPES, so buildAnalysisWrites dropped EVERY tag and three
+    // plainly wrong answers recorded zero errors. The unit tests passed
+    // because they hand-wrote a valid type the model never produces.
+    //
+    // Asserted against the vocabulary itself, not a literal list, so adding a
+    // type without telling the grader about it fails here.
+    const prompt = DIAGNOSTIC_GRADING_PROMPT.build({
+      questions: [{ ref: 0, question: 'q', expectedAnswer: 'e', keyPoint: 'k', answer: 'a' }],
+    })
+    for (const type of [...ACCURACY_TYPES, ...CLARITY_TYPES, ...CONCISENESS_TYPES]) {
+      expect(prompt).toContain(type)
+    }
+    expect(prompt).toContain('Use NO other word')
   })
 
   it('forbids judging anything but the key point that was asked', () => {

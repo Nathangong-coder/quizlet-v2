@@ -51,6 +51,11 @@ vi.mock('@/actions/klp', () => ({ ensureKlpsReady: h.ensureKlpsReady }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { startDiagnosticTest, submitDiagnosticTest } from '@/actions/diagnostic'
+import {
+  DIAGNOSTIC_BATCH_SIZE,
+  DIAGNOSTIC_MAX_OUTPUT_TOKENS,
+  batched,
+} from '@/lib/diagnostic/select'
 
 const OWNER = 'user-owner'
 const SET = { id: 'set-1', title: 'M&A basics' }
@@ -67,15 +72,25 @@ function liveKlps(count = 15) {
   }))
 }
 
-/** One generated question per probe, keyed by probeRef. */
-function generatedFor(probeCount: number) {
-  return {
-    questions: Array.from({ length: probeCount }, (_, probeRef) => ({
-      probeRef,
-      question: `Question ${probeRef}?`,
-      expectedAnswer: `Answer ${probeRef}`,
-    })),
+/**
+ * One generated question per probe, in batches, because the action makes one
+ * call per DIAGNOSTIC_BATCH_SIZE probes with refs LOCAL to each batch.
+ *
+ * A mock that answered the whole run in one response would pass while the real
+ * model returns nothing — which is exactly the failure batching exists to fix.
+ */
+function mockGeneration(probeCount: number) {
+  const batches = batched(Array.from({ length: probeCount }, (_, i) => i), DIAGNOSTIC_BATCH_SIZE)
+  for (const batch of batches) {
+    h.generateJson.mockResolvedValueOnce({
+      questions: batch.map((globalRef, probeRef) => ({
+        probeRef,
+        question: `Question ${globalRef}?`,
+        expectedAnswer: `Answer ${globalRef}`,
+      })),
+    })
   }
+  return batches.length
 }
 
 function startTx() {
@@ -106,7 +121,7 @@ beforeEach(() => {
 describe('startDiagnosticTest', () => {
   it('anchors every question to a live key point and records it', async () => {
     const tx = startTx()
-    h.generateJson.mockResolvedValue(generatedFor(12))
+    mockGeneration(12)
 
     const result = await startDiagnosticTest({ setId: 'set-1', questionCount: 12 })
 
@@ -125,7 +140,7 @@ describe('startDiagnosticTest', () => {
 
   it('stamps engineVersion 2, so a run is distinguishable from a pre-key-point one', async () => {
     const tx = startTx()
-    h.generateJson.mockResolvedValue(generatedFor(12))
+    mockGeneration(12)
 
     await startDiagnosticTest({ setId: 'set-1', questionCount: 12 })
 
@@ -136,7 +151,7 @@ describe('startDiagnosticTest', () => {
     // Load-bearing for erasure: "forget this set" reaches sessions by setId, so
     // both attempts must hang off one session or one half survives the other.
     const tx = startTx()
-    h.generateJson.mockResolvedValue(generatedFor(12))
+    mockGeneration(12)
 
     await startDiagnosticTest({ setId: 'set-1', questionCount: 12 })
 
@@ -152,7 +167,7 @@ describe('startDiagnosticTest', () => {
     // Across a 120-card set it is a burst of AI calls the moment somebody
     // presses Start, against a free tier capped at 20 requests/day/model.
     startTx()
-    h.generateJson.mockResolvedValue(generatedFor(12))
+    mockGeneration(12)
 
     await startDiagnosticTest({ setId: 'set-1', questionCount: 12 })
 
@@ -161,7 +176,7 @@ describe('startDiagnosticTest', () => {
 
   it('reads only live key points', async () => {
     startTx()
-    h.generateJson.mockResolvedValue(generatedFor(12))
+    mockGeneration(12)
 
     await startDiagnosticTest({ setId: 'set-1', questionCount: 12 })
 
@@ -170,6 +185,37 @@ describe('startDiagnosticTest', () => {
         where: expect.objectContaining({ supersededAt: null }),
       }),
     )
+  })
+
+  it('generates in batches rather than one call for the whole run', async () => {
+    // Measured on a live model: grading one question costs ~900 reasoning
+    // tokens, and a single call for a whole sitting came back with NO output
+    // (NoOutputGeneratedError). One call per batch keeps each response inside
+    // the budget. A regression to one call passes every mocked assertion and
+    // fails against every real model.
+    startTx()
+    mockGeneration(12)
+
+    await startDiagnosticTest({ setId: 'set-1', questionCount: 12 })
+
+    expect(h.generateJson).toHaveBeenCalledTimes(Math.ceil(12 / DIAGNOSTIC_BATCH_SIZE))
+  })
+
+  it('asks for an output-token ceiling on every generation call', async () => {
+    // Reasoning tokens are invisible until they run out. Without an explicit
+    // ceiling a grading call came back finishReason 'length', which the SDK
+    // surfaces as NoObjectGeneratedError — classified `schema_invalid`, so it
+    // reads as a model that cannot follow a schema rather than one that ran
+    // out of room. Batching alone did not fix it: the budget is per call and
+    // reasoning varies, so two batches passed and the third did not.
+    startTx()
+    mockGeneration(12)
+
+    await startDiagnosticTest({ setId: 'set-1', questionCount: 12 })
+
+    for (const call of h.generateJson.mock.calls) {
+      expect(call[0].maxOutputTokens).toBe(DIAGNOSTIC_MAX_OUTPUT_TOKENS)
+    }
   })
 
   it('refuses a set below the key-point floor and writes nothing', async () => {
@@ -186,7 +232,7 @@ describe('startDiagnosticTest', () => {
   it('caps the question count at the number of live key points', async () => {
     const tx = startTx()
     h.cardKlpFindMany.mockResolvedValue(liveKlps(15))
-    h.generateJson.mockImplementation(async () => generatedFor(15))
+    mockGeneration(15)
 
     await startDiagnosticTest({ setId: 'set-1', questionCount: 30 })
 
@@ -198,6 +244,7 @@ describe('startDiagnosticTest', () => {
     h.generateJson.mockResolvedValue({
       questions: [{ probeRef: 99, question: 'q', expectedAnswer: 'a' }],
     })
+    // Rejected on the FIRST batch, so nothing is generated and nothing written.
 
     const result = await startDiagnosticTest({ setId: 'set-1', questionCount: 12 })
 
@@ -207,7 +254,7 @@ describe('startDiagnosticTest', () => {
 
   it('rejects a generator response missing a probe it was given', async () => {
     startTx()
-    h.generateJson.mockResolvedValue(generatedFor(11))
+    mockGeneration(11)
 
     const result = await startDiagnosticTest({ setId: 'set-1', questionCount: 12 })
 
@@ -257,12 +304,22 @@ function submitTx() {
   return { diagnosticQuestionUpdate }
 }
 
+/**
+ * Grades in batches with refs LOCAL to each batch, matching the action.
+ *
+ * The local-ref mapping is the part worth mocking faithfully: a grader that
+ * renumbers must not be able to attach one question's verdict to another.
+ */
 function mockGrading(options: { withKlpResults?: boolean } = {}) {
   const withKlpResults = options.withKlpResults ?? true
-  h.generateJson
-    .mockResolvedValueOnce({
-      grades: Array.from({ length: QUESTION_COUNT }, (_, position) => ({
-        questionRef: position,
+  const batches = batched(
+    Array.from({ length: QUESTION_COUNT }, (_, i) => i),
+    DIAGNOSTIC_BATCH_SIZE,
+  )
+  for (const batch of batches) {
+    h.generateJson.mockResolvedValueOnce({
+      grades: batch.map((position, ref) => ({
+        questionRef: ref,
         score: position === 0 ? 4 : 9,
         status: position === 0 ? 'missed' : 'mastered',
         feedback: `Feedback ${position}`,
@@ -272,6 +329,8 @@ function mockGrading(options: { withKlpResults?: boolean } = {}) {
           : {}),
       })),
     })
+  }
+  h.generateJson
     .mockResolvedValueOnce({
       overview: 'One gap surfaced.',
       strengths: ['Most points'],
@@ -414,6 +473,58 @@ describe('submitDiagnosticTest', () => {
     if (result.success) {
       expect(result.data.score).toBe(86)
       expect(result.data.report.recommendations).toHaveLength(1)
+    }
+  })
+
+  it('grades in batches rather than one call for the whole sitting', async () => {
+    // Plus one call for the report. Failing at submit is the worst case
+    // available — the learner has already answered everything.
+    submitTx()
+    mockGrading()
+
+    await submitDiagnosticTest({
+      attemptId: 'attempt-1',
+      answers: attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' })),
+    })
+
+    expect(h.generateJson).toHaveBeenCalledTimes(
+      Math.ceil(QUESTION_COUNT / DIAGNOSTIC_BATCH_SIZE) + 1,
+    )
+  })
+
+  it('maps batch-local refs back to the right question', async () => {
+    // Refs restart at 0 in every batch. If the mapping used the ref directly
+    // instead of the batch offset, question 4 would receive question 0's
+    // verdict — silently, and the score would still look plausible.
+    const tx = submitTx()
+    mockGrading()
+
+    await submitDiagnosticTest({
+      attemptId: 'attempt-1',
+      answers: attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' })),
+    })
+
+    // Only position 0 was graded 'missed'; every other position is 'mastered'.
+    const missed = tx.diagnosticQuestionUpdate.mock.calls.filter(
+      (call) => call[0].data.status === 'missed',
+    )
+    expect(missed).toHaveLength(1)
+    expect(missed[0][0].where.id).toBe('question-0')
+  })
+
+  it('asks for an output-token ceiling on every grading call', async () => {
+    submitTx()
+    mockGrading()
+
+    await submitDiagnosticTest({
+      attemptId: 'attempt-1',
+      answers: attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' })),
+    })
+
+    const gradingCalls = h.generateJson.mock.calls.slice(0, -1) // last one is the report
+    expect(gradingCalls.length).toBeGreaterThan(0)
+    for (const call of gradingCalls) {
+      expect(call[0].maxOutputTokens).toBe(DIAGNOSTIC_MAX_OUTPUT_TOKENS)
     }
   })
 

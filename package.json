@@ -21,7 +21,8 @@
     "verify:klt:baseline": "tsx --env-file=.env scripts/verify-klt-rebuild.ts baseline",
     "verify:klt": "tsx --env-file=.env scripts/verify-klt-rebuild.ts verify",
     "author-klps": "tsx --conditions=react-server --env-file=.env scripts/author-klps.ts",
-    "klp-histogram": "tsx --conditions=react-server --env-file=.env scripts/klp-histogram.ts"
+    "klp-histogram": "tsx --conditions=react-server --env-file=.env scripts/klp-histogram.ts",
+    "verify:diagnostic": "tsx --env-file=.env scripts/verify-diagnostic.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.22",

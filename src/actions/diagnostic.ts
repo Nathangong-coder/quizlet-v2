@@ -9,6 +9,7 @@ import {
   DiagnosticGradeSetSchema,
   DiagnosticQuestionSetSchema,
   DiagnosticReportSchema,
+  type DiagnosticGradeSet,
   type DiagnosticReport,
 } from '@/lib/ai/schemas'
 import {
@@ -19,7 +20,13 @@ import {
 import { readableSetWhere } from '@/lib/sets/visibility'
 import { recordStudyEvent } from '@/lib/memory/record'
 import { normalizeLatency } from '@/lib/memory/latency'
-import { selectDiagnosticProbes, MIN_DIAGNOSTIC_KLPS } from '@/lib/diagnostic/select'
+import {
+  selectDiagnosticProbes,
+  MIN_DIAGNOSTIC_KLPS,
+  DIAGNOSTIC_BATCH_SIZE,
+  DIAGNOSTIC_MAX_OUTPUT_TOKENS,
+  batched,
+} from '@/lib/diagnostic/select'
 import { buildAnalysisWrites, type ErrorTagDraft } from '@/lib/analysis/persist'
 import { createAnswerWithAnalysis, DIAGNOSTIC_TX_OPTIONS } from '@/lib/analysis/write-answer'
 import type { ActionResult } from '@/types/action'
@@ -211,42 +218,55 @@ export async function startDiagnosticTest(input: DiagnosticStartInput): Promise<
     })
     const klpById = new Map(klps.map((klp) => [klp.id, klp]))
 
-    const generated = await generateJson({
-      userId: session.user.id,
-      task: 'diagnostic',
-      prompt: DIAGNOSTIC_QUESTIONS_PROMPT.build({
-        setTitle: set.title,
-        probes: probes.map((probe, probeRef) => {
-          const klp = klpById.get(probe.klpId)!
-          return {
-            probeRef,
-            kind: probe.kind,
-            term: klp.card.term,
-            definition: klp.card.definition,
-            keyPoint: klp.text,
-          }
+    // BATCHED. One call per DIAGNOSTIC_BATCH_SIZE probes, with refs LOCAL to
+    // the batch, because a single call for the whole sitting exhausts the
+    // model's output budget and returns nothing — see DIAGNOSTIC_BATCH_SIZE.
+    // Sequential, not parallel: fanning several structured-output calls at one
+    // credential is how a rate limit turns a slow submit into a failed one.
+    const generatedQuestions: { question: string; expectedAnswer: string }[] = []
+    for (const batch of batched(probes, DIAGNOSTIC_BATCH_SIZE)) {
+      const generated = await generateJson({
+        userId: session.user.id,
+        task: 'diagnostic',
+        prompt: DIAGNOSTIC_QUESTIONS_PROMPT.build({
+          setTitle: set.title,
+          probes: batch.map((probe, probeRef) => {
+            const klp = klpById.get(probe.klpId)!
+            return {
+              probeRef,
+              kind: probe.kind,
+              term: klp.card.term,
+              definition: klp.card.definition,
+              keyPoint: klp.text,
+            }
+          }),
         }),
-      }),
-      schema: DIAGNOSTIC_QUESTIONS_PROMPT.schema,
-    })
-    const questionSet = DiagnosticQuestionSetSchema.parse(generated)
+        schema: DIAGNOSTIC_QUESTIONS_PROMPT.schema,
+        maxOutputTokens: DIAGNOSTIC_MAX_OUTPUT_TOKENS,
+      })
+      const questionSet = DiagnosticQuestionSetSchema.parse(generated)
 
-    // Same shape of guard the v1 `cardRef` check provided. An unknown,
-    // duplicated or missing ref means the generator did not answer the probes
-    // it was given, and accepting a partial set would silently drop key points
-    // the selector deliberately chose.
-    const byRef = new Map(questionSet.questions.map((question) => [question.probeRef, question]))
-    const answersEveryProbe =
-      byRef.size === questionSet.questions.length &&
-      byRef.size === probes.length &&
-      probes.every((_, probeRef) => byRef.has(probeRef))
-    if (!answersEveryProbe) {
-      return { success: false, error: 'The diagnostic generator returned an incomplete question set. Please try again.' }
+      // Same shape of guard the v1 `cardRef` check provided. An unknown,
+      // duplicated or missing ref means the generator did not answer the probes
+      // it was given, and accepting a partial set would silently drop key
+      // points the selector deliberately chose.
+      const byRef = new Map(questionSet.questions.map((question) => [question.probeRef, question]))
+      const answersEveryProbe =
+        byRef.size === questionSet.questions.length &&
+        byRef.size === batch.length &&
+        batch.every((_, probeRef) => byRef.has(probeRef))
+      if (!answersEveryProbe) {
+        return { success: false, error: 'The diagnostic generator returned an incomplete question set. Please try again.' }
+      }
+      for (let probeRef = 0; probeRef < batch.length; probeRef++) {
+        const question = byRef.get(probeRef)!
+        generatedQuestions.push({ question: question.question, expectedAnswer: question.expectedAnswer })
+      }
     }
 
     const questions = probes.map((probe, probeRef) => {
       const klp = klpById.get(probe.klpId)!
-      const question = byRef.get(probeRef)!
+      const question = generatedQuestions[probeRef]
       return {
         cardId: probe.cardId,
         klpId: probe.klpId,
@@ -383,26 +403,43 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
     }
 
     const answers = new Map(parsed.data.answers.map((answer) => [answer.questionId, answer]))
-    const generated = await generateJson({
-      userId: session.user.id,
-      task: 'diagnostic',
-      prompt: DIAGNOSTIC_GRADING_PROMPT.build({
-        questions: attempt.questions.map((question) => ({
-          ref: question.position,
-          question: question.prompt,
-          expectedAnswer: question.expectedAnswer,
-          keyPoint: question.learningPoint,
-          answer: answers.get(question.id)?.answer.trim() ?? '',
-        })),
-      }),
-      schema: DIAGNOSTIC_GRADING_PROMPT.schema,
-    })
-    const gradeSet = DiagnosticGradeSetSchema.parse(generated)
-    const grades = new Map(gradeSet.grades.map((grade) => [grade.questionRef, grade]))
-    const expectedRefs = new Set(attempt.questions.map((question) => question.position))
-    const hasUnknownOrDuplicateGrade = grades.size !== gradeSet.grades.length || gradeSet.grades.some((grade) => !expectedRefs.has(grade.questionRef))
-    const missingGrade = attempt.questions.find((question) => !grades.has(question.position))
-    if (hasUnknownOrDuplicateGrade || missingGrade) return { success: false, error: 'The diagnostic grader returned an incomplete result. Please try again.' }
+
+    // BATCHED, for the same reason generation is: grading one question costs
+    // ~900 reasoning tokens, so a whole sitting in one call exhausts the output
+    // budget and returns nothing. Failing here is the worst case available —
+    // the learner has already answered everything — so the call is kept small
+    // enough that the budget is never the binding constraint.
+    //
+    // Refs are LOCAL to the batch and mapped back by position, so a grader that
+    // renumbers cannot silently attach one question's verdict to another.
+    const grades = new Map<number, DiagnosticGradeSet['grades'][number]>()
+    for (const batch of batched(attempt.questions, DIAGNOSTIC_BATCH_SIZE)) {
+      const generated = await generateJson({
+        userId: session.user.id,
+        task: 'diagnostic',
+        prompt: DIAGNOSTIC_GRADING_PROMPT.build({
+          questions: batch.map((question, ref) => ({
+            ref,
+            question: question.prompt,
+            expectedAnswer: question.expectedAnswer,
+            keyPoint: question.learningPoint,
+            answer: answers.get(question.id)?.answer.trim() ?? '',
+          })),
+        }),
+        schema: DIAGNOSTIC_GRADING_PROMPT.schema,
+        maxOutputTokens: DIAGNOSTIC_MAX_OUTPUT_TOKENS,
+      })
+      const gradeSet = DiagnosticGradeSetSchema.parse(generated)
+      const byRef = new Map(gradeSet.grades.map((grade) => [grade.questionRef, grade]))
+      const complete =
+        byRef.size === gradeSet.grades.length &&
+        byRef.size === batch.length &&
+        batch.every((_, ref) => byRef.has(ref))
+      if (!complete) {
+        return { success: false, error: 'The diagnostic grader returned an incomplete result. Please try again.' }
+      }
+      batch.forEach((question, ref) => grades.set(question.position, byRef.get(ref)!))
+    }
 
     const graded = attempt.questions.map((question) => {
       const grade = grades.get(question.position)!
