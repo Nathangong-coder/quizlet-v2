@@ -39,6 +39,13 @@ vi.mock('@/lib/db', () => ({
 }))
 vi.mock('@/lib/ai/generate', () => ({
   generateJson: h.generateJson,
+  // Delegates to the same mock so a test that stubs `generateJson` also
+  // covers the with-meta variant. `meta.model` is what the production code
+  // now persists onto the artifact.
+  generateJsonWithMeta: async (...args: unknown[]) => ({
+    value: await h.generateJson(...args),
+    meta: { model: 'test-model', provider: 'google', credentialId: 'cred-1' },
+  }),
   AiGenerationError: h.AiGenerationError,
 }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))

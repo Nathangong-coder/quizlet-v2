@@ -3,7 +3,7 @@
 import { auth } from '@/auth';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/db';
-import { generateJson, AiGenerationError } from '@/lib/ai/generate';
+import { generateJsonWithMeta, AiGenerationError } from '@/lib/ai/generate';
 import { EXTRACT_KLPS_PROMPT } from '@/lib/ai/prompts/extract-klps';
 import { KlpExtractionSchema } from '@/lib/ai/schemas';
 import { klpSourceHash } from '@/lib/cards/klp-hash';
@@ -153,7 +153,7 @@ async function extractOneBatch(
     cards: batch.map((c, ref) => ({ ref, term: c.term, definition: c.definition })),
   });
 
-  const result = await generateJson({
+  const { value: result, meta } = await generateJsonWithMeta({
     userId,
     task: 'klp-extract',
     prompt,
@@ -184,6 +184,7 @@ async function extractOneBatch(
           kind: k.kind,
           source: 'ai',
           promptVersion: EXTRACT_KLPS_PROMPT.version,
+          model: meta.model,
         })),
         hash,
       );

@@ -25,6 +25,13 @@ vi.mock('@/lib/db', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/lib/ai/generate', () => ({
   generateJson: h.generateJson,
+  // Delegates to the same mock so a test that stubs `generateJson` also
+  // covers the with-meta variant. `meta.model` is what the production code
+  // now persists onto the artifact.
+  generateJsonWithMeta: async (...args: unknown[]) => ({
+    value: await h.generateJson(...args),
+    meta: { model: 'test-model', provider: 'google', credentialId: 'cred-1' },
+  }),
   resolveTaskModel: vi.fn(),
   AiGenerationError: class extends Error {
     constructor(public detail: { title: string; attempts: unknown[] }) {
@@ -74,6 +81,9 @@ describe('getTrueFalseQuestion', () => {
       statement: 'EBITDA includes interest expense.',
       klpRef: 0,
       corruption: 'inversion',
+      // Recorded now that the false variant's statement is AI-generated; the
+      // true variant and the failure fallback stay null.
+      model: 'test-model',
     })
 
     const result = await getTrueFalseQuestion(ATTEMPT_ID, CARD_ID)
@@ -118,12 +128,17 @@ describe('getTrueFalseQuestion', () => {
     // The corruption is persisted in its own column; without it a wrong TF
     // answer records only WHICH proposition was targeted, not HOW.
     expect(payload.create.corruption).toBe('inversion')
+    // The model that wrote the statement, recorded alongside the corruption.
+    // The true variant and the generation-failure fallback are composed in
+    // TypeScript and stay null.
+    expect(payload.create.model).toBe('test-model')
     expect(payload.update).toEqual({
       statement: payload.create.statement,
       isTrue: payload.create.isTrue,
       corruption: payload.create.corruption,
       targetKlpIds: payload.create.targetKlpIds,
       klpVersion: payload.create.klpVersion,
+      model: payload.create.model,
     })
   })
 

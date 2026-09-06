@@ -52,6 +52,10 @@ export async function suggestSkeleton(
 
   let result: { paths: string[][] };
   try {
+    // ATTRIBUTION: deferred, and named as such. Concept-tree seeding writes
+    // shared KltNode rows that have no provenance column yet, and adding one
+    // is a separate decision because the tree is GLOBAL — a node's model would
+    // describe whoever happened to seed it first, for every user.
     result = await generateJson({
       userId: access.userId,
       task: 'concept-tree',

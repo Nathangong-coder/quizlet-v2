@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
-import { generateJson, AiGenerationError } from '@/lib/ai/generate'
+import { generateJsonWithMeta, AiGenerationError } from '@/lib/ai/generate'
 import {
   DiagnosticGradeSetSchema,
   DiagnosticQuestionSetSchema,
@@ -234,9 +234,11 @@ export async function startDiagnosticTest(input: DiagnosticStartInput): Promise<
     // model's output budget and returns nothing — see DIAGNOSTIC_BATCH_SIZE.
     // Sequential, not parallel: fanning several structured-output calls at one
     // credential is how a rate limit turns a slow submit into a failed one.
-    const generatedQuestions: { question: string; expectedAnswer: string }[] = []
+    // `model` is captured PER BATCH, because rotation can serve two batches
+    // from two different models when a key trips a quota mid-run.
+    const generatedQuestions: { question: string; expectedAnswer: string; model: string }[] = []
     for (const batch of batched(probes, DIAGNOSTIC_BATCH_SIZE)) {
-      const generated = await generateJson({
+      const { value: generated, meta } = await generateJsonWithMeta({
         userId: session.user.id,
         task: 'diagnostic',
         prompt: DIAGNOSTIC_QUESTIONS_PROMPT.build({
@@ -271,7 +273,11 @@ export async function startDiagnosticTest(input: DiagnosticStartInput): Promise<
       }
       for (let probeRef = 0; probeRef < batch.length; probeRef++) {
         const question = byRef.get(probeRef)!
-        generatedQuestions.push({ question: question.question, expectedAnswer: question.expectedAnswer })
+        generatedQuestions.push({
+          question: question.question,
+          expectedAnswer: question.expectedAnswer,
+          model: meta.model,
+        })
       }
     }
 
@@ -289,6 +295,7 @@ export async function startDiagnosticTest(input: DiagnosticStartInput): Promise<
         learningPoint: klp.text,
         prompt: question.question,
         expectedAnswer: question.expectedAnswer,
+        model: question.model,
       }
     })
 
@@ -424,6 +431,10 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
     // returned no parseable object, taking a whole twelve-question sitting with
     // it. See src/lib/diagnostic/grading.ts.
     const grades = new Map<number, DiagnosticGradeSet['grades'][number]>()
+    // Which model graded each question. Per QUESTION for the same reason
+    // generation is: the retry path can grade one question on a different
+    // credential, and therefore a different model, than its batch.
+    const gradedBy = new Map<number, string>()
     const ungraded = new Set<number>()
     const needsGrading: typeof attempt.questions = []
     for (const question of attempt.questions) {
@@ -446,8 +457,9 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
       chunk: typeof attempt.questions,
     ): Promise<{ ok: true } | { ok: false; retryable: boolean }> => {
       let gradeSet: DiagnosticGradeSet
+      let servedBy: string
       try {
-        const generated = await generateJson({
+        const { value: generated, meta } = await generateJsonWithMeta({
           userId: session.user!.id,
           task: 'diagnostic',
           prompt: DIAGNOSTIC_GRADING_PROMPT.build({
@@ -463,6 +475,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
           maxOutputTokens: diagnosticOutputCap(chunk.length),
         })
         gradeSet = DiagnosticGradeSetSchema.parse(generated)
+        servedBy = meta.model
       } catch (gradingError) {
         // Swallowed ON PURPOSE, and only here. A model that rambles past its
         // output ceiling surfaces as `schema_invalid`, which is
@@ -485,6 +498,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
       // same over-generation problem arriving without an exception.
       if (!complete) return { ok: false, retryable: true }
       chunk.forEach((question, ref) => grades.set(question.position, byRef.get(ref)!))
+      chunk.forEach((question) => gradedBy.set(question.position, servedBy))
       return { ok: true }
     }
 
@@ -544,8 +558,11 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
     })
 
     let report: DiagnosticReport
+    // NULL when `fallbackReport` composes it in TypeScript — which is a real
+    // distinction worth recording, not a missing value.
+    let reportModel: string | null = null
     try {
-      const reportOutput = await generateJson({
+      const { value: reportOutput, meta: reportMeta } = await generateJsonWithMeta({
         userId: session.user.id,
         task: 'diagnostic',
         prompt: DIAGNOSTIC_REPORT_PROMPT.build({
@@ -567,6 +584,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
         maxOutputTokens: diagnosticReportOutputCap(graded.length),
       })
       report = DiagnosticReportSchema.parse(reportOutput)
+      reportModel = reportMeta.model
     } catch (reportError) {
       if (!(reportError instanceof AiGenerationError)) console.error('Diagnostic report fallback:', reportError)
       report = fallbackReport(attempt.set.title, graded
@@ -635,6 +653,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
             isCorrect: item.score === null ? null : item.score >= 8,
             latencyMs: normalizeLatency(item.latencyMs),
             feedback: item.feedback,
+            model: gradedBy.get(item.question.position) ?? null,
           },
           writes,
           // No `replace`: a diagnostic question is answered exactly once, so
@@ -677,7 +696,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
       await tx.quizAttempt.update({ where: { id: quizAttempt.id }, data: { score } })
       await tx.diagnosticAttempt.update({
         where: { id: attempt.id },
-        data: { status: 'completed', score, report, reportAt: completedAt, completedAt },
+        data: { status: 'completed', score, report, reportModel, reportAt: completedAt, completedAt },
       })
       await tx.studySession.update({ where: { id: attempt.sessionId }, data: { endedAt: completedAt, durationMs } })
     }, DIAGNOSTIC_TX_OPTIONS)

@@ -18,7 +18,11 @@ vi.mock('@/lib/db', () => ({
     $transaction: vi.fn(),
   },
 }))
-vi.mock('@/lib/ai/generate', () => ({ generateJson: vi.fn(), AiGenerationError: class extends Error {} }))
+vi.mock('@/lib/ai/generate', () => ({
+  generateJson: vi.fn(),
+  generateJsonWithMeta: vi.fn(),
+  AiGenerationError: class extends Error {},
+}))
 vi.mock('@/lib/memory/record', () => ({ recordStudyEvent: vi.fn() }))
 vi.mock('@/lib/analysis/write-answer', () => ({
   createAnswerWithAnalysis: vi.fn(),

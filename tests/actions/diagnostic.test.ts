@@ -41,7 +41,16 @@ vi.mock('@/lib/db', () => ({
     $transaction: h.transaction,
   },
 }))
-vi.mock('@/lib/ai/generate', () => ({ generateJson: h.generateJson, AiGenerationError: h.AiGenerationError }))
+vi.mock('@/lib/ai/generate', () => ({
+  generateJson: h.generateJson,
+  // Delegates to the same mock, so a test that stubs `generateJson` also
+  // covers the with-meta variant the production code now uses.
+  generateJsonWithMeta: async (...args: unknown[]) => ({
+    value: await h.generateJson(...args),
+    meta: { model: 'test-model', provider: 'google', credentialId: 'cred-1' },
+  }),
+  AiGenerationError: h.AiGenerationError,
+}))
 vi.mock('@/lib/memory/record', () => ({ recordStudyEvent: h.recordStudyEvent }))
 vi.mock('@/lib/analysis/write-answer', () => ({
   createAnswerWithAnalysis: h.createAnswerWithAnalysis,

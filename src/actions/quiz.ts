@@ -2,7 +2,7 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { generateJson, resolveTaskModel, AiGenerationError } from '@/lib/ai/generate';
+import { generateJson, generateJsonWithMeta, resolveTaskModel, AiGenerationError } from '@/lib/ai/generate';
 import {
   MULTIPLE_CHOICE_PROMPT,
   GRADE_SHORT_ANSWER_PROMPT,
@@ -172,6 +172,12 @@ async function recordQuizQuestion(
   cardId: string,
   parsed: ParsedOptions,
   userId: string,
+  /**
+   * The model whose options these are. Known on both paths: a fresh generation
+   * resolves it, and a cache hit is keyed on `QuizOptionCache.cardId_model`, so
+   * the cached row's model IS the model that wrote those distractors.
+   */
+  model?: string,
 ): Promise<void> {
   if (!attemptId) return;
   const attempt = await prisma.quizAttempt.findFirst({
@@ -192,6 +198,9 @@ async function recordQuizQuestion(
     // Pinned: a question already asked keeps the version it was asked under,
     // even if the card is edited mid-attempt.
     klpVersion: card?.klpVersion ?? 0,
+    // Omitted rather than nulled when unknown, so an upsert cannot erase an
+    // attribution a previous write already established.
+    ...(model ? { model } : {}),
   };
   await prisma.quizQuestion.upsert({
     where: { attemptId_cardId_mode: { attemptId, cardId, mode: 'multiple-choice' } },
@@ -236,7 +245,7 @@ export async function getOrGenerateMultipleChoiceOptions(
       const parsedCache = cached ? parseOptionCache(cached.options) : null;
       if (parsedCache) {
         try {
-          await recordQuizQuestion(attemptId, cardId, parsedCache, session.user.id);
+          await recordQuizQuestion(attemptId, cardId, parsedCache, session.user.id, model);
         } catch (recordErr) {
           console.error('recordQuizQuestion failed (cache hit):', recordErr);
         }
@@ -268,6 +277,11 @@ export async function getOrGenerateMultipleChoiceOptions(
     let optionsJson: unknown;
 
     if (klps.length > 0) {
+      // ATTRIBUTION: already recorded, by a different route. `model` here
+      // comes from `resolveTaskModel` above, keys `QuizOptionCache.cardId_model`
+      // and is passed to `recordQuizQuestion`, so both the cache row and the
+      // QuizQuestion carry it. Switching to generateJsonWithMeta would give a
+      // second source of truth for the same fact.
       const generated = await generateJson({
         userId: session.user.id,
         task: 'distractors',
@@ -297,6 +311,8 @@ export async function getOrGenerateMultipleChoiceOptions(
     } else {
       // No KLPs (no credential, or extraction failed): legacy prompt, legacy
       // v1 shape. The quiz still works; it just isn't diagnosable.
+      // ATTRIBUTION: as above — `model` from `resolveTaskModel` keys the cache
+      // row and reaches QuizQuestion via `recordQuizQuestion`.
       const legacy = await generateJson({
         userId: session.user.id,
         task: 'distractors',
@@ -326,7 +342,7 @@ export async function getOrGenerateMultipleChoiceOptions(
 
     const parsed = parseOptionCache(optionsJson)!;
     try {
-      await recordQuizQuestion(attemptId, cardId, parsed, session.user.id);
+      await recordQuizQuestion(attemptId, cardId, parsed, session.user.id, model);
     } catch (recordErr) {
       console.error('recordQuizQuestion failed (fresh generation):', recordErr);
     }
@@ -473,17 +489,22 @@ export async function submitMultipleChoiceAnswer(input: {
     if (!attempt) return { success: false, error: 'Attempt not found' };
 
     let feedback = isCorrect ? 'Correct!' : 'Incorrect.';
+    // NULL unless AI feedback actually succeeded: the default Correct!/Incorrect.
+    // string below is written in TypeScript and has no model behind it.
+    let feedbackModel: string | null = null;
+
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     if (card) {
       try {
         const prompt = MC_FEEDBACK_PROMPT.build({ card, selected: input.selectedOption, correct: input.correctAnswer });
-        const aiResult = await generateJson({
+        const { value: aiResult, meta } = await generateJsonWithMeta({
           userId: session.user.id,
           task: 'distractors',
           prompt,
           schema: MultipleChoiceFeedbackSchema,
         });
         feedback = aiResult.feedback;
+        feedbackModel = meta.model;
       } catch (aiErr) {
         // AI feedback is a nice-to-have here; the default Correct!/Incorrect.
         // string above already covers the case (e.g. no credential saved).
@@ -547,6 +568,7 @@ export async function submitMultipleChoiceAnswer(input: {
         score,
         latencyMs: normalizeLatency(input.latencyMs),
         feedback,
+        model: feedbackModel,
       },
       writes,
       // Replace only this card's answer *in this mode* (a card may also be
@@ -642,6 +664,10 @@ export async function submitTrueFalseAnswer(input: {
     const score = isCorrect === null ? null : isCorrect ? 100 : 0;
 
     let feedback = isCorrect === null ? 'Unscored.' : isCorrect ? 'Correct!' : 'Incorrect.';
+    // NULL unless AI feedback actually succeeded: the default Correct!/Incorrect.
+    // string below is written in TypeScript and has no model behind it.
+    let feedbackModel: string | null = null;
+
     const card = await prisma.card.findUnique({ where: { id: input.cardId } });
     if (card) {
       try {
@@ -650,13 +676,14 @@ export async function submitTrueFalseAnswer(input: {
           selected: input.selectedOption,
           correct: question?.isTrue === false ? 'false' : 'true',
         });
-        const aiResult = await generateJson({
+        const { value: aiResult, meta } = await generateJsonWithMeta({
           userId: session.user.id,
           task: 'distractors',
           prompt,
           schema: MultipleChoiceFeedbackSchema,
         });
         feedback = aiResult.feedback;
+        feedbackModel = meta.model;
       } catch (aiErr) {
         // AI feedback is a nice-to-have here; the default Correct!/Incorrect.
         // string above already covers the case (e.g. no credential saved).
@@ -724,6 +751,7 @@ export async function submitTrueFalseAnswer(input: {
         score,
         latencyMs: normalizeLatency(input.latencyMs),
         feedback,
+        model: feedbackModel,
       },
       writes,
       // Unreachable given the one-shot `alreadyAnswered` guard above, but kept
@@ -888,13 +916,16 @@ export async function submitShortAnswer(input: {
         klps: promptKlps.length > 0 ? promptKlps : undefined,
       });
       let grade;
+      let gradedByModel: string | null = null;
       try {
-        grade = await generateJson({
+        const graded = await generateJsonWithMeta({
           userId: session.user.id,
           task: 'grade',
           prompt,
           schema: ShortAnswerGradeSchema,
         });
+        grade = graded.value;
+        gradedByModel = graded.meta.model;
       } catch (gradingErr) {
         await recordFailedShortAnswerAnalysis({
           attemptId: input.attemptId,
@@ -912,7 +943,12 @@ export async function submitShortAnswer(input: {
       let annotations: any[] = [];
       try {
         const annPrompt = ANNOTATION_PROMPT.build({ card, answer: input.answer, correct: card.definition, profileBlock });
-        const annResult = await generateJson({
+        // ATTRIBUTION: the grade's model is what matters and is recorded on
+        // QuizAnswer.model. Annotations are a display embellishment merged
+        // into the same blob; a second model column for highlight spans would
+        // record more than it explains.
+        // ATTRIBUTION: as above — the grade carries the model that matters.
+      const annResult = await generateJson({
           userId: session.user.id,
           task: 'grade',
           prompt: annPrompt,
@@ -958,6 +994,7 @@ export async function submitShortAnswer(input: {
           isCorrect,
           latencyMs: normalizeLatency(input.latencyMs),
           feedback: grade.summary,
+          model: gradedByModel,
         },
         writes,
         replaces,
@@ -1007,13 +1044,16 @@ export async function submitShortAnswer(input: {
     // In a full implementation, assetToPart would be called here to add inlineData
     // For now, we just use the text parts as fallback
     let grade;
+    let gradedByModel: string | null = null;
     try {
-      grade = await generateJson({
+      const graded = await generateJsonWithMeta({
         userId: session.user.id,
         task: 'grade',
         parts,
         schema: ShortAnswerGradeSchema,
       });
+      grade = graded.value;
+      gradedByModel = graded.meta.model;
     } catch (gradingErr) {
       await recordFailedShortAnswerAnalysis({
         attemptId: input.attemptId,
@@ -1031,6 +1071,7 @@ export async function submitShortAnswer(input: {
     let annotations: any[] = [];
     try {
       const annPrompt = ANNOTATION_PROMPT.build({ card, answer: input.answer, correct: card.definition, profileBlock });
+      // ATTRIBUTION: as above — the grade carries the model that matters.
       const annResult = await generateJson({
         userId: session.user.id,
         task: 'grade',
@@ -1073,6 +1114,7 @@ export async function submitShortAnswer(input: {
         isCorrect,
         latencyMs: normalizeLatency(input.latencyMs),
         feedback: grade.summary,
+        model: gradedByModel,
       },
       writes,
       replaces,
@@ -1428,10 +1470,13 @@ export async function getTrueFalseQuestion(
     // keeps the same fact per-option inside its `options` blob. Stays null for
     // the true variant and for the generation-failure fallback.
     let corruption: string | null = null;
+    // NULL for the true variant and for the generation-failure fallback: both
+    // are composed in TypeScript, so there is no model behind them.
+    let statementModel: string | null = null;
 
     if (klps.length > 0 && pickTfVariant() === 'false') {
       try {
-        const generated = await generateJson({
+        const { value: generated, meta } = await generateJsonWithMeta({
           userId: session.user.id,
           task: 'distractors',
           prompt: TRUE_FALSE_PROMPT.build({
@@ -1452,6 +1497,7 @@ export async function getTrueFalseQuestion(
           isTrue = false;
           targetKlpIds = [target];
           corruption = generated.corruption;
+          statementModel = meta.model;
         } else {
           console.error('TF statement generation returned an out-of-range klpRef:', generated.klpRef);
         }
@@ -1470,8 +1516,8 @@ export async function getTrueFalseQuestion(
     // recordQuizQuestion precedent above.
     await prisma.quizQuestion.upsert({
       where: { attemptId_cardId_mode: { attemptId, cardId, mode: 'true-false' } },
-      create: { attemptId, cardId, mode: 'true-false', statement, isTrue, corruption, targetKlpIds, klpVersion: card.klpVersion },
-      update: { statement, isTrue, corruption, targetKlpIds, klpVersion: card.klpVersion },
+      create: { attemptId, cardId, mode: 'true-false', statement, isTrue, corruption, targetKlpIds, klpVersion: card.klpVersion, model: statementModel },
+      update: { statement, isTrue, corruption, targetKlpIds, klpVersion: card.klpVersion, model: statementModel },
     });
 
     return { success: true, data: { statement } };

@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
-import { generateJson, AiGenerationError } from '@/lib/ai/generate'
+import { generateJsonWithMeta, AiGenerationError } from '@/lib/ai/generate'
 import {
   StudyNoteAnalysisSchema,
   StudyNoteStoredAnalysisSchema,
@@ -200,7 +200,7 @@ export async function analyzeStudyNote(id: string): Promise<ActionResult<{ analy
     })
     if (!note) return { success: false, error: 'Study note not found' }
 
-    const output = await generateJson({
+    const { value: output, meta } = await generateJsonWithMeta({
       userId: session.user.id,
       task: 'note-analysis',
       prompt: STUDY_NOTE_ANALYSIS_PROMPT.build({ title: note.title, body: note.body }),
@@ -209,7 +209,10 @@ export async function analyzeStudyNote(id: string): Promise<ActionResult<{ analy
     const analysis = normalizeAnalysis(StudyNoteAnalysisSchema.parse(output))
     const analyzedAt = new Date()
 
-    await prisma.studyNote.update({ where: { id: note.id }, data: { analysis, analyzedAt } })
+    await prisma.studyNote.update({
+      where: { id: note.id },
+      data: { analysis, analyzedAt, model: meta.model },
+    })
     revalidatePath('/notes')
     revalidatePath(`/notes/${id}`)
     revalidatePath('/folders')

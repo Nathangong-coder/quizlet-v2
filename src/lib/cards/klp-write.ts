@@ -21,6 +21,16 @@ export interface KlpRowInput {
   /** 'ai' for extraction, 'user' for a hand-corrected point. */
   source: string;
   promptVersion: number;
+  /**
+   * The model that produced this proposition. Undefined for a user edit and
+   * for anything written before attribution existed.
+   *
+   * It rides on the row input rather than being a parameter of
+   * `writeKlpVersion` because this is the ONE mutation path for a CardKlp's
+   * proposition — extraction and authoring both come through here — so putting
+   * it anywhere else would mean two places to keep in step.
+   */
+  model?: string;
 }
 
 /**
@@ -80,6 +90,7 @@ export async function writeKlpVersion(
           sourceHash: hash,
           promptVersion: k.promptVersion,
           source: k.source,
+          model: k.model ?? null,
         })),
       });
       await tx.card.update({

@@ -26,6 +26,8 @@ import { renderTreeForPrompt, wouldCycle, MAX_TREE_DEPTH, type TreeNodeRow } fro
 export type KltPlacer = (input: { userId: string; prompt: string }) => Promise<KltPlacement>
 
 export const defaultKltPlacer: KltPlacer = ({ userId, prompt }) =>
+  // ATTRIBUTION: deferred with the rest of the concept tree. Placement writes
+  // shared KltNode rows with no provenance column; see klt-seed.ts.
   generateJson({ userId, task: 'concept-tree', prompt, schema: KltPlacementSchema })
 
 /**

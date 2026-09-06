@@ -2,7 +2,7 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { generateJson, AiGenerationError } from '@/lib/ai/generate';
+import { generateJsonWithMeta, AiGenerationError } from '@/lib/ai/generate';
 import { TRAINING_PLAN_PROMPT } from '@/lib/ai/prompts/registry';
 import { TrainingPlanSchema } from '@/lib/ai/schemas';
 import { safeProfileBlock } from '@/lib/ai/context';
@@ -27,7 +27,7 @@ export async function generateTrainingPlan(setId: string): Promise<ActionResult<
 
     // 2. Generate
     const prompt = TRAINING_PLAN_PROMPT.build({ profileBlock });
-    const plan = await generateJson({
+    const { value: plan, meta } = await generateJsonWithMeta({
       userId,
       task: 'plan',
       prompt,
@@ -45,6 +45,7 @@ export async function generateTrainingPlan(setId: string): Promise<ActionResult<
         recommendedCardIds: plan.recommendedCardIds as any,
         generatedQuestions: plan.generatedQuestions as any,
         promptVersion: TRAINING_PLAN_PROMPT.version,
+        model: meta.model,
       },
     });
 

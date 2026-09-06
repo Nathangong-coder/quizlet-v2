@@ -20,6 +20,12 @@ export interface StaffKlpRow {
   weight: number
   version: number
   supersededAt: Date | null
+  /**
+   * The model that wrote this proposition. NULL for every row written before
+   * attribution existed (2026-09-06) — which is all 320 legacy KLPs — and that
+   * is unrecoverable: nothing anywhere records what produced them.
+   */
+  model: string | null
   topics: { name: string; rank: number }[]
   learnerCount: number
   /** NULL when no learner has evidence. Never 0 — see shadeForKnowledge. */
@@ -65,6 +71,7 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
       weight: true,
       version: true,
       supersededAt: true,
+      model: true,
       card: { select: { term: true, setId: true } },
       topics: { select: { rank: true, klt: { select: { name: true } } } },
     },
@@ -125,6 +132,7 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
     const authoring = authoringBy.get(`${k.cardId}:${k.version}`)
     return {
       id: k.id,
+      model: k.model,
       text: k.text,
       label: k.label,
       cardId: k.cardId,
