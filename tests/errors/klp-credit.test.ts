@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  KLP_STATUSES, STATUS_CREDIT, EVIDENCE_STRENGTH, klpCredit,
+  KLP_STATUSES, STATUS_CREDIT, EVIDENCE_STRENGTH, GRADED_KLP_MODES, klpCredit,
 } from '@/lib/errors/klp-credit'
 
 describe('klpCredit', () => {
@@ -40,11 +40,16 @@ describe('klpCredit', () => {
     expect(STATUS_CREDIT.passed).toBe(1)
   })
 
-  it('only carries entries for the three modes Spec 2a actually grades', () => {
+  it('carries entries for exactly the modes that write AnswerKlpResult', () => {
     // review/matching/lesson intentionally have no entry — nothing calls
     // klpCredit with them today, and a guessed number for a mode nobody has
     // reasoned about is worse than the documented DEFAULT_STRENGTH fallback.
-    expect(Object.keys(EVIDENCE_STRENGTH).sort()).toEqual(['quiz-mc', 'quiz-sa', 'quiz-tf'])
+    //
+    // Pinned to GRADED_KLP_MODES rather than a literal list, so the two facts
+    // this test asserts — "no unreasoned mode has a number" and "every graded
+    // mode does" — cannot drift apart. Adding 'diagnostic' to STUDY_SOURCES
+    // without adding it here is exactly what gap G8 was.
+    expect(Object.keys(EVIDENCE_STRENGTH).sort()).toEqual([...GRADED_KLP_MODES].sort())
   })
 
   it('falls back to a default strength for a StudySource with no explicit entry', () => {
@@ -55,5 +60,26 @@ describe('klpCredit', () => {
     expect(klpCredit('passed', 'matching')).toBeGreaterThan(0)
     expect(klpCredit('passed', 'lesson')).toBeGreaterThan(0)
     expect(klpCredit('failed', 'review')).toBe(0)
+  })
+})
+
+describe('EVIDENCE_STRENGTH coverage', () => {
+  it('has an explicit entry for every mode that can reach klpCredit', () => {
+    // G8: 'diagnostic' was added to STUDY_SOURCES and not here, so it took
+    // DEFAULT_STRENGTH (0.75 — a four-option-MC guess rate) for a free-text
+    // mode, silently. Nothing failed. This is the thing that should fail.
+    for (const mode of GRADED_KLP_MODES) {
+      expect(EVIDENCE_STRENGTH[mode]).toBeDefined()
+    }
+  })
+
+  it('treats a diagnostic answer as free-text evidence, like short answer', () => {
+    expect(EVIDENCE_STRENGTH.diagnostic).toBe(EVIDENCE_STRENGTH['quiz-sa'])
+    expect(klpCredit('passed', 'diagnostic')).toBeCloseTo(0.95)
+    expect(klpCredit('partial', 'diagnostic')).toBeCloseTo(0.475)
+  })
+
+  it('still scores a failed diagnostic answer at zero, like every other mode', () => {
+    expect(klpCredit('failed', 'diagnostic')).toBe(0)
   })
 })
