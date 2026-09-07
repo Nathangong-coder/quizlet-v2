@@ -104,6 +104,50 @@ a visible one.
 `structured_outputs`, so it cannot hold the contract at all. `qwen/qwen3.7-flash`
 likewise. (`qwen3.7-plus` and `-max` do support it; untested.)
 
+### Authoring quality — separation score, 2026-09-07
+
+The grading probe above asks whether a model can *judge*. This asks whether it
+can *author*, and the answers differ.
+
+One set (`Accounting - "Talking"`), same prompts, same pacing, same per-card
+model pin, same TypeScript separation arithmetic. The only variable is the
+model. `--direct` was made provider-aware (`KLP_DIRECT_PROVIDER`) specifically
+so this runs on the production path rather than in a parallel harness that
+would drift on exactly the thing being measured.
+
+| Model | Cards | Mean separation | low_discrimination |
+| --- | --- | --- | --- |
+| `gemini-3.1-flash-lite` | 46 | **0.669** | **2%** |
+| `gemini-3.5-flash-lite` | 44 | 0.616 | 16% |
+| `gemini-3.5-flash` | 3 | 0.603 | 0% (n=3) |
+| `deepseek-v4-flash` | 25 | **0.528** | **20%** |
+| `gemini-3.6-flash` | 2 | 0.521 | 0% (n=2) |
+
+**DeepSeek authors measurably worse than the cheapest Gemini**, and needed a
+schema retry on roughly half its cards even after the fence fix below.
+
+**This reverses its grading result** (5/5, 2.0s, deterministic), which is the
+most useful finding here. Grading judges one stated proposition against one
+answer. Authoring has to invent the propositions, invent three adversaries, and
+keep them separable. **Competence on the first predicts very little about the
+second** — and the cheapest model on the list is the best at it, which no
+price-based reasoning would have produced.
+
+**Trap 08 — a fence is not a capability limit.** The first DeepSeek run failed
+every card with `NoObjectGeneratedError`. Not a budget or a capability problem:
+`finishReason: 'stop'`, zero reasoning tokens, a *complete* object wrapped in a
+` ```json ` fence. With `strict: false` the schema is advisory rather than
+enforced by constrained decoding, so the model's formatting habits survive —
+and they surface on the large authoring schema while the small grading schema
+comes back clean. Unfenced in the DeepSeek fetch shim, and only when the
+unwrapped text actually parses.
+
+**A side effect worth more than the benchmark.** Writing a reference answer
+makes the model work the problem, so it notices when the card is wrong. This run
+raised **three substantive errors in the deck's own definitions** (a pre-tax vs
+after-tax mislabel, HTM described as paying dividends, and a numerator/
+denominator swap) and flagged them rather than silently rewriting the card.
+
 ### Qwen / DashScope — blocked, entitlement not credit
 
 `QWENCLOUD_API_KEY` is VALID on
