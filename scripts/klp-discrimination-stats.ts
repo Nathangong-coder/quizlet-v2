@@ -1,5 +1,4 @@
 import { prisma } from '../src/lib/db'
-import type { KlpVerdict } from '../src/lib/klp/verdicts'
 import {
   auc,
   credits,
