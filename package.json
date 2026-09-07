@@ -23,7 +23,8 @@
     "author-klps": "tsx --conditions=react-server --env-file=.env scripts/author-klps.ts",
     "klp-histogram": "tsx --conditions=react-server --env-file=.env scripts/klp-histogram.ts",
     "verify:diagnostic": "tsx --env-file=.env scripts/verify-diagnostic.ts",
-    "probe-models": "tsx --env-file=.env scripts/probe-model-policy.ts"
+    "probe-models": "tsx --env-file=.env scripts/probe-model-policy.ts",
+    "probe-grading": "tsx --env-file=.env scripts/probe-grading-matrix.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.22",
