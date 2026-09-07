@@ -19,7 +19,12 @@ const TABS = [
 export function StaffNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname()
   const tabs = isAdmin
-    ? [...TABS, { href: '/staff/ai-history', label: 'AI task history' }, { href: '/staff/roles', label: 'Roles' }]
+    ? [
+        ...TABS,
+        { href: '/staff/ai-history', label: 'AI task history' },
+        { href: '/staff/authoring', label: 'Authoring runs' },
+        { href: '/staff/roles', label: 'Roles' },
+      ]
     : TABS
 
   return (

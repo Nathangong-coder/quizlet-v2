@@ -44,14 +44,51 @@ export interface ModelRate {
  * the wrong one.
  */
 export const MODEL_RATES: Record<string, ModelRate> = {
-  // Example of the shape. Delete or replace — it is deliberately NOT a real
-  // rate, and `estimateCallCost` returns null for it as for anything unlisted.
+  // ---- OpenRouter -------------------------------------------------------
   //
-  // 'google:gemini-3.6-flash': {
-  //   inputPerMTok: 0,
-  //   outputPerMTok: 0,
-  //   checkedOn: '2026-09-06',
-  // },
+  // TRANSCRIBED, not remembered: read from OpenRouter's own /api/v1/models
+  // endpoint on 2026-09-06, which returns per-token prices. The values below
+  // are those numbers x 1,000,000. Re-read them the same way rather than
+  // trusting this comment — OpenRouter reprices without notice.
+  //
+  // Only models that PASSED `npm run probe-models` against the grading schema,
+  // plus the ones deliberately rejected, are worth listing: a rate for a model
+  // that cannot hold the contract prices something we will never run.
+  'openrouter:deepseek/deepseek-v4-flash-0731': {
+    inputPerMTok: 0.04998,
+    outputPerMTok: 0.09996,
+    checkedOn: '2026-09-06',
+  },
+  'openrouter:minimax/minimax-m3': {
+    inputPerMTok: 0.3,
+    outputPerMTok: 1.2,
+    checkedOn: '2026-09-06',
+  },
+  'openrouter:qwen/qwen3.7-flash': {
+    inputPerMTok: 0.03,
+    outputPerMTok: 0.13,
+    checkedOn: '2026-09-06',
+  },
+  // Genuinely $0 — free-tier variants. Listed so their calls are PRICED at
+  // zero rather than counted as `unpriced`, which is a different claim: one
+  // says "this cost nothing", the other says "nobody knows what this cost".
+  'openrouter:nvidia/nemotron-3-super-120b-a12b:free': {
+    inputPerMTok: 0,
+    outputPerMTok: 0,
+    checkedOn: '2026-09-06',
+  },
+  'openrouter:liquid/lfm-2.5-2.6b:free': {
+    inputPerMTok: 0,
+    outputPerMTok: 0,
+    checkedOn: '2026-09-06',
+  },
+
+  // ---- Google -----------------------------------------------------------
+  //
+  // DELIBERATELY ABSENT. No authoritative figure has been read for these, and
+  // Google's own pricing page is not something this file may guess at. Their
+  // calls therefore show as `unpriced` — which is the honest state, and
+  // visible, rather than a plausible number nobody checked.
 }
 
 export interface CallUsage {

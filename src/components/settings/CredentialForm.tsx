@@ -44,6 +44,11 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
   const [baseUrl, setBaseUrl] = useState(credential?.baseUrl ?? meta.defaultBaseUrl ?? '');
   const [model, setModel] = useState(credential?.defaultModel ?? meta.defaultModel);
   const [role, setRole] = useState<'primary' | 'backup'>((credential?.role as 'primary' | 'backup') ?? 'primary');
+  // Defaults to 'free', matching the column default, and the asymmetry is
+  // deliberate: a paid key wrongly marked free is merely rotated more widely
+  // than it needed to be, while a free key wrongly marked paid gets hammered
+  // into its daily cap.
+  const [tier, setTier] = useState<'free' | 'paid'>((credential?.tier as 'free' | 'paid') ?? 'free');
   const [enabled, setEnabled] = useState(credential?.enabled ?? true);
 
   const [saving, setSaving] = useState(false);
@@ -143,6 +148,7 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
       baseUrl: baseUrl.trim(),
       defaultModel: model.trim(),
       role,
+      tier,
       enabled,
     });
     setSaving(false);
@@ -300,6 +306,26 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
                 <Label htmlFor="role-backup" className="font-normal">Backup — used if primaries fail</Label>
               </div>
             </RadioGroup>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Billing tier</Label>
+            <RadioGroup value={tier} onValueChange={(v) => setTier(v as 'free' | 'paid')} className="grid-cols-1 sm:grid-cols-2">
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="free" id="tier-free" />
+                <Label htmlFor="tier-free" className="font-normal">Free tier — spread across models</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <RadioGroupItem value="paid" id="tier-paid" />
+                <Label htmlFor="tier-paid" className="font-normal">Paid — use only the model above</Label>
+              </div>
+            </RadioGroup>
+            <p className="text-xs leading-5 text-muted-foreground">
+              A free key&rsquo;s daily cap is counted <strong>per model</strong>, so a free key is
+              retried on the other approved models when one runs out — which is the only way to get
+              more than one day&rsquo;s worth out of it. A paid key has no such cap, so it stays on
+              the model you chose and does not quietly incur charges on others.
+            </p>
           </div>
 
           <div className="flex items-center gap-2">

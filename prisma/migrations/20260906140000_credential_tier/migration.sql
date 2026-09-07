@@ -1,0 +1,15 @@
+-- prisma/migrations/20260906140000_credential_tier/migration.sql
+--
+-- Whether a credential is billed or on a provider free tier.
+--
+-- Changes ROTATION, not permission. A free key's daily cap is per project per
+-- MODEL, so the way to get more from it is to spread work across models; a paid
+-- key gains nothing from that and every extra model is another price to reason
+-- about.
+--
+-- DEFAULT 'free', and the asymmetry is deliberate: a paid key wrongly marked
+-- free is merely rotated more widely than it needed to be, while a free key
+-- wrongly marked paid gets hammered into its daily cap -- the exact failure
+-- this column exists to prevent. Existing rows are free-tier keys, so the
+-- default is also the correct backfill.
+ALTER TABLE "AiCredential" ADD COLUMN "tier" TEXT NOT NULL DEFAULT 'free';

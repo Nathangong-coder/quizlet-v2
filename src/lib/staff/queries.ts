@@ -653,3 +653,79 @@ export async function loadAuthoringByModel(): Promise<
     }))
     .sort((a, b) => b.cards - a.cards)
 }
+
+export interface AuthoringRunRow {
+  id: string
+  cardId: string
+  cardTerm: string
+  setId: string
+  setTitle: string
+  klpVersion: number
+  /** NULL for runs that predate model attribution (before 2026-09-06). */
+  model: string | null
+  separationScore: number
+  status: string
+  revisions: number
+  createdAt: Date
+  /** Live KLPs on this card right now. */
+  liveKlps: number
+  /**
+   * TRUE when this run's `klpVersion` is the card's CURRENT version.
+   *
+   * A stale run means the card was authored again afterwards, or the legacy
+   * extractor re-ran and superseded it. Worth seeing per row: 43 redundant
+   * runs on 2026-09-06 were only noticed because the totals stopped adding up.
+   */
+  isCurrent: boolean
+}
+
+/**
+ * Every authoring run, newest first — the per-card reference the by-model
+ * summary cannot give.
+ *
+ * Shows `isCurrent` because a run whose version has been superseded did real
+ * work that no longer backs any live key point, and the aggregate view hides
+ * that completely: a card authored three times counts three times in
+ * `loadAuthoringByModel` while only one of those runs still matters.
+ */
+export async function loadAuthoringRuns(setId?: string, limit = 300): Promise<AuthoringRunRow[]> {
+  const runs = await prisma.cardAuthoring.findMany({
+    where: setId ? { card: { setId } } : {},
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+    select: {
+      id: true, cardId: true, klpVersion: true, model: true, separationScore: true,
+      status: true, revisions: true, createdAt: true,
+      card: {
+        select: {
+          term: true, klpVersion: true, setId: true,
+          set: { select: { title: true } },
+        },
+      },
+    },
+  })
+  if (runs.length === 0) return []
+
+  const liveCounts = await prisma.cardKlp.groupBy({
+    by: ['cardId'],
+    where: { cardId: { in: [...new Set(runs.map((r) => r.cardId))] }, supersededAt: null },
+    _count: { _all: true },
+  })
+  const liveBy = new Map(liveCounts.map((c) => [c.cardId, c._count._all]))
+
+  return runs.map((r) => ({
+    id: r.id,
+    cardId: r.cardId,
+    cardTerm: r.card.term,
+    setId: r.card.setId,
+    setTitle: r.card.set.title,
+    klpVersion: r.klpVersion,
+    model: r.model,
+    separationScore: r.separationScore,
+    status: r.status,
+    revisions: r.revisions,
+    createdAt: r.createdAt,
+    liveKlps: liveBy.get(r.cardId) ?? 0,
+    isCurrent: r.klpVersion === r.card.klpVersion,
+  }))
+}
