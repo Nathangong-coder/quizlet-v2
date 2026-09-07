@@ -123,6 +123,10 @@ outright with 401, so the region is right; the entitlement is not.
 
 Untestable until the account is provisioned. Nothing in code can fix it.
 
+**Retried 2026-09-07.** Identical: all four models, both the compatible-mode
+and the Anthropic-shaped endpoint, still `403 AccessDenied.Unpurchased`. Qwen
+therefore contributes nothing to ship against and is not in any rotation.
+
 ### OpenRouter paid — blocked
 
 `deepseek/deepseek-v4-flash-0731`, `minimax/minimax-m3` and others advertise
@@ -241,6 +245,16 @@ Measured, not quoted, except where marked transcribed.
   these prompts are below the minimum cacheable prefix on most providers.
 - **DeepSeek's context cache does work**: input showed `1280 cached / 1280` on
   repeat calls, making input cost effectively nil there.
+- **DeepSeek bills on a clock.** Off-peak is exactly half of peak, and peak is
+  only 01:00-04:00 and 06:00-10:00 UTC on weekdays -- so most calls this app
+  makes are billed at half the published headline. `pricing.ts` records the
+  PEAK rate anyway: a cost figure that understates is the dangerous direction,
+  and an upper bound cannot cause a surprise. Read every DeepSeek dollar figure
+  in the app as "no more than". Peak, per 1M tokens, transcribed 2026-09-06:
+  `deepseek-v4-flash` $0.44 in (miss) / $0.014 in (hit) / $1.32 out;
+  `deepseek-v4-pro` $1.32 / $0.044 / $3.96. The hit rate is **32x** cheaper
+  than a miss, which is why cached tokens are subtracted before the miss rate
+  is applied rather than all input being priced the same.
 - Rates live in `src/lib/ai/pricing.ts`, transcribed from the provider with a
   `checkedOn` date. **A model with no rate prices as `null`, never 0** — "$0.00"
   would read as "this was free" rather than "nobody knows".
@@ -278,5 +292,6 @@ named. The instrumentation traps above are arguably the most useful part.
 
 | Date | What changed |
 | --- | --- |
+| 2026-09-07 | DeepSeek peak/off-peak rates transcribed into `pricing.ts`; Qwen retried and still entitlement-blocked; shared keys + per-borrower token budget shipped. |
 | 2026-09-07 | `deepseek` added as a first-class provider, verified end to end through the real app path (`deepseek-v4-flash` 2.5s / 292 tokens, `deepseek-v4-pro` 3.4s / 267 tokens, reasoning off by default). Qwen found to be entitlement-blocked. |
 | 2026-09-06 | First record. Google allowlist widened to `gemini-3.1-flash-lite` on evidence; `gemini-3.4-flash` shown not to exist; Gemma rejected; OpenRouter free tier surveyed; DeepSeek `/responses` established as the working endpoint; reasoning x strict matrix run; temperature and structured-output bugs found and fixed. |
