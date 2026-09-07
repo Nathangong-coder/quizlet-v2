@@ -6,7 +6,13 @@
 with a per-borrower token budget (default 1M), so a non-technical learner can study with no key of
 their own. `/settings/ai` now shows both the included allowance and a 30-day usage tracker to every
 user. Qwen remains entitlement-blocked (403 `AccessDenied.Unpurchased`, retried 2026-09-07) and is
-in no rotation.
+in no rotation. **The owner verified the shared-key flow in a browser on 2026-09-07** — that gate is
+closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
+
+**START WITH ITEM 2, and its first step is a measurement, not a purchase.** DeepSeek now makes
+re-authoring cost ~$2-5 instead of ~15 days of free-tier drip, but nothing has established that it
+authors as well as it grades. Author ONE set, run `npm run klp-histogram` on it, compare to the
+Gemini LBO pilot, and only then decide about the rest of the corpus.
 
 **Last updated:** 2026-09-06. **NEXT UP item 1 (wire the diagnostic to real key points) is DONE
 and the gate is off** - see the struck-through entry below for what shipped, the four defects live
