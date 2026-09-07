@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
+  canShareCredentials,
   saveCredential,
   testCredential,
   testRawCredential,
@@ -19,6 +20,7 @@ import {
   type CredentialRow,
 } from '@/actions/ai-credentials';
 import { PROVIDER_META, type ProviderId } from '@/lib/ai/providers';
+import { DEFAULT_SHARED_TOKEN_BUDGET } from '@/lib/ai/shared-budget';
 import { useErrorToast } from '@/components/errors/useErrorToast';
 
 interface CredentialFormProps {
@@ -50,6 +52,26 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
   // into its daily cap.
   const [tier, setTier] = useState<'free' | 'paid'>((credential?.tier as 'free' | 'paid') ?? 'free');
   const [enabled, setEnabled] = useState(credential?.enabled ?? true);
+
+  // Sharing is admin-only. The control is not rendered at all for anyone else,
+  // and `shared`/`sharedTokenBudget` are then left out of the save payload
+  // entirely — so a learner editing their own key cannot clear an admin's
+  // sharing settings by round-tripping a form that never showed them.
+  const [canShare, setCanShare] = useState(false);
+  const [shared, setShared] = useState(credential?.shared ?? false);
+  const [budget, setBudget] = useState(
+    String(credential?.sharedTokenBudget ?? DEFAULT_SHARED_TOKEN_BUDGET),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    canShareCredentials().then((allowed) => {
+      if (!cancelled) setCanShare(allowed);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -150,6 +172,15 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
       role,
       tier,
       enabled,
+      // Omitted entirely unless the control was rendered — see `canShare`.
+      ...(canShare
+        ? {
+            shared,
+            sharedTokenBudget: Number.isFinite(Number(budget))
+              ? Math.max(0, Math.trunc(Number(budget)))
+              : DEFAULT_SHARED_TOKEN_BUDGET,
+          }
+        : {}),
     });
     setSaving(false);
 
@@ -327,6 +358,46 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
               the model you chose and does not quietly incur charges on others.
             </p>
           </div>
+
+          {canShare && (
+            <div className="space-y-2 rounded-lg border border-dashed p-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="shared"
+                  className="h-4 w-4 rounded border-input"
+                  checked={shared}
+                  onChange={(e) => setShared(e.target.checked)}
+                />
+                <Label htmlFor="shared">Share this key with every user</Label>
+              </div>
+              <p className="text-xs leading-5 text-muted-foreground">
+                Lets people study without holding an API key of their own.{' '}
+                <strong>You are billed for their requests.</strong> Their own keys are always tried
+                first; this one is the fallback.
+              </p>
+              {shared && (
+                <div className="space-y-1">
+                  <Label htmlFor="sharedTokenBudget" className="text-xs">
+                    Token budget per borrower
+                  </Label>
+                  <Input
+                    id="sharedTokenBudget"
+                    type="number"
+                    min={0}
+                    step={100_000}
+                    value={budget}
+                    onChange={(e) => setBudget(e.target.value)}
+                    className="max-w-48 font-mono tabular-nums"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Counted per person, for their lifetime, input + output together. Once someone
+                    passes it they need a key of their own; everybody else is unaffected.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <input

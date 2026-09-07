@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   findUnique: vi.fn(),
   update: vi.fn(),
   updateMany: vi.fn(),
+  groupBy: vi.fn(),
   generateText: vi.fn(),
   resolveLanguageModel: vi.fn(),
 }));
@@ -26,9 +27,11 @@ vi.mock('@/lib/db', () => ({
     aiCredential: { findMany: h.findMany, update: h.update, updateMany: h.updateMany },
     aiTaskRouting: { findUnique: h.findUnique },
     // `resolveCandidates` now also reads today's quota_exhausted combos so it
-    // can drop them from the pool. Empty here: these tests are about ordering
-    // and policy, and exclusion has its own tests in credential-pool.test.ts.
-    aiCallLog: { findMany: vi.fn().mockResolvedValue([]) },
+    // can drop them from the pool, and sums per-credential token spend to
+    // enforce shared-key budgets. Both default to empty: these tests are about
+    // ordering and policy, and exclusion has its own tests in
+    // credential-pool.test.ts. The budget tests below override `groupBy`.
+    aiCallLog: { findMany: vi.fn().mockResolvedValue([]), groupBy: h.groupBy },
   },
 }));
 
@@ -52,12 +55,15 @@ const Schema = z.object({ ok: z.boolean() });
 
 interface CredOverrides {
   id?: string;
+  userId?: string;
   provider?: string;
   label?: string;
   defaultModel?: string;
   role?: string;
   enabled?: boolean;
   lastUsedAt?: Date | null;
+  shared?: boolean;
+  sharedTokenBudget?: number | null;
 }
 
 function cred(over: CredOverrides = {}) {
@@ -72,6 +78,8 @@ function cred(over: CredOverrides = {}) {
     defaultModel: 'gemini-3.6-flash',
     role: 'primary',
     enabled: true,
+    shared: false,
+    sharedTokenBudget: null,
     lastUsedAt: null,
     lastErrorAt: null,
     lastErrorKind: null,
@@ -103,6 +111,7 @@ function attemptedModels(): string[] {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.groupBy.mockResolvedValue([]);
   h.update.mockResolvedValue({});
   h.updateMany.mockResolvedValue({ count: 1 });
   h.resolveLanguageModel.mockImplementation((args: unknown) => args);
@@ -251,5 +260,66 @@ describe('generateJson', () => {
     const detail = (err as AiGenerationError).detail;
     expect(detail.title).toBe('No AI provider configured');
     expect(detail.why).toContain('none is saved on your account yet');
+  });
+});
+
+/**
+ * Shared credentials: a key one user lends to everybody, capped per borrower.
+ *
+ * The cap is the whole safety story — the lender is billed for other people's
+ * requests — so it is tested at the pool, where it actually bites, and not
+ * only as the pure `isExhausted` predicate that decides it.
+ */
+describe('shared credentials and their per-borrower budget', () => {
+  const LENT = cred({
+    id: 'lent-1',
+    userId: 'someone-else',
+    label: 'Shared DeepSeek',
+    provider: 'deepseek',
+    defaultModel: 'deepseek-v4-flash',
+    shared: true,
+    sharedTokenBudget: 1_000_000,
+  });
+
+  /** `loadSpendByCredential` shape: one groupBy row per credential. */
+  function spent(credentialId: string, tokens: number) {
+    h.groupBy.mockResolvedValue([
+      { credentialId, _sum: { inputTokens: tokens, outputTokens: 0 } },
+    ]);
+  }
+
+  it('lets a user with no key of their own borrow a shared one', async () => {
+    setup([LENT], null);
+    expect(await resolveTaskModel('u1', 'grade')).toBe('deepseek-v4-flash');
+  });
+
+  it('drops a shared key once the borrower has spent its budget', async () => {
+    setup([LENT], null);
+    spent(LENT.id, 1_000_000);
+    // Not merely deprioritised: gone. An over-budget key left in the pool
+    // would be retried on every generation, forever, at the lender's expense.
+    expect(await resolveTaskModel('u1', 'grade')).toBeNull();
+  });
+
+  it('keeps the key while the borrower is one token short of the cap', async () => {
+    setup([LENT], null);
+    spent(LENT.id, 999_999);
+    expect(await resolveTaskModel('u1', 'grade')).toBe('deepseek-v4-flash');
+  });
+
+  it('tries the user OWN key before a borrowed one, even when the borrowed key is less recently used', async () => {
+    // The own key was used seconds ago and the borrowed key never — so LRU
+    // alone would put the borrowed key first. Spending a lender's budget while
+    // the borrower's own key sits idle is the outcome this ordering prevents.
+    setup([cred({ lastUsedAt: new Date('2026-09-06T12:00:00Z') }), LENT], null);
+    expect(await resolveTaskModel('u1', 'grade')).toBe('gemini-3.6-flash');
+  });
+
+  it('does not meter the user own key against a shared budget', async () => {
+    // Same spend, but on a key the user owns: the cap is about lending, and
+    // a user's own provider bills them directly.
+    setup([cred({ sharedTokenBudget: 1_000 })], null);
+    spent('google-1', 500_000);
+    expect(await resolveTaskModel('u1', 'grade')).toBe('gemini-3.6-flash');
   });
 });

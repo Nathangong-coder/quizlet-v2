@@ -1068,6 +1068,22 @@ model AiCredential {
   /// free key wrongly marked paid gets hammered into its daily cap — which is
   /// exactly the failure this column exists to prevent.
   tier            String          @default("free") // free|paid
+  /// Offered to EVERY user of this install, not just its owner.
+  ///
+  /// This is how somebody studies without holding an API key of their own,
+  /// which was the single biggest complaint from non-technical users. It also
+  /// means the owner is billed for other people's requests, so it is opt-in,
+  /// off by default, and always paired with `sharedTokenBudget`.
+  shared          Boolean         @default(false)
+  /// Tokens ONE borrower may spend on this credential, lifetime. NULL means
+  /// unlimited, which is only sane on a key that is not shared.
+  ///
+  /// Per borrower, not global: a global pool would let the first heavy user
+  /// exhaust it for everyone, and the owner could not tell whether that was
+  /// one runaway or genuine demand. Usage is summed from `AiCallLog`, which
+  /// already records userId, credentialId and tokens per attempt — no second
+  /// counter to keep in step, and it survives a redeploy.
+  sharedTokenBudget Int?
   enabled         Boolean         @default(true)
   lastUsedAt      DateTime? // last ATTEMPT (stamped before the call, not after success); drives LRU rotation in lib/ai/key-pool.ts
   lastErrorAt     DateTime?

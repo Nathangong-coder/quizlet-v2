@@ -11,6 +11,8 @@ import { fetchModelList } from '@/lib/ai/model-catalog';
 import { classifyProviderError, describeFailure } from '@/lib/errors/classify';
 import { AI_TASKS } from '@/lib/ai/model-routing';
 import { isModelAllowed, GOOGLE_APPROVED_MODELS } from '@/lib/ai/model-policy';
+import { requireAdmin } from '@/lib/staff/access';
+import { DEFAULT_SHARED_TOKEN_BUDGET } from '@/lib/ai/shared-budget';
 import type { ActionResult } from '@/types/action';
 
 const CredentialInput = z.object({
@@ -28,6 +30,18 @@ const CredentialInput = z.object({
    */
   tier: z.enum(['free', 'paid']),
   enabled: z.boolean(),
+  /**
+   * Lend this key to every user of the install, capped per borrower.
+   *
+   * ADMIN ONLY, enforced in `saveCredential` rather than by omitting the field
+   * from the form — a server action is a public endpoint, so a control the UI
+   * hides is not a control the server withholds. Both fields are optional here
+   * and are simply not applied for a non-admin caller, leaving whatever the
+   * row already had; rejecting the whole save would break an ordinary learner
+   * editing an ordinary key through a stale client.
+   */
+  shared: z.boolean().optional(),
+  sharedTokenBudget: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
 });
 
 /**
@@ -50,6 +64,7 @@ const RawCredentialInput = z.object({
 export interface CredentialRow {
   id: string; provider: string; label: string; keyHint: string;
   baseUrl: string | null; defaultModel: string; role: string; tier: string; enabled: boolean;
+  shared: boolean; sharedTokenBudget: number | null;
   verifiedAt: string | null; lastUsedAt: string | null; lastErrorKind: string | null;
 }
 
@@ -72,6 +87,7 @@ export async function listCredentials(): Promise<ActionResult<CredentialRow[]>> 
       data: rows.map((r) => ({
         id: r.id, provider: r.provider, label: r.label, keyHint: r.keyHint,
         baseUrl: r.baseUrl, defaultModel: r.defaultModel, role: r.role, tier: r.tier, enabled: r.enabled,
+        shared: r.shared, sharedTokenBudget: r.sharedTokenBudget,
         verifiedAt: r.verifiedAt?.toISOString() ?? null,
         lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
         lastErrorKind: r.lastErrorKind,
@@ -98,6 +114,22 @@ export async function saveCredential(
     return { success: false, error: `${PROVIDER_META[v.provider].label} requires a base URL.` };
   }
 
+  // Sharing spends the owner's money on other people's requests, so only an
+  // admin may turn it on — and only through the gate, never through the shape
+  // of the request. A non-admin's `shared` field is dropped, which leaves an
+  // already-shared row shared: revoking is also an admin action.
+  const sharing =
+    (await requireAdmin()) && v.shared !== undefined
+      ? {
+          shared: v.shared,
+          // A shared key with no cap is the runaway this whole mechanism
+          // exists to prevent, so turning sharing on always lands a budget.
+          sharedTokenBudget: v.shared
+            ? (v.sharedTokenBudget ?? DEFAULT_SHARED_TOKEN_BUDGET)
+            : v.sharedTokenBudget ?? null,
+        }
+      : {};
+
   try {
     if (v.id) {
       // Editing. Only re-encrypt when a new key was actually supplied, so
@@ -111,7 +143,7 @@ export async function saveCredential(
         where: { id: v.id },
         data: {
           label: v.label, baseUrl, defaultModel: v.defaultModel,
-          role: v.role, tier: v.tier, enabled: v.enabled,
+          role: v.role, tier: v.tier, enabled: v.enabled, ...sharing,
           ...(v.apiKey
             ? {
                 encryptedApiKey: encryptApiKey(v.apiKey),
@@ -132,6 +164,7 @@ export async function saveCredential(
         userId, provider: v.provider, label: v.label,
         encryptedApiKey: encryptApiKey(v.apiKey), keyHint: maskApiKey(v.apiKey),
         baseUrl, defaultModel: v.defaultModel, role: v.role, tier: v.tier, enabled: v.enabled,
+        ...sharing,
       },
       select: { id: true },
     });
@@ -141,6 +174,18 @@ export async function saveCredential(
     console.error('Save credential error:', error);
     return { success: false, error: 'Failed to save credential' };
   }
+}
+
+/**
+ * May the current user lend a key to everybody? Renders the sharing control.
+ *
+ * A separate call rather than a field on `CredentialRow` because it is a
+ * property of the VIEWER, not of any row, and repeating it per row invites a
+ * future reader to think one key might be shareable while another is not. It
+ * is a hint for the UI only — `saveCredential` re-derives it.
+ */
+export async function canShareCredentials(): Promise<boolean> {
+  return (await requireAdmin()) !== null;
 }
 
 export async function deleteCredential(id: string): Promise<ActionResult<void>> {

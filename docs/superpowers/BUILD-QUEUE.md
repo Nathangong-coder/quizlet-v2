@@ -1,5 +1,13 @@
 # Build queue & carried-over findings
 
+**Shipped since (2026-09-07, not yet its own queue item):** DeepSeek as a first-class provider
+(reasoning off by default, `/responses` endpoint, 2.0-2.5s deterministic); an operator record at
+`docs/ai/model-performance.md`; and **shared API keys** - an admin can lend a key to every user
+with a per-borrower token budget (default 1M), so a non-technical learner can study with no key of
+their own. `/settings/ai` now shows both the included allowance and a 30-day usage tracker to every
+user. Qwen remains entitlement-blocked (403 `AccessDenied.Unpurchased`, retried 2026-09-07) and is
+in no rotation.
+
 **Last updated:** 2026-09-06. **NEXT UP item 1 (wire the diagnostic to real key points) is DONE
 and the gate is off** - see the struck-through entry below for what shipped, the four defects live
 probes found that the suite could not, and the one human gate still owed. Items 2 and 3 are
@@ -106,6 +114,19 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
    accepted multi-week drip via `npm run author-klps -- --set <id> --direct --rpm 12` (resumable,
    skips already-authored cards, rotates `GOOGLE_API_KEYS` x `KLP_DIRECT_MODELS` automatically).
    Results now show up in `/staff/ai-history` per model, since `CardAuthoring.model` is recorded.
+
+   **The "needs a paid tier" blocker now has a PRICE, 2026-09-07.** DeepSeek is a first-class
+   provider with transcribed rates, so the multi-week drip is no longer the only option. Order of
+   magnitude: ~1,200 calls at ~2.5k output / ~1k input is ~3M output + ~1.2M input, which on
+   `deepseek-v4-flash` is **~$4.50 at peak and ~$2.25 off-peak** (off-peak is exactly half, and
+   peak is only 01:00-04:00 / 06:00-10:00 UTC on weekdays — so a run started in the evening is
+   billed at the lower rate by default). That is a real number to decide against, not a guess.
+   **What is NOT established: whether DeepSeek authors as well as it grades.** Only the grading
+   schema was probed. Authoring is a harder contract — reference answer, KLP set, three
+   adversaries, then a separation re-grade — and `author-klps` deliberately pins ONE model per
+   card so candidate scores stay comparable. Author ONE set first, run `npm run klp-histogram`
+   against it, and compare its weight distribution and mean separation to the Gemini-authored LBO
+   pilot before spending the rest.
 
 3. **Wire the solution/answer overlay to real data.** `KlpGraphCanvas` already takes an `answer`
    prop and renders correct/partial/failed per key point; nothing passes one yet. Natural homes are

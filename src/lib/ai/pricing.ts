@@ -83,6 +83,41 @@ export const MODEL_RATES: Record<string, ModelRate> = {
     checkedOn: '2026-09-06',
   },
 
+  // ---- DeepSeek (direct platform, not via OpenRouter) -------------------
+  //
+  // TRANSCRIBED from https://api-docs.deepseek.com/quick_start/pricing on
+  // 2026-09-06. These are the PEAK rates.
+  //
+  // DeepSeek bills on a clock: off-peak is exactly HALF of peak, and peak is
+  // only 01:00-04:00 and 06:00-10:00 UTC on weekdays — so most calls this app
+  // makes are billed at half these numbers. Peak is recorded anyway because a
+  // cost figure that understates is the dangerous direction to be wrong in:
+  // the tracker's job is to stop a surprise, and an upper bound cannot cause
+  // one. Read every figure here as "no more than".
+  //
+  // The cache-hit rate is 32x cheaper than a miss, and DeepSeek's context
+  // cache genuinely fires on repeat calls (measured: 1280 cached / 1280 input)
+  // — which is why `estimateCallCost` subtracts cached tokens before applying
+  // the miss rate rather than pricing all input the same.
+  'deepseek:deepseek-v4-flash': {
+    inputPerMTok: 0.44,
+    outputPerMTok: 1.32,
+    cachedInputPerMTok: 0.014,
+    checkedOn: '2026-09-06',
+  },
+  'deepseek:deepseek-v4-pro': {
+    inputPerMTok: 1.32,
+    outputPerMTok: 3.96,
+    cachedInputPerMTok: 0.044,
+    checkedOn: '2026-09-06',
+  },
+  'deepseek:deepseek-v4-flash-vision-exp': {
+    inputPerMTok: 0.44,
+    outputPerMTok: 1.32,
+    cachedInputPerMTok: 0.014,
+    checkedOn: '2026-09-06',
+  },
+
   // ---- Google -----------------------------------------------------------
   //
   // DELIBERATELY ABSENT. No authoritative figure has been read for these, and

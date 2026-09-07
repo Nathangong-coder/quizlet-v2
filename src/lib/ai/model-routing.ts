@@ -44,3 +44,20 @@ export const AI_TASKS = [
 ] as const;
 
 export type AiTask = (typeof AI_TASKS)[number];
+
+/**
+ * Human names for the tasks. Lives here, beside the vocabulary it labels, so
+ * adding a task and forgetting its label is a type error rather than a raw
+ * slug leaking into the UI — `Record<AiTask, string>` is total.
+ */
+export const AI_TASK_LABELS: Record<AiTask, string> = {
+  grade: 'Grading (short-answer & spoken)',
+  plan: 'Training plan generation',
+  distractors: 'Multiple-choice distractors',
+  autocomplete: 'Card autocomplete & autofill',
+  'klp-extract': 'Key point extraction (background)',
+  'concept-tree': 'Concept tree (background)',
+  'note-analysis': 'Study note analysis',
+  diagnostic: 'Diagnostic test generation & grading',
+  author: 'KLP authoring (reference answers & discrimination test)',
+};

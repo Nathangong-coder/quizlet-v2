@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import CredentialList from '@/components/settings/CredentialList';
 import TaskRoutingPanel from '@/components/settings/TaskRoutingPanel';
+import SharedKeysPanel from '@/components/settings/SharedKeysPanel';
+import TokenUsagePanel from '@/components/settings/TokenUsagePanel';
 import { PageHeader } from '@/components/ui/page-header';
 
 /**
@@ -32,6 +34,10 @@ export default async function AiSettingsPage() {
         title="AI settings"
         lede="The provider credentials used for grading, distractor generation, training plans, card autocomplete/autofill, and study-note analysis. Add as many as you like across providers; primaries are tried first and backups cover a failure."
       />
+
+      <SharedKeysPanel />
+
+      <TokenUsagePanel />
 
       <CredentialList />
 

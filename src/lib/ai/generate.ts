@@ -22,6 +22,7 @@ import { decryptApiKey } from '@/lib/security/api-key';
 import { selectAttemptOrder } from '@/lib/ai/key-pool';
 import { buildCredentialPool } from '@/lib/ai/credential-pool';
 import { loadExhaustedCombos } from '@/lib/ai/exhausted';
+import { loadSpendByCredential, isExhausted } from '@/lib/ai/shared-budget';
 import { resolveLanguageModel, type ProviderId } from '@/lib/ai/providers';
 import { toSdkContent, type GeminiPart } from '@/lib/ai/media-adapter';
 // AiTask is declared once, in model-routing.ts (it already exports it today).
@@ -256,13 +257,42 @@ async function resolveCandidates(
   userId: string,
   task: AiTask,
 ): Promise<ResolvedPool> {
-  const [credentials, routing, exhausted] = await Promise.all([
-    prisma.aiCredential.findMany({ where: { userId } }),
+  const [reachable, routing, exhausted, spend] = await Promise.all([
+    // The user's own keys AND the keys their owners offered to everyone, in
+    // ONE query. Shared keys are what let somebody study without holding an
+    // API key at all — the point at which most non-technical users previously
+    // stopped. Two queries would have to be de-duplicated by hand, and getting
+    // that wrong puts the same credential in the pool twice.
+    prisma.aiCredential.findMany({
+      where: { OR: [{ userId }, { shared: true, enabled: true, userId: { not: userId } }] },
+    }),
     prisma.aiTaskRouting.findUnique({ where: { userId_task: { userId, task } } }),
     // Combos already known to be out of quota today. Dropping them is the
     // difference between one honest failure and twelve doomed retries.
     loadExhaustedCombos(prisma, userId),
+    loadSpendByCredential(prisma, userId),
   ]);
+
+  const own = reachable.filter((c) => c.userId === userId);
+
+  // A borrower who has spent their allowance on a shared key is dropped from
+  // the pool entirely rather than allowed to fail at the provider. The owner
+  // is paying for these calls, so the cap has to bite BEFORE the request, not
+  // after — and an over-budget credential that stayed in the list would be
+  // retried on every generation forever.
+  //
+  // The cap applies ONLY to borrowed keys. A user's own key is metered by
+  // their provider; capping it here would be this app inventing a limit on
+  // somebody else's billing relationship.
+  const affordable = reachable.filter(
+    (c) => c.userId !== userId && !isExhausted(spend.get(c.id) ?? 0, c.sharedTokenBudget),
+  );
+
+  // OWN KEYS FIRST, always. A user who supplied their own credential expects
+  // it to be used; quietly spending somebody else's budget while their key sat
+  // idle would be both surprising and unfair to the lender. Borrowed keys are
+  // the fallback, not the default.
+  const credentials = [...own, ...affordable];
 
   // A routing row pinned to one credential narrows the pool to it; otherwise
   // every credential is eligible. A dangling credentialId is impossible —
@@ -271,6 +301,8 @@ async function resolveCandidates(
     ? credentials.find((c) => c.id === routing.credentialId) ?? null
     : null;
   const eligible = routing?.credentialId ? credentials.filter((c) => c.id === routing.credentialId) : credentials;
+
+  const ownIds = new Set(own.map((c) => c.id));
 
   const ordered = selectAttemptOrder(
     eligible.map((c) => ({
@@ -320,6 +352,9 @@ async function resolveCandidates(
         // wrong for grading may be fine elsewhere. See model-policy.ts.
         defaultModel: enforceModelPolicy(cred.provider, overrideModel ?? cred.defaultModel, task).model,
         tier: cred.tier,
+        // Own keys strictly before borrowed ones — a precedence the pool
+        // applies above LRU. See `PoolInput.group`.
+        group: ownIds.has(cred.id) ? 0 : 1,
       };
     }),
     // A pinned credential means the user chose this exact key and model;
