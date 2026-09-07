@@ -9,23 +9,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { listCredentials, listTaskRoutings, saveTaskRouting, type CredentialRow } from '@/actions/ai-credentials';
 import { PROVIDER_META, type ProviderId } from '@/lib/ai/providers';
-import { AI_TASKS, type AiTask } from '@/lib/ai/model-routing';
+import { AI_TASKS, AI_TASK_LABELS, type AiTask } from '@/lib/ai/model-routing';
 import { GOOGLE_APPROVED_MODELS, isPolicedTask } from '@/lib/ai/model-policy';
 
 const TASKS = AI_TASKS;
 type Task = AiTask;
 
-const TASK_LABELS: Record<Task, string> = {
-  grade: 'Grading (short-answer & spoken)',
-  plan: 'Training plan generation',
-  distractors: 'Multiple-choice distractors',
-  autocomplete: 'Card autocomplete & autofill',
-  'klp-extract': 'Key point extraction (background)',
-  'concept-tree': 'Concept tree (background)',
-  'note-analysis': 'Study note analysis',
-  diagnostic: 'Diagnostic test generation & grading',
-  author: 'KLP authoring (reference answers & discrimination test)',
-};
+const TASK_LABELS = AI_TASK_LABELS;
 
 /**
  * What each task actually does, when it fires, and whether its output is kept.

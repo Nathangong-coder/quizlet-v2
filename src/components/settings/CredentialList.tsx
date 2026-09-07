@@ -112,6 +112,13 @@ export default function CredentialList() {
                         <Badge variant={cred.enabled ? 'secondary' : 'outline'}>
                           {cred.enabled ? 'Enabled' : 'Disabled'}
                         </Badge>
+                        {cred.shared && (
+                          <Badge variant="secondary">
+                            Shared
+                            {cred.sharedTokenBudget !== null &&
+                              ` · ${cred.sharedTokenBudget.toLocaleString()}/user`}
+                          </Badge>
+                        )}
                         {cred.lastErrorKind && (
                           <Badge variant="destructive">
                             <AlertTriangle className="w-3 h-3" /> {cred.lastErrorKind}

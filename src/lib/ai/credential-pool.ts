@@ -31,6 +31,20 @@ export interface PoolInput extends PoolCredential {
   defaultModel: string
   /** 'free' | 'paid'. Anything unrecognised is treated as free — the safe side. */
   tier: string
+  /**
+   * A hard precedence ABOVE the LRU rule: every credential in group 0 is tried
+   * before any credential in group 1, whatever their roles or last-used times.
+   *
+   * It exists for one distinction — a user's own keys (0) before keys borrowed
+   * from someone who shared theirs (1). Spending a lender's budget while the
+   * borrower's own key sits idle is both surprising and unfair, and LRU alone
+   * produces exactly that: a shared key nobody has touched in a week wins on
+   * recency against a key its owner just used.
+   *
+   * Defaults to 0, so a caller that has no such distinction (the authoring
+   * script's direct pool) is unaffected.
+   */
+  group?: number
 }
 
 export interface PoolAttempt {
@@ -79,8 +93,14 @@ export function buildCredentialPool(input: {
   const exhausted = input.exhausted ?? new Set<string>()
   const limit = input.limit ?? MAX_ATTEMPTS_PER_CALL
 
-  // Credential order first, so the LRU rule still decides who goes before whom.
-  const ordered = selectAttemptOrder(input.credentials)
+  // Credential order first, so the LRU rule still decides who goes before whom
+  // — but only WITHIN a group. Sorting the groups separately and concatenating
+  // is what makes `group` a precedence rather than a suggestion: one sort over
+  // the whole list would let recency reorder across the boundary.
+  const groups = [...new Set(input.credentials.map((c) => c.group ?? 0))].sort((a, b) => a - b)
+  const ordered = groups.flatMap((group) =>
+    selectAttemptOrder(input.credentials.filter((c) => (c.group ?? 0) === group)),
+  )
 
   // Each credential contributes its own default model FIRST, then — only if it
   // is free-tier — the other approved models for its provider. Interleaving by
