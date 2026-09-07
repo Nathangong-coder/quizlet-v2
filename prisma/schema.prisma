@@ -1075,7 +1075,7 @@ model AiCredential {
   /// means the owner is billed for other people's requests, so it is opt-in,
   /// off by default, and always paired with `sharedTokenBudget`.
   shared          Boolean         @default(false)
-  /// Tokens ONE borrower may spend on this credential, lifetime. NULL means
+  /// Tokens ONE borrower may spend on this credential PER WEEK. NULL means
   /// unlimited, which is only sane on a key that is not shared.
   ///
   /// Per borrower, not global: a global pool would let the first heavy user
@@ -1083,6 +1083,11 @@ model AiCredential {
   /// one runaway or genuine demand. Usage is summed from `AiCallLog`, which
   /// already records userId, credentialId and tokens per attempt — no second
   /// counter to keep in step, and it survives a redeploy.
+  ///
+  /// The week is a FIXED window resetting Monday 00:00 UTC, not a rolling
+  /// seven days — see `budgetWindowStart`. Because spend is derived from the
+  /// log rather than counted into a column, changing the window length is a
+  /// one-line change here and needs no migration or backfill.
   sharedTokenBudget Int?
   enabled         Boolean         @default(true)
   lastUsedAt      DateTime? // last ATTEMPT (stamped before the call, not after success); drives LRU rotation in lib/ai/key-pool.ts
