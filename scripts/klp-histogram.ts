@@ -45,6 +45,8 @@ interface KlpRow {
   version: number
   index: number
   weight: number
+  /** Which authoring prompt wrote it. 1 is the legacy single-pass extractor. */
+  promptVersion: number
 }
 
 async function main() {
@@ -57,7 +59,7 @@ async function main() {
       supersededAt: null,
       ...(setId ? { card: { setId } } : {}),
     },
-    select: { cardId: true, version: true, index: true, weight: true },
+    select: { cardId: true, version: true, index: true, weight: true, promptVersion: true },
   })
 
   if (klps.length === 0) {
@@ -85,10 +87,31 @@ async function main() {
   const isAuthored = (k: KlpRow) => authoredVersions.has(`${k.cardId}@${k.version}`)
 
   const authored = klps.filter(isAuthored)
-  const legacy = klps.filter((k) => !isAuthored(k))
+
+  // A THIRD provenance, and it has to be separated from both of the others.
+  //
+  // `npm run reuse-klps` copies discrimination-tested key points onto a card
+  // that is byte-identical to one already authored. The copy deliberately
+  // carries NO CardAuthoring row — duplicating the run would double-count
+  // every reused card in the authored histogram, and this histogram is the
+  // acceptance criterion for the weight formula.
+  //
+  // But the two-way split then filed those rows under "legacy — weight
+  // assigned by the model", which is false: their weights were computed by
+  // `weightFromSignals` on the donor. Their own distribution proves it (mean
+  // 2.83, 21% at 4-5 against the legacy baseline's 92.3%) — the label was
+  // wrong, not the data.
+  //
+  // The test needs no schema change: a copy carries the donor's
+  // `promptVersion` (>= 2) while having no authoring run at its version. A
+  // legacy row is promptVersion 1.
+  const isReused = (k: KlpRow) => !isAuthored(k) && k.promptVersion >= 2
+  const reused = klps.filter(isReused)
+  const legacy = klps.filter((k) => !isAuthored(k) && !isReused(k))
 
   const overallHist = buildWeightHistogram(klps.map((k) => k.weight))
   const authoredHist = buildWeightHistogram(authored.map((k) => k.weight))
+  const reusedHist = buildWeightHistogram(reused.map((k) => k.weight))
   const legacyHist = buildWeightHistogram(legacy.map((k) => k.weight))
 
   // Breadth, over the authored slice only — a legacy KLP has no adversaries and
@@ -113,6 +136,7 @@ async function main() {
   const breadthHist = buildBreadthHistogram(allFailCounts, probesPerCard)
 
   const authoredFindings = diagnoseWeightHistogram(authoredHist)
+  const reusedFindings = diagnoseWeightHistogram(reusedHist)
   const legacyFindings = diagnoseWeightHistogram(legacyHist)
   const overallFindings = diagnoseWeightHistogram(overallHist)
 
@@ -123,6 +147,7 @@ async function main() {
           scope: setId ?? 'all sets',
           overall: { histogram: overallHist, findings: overallFindings },
           authored: { histogram: authoredHist, findings: authoredFindings },
+          reused: { histogram: reusedHist, findings: reusedFindings },
           legacy: { histogram: legacyHist, findings: legacyFindings },
           breadth: breadthHist,
           authoringRuns: authorings.length,
@@ -143,13 +168,22 @@ async function main() {
   console.log(formatBreadthHistogram(breadthHist))
   console.log()
 
+  if (reused.length > 0) {
+    console.log('=== REUSED (copied from a byte-identical card, zero AI calls) ===')
+    console.log('Authored weights, on cards that were never authored themselves. Judged separately')
+    console.log('because they measure the DONOR pipeline, not this card - counting them as authored')
+    console.log('would report the same run once per duplicate.')
+    console.log(formatWeightHistogram(reusedHist, reusedFindings))
+    console.log()
+  }
+
   console.log('=== LEGACY (single-pass extractor, weight assigned by the model) ===')
   console.log('This slice is the G1 BASELINE. It is expected to fail clustered_high; that is the')
   console.log('finding the authoring pipeline exists to fix, not a regression to chase.')
   console.log(formatWeightHistogram(legacyHist, legacyFindings))
   console.log()
 
-  console.log('=== WHOLE CORPUS (both provenances mixed — reported last, and least useful) ===')
+  console.log('=== WHOLE CORPUS (every provenance mixed — reported last, and least useful) ===')
   console.log(formatWeightHistogram(overallHist, overallFindings))
   console.log()
 
