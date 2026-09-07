@@ -104,6 +104,25 @@ a visible one.
 `structured_outputs`, so it cannot hold the contract at all. `qwen/qwen3.7-flash`
 likewise. (`qwen3.7-plus` and `-max` do support it; untested.)
 
+### Qwen / DashScope — blocked, entitlement not credit
+
+`QWENCLOUD_API_KEY` is VALID on
+`https://dashscope-intl.aliyuncs.com/compatible-mode/v1` — it lists 165 models,
+`qwen3.7-flash` among them. Every call to every model returns:
+
+    403 AccessDenied.Unpurchased — "Access to model denied. Please make sure
+    you are eligible for using the model."
+
+Tested: `qwen3.7-flash`, `qwen3.8-flash`, `qwen3.7-flash-2026-07-15`,
+`qwen3.7-plus`, `qwen3.8-27b`, `qwen-flash`, `qwen-plus`. All refused.
+
+The account has no model entitlements. **This is a second, sharper example of
+the listing-call trap already in CLAUDE.md**: the model is listed, and calling
+it is still refused. `dashscope.aliyuncs.com` (mainland) rejects the key
+outright with 401, so the region is right; the entitlement is not.
+
+Untestable until the account is provisioned. Nothing in code can fix it.
+
 ### OpenRouter paid — blocked
 
 `deepseek/deepseek-v4-flash-0731`, `minimax/minimax-m3` and others advertise
@@ -259,4 +278,5 @@ named. The instrumentation traps above are arguably the most useful part.
 
 | Date | What changed |
 | --- | --- |
+| 2026-09-07 | `deepseek` added as a first-class provider, verified end to end through the real app path (`deepseek-v4-flash` 2.5s / 292 tokens, `deepseek-v4-pro` 3.4s / 267 tokens, reasoning off by default). Qwen found to be entitlement-blocked. |
 | 2026-09-06 | First record. Google allowlist widened to `gemini-3.1-flash-lite` on evidence; `gemini-3.4-flash` shown not to exist; Gemma rejected; OpenRouter free tier surveyed; DeepSeek `/responses` established as the working endpoint; reasoning x strict matrix run; temperature and structured-output bugs found and fixed. |

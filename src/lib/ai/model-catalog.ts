@@ -40,6 +40,10 @@ const LIST_ENDPOINTS: Record<ProviderId, (key: string, baseUrl?: string | null) 
     url: 'https://api.openai.com/v1/models',
     headers: { Authorization: `Bearer ${key}` },
   }),
+  deepseek: (key, baseUrl) => ({
+    url: `${(baseUrl ?? 'https://api.deepseek.com/v1').replace(/\/$/, '')}/models`,
+    headers: { Authorization: `Bearer ${key}` },
+  }),
   openrouter: (key, baseUrl) => ({
     url: `${(baseUrl ?? 'https://openrouter.ai/api/v1').replace(/\/$/, '')}/models`,
     headers: { Authorization: `Bearer ${key}` },

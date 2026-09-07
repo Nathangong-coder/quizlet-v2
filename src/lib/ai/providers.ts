@@ -4,7 +4,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel } from 'ai';
 
-export const AI_PROVIDERS = ['google', 'anthropic', 'openai', 'openrouter', 'custom'] as const;
+export const AI_PROVIDERS = ['google', 'anthropic', 'openai', 'openrouter', 'deepseek', 'custom'] as const;
 export type ProviderId = (typeof AI_PROVIDERS)[number];
 
 export interface ProviderMeta {
@@ -42,6 +42,13 @@ export const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
     defaultModel: 'anthropic/claude-sonnet-4.5',
     defaultBaseUrl: 'https://openrouter.ai/api/v1',
     keyPlaceholder: 'sk-or-…',
+  },
+  deepseek: {
+    label: 'DeepSeek',
+    requiresBaseUrl: false,
+    defaultModel: 'deepseek-v4-flash',
+    defaultBaseUrl: 'https://api.deepseek.com/v1',
+    keyPlaceholder: 'sk-…',
   },
   custom: {
     label: 'Custom (OpenAI-compatible)',
@@ -84,6 +91,23 @@ export function resolveLanguageModel({ provider, apiKey, baseUrl, model }: Resol
       return createAnthropic({ apiKey })(model);
     case 'openai':
       return createOpenAI({ apiKey })(model);
+    case 'deepseek': {
+      // DEEPSEEK NEEDS THE RESPONSES API, not chat/completions.
+      //
+      // `/v1/chat/completions` answers a JSON-schema request with
+      // "This response_format type is unavailable now" — it supports
+      // `json_object` only. `/v1/responses` supports the full contract via
+      // `text.format: { type: 'json_schema', name, schema }`. Measured
+      // 2026-09-06; both `deepseek-v4-flash` and `deepseek-v4-pro` pass there
+      // and neither passes on chat/completions. Routing this through
+      // `createOpenAICompatible` (as `custom` does) would silently land on the
+      // wrong endpoint and look like a bad model.
+      return createOpenAI({
+        apiKey,
+        baseURL: baseUrl?.trim() || PROVIDER_META.deepseek.defaultBaseUrl,
+        fetch: deepSeekFetch,
+      }).responses(model);
+    }
     case 'openrouter':
     case 'custom': {
       const url = baseUrl?.trim();
@@ -116,3 +140,56 @@ export function resolveLanguageModel({ provider, apiKey, baseUrl, model }: Resol
       throw new ProviderConfigError(`Unknown AI provider: ${String(provider)}`);
   }
 }
+
+/**
+ * Turns DeepSeek's reasoning OFF, and does it by rewriting the request body
+ * because the AI SDK will not send the field.
+ *
+ * WHY NOT `providerOptions.openai.reasoningEffort`: the SDK decides whether a
+ * model accepts that option from a hard-coded list of OpenAI model ids. For
+ * `deepseek-v4-flash` it strips the field and logs "reasoningEffort is not
+ * supported for non-reasoning models". An earlier benchmark measured three
+ * conditions that were byte-identical because of exactly this.
+ *
+ * WHY TURN IT OFF AT ALL — measured on the grading task, 5 samples per
+ * condition, all correct in every condition:
+ *
+ *   reasoning on    9.4s (6.1-13.0)   1,168 output tokens (943 reasoning)
+ *   effort 'none'   2.0s (2.0-2.1)      296 output tokens (0 reasoning)
+ *
+ * A 4.7x speedup and ~4x fewer output tokens for no measured loss in verdict
+ * quality — and latency becomes DETERMINISTIC, because the variance was
+ * entirely reasoning length. Grading an answer against one stated proposition
+ * has nothing to reason about: the claim is in the text or it is not.
+ *
+ * Note `effort: 'minimal'` does NOT disable thinking (still 541-810 reasoning
+ * tokens). Only `'none'` does. See docs/ai/model-performance.md.
+ */
+const deepSeekFetch: typeof fetch = async (input, init) => {
+  if (!init?.body || typeof init.body !== 'string') return fetch(input, init);
+  try {
+    const body = JSON.parse(init.body) as Record<string, unknown>;
+
+    // Never override a caller that asked for reasoning explicitly.
+    if (body.reasoning === undefined) body.reasoning = { effort: 'none' };
+
+    // STRICT OFF, for now, and this is a schema limitation rather than a
+    // preference. Provider strict mode requires every property to appear in
+    // `required` — DeepSeek rejects anything else with "Required properties
+    // must match all properties in the object" — and this app's schemas use
+    // `.optional()` throughout (`mistake?`, `klpResults?`, `errorTags?`).
+    //
+    // Worth revisiting: the benchmark found strict costs 0.1s and 15 tokens
+    // once reasoning is off, so the conformance guarantee is nearly free. It
+    // needs the Zod schemas converted to required-and-`.nullable()` first,
+    // which is a separate change. See docs/ai/model-performance.md.
+    const text = body.text as { format?: Record<string, unknown> } | undefined;
+    if (text?.format?.type === 'json_schema') text.format.strict = false;
+
+    return fetch(input, { ...init, body: JSON.stringify(body) });
+  } catch {
+    // A body we cannot parse is one we must not corrupt. Pass it through and
+    // let the provider reject it with its own error rather than ours.
+    return fetch(input, init);
+  }
+};
