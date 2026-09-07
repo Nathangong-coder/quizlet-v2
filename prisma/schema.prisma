@@ -1472,6 +1472,20 @@ model CardAuthoring {
   /// answer.
   referenceAnswer String   @db.Text
   separationScore Float
+  /// How the REFERENCE answer scored on each final KLP, in KLP order.
+  ///
+  /// Added 2026-09-07 because the evidence was one-sided without it:
+  /// `AuthoringProbe.verdicts` says how each wrong answer did, and nothing
+  /// said whether the good answer passed the same point. A KLP that EVERY
+  /// candidate fails — the reference included — looks maximally
+  /// discriminating to any measure reading only the adversaries, and both
+  /// `discriminationBreadth` and the separation score are such measures.
+  ///
+  /// Nullable, and null on every row written before this date. Those runs
+  /// cannot be recovered; a per-KLP information measure is therefore
+  /// forward-looking only, which is the honest state rather than a
+  /// backfilled guess.
+  referenceVerdicts Json?
   revisions       Int
   /// The model id that authored this run, e.g. "gemini-3.6-flash".
   ///

@@ -16,11 +16,20 @@ import type { PrismaClient } from '@prisma/client'
  */
 describe('run sizing', () => {
   it('keeps a batch well inside the platform function ceiling', () => {
-    // One card is 6-16 calls at a few seconds each. The budget must leave room
-    // for the last card to FINISH: a card aborted mid-run is the one case that
-    // spends calls and produces nothing.
-    expect(CARDS_PER_RUN).toBeLessThanOrEqual(5)
+    // The budget must leave room for the last card to FINISH — a card aborted
+    // mid-run is the one case that spends calls and produces nothing.
     expect(RUN_BUDGET_MS).toBeLessThan(300_000)
+  })
+
+  it('lets the TIME budget bind before the card count, at the measured cost', () => {
+    // Measured 2026-09-07: 13 cards in ~15 minutes, so ~70s per card. The
+    // count is a backstop against a future provider fast enough to turn one
+    // invocation into an unbounded corpus walk; the budget is what actually
+    // stops a normal run. If a card ever gets fast enough that the count binds
+    // first, this fails and the constant needs a deliberate re-think rather
+    // than a silent change of which guard is doing the work.
+    const MEASURED_MS_PER_CARD = 70_000
+    expect(CARDS_PER_RUN * MEASURED_MS_PER_CARD).toBeGreaterThan(RUN_BUDGET_MS)
   })
 })
 

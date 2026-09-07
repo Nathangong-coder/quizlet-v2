@@ -26,11 +26,25 @@ import {
  * small, endless, and easy to forget. A schedule is the only thing that
  * actually spends a use-it-or-lose-it budget.
  *
- * WHY IT RUNS OFTEN AND DOES LITTLE. Every invocation authors at most
+ * WHY IT DOES LITTLE PER RUN. Every invocation authors at most
  * `CARDS_PER_RUN` cards inside a wall-clock budget under the platform's
- * function ceiling. A single greedy nightly run would exhaust every model at
- * 03:00 and leave 23 hours of quota unused, and it would be killed mid-card by
- * the timeout.
+ * function ceiling, because a run killed mid-card spends calls and produces
+ * nothing.
+ *
+ * THE SCHEDULE IS DAILY, AND THAT IS A PLATFORM LIMIT, NOT A PREFERENCE.
+ * Vercel Hobby accounts allow cron jobs only once per day, and a more frequent
+ * expression does not merely get throttled — it FAILS THE DEPLOYMENT
+ * ("Hobby accounts are limited to daily cron jobs"). A broken deploy is far
+ * worse than a slower drip, so `vercel.json` ships the schedule that works
+ * everywhere.
+ *
+ * On Pro, change it to `0 * /3 * * *` (without the space) and this same route
+ * spreads the same daily quota across eight runs instead of one. That suits a
+ * per-day-per-model cap better: one greedy nightly run exhausts every model at
+ * 03:00 and leaves 23 hours idle, whereas eight small runs keep finding fresh
+ * quota as models reset at different points in the provider's day. Hobby
+ * timing is also only accurate to within the hour, which nothing here depends
+ * on.
  *
  * REUSE RUNS FIRST, always. A card identical to one that is already authored
  * is served from the database for zero requests. Authoring first and

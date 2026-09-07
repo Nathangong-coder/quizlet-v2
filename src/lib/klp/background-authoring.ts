@@ -12,17 +12,26 @@ import { findDonors, pickDonor, copyKlps } from '@/lib/klp/reuse'
  */
 
 /**
- * Cards authored per cron invocation.
+ * Cards authored per cron invocation — an upper bound that is almost never
+ * reached.
  *
- * Deliberately small. One card costs 6-16 AI calls at a few seconds each, so
- * three cards is roughly 2-3 minutes against a 300s function ceiling — and a
- * run that is killed mid-card leaves the pipeline's own resumability to sort
- * out rather than finishing cleanly. More frequent short runs also spread
- * naturally across the day, which matters because the Google free-tier cap is
- * per day per model: a single greedy run at 03:00 would exhaust every model
- * and leave 23 hours idle.
+ * MEASURED, not estimated: a real run authored 13 cards in ~15 minutes, so a
+ * card costs roughly **70 seconds**, not the ~30s first assumed here. Against
+ * `RUN_BUDGET_MS` that means the TIME budget binds at about three cards and
+ * this count never does.
+ *
+ * It is kept as a second, independent ceiling anyway, because the two guard
+ * different things: the budget guards the platform's function timeout, and the
+ * count guards against a future provider fast enough to turn one invocation
+ * into an unbounded corpus walk.
+ *
+ * The consequence is worth stating plainly rather than hiding behind the
+ * constant: on a DAILY schedule this clears roughly three cards a day, so it
+ * is a MAINTENANCE mechanism for newly-added cards, not a way to work through
+ * an existing backlog. A backlog is what `npm run author-klps -- --set <id>`
+ * is for.
  */
-export const CARDS_PER_RUN = 3
+export const CARDS_PER_RUN = 6
 
 /**
  * Wall-clock budget. Under the platform ceiling with room for one card to
