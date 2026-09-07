@@ -379,7 +379,7 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
               {shared && (
                 <div className="space-y-1">
                   <Label htmlFor="sharedTokenBudget" className="text-xs">
-                    Token budget per borrower
+                    Weekly token budget per borrower
                   </Label>
                   <Input
                     id="sharedTokenBudget"
@@ -391,8 +391,9 @@ export default function CredentialForm({ provider, credential }: CredentialFormP
                     className="max-w-48 font-mono tabular-nums"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Counted per person, for their lifetime, input + output together. Once someone
-                    passes it they need a key of their own; everybody else is unaffected.
+                    Counted per person per week, input + output together, resetting Monday 00:00
+                    UTC. Once someone passes it they need a key of their own until the reset;
+                    everybody else is unaffected.
                   </p>
                 </div>
               )}

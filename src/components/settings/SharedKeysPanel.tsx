@@ -4,6 +4,23 @@ import { loadBorrowableCredentials, loadSpendByCredential } from '@/lib/ai/share
 import { PROVIDER_META, type ProviderId } from '@/lib/ai/providers'
 
 /**
+ * "Mon 8 Sep" — the day the weekly allowance returns.
+ *
+ * Rendered in UTC because that is the zone the cap is actually enforced in.
+ * Formatting it in the viewer's zone would show a date the server does not
+ * use, and for anyone west of UTC the reset would appear to happen on the
+ * wrong day.
+ */
+function resetLabel(at: Date): string {
+  return at.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  })
+}
+
+/**
  * What this learner can use WITHOUT their own API key, and how much of it is
  * left.
  *
@@ -39,7 +56,8 @@ export default async function SharedKeysPanel() {
         <h2 className="font-semibold">Included access</h2>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
           Keys shared with everyone on this install, so you can study without setting one up. Your
-          own keys are always tried first — these are the fallback, and they have a limit.
+          own keys are always tried first — these are the fallback, and they have a weekly limit
+          that resets every Monday.
         </p>
       </div>
 
@@ -60,8 +78,8 @@ export default async function SharedKeysPanel() {
                   </span>
                   <span className="font-mono text-xs tabular-nums text-muted-foreground">
                     {c.budget === null
-                      ? `${c.used.toLocaleString()} tokens used`
-                      : `${c.used.toLocaleString()} / ${c.budget.toLocaleString()} tokens`}
+                      ? `${c.used.toLocaleString()} tokens used this week`
+                      : `${c.used.toLocaleString()} / ${c.budget.toLocaleString()} tokens this week`}
                   </span>
                 </div>
                 {c.budget !== null && (
@@ -81,13 +99,14 @@ export default async function SharedKeysPanel() {
                 )}
                 {c.exhausted ? (
                   <p className="text-xs leading-5 text-destructive">
-                    Allowance used up. AI features need your own key from here — add one above.
-                    Nothing you have already studied is affected.
+                    This week&rsquo;s allowance is used up — it resets {resetLabel(c.resetsAt)}.
+                    Until then AI features need your own key; add one above. Nothing you have
+                    already studied is affected.
                   </p>
                 ) : (
                   c.remaining !== null && (
                     <p className="text-xs text-muted-foreground">
-                      {c.remaining.toLocaleString()} tokens left
+                      {c.remaining.toLocaleString()} tokens left · resets {resetLabel(c.resetsAt)}
                       {!hasOwnKey && ' · add your own key to stop using this allowance'}
                     </p>
                   )
@@ -107,8 +126,8 @@ export default async function SharedKeysPanel() {
               Putting it under the same progress bar would imply we cap it.
             */}
             On your own keys you have used{' '}
-            <span className="font-mono tabular-nums">{ownTokens.toLocaleString()}</span> tokens.
-            Your own keys are not limited here — your provider bills them directly.
+            <span className="font-mono tabular-nums">{ownTokens.toLocaleString()}</span> tokens this
+            week. Your own keys are not limited here — your provider bills them directly.
           </p>
         </div>
       )}

@@ -275,11 +275,11 @@ async function resolveCandidates(
 
   const own = reachable.filter((c) => c.userId === userId);
 
-  // A borrower who has spent their allowance on a shared key is dropped from
-  // the pool entirely rather than allowed to fail at the provider. The owner
-  // is paying for these calls, so the cap has to bite BEFORE the request, not
-  // after — and an over-budget credential that stayed in the list would be
-  // retried on every generation forever.
+  // A borrower who has spent THIS WEEK'S allowance on a shared key is dropped
+  // from the pool entirely rather than allowed to fail at the provider. The
+  // owner is paying for these calls, so the cap has to bite BEFORE the
+  // request, not after — and an over-budget credential that stayed in the list
+  // would be retried on every generation until the window rolled over.
   //
   // The cap applies ONLY to borrowed keys. A user's own key is metered by
   // their provider; capping it here would be this app inventing a limit on
