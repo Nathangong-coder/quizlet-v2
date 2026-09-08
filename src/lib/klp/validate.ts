@@ -219,7 +219,7 @@ export interface ValidateOptions {
    * deterministic, and a caller with no AI budget must still get all of them
    * rather than none. Supplying a partial array checks only what was supplied.
    */
-  abstraction?: AbstractionLevel[]
+  abstraction?: (AbstractionLevel | undefined)[]
 }
 
 export function validateKlpSet(

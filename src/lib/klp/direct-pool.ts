@@ -169,13 +169,28 @@ export const DIRECT_PROVIDER_SOURCES: Record<
  * Keys are read from the environment ONLY — never a flag, because argv is
  * visible to every other process on the machine and lands in shell history.
  */
-export function readDirectPool(env: NodeJS.ProcessEnv = process.env): DirectCombo[] {
-  const provider = (env.KLP_DIRECT_PROVIDER ?? 'google').trim().toLowerCase()
+export function readDirectPool(
+  env: NodeJS.ProcessEnv = process.env,
+  /**
+   * Which env vars to read. `attack` is the historical pair
+   * (`KLP_DIRECT_PROVIDER` / `KLP_DIRECT_MODELS`), so every existing command
+   * keeps working unchanged.
+   *
+   * `verify` reads `KLP_VERIFIER_PROVIDER` / `KLP_VERIFIER_MODELS` and exists
+   * for ROLE SEPARATION: the model that writes an adversarial answer must not
+   * be the model that then rules on whether the attack succeeded. See
+   * `scripts/klp-exploit.ts`.
+   */
+  role: 'attack' | 'verify' = 'attack',
+): DirectCombo[] {
+  const providerVar = role === 'verify' ? 'KLP_VERIFIER_PROVIDER' : 'KLP_DIRECT_PROVIDER'
+  const modelsVar = role === 'verify' ? 'KLP_VERIFIER_MODELS' : 'KLP_DIRECT_MODELS'
+  const provider = (env[providerVar] ?? env.KLP_DIRECT_PROVIDER ?? 'google').trim().toLowerCase()
 
   const source = DIRECT_PROVIDER_SOURCES[provider]
   if (!source) {
     throw new Error(
-      `KLP_DIRECT_PROVIDER=${provider} is not supported — use one of: ` +
+      `${providerVar}=${provider} is not supported — use one of: ` +
         `${Object.keys(DIRECT_PROVIDER_SOURCES).join(', ')}`,
     )
   }
@@ -183,11 +198,11 @@ export function readDirectPool(env: NodeJS.ProcessEnv = process.env): DirectComb
   const keys = [...new Set(source.keyVars.flatMap((v) => parseList(env[v])))]
   if (keys.length === 0) {
     throw new Error(
-      `--direct with KLP_DIRECT_PROVIDER=${provider} needs one of ` +
+      `--direct with ${providerVar}=${provider} needs one of ` +
         `${source.keyVars.join(' or ')} in the environment`,
     )
   }
 
-  const models = parseList(env.KLP_DIRECT_MODELS ?? env.KLP_DIRECT_MODEL)
+  const models = parseList(env[modelsVar] ?? (role === 'attack' ? env.KLP_DIRECT_MODEL : undefined))
   return buildDirectPool(keys, models.length > 0 ? models : [source.defaultModel], provider)
 }

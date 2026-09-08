@@ -23,6 +23,7 @@ import {
   type SeparationResult,
 } from '@/lib/klp/separation'
 import { validateKlpSet, type KlpDefect } from '@/lib/klp/validate'
+import { toOrderedLevels, type AbstractionLevel } from '@/lib/klp/abstraction'
 import {
   canonicalizeEdges,
   findCycles,
@@ -31,7 +32,21 @@ import {
   type RelationEdge,
   type RelationProvenance,
 } from '@/lib/klp/relations'
-import { MAX_REVISIONS, GRADE_CANDIDATES_SEPARATELY, type ProbeKind } from '@/lib/klp/authoring-config'
+import {
+  MAX_REVISIONS,
+  GRADE_CANDIDATES_SEPARATELY,
+  USE_COMPETENCE_PANEL,
+  type ProbeKind,
+} from '@/lib/klp/authoring-config'
+import {
+  computePanelCurve,
+  diagnoseKlpCurves,
+  findNonMonotonicKlps,
+  PANEL_LEVELS,
+  type PanelLevel,
+  type PanelCurve,
+  type KlpCurveDiagnosis,
+} from '@/lib/klp/panel'
 import { mechanicalKlpPrior, targetKlpCount, type DefinitionPointAssessment } from '@/lib/klp/sizing'
 import type { KlpVerdict } from '@/lib/klp/verdicts'
 import type { KlpDiscrimination } from '@/lib/klp/separation'
@@ -111,6 +126,35 @@ export interface AuthoringGenerator {
    */
   grade(input: GradeInput): Promise<GradeResult>
   revise(input: ReviseInput): Promise<ReviseResult>
+  /**
+   * Phase A's abstraction classification (R4). OPTIONAL, and its absence means
+   * the check does not run — never that every point is `concrete`.
+   *
+   * Optional because every other Phase A rule is deterministic and must keep
+   * working for a caller with no AI budget, and because this adds a call per
+   * card to a pipeline already costing 6-16. A generator that omits it gets
+   * every mechanical check and no abstraction finding, which is the honest
+   * degradation: the points were not examined, so nothing is claimed about
+   * them.
+   */
+  classifyAbstraction?(input: {
+    question: string
+    klps: { text: string }[]
+  }): Promise<{ levels: { klpIndex: number; level: AbstractionLevel }[] }>
+  /**
+   * The five-level competence panel (build item 4). OPTIONAL.
+   *
+   * Written from the QUESTION and the reference answer only — never from the
+   * key points, or the panel measures how well the model followed an
+   * instruction rather than whether the key points discriminate.
+   *
+   * Absent, or `USE_COMPETENCE_PANEL` off, and the pipeline uses the three
+   * failure-kind adversaries exactly as before.
+   */
+  writePanel?(input: {
+    question: string
+    referenceAnswer: string
+  }): Promise<{ members: { level: PanelLevel; text: string; weakness: string }[] }>
   relate(input: RelateInput): Promise<RelateResult>
 }
 
@@ -152,6 +196,18 @@ export interface AuthoringOutcome {
   revisions: number
   /** `failed` only when the author call produced no KLPs at all. */
   status: 'separated' | 'low_discrimination' | 'failed'
+  /**
+   * The competence curve, when the panel ran. Undefined means it did not —
+   * never that the curve was flat.
+   *
+   * Carried BESIDE `separationScore` rather than replacing it: the two are
+   * different quantities on different scales, and every stored score on the
+   * corpus was computed the old way. Reporting both on the same run is what
+   * makes the panel evaluable at all.
+   */
+  panelCurve?: PanelCurve
+  /** Per-key-point shape diagnosis from the curve. Empty when no panel ran. */
+  klpShapes: KlpCurveDiagnosis[]
   defects: KlpDefect[]
   /**
    * How many KLPs this card was sized for (`src/lib/klp/sizing.ts`), carried
@@ -252,6 +308,7 @@ export async function authorCard(
       separationScore: 0,
       revisions: 0,
       status: 'failed',
+      klpShapes: [],
       defects: validateKlpSet([], input.question, { targetCount: target }),
       targetKlpCount: target,
       concerns,
@@ -270,10 +327,45 @@ export async function authorCard(
   // because it deliberately asks a weaker question.
   let referenceVerdicts: KlpVerdict[] = []
 
+  // THE PANEL IS WRITTEN ONCE, BEFORE THE LOOP, and re-graded unchanged against
+  // every revision — the same discipline `draft.wrongAnswers` already has. A
+  // panel regenerated per revision would make a rising score ambiguous between
+  // "the edit improved the item" and "the new panel was weaker".
+  //
+  // Best-effort: a failed panel call falls back to the three adversaries rather
+  // than failing the card. The panel is a better measurement, not a required
+  // one.
+  let panel: { level: PanelLevel; text: string; weakness: string }[] | undefined
+  if (USE_COMPETENCE_PANEL && gen.writePanel) {
+    try {
+      const written = await gen.writePanel({
+        question: input.question,
+        referenceAnswer: draft.referenceAnswer,
+      })
+      // Ordered strongest-first here rather than trusting the reply's order:
+      // every curve statistic downstream reads position as competence.
+      const byLevel = new Map(written.members.map((m) => [m.level, m]))
+      const ordered = PANEL_LEVELS.map((l) => byLevel.get(l)).filter(
+        (m): m is { level: PanelLevel; text: string; weakness: string } => m !== undefined,
+      )
+      if (ordered.length === PANEL_LEVELS.length) panel = ordered
+    } catch {
+      panel = undefined
+    }
+  }
+
+  let panelCurve: PanelCurve | undefined
+  let klpShapes: KlpCurveDiagnosis[] = []
+
   for (;;) {
     const candidates: { kind: 'reference' | ProbeKind; text: string }[] = [
       { kind: 'reference', text: draft.referenceAnswer },
-      ...draft.wrongAnswers.map((w) => ({ kind: w.kind, text: w.text })),
+      ...(panel
+        ? // The panel REPLACES the adversaries. `kind` carries the level so the
+          // stored probes say which member produced which verdicts; the string
+          // is not a ProbeKind, and that widening is contained to this array.
+          panel.map((m) => ({ kind: m.level as unknown as ProbeKind, text: m.text }))
+        : draft.wrongAnswers.map((w) => ({ kind: w.kind, text: w.text }))),
     ]
 
     const graded = await gradeAllCandidates(
@@ -293,7 +385,22 @@ export async function authorCard(
 
     separation = computeSeparation(referenceGrade, wrongGrades)
 
-    if (separation.separated || revisions >= MAX_REVISIONS) break
+    if (panel) {
+      // The curve is computed from the SAME verdicts the old number uses, so
+      // both are always available and directly comparable on the same run —
+      // which is what a toggle is for. `separated` comes from the curve when
+      // the panel is on, because that is the quantity being tested.
+      const gradedPanel = wrong.map((w) => ({
+        level: w.kind as unknown as PanelLevel,
+        verdicts: w.verdicts,
+      }))
+      panelCurve = computePanelCurve(gradedPanel)
+      klpShapes = [
+        ...diagnoseKlpCurves(gradedPanel, klps.length),
+        ...findNonMonotonicKlps(gradedPanel, klps.length),
+      ]
+      if (panelCurve.separated || revisions >= MAX_REVISIONS) break
+    } else if (separation.separated || revisions >= MAX_REVISIONS) break
 
     const revised = await gen.revise({
       question: input.question,
@@ -347,6 +454,25 @@ export async function authorCard(
   )
   const weights = radii.map((radius, i) => weightFromSignals(radius, breadths[i]))
 
+  // PHASE A's one model-dependent check (R4), run LAST on the FINAL key points
+  // — classifying an earlier revision's text would report a card that no longer
+  // exists. Best-effort: a classifier that throws leaves `abstraction`
+  // undefined, and `validateKlpSet` then skips the check entirely rather than
+  // defaulting every point to a level nobody judged. A failed call must cost a
+  // finding, never invent one.
+  let abstraction: (AbstractionLevel | undefined)[] | undefined
+  if (gen.classifyAbstraction) {
+    try {
+      const reply = await gen.classifyAbstraction({
+        question: input.question,
+        klps: klps.map((k) => ({ text: k.text })),
+      })
+      abstraction = toOrderedLevels(reply, klps.length)
+    } catch {
+      abstraction = undefined
+    }
+  }
+
   const probes = wrong.map((w) => ({
     kind: w.kind as ProbeKind,
     text: w.text,
@@ -368,7 +494,14 @@ export async function authorCard(
     separationScore: separation.separation,
     referenceVerdicts,
     revisions,
-    status: separation.separated ? 'separated' : 'low_discrimination',
+    // The PANEL's verdict wins when a panel ran, because that is the quantity
+    // the run was testing. Falls back to the old number otherwise, so a card
+    // authored with the toggle off is scored exactly as before.
+    status: (panelCurve ? panelCurve.separated : separation.separated)
+      ? 'separated'
+      : 'low_discrimination',
+    panelCurve,
+    klpShapes,
     // The ordering cross-check needs the ACCEPTED edges, so validation runs
     // after pruning rather than beside the KLP text: an edge dropped for
     // introducing a cycle or pointing out of range is not evidence of anything,
@@ -377,7 +510,7 @@ export async function authorCard(
     defects: validateKlpSet(
       klps.map((k) => ({ text: k.text })),
       input.question,
-      { edges: accepted, targetCount: target },
+      { edges: accepted, targetCount: target, abstraction },
     ),
     targetKlpCount: target,
     concerns,

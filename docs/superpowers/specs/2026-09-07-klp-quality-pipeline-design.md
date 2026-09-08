@@ -354,16 +354,27 @@ per-slice samples are 10 / 5 / 5.
 
 ### Three things it buys
 
-1. **L3 is the near-miss that does not currently exist.** Measured 2026-09-07: AUC = 1.000 for every
-   model — the reference outranks every adversary every time. `bestWrongScore` uses `max`
-   specifically to catch an answer that nearly passes, and nothing is nearly passing.
+1. **L3 is the near-miss that does not currently exist. THIS IS THE REAL ARGUMENT.** Re-measured
+   2026-09-08 across all 130 authoring runs: AUC is **1.000 on 129 of them** (one at 0.996). The
+   reference outranks every adversary, every time, on every model. `bestWrongScore` uses `max`
+   specifically to catch an answer that nearly passes, and nothing is nearly passing — so the
+   test is SATURATED. It can still catch a set so loose that an obviously bad answer passes; it
+   cannot tell a sharp set from a merely adequate one, which is the distinction the pipeline
+   exists to make.
 2. **Monotonicity is a free, stronger test.** Five ordered levels should score in order; an
    inversion is a defect the single-gap test cannot express.
-3. **A fixed panel is a regression suite — and its absence is a real flaw in what is shipped.**
-   The current loop regenerates adversaries on every revision, so a revised set is tested against
-   *different* wrong answers. A rising separation score cannot distinguish "the edit improved the
-   item" from "the new adversaries were weaker". **This is the strongest argument for the change**,
-   and no additional statistic on top of the current design can fix it.
+3. ~~**A fixed panel is a regression suite — and its absence is a real flaw in what is shipped.**~~
+   **THIS ARGUMENT IS FALSE ABOUT THE SHIPPED CODE, and it was billed as the strongest.**
+   Checked in `src/lib/klp/authoring.ts` on 2026-09-08: the revision loop grades
+   `draft.wrongAnswers` — written ONCE by the author call — against each revised key-point set.
+   The adversaries are already fixed within a run, so a rising separation score is already
+   attributable to the edit. Reason 1 (the missing near-miss) and reason 2 (monotonicity) both
+   hold and are enough on their own; this one should not be repeated, or someone will go looking
+   for a bug that is not there.
+
+   What IS still missing is a panel fixed ACROSS runs, so two separate authoring passes on one
+   card are comparable. That needs the panel persisted against the CARD rather than the
+   klpVersion — a schema change, and not in this increment.
 
 ### Per-KLP diagnosis from the curve
 

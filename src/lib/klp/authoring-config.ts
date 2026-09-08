@@ -177,3 +177,18 @@ export const HISTOGRAM_UNIFORM_SHARE = 0.6
  * legitimate — but it is printed without a verdict.
  */
 export const HISTOGRAM_MIN_SAMPLE = 20
+
+/**
+ * Use the five-level competence panel instead of the three failure-kind
+ * adversaries (build item 4).
+ *
+ * A TOGGLE, not a silent replacement, because the two produce numbers on
+ * different scales — `min(passing) - max(failing)` against
+ * `referenceScore - max(weak)` — and every stored `CardAuthoring.separationScore`
+ * on the corpus was computed the old way. Being able to turn it off is what
+ * makes the corpus comparable while the panel is being evaluated.
+ *
+ * Off by default until a measured run says the panel's separation floor is
+ * calibrated; `PANEL_SEPARATION_FLOOR` currently has no measurement behind it.
+ */
+export const USE_COMPETENCE_PANEL = false

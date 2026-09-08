@@ -75,6 +75,7 @@ const outcome = {
   status: 'separated' as const,
   defects: [],
   targetKlpCount: 4,
+  klpShapes: [],
   concerns: [],
 }
 

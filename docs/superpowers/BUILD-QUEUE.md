@@ -9,6 +9,42 @@ user. Qwen remains entitlement-blocked (403 `AccessDenied.Unpurchased`, retried 
 in no rotation. **The owner verified the shared-key flow in a browser on 2026-09-07** — that gate is
 closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
 
+**PHASE A IS COMPLETE AND THE SYNTHETIC PANEL IS BUILT (2026-09-08) - items 1-4 all done.**
+
+**Phase A's classifier (R4) landed:** `CLASSIFY_ABSTRACTION_PROMPT` labels each key point
+`concrete | relational | dispositional`, wired into `authorCard` as an OPTIONAL generator method
+so every deterministic rule still runs for a caller with no AI budget. A skipped point stays
+`undefined`, never defaulted to `concrete` - defaulting invents a level nobody judged AND picks
+the one least likely to fire a finding, so a truncated reply would read as clean rather than
+unexamined. The prompt never sees `CardKlp.kind` (`mechanism` lives in both vocabularies with
+different meanings) and is forbidden from comparing statements to each other.
+
+**THE SYNTHETIC PANEL (item 4) IS BUILT, behind `USE_COMPETENCE_PANEL` (default OFF).**
+Five levels L4-L0 by COMPETENCE replace the three failure-kind adversaries; the curve, its
+monotonicity, and a per-key-point shape diagnosis are all computed in TypeScript
+(`src/lib/klp/panel.ts`). Separation becomes `min(passing) - max(failing)` with L3 counted as
+passing - strictly harder than `referenceScore - max(weak)`, so it gets its OWN
+`PANEL_SEPARATION_FLOOR` rather than reusing the old one and silently retuning the pipeline.
+The panel is written from the question and reference answer ONLY, never the key points, or every
+number from it is circular. Off by default because the new floor has no measurement behind it yet
+and every stored `separationScore` on the corpus was computed the old way.
+
+**THE SPEC'S STRONGEST STATED ARGUMENT FOR THE PANEL IS FALSE, and the doc now says so.** It
+claimed adversaries are "regenerated every revision", making a rising score ambiguous. They are
+not: the revision loop grades `draft.wrongAnswers`, written once by the author call, against each
+revised set. **The real argument is saturation** - re-measured across all 130 runs, AUC is
+**1.000 on 129 of them**. The reference outranks every adversary every time, so the test cannot
+tell a sharp key-point set from an adequate one. L3, the near-miss, is what makes it informative
+again. A panel fixed ACROSS runs would need a schema change and is not built.
+
+**ROLE SEPARATION IN C1 (attacker vs verifier), from a question worth asking.** The exploit test
+separated the PROMPTS but ran all three calls on ONE model - so the attacker graded its own
+counterexamples, which is the self-report problem moved one level down. Now
+`KLP_VERIFIER_MODELS` / `KLP_VERIFIER_PROVIDER` configure a separate verifier pool, and the
+verifier PREFERS the model that authored the card's key points: the author is motivated to defend
+its own specification, so a hole IT concedes is a real hole. Absent a verifier pool the run warns
+loudly and fires a `self_verified` finding at any sample size.
+
 **THE NEGATIVE CHECK IS BUILT (2026-09-08) — items 1, 2 and 3 of the pipeline are done.**
 `src/lib/errors/contamination.ts`. A key-point set is a conjunction of POSITIVE requirements,
 so it can never express "and nothing false is asserted" - no key point closes that hole. The
@@ -89,7 +125,7 @@ KLPs on 200 cards - **432 authored, 373 reused, 118 legacy** - over 130 authorin
 and reused both read mean weight 2.83 with NO failure mode firing. Only the 118 legacy rows still
 fail `clustered_high` (92.4% at 4-5). Baselines as of this session: **3128 tests, lint 164.**
 
-**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3231 tests, lint 164.**
+**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3274 tests, lint 164.**
 
 **C1 IS CALIBRATED AND THE ANSWER IS: COVERAGE IS NOT THE PROBLEM.** After adding a blind
 judge for the claim nothing verified, the same 20 cards read **10% holed (2/20)**, not the 40%

@@ -72,7 +72,9 @@ export interface AbstractionDefect {
  *   a card genuinely mixing both is fine; ONE point out of six at a different
  *   level usually means that point was written to a different brief.
  */
-export function findAbstractionDefects(levels: AbstractionLevel[]): AbstractionDefect[] {
+export function findAbstractionDefects(
+  levels: (AbstractionLevel | undefined)[],
+): AbstractionDefect[] {
   const defects: AbstractionDefect[] = []
 
   levels.forEach((level, index) => {
@@ -91,7 +93,11 @@ export function findAbstractionDefects(levels: AbstractionLevel[]): AbstractionD
   // Spread is judged over the non-dispositional remainder: a disposition is
   // already reported, and letting it also drag the spread statistic would
   // report one defect twice.
-  const remaining = levels.filter((l) => l !== 'dispositional')
+  // An UNCLASSIFIED point is dropped from the spread statistic, never counted
+  // as anything. A point the model skipped is unexamined, not concrete, and
+  // letting it stand in for a level would let a truncated reply change the
+  // shape of the card.
+  const remaining = levels.filter((l): l is AbstractionLevel => l !== undefined && l !== 'dispositional')
   if (remaining.length >= 4) {
     const counts = new Map<AbstractionLevel, number>()
     for (const l of remaining) counts.set(l, (counts.get(l) ?? 0) + 1)
@@ -114,6 +120,27 @@ export function findAbstractionDefects(levels: AbstractionLevel[]): AbstractionD
 }
 
 /** Convenience for reporting: the levels present, in order. */
-export function abstractionSpread(levels: AbstractionLevel[]): AbstractionLevel[] {
-  return [...new Set(levels)].sort((a, b) => RANK[a] - RANK[b])
+export function abstractionSpread(levels: (AbstractionLevel | undefined)[]): AbstractionLevel[] {
+  return [...new Set(levels.filter((l): l is AbstractionLevel => l !== undefined))].sort(
+    (a, b) => RANK[a] - RANK[b],
+  )
+}
+
+/**
+ * Turns a classifier's index-keyed reply into levels in KLP order.
+ *
+ * A MISSING entry stays `undefined` and the caller drops it, rather than being
+ * defaulted to `concrete`. Defaulting would be the flattering direction twice
+ * over: it invents a level nobody judged, and `concrete` is the level least
+ * likely to trigger any finding — so a model that skipped a point would make
+ * that point look clean rather than unexamined. Same reasoning as
+ * `toOrderedVerdicts` filling gaps with an explicit `failed` instead of
+ * silence, inverted for a check where absence must not read as health.
+ */
+export function toOrderedLevels(
+  reply: { levels: { klpIndex: number; level: AbstractionLevel }[] },
+  count: number,
+): (AbstractionLevel | undefined)[] {
+  const byIndex = new Map(reply.levels.map((l) => [l.klpIndex, l.level]))
+  return Array.from({ length: count }, (_, i) => byIndex.get(i))
 }

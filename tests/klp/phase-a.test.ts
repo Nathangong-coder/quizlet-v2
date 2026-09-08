@@ -6,7 +6,10 @@ import {
   findAbstractionDefects,
   abstractionSpread,
   isAbstractionLevel,
+  toOrderedLevels,
 } from '@/lib/klp/abstraction'
+import { CLASSIFY_ABSTRACTION_PROMPT } from '@/lib/ai/prompts/classify-abstraction'
+import { AbstractionClassificationSchema } from '@/lib/ai/schemas'
 import { KLP_KINDS } from '@/lib/ai/schemas'
 
 const Q = 'Walk me through how a $10 increase in depreciation affects the three statements.'
@@ -216,5 +219,84 @@ describe('validateKlpSet integration', () => {
 
   it('still reports the pre-existing rules', () => {
     expect(rules(['EBIT falls by 10 and net income falls by 6.'])).toContain('compound')
+  })
+})
+
+describe('toOrderedLevels', () => {
+  it('maps index-keyed replies onto KLP order', () => {
+    expect(toOrderedLevels({ levels: [
+      { klpIndex: 1, level: 'relational' },
+      { klpIndex: 0, level: 'concrete' },
+    ] }, 2)).toEqual(['concrete', 'relational'])
+  })
+
+  it('leaves a skipped point UNDEFINED rather than defaulting it to concrete', () => {
+    // Defaulting would be the flattering direction twice over: it invents a
+    // level nobody judged, and `concrete` is the level least likely to trigger
+    // a finding — so a truncated reply would make the skipped point look clean
+    // rather than unexamined.
+    expect(toOrderedLevels({ levels: [{ klpIndex: 0, level: 'concrete' }] }, 3))
+      .toEqual(['concrete', undefined, undefined])
+  })
+
+  it('drops an unclassified point from the spread statistic entirely', () => {
+    // Four classified points with one outlier would fire; three classified plus
+    // an unknown must not, because the shape is not established.
+    expect(findAbstractionDefects(['concrete', 'concrete', 'concrete', undefined])).toEqual([])
+  })
+
+  it('still reports a disposition beside unclassified points', () => {
+    const d = findAbstractionDefects([undefined, 'dispositional', undefined])
+    expect(d.map((x) => x.rule)).toEqual(['disposition'])
+    expect(d[0].index).toBe(1)
+  })
+})
+
+describe('CLASSIFY_ABSTRACTION_PROMPT', () => {
+  const built = CLASSIFY_ABSTRACTION_PROMPT.build({
+    question: 'Why is the after-tax cost of debt lower than its coupon?',
+    klps: [{ text: 'Interest is tax-deductible.' }, { text: 'Understands leverage.' }],
+  })
+
+  it('names every level in the closed vocabulary', () => {
+    for (const l of ABSTRACTION_LEVELS) expect(built).toContain(l)
+  })
+
+  it('gives the model an operational test for dispositional', () => {
+    // Without one, "dispositional" is a label the model applies by vibe. The
+    // test that matters is whether the statement could be true or false of an
+    // ANSWER — a proposition can, a claim about a person cannot.
+    expect(built).toContain('true or false of an ANSWER')
+  })
+
+  it('forbids comparing the statements to each other', () => {
+    // Cards legitimately mix levels, and a model nudged toward consistency
+    // would flatten a correct set into a uniform one.
+    expect(built).toContain('Do not compare the statements to each other')
+  })
+
+  it('never shows the model CardKlp.kind — a different axis with a shared word', () => {
+    // `mechanism` exists in both vocabularies with different meanings, which is
+    // exactly why R4 renamed this one. Showing the kind invites the wrong answer.
+    expect(built).not.toContain('definition|mechanism')
+    expect(built.toLowerCase()).not.toContain('kind:')
+  })
+
+  it('indexes the statements so a level can be traced back', () => {
+    expect(built).toContain('[0] Interest is tax-deductible.')
+  })
+})
+
+describe('AbstractionClassificationSchema', () => {
+  it('rejects a level outside the vocabulary', () => {
+    expect(AbstractionClassificationSchema.safeParse({
+      levels: [{ klpIndex: 0, level: 'mechanism' }],
+    }).success).toBe(false)
+  })
+
+  it('accepts a partial reply — the caller decides what a gap means', () => {
+    expect(AbstractionClassificationSchema.safeParse({
+      levels: [{ klpIndex: 2, level: 'concrete' }],
+    }).success).toBe(true)
   })
 })

@@ -6,6 +6,8 @@ import { PROBE_KINDS, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
 import { KLP_VERDICTS } from '@/lib/klp/verdicts';
 import { RELATABLE_TYPES, RELATION_PROVENANCES } from '@/lib/klp/relations';
 import { EXPLOIT_STRATEGIES } from '@/lib/klp/exploit';
+import { ABSTRACTION_LEVELS } from '@/lib/klp/abstraction';
+import { PANEL_LEVELS } from '@/lib/klp/panel';
 
 export const MultipleChoiceOptionsSchema = z.object({
   options: z.array(z.string().min(1)).length(4),
@@ -554,3 +556,39 @@ export const ExploitKlpsSchema = z.object({
 });
 
 export type ExploitKlps = z.infer<typeof ExploitKlpsSchema>;
+
+/**
+ * Phase A's abstraction classification (R4) — one level per key point.
+ *
+ * `klpIndex`-keyed rather than positional, matching `CandidateGradeSchema`: a
+ * model that returns the entries out of order, or omits one, must not silently
+ * shift every other point's level onto the wrong proposition. The caller fills
+ * gaps explicitly rather than inferring.
+ */
+export const AbstractionClassificationSchema = z.object({
+  levels: z.array(z.object({
+    klpIndex: z.number().int().min(0),
+    level: z.enum(ABSTRACTION_LEVELS),
+  })),
+});
+
+export type AbstractionClassification = z.infer<typeof AbstractionClassificationSchema>;
+
+/**
+ * The synthetic competence panel (build item 4) — five answers, one per level.
+ *
+ * `.length(PANEL_LEVELS.length)` rather than `.min(1)`: unlike a partial
+ * exploit reply, a partial panel is USELESS rather than merely reduced. The
+ * whole measurement is a curve across ordered levels, and a missing L3 removes
+ * exactly the near-miss the panel exists to add. Better to fail the call and
+ * retry than to compute a curve with a hole in it and report a number.
+ */
+export const PanelSchema = z.object({
+  members: z.array(z.object({
+    level: z.enum(PANEL_LEVELS),
+    text: z.string().min(1),
+    weakness: z.string(),
+  })).length(PANEL_LEVELS.length),
+});
+
+export type Panel = z.infer<typeof PanelSchema>;

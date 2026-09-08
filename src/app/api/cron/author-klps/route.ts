@@ -7,6 +7,8 @@ import { AUTHOR_KLPS_PROMPT } from '@/lib/ai/prompts/author-klps'
 import { GRADE_CANDIDATE_PROMPT } from '@/lib/ai/prompts/grade-candidate'
 import { REVISE_KLPS_PROMPT } from '@/lib/ai/prompts/revise-klps'
 import { RELATE_KLPS_PROMPT } from '@/lib/ai/prompts/relate-klps'
+import { CLASSIFY_ABSTRACTION_PROMPT } from '@/lib/ai/prompts/classify-abstraction'
+import { WRITE_PANEL_PROMPT } from '@/lib/ai/prompts/write-panel'
 import { classifyProviderError } from '@/lib/errors/classify'
 import {
   CARDS_PER_RUN,
@@ -118,6 +120,20 @@ function generator(userId: string, onModel: (model: string) => void): AuthoringG
         task: 'author',
         prompt: RELATE_KLPS_PROMPT.build(input),
         schema: RELATE_KLPS_PROMPT.schema,
+      }),
+    classifyAbstraction: (input) =>
+      generateJson({
+        userId,
+        task: 'author',
+        prompt: CLASSIFY_ABSTRACTION_PROMPT.build(input),
+        schema: CLASSIFY_ABSTRACTION_PROMPT.schema,
+      }),
+    writePanel: (input) =>
+      generateJson({
+        userId,
+        task: 'author',
+        prompt: WRITE_PANEL_PROMPT.build(input),
+        schema: WRITE_PANEL_PROMPT.schema,
       }),
   }
 }

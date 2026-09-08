@@ -9,6 +9,8 @@ import { AUTHOR_KLPS_PROMPT } from '../src/lib/ai/prompts/author-klps'
 import { GRADE_CANDIDATE_PROMPT } from '../src/lib/ai/prompts/grade-candidate'
 import { REVISE_KLPS_PROMPT } from '../src/lib/ai/prompts/revise-klps'
 import { RELATE_KLPS_PROMPT } from '../src/lib/ai/prompts/relate-klps'
+import { CLASSIFY_ABSTRACTION_PROMPT } from '../src/lib/ai/prompts/classify-abstraction'
+import { WRITE_PANEL_PROMPT } from '../src/lib/ai/prompts/write-panel'
 import type { CardKlpStatus } from '../src/lib/cards/klp-status'
 import {
   buildWeightHistogram,
@@ -99,6 +101,20 @@ function defaultGenerator(userId: string, onModel?: (model: string) => void): Au
         task: 'author',
         prompt: RELATE_KLPS_PROMPT.build(input),
         schema: RELATE_KLPS_PROMPT.schema,
+      }),
+    classifyAbstraction: (input) =>
+      generateJson({
+        userId,
+        task: 'author',
+        prompt: CLASSIFY_ABSTRACTION_PROMPT.build(input),
+        schema: CLASSIFY_ABSTRACTION_PROMPT.schema,
+      }),
+    writePanel: (input) =>
+      generateJson({
+        userId,
+        task: 'author',
+        prompt: WRITE_PANEL_PROMPT.build(input),
+        schema: WRITE_PANEL_PROMPT.schema,
       }),
   }
 }
@@ -197,6 +213,9 @@ function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
     grade: (input) => call(GRADE_CANDIDATE_PROMPT.build(input), GRADE_CANDIDATE_PROMPT.schema),
     revise: (input) => call(REVISE_KLPS_PROMPT.build(input), REVISE_KLPS_PROMPT.schema),
     relate: (input) => call(RELATE_KLPS_PROMPT.build(input), RELATE_KLPS_PROMPT.schema),
+    classifyAbstraction: (input) =>
+      call(CLASSIFY_ABSTRACTION_PROMPT.build(input), CLASSIFY_ABSTRACTION_PROMPT.schema),
+    writePanel: (input) => call(WRITE_PANEL_PROMPT.build(input), WRITE_PANEL_PROMPT.schema),
   }
 }
 
