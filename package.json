@@ -22,6 +22,8 @@
     "verify:klt": "tsx --env-file=.env scripts/verify-klt-rebuild.ts verify",
     "author-klps": "tsx --conditions=react-server --env-file=.env scripts/author-klps.ts",
     "klp-histogram": "tsx --conditions=react-server --env-file=.env scripts/klp-histogram.ts",
+    "klp-stats": "tsx --conditions=react-server --env-file=.env scripts/klp-discrimination-stats.ts",
+    "reuse-klps": "tsx --conditions=react-server --env-file=.env scripts/reuse-klps.ts",
     "verify:diagnostic": "tsx --env-file=.env scripts/verify-diagnostic.ts",
     "probe-models": "tsx --env-file=.env scripts/probe-model-policy.ts",
     "probe-grading": "tsx --env-file=.env scripts/probe-grading-matrix.ts"

@@ -6,7 +6,27 @@
 with a per-borrower token budget (default 1M), so a non-technical learner can study with no key of
 their own. `/settings/ai` now shows both the included allowance and a 30-day usage tracker to every
 user. Qwen remains entitlement-blocked (403 `AccessDenied.Unpurchased`, retried 2026-09-07) and is
-in no rotation.
+in no rotation. **The owner verified the shared-key flow in a browser on 2026-09-07** — that gate is
+closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
+
+**AGREED 2026-09-07, NOT BUILT — the KLP quality pipeline.** Design:
+`docs/superpowers/specs/2026-09-07-klp-quality-pipeline-design.md`. A third quality axis
+(**hygiene** — atomicity, independence, coverage, grain, tags, all scoped to ONE CARD's key points,
+never a deck) beside fidelity and discrimination, plus a **synthetic competence panel (L0-L4)**
+replacing the three adversaries. Six revisions recorded there.
+
+**R1 is the first build item, and it is a BACKGROUND RE-GRADE, not a publish gate.** Every auto-fix
+supersedes a `CardKlp`, which silently resets `KlpState`. The owner rejected gating hygiene behind
+publication — people edit cards constantly and would route around it — and the rejection was right:
+`QuizAnswer.answer` stores the raw text and `rebuildKlpStates` already replays posteriors from
+`AnswerKlpResult`, so the missing piece is only a job that re-grades a card's stored answers against
+its new key points. MC/TF cannot be re-graded (diagnosis is distractor provenance pinned to a dead
+`klpVersion`); carry forward or drop, never infer. Then start with C1 alone, read-only.
+
+**START WITH ITEM 2, and its first step is a measurement, not a purchase.** DeepSeek now makes
+re-authoring cost ~$2-5 instead of ~15 days of free-tier drip, but nothing has established that it
+authors as well as it grades. Author ONE set, run `npm run klp-histogram` on it, compare to the
+Gemini LBO pilot, and only then decide about the rest of the corpus.
 
 **Last updated:** 2026-09-06. **NEXT UP item 1 (wire the diagnostic to real key points) is DONE
 and the gate is off** - see the struck-through entry below for what shipped, the four defects live
@@ -104,11 +124,27 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
    attempt. Run a 12-question diagnostic on `Accounting - "Talking"` and then
    `npm run verify:diagnostic -- <attemptId>`.
 
-2. **Re-author the whole corpus through the authoring pipeline.** The quality gap the owner noticed
-   is real and measured: **only the LBO set (10 cards, 50 KLPs, median 5) has been authored. Every
-   other set is legacy single-pass extraction — median 2 KLPs, no reference answer, no adversaries,
-   no discrimination test.** `Accounting - Knowledge` is 50 cards / 106 KLPs, `Accounting -
-   "Talking"` 68 cards / 152 KLPs, all `promptVersion: 1`.
+2. **Re-author the whole corpus through the authoring pipeline.**
+
+   **THIS ENTRY WAS STALE AND THE OWNER CAUGHT IT (2026-09-07).** It claimed only the LBO set had
+   been authored and that `Accounting - "Talking"` was 68 cards of `promptVersion: 1`. Wrong: 51 of
+   its 68 cards were already authored when the claim was written. **Check the database before
+   trusting a coverage number in this file** — `npm run klp-histogram [--set <id>]` answers it in
+   one read-only command, and a session that reported the queue's number instead of running it
+   would have re-authored 51 cards for nothing.
+
+   **Measured state, 2026-09-07 — 923 live KLPs on 200 cards:**
+
+   | Provenance | KLPs | Mean weight | 4-5 | Verdict |
+   | --- | --- | --- | --- | --- |
+   | authored | 432 | 2.83 | 21.3% | OK |
+   | reused (copied, zero AI calls) | 373 | 2.83 | 21.2% | OK |
+   | legacy | 118 | 4.57 | **92.4%** | FAIL clustered_high + uniform |
+
+   `Accounting - "Talking"` is **100% authored** (382 KLPs, zero legacy) and its 67-card duplicate
+   inherited 373 KLPs for zero AI calls via `npm run reuse-klps`. **What is left is
+   `Accounting - Knowledge` (50 cards) and `M&A` (82 cards)** — that 118-KLP legacy slice is the
+   whole of the remaining problem, and it is still the G1 baseline.
    **NOT DOABLE ON THE FREE TIER.** ~200 cards x ~6 calls = ~1,200 requests against a cap of 20 per
    day PER MODEL. Even rotating four models is ~80/day, so ~15 days. Needs a paid tier, or an
    accepted multi-week drip via `npm run author-klps -- --set <id> --direct --rpm 12` (resumable,
@@ -121,12 +157,17 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
    `deepseek-v4-flash` is **~$4.50 at peak and ~$2.25 off-peak** (off-peak is exactly half, and
    peak is only 01:00-04:00 / 06:00-10:00 UTC on weekdays — so a run started in the evening is
    billed at the lower rate by default). That is a real number to decide against, not a guess.
-   **What is NOT established: whether DeepSeek authors as well as it grades.** Only the grading
-   schema was probed. Authoring is a harder contract — reference answer, KLP set, three
-   adversaries, then a separation re-grade — and `author-klps` deliberately pins ONE model per
-   card so candidate scores stay comparable. Author ONE set first, run `npm run klp-histogram`
-   against it, and compare its weight distribution and mean separation to the Gemini-authored LBO
-   pilot before spending the rest.
+   **MEASURED 2026-09-07 — DeepSeek authors WORSE than the cheapest Gemini.** Same set, same
+   pipeline, only the model varying: `gemini-3.1-flash-lite` 0.669 mean separation / 2%
+   low_discrimination over 46 cards; `gemini-3.5-flash-lite` 0.616 / 16%; `deepseek-v4-flash`
+   **0.528 / 20%** over 25 cards, needing a schema retry on roughly half of them. **This reverses
+   its grading result** (5/5, 2.0s deterministic) — grading judges one stated proposition, while
+   authoring must invent the propositions AND three adversaries and keep them separable.
+
+   **So the remaining 132 cards should be authored on `gemini-3.1-flash-lite`, not DeepSeek** —
+   which is also free, which removes the cost question entirely. The cron
+   (`/api/cron/author-klps`, every 3 hours) now spends that quota automatically instead of leaving
+   it to expire; DeepSeek stays the paid fallback for grading, where it is genuinely good.
 
 3. **Wire the solution/answer overlay to real data.** `KlpGraphCanvas` already takes an `answer`
    prop and renders correct/partial/failed per key point; nothing passes one yet. Natural homes are

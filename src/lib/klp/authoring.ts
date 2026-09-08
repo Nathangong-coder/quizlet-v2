@@ -134,6 +134,16 @@ export interface RelationStats {
 
 export interface AuthoringOutcome {
   referenceAnswer: string
+  /**
+   * How the REFERENCE answer scored on each final KLP, in KLP order.
+   *
+   * Persisted because without it the discrimination evidence is one-sided.
+   * `AuthoringProbe.verdicts` records how each wrong answer did; this records
+   * whether the good answer passed the same point — and a KLP that everybody
+   * fails, the reference included, looks maximally discriminating to any
+   * measure that reads only the adversaries.
+   */
+  referenceVerdicts: KlpVerdict[]
   klps: { text: string; kind: string; weight: number }[]
   probes: { kind: ProbeKind; text: string; score: number; verdicts: Record<string, KlpVerdict> }[]
   relations: AuthoredRelationDraft[]
@@ -231,6 +241,10 @@ export async function authorCard(
   if (draft.klps.length === 0) {
     return {
       referenceAnswer: draft.referenceAnswer,
+      // No KLPs means no grading happened, so there is nothing the reference
+      // was graded against. Empty, not null: the run completed, it simply had
+      // nothing to measure.
+      referenceVerdicts: [],
       klps: [],
       probes: [],
       relations: [],
@@ -248,6 +262,13 @@ export async function authorCard(
   let revisions = 0
   let separation: SeparationResult
   let wrong: GradedCandidate[]
+  // Kept out of the loop so the FINAL iteration's reference verdicts survive
+  // it. They were computed on every pass and discarded on every pass, which
+  // made any per-KLP information measure uncomputable after the fact: the
+  // stored probes say how each adversary did, and nothing said whether the
+  // good answer passed the same point. `discriminationBreadth` works only
+  // because it deliberately asks a weaker question.
+  let referenceVerdicts: KlpVerdict[] = []
 
   for (;;) {
     const candidates: { kind: 'reference' | ProbeKind; text: string }[] = [
@@ -266,6 +287,7 @@ export async function authorCard(
     )
 
     const referenceGrade: CandidateGrade = { kind: 'reference', verdicts: graded[0].verdicts }
+    referenceVerdicts = graded[0].verdicts
     wrong = graded.slice(1)
     const wrongGrades: CandidateGrade[] = wrong.map((w) => ({ kind: w.kind, verdicts: w.verdicts }))
 
@@ -344,6 +366,7 @@ export async function authorCard(
       droppedOutOfRange,
     },
     separationScore: separation.separation,
+    referenceVerdicts,
     revisions,
     status: separation.separated ? 'separated' : 'low_discrimination',
     // The ordering cross-check needs the ACCEPTED edges, so validation runs

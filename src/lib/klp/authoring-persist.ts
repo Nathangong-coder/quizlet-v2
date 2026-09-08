@@ -104,6 +104,7 @@ export async function persistAuthoring(
         promptVersion,
         referenceAnswer: outcome.referenceAnswer,
         separationScore: outcome.separationScore,
+        referenceVerdicts: outcome.referenceVerdicts,
         revisions: outcome.revisions,
         status: outcome.status,
         model: model ?? null,

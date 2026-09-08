@@ -70,6 +70,7 @@ const outcome = {
   relations: [{ from: 0, to: 1, type: 'causes' as const, provenance: 'perturbation' as const, rationale: 'r', probe: 'p' }],
   relationStats: { candidates: 1, accepted: 1, droppedForCycles: 0, droppedOutOfRange: 0 },
   separationScore: 0.8,
+  referenceVerdicts: ['correct' as const, 'correct' as const, 'partial' as const],
   revisions: 1,
   status: 'separated' as const,
   defects: [],

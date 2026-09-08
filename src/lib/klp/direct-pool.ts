@@ -33,6 +33,18 @@ export interface DirectCombo extends PoolCredential {
   keyIndex: number
   apiKey: string
   model: string
+  /**
+   * Which provider these keys belong to. One pool is one provider: a key is
+   * only meaningful to the API it was issued by, so mixing providers in a
+   * single pool would produce combos that can never authenticate.
+   *
+   * It exists so `--direct` can measure a NON-Google provider on exactly the
+   * path Google runs on. Comparing authoring quality across providers is only
+   * meaningful if the prompts, pacing, pinning and separation arithmetic are
+   * identical, and the surest way to keep them identical is to not have a
+   * second code path.
+   */
+  provider: string
 }
 
 /** Splits a comma/whitespace separated env value, dropping blanks and dupes. */
@@ -61,7 +73,11 @@ export function parseList(value: string | undefined): string[] {
  * on every card so a run can be traced afterwards, and a printed key would end
  * up in scrollback, logs, and anywhere that output is pasted.
  */
-export function buildDirectPool(keys: string[], models: string[]): DirectCombo[] {
+export function buildDirectPool(
+  keys: string[],
+  models: string[],
+  provider = 'google',
+): DirectCombo[] {
   const pool: DirectCombo[] = []
   keys.forEach((apiKey, keyIndex) => {
     for (const model of models) {
@@ -70,6 +86,7 @@ export function buildDirectPool(keys: string[], models: string[]): DirectCombo[]
         keyIndex,
         apiKey,
         model,
+        provider,
         role: 'primary',
         enabled: true,
         lastUsedAt: null,

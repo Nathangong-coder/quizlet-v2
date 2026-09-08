@@ -1,4 +1,4 @@
-import { createGoogle } from '@ai-sdk/google'
+import { resolveLanguageModel, type ProviderId } from '../src/lib/ai/providers'
 import { generateText, Output } from 'ai'
 import type { z } from 'zod'
 import { prisma } from '../src/lib/db'
@@ -136,13 +136,48 @@ function defaultGenerator(userId: string, onModel?: (model: string) => void): Au
  * shell history.
  */
 function readDirectPool(): DirectCombo[] {
-  const keys = [...new Set([...parseList(process.env.GOOGLE_API_KEYS), ...parseList(process.env.GOOGLE_API_KEY)])]
+  // `KLP_DIRECT_PROVIDER` selects which provider's keys the pool is built
+  // from. It defaults to google, so every existing `.env` and every documented
+  // command keeps working unchanged.
+  //
+  // The point of supporting a second provider HERE rather than in a separate
+  // benchmark script is that authoring quality is only comparable if the
+  // prompts, pacing, per-card pinning and separation arithmetic are identical.
+  // A parallel script would drift from this one, and the first thing it would
+  // drift on is the thing being measured.
+  const provider = (process.env.KLP_DIRECT_PROVIDER ?? 'google').trim().toLowerCase()
+
+  const sources: Record<string, { keys: string[]; defaultModel: string }> = {
+    google: {
+      keys: [...parseList(process.env.GOOGLE_API_KEYS), ...parseList(process.env.GOOGLE_API_KEY)],
+      defaultModel: 'gemini-3.6-flash',
+    },
+    deepseek: {
+      keys: [
+        ...parseList(process.env.DEEPSEEK_API_KEYS),
+        ...parseList(process.env.DEEPSEEK_API_KEY),
+      ],
+      defaultModel: 'deepseek-v4-flash',
+    },
+  }
+
+  const source = sources[provider]
+  if (!source) {
+    throw new Error(
+      `KLP_DIRECT_PROVIDER=${provider} is not supported — use one of: ${Object.keys(sources).join(', ')}`,
+    )
+  }
+
+  const keys = [...new Set(source.keys)]
   if (keys.length === 0) {
-    throw new Error('--direct needs GOOGLE_API_KEY or GOOGLE_API_KEYS in the environment')
+    throw new Error(
+      `--direct with KLP_DIRECT_PROVIDER=${provider} needs ${provider.toUpperCase()}_API_KEY or ` +
+        `${provider.toUpperCase()}_API_KEYS in the environment`,
+    )
   }
 
   const models = parseList(process.env.KLP_DIRECT_MODELS ?? process.env.KLP_DIRECT_MODEL)
-  return buildDirectPool(keys, models.length > 0 ? models : ['gemini-3.6-flash'])
+  return buildDirectPool(keys, models.length > 0 ? models : [source.defaultModel], provider)
 }
 
 /**
@@ -159,8 +194,17 @@ function readDirectPool(): DirectCombo[] {
  * and a per-card pacer would reset that spacing at every card boundary.
  */
 function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
-  const google = createGoogle({ apiKey: combo.apiKey })
-  const model = combo.model
+  // Built through the SAME `resolveLanguageModel` the website uses, not a
+  // provider factory called here. That function carries per-provider
+  // corrections this script would otherwise have to duplicate — most
+  // importantly DeepSeek's `/responses` endpoint and reasoning-off default,
+  // without which every authoring call spends its output budget on invisible
+  // thinking and returns `schema_invalid`.
+  const languageModel = resolveLanguageModel({
+    provider: combo.provider as ProviderId,
+    apiKey: combo.apiKey,
+    model: combo.model,
+  })
 
   // generateObject does not exist in AI SDK v7; structured output is
   // generateText + Output.object.
@@ -176,7 +220,7 @@ function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
         // delayed classification: the daily-quota halt cannot fire until the
         // error surfaces, and the SDK swallowed the first two.
         const res = await generateText({
-          model: google(model),
+          model: languageModel,
           prompt,
           output: Output.object({ schema }),
           maxRetries: 0,
@@ -357,7 +401,11 @@ async function main() {
 
   if (direct) {
     console.log(
-      `[author-klps] --direct: using GOOGLE_API_KEY, bypassing stored credentials ` +
+      // Names the PROVIDER actually in use, not a hardcoded "GOOGLE_API_KEY".
+      // A run that says it is using Google while billing DeepSeek is exactly
+      // the kind of log line that makes a cost surprise take an hour to trace.
+      `[author-klps] --direct: using ${(process.env.KLP_DIRECT_PROVIDER ?? 'google').toLowerCase()} ` +
+        `keys from the environment, bypassing stored credentials ` +
         `(pacing at ${rpm} req/min, min ${(rpmToIntervalMs(rpm) / 1000).toFixed(2)}s between calls)`,
     )
   }

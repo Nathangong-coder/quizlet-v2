@@ -165,6 +165,91 @@ export function resolveLanguageModel({ provider, apiKey, baseUrl, model }: Resol
  * Note `effort: 'minimal'` does NOT disable thinking (still 541-810 reasoning
  * tokens). Only `'none'` does. See docs/ai/model-performance.md.
  */
+/**
+ * Strips a leading ```json fence off a value that is otherwise valid JSON.
+ *
+ * Returns the input UNCHANGED unless it both looks fenced and parses once
+ * unwrapped. That condition is what keeps this from being the old
+ * `stripMarkdownJson` regex: it never rewrites a response it has not first
+ * proved is a fenced object, so a model returning genuine prose is passed
+ * through to fail honestly rather than mangled into something that fails
+ * later and further away.
+ */
+export function unfenceJson(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith('```')) return value;
+
+  const body = trimmed
+    .replace(/^```[a-zA-Z]*\s*\n?/, '')
+    .replace(/\n?```$/, '')
+    .trim();
+  try {
+    JSON.parse(body);
+    return body;
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * DeepSeek wraps structured output in a markdown fence when strict is off.
+ *
+ * MEASURED 2026-09-07, not assumed: an authoring call returned
+ * `finishReason: 'stop'`, 0 reasoning tokens, and a COMPLETE object — inside
+ * ```json … ```. The SDK's parser rejects the fence and raises
+ * `NoObjectGeneratedError`, which is indistinguishable from "this model cannot
+ * hold a schema" and sent an earlier investigation looking at token budgets
+ * and model capability. It is neither; it is punctuation.
+ *
+ * Why it appears on some schemas and not others: with `strict: false` the
+ * schema is advisory rather than enforced by constrained decoding, so the
+ * model's own formatting habits survive — and they surface on the larger,
+ * more prose-heavy authoring schema while the small grading schema comes back
+ * clean. Converting the Zod schemas to strict-compatible (required +
+ * `.nullable()`) would remove the cause rather than the symptom, at which
+ * point this becomes a no-op that costs one `startsWith` per response.
+ */
+async function unfenceDeepSeekJson(response: Response): Promise<Response> {
+  const type = response.headers.get('content-type') ?? '';
+  if (!type.includes('application/json')) return response;
+
+  const raw = await response.text();
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    // Not JSON after all. Rebuild the response verbatim — the body stream has
+    // already been consumed, so returning the original object would hand the
+    // caller an empty body.
+    return new Response(raw, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  }
+
+  // The /responses shape: { output: [ { content: [ { type: 'output_text',
+  // text } ] } ] }. Walked defensively — an unexpected shape must pass
+  // through untouched, never throw inside a fetch wrapper.
+  const output = (payload as { output?: unknown }).output;
+  if (Array.isArray(output)) {
+    for (const item of output) {
+      const content = (item as { content?: unknown })?.content;
+      if (!Array.isArray(content)) continue;
+      for (const part of content) {
+        const p = part as { text?: unknown };
+        if (typeof p?.text === 'string') p.text = unfenceJson(p.text);
+      }
+    }
+  }
+
+  return new Response(JSON.stringify(payload), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
 const deepSeekFetch: typeof fetch = async (input, init) => {
   if (!init?.body || typeof init.body !== 'string') return fetch(input, init);
   try {
@@ -186,7 +271,7 @@ const deepSeekFetch: typeof fetch = async (input, init) => {
     const text = body.text as { format?: Record<string, unknown> } | undefined;
     if (text?.format?.type === 'json_schema') text.format.strict = false;
 
-    return fetch(input, { ...init, body: JSON.stringify(body) });
+    return unfenceDeepSeekJson(await fetch(input, { ...init, body: JSON.stringify(body) }));
   } catch {
     // A body we cannot parse is one we must not corrupt. Pass it through and
     // let the provider reject it with its own error rather than ours.
