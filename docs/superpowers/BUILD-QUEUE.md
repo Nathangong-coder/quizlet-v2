@@ -9,6 +9,49 @@ user. Qwen remains entitlement-blocked (403 `AccessDenied.Unpurchased`, retried 
 in no rotation. **The owner verified the shared-key flow in a browser on 2026-09-07** — that gate is
 closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
 
+**C3 (INDEPENDENCE) IS BUILT AND RUN — it was the largest open hygiene defect, and it is the one
+the owner named first.** `npm run klp-independence`, read-only, merges nothing. Two stages, and the
+first is FREE: pairs whose credit vectors are identical across every candidate the authoring run
+already graded (R5's point - that matrix is built for the discrimination test whether or not
+anything reads it), then one confirming call per shortlisted pair.
+
+**Measured over the corpus: 25.3% of pairs co-fire, on 92% of cards. Confirmed on a 19-pair
+sample: 18 independent, 1 not.** So the shortlist over-proposes roughly 5x and **the co-firing rate
+must never be reported as a redundancy rate** - a verdict vector is only as wide as the three or
+four candidates a run graded, so independent points collide by chance. Only the call decides.
+
+**A CONCEPTUAL BUG IN MY OWN MODULE, found by reading the first real confirmed result rather than
+by any test: ENTAILMENT IS NOT REDUNDANCY.** The pair was A "the $100 deposit increases cash and
+equity by the same amount" / B "because the cash rise is offset by lower Net Debt, EV is
+unchanged". A stands alone; B presupposes it, so **B implies A**. The first version reported B as
+"the redundant one" - backwards on the direction, AND the wrong frame, because B carries
+information A does not. What an entailment actually breaks is **conditional independence**: anyone
+demonstrating B has demonstrated A, so crediting both records two observations for one
+demonstration and every posterior moves twice. **The fix is in the scoring, not in deleting a
+proposition.** Only `equivalent` is a merge candidate, and even then the module refuses to pick
+which survives.
+
+**THE DISCRIMINATION SMOKE TEST (`src/lib/klp/smoke.ts`), replacing discrimination-as-quality-score.**
+Four gross failures only: `accepts_off_target` (any credit at all for an answer to a different
+question), `accepts_weak` (a weak answer above half the set), `rejects_reference` (a FIDELITY alarm
+surfacing through a discrimination check), `inverted`. It reads only the WEAK end plus one sanity
+check at the top, and **works with or without the panel** - the legacy three adversaries are enough
+- so a smoke test exists on every card rather than only re-authored ones.
+
+**WHY discrimination was demoted, and it is the owner's framing backed by measurement.** A
+key-point set is a conjunction of POSITIVE requirements: it cannot forbid a falsehood, and every
+confirmed C1 hole was exactly that shape. Meanwhile the test is saturated (AUC 1.000 on 129/130)
+and once corrected, 96% of real points read healthy. **A key point's job is to be true, atomic,
+independent and complete; deciding how wrong an answer is belongs to the grading engine** - error
+taxonomy, negative check, misconception library, follow-ups. Discrimination is a check ON the key
+points, not the instrument that grades wrongness. Marked SEMI-RESOLVED in the artifact's quality
+tab; the owner is taking the system-design question to a separate chat.
+
+**STILL UNBUILT in hygiene:** C4 (necessity, needs R2's greedy loop), tag validity against the
+concept DAG, and a model confirm on atomicity (the regex only catches "and"-joined compounds).
+Nothing grounds a key point against the WORLD - a hygienic set derived from a wrong card passes
+every check here.
+
 **THE PANEL IS CALIBRATED ON REAL CARDS (2026-09-08, 6 LBO cards, deepseek-v4-flash, dry-run).**
 Curves are MONOTONIC on 5 of 6 - L4 > L3 > L2 > L1 > L0 - which is the thing the old single-gap
 test structurally could not show. Separations: **-0.06, 0.29, 0.31, 0.31, 0.38, 0.44**. The guessed
@@ -164,7 +207,7 @@ KLPs on 200 cards - **432 authored, 373 reused, 118 legacy** - over 130 authorin
 and reused both read mean weight 2.83 with NO failure mode firing. Only the 118 legacy rows still
 fail `clustered_high` (92.4% at 4-5). Baselines as of this session: **3128 tests, lint 164.**
 
-**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3280 tests, lint 164.**
+**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3319 tests, lint 164.**
 
 **C1 IS CALIBRATED AND THE ANSWER IS: COVERAGE IS NOT THE PROBLEM.** After adding a blind
 judge for the claim nothing verified, the same 20 cards read **10% holed (2/20)**, not the 40%

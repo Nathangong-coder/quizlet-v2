@@ -592,3 +592,22 @@ export const PanelSchema = z.object({
 });
 
 export type Panel = z.infer<typeof PanelSchema>;
+
+/**
+ * C3's independence probe (`src/lib/ai/prompts/probe-independence.ts`).
+ *
+ * The booleans are the answer; the examples are the EVIDENCE for them, and the
+ * caller cross-checks the two — a direction claimed possible with no example
+ * written has not been demonstrated. So the example strings carry no `.min(1)`:
+ * an empty one is the correct output for an impossible direction, and
+ * rejecting it would make impossibility unexpressible.
+ */
+export const IndependenceProbeSchema = z.object({
+  aWithoutB: z.boolean(),
+  exampleAWithoutB: z.string(),
+  bWithoutA: z.boolean(),
+  exampleBWithoutA: z.string(),
+  note: z.string(),
+});
+
+export type IndependenceProbe = z.infer<typeof IndependenceProbeSchema>;

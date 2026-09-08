@@ -46,6 +46,9 @@ export type { SessionInsightBuildInput } from './session-insight';
 
 export { learnerContextBlock, distractorMemoryHint } from './shared';
 
+export { PROBE_INDEPENDENCE_PROMPT } from './probe-independence';
+export type { ProbeIndependenceBuildInput } from './probe-independence';
+
 export { WRITE_PANEL_PROMPT } from './write-panel';
 export type { WritePanelBuildInput } from './write-panel';
 
