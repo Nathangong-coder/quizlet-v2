@@ -9,6 +9,14 @@ user. Qwen remains entitlement-blocked (403 `AccessDenied.Unpurchased`, retried 
 in no rotation. **The owner verified the shared-key flow in a browser on 2026-09-07** — that gate is
 closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
 
+**AGREED 2026-09-07, NOT BUILT — the KLP quality pipeline.** Design:
+`docs/superpowers/specs/2026-09-07-klp-quality-pipeline-design.md`. A third quality axis
+(**hygiene** — atomicity, independence, coverage, grain, tags) beside fidelity and discrimination,
+and a **synthetic competence panel (L0-L4)** replacing the three adversaries. Six revisions are
+recorded there; **R1 is a blocker** — every auto-fix in the routing table supersedes a `CardKlp`,
+which silently resets `KlpState`, so the lifecycle decision (hygiene runs pre-publication) must be
+made before any check is written. Start with C1 alone, read-only, over the existing bank.
+
 **START WITH ITEM 2, and its first step is a measurement, not a purchase.** DeepSeek now makes
 re-authoring cost ~$2-5 instead of ~15 days of free-tier drip, but nothing has established that it
 authors as well as it grades. Author ONE set, run `npm run klp-histogram` on it, compare to the
