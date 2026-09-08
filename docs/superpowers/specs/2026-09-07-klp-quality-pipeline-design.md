@@ -9,6 +9,21 @@ That artifact is a *view*; this file is canonical.
 
 ---
 
+## Scope: "set" means ONE CARD'S KLPs
+
+Throughout this document, **set** = the 4-9 key points belonging to a single card. It never means a
+flashcard deck. Every hygiene check is bounded by one card:
+
+- *Independence* — do this card's KLPs overlap, so one piece of evidence is counted twice?
+- *Atomicity* — can one of this card's KLPs half-fail? ("EBIT falls 10 **and** net income falls 6")
+- *Coverage* — can an answer built only from this card's KLPs reconstruct its reference answer?
+- *Grain* — are this card's KLPs at comparable specificity **with each other**?
+
+**Grain is a WITHIN-CARD check and must never compare across cards.** Different cards legitimately
+sit at different specificity levels — a definitional card and a three-statement walkthrough are not
+supposed to match — so a cross-card grain comparison would flag correct authoring as a defect. The
+check is variance *inside* one card's set, nothing more.
+
 ## The frame: three axes, not one
 
 The shipped pipeline measures one property and treats it as quality.
@@ -98,17 +113,50 @@ improves the authoring prompt rather than patching its output forever.
 
 ## Six revisions to the framework as proposed
 
-### R1 (CRITICAL) — every auto-fix destroys learner evidence
+### R1 (CRITICAL) — auto-fixes reset mastery, and the fix is to RE-GRADE, not to gate publishing
 
 Auto-split / rewrite / merge / retag / delete all supersede a `CardKlp` row, and **superseding one
-silently resets its `KlpState`**. A typo fix already does this; it is a recorded property of the
-engine. Running hygiene over a live corpus wipes accumulated mastery at scale, invisibly, in the
-name of quality.
+silently resets its `KlpState`**. A typo fix already does this. Running hygiene over a live corpus
+wipes accumulated mastery at scale, invisibly, in the name of quality.
 
-**Fix: hygiene runs PRE-PUBLICATION**, on a draft version, before any learner sees it — or it needs
-an evidence-preserving edit path where a reworded point keeps its identity and history.
-Pre-publication is far cheaper and should be the default. **This is a lifecycle decision that blocks
-every auto-fix in the routing table; make it before writing any check.**
+**An earlier draft of this document proposed gating hygiene behind pre-publication. That was
+rejected by the owner and the rejection was correct**: users edit cards and sets constantly and
+will not wait on a publish step, and gating would make the quality pipeline something people route
+around.
+
+**The right fix is to replay history against the new KLPs, and the machinery is mostly built:**
+
+| Piece | Status |
+| --- | --- |
+| The learner's raw answer text | **Stored** — `QuizAnswer.answer`, with `prompt`, `mode`, `latencyMs` |
+| Rebuilding `KlpState` from evidence | **Built** — `rebuildKlpStates` (`src/lib/metrics/state-writer.ts`) reads surviving `AnswerKlpResult` rows in chronological order and re-derives the posterior; it already deletes states with no evidence left |
+| Writing analysis for one answer | **Built** — `createAnswerWithAnalysis` (`src/lib/analysis/write-answer.ts`) |
+| A background job that re-grades stored answers against a NEW KLP set | **The only missing piece** |
+
+So the flow on a KLP change becomes: supersede the old KLPs, write the new ones, enqueue the card's
+historical answers for re-grading, and let `rebuildKlpStates` recompute each posterior from the new
+`AnswerKlpResult` rows. **No publish gate, no waiting, no lost mastery.** The user's edit lands
+immediately; the evidence catches up in the background.
+
+**Idempotency needs no new column.** "Has this answer been graded against KLP version N?" is
+answerable by checking whether it has `AnswerKlpResult` rows pointing at version-N KLPs. Re-grading
+is not deterministic — the same grader on the same answer can return a different verdict — so it
+must be gated on that check rather than re-run freely.
+
+**THE ONE REAL LIMITATION: multiple-choice and true/false history cannot be re-graded.** Their
+diagnosis does not come from text; it comes from distractor provenance — `QuizQuestion.options`
+carries `sourceKlpId` + `corruption` per option, and `targetKlpIds` + `klpVersion` pin it to a KLP
+version. A distractor was *generated* to corrupt a KLP that no longer exists, so the learner's wrong
+pick diagnosed that KLP and there is no honest mapping to a new one. `selectedOption` text survives,
+but asking a model to map it onto a new KLP is inference presented as provenance — the fabrication
+this engine refuses everywhere else.
+
+**So MC/TF evidence is carried forward where its KLP survived and dropped where it did not**, with
+`analysisStatus` recording which. Short-answer and diagnostic answers — the ones carrying the most
+signal per row — re-grade cleanly.
+
+**Cost:** one AI call per stored short-answer per re-authored card. A card with five historical
+answers costs five calls, bounded and background-able on the existing cron.
 
 ### R2 (HIGH) — necessity deletes jointly-essential points
 
@@ -132,6 +180,10 @@ categories pressed into service as concept nodes, still noted as an open limit i
 
 **Rename to `abstraction`, levels `concrete / relational / dispositional`.** Keep `kind` as is. The
 rule that dispositions are never KLPs is correct and is the most useful check in Phase A.
+
+**And the check is variance WITHIN one card's set, never a cross-card comparison** — see Scope
+above. A definitional card sitting entirely at `concrete` and a walkthrough spanning `concrete` and
+`relational` are both correctly authored.
 
 ### R5 (MEDIUM) — C3 is quadratic and half of it is free
 
@@ -224,9 +276,10 @@ humans instead of three synthetic adversaries. The data is already accumulating 
 1. **C1 alone, read-only, over the existing bank.** One prompt, no infrastructure. Answers whether
    the quality problem is coverage holes or something else, in an afternoon. **Ship R3's stated bar
    in the prompt from the start** or the output is unfalsifiable.
-2. **Decide where hygiene runs, before writing any auto-fix.** Pre-publication on a draft version,
-   almost certainly. A schema and lifecycle decision, not a check. Building checks first and
-   retrofitting the lifecycle is how the evidence-wipe ships. Closes R1.
+2. **The background re-grade job, before writing any auto-fix.** Re-grade a card's stored answers
+   against its new KLPs, then `rebuildKlpStates`. This is what makes every auto-fix safe, so it
+   comes first — building checks that mutate KLPs before this exists is how the evidence-wipe
+   ships. Handle MC/TF by carrying forward or dropping, never by inferring. Closes R1.
 3. **Phase A, plus numeric consistency.** Needs R4's renaming, adds R6.
 4. **The synthetic panel, replacing the three adversaries.** Before C3 and C4, not after — it is the
    only change that makes revisions comparable, and C3/C4 are revision-generating machines.

@@ -11,11 +11,17 @@ closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
 
 **AGREED 2026-09-07, NOT BUILT — the KLP quality pipeline.** Design:
 `docs/superpowers/specs/2026-09-07-klp-quality-pipeline-design.md`. A third quality axis
-(**hygiene** — atomicity, independence, coverage, grain, tags) beside fidelity and discrimination,
-and a **synthetic competence panel (L0-L4)** replacing the three adversaries. Six revisions are
-recorded there; **R1 is a blocker** — every auto-fix in the routing table supersedes a `CardKlp`,
-which silently resets `KlpState`, so the lifecycle decision (hygiene runs pre-publication) must be
-made before any check is written. Start with C1 alone, read-only, over the existing bank.
+(**hygiene** — atomicity, independence, coverage, grain, tags, all scoped to ONE CARD's key points,
+never a deck) beside fidelity and discrimination, plus a **synthetic competence panel (L0-L4)**
+replacing the three adversaries. Six revisions recorded there.
+
+**R1 is the first build item, and it is a BACKGROUND RE-GRADE, not a publish gate.** Every auto-fix
+supersedes a `CardKlp`, which silently resets `KlpState`. The owner rejected gating hygiene behind
+publication — people edit cards constantly and would route around it — and the rejection was right:
+`QuizAnswer.answer` stores the raw text and `rebuildKlpStates` already replays posteriors from
+`AnswerKlpResult`, so the missing piece is only a job that re-grades a card's stored answers against
+its new key points. MC/TF cannot be re-graded (diagnosis is distractor provenance pinned to a dead
+`klpVersion`); carry forward or drop, never infer. Then start with C1 alone, read-only.
 
 **START WITH ITEM 2, and its first step is a measurement, not a purchase.** DeepSeek now makes
 re-authoring cost ~$2-5 instead of ~15 days of free-tier drip, but nothing has established that it
