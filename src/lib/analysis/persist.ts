@@ -5,6 +5,7 @@ import {
 import { computeSignificance } from '@/lib/errors/significance'
 import { klpCredit, type KlpStatus } from '@/lib/errors/klp-credit'
 import { resolveSeverity } from '@/lib/errors/bands'
+import { contaminationFactor } from '@/lib/errors/contamination'
 
 /**
  * Version of the whole analysis-capture contract: the error-tag vocabulary,
@@ -18,8 +19,16 @@ import { resolveSeverity } from '@/lib/errors/bands'
  *
  * v2 (Spec 3): severity is now derived from a type band and an instance
  * magnitude, so a v1 row's severity is not comparable to a v2 row's.
+ *
+ * v3 (the negative check): `AnswerKlpResult.credit` is now
+ * `statusCredit x evidenceStrength x contaminationFactor`. A v2 credit and a v3
+ * credit for the same status and mode are therefore not comparable whenever the
+ * answer carried a whole-answer accuracy tag. No column was added: the factor is
+ * recomputable from the answer's own persisted `AnswerErrorTag` rows, which
+ * already store dimension, type, klpId and severity — so the inputs ARE stored,
+ * as the analysis contract requires, without a migration.
  */
-export const ANALYSIS_VERSION = 2
+export const ANALYSIS_VERSION = 3
 
 /** Why an answer has the analysis rows it has. */
 export type AnalysisOutcome = 'analyzed' | 'no_provenance' | 'no_klps' | 'failed'
@@ -104,38 +113,6 @@ export function buildAnalysisWrites(input: {
   const resolve = (ref?: number): KlpRef | null =>
     typeof ref === 'number' ? input.klps[ref] ?? null : null
 
-  const klpResults: AnalysisWrites['klpResults'] = []
-  // AnswerKlpResult is unique on (quizAnswerId, klpId), and nothing stops the
-  // grader naming the same point twice — the schema permits a repeated
-  // `klpRef`. Undeduped, `createMany` violated the constraint and rolled back
-  // the ENTIRE transaction, so a successfully graded answer was discarded
-  // behind "Failed to submit answer".
-  //
-  // Keyed on the RESOLVED klpId, not the ref: two different refs can point at
-  // the same KLP, and the constraint is on the id. The FIRST occurrence wins
-  // — merging two contradictory statuses would invent a judgment the grader
-  // never made, which is the same fabrication the unresolved-ref path refuses.
-  const seenKlpIds = new Set<string>()
-  for (const r of input.klpResults) {
-    const klp = resolve(r.klpRef)
-    if (!klp) {
-      warnings.push({ reason: 'unresolved_klp_ref', value: String(r.klpRef) })
-      continue
-    }
-    if (seenKlpIds.has(klp.id)) {
-      warnings.push({ reason: 'duplicate_klp_ref', value: String(r.klpRef) })
-      continue
-    }
-    seenKlpIds.add(klp.id)
-    klpResults.push({
-      klpId: klp.id,
-      status: r.status,
-      credit: klpCredit(r.status, input.mode),
-      mode: input.mode,
-      evidence: r.evidence,
-    })
-  }
-
   const accepted: AnalysisWrites['errorTags'] = []
   for (const t of input.errorTags) {
     if (!DIMENSIONS.includes(t.dimension)) {
@@ -197,6 +174,50 @@ export function buildAnalysisWrites(input: {
       warnings.push({ reason: 'dimension_cap', value: d })
     }
     errorTags.push(...inDim.slice(0, MAX_TAGS_PER_DIMENSION))
+  }
+
+  // THE NEGATIVE CHECK. Computed from the ACCEPTED tags — the ones that
+  // survived vocabulary validation and carry a resolved severity — and applied
+  // to every key point's credit below.
+  //
+  // ORDER IS LOAD-BEARING, and it is why the key-point loop moved below the tag
+  // loop: credit now depends on the tags, so a tag that has not been validated
+  // and severity-resolved yet cannot inform it. Computed from `errorTags`
+  // (post-cap) rather than `accepted` so that a tag dropped by the per-dimension
+  // cap cannot dock credit while being absent from the row that would explain
+  // why — the factor must be recomputable from what was actually persisted.
+  const factor = contaminationFactor(errorTags)
+
+  const klpResults: AnalysisWrites['klpResults'] = []
+  // AnswerKlpResult is unique on (quizAnswerId, klpId), and nothing stops the
+  // grader naming the same point twice — the schema permits a repeated
+  // `klpRef`. Undeduped, `createMany` violated the constraint and rolled back
+  // the ENTIRE transaction, so a successfully graded answer was discarded
+  // behind "Failed to submit answer".
+  //
+  // Keyed on the RESOLVED klpId, not the ref: two different refs can point at
+  // the same KLP, and the constraint is on the id. The FIRST occurrence wins
+  // — merging two contradictory statuses would invent a judgment the grader
+  // never made, which is the same fabrication the unresolved-ref path refuses.
+  const seenKlpIds = new Set<string>()
+  for (const r of input.klpResults) {
+    const klp = resolve(r.klpRef)
+    if (!klp) {
+      warnings.push({ reason: 'unresolved_klp_ref', value: String(r.klpRef) })
+      continue
+    }
+    if (seenKlpIds.has(klp.id)) {
+      warnings.push({ reason: 'duplicate_klp_ref', value: String(r.klpRef) })
+      continue
+    }
+    seenKlpIds.add(klp.id)
+    klpResults.push({
+      klpId: klp.id,
+      status: r.status,
+      credit: klpCredit(r.status, input.mode, factor),
+      mode: input.mode,
+      evidence: r.evidence,
+    })
   }
 
   const status: AnalysisOutcome =

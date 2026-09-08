@@ -9,6 +9,56 @@ user. Qwen remains entitlement-blocked (403 `AccessDenied.Unpurchased`, retried 
 in no rotation. **The owner verified the shared-key flow in a browser on 2026-09-07** — that gate is
 closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
 
+**THE NEGATIVE CHECK IS BUILT (2026-09-08) — items 1, 2 and 3 of the pipeline are done.**
+`src/lib/errors/contamination.ts`. A key-point set is a conjunction of POSITIVE requirements,
+so it can never express "and nothing false is asserted" - no key point closes that hole. The
+check is therefore a GRADING-TIME term, not an authoring check: `klpCredit` is now
+`statusCredit x evidenceStrength x contaminationFactor`, where the factor drops below 1 when the
+answer carries a whole-answer ACCURACY error tag. Only accuracy counts (clarity and conciseness
+are delivery, not truth) and only whole-answer scope (a tag on a specific point is already
+scored through that point). `CONTAMINATION_MAX_DOCK = 0.5` is an ANCHOR, not a round number:
+worst-case contamination reduces a fully-correct answer to exactly `STATUS_CREDIT.partial`, and
+a test pins the equality.
+
+**Validated adversarially against real data, cross-model: 11/15 caught (73%).**
+`npm run probe-negative-check` replays the contamination exploits C1 already produced - graded
+by `gemini-3.5-flash-lite`, which is NOT the `deepseek-v4-flash` that wrote them. Before this,
+all 15 scored full positive credit. The 4 misses are subtle domain claims ("DSCR is mostly used
+for real estate"); the check catches what the grader knows is false, which is a real ceiling.
+`GRADE_SHORT_ANSWER_PROMPT` went to v4 because the instruction was previously implicit - it
+described the MECHANICS of a whole-answer tag without ever telling the grader to look for one,
+and a dock for a tag no model emits is a dock that never happens.
+
+**MODEL SEPARATION IS NOW TRACKED AND ENFORCEABLE, and it was NOT guaranteed before.** The
+pipeline's isolation was always PROMPT-level (the grader is never told where an answer came
+from), never model-level. Measured on the first C1 run: 7 cards attacked by a different model
+than authored them, **1 card attacked by the model that wrote it**, and 12 with no recorded
+authoring model at all. `klp-exploit` now reports the split, fires a `self_attacked` finding at
+any sample size, and takes `--require-model-separation` to skip self-attacked cards. `unknown`
+is its own bucket - assuming separation we cannot demonstrate is the flattering direction.
+
+**PHASE A IS BUILT (2026-09-08), deterministic half.** `validate.ts` gains `not_self_contained`,
+`meta_language`, `numeric_inconsistency` (R6), `disposition` and `abstraction_spread` (R4), plus
+a real `restatement` check. R4 renames the axis to `abstraction`
+(`concrete/relational/dispositional`, `src/lib/klp/abstraction.ts`) so it cannot collide with
+`CardKlp.kind`, and a test asserts the vocabularies stay disjoint - this project already
+collapsed two axes into one field once with categories-as-concepts. Dispositions are rejected at
+any count: "understands X" is a claim about a PERSON and cannot be true of an answer. Spread is
+judged WITHIN one card only.
+
+**Measured over all 923 live key points before committing, which is how the one false positive
+was found.** `not_self_contained` 11% of cards (true positives - "This creates a deliberate
+downward bias..." has no antecedent), `meta_language` 1%, `restatement` 1%, and
+`numeric_inconsistency` **fired on a card with no tax arithmetic at all**: an earlier version
+treated any bare percentage as a candidate tax rate, so on a non-controlling-interest card the
+80%/50%/20% OWNERSHIP stakes played the part of a tax rate while "operating income" and "net
+income" supplied the two sides. Fixed by requiring the rate to be named as a tax rate; that real
+card is now a regression test. A rule that cries wolf on correct authoring gets ignored, which is
+worse than no rule.
+
+**Still unbuilt in Phase A:** the abstraction CLASSIFIER (the seam and the arithmetic exist;
+nothing calls a model to label points yet) and tag validity against the concept DAG.
+
 **AGREED 2026-09-07, NOT BUILT — the KLP quality pipeline.** Design:
 `docs/superpowers/specs/2026-09-07-klp-quality-pipeline-design.md`. A third quality axis
 (**hygiene** — atomicity, independence, coverage, grain, tags, all scoped to ONE CARD's key points,
@@ -39,7 +89,7 @@ KLPs on 200 cards - **432 authored, 373 reused, 118 legacy** - over 130 authorin
 and reused both read mean weight 2.83 with NO failure mode firing. Only the 118 legacy rows still
 fail `clustered_high` (92.4% at 4-5). Baselines as of this session: **3128 tests, lint 164.**
 
-**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3179 tests, lint 164.**
+**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3231 tests, lint 164.**
 
 **C1 IS CALIBRATED AND THE ANSWER IS: COVERAGE IS NOT THE PROBLEM.** After adding a blind
 judge for the claim nothing verified, the same 20 cards read **10% holed (2/20)**, not the 40%

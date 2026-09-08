@@ -70,8 +70,23 @@ export const DEFAULT_STRENGTH = 0.75
  * answers, because an easy mode makes a correct answer weaker evidence. It
  * does not make a WRONG answer weaker evidence — the learner chose it.
  */
-export function klpCredit(status: KlpStatus, mode: StudySource): number {
+export function klpCredit(
+  status: KlpStatus,
+  mode: StudySource,
+  /**
+   * THE NEGATIVE CHECK, in (0, 1] — see `src/lib/errors/contamination.ts`.
+   *
+   * Defaults to 1, so every existing caller and every clean answer produce a
+   * byte-identical number to what they did before this parameter existed.
+   *
+   * MULTIPLIED, not subtracted: it keeps credit inside [0, 1] with no clamp,
+   * and it preserves the invariant that a `failed` status is 0 in every mode
+   * and under every factor — a wrong answer cannot be made more or less wrong
+   * by what else it said.
+   */
+  contaminationFactor = 1,
+): number {
   const base = STATUS_CREDIT[status]
   if (base === 0) return 0
-  return base * (EVIDENCE_STRENGTH[mode] ?? DEFAULT_STRENGTH)
+  return base * (EVIDENCE_STRENGTH[mode] ?? DEFAULT_STRENGTH) * contaminationFactor
 }
