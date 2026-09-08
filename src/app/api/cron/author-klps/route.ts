@@ -9,6 +9,7 @@ import { REVISE_KLPS_PROMPT } from '@/lib/ai/prompts/revise-klps'
 import { RELATE_KLPS_PROMPT } from '@/lib/ai/prompts/relate-klps'
 import { CLASSIFY_ABSTRACTION_PROMPT } from '@/lib/ai/prompts/classify-abstraction'
 import { WRITE_PANEL_PROMPT } from '@/lib/ai/prompts/write-panel'
+import { findExistingPanel } from '@/lib/klp/panel-reuse'
 import { classifyProviderError } from '@/lib/errors/classify'
 import {
   CARDS_PER_RUN,
@@ -222,6 +223,7 @@ export async function GET(request: Request) {
           setTitle: card.setTitle,
           question: card.term,
           definition: card.definition,
+          existingPanel: (await findExistingPanel(card.id))?.members,
         },
         generator(userId, (m) => {
           model = m

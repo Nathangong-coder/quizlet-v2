@@ -11,6 +11,7 @@ import { REVISE_KLPS_PROMPT } from '../src/lib/ai/prompts/revise-klps'
 import { RELATE_KLPS_PROMPT } from '../src/lib/ai/prompts/relate-klps'
 import { CLASSIFY_ABSTRACTION_PROMPT } from '../src/lib/ai/prompts/classify-abstraction'
 import { WRITE_PANEL_PROMPT } from '../src/lib/ai/prompts/write-panel'
+import { findExistingPanel } from '../src/lib/klp/panel-reuse'
 import type { CardKlpStatus } from '../src/lib/cards/klp-status'
 import {
   buildWeightHistogram,
@@ -503,7 +504,14 @@ async function main() {
 
       try {
         outcome = await authorCard(
-          { question: card.term, definition: card.definition, setTitle: set.title },
+          {
+            question: card.term,
+            definition: card.definition,
+            setTitle: set.title,
+            // Reuse this card's existing panel so this run's separation score is
+            // comparable with the last one's.
+            existingPanel: (await findExistingPanel(card.id))?.members,
+          },
           gen,
         )
         break

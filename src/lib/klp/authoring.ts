@@ -281,7 +281,22 @@ async function gradeAllCandidates(
 }
 
 export async function authorCard(
-  input: { question: string; definition: string; setTitle: string },
+  input: {
+    question: string
+    definition: string
+    setTitle: string
+    /**
+     * A panel this card was graded against BEFORE, so a re-authoring run uses
+     * the same yardstick (`src/lib/klp/panel-reuse.ts`).
+     *
+     * Without it every run writes a fresh panel, and two runs' separation
+     * scores are then incomparable: a higher number could mean the key points
+     * got sharper, or merely that this run drew a weaker panel. Supplying it is
+     * what turns the panel into a regression suite rather than a one-off
+     * measurement.
+     */
+    existingPanel?: { level: PanelLevel; text: string }[]
+  },
   gen: AuthoringGenerator,
 ): Promise<AuthoringOutcome> {
   // Sizing, in two halves (increment A §5). The mechanical prior is free and
@@ -336,7 +351,12 @@ export async function authorCard(
   // than failing the card. The panel is a better measurement, not a required
   // one.
   let panel: { level: PanelLevel; text: string; weakness: string }[] | undefined
-  if (USE_COMPETENCE_PANEL && gen.writePanel) {
+  // A PANEL THIS CARD ALREADY HAS WINS over writing a new one — that is what
+  // makes two runs comparable. `weakness` is not stored and is not needed: it
+  // is guidance for the writer, never an input to any score.
+  if (USE_COMPETENCE_PANEL && input.existingPanel?.length === PANEL_LEVELS.length) {
+    panel = input.existingPanel.map((m) => ({ ...m, weakness: '' }))
+  } else if (USE_COMPETENCE_PANEL && gen.writePanel) {
     try {
       const written = await gen.writePanel({
         question: input.question,

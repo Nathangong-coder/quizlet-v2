@@ -237,3 +237,22 @@ describe('PanelSchema', () => {
     }).success).toBe(false)
   })
 })
+
+describe('cross-run reuse (why a panel keyed to a card, not a klpVersion)', () => {
+  it('needs all five levels to be a usable yardstick', () => {
+    // A stored panel missing L3 has lost exactly the near-miss the whole
+    // instrument exists to provide, so it is ignored and a fresh one written
+    // rather than a curve being computed with a hole in it.
+    const complete = new Set(PANEL_LEVELS)
+    expect(complete.size).toBe(5)
+  })
+
+  it('must not treat a historic failure-kind probe as a level', () => {
+    // Every stored probe before the panel carries confident_wrong / vague /
+    // memorized_template. Those are a DIFFERENT instrument; reading them as
+    // levels would put two scales inside one curve.
+    for (const kind of PROBE_KINDS) {
+      expect(PANEL_LEVELS as readonly string[]).not.toContain(kind)
+    }
+  })
+})

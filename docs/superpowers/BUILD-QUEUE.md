@@ -35,7 +35,14 @@ not: the revision loop grades `draft.wrongAnswers`, written once by the author c
 revised set. **The real argument is saturation** - re-measured across all 130 runs, AUC is
 **1.000 on 129 of them**. The reference outranks every adversary every time, so the test cannot
 tell a sharp key-point set from an adequate one. L3, the near-miss, is what makes it informative
-again. A panel fixed ACROSS runs would need a schema change and is not built.
+again. **Cross-run reuse IS built, and it needed no migration** (`src/lib/klp/panel-reuse.ts`):
+`AuthoringProbe.text` already persists each answer verbatim, so a re-authoring run reads back the
+card's previous panel and grades the same five answers instead of writing new ones. That is what
+makes two runs' separation scores comparable at all - a fresh panel each time means a higher
+score could mean sharper key points OR a weaker panel. Historic failure-kind probes
+(`confident_wrong` etc.) are never read as levels: they are a different instrument, and mixing
+them would put two scales inside one curve. An incomplete stored panel is ignored rather than
+used with a hole in it.
 
 **ROLE SEPARATION IN C1 (attacker vs verifier), from a question worth asking.** The exploit test
 separated the PROMPTS but ran all three calls on ONE model - so the attacker graded its own
@@ -125,7 +132,7 @@ KLPs on 200 cards - **432 authored, 373 reused, 118 legacy** - over 130 authorin
 and reused both read mean weight 2.83 with NO failure mode firing. Only the 118 legacy rows still
 fail `clustered_high` (92.4% at 4-5). Baselines as of this session: **3128 tests, lint 164.**
 
-**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3274 tests, lint 164.**
+**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3276 tests, lint 164.**
 
 **C1 IS CALIBRATED AND THE ANSWER IS: COVERAGE IS NOT THE PROBLEM.** After adding a blind
 judge for the claim nothing verified, the same 20 cards read **10% holed (2/20)**, not the 40%
