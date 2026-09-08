@@ -15,7 +15,104 @@ closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
 never a deck) beside fidelity and discrimination, plus a **synthetic competence panel (L0-L4)**
 replacing the three adversaries. Six revisions recorded there.
 
-**R1 is the first build item, and it is a BACKGROUND RE-GRADE, not a publish gate.** Every auto-fix
+**C1 IS BUILT AND RUN (2026-09-07) AND ITS RESULT IS A WARNING, NOT A COVERAGE NUMBER.**
+`npm run klp-exploit` - read-only, no schema change, no mutation. Over the SAME seeded 20 cards
+on one model, two defensible phrasings of R3's bar gave **40% and 95% of cards holed**; 44 of 60
+attempts flipped, 36 of them straight from `abstained` to `confirmed`. The corpus never changed.
+An exploit makes two claims - "it satisfies every key point" (verified by the existing
+`GRADE_CANDIDATE_PROMPT`, stable) and "it would be marked down in a real interview" (the
+generator's own judgment, unverified). **The whole swing lives in the second.** So R3 is necessary
+and not sufficient, and C1 cannot produce a corpus figure until that claim has a blind judge -
+cheapest is `GRADE_SHORT_ANSWER_PROMPT`, which already scores an answer against the card with no
+knowledge of the key points, at one extra call per confirmed attempt. Details and both runs: R7 in
+the design doc; raw exploit text in `docs/ai/klp-exploit-deepseek{,-v2}.json`.
+
+**What C1 DID establish, independent of the framing: the routing table is wrong for ~90% of holes.**
+The design has one action for a C1 hole ("generate candidate KLP"), and it only fits `omission`.
+`contamination` needs a NEGATIVE check - no added key point fixes "and it also said something
+false" - and `scope_drift` needs anchoring to the question. Routed as designed, most findings
+become key points that fix nothing, C4 deletes them, and C1 re-finds the hole. Two of the three
+routes do not exist.
+
+**CORPUS FIGURES BELOW WERE STALE; measured 2026-09-07 with `npm run klp-histogram`:** 923 live
+KLPs on 200 cards - **432 authored, 373 reused, 118 legacy** - over 130 authoring runs. Authored
+and reused both read mean weight 2.83 with NO failure mode firing. Only the 118 legacy rows still
+fail `clustered_high` (92.4% at 4-5). Baselines as of this session: **3128 tests, lint 164.**
+
+**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3179 tests, lint 164.**
+
+**C1 IS CALIBRATED AND THE ANSWER IS: COVERAGE IS NOT THE PROBLEM.** After adding a blind
+judge for the claim nothing verified, the same 20 cards read **10% holed (2/20)**, not the 40%
+or 95% two prompt phrasings gave. 31 of 42 claimed exploits were rejected by the app's OWN
+short-answer grader as perfectly good answers. **Zero confirmed omission holes, zero scope
+drift; both survivors are contamination. Authored cards: 0 of 10.** The judge is
+`GRADE_SHORT_ANSWER_PROMPT` with no key points - its shipped rubric-only path, so no new
+prompt. Read the sensitivity curve, not the number: `<4:0 <5:0 <6:0 <7:2 <8:9 <9:22`, i.e.
+stable at every defensible bar.
+
+**THE ROUTING FIX: route by strategy, and only ONE route may touch key points.** A key-point
+set is a conjunction of POSITIVE requirements; no such conjunction can say "and nothing false
+is asserted" (contamination) or "and this answers THIS question" (scope drift), so adding
+members never closes those. `omission` splits further - if the missing content traces to the
+card, draft the point; if it does not, the CARD is thin and it goes to the existing `concerns`
+channel, never auto-added. Full table in the design doc.
+
+**Contamination is the priority, and the reason is verified in code, not inferred.**
+`klpResults` and `errorTags` are written independently and `klpCredit` reads only
+`status x mode`, so an answer that satisfies every key point AND asserts something false is
+recorded as full positive evidence on every point - **the learner's mastery goes UP for having
+said something wrong.** That argument does not depend on C1's numbers.
+
+**R1 IS BUILT: `npm run regrade-klps`.** Carry forward where the key point survived verbatim,
+re-grade free text only where the new set has uncovered points, drop what is gone, and NEVER
+re-grade MC/TF. No new column and no queue table - "does every result point at a live key
+point" is both the idempotency gate and the work queue. **Live dry-run: 7 cards, 8 answers, 9
+stranded results, and only 1 of 9 `KlpState` rows corpus-wide sits on a live key point.** The
+mastery wipe has already happened; it is not a risk, it is a backlog. **NOT YET RUN against
+production - it is an irreversible write to real learner history and needs the owner's go.**
+
+**RUN AGAINST PRODUCTION 2026-09-08, and it corrupted history before it repaired it. Read this
+before touching the re-grade job.** The run cleared all 9 stranded results, but 5 of the 6
+re-graded answers were DIAGNOSTIC, and re-grading a diagnostic is wrong for a reason that is
+about SCOPE, not format. A diagnostic question probes exactly ONE key point
+(`DiagnosticQuestion.klpId`); `GRADE_SHORT_ANSWER_PROMPT` judges the whole card. So the grader
+was handed a one-question answer and asked about six points, and marked the five untouched
+ones `failed` - because an answer to one question does not mention the others. **A learner who
+correctly answered "Gross Profit" to "what is Revenue minus COGS?" came out recorded as having
+FAILED four points on operating expenses, EBIT, EBITDA and net income.** 30 fabricated
+negative results across 5 answers.
+
+Fixed two ways: `diagnostic` moved into `CARRY_ONLY_MODES` (its honest scope is its one probed
+point, and if that point did not survive verbatim there is nothing to grade against - the same
+position MC/TF are in), and `scripts/repair-diagnostic-overcredit.ts` removed the 30 rows and
+replayed the posteriors. Verified: stranded 9 -> 0, KlpState on dead points 8 -> 0, no
+out-of-scope evidence remains, both scripts idempotent on a second run. Checked across all 12
+diagnostic questions: **not one probed key point survived re-authoring**, so the honest outcome
+for every diagnostic answer was to keep no key-point evidence - which is the loss that already
+existed, not a new one.
+
+**IT AUTO-RUNS.** `regradeSweep` is wired into the existing daily cron
+(`/api/cron/author-klps`) and runs **BEFORE** the authoring phase, bounded by
+`REGRADE_CARDS_PER_RUN` (10) and `REGRADE_BUDGET_MS` (60s). The order is the design: this route
+is the largest producer of the damage, since authoring supersedes key points - and run last the
+sweep would get whatever wall clock authoring left over, which is not a repair. Running first
+means each invocation fixes the previous one's damage, so a card authored today is re-attached
+tomorrow; `npm run regrade-klps` closes that lag on demand. No second cron, because Vercel Hobby
+allows only daily ones. A source-scan test pins the ordering, the reporting, and the reuse of
+`GRADE_SHORT_ANSWER_PROMPT`; both "moved after authoring" and "removed" fail it.
+
+**The lesson, and it generalises past this job: an answer's re-gradable scope is WHAT IT WAS
+ASKED, never what format it is in.** Free text was the wrong test. `quiz-sa` qualifies because
+its prompt IS the card; nothing else does.
+
+**A defect the suite could not see, found by the live dry-run:** `QuizAnswer.mode` holds a
+`QuizMode` (`short-answer`) while `AnswerKlpResult.mode` holds a `StudySource` (`quiz-sa`).
+Comparing the raw column matched nothing, so every short-answer answer had its evidence
+dropped instead of re-graded - the exact damage the job repairs, caused by the repair. All
+unit tests passed because they used `quiz-sa`. Fixed through `src/lib/quiz/mode.ts` and pinned
+by a test. **Live verification catches what mocks cannot, again.**
+
+**Original R1 framing, for context - it is a BACKGROUND RE-GRADE, not a publish gate.** Every auto-fix
 supersedes a `CardKlp`, which silently resets `KlpState`. The owner rejected gating hygiene behind
 publication — people edit cards constantly and would route around it — and the rejection was right:
 `QuizAnswer.answer` stores the raw text and `rebuildKlpStates` already replays posteriors from

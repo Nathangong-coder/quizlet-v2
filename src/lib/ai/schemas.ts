@@ -5,6 +5,7 @@ import { KLP_STATUSES } from '@/lib/errors/klp-credit';
 import { PROBE_KINDS, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
 import { KLP_VERDICTS } from '@/lib/klp/verdicts';
 import { RELATABLE_TYPES, RELATION_PROVENANCES } from '@/lib/klp/relations';
+import { EXPLOIT_STRATEGIES } from '@/lib/klp/exploit';
 
 export const MultipleChoiceOptionsSchema = z.object({
   options: z.array(z.string().min(1)).length(4),
@@ -523,3 +524,33 @@ export const RelationDraftSchema = z.object({
 });
 
 export type RelationDraft = z.infer<typeof RelationDraftSchema>;
+
+/**
+ * C1's output — one exploit attempt per strategy (`src/lib/ai/prompts/exploit-klps.ts`).
+ *
+ * FLAT AND FULLY REQUIRED, deliberately. The natural shape is a nullable
+ * attempt, but a nullable object inside an array is exactly where
+ * structured-output compliance falls apart, and a schema failure here is
+ * indistinguishable from an output-token cutoff (`docs/ai/model-performance.md`,
+ * trap 4) — so the abstention path would look like a broken model.
+ *
+ * `answer` is therefore an empty string on abstention rather than absent, and
+ * it is `z.string()` with NO `.min(1)`: a minimum length would reject every
+ * abstention, which is the one outcome that makes this check falsifiable at
+ * all (revision R3).
+ *
+ * `min(1)` on the array, not `.length(EXPLOIT_STRATEGIES.length)` — a model
+ * that returns two of three strategies has still produced usable evidence for
+ * those two, and the runner records the missing one as absent rather than
+ * discarding the whole card.
+ */
+export const ExploitKlpsSchema = z.object({
+  attempts: z.array(z.object({
+    strategy: z.enum(EXPLOIT_STRATEGIES),
+    exploitFound: z.boolean(),
+    answer: z.string(),
+    rationale: z.string(),
+  })).min(1).max(EXPLOIT_STRATEGIES.length),
+});
+
+export type ExploitKlps = z.infer<typeof ExploitKlpsSchema>;

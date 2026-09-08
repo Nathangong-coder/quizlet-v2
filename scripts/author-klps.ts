@@ -20,8 +20,7 @@ import {
 } from '../src/lib/klp/histogram'
 import { PROBE_KINDS } from '../src/lib/klp/authoring-config'
 import {
-  parseList,
-  buildDirectPool,
+  readDirectPool,
   nextCombo,
   markTried,
   markExhausted,
@@ -125,61 +124,6 @@ function defaultGenerator(userId: string, onModel?: (model: string) => void): Au
  * minimum spacing applies WITHIN a card's 6-16 calls, not just between
  * cards — that's where the pilot's burst actually was.
  */
-/**
- * Reads the `--direct` pool from the environment.
- *
- * `GOOGLE_API_KEYS` (comma or whitespace separated) and `KLP_DIRECT_MODELS`
- * are the plural forms; the original singular `GOOGLE_API_KEY` /
- * `KLP_DIRECT_MODEL` still work and are merged in, so an existing `.env` keeps
- * running unchanged. Keys are read from the environment only — never a flag,
- * because argv is visible to every other process on the machine and lands in
- * shell history.
- */
-function readDirectPool(): DirectCombo[] {
-  // `KLP_DIRECT_PROVIDER` selects which provider's keys the pool is built
-  // from. It defaults to google, so every existing `.env` and every documented
-  // command keeps working unchanged.
-  //
-  // The point of supporting a second provider HERE rather than in a separate
-  // benchmark script is that authoring quality is only comparable if the
-  // prompts, pacing, per-card pinning and separation arithmetic are identical.
-  // A parallel script would drift from this one, and the first thing it would
-  // drift on is the thing being measured.
-  const provider = (process.env.KLP_DIRECT_PROVIDER ?? 'google').trim().toLowerCase()
-
-  const sources: Record<string, { keys: string[]; defaultModel: string }> = {
-    google: {
-      keys: [...parseList(process.env.GOOGLE_API_KEYS), ...parseList(process.env.GOOGLE_API_KEY)],
-      defaultModel: 'gemini-3.6-flash',
-    },
-    deepseek: {
-      keys: [
-        ...parseList(process.env.DEEPSEEK_API_KEYS),
-        ...parseList(process.env.DEEPSEEK_API_KEY),
-      ],
-      defaultModel: 'deepseek-v4-flash',
-    },
-  }
-
-  const source = sources[provider]
-  if (!source) {
-    throw new Error(
-      `KLP_DIRECT_PROVIDER=${provider} is not supported — use one of: ${Object.keys(sources).join(', ')}`,
-    )
-  }
-
-  const keys = [...new Set(source.keys)]
-  if (keys.length === 0) {
-    throw new Error(
-      `--direct with KLP_DIRECT_PROVIDER=${provider} needs ${provider.toUpperCase()}_API_KEY or ` +
-        `${provider.toUpperCase()}_API_KEYS in the environment`,
-    )
-  }
-
-  const models = parseList(process.env.KLP_DIRECT_MODELS ?? process.env.KLP_DIRECT_MODEL)
-  return buildDirectPool(keys, models.length > 0 ? models : [source.defaultModel], provider)
-}
-
 /**
  * A generator pinned to ONE key+model combo, for ONE card.
  *

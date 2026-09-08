@@ -139,3 +139,55 @@ export function poolStatus(pool: DirectCombo[]): PoolStatus {
     modelsLeft: Array.from(new Set(available.map((c) => c.model))),
   }
 }
+
+/**
+ * The per-provider defaults `readDirectPool` builds from.
+ *
+ * Exported so a test can assert the table rather than duplicating it, and so
+ * the error message for an unsupported provider can name the real options.
+ */
+export const DIRECT_PROVIDER_SOURCES: Record<
+  string,
+  { keyVars: string[]; defaultModel: string }
+> = {
+  google: { keyVars: ['GOOGLE_API_KEYS', 'GOOGLE_API_KEY'], defaultModel: 'gemini-3.6-flash' },
+  deepseek: { keyVars: ['DEEPSEEK_API_KEYS', 'DEEPSEEK_API_KEY'], defaultModel: 'deepseek-v4-flash' },
+}
+
+/**
+ * Reads the `--direct` pool from the environment.
+ *
+ * LIVES HERE rather than in a script because more than one operator tool needs
+ * it — `npm run author-klps` and `npm run klp-exploit` — and a second copy of
+ * the provider table is a second thing to keep correct. The first thing it
+ * would drift on is which provider's keys are being spent, which is exactly
+ * the log line that makes a billing surprise take an hour to trace.
+ *
+ * `KLP_DIRECT_PROVIDER` selects the provider and defaults to google, so every
+ * existing `.env` and documented command keeps working unchanged.
+ *
+ * Keys are read from the environment ONLY — never a flag, because argv is
+ * visible to every other process on the machine and lands in shell history.
+ */
+export function readDirectPool(env: NodeJS.ProcessEnv = process.env): DirectCombo[] {
+  const provider = (env.KLP_DIRECT_PROVIDER ?? 'google').trim().toLowerCase()
+
+  const source = DIRECT_PROVIDER_SOURCES[provider]
+  if (!source) {
+    throw new Error(
+      `KLP_DIRECT_PROVIDER=${provider} is not supported — use one of: ` +
+        `${Object.keys(DIRECT_PROVIDER_SOURCES).join(', ')}`,
+    )
+  }
+
+  const keys = [...new Set(source.keyVars.flatMap((v) => parseList(env[v])))]
+  if (keys.length === 0) {
+    throw new Error(
+      `--direct with KLP_DIRECT_PROVIDER=${provider} needs one of ` +
+        `${source.keyVars.join(' or ')} in the environment`,
+    )
+  }
+
+  const models = parseList(env.KLP_DIRECT_MODELS ?? env.KLP_DIRECT_MODEL)
+  return buildDirectPool(keys, models.length > 0 ? models : [source.defaultModel], provider)
+}
