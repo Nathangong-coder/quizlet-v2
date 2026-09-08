@@ -22,6 +22,7 @@ import {
   formatBreadthHistogram,
 } from '../src/lib/klp/histogram'
 import { PROBE_KINDS } from '../src/lib/klp/authoring-config'
+import { formatPanelCurve } from '../src/lib/klp/panel'
 import {
   readDirectPool,
   nextCombo,
@@ -262,6 +263,13 @@ interface RunStats {
   probesPerCard: number
   /** Cards whose reference answer flagged something wrong in the owner's own definition. */
   concerns: { term: string; concerns: string[] }[]
+  /**
+   * Panel separations, when the panel ran. Collected so a CALIBRATION run
+   * reports a DISTRIBUTION rather than a mean — a floor has to be set from the
+   * shape, and a mean hides whether the spread is tight or bimodal.
+   */
+  panelSeparations: number[]
+  panelNonMonotonic: number
 }
 
 /** Best-effort. Never throws — see `extractKlpsForCards`'s identical posture. */
@@ -315,12 +323,35 @@ function printOutcomeDetail(term: string, outcome: AuthoringOutcome): void {
     console.log(`    verdicts: ${JSON.stringify(p.verdicts)}`)
   }
 
-  const bestWrongScore = outcome.probes.length > 0 ? Math.max(...outcome.probes.map((p) => p.score)) : 0
-  const referenceScore = outcome.separationScore + bestWrongScore
-  console.log(
-    `\n-- Separation -- reference ${referenceScore.toFixed(2)}, best wrong ${bestWrongScore.toFixed(2)}, ` +
-      `separation ${outcome.separationScore.toFixed(2)} (revisions: ${outcome.revisions})`,
-  )
+  // WITH A PANEL, THE OLD NUMBERS ARE MEANINGLESS AND MUST NOT BE PRINTED ALONE.
+  // `bestWrongScore` is a max over every non-reference candidate, and under a
+  // panel that set includes L4 and L3 - the members that are SUPPOSED to score
+  // high. So "best wrong 0.93" is the expert answer being counted as an
+  // adversary, and the separation derived from it reads as a catastrophic
+  // failure on a card that is fine. The curve is the number that applies.
+  if (outcome.panelCurve) {
+    console.log(`\n-- Competence panel (revisions: ${outcome.revisions}) --`)
+    console.log(formatPanelCurve(outcome.panelCurve))
+    const notable = outcome.klpShapes.filter((s) => s.shape !== 'healthy')
+    console.log(
+      `  per-KLP shapes: ${outcome.klpShapes.length - notable.length} healthy` +
+        (notable.length > 0 ? `, ${notable.length} flagged` : ''),
+    )
+    for (const s of notable) console.log(`    [${s.index}] ${s.shape} - ${s.detail}`)
+    for (const b of outcome.unseparatedBoundaries) {
+      console.log(
+        `    SET-LEVEL: no key point separates ${b.stronger} from ${b.weaker} — this card cannot ` +
+          `tell those two competence levels apart however good its individual points look.`,
+      )
+    }
+  } else {
+    const bestWrongScore = outcome.probes.length > 0 ? Math.max(...outcome.probes.map((p) => p.score)) : 0
+    const referenceScore = outcome.separationScore + bestWrongScore
+    console.log(
+      `\n-- Separation -- reference ${referenceScore.toFixed(2)}, best wrong ${bestWrongScore.toFixed(2)}, ` +
+        `separation ${outcome.separationScore.toFixed(2)} (revisions: ${outcome.revisions})`,
+    )
+  }
 
   console.log(
     `\n-- Relations (${outcome.relations.length}) -- ` +
@@ -434,6 +465,8 @@ async function main() {
     failCounts: [],
     probesPerCard: PROBE_KINDS.length,
     concerns: [],
+    panelSeparations: [],
+    panelNonMonotonic: 0,
   }
 
   for (let i = 0; i < cards.length; i++) {
@@ -602,7 +635,12 @@ async function main() {
     // apart from "over-pruned" needs the numbers behind it, which is exactly
     // what a later multi-card run has to judge.
     console.log(
-      `${tag} — separation ${outcome.separationScore.toFixed(2)}, ${outcome.klps.length} KLPs, ` +
+      `${tag} — ` +
+        (outcome.panelCurve
+          ? `panel separation ${outcome.panelCurve.separation.toFixed(2)}` +
+            `${outcome.panelCurve.monotonic ? '' : ' NON-MONOTONIC'}, `
+          : `separation ${outcome.separationScore.toFixed(2)}, `) +
+        `${outcome.klps.length} KLPs, ` +
         `${outcome.relations.length} relations (candidates ${outcome.relationStats.candidates}, ` +
         `cycles-dropped ${outcome.relationStats.droppedForCycles}, ` +
         `out-of-range-dropped ${outcome.relationStats.droppedOutOfRange})${flagSuffix}`,
@@ -621,6 +659,10 @@ async function main() {
       stats.probesPerCard = Math.max(stats.probesPerCard, wrongAnswerCount)
     }
     if (outcome.concerns.length > 0) stats.concerns.push({ term: card.term, concerns: outcome.concerns })
+    if (outcome.panelCurve) {
+      stats.panelSeparations.push(outcome.panelCurve.separation)
+      if (!outcome.panelCurve.monotonic) stats.panelNonMonotonic += 1
+    }
   }
 
   const meanSeparation = stats.authored > 0 ? stats.separationSum / stats.authored : 0
@@ -629,6 +671,23 @@ async function main() {
       `${stats.lowDiscrimination} low_discrimination, ${stats.totalKlps} total KLPs, ` +
       `${stats.totalRelations} total relations`,
   )
+
+  if (stats.panelSeparations.length > 0) {
+    const sorted = [...stats.panelSeparations].sort((a, b) => a - b)
+    const mean = sorted.reduce((a, b) => a + b, 0) / sorted.length
+    console.log()
+    console.log(
+      `[author-klps] PANEL separations — min ${sorted[0].toFixed(2)}, ` +
+        `median ${sorted[Math.floor(sorted.length / 2)].toFixed(2)}, ` +
+        `max ${sorted[sorted.length - 1].toFixed(2)}, mean ${mean.toFixed(2)}; ` +
+        `${stats.panelNonMonotonic} non-monotonic`,
+    )
+    console.log(`  all: ${sorted.map((x) => x.toFixed(2)).join(' ')}`)
+    console.log(
+      `  The MEAN is not what a floor is set from — read the spread. A floor above the minimum ` +
+        `flags that card; one below the maximum passes it.`,
+    )
+  }
 
   // The weight histogram, on this run's own output. A run can post a healthy
   // mean separation and still produce a useless weight signal — the two measure

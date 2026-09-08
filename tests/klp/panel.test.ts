@@ -7,6 +7,7 @@ import {
   computePanelCurve,
   diagnoseKlpCurves,
   findNonMonotonicKlps,
+  findUnseparatedBoundaries,
   formatPanelCurve,
   type GradedPanelMember,
   type PanelLevel,
@@ -19,6 +20,7 @@ import type { KlpVerdict } from '@/lib/klp/verdicts'
 
 const ok: KlpVerdict = 'correct'
 const no: KlpVerdict = 'omission'
+const half: KlpVerdict = 'incomplete'
 
 /** Builds a graded panel from a per-level verdict pattern. */
 const panel = (rows: Partial<Record<PanelLevel, KlpVerdict[]>>): GradedPanelMember[] =>
@@ -56,7 +58,11 @@ describe('the panel vocabulary', () => {
     expect(PANEL_SEPARATION_FLOOR).not.toBe(SEPARATION_FLOOR)
   })
 
-  it('is off by default, so the corpus stays comparable while it is evaluated', () => {
+  it('is off unless KLP_USE_PANEL is exactly "true", so a typo fails closed', () => {
+    // Off by default keeps the corpus comparable while the panel is evaluated:
+    // every stored separationScore was computed the old way, and the panel's
+    // floor has no measurement behind it yet.
+    expect(USE_COMPETENCE_PANEL).toBe(process.env.KLP_USE_PANEL === 'true')
     expect(USE_COMPETENCE_PANEL).toBe(false)
   })
 })
@@ -136,11 +142,23 @@ describe('diagnoseKlpCurves', () => {
     }), 1)).toHaveLength(1)
   })
 
-  it('names the case the old test structurally could not see', () => {
-    // Identical on competent and partial: the point does not measure what
-    // separates them, which is the band most learners are actually in.
-    expect(shapeOf({ L4: [ok], L3: [ok], L2: [ok], L1: [no], L0: [no] }))
-      .toBe('blind_to_competence')
+  it('has NO per-point "does not discriminate" shape, and that is deliberate', () => {
+    // A flat point is always caught by an earlier, MORE ACTIONABLE rule: flat
+    // above zero fires at L0 and is keyword matching; flat at zero fails L4 and
+    // is a fidelity alarm. Both name the cause; "flat" would only name the
+    // symptom.
+    expect(shapeOf({ L4: [half], L3: [half], L2: [half], L1: [half], L0: [half] }))
+      .toBe('keyword_matching')
+    expect(shapeOf({ L4: [no], L3: [no], L2: [no], L1: [no], L0: [no] })).toBe('too_strict')
+  })
+
+  it('does NOT flag a point that merely fails to separate ONE boundary', () => {
+    // TWO EARLIER VERSIONS GOT THIS WRONG, both caught by measurement. A key
+    // point does not have to separate every boundary — a card legitimately
+    // carries some points that split expert from competent and others that
+    // split partial from confused. The first version flagged 71% of a real
+    // corpus, the second 47%; the correct answer on that corpus is 0%.
+    expect(shapeOf({ L4: [ok], L3: [ok], L2: [ok], L1: [no], L0: [no] })).toBe('healthy')
   })
 
   it('calls a well-behaved point healthy', () => {
@@ -254,5 +272,41 @@ describe('cross-run reuse (why a panel keyed to a card, not a klpVersion)', () =
     for (const kind of PROBE_KINDS) {
       expect(PANEL_LEVELS as readonly string[]).not.toContain(kind)
     }
+  })
+})
+
+describe('findUnseparatedBoundaries', () => {
+  it('is silent when every boundary is carried by some point', () => {
+    // Measured on the first real panel run: 0 of 6 cards had an unseparated
+    // boundary, with 3-7 points carrying L3/L2 on every card. A check that
+    // fires constantly is one nobody reads.
+    expect(findUnseparatedBoundaries(panel({
+      L4: [ok, ok], L3: [ok, half], L2: [half, no], L1: [no, no], L0: [no, no],
+    }), 2)).toEqual([])
+  })
+
+  it('names a boundary NO point separates — a defect in the SET, not a point', () => {
+    // Every point here is individually fine; the card still cannot tell a
+    // competent answer from a partial one.
+    const out = findUnseparatedBoundaries(panel({
+      L4: [ok, ok], L3: [ok, ok], L2: [ok, ok], L1: [no, half], L0: [no, no],
+    }), 2)
+    expect(out).toEqual([
+      { stronger: 'L4', weaker: 'L3' },
+      { stronger: 'L3', weaker: 'L2' },
+    ])
+  })
+})
+
+describe('findUnseparatedBoundaries — the bottom boundary', () => {
+  it('never reports L1/L0, because both are FAILING levels and should match', () => {
+    // A well-built set scores both at zero. Reporting that identity would flag
+    // the designed outcome — measured on the first real panel run, 4 of 6
+    // healthy cards had no point separating L1 from L0.
+    // Two points, so every boundary above the bottom is genuinely carried.
+    const out = findUnseparatedBoundaries(panel({
+      L4: [ok, ok], L3: [half, ok], L2: [no, half], L1: [no, no], L0: [no, no],
+    }), 2)
+    expect(out).toEqual([])
   })
 })

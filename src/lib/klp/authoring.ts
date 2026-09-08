@@ -42,6 +42,7 @@ import {
   computePanelCurve,
   diagnoseKlpCurves,
   findNonMonotonicKlps,
+  findUnseparatedBoundaries,
   PANEL_LEVELS,
   type PanelLevel,
   type PanelCurve,
@@ -208,6 +209,12 @@ export interface AuthoringOutcome {
   panelCurve?: PanelCurve
   /** Per-key-point shape diagnosis from the curve. Empty when no panel ran. */
   klpShapes: KlpCurveDiagnosis[]
+  /**
+   * Competence boundaries NO key point on this card separates — a defect in the
+   * SET rather than in any point. Empty when no panel ran, and expected to be
+   * empty on a healthy card.
+   */
+  unseparatedBoundaries: { stronger: PanelLevel; weaker: PanelLevel }[]
   defects: KlpDefect[]
   /**
    * How many KLPs this card was sized for (`src/lib/klp/sizing.ts`), carried
@@ -324,6 +331,7 @@ export async function authorCard(
       revisions: 0,
       status: 'failed',
       klpShapes: [],
+      unseparatedBoundaries: [],
       defects: validateKlpSet([], input.question, { targetCount: target }),
       targetKlpCount: target,
       concerns,
@@ -376,6 +384,7 @@ export async function authorCard(
 
   let panelCurve: PanelCurve | undefined
   let klpShapes: KlpCurveDiagnosis[] = []
+  let unseparatedBoundaries: { stronger: PanelLevel; weaker: PanelLevel }[] = []
 
   for (;;) {
     const candidates: { kind: 'reference' | ProbeKind; text: string }[] = [
@@ -419,6 +428,7 @@ export async function authorCard(
         ...diagnoseKlpCurves(gradedPanel, klps.length),
         ...findNonMonotonicKlps(gradedPanel, klps.length),
       ]
+      unseparatedBoundaries = findUnseparatedBoundaries(gradedPanel, klps.length)
       if (panelCurve.separated || revisions >= MAX_REVISIONS) break
     } else if (separation.separated || revisions >= MAX_REVISIONS) break
 
@@ -522,6 +532,7 @@ export async function authorCard(
       : 'low_discrimination',
     panelCurve,
     klpShapes,
+    unseparatedBoundaries,
     // The ordering cross-check needs the ACCEPTED edges, so validation runs
     // after pruning rather than beside the KLP text: an edge dropped for
     // introducing a cycle or pointing out of range is not evidence of anything,

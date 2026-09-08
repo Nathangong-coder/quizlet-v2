@@ -171,7 +171,6 @@ export type KlpShape =
   | 'healthy'
   | 'too_loose'
   | 'too_strict'
-  | 'blind_to_competence'
   | 'keyword_matching'
   | 'non_monotonic'
 
@@ -245,17 +244,29 @@ export function diagnoseKlpCurves(
     // The one the old test structurally could not see: a point that separates
     // good from terrible but not competent from partial is dead weight exactly
     // where the learner actually sits.
-    if (has('L2') && has('L3') && at('L2', i) === at('L3', i)) {
-      out.push({
-        index: i,
-        shape: 'blind_to_competence',
-        detail:
-          'behaves identically on the competent and partial answers — it does not measure what ' +
-          'separates them, which is the band most learners are in.',
-      })
-      continue
-    }
-
+    // WHAT IS *NOT* HERE: a per-point "does not discriminate" check. Three
+    // versions of one were written and all three were wrong, which is worth
+    // recording because the mistakes were different.
+    //
+    // v1 asked whether the point FIRED identically at L3 and L2, where "fires"
+    // is a binary at credit > 0. That collapses `correct` (1.0) and `partial`
+    // (0.5) into one bucket and destroys the discrimination it was looking for:
+    // it flagged 35 of 49 points on the first real run, including `correct →
+    // correct → partial → omission → omission`, which is textbook healthy.
+    //
+    // v2 compared CREDIT at L3 and L2, fixing the collapse, and still flagged
+    // 47%. That error was conceptual: **a key point does not have to separate
+    // every boundary.** A card legitimately carries some points that split
+    // expert from competent and others that split partial from confused.
+    //
+    // v3 flagged a point whose credit never changes at all. Correct in
+    // principle, and UNREACHABLE in practice — a flat point above zero fires at
+    // L0 and is caught above as `keyword_matching`; a flat point at zero fails
+    // L4 and is caught as `too_strict`. Both name the cause; "flat" only names
+    // the symptom. So it is deliberately absent rather than dead vocabulary.
+    //
+    // Whether a BOUNDARY goes unseparated is a property of the set, not of any
+    // point, and lives in `findUnseparatedBoundaries`.
     out.push({ index: i, shape: 'healthy', detail: 'fires across the curve in the right order' })
   }
 
@@ -317,4 +328,57 @@ export function formatPanelCurve(curve: PanelCurve): string {
     `(min passing - max failing, floor ${PANEL_SEPARATION_FLOOR}) — ` +
     `${curve.separated ? 'separated' : 'NOT separated'}; ${mono}`
   )
+}
+
+/**
+ * Adjacent boundaries that NO key point on this card separates.
+ *
+ * The set-level counterpart to `flat`, and the check that "blind to competence"
+ * should always have been. A single point failing to separate L3 from L2 is
+ * normal — different points carry different boundaries. A card where *nothing*
+ * separates them cannot tell a competent answer from a partial one however good
+ * its individual points look, and that is a real defect in the SET.
+ *
+ * Measured on the first real panel run: 0 of 6 cards had an unseparated L3/L2
+ * boundary, with 3-7 points carrying it on every card. So this is expected to
+ * be quiet on a healthy corpus, which is the point — a check that fires
+ * constantly is one nobody reads.
+ */
+export function findUnseparatedBoundaries(
+  graded: GradedPanelMember[],
+  klpCount: number,
+): { stronger: PanelLevel; weaker: PanelLevel }[] {
+  const byLevel = new Map(graded.map((g) => [g.level, g.verdicts]))
+  const creditAt = (level: PanelLevel, i: number) => {
+    const v = byLevel.get(level)?.[i]
+    return v === undefined ? 0 : VERDICT_CREDIT[v]
+  }
+  const present = PANEL_LEVELS.filter((l) => byLevel.has(l))
+  const out: { stronger: PanelLevel; weaker: PanelLevel }[] = []
+
+  for (let p = 0; p < present.length - 1; p++) {
+    const stronger = present[p]
+    const weaker = present[p + 1]
+
+    // THE BOTTOM BOUNDARY IS EXCLUDED, and it is not an arbitrary exemption.
+    // L1 and L0 are both FAILING levels, so a well-built set is SUPPOSED to
+    // score them identically — at zero. Reporting that identity as a defect
+    // would flag the designed outcome. Measured on the first real panel run: 4
+    // of 6 cards had no point separating L1 from L0, all of them healthy.
+    //
+    // Every other boundary is still reported. L3/L2 straddles the pass/fail
+    // line and is the one that matters most; L4/L3 unseparated means the set
+    // cannot tell an expert answer from a competent one, which is milder but
+    // still worth knowing.
+    if (stronger === 'L1' && weaker === 'L0') continue
+    let separated = false
+    for (let i = 0; i < klpCount; i++) {
+      if (creditAt(stronger, i) !== creditAt(weaker, i)) {
+        separated = true
+        break
+      }
+    }
+    if (!separated) out.push({ stronger, weaker })
+  }
+  return out
 }

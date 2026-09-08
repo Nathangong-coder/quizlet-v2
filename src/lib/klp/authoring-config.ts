@@ -190,5 +190,10 @@ export const HISTOGRAM_MIN_SAMPLE = 20
  *
  * Off by default until a measured run says the panel's separation floor is
  * calibrated; `PANEL_SEPARATION_FLOOR` currently has no measurement behind it.
+ *
+ * Read from `KLP_USE_PANEL` rather than being a hardcoded literal so a
+ * CALIBRATION run can turn it on without a code change — the run whose whole
+ * purpose is to produce the distribution the floor should be set from. Anything
+ * other than the exact string "true" is off, so a typo fails closed.
  */
-export const USE_COMPETENCE_PANEL = false
+export const USE_COMPETENCE_PANEL = process.env.KLP_USE_PANEL === 'true'

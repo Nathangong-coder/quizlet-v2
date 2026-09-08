@@ -9,6 +9,38 @@ user. Qwen remains entitlement-blocked (403 `AccessDenied.Unpurchased`, retried 
 in no rotation. **The owner verified the shared-key flow in a browser on 2026-09-07** — that gate is
 closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
 
+**THE PANEL IS CALIBRATED ON REAL CARDS (2026-09-08, 6 LBO cards, deepseek-v4-flash, dry-run).**
+Curves are MONOTONIC on 5 of 6 - L4 > L3 > L2 > L1 > L0 - which is the thing the old single-gap
+test structurally could not show. Separations: **-0.06, 0.29, 0.31, 0.31, 0.38, 0.44**. The guessed
+`PANEL_SEPARATION_FLOOR = 0.25` lands in a WIDE GAP: any floor in (-0.06, 0.29] gives the identical
+verdict, so it is robust rather than knife-edge, and the one card it flags is the genuinely broken
+one (non-monotonic, L2 outscoring L3 by 0.06). **The floor stands as measured.** Still OFF by
+default: 6 cards on one set is not a corpus.
+
+**THREE WRONG VERSIONS OF THE PER-POINT DIAGNOSIS, all caught by measuring, and the last is the
+interesting one.** v1 compared whether a point FIRED at L3 vs L2, where "fires" is credit > 0 -
+that collapses `correct` and `partial` into one bucket and flagged **35 of 49 points**, including
+`correct -> correct -> partial -> omission -> omission`, which is textbook healthy. v2 compared
+CREDIT and still flagged 47%; that error was conceptual, not numeric - **a key point does not have
+to separate every boundary**, since a card legitimately carries some points that split expert from
+competent and others that split partial from confused. v3 flagged points whose credit never
+changes at all: correct in principle and UNREACHABLE, because a flat point above zero fires at L0
+(`keyword_matching`) and one at zero fails L4 (`too_strict`), both of which name the cause rather
+than the symptom. **Final rules over the same 49 real points: 96% healthy, 4% too_loose, zero
+unseparated boundaries.**
+
+"Does the SET fail to separate a boundary" is now its own check (`findUnseparatedBoundaries`),
+because that is a property of the card, not of a point. It excludes the L1/L0 boundary on
+measurement: both are FAILING levels designed to score zero, and 4 of 6 healthy cards had no point
+separating them.
+
+**A reporting bug the calibration run exposed.** With the panel on, the runner still printed the
+OLD number - and `bestWrongScore` is a max over every non-reference candidate, which under a panel
+includes L4. So it reported "best wrong 0.93" (the expert answer, counted as an adversary) and a
+separation of 0.07 on a card that was fine. The runner now prints the curve, the per-point shapes,
+and a separation DISTRIBUTION rather than a mean - a floor is set from the spread, and a mean hides
+whether it is tight or bimodal.
+
 **PHASE A IS COMPLETE AND THE SYNTHETIC PANEL IS BUILT (2026-09-08) - items 1-4 all done.**
 
 **Phase A's classifier (R4) landed:** `CLASSIFY_ABSTRACTION_PROMPT` labels each key point
@@ -132,7 +164,7 @@ KLPs on 200 cards - **432 authored, 373 reused, 118 legacy** - over 130 authorin
 and reused both read mean weight 2.83 with NO failure mode firing. Only the 118 legacy rows still
 fail `clustered_high` (92.4% at 4-5). Baselines as of this session: **3128 tests, lint 164.**
 
-**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3276 tests, lint 164.**
+**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3280 tests, lint 164.**
 
 **C1 IS CALIBRATED AND THE ANSWER IS: COVERAGE IS NOT THE PROBLEM.** After adding a blind
 judge for the claim nothing verified, the same 20 cards read **10% holed (2/20)**, not the 40%

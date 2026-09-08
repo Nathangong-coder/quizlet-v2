@@ -76,6 +76,7 @@ const outcome = {
   defects: [],
   targetKlpCount: 4,
   klpShapes: [],
+  unseparatedBoundaries: [],
   concerns: [],
 }
 
