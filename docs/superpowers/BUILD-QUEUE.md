@@ -9,6 +9,43 @@ user. Qwen remains entitlement-blocked (403 `AccessDenied.Unpurchased`, retried 
 in no rotation. **The owner verified the shared-key flow in a browser on 2026-09-07** — that gate is
 closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
 
+**GRADING-ENGINE DESIGN WRITTEN (2026-09-08), NOT BUILT:**
+`docs/superpowers/specs/2026-09-08-grading-engine-and-misconception-library-design.md`. Covers the
+grading engine, ACCURACY SIGNATURES, and an automatic misconception library, with unbiasedness as a
+first-class requirement rather than a footnote.
+
+**Its central claim: DIAGNOSIS IS LONGITUDINAL.** One answer cannot distinguish a gap from a slip
+from a misconception - the identical row ("failed KLP 3, `inversion`") is produced by a learner who
+never understood it, one who mis-spoke under pressure, one who never met it, and one blocked by a
+missing prerequisite. Today the engine tries to answer this per answer and therefore cannot. Every
+signature is computed over a learner's HISTORY on one key point, never over one row - which is also
+why the existing `deriveMisconceptions` is the right shape (longitudinal, deterministic, decays)
+and the wrong scope (conflation only).
+
+**Two signatures are computable TODAY with zero new capture:** `brittle` (passes recognition, fails
+production - `AnswerKlpResult` has stored `mode` and `klpId` all along) and `blocked`
+(`attributeBlame`, built). Nothing computes either.
+
+**THE CHEAPEST SEED FOR THE LIBRARY IS ALREADY IN THE DATABASE - verified: 130 `confident_wrong`
+authoring probes.** Each is a plausible, specific, wrong answer with per-KLP verdicts, written as a
+by-product of discrimination testing and never read since. They are misconceptions in everything
+but name. Verbatim sample: *"debt has a cheaper cost of capital than equity, which directly lowers
+WACC. By lowering WACC, intrinsic enterprise value is automatically maximized."*
+
+**The blocker is self-rated confidence (G3), and the design says so plainly.** Without it,
+wrong-and-certain cannot be told from wrong-and-guessing - which is a misconception and a gap. Days
+of work, blocks nothing, nothing blocks it, and every week it waits is history that can never be
+classified. **Item 1 of the design's build order.**
+
+**Unbiasedness, four mechanisms:** the AI never assigns a signature; GRADER STABILITY (unbuilt, and
+a prerequisite for any repetition-based signature - if the grader is unstable, "repeated" is noise
+and the library fills with artefacts of grader variance); cross-model confirmation before a
+misconception is promoted (the pattern is proven twice already - the negative-check probe and C1's
+three roles); and a held-out human-labelled set reporting Cohen's kappa, grading the graders first.
+
+**Corpus reality check, measured: 18 quiz answers, 13 with text, 2 error tags.** Online item
+analysis needs ~50 responses PER KEY POINT. Everything longitudinal is a design target, not a gate.
+
 **C4 (NECESSITY) IS BUILT — hygiene is now complete except for tag validity.** `npm run
 klp-necessity`, read-only, deletes nothing. It is **C1 pointed at a single omission**: construct
 the best answer that covers the remaining points and says nothing about ONE of them, then let the
