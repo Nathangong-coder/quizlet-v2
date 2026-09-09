@@ -237,3 +237,67 @@ column, name **the decision that changes**:
 | 9 | prerequisite depth | ordering | free once Part C exists |
 | 10 | diagnostic power | set coverage auditing | pairs with item 11 |
 | 3 | Bloom | — | rejected, duplicates `abstraction` |
+
+---
+
+## Part D — first minting dry run, 2026-09-09
+
+`scripts/probe-topic-minting.ts --set <id> --limit 6`, gemini-3.6-flash, 5 cards
+proposed + 1 transient provider failure. Writes nothing. The set was
+`Accounting - "Talking"` (100% authored).
+
+**What passed, cleanly:**
+
+- **RULE 3 (no container as a leaf): PASS.** Zero leaves named `income
+  statement`, `cash flow statement`, `balance sheet`, `leverage`. Those hold
+  19 / 20 / 15 / 21 KLPs in the live corpus today.
+- **RULE 4 (settings at mechanism grain): PASS.** Contexts came back as
+  `non-cash adjustments`, `financing cash flow`, `working capital changes`,
+  `operating cash flow`, `investing cash flow`, `equity rollforward`,
+  `net income reconciliation`. **This is exactly the owner's SBC / share
+  repurchase correction, produced on the first run.**
+- **23 of 26 leaves are novel** against the 113 existing concepts — the
+  vocabulary genuinely had to grow, as §0 predicted.
+
+**What overshot, and it is a DESIGN finding, not a prompt bug:**
+
+**KLPs per leaf: mean 1.04, min 1, max 2.** The model did not fuse; it produced
+one leaf per KLP. 26 leaves from 5 cards.
+
+That is the *logically correct* consequence of the failure-grain rule as
+written. **KLPs are already the unit of independent failure** — the grader
+scores each one separately, which is the whole point of `AnswerKlpResult`. So
+"one leaf per independently-failable thing" resolves to "one leaf per KLP", and
+the topic layer degenerates into a renaming of the KLP layer.
+
+**The correction: within-card fusion is the wrong measure of grain.
+CROSS-CARD CONVERGENCE is.** A leaf earns its place when *several different
+cards* route KLPs to it — `gross profit` recurs across a dozen cards; the KLP
+"gross profit is revenue minus COGS" occurs once. Aggregation value comes from
+convergence, not from compression inside one card. Five cards cannot measure
+this at all (26/26 distinct is the expected result at n=5). **The next run needs
+~30-50 cards and must report distinct-leaves / total-leaves.**
+
+**Second finding: linkage KLPs became pseudo-concepts, and they are EDGES.**
+The card "How do the three statements link together?" produced leaves named
+`net income retained earnings linkage`, `net income operating cash flow link`,
+`investing activities long-term asset link`, `financing activities balance sheet
+link`, `ending cash balance reconciliation`. Those are relations phrased as
+nouns. They are not nodes — they are precisely the `KltRelation` edges Part C
+proposes (`net income -> retained earnings`, `working capital -> operating cash
+flow`), arriving from a completely different direction and confirming the shape.
+
+**So the prompt needs a seventh rule: a KLP whose content IS a link between two
+concepts emits a RELATION, not a leaf.** That both fixes the pseudo-concepts and
+gives the concept DAG its first real edges — from the one card type most likely
+to produce them.
+
+**Process note, recorded because it cost twelve minutes and real quota.** The
+first version of the probe looped `while ((combo = nextCombo(pool)))`.
+`nextCombo` is `selectAttemptOrder(pool)[0]`: it returns the best AVAILABLE
+combo and never returns undefined while any combo is enabled, so every failure
+that is not a daily-quota halt retried forever at full CPU. `author-klps` bounds
+this with `MAX_COMBO_ATTEMPTS_PER_CARD = 3`; the probe now mirrors it. Also:
+Node fully buffers stdout to a redirected file on Windows, so the runaway
+produced ZERO output and was indistinguishable from a hang — progress now goes
+to stderr.

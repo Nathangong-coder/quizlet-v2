@@ -1,0 +1,375 @@
+/**
+ * PROBE — bottom-up topic minting, DRY RUN. Writes nothing, ever.
+ *
+ * Named `probe-` deliberately, like `probe-model-policy` and
+ * `probe-grading-matrix`: this is a measurement of whether an approach works,
+ * not a pipeline. Promote it only once its output has been read by a human.
+ *
+ * ## What it is testing
+ *
+ * The live topic layer assigns concepts PER KLP, matched against a reuse
+ * vocabulary of up to 150 existing names (`assembleCandidates`) ordered by
+ * set-local, then token overlap, then GLOBALLY MOST-LINKED. That last tier is a
+ * ratchet: the broadest node is by definition the most-linked, so it is shown
+ * most often, so it is reused most often, so it becomes broader still. Measured
+ * consequence (2026-09-09): mean KLPs attached directly by tree depth runs
+ * 3.4 / 6.2 / 7.9 / 10.3 / 8.1, i.e. the tree funnels NOTHING, and `leverage`
+ * holds five unrelated concepts (levered beta, ROE, DSCR, FCCR, growth yield).
+ *
+ * This probe inverts both halves:
+ *
+ *   1. **Per CARD, not per KLP.** A card's KLPs already cohere — they were
+ *      derived from one reference answer — and that coherence is exactly what
+ *      per-KLP matching throws away. Fusing them names the concept the card is
+ *      actually about, which is often a concept no existing node covers.
+ *   2. **Mint blind.** NO reuse vocabulary is shown. Reconciliation against
+ *      existing names is a separate, later, cheaper step (string/embedding work
+ *      in TypeScript), and keeping it separate is what removes the ratchet.
+ *      Showing the vocabulary at mint time is the thing being tested against.
+ *
+ * ## The two rules that came from the owner, 2026-09-09
+ *
+ * **A subtree, not a leaf.** An earlier draft of this fused a card into ONE
+ * leaf. Wrong: DSCR and FCCR belong under a shared parent (`debt coverage
+ * ratios`) as SEPARATE children, not merged into one `debt service coverage`.
+ *
+ * **The failure-grain rule, which is why.** *Each specific part a learner can
+ * fail must correspond to its own topic.* A learner can get DSCR right and FCCR
+ * wrong; merged into one leaf, that shows up as half-credit against a node that
+ * names neither failure, and the mastery number stops meaning anything. This is
+ * a sharper criterion than any count heuristic — "3-6 KLPs per leaf" is a
+ * symptom to observe, independent failability is the actual rule.
+ *
+ * **Settings get MECHANISM grain, and are kept.** A KLP saying what happens to
+ * a statement is not noise to be dropped — the owner wants those links. But
+ * `cash flow statement` is the wrong grain for "SBC is added back": the honest
+ * concept is `non-cash adjustments`, and for a buyback it is `financing cash
+ * flow`. So a setting link is emitted at mechanism grain, as a rank-2 context,
+ * never as the subject.
+ *
+ * ## Usage
+ *
+ *   npx tsx --conditions=react-server --env-file=.env scripts/probe-topic-minting.ts \
+ *     --set <setId> [--limit 12] [--json out.json]
+ *
+ * Reads `GOOGLE_API_KEYS` / `KLP_DIRECT_MODELS` through the same
+ * `readDirectPool` the authoring script uses. ONE CALL PER CARD — fusion is the
+ * whole point, and batching cards would invite the model to fuse ACROSS cards.
+ * Budget accordingly: the free tier is 20 requests per day per model.
+ */
+import { generateText, Output } from 'ai'
+import { z } from 'zod'
+import { prisma } from '../src/lib/db'
+import { resolveLanguageModel, type ProviderId } from '../src/lib/ai/providers'
+import {
+  readDirectPool,
+  nextCombo,
+  markTried,
+  markExhausted,
+  poolStatus,
+  type DirectCombo,
+} from '../src/lib/klp/direct-pool'
+import {
+  Pacer,
+  callWithPacingAndRetry,
+  realClock,
+  RunHaltedError,
+  DEFAULT_RPM,
+  rpmToIntervalMs,
+} from '../src/lib/klp/authoring-pacing'
+
+/**
+ * The proposal for ONE card.
+ *
+ * `klpRefs` are indices into the card's KLP list as sent. Cuids are never shown
+ * to the model, per the same rule the rest of the pipeline follows.
+ */
+const CardTopicProposalSchema = z.object({
+  parent: z
+    .string()
+    .describe('The umbrella concept this card sits under. 1-4 words, lowercase.'),
+  leaves: z
+    .array(
+      z.object({
+        name: z.string().describe('A specific, independently-failable concept. 1-5 words.'),
+        klpRefs: z.array(z.number().int()).min(1),
+      }),
+    )
+    .min(1)
+    .max(6),
+  contexts: z
+    .array(
+      z.object({
+        klpRef: z.number().int(),
+        concept: z
+          .string()
+          .describe('A MECHANISM this point also touches, e.g. "non-cash adjustments".'),
+      }),
+    )
+    .max(10),
+})
+
+type CardTopicProposal = z.infer<typeof CardTopicProposalSchema>
+
+function buildPrompt(term: string, klps: { ref: number; text: string; kind: string }[]): string {
+  const lines = klps.map((k) => `[${k.ref}] (${k.kind}) ${k.text}`).join('\n')
+  return `You are building the topic hierarchy for a finance study library.
+
+Below is ONE flashcard and every Key Learning Point (KLP) it teaches. A KLP is one
+specific claim a learner must be able to state, and each one can be graded right or
+wrong on its own.
+
+Card: ${term}
+
+KLPs:
+${lines}
+
+Produce the small piece of topic hierarchy these points belong to.
+
+RULE 1 — ONE PARENT, SPECIFIC CHILDREN.
+Give a "parent" concept the card sits under, then "leaves" beneath it. The parent is
+allowed to be somewhat general; the leaves must not be.
+
+RULE 2 — THE FAILURE-GRAIN RULE. THIS IS THE MOST IMPORTANT ONE.
+A learner must be able to fail exactly one leaf at a time. If a learner could get one
+claim right and another wrong, those two claims belong to DIFFERENT leaves.
+  Card about DSCR and FCCR ->
+    parent: "debt coverage ratios"
+    leaves: "debt service coverage ratio", "fixed charge coverage ratio"
+  NOT one merged leaf called "debt service coverage" — a learner can know DSCR and not
+  know FCCR, and a merged leaf cannot record that.
+Conversely, do NOT split a single indivisible claim into two leaves to look thorough.
+
+RULE 3 — NAME THE SUBJECT, NOT THE SETTING.
+Many points say what happens to a financial statement. The statement is WHERE it
+happens, not what the point is about. Never use a bare statement name as a leaf.
+  "On the Income Statement, a $10 SBC increase reduces Net Income by $6"
+     subject leaf -> "stock-based compensation expense"
+  "Share repurchases reduce cash in the financing section"
+     subject leaf -> "share repurchases"
+
+RULE 4 — SETTINGS ARE STILL RECORDED, AT MECHANISM GRAIN.
+For each KLP that genuinely operates inside a statement, add a "contexts" entry naming
+the MECHANISM, never the statement.
+  GOOD contexts: "non-cash adjustments", "financing cash flow", "working capital changes",
+                 "operating cash flow", "deferred taxes", "equity rollforward"
+  BAD contexts:  "income statement", "cash flow statement", "balance sheet" — too broad,
+                 these are containers and the app already knows the containment.
+A KLP with no meaningful mechanism gets no context entry. Do not invent one.
+
+RULE 5 — MINT FREELY. PREFER SPECIFIC.
+There is no list of approved names. Invent the precise concept. Never reach for a broad
+container like "leverage", "financial metrics", "accounting", "technicals" or
+"valuation" as a LEAF — those are acceptable only as a parent, and usually not even
+then.
+
+RULE 6 — COVER EVERY KLP EXACTLY ONCE across the leaves. Every ref above appears in
+exactly one leaf's klpRefs.
+
+Names are lowercase noun phrases, no articles, no trailing punctuation. Spell out an
+abbreviation the first time it is the leaf name (write "fixed charge coverage ratio",
+not "FCCR").`
+}
+
+/** Mirrors `author-klps`. See the loop below for why an unbounded retry is fatal. */
+const MAX_COMBO_ATTEMPTS_PER_CARD = 3
+
+/**
+ * Progress goes to STDERR, results to stdout.
+ *
+ * Node fully buffers stdout when it is redirected to a file on Windows, so a
+ * long run shows nothing at all until it exits — which is indistinguishable
+ * from a hang, and is how the runaway loop above went unnoticed for twelve
+ * minutes. stderr is unbuffered.
+ */
+function progress(line: string): void {
+  process.stderr.write(`${line}\n`)
+}
+
+function opt(args: string[], name: string): string | undefined {
+  const i = args.indexOf(name)
+  return i >= 0 ? args[i + 1] : undefined
+}
+
+async function main() {
+  const args = process.argv.slice(2)
+  const setId = opt(args, '--set')
+  if (!setId) {
+    console.error('[probe-topic-minting] --set <setId> is required. This never walks the corpus.')
+    process.exit(1)
+  }
+  const limit = Number(opt(args, '--limit') ?? '12')
+
+  const cards = await prisma.card.findMany({
+    where: { setId, klps: { some: { supersededAt: null } } },
+    orderBy: { position: 'asc' },
+    take: limit,
+    select: {
+      id: true,
+      term: true,
+      klps: {
+        where: { supersededAt: null },
+        orderBy: { index: 'asc' },
+        select: { text: true, kind: true },
+      },
+    },
+  })
+  if (cards.length === 0) {
+    console.error(`[probe-topic-minting] no cards with live KLPs in set ${setId}`)
+    process.exit(1)
+  }
+
+  const pool = readDirectPool()
+  const status = poolStatus(pool)
+  if (status.total === 0) {
+    console.error('[probe-topic-minting] empty pool — needs GOOGLE_API_KEYS and KLP_DIRECT_MODELS')
+    process.exit(1)
+  }
+  console.log(
+    `[probe-topic-minting] DRY RUN — writes nothing. ${cards.length} card(s), ` +
+      `pool of ${status.total} key x model combo(s).\n`,
+  )
+
+  const pacer = new Pacer(rpmToIntervalMs(DEFAULT_RPM), realClock)
+  const results: { term: string; model: string; proposal: CardTopicProposal }[] = []
+  const failures: { term: string; error: string }[] = []
+
+  let cardNo = 0
+  for (const card of cards) {
+    progress(`[${++cardNo}/${cards.length}] ${card.term.slice(0, 56)}`)
+    const klps = card.klps.map((k, i) => ({ ref: i, text: k.text, kind: k.kind }))
+    let combo: DirectCombo | undefined
+    let proposal: CardTopicProposal | undefined
+    let lastError = ''
+    // BOUNDED, and that bound is not optional. `nextCombo` is
+    // `selectAttemptOrder(pool)[0]` — it returns the best AVAILABLE combo and
+    // never returns undefined while any combo is enabled, so
+    // `while ((combo = nextCombo(pool)))` is an INFINITE loop for every failure
+    // that is not a daily-quota halt. The first version of this script had
+    // exactly that bug and spun on card 1 for twelve minutes at full CPU,
+    // hammering the provider. `author-klps` gets this right with
+    // `MAX_COMBO_ATTEMPTS_PER_CARD`; this mirrors it.
+    let attemptsLeft = MAX_COMBO_ATTEMPTS_PER_CARD
+
+    while (attemptsLeft-- > 0 && (combo = nextCombo(pool))) {
+      markTried(combo, new Date())
+      try {
+        const model = resolveLanguageModel({
+          provider: combo.provider as ProviderId,
+          apiKey: combo.apiKey,
+          model: combo.model,
+        })
+        proposal = await callWithPacingAndRetry(
+          async () => {
+            const res = await generateText({
+              model,
+              prompt: buildPrompt(card.term, klps),
+              output: Output.object({ schema: CardTopicProposalSchema }),
+              // maxRetries: 0 — the pacing layer owns retry; two retry
+              // authorities multiply rather than compose, and against a
+              // 20-per-DAY cap that burns the budget on a wall.
+              maxRetries: 0,
+            })
+            return res.output
+          },
+          { pacer, clock: realClock },
+        )
+        break
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err)
+        // Only a DAILY-quota halt retires the combo for the run. Retiring on
+        // any error would burn the whole pool on one badly-behaved card.
+        if (err instanceof RunHaltedError && err.haltReason === 'daily_quota') {
+          markExhausted(combo)
+          progress(`     ${combo.id} out of daily quota; ${poolStatus(pool).available} left`)
+        } else {
+          progress(`     ${combo.model} failed: ${lastError.slice(0, 90)}`)
+        }
+      }
+    }
+
+    if (!proposal || !combo) {
+      failures.push({ term: card.term, error: lastError || 'pool exhausted' })
+      console.log(`  FAILED  "${card.term.slice(0, 60)}" — ${lastError.slice(0, 120)}`)
+      continue
+    }
+
+    results.push({ term: card.term, model: combo.model, proposal })
+    progress(`     ok — ${proposal.parent}: ${proposal.leaves.map((l) => l.name).join(', ')}`)
+    const covered = new Set(proposal.leaves.flatMap((l) => l.klpRefs))
+    const missing = klps.filter((k) => !covered.has(k.ref)).length
+    console.log(`── "${card.term.slice(0, 64)}"   [${combo.model}]`)
+    console.log(`   parent: ${proposal.parent}`)
+    for (const leaf of proposal.leaves) {
+      console.log(`     • ${leaf.name}  (${leaf.klpRefs.length} KLP${leaf.klpRefs.length === 1 ? '' : 's'})`)
+    }
+    if (proposal.contexts.length > 0) {
+      const uniq = [...new Set(proposal.contexts.map((c) => c.concept))]
+      console.log(`   contexts: ${uniq.join(', ')}`)
+    }
+    if (missing > 0) console.log(`   ⚠ RULE 6 VIOLATION: ${missing} KLP(s) uncovered`)
+    console.log()
+  }
+
+  // ---- Aggregate. These are the numbers the run exists to produce. ----
+  console.log('='.repeat(72))
+  const allLeaves = results.flatMap((r) => r.proposal.leaves)
+  const leafNames = allLeaves.map((l) => l.name.toLowerCase())
+  const parents = results.map((r) => r.proposal.parent.toLowerCase())
+  const contexts = results.flatMap((r) => r.proposal.contexts.map((c) => c.concept.toLowerCase()))
+  const klpsPerLeaf = allLeaves.map((l) => l.klpRefs.length)
+  const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0)
+
+  console.log(`cards proposed: ${results.length}   failed: ${failures.length}`)
+  console.log(`leaves minted: ${leafNames.length} (${new Set(leafNames).size} distinct)`)
+  console.log(
+    `KLPs per leaf: mean ${mean(klpsPerLeaf).toFixed(2)}  ` +
+      `min ${Math.min(...klpsPerLeaf)}  max ${Math.max(...klpsPerLeaf)}`,
+  )
+  console.log(`leaves per card: mean ${mean(results.map((r) => r.proposal.leaves.length)).toFixed(2)}`)
+  console.log(`\nparents (${new Set(parents).size} distinct): ${[...new Set(parents)].join(' | ')}`)
+  console.log(`\ncontexts (${new Set(contexts).size} distinct): ${[...new Set(contexts)].join(' | ')}`)
+
+  // RULE 3/4 self-check, in TypeScript — the same discipline as computing
+  // separation in TS rather than asking the model how it did.
+  const CONTAINERS = [
+    'income statement',
+    'cash flow statement',
+    'balance sheet',
+    'leverage',
+    'financial metrics',
+    'accounting',
+    'technicals',
+    'valuation',
+    'statements',
+    'finance',
+  ]
+  const badLeaves = leafNames.filter((n) => CONTAINERS.includes(n))
+  const badContexts = contexts.filter((n) => CONTAINERS.includes(n))
+  console.log(
+    `\nRULE 3 (no container as a leaf): ${badLeaves.length === 0 ? 'PASS' : `FAIL — ${[...new Set(badLeaves)].join(', ')}`}`,
+  )
+  console.log(
+    `RULE 4 (contexts at mechanism grain): ${badContexts.length === 0 ? 'PASS' : `FAIL — ${[...new Set(badContexts)].join(', ')}`}`,
+  )
+
+  // How much of this vocabulary is genuinely new? The point of minting blind.
+  const existing = new Set(
+    (await prisma.klt.findMany({ select: { name: true } })).map((k) => k.name.toLowerCase()),
+  )
+  const novel = [...new Set(leafNames)].filter((n) => !existing.has(n))
+  console.log(
+    `\nnovel leaf names (not in the ${existing.size} existing concepts): ` +
+      `${novel.length}/${new Set(leafNames).size}`,
+  )
+  console.log(`  ${novel.join(' | ')}`)
+
+  const jsonOut = opt(args, '--json')
+  if (jsonOut) {
+    const { writeFileSync } = await import('node:fs')
+    writeFileSync(jsonOut, JSON.stringify({ setId, results, failures }, null, 2))
+    console.log(`\nwrote ${jsonOut}`)
+  }
+}
+
+main().finally(() => process.exit(0))
