@@ -9,6 +9,7 @@ import { PROBE_INDEPENDENCE_PROMPT } from '../src/lib/ai/prompts/probe-independe
 import {
   coFiringPairs,
   classifyPair,
+  pairRelationship,
   readProbe,
   summarizeIndependence,
   formatIndependenceReport,
@@ -50,6 +51,10 @@ import { Pacer, callWithPacingAndRetry, realClock, rpmToIntervalMs, DEFAULT_RPM 
  *   --shortlist-only  print the free stage and stop — costs nothing
  *   --direct          raw provider keys from the environment
  *   --rpm <n>         pacing
+ *   --write           persist confirmed ENTAILMENTS as `requires` relations. Additive and
+ *                     safe: it supersedes no key point, so no mastery is reset. It also
+ *                     raises the prerequisite's weight on the next authoring pass, because
+ *                     `blastRadius` counts what depends on a point.
  *   --out <path>      where the full report is written (JSON)
  */
 
@@ -69,6 +74,7 @@ async function main() {
   const cardId = opt(args, '--card')
   const direct = flag(args, '--direct')
   const shortlistOnly = flag(args, '--shortlist-only')
+  const write = flag(args, '--write')
   const outPath = opt(args, '--out') ?? 'docs/ai/klp-independence-run.json'
   const limit = Number.parseInt(opt(args, '--limit') ?? '10', 10)
   const maxPairs = Number.parseInt(opt(args, '--max-pairs') ?? '6', 10)
@@ -238,6 +244,56 @@ async function main() {
         )
       }
     }
+  }
+
+  // PERSIST ENTAILMENTS AS `requires` EDGES — opt-in, and additive only.
+  //
+  // The vocabulary's direction convention (RELATE_KLPS_PROMPT): an edge
+  // `from: X, to: Y` typed `requires` reads "Y cannot hold without X". So the
+  // IMPLIER depends on the IMPLIED, and the edge runs implied -> implier. Get
+  // this backwards and `blastRadius` inverts, making the dependent point look
+  // central instead of the prerequisite.
+  //
+  // Equivalent pairs are NOT written: they are a merge question, not a
+  // dependency, and there is no honest direction to give the edge.
+  if (write) {
+    let written = 0
+    for (const r of results) {
+      const rel = pairRelationship(r.pair, r.verdict)
+      if (rel.implier === null || rel.implied === null) continue
+      const target = chosen.find((t) => t.cardId === r.cardId)
+      if (!target) continue
+      const fromKlpId = target.klps[rel.implied].id
+      const toKlpId = target.klps[rel.implier].id
+      try {
+        await prisma.klpRelation.create({
+          data: {
+            fromKlpId,
+            toKlpId,
+            type: 'requires',
+            provenance: 'entailment',
+            rationale:
+              `C3: an answer could state "${target.klps[rel.implied].text.slice(0, 90)}" alone, ` +
+              `but none could state the dependent point without it.`,
+            // The probe field holds the artifact that PROVED the edge — here,
+            // the one direction that could be constructed. The impossible
+            // direction has no artifact by definition, which is the finding.
+            probe: r.exampleAWithoutB || r.exampleBWithoutA || '(no constructible direction)',
+          },
+        })
+        written++
+      } catch {
+        // Unique on (from, to, type): the edge already exists, most likely from
+        // the authoring pass's perturbation step finding the same dependency by
+        // a different route. Agreement between two methods is a good outcome,
+        // not an error.
+      }
+    }
+    console.log(
+      `
+[klp-independence] wrote ${written} \`requires\` edge(s) with provenance 'entailment'. ` +
+        `Additive — no key point was superseded, so no mastery was reset.`,
+    )
   }
 
   const summary = summarizeIndependence(results, latest.length, klpPairsTotal, shortlisted)

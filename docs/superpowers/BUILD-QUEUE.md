@@ -9,6 +9,34 @@ user. Qwen remains entitlement-blocked (403 `AccessDenied.Unpurchased`, retried 
 in no rotation. **The owner verified the shared-key flow in a browser on 2026-09-07** — that gate is
 closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
 
+**PREREQUISITE BLAME IS BUILT (`src/lib/klp/prerequisites.ts`) — two of the owner's three asks are
+done, and the third is deliberately NOT half-shipped.**
+
+The owner's read of the C3 entailment was right and sharper than mine: when B implies A, failing
+both is ONE gap, the prerequisite should become MORE important, and the relationship should be
+recordable so an insight can say "you got X wrong because you never had Y".
+
+1. **More important — DONE, and it was free.** An entailment is a `requires` edge, and the
+   vocabulary's direction convention (`RELATE_KLPS_PROMPT`) is that `from: X, to: Y` reads "Y
+   cannot hold without X". So the edge runs implied -> implier, `blastRadius` counts what depends
+   on a point, and `weightFromSignals` raises the PREREQUISITE's weight on the next authoring
+   pass. Getting the direction backwards would have inverted every weight, which is why it was
+   checked rather than assumed. `npm run klp-independence -- --write` persists them with a new
+   `entailment` provenance - additive, supersedes nothing, resets no mastery.
+2. **The explanation — DONE.** `attributeBlame` splits an answer's failures into ROOT and BLOCKED,
+   walking the `requires` chain, and `explainBlocked` names the ROOT rather than the nearest link
+   ("you missed the EV conclusion because you never had the cash step" is actionable; naming the
+   intermediate inference sends the learner to the wrong place). Only `requires` licenses the
+   excuse - `causes` says how the world works, not what a learner cannot say in isolation.
+   It NEVER upgrades a blocked failure to a pass: not knowing whether they hold B is not evidence
+   that they do.
+3. **NOT double-docking BKT — NOT BUILT, and half-building it would be worse than nothing.**
+   Applying the filter on the WRITE path alone is silently undone by the next `rebuildKlpStates`,
+   which the design makes authoritative. Applying it on the REPLAY path needs the rebuild to see
+   an answer's FULL result set to know what was blocked, and its query deliberately narrows to
+   specific klpIds - so it cannot currently tell a blocked failure from a root one. That is a real
+   change to the most safety-critical function in the engine and wants its own increment.
+
 **C3 (INDEPENDENCE) IS BUILT AND RUN — it was the largest open hygiene defect, and it is the one
 the owner named first.** `npm run klp-independence`, read-only, merges nothing. Two stages, and the
 first is FREE: pairs whose credit vectors are identical across every candidate the authoring run
@@ -207,7 +235,7 @@ KLPs on 200 cards - **432 authored, 373 reused, 118 legacy** - over 130 authorin
 and reused both read mean weight 2.83 with NO failure mode firing. Only the 118 legacy rows still
 fail `clustered_high` (92.4% at 4-5). Baselines as of this session: **3128 tests, lint 164.**
 
-**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3319 tests, lint 164.**
+**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3335 tests, lint 164.**
 
 **C1 IS CALIBRATED AND THE ANSWER IS: COVERAGE IS NOT THE PROBLEM.** After adding a blind
 judge for the claim nothing verified, the same 20 cards read **10% holed (2/20)**, not the 40%

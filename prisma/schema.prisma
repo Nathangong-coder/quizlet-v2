@@ -1533,7 +1533,7 @@ model KlpRelation {
   toKlpId    String
   /// causes | requires | precedes | confused_with | applies_within | analogous_to
   type       String
-  /// perturbation | order_violation | substitution
+  /// perturbation | order_violation | substitution | entailment
   provenance String
   rationale  String   @db.Text
   /// The adversarial artifact that proved this edge informative: an answer
