@@ -9,6 +9,27 @@ user. Qwen remains entitlement-blocked (403 `AccessDenied.Unpurchased`, retried 
 in no rotation. **The owner verified the shared-key flow in a browser on 2026-09-07** — that gate is
 closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
 
+**C4 (NECESSITY) IS BUILT — hygiene is now complete except for tag validity.** `npm run
+klp-necessity`, read-only, deletes nothing. It is **C1 pointed at a single omission**: construct
+the best answer that covers the remaining points and says nothing about ONE of them, then let the
+BLIND judge (the app's own grader, no key points) decide whether that answer is still good. The
+model that writes the answer never renders the verdict, and the prompt never reveals that the
+point might be deleted - one that knows it is justifying a deletion writes a deliberately poor
+answer, one that knows it is defending the point writes a suspiciously complete one.
+
+**R2's greedy-sequential loop is the algorithm, not a detail.** Each candidate is judged against
+the set AS REDUCED SO FAR, weakest weight first. Batch-asking deletes both halves of a two-point
+idea, since each looks optional while the other is still present; and testing the spine of a card
+while every peripheral point still props it up is exactly when a central point looks droppable.
+`NECESSITY_FLOOR` equals `MIN_KLPS_PER_CARD`, pinned by a test, so necessity cannot reduce a card
+below what authoring considers viable.
+
+**First real run (3 LBO cards): the FLOOR does most of the work on this corpus.** Cards carry 5
+points, so one removal hits the floor and the rest go `unexamined` - which is the honest outcome.
+Necessity is a check for BLOATED sets (fifteen points where seven do the work) and this corpus does
+not have them. One genuine finding: an IRR-definition point on a "walk me through an LBO at high
+level" card, where an answer omitting it still scored 9/10.
+
 **PREREQUISITE BLAME IS BUILT (`src/lib/klp/prerequisites.ts`) — two of the owner's three asks are
 done, and the third is deliberately NOT half-shipped.**
 
@@ -235,7 +256,7 @@ KLPs on 200 cards - **432 authored, 373 reused, 118 legacy** - over 130 authorin
 and reused both read mean weight 2.83 with NO failure mode firing. Only the 118 legacy rows still
 fail `clustered_high` (92.4% at 4-5). Baselines as of this session: **3128 tests, lint 164.**
 
-**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3335 tests, lint 164.**
+**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3352 tests, lint 164.**
 
 **C1 IS CALIBRATED AND THE ANSWER IS: COVERAGE IS NOT THE PROBLEM.** After adding a blind
 judge for the claim nothing verified, the same 20 cards read **10% holed (2/20)**, not the 40%

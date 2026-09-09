@@ -611,3 +611,19 @@ export const IndependenceProbeSchema = z.object({
 });
 
 export type IndependenceProbe = z.infer<typeof IndependenceProbeSchema>;
+
+/**
+ * C4's omission construction (`src/lib/ai/prompts/omit-klp.ts`).
+ *
+ * `answer` carries no `.min(1)`: an empty answer is the correct output when the
+ * constraint makes a coherent response impossible, and rejecting it would make
+ * that outcome unexpressible — the same reason the exploit schema allows an
+ * empty abstention.
+ */
+export const OmitKlpSchema = z.object({
+  answer: z.string(),
+  impossible: z.boolean(),
+  note: z.string(),
+});
+
+export type OmitKlp = z.infer<typeof OmitKlpSchema>;

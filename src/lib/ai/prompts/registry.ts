@@ -46,6 +46,9 @@ export type { SessionInsightBuildInput } from './session-insight';
 
 export { learnerContextBlock, distractorMemoryHint } from './shared';
 
+export { OMIT_KLP_PROMPT } from './omit-klp';
+export type { OmitKlpBuildInput } from './omit-klp';
+
 export { PROBE_INDEPENDENCE_PROMPT } from './probe-independence';
 export type { ProbeIndependenceBuildInput } from './probe-independence';
 

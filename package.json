@@ -25,6 +25,7 @@
     "klp-stats": "tsx --conditions=react-server --env-file=.env scripts/klp-discrimination-stats.ts",
     "klp-exploit": "tsx --conditions=react-server --env-file=.env scripts/klp-exploit.ts",
     "klp-independence": "tsx --conditions=react-server --env-file=.env scripts/klp-independence.ts",
+    "klp-necessity": "tsx --conditions=react-server --env-file=.env scripts/klp-necessity.ts",
     "regrade-klps": "tsx --conditions=react-server --env-file=.env scripts/regrade-klps.ts",
     "probe-negative-check": "tsx --conditions=react-server --env-file=.env scripts/probe-negative-check.ts",
     "reuse-klps": "tsx --conditions=react-server --env-file=.env scripts/reuse-klps.ts",
