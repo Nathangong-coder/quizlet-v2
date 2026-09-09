@@ -379,11 +379,20 @@ re-authoring cost ~$2-5 instead of ~15 days of free-tier drip, but nothing has e
 authors as well as it grades. Author ONE set, run `npm run klp-histogram` on it, compare to the
 Gemini LBO pilot, and only then decide about the rest of the corpus.
 
-**Last updated:** 2026-09-06. **NEXT UP item 1 (wire the diagnostic to real key points) is DONE
+**Last updated:** 2026-09-09. **The order changed: two NEW items jumped to 2 and 3, pushing
+re-authoring to 4 and the answer overlay to 5.** A read-only probe session found that
+**authoring silently orphans a card's concept links** — 258 topic links on authored cards, of
+which **zero** point at a live KLP, and **zero overlap** between the 78 cards carrying relations
+and the 54 carrying live topic links. Findings: `docs/ai/card-tagging-axes.md`. Item 2 repairs
+it inside the authoring pipeline at zero extra AI cost; item 3 is the free measurement that
+decides whether `KltRelation` gets built. Do not start item 4 (re-authoring) first — it would
+mint another 100+ cards' worth of orphaned links.
+
+**Previous:** 2026-09-06. **NEXT UP item 1 (wire the diagnostic to real key points) is DONE
 and the gate is off** - see the struck-through entry below for what shipped, the four defects live
-probes found that the suite could not, and the one human gate still owed. Items 2 and 3 are
-unchanged and are where to start. Note item 1 changed item 2's arithmetic: a 12-question
-diagnostic now costs 7 AI calls, so it competes with re-authoring for the same daily quota.
+probes found that the suite could not, and the one human gate still owed. Note item 1 changed
+item 4's arithmetic: a 12-question diagnostic now costs 7 AI calls, so it competes with
+re-authoring for the same daily quota.
 
 **Previous:** 2026-09-05. Spec 2 increment A is DONE and G1 is closed. Shipped since:
 the public KLP view + interactive relation graph, the model quality floor, production quota/retry
@@ -475,7 +484,85 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
    attempt. Run a 12-question diagnostic on `Accounting - "Talking"` and then
    `npm run verify:diagnostic -- <attemptId>`.
 
-2. **Re-author the whole corpus through the authoring pipeline.**
+2. **Repair the concept layer: assign topics inside authoring, and measure the grain.**
+   **NEW 2026-09-09, and it jumped the queue because a probe found a live defect.** Findings:
+   `docs/ai/card-tagging-axes.md` §0 and Part C. Not yet designed.
+
+   **THE DEFECT — authoring orphans a card's concept links.** Measured on the live database:
+
+   ```
+   topic links (KlpTopic) total ...... 509    on LIVE KLPs .... 231    on DEAD (superseded) .... 278
+   topic links on authored cards ..... 258    of which LIVE ... 0
+   cards with KLP relations .......... 78     cards with live topic links ... 54    OVERLAP ... 0
+   KlpRelation edges ................. 477    with BOTH endpoints tagged .... 0
+   ```
+
+   `author-klps` writes a new `klpVersion`, superseding the old `CardKlp` rows and minting new
+   ids. `KlpTopic` keys on `klpId`, so the old links survive pointing at dead rows — and the new
+   KLPs get nothing, because **`author-klps` never calls `summarizeKltsForCards`** (its only
+   callers are `createSet`, `updateSet` and `scripts/backfill-klts.ts`). **This is the exact
+   failure `summarize.ts`'s own doc comment guards against for `KlpState`** — "superseding would
+   orphan every accumulated BKT posterior, a silent total mastery reset, invisible to `tsc`".
+   Someone reasoned it through for mastery and guarded it. Nobody checked topics, and it happened.
+   **Check `KlpState` for the same orphaning before anything else** — the guard may be equally
+   absent there, in which case re-authoring has been resetting learners' mastery.
+
+   **What to build.** Fold concept assignment into the authoring pipeline's existing *relate*
+   call — that call already has the card, the reference answer and every KLP in context, so
+   assignment costs **zero extra requests**, which matters against a 20/day/model cap. It then
+   inherits the authoring pipeline's hygiene checks instead of coming from a separate blind batch.
+
+   **The grain rule** (the owner's, refined 2026-09-09): attach every KLP to the **deepest node in
+   the set's tree that the point is honestly about**. Broad nodes get their numbers by ROLLUP,
+   never by direct attachment — which is what `KlpTopic.rank`'s own doc comment already says
+   ("CENTRALITY, not breadth: breadth comes from the tree") and what `rollUpKltLinks` already
+   implements. **The architecture is right; the assignment pass ignores it.**
+
+   Measured today, mean KLPs attached DIRECTLY by tree depth: `d1 3.4 | d2 6.2 | d3 7.9 | d4 10.3
+   | d5 8.1 | d6 3.4`. Leaves 6.1, internal nodes 6.5 — **identical. The tree does no funneling.**
+   `income statement` sits at depth 4 collecting 19 KLPs directly.
+
+   **The count pyramid (~3-6 at a leaf, more each level up) is the ACCEPTANCE MEASUREMENT, never a
+   quota.** Enforce counts and the assigner invents concepts to hit them. Same relationship the
+   weight histogram has to G1 — ship a `npm run klp-grain` style read-only check beside it.
+
+   **Corollary that will bite if ignored:** 923 KLPs over 65 leaves is 14/leaf at perfect
+   distribution. Reaching 3-6 needs ~150-300 leaves, **2-4x today's 113 concepts**. A KLP with no
+   honest leaf must be allowed to **mint** one, or it settles onto a broad ancestor and re-flattens
+   the histogram. **Assignment and tree growth are one job.**
+
+3. **Then re-run the concept-graph projection — it is free, and it is the go/no-go for
+   `KltRelation`.** Read-only, zero AI calls, zero schema change.
+
+   **The idea.** Do NOT try to draw cross-card KLP edges (combinatorial, needs pairwise AI
+   judgment). **Project the within-card edges UP to concepts**: KLP a (concept A) `requires` KLP b
+   (concept B) is evidence for concept-level `A requires B`. Aggregate; the count of **independent
+   cards** producing the same edge is its confidence. Every edge traces to a card and a `probe`,
+   nothing is invented, and TypeScript computes the graph property from local AI judgments — the
+   same discipline as `weightFromSignals`. Strictly better than asking a model for a curriculum
+   graph (the "concept-graph extraction" bet in CLAUDE.md), because a fabricated edge cannot
+   appear.
+
+   **Ran it 2026-09-09: ZERO edges**, because 0 of 477 relations have both endpoints tagged. That
+   is not evidence against the idea, it is the reason item 2 comes first. Re-running costs nothing.
+
+   **Multi-parent — the owner's depreciation case.** Depreciation belongs under both the cash flow
+   statement and the income statement. **Not expressible today:** `SetKltNode` is
+   `@@unique([setId, kltId])`, so within a set a concept has exactly one parent. (Across sets it is
+   already allowed — 21 concepts have different parents in different sets.)
+   - *Making the tree a DAG is REJECTED.* `depth`/`ancestorIds` stop being single values,
+     `rollUpKltLinks` double-counts any KLP reachable two ways, `layout.ts` assumes one parent, and
+     node mastery becomes ambiguous. It corrupts the metrics substrate to fix a display problem.
+   - *Keep the tree, add `KltRelation` beside it.* The owner's own framing has the tell — "has a
+     clear one in cash flow statement" — so there IS a primary parent and the second link is a
+     weaker, different relation. Renders as a dashed line, drives navigation and insight, **never
+     enters mastery rollup**. The vocabulary already exists: `applies_within` is literally
+     "depreciation applies within the income statement".
+   - *"Relations that hold only in specific moments/cards"* (the owner's hardest observation) falls
+     out for free: a projected edge carries `cardIds`. One card = contextual, eight = structural.
+     A count, not a boolean.
+
+4. **Re-author the whole corpus through the authoring pipeline.**
 
    **THIS ENTRY WAS STALE AND THE OWNER CAUGHT IT (2026-09-07).** It claimed only the LBO set had
    been authored and that `Accounting - "Talking"` was 68 cards of `promptVersion: 1`. Wrong: 51 of
@@ -520,7 +607,7 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
    (`/api/cron/author-klps`, every 3 hours) now spends that quota automatically instead of leaving
    it to expire; DeepSeek stays the paid fallback for grading, where it is genuinely good.
 
-3. **Wire the solution/answer overlay to real data.** `KlpGraphCanvas` already takes an `answer`
+5. **Wire the solution/answer overlay to real data.** `KlpGraphCanvas` already takes an `answer`
    prop and renders correct/partial/failed per key point; nothing passes one yet. Natural homes are
    quiz results (a learner seeing their own attempt) and `/staff/learners/[id]`. NOTE: a red LINE is
    currently INFERRED from its endpoints and the UI says so — real link-level verdicts need Spec 3's
@@ -2182,6 +2269,47 @@ being whatever the learner finds useful without corrupting mastery.
   the closest existing thing and the first question the design must answer: is "type of question" a
   **closed vocabulary at KLP grain that generalizes `kind`**, or a **new label at card grain**? Two
   overlapping enums describing the same distinction is the drift class this repo keeps flagging.
+
+**UPDATED 2026-09-09 — the owner endorsed this axis ("I love that idea of tagging the question")
+and set the shape of the work. Full findings: `docs/ai/card-tagging-axes.md`.**
+
+- **RANKED AFTER items 2-3, by the owner's delegation.** Three reasons, in order: topic assignment
+  is a *repair* of a working pipeline while this is a *new* axis with an unvalidated vocabulary;
+  per-question-type mastery reads through the metrics substrate, whose topic axis is currently 25%
+  populated and 0% overlapped with the best cards, so a third axis stacked on a broken second one
+  compounds; and topic assignment rides inside an existing AI call for free while this needs new
+  ones against a 20/day/model cap.
+- **The order of work the owner asked for:** a **test run** of question tagging first, then a
+  **structure-tagging visibility panel** — not the panel first.
+- **GRAIN IS DECIDED: the QUESTION, not the card and not the KLP.** A card is usually mixed ("walk
+  me through a DCF" carries a definitional point, a step-order point and a math point), so a single
+  card-level tag is a lie about two-thirds of it; and the same KLP can legitimately be probed by
+  recall or by application, which makes response mode a property of the *asking*. Card-level is the
+  multiset of its questions' tags, for free. This also unlocks **recognition-vs-production**
+  diagnosis, already flagged as computable-today and unbuilt.
+- **THE OWNER IS EXPLICITLY SUSPICIOUS OF `response_mode` OUTPUT QUALITY, and is right.** Four
+  checks are mandatory before it becomes a column, in this order: (1) **correlate against
+  `CardKlp.kind`** on the existing 923 KLPs — if `kind` predicts it more than ~90% of the time it
+  is one axis with two names, do not ship it; (2) **does it change a graded outcome** — flat error
+  rates across all six values means the axis carries no information; (3) **validate against REAL
+  model output, never a fixture** — a unit test hand-writing `procedure` proves nothing, and that
+  is precisely what let the diagnostic grading prompt drop *every* tag while 2,948 tests passed;
+  (4) the prompt must **name the closed vocabulary verbatim**, with a test pinning it.
+- **A second axis may be the better first build: `answer shape`**
+  (`single_value | enumeration | ordered_sequence | argument`). It earns its place by changing
+  CODE rather than labels — `single_value` needs no AI grader at all, `enumeration` is set-coverage
+  scoring, `ordered_sequence` makes transposition a nameable error, and it should modulate
+  `evidenceStrength`. Lowest ambiguity, most downstream leverage.
+- **Bloom / cognitive-demand scales are REJECTED** — they duplicate `abstraction`
+  (`concrete | relational | dispositional`, `src/lib/klp/abstraction.ts`), which already exists and
+  already carries the "a disposition is never a key point" rule. Note `abstraction` is an
+  authoring-time hygiene check only and is NOT persisted; **persisting it is a smaller and better
+  move than inventing a new scale.**
+- **Non-structural axes were also collected** and are numbered 4-10 in `card-tagging-axes.md`. The
+  two the owner should look at first: **contestedness** (`identity | convention | judgment` — the
+  line between a misconception and a house preference, load-bearing for item 11) and **salience**
+  (`core | common | niche | trivia` — which the owner has *already been hand-rolling* as the
+  `must-know` / `niche` / `classic` categories).
 
 **Design questions, none answered:**
 - **Closed vocabulary or open?** Spec 2's ruling on error types applies verbatim: open-ended tags
