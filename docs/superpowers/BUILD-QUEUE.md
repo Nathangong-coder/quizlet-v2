@@ -512,6 +512,36 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
    assignment costs **zero extra requests**, which matters against a 20/day/model cap. It then
    inherits the authoring pipeline's hygiene checks instead of coming from a separate blind batch.
 
+   **A DRY-RUN PROBE ALREADY EXISTS AND HAS BEEN RUN — read its output before designing.**
+   `scripts/probe-topic-minting.ts` (writes nothing). Findings in
+   `docs/ai/card-tagging-axes.md` Part D. It inverts both halves of the live pass: **per CARD,
+   not per KLP** (a card's KLPs came from one reference answer and already cohere), and
+   **blind**, with no reuse vocabulary shown. That second half matters more than it sounds:
+   `assembleCandidates` ranks its 150 candidates set-local, then token-overlap, then
+   **globally-most-linked** — and the broadest node is by definition the most-linked, so it is
+   shown most often, reused most often, and grows broader still. **The existing prompt already
+   says "do NOT give broader categories" and still drifts, which is the evidence that wording
+   was never the binding constraint.** Reconcile minted names against existing ones AFTER, in
+   TypeScript.
+
+   **Seven rules, all in the probe's prompt.** The two that came from the owner: a card fuses
+   into a **subtree, not a leaf** (DSCR and FCCR are separate children of `debt coverage
+   ratios`, because a learner can know one and not the other — *the failure-grain rule*); and
+   **settings are kept but recorded at MECHANISM grain** (`non-cash adjustments`, `financing
+   cash flow`), never as a bare statement name. **Rule 7** turns a KLP that IS a link into a
+   RELATION rather than a leaf, with **both endpoints named as standalone concepts** — that
+   naming requirement is the entire mechanism by which the graph crosses card boundaries, since
+   card A's leaf `retained earnings` and card B's edge `net income -> retained earnings` meet on
+   the name. It reuses `RELATABLE_TYPES` from `relations.ts` rather than minting a second edge
+   vocabulary.
+
+   **The measure of grain is CROSS-CARD CONVERGENCE, not KLPs-per-leaf.** The first run
+   returned 1.04 KLPs per leaf, and that is the *logically correct* reading of the failure-grain
+   rule — KLPs are already the unit of independent failure, so one-leaf-per-failable-thing
+   collapses the topic layer onto the KLP layer. A leaf earns its place by being reached from
+   several DIFFERENT cards. The probe now reports distinct/total leaves and a **cross-card join
+   rate** for relation endpoints.
+
    **The grain rule** (the owner's, refined 2026-09-09): attach every KLP to the **deepest node in
    the set's tree that the point is honestly about**. Broad nodes get their numbers by ROLLUP,
    never by direct attachment — which is what `KlpTopic.rank`'s own doc comment already says

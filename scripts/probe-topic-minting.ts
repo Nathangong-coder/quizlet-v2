@@ -61,6 +61,10 @@ import { generateText, Output } from 'ai'
 import { z } from 'zod'
 import { prisma } from '../src/lib/db'
 import { resolveLanguageModel, type ProviderId } from '../src/lib/ai/providers'
+// The SAME edge vocabulary the KLP-level relate call uses. Defined once in
+// `relations.ts` and consumed here so the concept graph and the key-point graph
+// cannot drift into two different sets of edge types.
+import { RELATABLE_TYPES } from '../src/lib/klp/relations'
 import {
   readDirectPool,
   nextCombo,
@@ -95,7 +99,7 @@ const CardTopicProposalSchema = z.object({
         klpRefs: z.array(z.number().int()).min(1),
       }),
     )
-    .min(1)
+    .min(0)
     .max(6),
   contexts: z
     .array(
@@ -107,6 +111,31 @@ const CardTopicProposalSchema = z.object({
       }),
     )
     .max(10),
+  /**
+   * KLPs whose content IS a link between two concepts, emitted as edges rather
+   * than leaves.
+   *
+   * The first run minted leaves called `net income retained earnings linkage`
+   * and `investing activities long-term asset link` — relations phrased as
+   * nouns. A phrase like that can never match a concept another card mints, so
+   * it is a dead-end node AND a lost edge.
+   *
+   * `from`/`to` are therefore required to be STANDALONE concept names, spelled
+   * exactly the way a leaf would be. That is the whole mechanism by which the
+   * graph crosses card boundaries: card A mints `retained earnings` as a leaf,
+   * card B emits `net income -> retained earnings` as an edge, and the two meet
+   * on the name. Describe the link in a phrase instead and nothing joins up.
+   */
+  relations: z
+    .array(
+      z.object({
+        klpRef: z.number().int(),
+        from: z.string().describe('A standalone concept name, exactly as a leaf would be named.'),
+        to: z.string().describe('A standalone concept name, exactly as a leaf would be named.'),
+        type: z.enum(RELATABLE_TYPES),
+      }),
+    )
+    .max(8),
 })
 
 type CardTopicProposal = z.infer<typeof CardTopicProposalSchema>
@@ -163,8 +192,34 @@ container like "leverage", "financial metrics", "accounting", "technicals" or
 "valuation" as a LEAF — those are acceptable only as a parent, and usually not even
 then.
 
-RULE 6 — COVER EVERY KLP EXACTLY ONCE across the leaves. Every ref above appears in
-exactly one leaf's klpRefs.
+RULE 6 — COVER EVERY KLP EXACTLY ONCE, as either a leaf member or a relation.
+Every ref above appears in exactly one leaf's klpRefs OR in exactly one relation.
+
+RULE 7 — A KLP THAT IS A LINK BECOMES A RELATION, NOT A LEAF.
+Some points do not describe a thing; they describe how two things connect
+("net income flows into retained earnings", "depreciation is added back to operating
+cash flow"). Emit those as "relations", and do NOT invent a leaf for them.
+
+  "Net income flows into retained earnings on the balance sheet"
+     -> relation { from: "net income", to: "retained earnings", type: "precedes" }
+     NOT a leaf called "net income retained earnings linkage"
+
+BOTH ENDPOINTS MUST BE STANDALONE CONCEPT NAMES, spelled exactly as you would name a
+leaf. This is the point of the rule: another card will mint "retained earnings" as its
+own leaf, and the two must meet on the name so the map joins up across cards. A phrase
+that describes the link instead of naming its ends connects to nothing.
+  GOOD: from "depreciation", to "operating cash flow"
+  BAD:  from "depreciation add-back mechanic", to "cash flow impact"
+
+Edge types, use the closest one:
+  causes          — A brings B about
+  requires        — B cannot be computed or stated without A
+  precedes        — A comes before B in a sequence or flows into it
+  applies_within  — A operates inside B (depreciation applies_within operating cash flow)
+  confused_with   — learners routinely mistake A for B
+
+Prefer naming a WIDELY-REUSABLE concept at each end. "net income", "operating cash
+flow", "retained earnings" are reusable; "the year-1 net income figure" is not.
 
 Names are lowercase noun phrases, no articles, no trailing punctuation. Spell out an
 abbreviation the first time it is the leaf name (write "fixed charge coverage ratio",
@@ -295,13 +350,22 @@ async function main() {
     }
 
     results.push({ term: card.term, model: combo.model, proposal })
-    progress(`     ok — ${proposal.parent}: ${proposal.leaves.map((l) => l.name).join(', ')}`)
-    const covered = new Set(proposal.leaves.flatMap((l) => l.klpRefs))
+    progress(
+      `     ok — ${proposal.parent}: ${proposal.leaves.map((l) => l.name).join(', ') || '(no leaves)'}` +
+        (proposal.relations.length ? ` [+${proposal.relations.length} rel]` : ''),
+    )
+    const covered = new Set([
+      ...proposal.leaves.flatMap((l) => l.klpRefs),
+      ...proposal.relations.map((r) => r.klpRef),
+    ])
     const missing = klps.filter((k) => !covered.has(k.ref)).length
     console.log(`── "${card.term.slice(0, 64)}"   [${combo.model}]`)
     console.log(`   parent: ${proposal.parent}`)
     for (const leaf of proposal.leaves) {
       console.log(`     • ${leaf.name}  (${leaf.klpRefs.length} KLP${leaf.klpRefs.length === 1 ? '' : 's'})`)
+    }
+    for (const rel of proposal.relations) {
+      console.log(`     → ${rel.from} --${rel.type}--> ${rel.to}`)
     }
     if (proposal.contexts.length > 0) {
       const uniq = [...new Set(proposal.contexts.map((c) => c.concept))]
