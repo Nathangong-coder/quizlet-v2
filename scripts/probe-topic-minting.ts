@@ -57,6 +57,7 @@
  * whole point, and batching cards would invite the model to fuse ACROSS cards.
  * Budget accordingly: the free tier is 20 requests per day per model.
  */
+import { writeFileSync } from 'node:fs'
 import { generateText, Output } from 'ai'
 import { z } from 'zod'
 import { prisma } from '../src/lib/db'
@@ -254,10 +255,16 @@ async function main() {
     process.exit(1)
   }
   const limit = Number(opt(args, '--limit') ?? '12')
+  // `--skip` makes a killed run resumable without re-spending quota on cards
+  // already proposed. A 30-card run is ~20 minutes of wall clock and this probe
+  // has been stopped mid-run once already; losing 3 completed cards to a kill is
+  // pure waste against a 20-per-day-per-model cap.
+  const skip = Number(opt(args, '--skip') ?? '0')
 
   const cards = await prisma.card.findMany({
     where: { setId, klps: { some: { supersededAt: null } } },
     orderBy: { position: 'asc' },
+    skip,
     take: limit,
     select: {
       id: true,
@@ -288,6 +295,19 @@ async function main() {
   const pacer = new Pacer(rpmToIntervalMs(DEFAULT_RPM), realClock)
   const results: { term: string; model: string; proposal: CardTopicProposal }[] = []
   const failures: { term: string; error: string }[] = []
+
+  const jsonOut = opt(args, '--json')
+  /**
+   * Written after EVERY card, not once at the end.
+   *
+   * The end-of-run write lost three completed cards to a kill, and every one of
+   * them cost a request against a 20-per-day-per-model cap. The file is a few
+   * KB; rewriting it per card is free next to re-earning its contents.
+   */
+  const flush = () => {
+    if (!jsonOut) return
+    writeFileSync(jsonOut, JSON.stringify({ setId, skip, results, failures }, null, 2))
+  }
 
   let cardNo = 0
   for (const card of cards) {
@@ -345,11 +365,13 @@ async function main() {
 
     if (!proposal || !combo) {
       failures.push({ term: card.term, error: lastError || 'pool exhausted' })
+      flush()
       console.log(`  FAILED  "${card.term.slice(0, 60)}" — ${lastError.slice(0, 120)}`)
       continue
     }
 
     results.push({ term: card.term, model: combo.model, proposal })
+    flush()
     progress(
       `     ok — ${proposal.parent}: ${proposal.leaves.map((l) => l.name).join(', ') || '(no leaves)'}` +
         (proposal.relations.length ? ` [+${proposal.relations.length} rel]` : ''),
@@ -428,12 +450,8 @@ async function main() {
   )
   console.log(`  ${novel.join(' | ')}`)
 
-  const jsonOut = opt(args, '--json')
-  if (jsonOut) {
-    const { writeFileSync } = await import('node:fs')
-    writeFileSync(jsonOut, JSON.stringify({ setId, results, failures }, null, 2))
-    console.log(`\nwrote ${jsonOut}`)
-  }
+  if (jsonOut) console.log(`
+wrote ${jsonOut}`)
 }
 
 main().finally(() => process.exit(0))
