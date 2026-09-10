@@ -413,6 +413,89 @@ async function main() {
       `min ${Math.min(...klpsPerLeaf)}  max ${Math.max(...klpsPerLeaf)}`,
   )
   console.log(`leaves per card: mean ${mean(results.map((r) => r.proposal.leaves.length)).toFixed(2)}`)
+  // CONVERGENCE — the number this run exists to produce.
+  //
+  // KLPs-per-leaf was the wrong measure and run 1 proved it: KLPs are already
+  // the unit of independent failure, so "one leaf per failable thing" resolves
+  // to one leaf per KLP. A leaf earns its place by being reached from SEVERAL
+  // DIFFERENT CARDS.
+  //
+  // Read it as an UPPER BOUND on non-convergence: exact-string matching, run
+  // BEFORE any reconciliation, so `working capital adjustments` and `operating
+  // working capital adjustments` count as two different concepts.
+  const cardsPerLeaf = new Map<string, Set<string>>()
+  for (const r of results) {
+    for (const l of r.proposal.leaves) {
+      const k = l.name.toLowerCase()
+      const set = cardsPerLeaf.get(k) ?? new Set<string>()
+      set.add(r.term)
+      cardsPerLeaf.set(k, set)
+    }
+  }
+  const shared = [...cardsPerLeaf.entries()].filter(([, c]) => c.size >= 2)
+  console.log(
+    `\nCONVERGENCE: ${new Set(leafNames).size} distinct / ${leafNames.length} total = ` +
+      `${(new Set(leafNames).size / Math.max(1, leafNames.length)).toFixed(2)} (1.00 = none)`,
+  )
+  console.log(`  leaves reached from >=2 cards: ${shared.length}`)
+  for (const [n, c] of shared.sort((a, b) => b[1].size - a[1].size).slice(0, 12)) {
+    console.log(`    ${c.size}x  ${n}`)
+  }
+
+  // CROSS-CARD JOIN RATE — whether rule 7's edges actually connect the map.
+  // An endpoint no other card minted is a dead end. Run 2 scored 9%, and the
+  // dangling names were the CANONICAL concepts (`retained earnings`,
+  // `operating cash flow`, `net change in cash`): the edges knew the vocabulary
+  // the leaves failed to use. Printing them by name is the point — they are the
+  // candidate node list for a reconciliation pass.
+  const allRelations = results.flatMap((r) =>
+    r.proposal.relations.map((rel) => ({ ...rel, term: r.term })),
+  )
+  const conceptOwners = new Map<string, Set<string>>()
+  for (const r of results) {
+    for (const nm of [
+      ...r.proposal.leaves.map((l) => l.name),
+      ...r.proposal.contexts.map((c) => c.concept),
+    ]) {
+      const k = nm.toLowerCase()
+      const set = conceptOwners.get(k) ?? new Set<string>()
+      set.add(r.term)
+      conceptOwners.set(k, set)
+    }
+  }
+  let joined = 0
+  let dangling = 0
+  const danglingCount = new Map<string, number>()
+  for (const rel of allRelations) {
+    for (const end of [rel.from, rel.to]) {
+      const owners = conceptOwners.get(end.toLowerCase())
+      if (owners && [...owners].some((t) => t !== rel.term)) joined++
+      else {
+        dangling++
+        danglingCount.set(end.toLowerCase(), (danglingCount.get(end.toLowerCase()) ?? 0) + 1)
+      }
+    }
+  }
+  const endpoints = joined + dangling
+  console.log(`\nRELATIONS: ${allRelations.length} edge(s) across ${results.length} card(s)`)
+  console.log(
+    `  cross-card join rate: ${joined}/${endpoints} = ` +
+      `${endpoints ? Math.round((100 * joined) / endpoints) : 0}%`,
+  )
+  const topDangling = [...danglingCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 14)
+  if (topDangling.length > 0) {
+    console.log(
+      `  unmatched endpoints (CANDIDATE NODES): ` +
+        `${topDangling.map(([n, c]) => `${n}(${c})`).join(' | ')}`,
+    )
+  }
+  const relTypeCounts = allRelations.reduce<Record<string, number>>(
+    (a, r) => ((a[r.type] = (a[r.type] ?? 0) + 1), a),
+    {},
+  )
+  console.log(
+    `  by type: ${Object.entries(relTypeCounts).map(([t, c]) => `${t}:${c}`).join(' ') || '(none)'}`,
+  )
   console.log(`\nparents (${new Set(parents).size} distinct): ${[...new Set(parents)].join(' | ')}`)
   console.log(`\ncontexts (${new Set(contexts).size} distinct): ${[...new Set(contexts)].join(' | ')}`)
 
@@ -438,6 +521,30 @@ async function main() {
   console.log(
     `RULE 4 (contexts at mechanism grain): ${badContexts.length === 0 ? 'PASS' : `FAIL — ${[...new Set(badContexts)].join(', ')}`}`,
   )
+
+  // PER-MODEL rule compliance. Run 2 mixed three models and the violations were
+  // NOT evenly spread: gemini-3.1-flash-lite produced EVERY container leaf,
+  // while -3.5-flash and -3.6-flash produced none. Rule compliance is a model
+  // property, so an aggregate PASS/FAIL hides which model can be trusted to
+  // author topics — which is the decision this probe exists to inform.
+  const byModel = new Map<string, { cards: number; leaves: number; bad: number; rels: number }>()
+  for (const r of results) {
+    const e = byModel.get(r.model) ?? { cards: 0, leaves: 0, bad: 0, rels: 0 }
+    e.cards++
+    e.rels += r.proposal.relations.length
+    for (const l of r.proposal.leaves) {
+      e.leaves++
+      if (CONTAINERS.includes(l.name.toLowerCase())) e.bad++
+    }
+    byModel.set(r.model, e)
+  }
+  console.log(`\nPER-MODEL:`)
+  for (const [m, v] of [...byModel.entries()].sort((a, b) => b[1].cards - a[1].cards)) {
+    console.log(
+      `  ${m.padEnd(24)} cards=${String(v.cards).padStart(2)}  leaves=${String(v.leaves).padStart(3)}` +
+        `  container-leaves=${String(v.bad).padStart(2)}  rels=${String(v.rels).padStart(2)}`,
+    )
+  }
 
   // How much of this vocabulary is genuinely new? The point of minting blind.
   const existing = new Set(

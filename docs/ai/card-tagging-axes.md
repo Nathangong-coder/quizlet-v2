@@ -301,3 +301,111 @@ this with `MAX_COMBO_ATTEMPTS_PER_CARD = 3`; the probe now mirrors it. Also:
 Node fully buffers stdout to a redirected file on Windows, so the runaway
 produced ZERO output and was indistinguishable from a hang — progress now goes
 to stderr.
+
+---
+
+## Part E - run 2: 30 cards, rule 7 live. The verdict is NEGATIVE, usefully.
+
+`probe-topic-minting.ts --set <Accounting-Talking> --limit 30`, three Gemini models
+rotating, **30 cards proposed, 0 failures**. Writes nothing.
+
+### The two numbers that decide the algorithm
+
+```
+CONVERGENCE      104 distinct / 109 total leaves = 0.95   (1.00 = no convergence at all)
+                 leaves reached from >=2 cards: 5
+CROSS-CARD JOIN  6 / 66 relation endpoints = 9%
+```
+
+**Bottom-up blind minting does not converge.** 95% of leaves are single-use. Five
+concepts out of 104 were reached by more than one card. A topic layer like that is a
+renaming of the KLP layer with extra steps.
+
+### The two runs bracket the problem, and neither end is right
+
+| | vocabulary shown | convergence | failure mode |
+| --- | --- | --- | --- |
+| live system | yes, 150 candidates ranked by most-linked | far too much | everything collapses onto `income statement`, `leverage` |
+| this probe | none (mint blind) | none | every card invents private names |
+
+It is tempting to read this as "the answer is in the middle" and reach for a dial. **It
+is not a dial.** Minting and reconciliation are two steps, this probe built only the
+first, and it measured convergence BEFORE reconciling - so 0.95 is an **upper bound on
+non-convergence**, not the real figure.
+
+Naive token-overlap clustering (Jaccard >= 0.5 on non-filler tokens) moves it to **0.77,
+and multi-card concepts from 5 to 12**, correctly merging `historical cost principle` /
+`historical cost principle definition` and `mark-to-market accounting` / `mark to market
+measurement`.
+
+**But the same clustering merged `effective tax rate` with `marginal tax rate`, and
+`non-cash expenses` with `non-deductible expenses`.** Those are different concepts a
+learner can fail independently - exactly what the failure-grain rule forbids merging.
+**So reconciliation cannot be token overlap.** It needs an embedding at a conservative
+threshold, or cheap AI adjudication of candidate pairs only, and it must be biased
+toward NOT merging.
+
+### The finding that points at the fix
+
+**The dangling endpoints are the canonical concepts.** The 60 unmatched relation
+endpoints are not junk. By name, the most frequent are:
+
+> `retained earnings` - `operating cash flow` - `net change in cash` - `cash flow
+> statement` - `assets` - `enterprise value` - `equity value` - `goodwill impairment`
+
+Those are precisely the recurring, cross-card, reusable concepts the leaf vocabulary
+failed to produce. **Rule 7's edges independently discovered the node vocabulary that
+rule 5's minting missed.**
+
+So the next iteration is not a better minting prompt. It is a second pass:
+
+1. Mint blind, per card, as now - keeps the ratchet off.
+2. **Promote frequently-referenced relation endpoints into canonical leaves.** They are
+   already named as standalone reusable concepts (rule 7 required it), and being
+   referenced from several cards is exactly the convergence evidence a leaf needs.
+3. Re-anchor each card's hyper-specific leaves onto that canonical set where honest,
+   keeping a specific name only where the concept is genuinely independently failable.
+
+That inverts today's dependency: leaves are primary and edges dangle off them. The
+evidence says **edges should seed the node set**.
+
+### Rule compliance is a MODEL property
+
+```
+gemini-3.1-flash-lite   cards=14  leaves=51  container-leaves=3  rels=15
+gemini-3.5-flash        cards=10  leaves=34  container-leaves=0  rels=15
+gemini-3.6-flash        cards= 6  leaves=24  container-leaves=0  rels= 3
+```
+
+RULE 3 failed in aggregate - `income statement`, `cash flow statement`, `balance sheet`
+appeared as leaves. **Every one came from `gemini-3.1-flash-lite`**; the other two models
+produced none across 16 cards, and run 1 (6 cards, -3.6-flash only) passed cleanly. The
+aggregate FAIL is a cheap-model artifact, not a prompt failure.
+
+This answers the owner's concern that the AI will not enforce the rule well. Some models
+will. **The deterministic checks are therefore not a nice-to-have - they are the
+instrument that decides which model may author topics**, the role the separation score
+plays for KLPs.
+
+Note also that -3.6-flash produced **0.5 relations per card against -3.5-flash's 1.5**.
+The strongest model was the most conservative about edges. Whether that is precision or
+timidity is unmeasured, and it now matters, because rule 7's edges are the proposed
+source of the node vocabulary.
+
+**RULE 4 (contexts at mechanism grain) PASSED on all 30 cards and all three models** - 46
+distinct mechanisms, including `non-cash adjustments`, `retained earnings rollforward`,
+`indirect cash flow method`, `equity rollforward`. Not one bare statement name. The
+owner's SBC / share-repurchase correction holds under rotation and at scale.
+
+### Process defects in this run, recorded
+
+- **Two probe processes ran concurrently**, writing the same JSON and progress file at
+  independent offsets - visible as whitespace padding, and as `results` lagging
+  `progress`. A background task reported "killed" had left its `node` process alive.
+  **A killed-task notification means the wrapper stopped, not the process.** Check by
+  command line before restarting. That run's output was discarded rather than reported.
+- **A `str.replace` patch silently did not match** and the script printed `patched`
+  regardless, so run 2 shipped without its convergence and join-rate reporting; the
+  numbers above were recomputed offline from `run.json`. The block is inserted now and
+  the patch asserts. Same class as the fixture-shaped guard: **a mutation that did not
+  apply looks exactly like one that did.**
