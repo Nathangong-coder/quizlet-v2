@@ -4,6 +4,7 @@ import type { z } from 'zod'
 import { prisma } from '../src/lib/db'
 import { generateJson, generateJsonWithMeta } from '../src/lib/ai/generate'
 import { authorCard, type AuthoringGenerator, type AuthoringOutcome } from '../src/lib/klp/authoring'
+import { writeFileSync } from 'node:fs'
 import { persistAuthoring } from '../src/lib/klp/authoring-persist'
 import { AUTHOR_KLPS_PROMPT } from '../src/lib/ai/prompts/author-klps'
 import { GRADE_CANDIDATE_PROMPT } from '../src/lib/ai/prompts/grade-candidate'
@@ -382,6 +383,13 @@ async function main() {
   const force = flag(args, '--force')
   const limitRaw = opt(args, '--limit')
   const limit = limitRaw !== undefined ? Number.parseInt(limitRaw, 10) : undefined
+  // `--skip N` starts N cards into the set, so the SAME cards can be authored
+  // by several models for a comparison; `--json <file>` keeps every dry-run
+  // outcome verbatim (KLPs, weights, probes, verdicts, relations), rewritten
+  // after each card so a killed run loses nothing it paid for.
+  const skipRaw = opt(args, '--skip')
+  const skip = skipRaw !== undefined ? Number.parseInt(skipRaw, 10) : 0
+  const jsonOut = opt(args, '--json')
 
   const rpmRaw = opt(args, '--rpm')
   const rpm = rpmRaw !== undefined ? Number.parseInt(rpmRaw, 10) : DEFAULT_RPM
@@ -434,8 +442,12 @@ async function main() {
     },
   })
 
-  const cards = limit !== undefined ? allCards.slice(0, limit) : allCards
+  const cards = limit !== undefined ? allCards.slice(skip, skip + limit) : allCards.slice(skip)
   const total = cards.length
+  const jsonOutcomes: { cardId: string; term: string; model: string | undefined; outcome: unknown }[] = []
+  const flushJson = () => {
+    if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ setId: set.id, skip, outcomes: jsonOutcomes }, null, 2))
+  }
 
   // ONE pacer for the whole run — a card's 6-16 calls are where the burst is,
   // so a per-card pacer would reset the spacing at every card boundary.
@@ -598,6 +610,8 @@ async function main() {
     // operator can judge grain and quality BEFORE committing real spend
     // across a whole set, which requires seeing the actual artifacts.
     if (dryRun) printOutcomeDetail(card.term, outcome)
+    jsonOutcomes.push({ cardId: card.id, term: card.term, model: usedModel, outcome })
+    flushJson()
 
     if (outcome.status === 'failed') {
       // The author call itself produced zero KLPs. This is NOT persisted —
