@@ -5,7 +5,7 @@ import { dirname } from 'node:path'
 import type { Card } from '@prisma/client'
 import { prisma } from '../src/lib/db'
 import { generateJson } from '../src/lib/ai/generate'
-import { resolveLanguageModel, type ProviderId } from '../src/lib/ai/providers'
+import { resolveLanguageModel} from '../src/lib/ai/providers'
 import { OMIT_KLP_PROMPT } from '../src/lib/ai/prompts/omit-klp'
 import { GRADE_SHORT_ANSWER_PROMPT } from '../src/lib/ai/prompts/grade-short-answer'
 import {
@@ -18,7 +18,9 @@ import {
   type NecessityResult,
 } from '../src/lib/klp/necessity'
 import { SMOKE_REFERENCE_FLOOR } from '../src/lib/klp/smoke'
-import { readDirectPool, nextCombo, markTried, poolStatus } from '../src/lib/klp/direct-pool'
+import { readDirectPool, nextCombo, markTried, poolStatus,
+  comboResolveInput,
+} from '../src/lib/klp/direct-pool'
 import { Pacer, callWithPacingAndRetry, realClock, rpmToIntervalMs, DEFAULT_RPM } from '../src/lib/klp/authoring-pacing'
 
 /**
@@ -122,11 +124,7 @@ async function main() {
     const combo = nextCombo(pool)
     if (!combo) throw new Error('every key x model combo is out of daily quota')
     markTried(combo, new Date())
-    const model = resolveLanguageModel({
-      provider: combo.provider as ProviderId,
-      apiKey: combo.apiKey,
-      model: combo.model,
-    })
+    const model = resolveLanguageModel(comboResolveInput(combo))
     return callWithPacingAndRetry(
       async () => {
         const res = await generateText({

@@ -517,3 +517,56 @@ coverage, mechanism-grain contexts, spell-out) are necessary and rule out one mo
 nothing here says whether a NAME is right. A human-labelled gold set on these five cards
 turns the grid into precision/recall per model, the same "grade the graders first" move
 the grading-engine design makes for misconceptions.
+
+### Addendum, same day: qwen3.7-flash on the same five cards
+
+The owner enabled the QwenCloud key (it had been 403 `AccessDenied.Unpurchased` since
+2026-09-06). `qwen3.6-flash` was requested too and **cannot be measured**: DashScope drops
+the JSON schema for the 3.6 family, so every reply fails Zod — details in
+`docs/ai/model-performance.md`. `KLP_DIRECT_PROVIDER=qwen` is now wired; the probe was
+re-run with `qwen3.7-flash` pinned. 5/5 cards, ~30 s each, zero schema failures, zero
+container leaves.
+
+```
+model                   leaves  leaves/card  KLPs/leaf  edges  contexts  double-covered KLPs
+qwen3.7-flash             26       5.2        1.19        8       2            7
+```
+
+**It is the only model that fuses inside a card — and the fusion runs the wrong way.**
+`cash flow statement mechanics <- KLP 1, 2, 3` and `balance sheet structure <- KLP 4, 5`
+are the containers rule 3 forbids, renamed with a suffix so the string check misses them.
+A learner can know the accounting equation and not the snapshot idea; one leaf cannot
+record that. So the first within-card fusion the probe has seen is a rule-2 violation,
+not the convergence the grain rule wants — and it hides from `CONTAINERS` by one word.
+The deterministic check needs a stem match (`^(income statement|cash flow statement|balance
+sheet)\b`), not an exact one.
+
+**Its edges point into its own fused leaf.** Five of the eight relations have `cash flow
+statement mechanics` as the `to` endpoint - the leaf it just minted on the same card. An
+edge from a KLP to a container that KLP already sits in joins nothing across cards; all
+five dangle. Cross-card join rate 4 of 16 endpoints.
+
+**It attaches a link-KLP to BOTH endpoint leaves.** On the linkage card, KLP 0 ("net
+income flows into retained earnings") went to `net income` AND `retained earnings` as
+rank-1 leaves, with no edge. That is the owner's "edges should affect both topics"
+instinct, executed by a model - and it is the exact trap the recommendation warns about:
+at rank 1 a failed link reads as two failed nouns.
+
+**Suffixes on everything:** `gross profit calculation`, `EBIT definition`, `EBITDA
+derivation`, `net income calculation`, `accounting equation structure`. Four models wrote
+`gross profit`; Qwen is the one out, on every income-statement leaf. It also wrote
+`EBIT`/`EBITDA` capitalised and unspelled.
+
+**Contexts: 2 in five cards** - the opposite failure from DeepSeek's 29. Rule 4 was
+essentially ignored. **Zero edges on three of five cards**, including the FCF-vs-net-change
+contrast KLP that two Gemini models turned into `confused_with`.
+
+Net: compliant on the checks that exist, and wrong on the two the checks do not cover
+(fusion toward the container, self-referential edges). It is the model that most needs
+the owner's gold labels to be judged, because the instruments in TypeScript pass it.
+
+**Updated cross-model vocabulary (5 models):** eight names reached by all five -
+`working capital changes`, `net income`, `retained earnings`, `assets`, `liabilities`,
+`equity`, `capital expenditures`, `free cash flow`; ten more by four.
+`net income --precedes--> retained earnings` is now 8 of 10 (Qwen's two misses are the
+both-leaves reading above).

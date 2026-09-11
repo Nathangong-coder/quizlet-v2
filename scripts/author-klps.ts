@@ -1,4 +1,4 @@
-import { resolveLanguageModel, type ProviderId } from '../src/lib/ai/providers'
+import { resolveLanguageModel} from '../src/lib/ai/providers'
 import { generateText, Output } from 'ai'
 import type { z } from 'zod'
 import { prisma } from '../src/lib/db'
@@ -30,6 +30,7 @@ import {
   markExhausted,
   poolStatus,
   type DirectCombo,
+  comboResolveInput,
 } from '../src/lib/klp/direct-pool'
 import {
   Pacer,
@@ -162,11 +163,7 @@ function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
   // importantly DeepSeek's `/responses` endpoint and reasoning-off default,
   // without which every authoring call spends its output budget on invisible
   // thinking and returns `schema_invalid`.
-  const languageModel = resolveLanguageModel({
-    provider: combo.provider as ProviderId,
-    apiKey: combo.apiKey,
-    model: combo.model,
-  })
+  const languageModel = resolveLanguageModel(comboResolveInput(combo))
 
   // generateObject does not exist in AI SDK v7; structured output is
   // generateText + Output.object.

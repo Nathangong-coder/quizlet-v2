@@ -61,7 +61,7 @@ import { writeFileSync } from 'node:fs'
 import { generateText, Output } from 'ai'
 import { z } from 'zod'
 import { prisma } from '../src/lib/db'
-import { resolveLanguageModel, type ProviderId } from '../src/lib/ai/providers'
+import { resolveLanguageModel} from '../src/lib/ai/providers'
 // The SAME edge vocabulary the KLP-level relate call uses. Defined once in
 // `relations.ts` and consumed here so the concept graph and the key-point graph
 // cannot drift into two different sets of edge types.
@@ -73,6 +73,7 @@ import {
   markExhausted,
   poolStatus,
   type DirectCombo,
+  comboResolveInput,
 } from '../src/lib/klp/direct-pool'
 import {
   Pacer,
@@ -329,11 +330,7 @@ async function main() {
     while (attemptsLeft-- > 0 && (combo = nextCombo(pool))) {
       markTried(combo, new Date())
       try {
-        const model = resolveLanguageModel({
-          provider: combo.provider as ProviderId,
-          apiKey: combo.apiKey,
-          model: combo.model,
-        })
+        const model = resolveLanguageModel(comboResolveInput(combo))
         proposal = await callWithPacingAndRetry(
           async () => {
             const res = await generateText({

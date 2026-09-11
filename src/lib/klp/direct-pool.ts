@@ -27,6 +27,7 @@
  * of the sort; rotating within one would invalidate it.
  */
 import { selectAttemptOrder, type PoolCredential } from '@/lib/ai/key-pool'
+import type { ProviderId } from '@/lib/ai/providers'
 
 export interface DirectCombo extends PoolCredential {
   /** Index of the key in the configured list — NEVER the key itself. */
@@ -45,6 +46,12 @@ export interface DirectCombo extends PoolCredential {
    * second code path.
    */
   provider: string
+  /**
+   * Base URL for providers that resolve through the SDK's OpenAI-compatible
+   * path (`custom`). Undefined for first-class providers, which know their
+   * own endpoint. Qwen/DashScope is the first source that needs it.
+   */
+  baseUrl?: string
 }
 
 /** Splits a comma/whitespace separated env value, dropping blanks and dupes. */
@@ -77,6 +84,7 @@ export function buildDirectPool(
   keys: string[],
   models: string[],
   provider = 'google',
+  baseUrl?: string,
 ): DirectCombo[] {
   const pool: DirectCombo[] = []
   keys.forEach((apiKey, keyIndex) => {
@@ -87,6 +95,7 @@ export function buildDirectPool(
         apiKey,
         model,
         provider,
+        ...(baseUrl ? { baseUrl } : {}),
         role: 'primary',
         enabled: true,
         lastUsedAt: null,
@@ -148,10 +157,37 @@ export function poolStatus(pool: DirectCombo[]): PoolStatus {
  */
 export const DIRECT_PROVIDER_SOURCES: Record<
   string,
-  { keyVars: string[]; defaultModel: string }
+  {
+    keyVars: string[]
+    defaultModel: string
+    /**
+     * The `ProviderId` `resolveLanguageModel` is called with. Defaults to the
+     * source name. A source whose provider is not first-class in the app
+     * (Qwen) resolves as `custom` and must carry a `baseUrl`.
+     */
+    resolveAs?: string
+    baseUrl?: string
+  }
 > = {
   google: { keyVars: ['GOOGLE_API_KEYS', 'GOOGLE_API_KEY'], defaultModel: 'gemini-3.6-flash' },
   deepseek: { keyVars: ['DEEPSEEK_API_KEYS', 'DEEPSEEK_API_KEY'], defaultModel: 'deepseek-v4-flash' },
+  /**
+   * Qwen via DashScope's OpenAI-compatible endpoint (international region —
+   * the mainland host rejects this key with 401). Entitlement went live
+   * 2026-09-11; before that every model returned 403 `AccessDenied.Unpurchased`
+   * (see `docs/ai/model-performance.md`).
+   *
+   * Only the 3.7 family holds the structured-output contract here: DashScope
+   * downgrades a `json_schema` request to `json_object` for `qwen3.6-flash` and
+   * `qwen3.6-plus`, so nothing constrains the shape and Zod rejects the reply
+   * every time. Measured 2026-09-11. Do not put a 3.6 model in this pool.
+   */
+  qwen: {
+    keyVars: ['QWENCLOUD_API_KEYS', 'QWENCLOUD_API_KEY'],
+    defaultModel: 'qwen3.7-flash',
+    resolveAs: 'custom',
+    baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+  },
 }
 
 /**
@@ -204,5 +240,32 @@ export function readDirectPool(
   }
 
   const models = parseList(env[modelsVar] ?? (role === 'attack' ? env.KLP_DIRECT_MODEL : undefined))
-  return buildDirectPool(keys, models.length > 0 ? models : [source.defaultModel], provider)
+  return buildDirectPool(
+    keys,
+    models.length > 0 ? models : [source.defaultModel],
+    source.resolveAs ?? provider,
+    source.baseUrl,
+  )
+}
+
+/**
+ * The `resolveLanguageModel` input for one combo.
+ *
+ * Every operator script used to spell `{ provider, apiKey, model }` out by
+ * hand, which is how a new field on the combo (`baseUrl`) would silently reach
+ * none of them — each caller would compile, and each would send a `custom`
+ * provider with no URL and fail at request time.
+ */
+export function comboResolveInput(combo: DirectCombo): {
+  provider: ProviderId
+  apiKey: string
+  model: string
+  baseUrl?: string
+} {
+  return {
+    provider: combo.provider as ProviderId,
+    apiKey: combo.apiKey,
+    model: combo.model,
+    ...(combo.baseUrl ? { baseUrl: combo.baseUrl } : {}),
+  }
 }

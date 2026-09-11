@@ -6,6 +6,9 @@ import {
   markTried,
   markExhausted,
   poolStatus,
+  readDirectPool,
+  comboResolveInput,
+  DIRECT_PROVIDER_SOURCES,
 } from '@/lib/klp/direct-pool'
 
 describe('parseList', () => {
@@ -97,5 +100,47 @@ describe('poolStatus', () => {
       exhausted: 2,
       modelsLeft: ['m2'],
     })
+  })
+})
+
+describe('readDirectPool', () => {
+  /**
+   * Qwen is not a first-class provider in the app: it resolves through the
+   * OpenAI-compatible `custom` path, which needs a base URL. A source that
+   * forgot to carry one would build a pool that compiles and then fails on
+   * every request — so the URL, and its delivery to `resolveLanguageModel`'s
+   * input, are pinned here rather than discovered at run time.
+   */
+  it('resolves qwen as custom with the DashScope base URL on every combo', () => {
+    const pool = readDirectPool({
+      KLP_DIRECT_PROVIDER: 'qwen',
+      QWENCLOUD_API_KEY: 'k',
+      KLP_DIRECT_MODELS: 'qwen3.7-flash',
+    } as unknown as NodeJS.ProcessEnv)
+    expect(pool).toHaveLength(1)
+    expect(pool[0].provider).toBe('custom')
+    expect(pool[0].baseUrl).toBe(DIRECT_PROVIDER_SOURCES.qwen.baseUrl)
+    expect(comboResolveInput(pool[0])).toEqual({
+      provider: 'custom',
+      apiKey: 'k',
+      model: 'qwen3.7-flash',
+      baseUrl: DIRECT_PROVIDER_SOURCES.qwen.baseUrl,
+    })
+  })
+
+  it('leaves baseUrl off first-class providers', () => {
+    const pool = readDirectPool({
+      KLP_DIRECT_PROVIDER: 'deepseek',
+      DEEPSEEK_API_KEY: 'k',
+    } as unknown as NodeJS.ProcessEnv)
+    expect(pool[0].provider).toBe('deepseek')
+    expect(pool[0].model).toBe('deepseek-v4-flash')
+    expect(comboResolveInput(pool[0])).not.toHaveProperty('baseUrl')
+  })
+
+  it('names the real options for an unsupported provider', () => {
+    expect(() => readDirectPool({ KLP_DIRECT_PROVIDER: 'nope' } as unknown as NodeJS.ProcessEnv)).toThrow(
+      /google, deepseek, qwen/,
+    )
   })
 })

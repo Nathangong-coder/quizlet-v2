@@ -171,6 +171,24 @@ Untestable until the account is provisioned. Nothing in code can fix it.
 and the Anthropic-shaped endpoint, still `403 AccessDenied.Unpurchased`. Qwen
 therefore contributes nothing to ship against and is not in any rotation.
 
+**LIVE 2026-09-11 — the owner enabled the key.** Same key, same intl endpoint,
+no code change on the request path:
+
+    qwen3.7-flash   OK    6.4s  (tiny structured call; ~30s per minting card)
+    qwen3.7-plus    OK   20.9s
+    qwen3.6-flash   FAIL  "No object generated: response did not match schema"
+    qwen3.6-plus    FAIL  same
+
+**The 3.6 family cannot hold the contract.** DashScope answers a `json_schema`
+request for a 3.6 model by downgrading it to `json_object` (the 400 says so
+verbatim: "'messages' must contain the word 'json' ... to use 'response_format'
+of type 'json_object'"), so nothing constrains the shape and Zod rejects the
+reply. That is the OpenRouter `structured_outputs` finding above in a new coat,
+and it is a property of the endpoint, not of the prompt. Only `qwen3.7-*` may
+enter a rotation. `KLP_DIRECT_PROVIDER=qwen` is wired (`direct-pool.ts`) and
+`qwen3.7-flash` has been run through the topic-minting probe — see
+`docs/ai/card-tagging-axes.md` Part F.
+
 ### OpenRouter paid — blocked
 
 `deepseek/deepseek-v4-flash-0731`, `minimax/minimax-m3` and others advertise

@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { generateText, Output } from 'ai'
-import { resolveLanguageModel, type ProviderId } from '../src/lib/ai/providers'
+import { resolveLanguageModel} from '../src/lib/ai/providers'
 import { prisma } from '../src/lib/db'
 import { GRADE_SHORT_ANSWER_PROMPT } from '../src/lib/ai/prompts/grade-short-answer'
 import { buildAnalysisWrites } from '../src/lib/analysis/persist'
 import { contaminationFactor, isContaminated } from '../src/lib/errors/contamination'
 import { klpCredit } from '../src/lib/errors/klp-credit'
-import { readDirectPool, nextCombo, markTried } from '../src/lib/klp/direct-pool'
+import { readDirectPool, nextCombo, markTried,
+  comboResolveInput,
+} from '../src/lib/klp/direct-pool'
 import { Pacer, callWithPacingAndRetry, realClock, rpmToIntervalMs } from '../src/lib/klp/authoring-pacing'
 import type { KlpStatus } from '../src/lib/errors/klp-credit'
 import type { Card } from '@prisma/client'
@@ -83,11 +85,7 @@ async function main() {
   const combo = nextCombo(pool)
   if (!combo) throw new Error('no usable key x model combo')
   markTried(combo, new Date())
-  const model = resolveLanguageModel({
-    provider: combo.provider as ProviderId,
-    apiKey: combo.apiKey,
-    model: combo.model,
-  })
+  const model = resolveLanguageModel(comboResolveInput(combo))
   const pacer = new Pacer(rpmToIntervalMs(30), realClock)
 
   console.log(`[probe] ${cases.length} contaminated answer(s) from ${file}`)

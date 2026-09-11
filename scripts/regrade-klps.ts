@@ -1,7 +1,7 @@
 import { prisma } from '../src/lib/db'
 import { generateText, Output } from 'ai'
 import { generateJson } from '../src/lib/ai/generate'
-import { resolveLanguageModel, type ProviderId } from '../src/lib/ai/providers'
+import { resolveLanguageModel} from '../src/lib/ai/providers'
 import {
   readDirectPool,
   nextCombo,
@@ -9,6 +9,7 @@ import {
   markExhausted,
   poolStatus,
   type DirectCombo,
+  comboResolveInput,
 } from '../src/lib/klp/direct-pool'
 import {
   Pacer,
@@ -135,11 +136,7 @@ function directGrader(pool: DirectCombo[], pacer: Pacer) {
       if (!combo) throw new Error('every key x model combo is out of daily quota')
       markTried(combo, new Date())
 
-      const model = resolveLanguageModel({
-        provider: combo.provider as ProviderId,
-        apiKey: combo.apiKey,
-        model: combo.model,
-      })
+      const model = resolveLanguageModel(comboResolveInput(combo))
 
       try {
         const grade = await callWithPacingAndRetry(
