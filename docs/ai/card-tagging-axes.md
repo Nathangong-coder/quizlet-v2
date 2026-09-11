@@ -409,3 +409,111 @@ owner's SBC / share-repurchase correction holds under rotation and at scale.
   numbers above were recomputed offline from `run.json`. The block is inserted now and
   the patch asserts. Same class as the fixture-shaped guard: **a mutation that did not
   apply looks exactly like one that did.**
+
+---
+
+## Part F - run 3: the SAME five cards through four models, 2026-09-11
+
+`probe-topic-minting.ts --set <Accounting-Talking> --limit 5`, run four times with
+`KLP_DIRECT_MODELS` pinned to one model each (`KLP_DIRECT_PROVIDER=deepseek` for the
+fourth). 20 proposals, identical prompt, identical KLPs. Writes nothing. Full per-card,
+per-model listing: `docs/ai/topic-minting-4x5-2026-09-11.md`.
+
+Run 2 rotated three models across 30 DIFFERENT cards, so every per-model number in Part E
+was confounded by which cards each model happened to draw. This run removes the
+confound, and the first thing it does is overturn one of Part E's claims.
+
+```
+model                   leaves  leaves/card  edges  edges/card  contexts  container-leaves
+gemini-3.6-flash          17       3.4        13      2.6         17          0
+gemini-3.5-flash          19       3.8        11      2.2         16          0
+gemini-3.1-flash-lite     25       5.0         8      1.6         13          3
+deepseek-v4-flash         25       5.0         7      1.4         29          0
+```
+
+**CORRECTION to Part E: gemini-3.6-flash is not "the most conservative about edges".**
+On its six run-2 cards it produced 0.5 edges per card; on these five it produced 2.6, the
+MOST of any model. The run-2 figure was the cards, not the model. Per-model comparisons
+are only meaningful on a fixed card set - which is what this run is.
+
+### Where models agree and where they do not
+
+**Agreement concentrates on NOUNS; disagreement concentrates on the leaf-or-edge decision.**
+
+- "Give me more details on assets, liabilities, and equity": **4/4 models produced the
+  identical four leaves** (`accounting equation`, `assets`, `liabilities`, `equity`), and
+  two produced the identical parent and relation. When a card is about things, blind
+  minting converges without being shown a vocabulary.
+- "How do the three statements link together?" - the same six KLPs became **0 leaves + 6
+  edges** (3.6-flash), **1 + 5** (3.5-flash), **5 + 1** (3.1-flash-lite), **5 + 1**
+  (DeepSeek). One shared leaf name out of ten. When a card is about links, the models
+  split on the one decision rule 7 exists to make, and the split is by model, not by KLP.
+
+**`net income --precedes--> retained earnings` was emitted by all four models on BOTH cards
+it appears in: 8 of 8.** That is the first edge with cross-model, cross-card confirmation,
+and the shape of evidence a `KltRelation` row should require.
+
+**Seventeen concept names were reached by all four models blind** (leaf, context or edge
+endpoint, anywhere in the five cards): `non-cash adjustments`, `working capital changes`,
+`net income`, `retained earnings`, `equity rollforward`, `operating cash flow`, `investing
+cash flow`, `financing cash flow`, `accounting equation`, `assets`, `liabilities`, `equity`,
+`capital expenditures`, `free cash flow`, `gross profit`, `operating expenses`, `non-cash
+expense add-backs`. Cross-model agreement on a fixed card set is therefore a usable
+INSTRUMENT for naming: a name four models reach independently is canonical; a name one
+model reaches is that model's phrasing.
+
+### Per-model character, read off the same five cards
+
+- **gemini-3.5-flash** names closest to canonical plain nouns (`net income`, `gross
+  profit`, `net change in cash`) and picks the best edge endpoints (`operating cash flow`
+  where 3.6 wrote `cash flow statement`; `cash and cash equivalents` where 3.6 wrote
+  `current assets`). Its failure is attaching by the NOUN MENTIONED rather than the claim:
+  KLP 0 of the walkthrough ("the income statement captures profitability by netting
+  expenses against revenue") went to `net income`, and the non-cash add-back KLP went to
+  `depreciation`, which is the example, not the concept.
+- **gemini-3.6-flash** is the most willing to emit edges, including the two best uses of
+  the vocabulary in the run (`non-cash expenses --applies_within--> operating cash flow`;
+  `net change in cash --confused_with--> free cash flow`, also found by 3.5). But its
+  endpoints are weaker (`financing cash flow --applies_within--> debt`; `investing cash
+  flow --applies_within--> long-term assets`) and its leaf names carry suffixes that
+  defeat convergence - `income statement purpose`, `balance sheet snapshot concept`, `net
+  change in cash calculation`, `fundamental accounting equation` against three models'
+  `accounting equation`. It also failed one card to "high demand" three times running and
+  needed a retry.
+- **gemini-3.1-flash-lite** produced every container leaf again (3, all on one card), one
+  schema failure, and one REVERSED `requires` edge (`free cash flow --requires-->
+  operating cash flow` reads "OCF cannot be computed without FCF" under the direction
+  convention) beside a correct one from the same KLP. Consistent with Part E: not a model
+  that may author topics.
+- **deepseek-v4-flash**: all five cards in about a minute, zero schema failures, zero
+  container leaves, no daily cap. Three defects. (1) **It over-produces contexts** - 29
+  against 13-17 - and most of the excess restates the KLP rather than naming a mechanism:
+  `future economic benefits`, `external claims on assets`, `bottom-line derivation`,
+  `operating profit derivation`. Rule 4 says "do not invent one"; it invents. (2) **It is
+  the most timid on rule 7**: on the linkage card only 1 of 6 link-KLPs became an edge,
+  and it minted the run-1 pseudo-concept shape again (`net income to operating cash flow`
+  as a LEAF). (3) It ignored the spell-out rule (`ebit`, `ebitda`), which is a
+  reconciliation cost, since the other three spelled them out.
+
+### Two defects in the probe itself, found by having four answers to compare
+
+- **Rule 6 ("exactly once") is wrong for a KLP that IS two links.** The A/L/E KLP
+  "liabilities and equity together fund the acquisition of assets" was emitted as
+  `liabilities --causes--> assets` AND `equity --causes--> assets` by two models
+  independently, and that is the right reading. The rule should be leaf XOR one-or-more
+  relations, and the coverage check should count a KLP covered by several edges as
+  covered once.
+- **The convergence number cannot be read off five cards, but AGREEMENT can.** Convergence
+  (distinct/total leaves) needs 30-50 cards per model, which on the free tier is two to
+  three days per Gemini model. DeepSeek has no daily cap and finished five cards in a
+  minute, so the 30-50 card convergence run should be DeepSeek first, and Gemini only for
+  the models that pass the deterministic checks.
+
+### What the owner is doing with this run
+
+The owner asked for the raw per-card list from every model to build their own sense of
+what a good output is. That is the missing piece: the checks in TypeScript (containers,
+coverage, mechanism-grain contexts, spell-out) are necessary and rule out one model, but
+nothing here says whether a NAME is right. A human-labelled gold set on these five cards
+turns the grid into precision/recall per model, the same "grade the graders first" move
+the grading-engine design makes for misconceptions.
