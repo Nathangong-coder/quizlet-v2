@@ -357,3 +357,14 @@ named. The instrumentation traps above are arguably the most useful part.
 | 2026-09-07 | DeepSeek peak/off-peak rates transcribed into `pricing.ts`; Qwen retried and still entitlement-blocked; shared keys + per-borrower token budget shipped. |
 | 2026-09-07 | `deepseek` added as a first-class provider, verified end to end through the real app path (`deepseek-v4-flash` 2.5s / 292 tokens, `deepseek-v4-pro` 3.4s / 267 tokens, reasoning off by default). Qwen found to be entitlement-blocked. |
 | 2026-09-06 | First record. Google allowlist widened to `gemini-3.1-flash-lite` on evidence; `gemini-3.4-flash` shown not to exist; Gemma rejected; OpenRouter free tier surveyed; DeepSeek `/responses` established as the working endpoint; reasoning x strict matrix run; temperature and structured-output bugs found and fixed. |
+
+### Qwen as an AUTHOR, and the first M&A authoring bench (2026-09-11)
+
+Three KLP-less M&A cards, `author-klps --direct --dry-run`, four models, nothing
+persisted. Page with every metric explained:
+https://claude.ai/code/artifact/bb78a8e9-ebaf-44bd-b589-1bebf005f80a. Full numbers in
+`docs/ai/card-tagging-axes.md` Part G. Short version: gemini-3.5-flash tightest
+(4 KLPs/card, sep 0.71, reference 1.00); DeepSeek most prolific and least hygienic (8.3
+KLPs/card, 7 `compound` defects); qwen3.7-flash zero defects but separation at the floor,
+one `accepts_weak`, and two cards where its OWN reference answer failed its own points
+(0.75, 0.90). gemini-3.6-flash managed one card before every key hit the daily cap.

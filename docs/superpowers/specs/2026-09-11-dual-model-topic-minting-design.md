@@ -1,6 +1,6 @@
 # Dual-model topic minting with a deterministic reconciler
 
-**Status:** approved in chat 2026-09-11 (owner), building as a PROBE extension. Nothing here
+**Status:** approved in chat 2026-09-11 (owner); BUILT the same day as a PROBE extension and run on 13 cards — findings in `docs/ai/card-tagging-axes.md` Part G, including the judge-weighting defect. Nothing here
 writes to the database. Promotion into the authoring pipeline is a later decision, taken
 after the owner has read a merged run and a human-labelled gold set exists for at least the
 five accounting cards.
@@ -76,9 +76,11 @@ Rules, per KLP, in this order:
    `mechanics`, `derivation`, `purpose`, `components`, `flow`, `overview`). Then:
    - equal → same concept, **shorter original wins** by word count, tie → Gemini
      (`rule:shorter` / `rule:tie-gemini`).
-   - Jaccard over non-filler tokens ≥ 0.5 → same concept, shorter wins
-     (`rule:overlap-shorter`). Part E showed Jaccard 0.5 merges `effective tax rate` with
-     `marginal tax rate`, so the threshold ALSO requires the head noun (last token) to match.
+   - one name's content tokens CONTAIN the other's, smaller side ≥ 2 tokens → same
+     concept, shorter wins. (Built as containment, not Jaccard + head noun: `effective tax
+     rate` / `marginal tax rate` share the head noun `rate` and would have merged; the test
+     pins that pair apart. The two-token floor stops `assets` being swallowed by `long-term
+     assets`.)
    - otherwise → `name_conflict`, adjudicate.
 4. **Edges.** Same endpoints (after normalization), same type → keep. Same endpoints,
    different type → Gemini's type (`rule:type-gemini`). Different endpoints →

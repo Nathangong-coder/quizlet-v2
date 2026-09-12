@@ -570,3 +570,109 @@ the owner's gold labels to be judged, because the instruments in TypeScript pass
 `equity`, `capital expenditures`, `free cash flow`; ten more by four.
 `net income --precedes--> retained earnings` is now 8 of 10 (Qwen's two misses are the
 both-leaves reading above).
+
+---
+
+## Part G - the dual pipeline, run on 13 cards, 2026-09-11
+
+Design: `docs/superpowers/specs/2026-09-11-dual-model-topic-minting-design.md`. Built as
+`probe-topic-minting.ts --dual` over `src/lib/klp/topic-reconcile.ts` (pure) and
+`topic-judge.ts`. Two runs: the five accounting cards again, and a SPREAD - five authored
+LBO cards (an enumeration, a conditions list, two causal chains, a contrast) plus the three
+M&A cards that have key points at all. Side-by-side grid, every merged cell with its
+reason: https://claude.ai/code/artifact/61511ace-d1d0-48a9-abba-e8ac81820096.
+
+```
+                      kind-consistent  leaves  edges  contexts  self-dups  name-words  container-leaves
+ACCOUNTING (5 cards)
+  deepseek-v4-flash   100% (30/30)       18     12       16         7         2.59          3
+  gemini-3.6-flash    100% (30/30)       18     12       12         4         2.33          0
+  MERGED              100% (30/30)       16     14        9         0         2.25          3
+SPREAD (8 cards)
+  deepseek-v4-flash    94% (30/32)       20     12       16         0         3.55          0
+  gemini-3.6-flash     91% (29/32)       22     10        8         0         3.00          0
+  MERGED              100% (32/32)       18     14        8         0         3.29          0
+judge: 10 calls over 13 cards (0.77/card), 27 items sent, 1 call failed (ECONNRESET -> 4 Gemini fallbacks)
+```
+
+**Rule 8 (kind sets the default shape) works on the number it was built for.** With the
+kind printed as a hint and nothing reading it, Part F had the FCF `contrast` KLP as a leaf
+in three of five models. With rule 8 in the prompt, both minters are 91-100%
+kind-consistent on their own and the merge is 100%, mostly by `rule:edge-wins-by-kind`
+(11 of 13 cards' splits settled without a call).
+
+**The merge does what the rules say and the numbers move the right way:** self-dups 11 ->
+0, DeepSeek's contexts 16 -> 9 (its novel restatements dropped), merged names shorter than
+either side on the accounting cards (2.25 words). Cost was two mint calls plus 0.77 judge
+calls per card.
+
+**THE JUDGE FINDING, which decides whether the weighting exists: qwen3.7-flash said
+"clear" on 18 of 19 preference verdicts, and preferred DeepSeek on 14 of 19.** The
+Gemini weighting only bites on "slight", so it fired ONCE in 13 cards. As built, the judge
+is unweighted and DeepSeek-leaning - the opposite of the owner's read of type conflicts.
+Not tuned blind; it is printed on the grid beside every `judge:ds-clear` cell so the owner
+can see whether those picks were right. Two of them were visibly not: `net income
+--precedes--> cash flow statement` chosen over `--> operating cash flow` (a container as an
+endpoint), and `income statement` as a leaf over `net income`.
+
+**A rule-3 exception surfaced by the first card.** KLP 0 of the walkthrough DEFINES the
+income statement. Rule 3 forbids a statement name as a leaf, and Gemini obeyed it by
+attaching the point to `net income` - the noun mentioned, which is wrong. DeepSeek broke the
+rule and attached it to `income statement`, which for a point ABOUT the statement is the
+deepest honest node. Rule 3 was written for points about things that happen ON a
+statement; a point that defines the statement is the one legitimate direct attachment a
+container should get. The prompt does not yet say so.
+
+**DeepSeek now produces container leaves it did not before** (3 on the accounting cards,
+none in Part F). The only prompt change was rule 8 and a harder rule 3. Worth one re-run
+before drawing a conclusion - one run cannot tell prompt effect from sampling.
+
+**On the spread, Gemini's raw edges on the causal LBO card were bad** (`fixed interest
+expense obligations --causes--> capital expenditures`), and because the judge call for that
+card failed, all four fell through as `fallback:gemini`. "Gemini is right on type" held on
+the accounting cards; it does not extend to edge CONTENT on causal-heavy cards, and a
+fallback that trusts one side unconditionally lands whatever that side wrote.
+
+**Two reconciler decisions made while building, recorded because the spec said otherwise:**
+- Same-concept-by-rule is token CONTAINMENT (one name's tokens inside the other's, the
+  smaller side at least two tokens), not Jaccard + head noun. `effective tax rate` /
+  `marginal tax rate` share the head noun and would have merged; the test pins them apart.
+- `confused_with` edges emitted in both directions from two KLPs of one card (the M&A
+  stock-vs-asset card) are kept as two rows. Symmetric dedupe is a one-line change; it was
+  not made because two KLPs producing the same edge is convergence evidence, not a duplicate.
+
+### The authoring bench, same day
+
+The owner asked how many cards still await key points and for Qwen as an AUTHOR. Census on
+the live database: **91 cards have no KLPs (79 of the M&A set's 82), 122 carry only legacy
+single-pass extraction, 78 are authored.** Three of the KLP-less M&A cards were authored
+dry-run by four models through the real pipeline:
+https://claude.ai/code/artifact/bb78a8e9-ebaf-44bd-b589-1bebf005f80a. Every metric is
+explained on the page.
+
+```
+model              cards  KLPs/card  mean sep  min sep  reference  smoke  defects  rels/card  w4-5
+gemini-3.6-flash    1/3     5.0        0.60     0.60      1.00      1/1      1        3.0      0%
+gemini-3.5-flash    3/3     4.0        0.71     0.63      1.00      3/3      1        2.7     17%
+deepseek-v4-flash   3/3     8.3        0.63     0.50      0.98      3/3      9        3.7     20%
+qwen3.7-flash       3/3     5.3        0.47     0.40      0.88      2/3      0        2.3      6%
+```
+
+- **gemini-3.6-flash authored ONE card.** Every key ran out of daily quota - the minting
+  runs earlier in the day had spent it, and "high demand" retries burned attempts on top.
+  Its row is one card. The 20/day/model cap is now the binding constraint on ANY same-day
+  comparison that includes a Gemini model.
+- **DeepSeek writes the most and the least hygienic:** 8.3 KLPs per card against a target
+  of 6, and 9 defects, seven of them `compound` (two claims joined by "and"). It is the
+  finding from `authoring-and-grading-are-different-skills` again, now on M&A.
+- **Qwen authors cleanly and separates worst:** zero defects, but min separation exactly at
+  the 0.40 floor, one smoke failure (`accepts_weak` - its `vague` adversary scored 0.60
+  against its own points), and reference scores of 0.75 and 0.90 on two cards, meaning it
+  wrote points its own best answer did not satisfy (`failed`, `partial`). A set the good
+  answer fails is a set that will fail learners for the author's mistake.
+- **gemini-3.5-flash is the tightest**: 4 KLPs per card, highest separation, zero
+  reference misses, one `abstraction_spread` defect.
+
+Nothing here was persisted. The grid exists so the owner can read the actual points and
+decide what "good" is; the numbers above are the pipeline's own checks, which are
+necessary and not sufficient.
