@@ -100,3 +100,16 @@ describe('name length', () => {
     expect(p.notes.some((n) => n.includes('written as "EBIT"'))).toBe(true)
   })
 })
+
+describe('relationPath', () => {
+  it('starts on the right border of the left node and ends on the left border of the right one, bowing off the chord', async () => {
+    const { relationPath, LAYOUT_DEFAULTS } = await import('@/lib/klt/layout')
+    const w = LAYOUT_DEFAULTS.nodeWidth, h = LAYOUT_DEFAULTS.nodeHeight
+    const g = relationPath({ x: 100, y: 0 }, { x: 400, y: 200 })
+    expect(g.d.startsWith(`M ${100 + w / 2} ${h / 2} Q`)).toBe(true)
+    expect(g.d.endsWith(`${400 - w / 2} ${200 + h / 2}`)).toBe(true)
+    const back = relationPath({ x: 400, y: 200 }, { x: 100, y: 0 })
+    expect(back.d.startsWith(`M ${400 - w / 2}`)).toBe(true)
+    expect(Number.isFinite(g.midX) && Number.isFinite(g.midY)).toBe(true)
+  })
+})

@@ -31,6 +31,7 @@ function defaultTransactionImpl(arg: unknown) {
     const tx = {
       cardKlp: { update: h.klpUpdate },
       klpTopic: { deleteMany: h.topicDeleteMany, createMany: h.topicCreateMany },
+      kltRelation: { findMany: vi.fn().mockResolvedValue([]) },
       card: { update: h.cardUpdate, updateMany: h.cardUpdateMany },
     }
     return (arg as (tx: unknown) => Promise<unknown>)(tx)
@@ -49,6 +50,7 @@ vi.mock('@/lib/db', () => ({
     cardKlp: { update: h.klpUpdate },
     klt: { findMany: h.kltFindMany, upsert: h.kltUpsert },
     klpTopic: { deleteMany: h.topicDeleteMany, createMany: h.topicCreateMany },
+    kltRelation: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: h.transaction,
   },
 }))

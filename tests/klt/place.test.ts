@@ -31,6 +31,7 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     setKltNode: { findMany: h.setKltNodeFindMany, upsert: h.setKltNodeUpsert },
     klpTopic: { findMany: h.klpTopicFindMany },
+    kltRelation: { findMany: vi.fn().mockResolvedValue([]) },
     klt: { upsert: h.kltUpsert },
     $transaction: h.transaction,
   },

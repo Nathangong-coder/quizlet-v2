@@ -56,10 +56,25 @@ export interface UnplacedConcept {
   linkCount: number;
 }
 
+/**
+ * A `KltRelation` whose endpoints are both placed in this set's tree. Drawn as
+ * a dashed curve over the tree; never part of it, never in mastery rollup.
+ * `cardCount` is the evidence behind the edge — one card is contextual, many
+ * is structural.
+ */
+export interface ConceptRelation {
+  fromKltId: string;
+  toKltId: string;
+  type: string;
+  provenance: string;
+  cardCount: number;
+}
+
 export interface ConceptTreeData {
   setId: string;
   setTitle: string;
   nodes: ConceptTreeNode[];
+  relations: ConceptRelation[];
   unplaced: UnplacedConcept[];
   /**
    * A UI hint, never an authorization. The page already knows this and passes
@@ -148,6 +163,20 @@ export async function listConceptTree(setId: string): Promise<ActionResult<Conce
   }));
 
   const placed = new Set(nodeRows.map((r) => r.kltId));
+  // Relations with BOTH endpoints in this set. `KltRelation` is global (a
+  // concept vocabulary is), so an edge between two concepts only one of which
+  // this set places is not this set's to draw.
+  const relationRows = await prisma.kltRelation.findMany({
+    where: { fromKltId: { in: [...placed] }, toKltId: { in: [...placed] } },
+    select: { fromKltId: true, toKltId: true, type: true, provenance: true, cardIds: true },
+  });
+  const relations: ConceptRelation[] = relationRows.map((r) => ({
+    fromKltId: r.fromKltId,
+    toKltId: r.toKltId,
+    type: r.type,
+    provenance: r.provenance,
+    cardCount: r.cardIds.length,
+  }));
   const unplacedByKltId = new Map<string, UnplacedConcept>();
   for (const l of links) {
     if (placed.has(l.kltId)) continue;
@@ -166,6 +195,7 @@ export async function listConceptTree(setId: string): Promise<ActionResult<Conce
       setId: access.setId,
       setTitle: access.setTitle,
       nodes,
+      relations,
       unplaced: [...unplacedByKltId.values()].sort((a, b) => a.name.localeCompare(b.name)),
       canEdit: access.canEdit,
     },

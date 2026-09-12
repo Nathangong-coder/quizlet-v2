@@ -233,6 +233,7 @@ const h = vi.hoisted(() => {
           delete: nodeDelete,
         },
         klpTopic: { findMany: topicFindMany, update: topicUpdate, delete: topicDelete },
+        kltRelation: { findMany: vi.fn().mockResolvedValue([]) },
       }
       return (arg as (tx: unknown) => Promise<unknown>)(tx)
     }
@@ -276,6 +277,7 @@ vi.mock('@/lib/db', () => ({
       count: h.nodeCount,
     },
     klpTopic: { findMany: h.topicFindMany, findFirst: h.topicFindFirst, update: h.topicUpdate, delete: h.topicDelete },
+    kltRelation: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: h.transaction,
   },
 }))
