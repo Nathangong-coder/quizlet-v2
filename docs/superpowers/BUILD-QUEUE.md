@@ -495,11 +495,12 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
    https://claude.ai/code/artifact/bb78a8e9-ebaf-44bd-b589-1bebf005f80a (authoring bench).
    DeepSeek + gemini-3.6-flash mint, `src/lib/klp/topic-reconcile.ts` merges by rule with a
    reason on every item, qwen3.7-flash judges only the leftovers (0.77 calls/card). The
-   `kind` prior (rule 8 + `EXPECTED_SHAPE`) takes kind-consistency to 100%. **Open before
-   promotion:** (a) the judge says "clear" on 18/19 verdicts so the Gemini weighting never
-   fires - either a different judge scale or a different judge; (b) rule 3 needs an
-   exception for a KLP that DEFINES a statement; (c) the owner's gold labels on the five
-   accounting cards, which turn the grid into precision/recall. Qwen is live
+   `kind` prior (rule 8 + `EXPECTED_SHAPE`) takes kind-consistency to 100%. **Amended the same
+   day on the owner's rules (Part H): count-preserving merge, edge > context > leaf, container
+   check as a rule with the statement winning on a definition KLP, judge weighting = preferred
+   AND (unacceptable OR shorter); `--replay` re-merges stored proposals.** Open before
+   promotion: the owner's gold labels on the five accounting cards, which turn the grid into
+   precision/recall. Qwen is live
    (`KLP_DIRECT_PROVIDER=qwen`, 3.7 family only). 91 cards still have no KLPs (79 M&A).
 
    **THE DEFECT — authoring orphans a card's concept links.** Measured on the live database:
