@@ -1,5 +1,53 @@
 # Build queue & carried-over findings
 
+**HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress. Read this before
+anything else in this file.** Two long runs were started this day and both are RESUMABLE;
+the topic WRITE needs the owner's shell (the agent's auto-mode denied it as a shared-resource
+write). Everything below is one command each.
+
+1. **Write the merged topics that already exist** (13 cards; applies the write step,
+   `docs/superpowers/specs/2026-09-12-topic-minting-write-step-design.md`). The
+   `KltRelation` migration IS applied. Plan-only first if you want to read it (drop `--write`).
+   ```
+   npx tsx --conditions=react-server --env-file=.env scripts/mint-topics.ts --from docs/ai/runs/2026-09-12/dual-accounting-5.json --write
+   npx tsx --conditions=react-server --env-file=.env scripts/mint-topics.ts --from docs/ai/runs/2026-09-12/dual-lbo-mna-spread-8.json --write
+   ```
+   Then open `/concepts` for `Accounting - "Talking"`: the dashed lines are the relation
+   layer (toggle in the canvas toolbar). Endpoints the plan reports `unplaced` sit in the
+   unplaced list; place them with the existing placement pass or by hand.
+
+2. **Author the rest of the corpus** — role split + quality bar, resumable (already-authored
+   cards are skipped). 82 M&A cards were in flight when this was written; then the two
+   legacy sets. The writer is capped at 20/day per key per model; add `,gemini-3.5-flash` to
+   `KLP_AUTHOR_MODELS` to double the daily writer budget.
+   ```
+   set KLP_DIRECT_PROVIDER=deepseek & set KLP_DIRECT_MODELS=deepseek-v4-flash & set KLP_AUTHOR_PROVIDER=google & set KLP_AUTHOR_MODELS=gemini-3.6-flash
+   npx tsx --conditions=react-server --env-file=.env scripts/author-klps.ts --set cmtfewhjv000004jr901uq6eo --direct      # M&A (82)
+   npx tsx --conditions=react-server --env-file=.env scripts/author-klps.ts --set cmtfexkmd001k04jr6t2wtl70 --direct      # Accounting - Knowledge (50, legacy)
+   npx tsx --conditions=react-server --env-file=.env scripts/author-klps.ts --set cmtcecz4j000304l1q1suq9rf --direct      # Talking (copy/test) (67, legacy)
+   ```
+   Arithmetic: 1-3 writer calls per card, 60 writer calls/day/model across the three keys
+   -> roughly 30-40 cards a day per writer model. "All KLPs" is a multi-day run on the free
+   tier, not a session. A funded Z.ai account (`KLP_AUTHOR_PROVIDER=zai`) or a paid Gemini
+   tier removes the cap; neither was available on 2026-09-12.
+
+3. **Mint and write topics for every authored set.** Minting is two calls per card plus a
+   judge call; put the Gemini side on a different model than the writer (`MINT_B_MODEL`).
+   Then write with `mint-topics --write`. The two runs below were in flight; their JSON
+   lands in `%TEMP%\claude-quizlet\` — copy it into `docs/ai/runs/` before writing.
+   ```
+   set MINT_B_MODEL=gemini-3.5-flash
+   npx tsx --conditions=react-server --env-file=.env scripts/probe-topic-minting.ts --dual --set <setId> --limit 200 --json docs/ai/runs/<date>/dual-<set>.json
+   npx tsx --conditions=react-server --env-file=.env scripts/mint-topics.ts --from docs/ai/runs/<date>/dual-<set>.json --write
+   ```
+   `--skip N` resumes a minting run; `mint-topics` refuses a card whose KLPs changed since the
+   proposal (re-mint it). Re-running the write on a card is idempotent.
+
+4. **After the corpus is written:** item 3's projection (`KlpRelation` lifted through topic
+   links into `KltRelation` with provenance `projected`) is now a read-and-write over two
+   tables that exist; the place-unplaced pass for edge endpoints; the owner's gold labels on
+   the five accounting cards (still owed) turn the minting grid into precision/recall.
+
 **Shipped since (2026-09-07, not yet its own queue item):** DeepSeek as a first-class provider
 (reasoning off by default, `/responses` endpoint, 2.0-2.5s deterministic); an operator record at
 `docs/ai/model-performance.md`; and **shared API keys** - an admin can lend a key to every user

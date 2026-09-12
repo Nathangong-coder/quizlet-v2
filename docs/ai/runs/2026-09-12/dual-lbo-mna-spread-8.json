@@ -1,0 +1,1852 @@
+{
+  "a": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-flash"
+  },
+  "b": {
+    "provider": "google",
+    "model": "gemini-3.6-flash"
+  },
+  "judge": {
+    "provider": "qwen",
+    "model": "qwen3.7-flash"
+  },
+  "seed": 20260911,
+  "results": [
+    {
+      "id": "cmtj7pxht000105l4xxtnhlbk",
+      "term": "Why do LBOs use leverage? How do they use leverage to increase returns?",
+      "setTitle": "LBO",
+      "klps": [
+        {
+          "text": "Leverage is used to replace the sponsor's own cash, minimizing the upfront equity outlay required to fund the acquisition.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Over the investment horizon, the portfolio company's operational free cash flows are used to service and pay down the principal balance of the debt.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Paying down the debt converts enterprise value into equity value, meaning the sponsor claims a larger share of the firm's value at exit.",
+          "kind": "causal"
+        },
+        {
+          "text": "Because the sponsor's final equity value is achieved from a significantly smaller initial equity base, the percentage return on equity is dramatically amplified.",
+          "kind": "quantitative"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 1,
+          "kind": "name_conflict",
+          "klpKind": "mechanism",
+          "aName": "debt principal amortization from free cash flow",
+          "bName": "debt paydown",
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 2,
+          "kind": "edge_align",
+          "klpKind": "causal",
+          "aEdges": [
+            {
+              "from": "debt principal amortization from free cash flow",
+              "to": "equity value return amplification",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "debt paydown",
+              "to": "equity value",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 1
+        },
+        {
+          "klpRef": 2,
+          "kind": "extra_context",
+          "klpKind": "causal",
+          "concept": "equity value creation",
+          "distinctFrom": [],
+          "conflictIndex": 2
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 1,
+          "conflictIndex": 0,
+          "sameConcept": false,
+          "klpFaithful": "a"
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 1,
+          "sameLinks": []
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 2,
+          "distinct": true
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-v4-flash",
+        "proposal": {
+          "parent": "leveraged buyout returns",
+          "leaves": [
+            {
+              "name": "debt-funded acquisition equity reduction",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "debt principal amortization from free cash flow",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "equity value return amplification",
+              "klpRefs": [
+                3
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "debt service"
+            },
+            {
+              "klpRef": 2,
+              "concept": "equity value creation"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "debt principal amortization from free cash flow",
+              "to": "equity value return amplification",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "gemini-3.6-flash",
+        "proposal": {
+          "parent": "lbo leverage mechanics",
+          "leaves": [
+            {
+              "name": "upfront equity outlay",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "debt paydown",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "return on equity amplification",
+              "klpRefs": [
+                3
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "free cash flow allocation"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "debt paydown",
+              "to": "equity value",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "lbo leverage mechanics",
+        "parentReason": "rule:klp-vocabulary",
+        "leaves": [
+          {
+            "name": "upfront equity outlay",
+            "klpRefs": [
+              0
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "debt paydown",
+            "klpRefs": [
+              1
+            ],
+            "reason": "judge:gemini-weighted",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "equity value return amplification",
+            "klpRefs": [
+              3
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "debt paydown",
+            "to": "equity value",
+            "type": "causes",
+            "klpRef": 2,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "b",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "debt service",
+            "reason": "rule:klp-vocabulary",
+            "source": "a"
+          },
+          {
+            "klpRef": 2,
+            "concept": "equity value creation",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 1: compress:context dropped side b \"free cash flow allocation\" (min-count 1)",
+          "klp 2: compress:edge dropped side a debt principal amortization from free cash flow --causes--> equity value return amplification (min-count 1)"
+        ]
+      }
+    },
+    {
+      "id": "cmtjcmjcc000a04k4pftq7hsd",
+      "term": "What are the main sources of value creation in an LBO (5)?",
+      "setTitle": "LBO",
+      "klps": [
+        {
+          "text": "EBITDA growth creates value by increasing the core profitability of the business through organic sales growth or margin expansion.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Operational improvements and expense reductions increase free cash flow by optimizing internal efficiencies and cutting unnecessary overhead.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Add-on acquisitions create value by allowing the platform to scale, achieve synergies, and potentially command a higher multiple at exit.",
+          "kind": "causal"
+        },
+        {
+          "text": "Debt paydown using cash flows shifts the capital structure, increasing the equity component of the firm's value at the time of exit.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Multiples expansion happens if the company is sold at a higher valuation multiple than it was bought for, resulting in a valuation gain independent of earnings growth.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The use of significant leverage amplifies returns because the total gains from the business are measured against a smaller initial equity investment.",
+          "kind": "causal"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 2,
+          "kind": "edge_align",
+          "klpKind": "causal",
+          "aEdges": [
+            {
+              "from": "add-on acquisitions",
+              "to": "exit multiple",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "add-on acquisitions",
+              "to": "valuation multiple expansion",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 0,
+          "kind": "extra_context",
+          "klpKind": "mechanism",
+          "concept": "organic revenue growth",
+          "distinctFrom": [
+            "ebitda growth"
+          ],
+          "conflictIndex": 1
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 2,
+          "conflictIndex": 0,
+          "sameLinks": []
+        },
+        {
+          "klpRef": 0,
+          "conflictIndex": 1,
+          "distinct": true
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-v4-flash",
+        "proposal": {
+          "parent": "leveraged buyout value creation",
+          "leaves": [
+            {
+              "name": "EBITDA growth",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "operational improvements",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "debt paydown",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "multiple expansion",
+              "klpRefs": [
+                4
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 0,
+              "concept": "organic revenue growth"
+            },
+            {
+              "klpRef": 1,
+              "concept": "margin expansion"
+            },
+            {
+              "klpRef": 3,
+              "concept": "free cash flow generation"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "add-on acquisitions",
+              "to": "exit multiple",
+              "type": "causes"
+            },
+            {
+              "klpRef": 5,
+              "from": "leverage",
+              "to": "equity returns",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "gemini-3.6-flash",
+        "proposal": {
+          "parent": "lbo value creation",
+          "leaves": [
+            {
+              "name": "ebitda growth",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "operational efficiency improvements",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "deleveraging",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "valuation multiple expansion",
+              "klpRefs": [
+                4
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "free cash flow generation"
+            },
+            {
+              "klpRef": 3,
+              "concept": "capital structure optimization"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "add-on acquisitions",
+              "to": "valuation multiple expansion",
+              "type": "causes"
+            },
+            {
+              "klpRef": 5,
+              "from": "financial leverage",
+              "to": "leveraged buyout returns",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "lbo value creation",
+        "parentReason": "rule:klp-vocabulary",
+        "leaves": [
+          {
+            "name": "ebitda growth",
+            "klpRefs": [
+              0
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "operational improvements",
+            "klpRefs": [
+              1
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "debt paydown",
+            "klpRefs": [
+              3
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "multiple expansion",
+            "klpRefs": [
+              4
+            ],
+            "reason": "rule:shorter",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "financial leverage",
+            "to": "leveraged buyout returns",
+            "type": "causes",
+            "klpRef": 5,
+            "reason": "rule:avoid-container-endpoint",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "add-on acquisitions",
+            "to": "exit multiple",
+            "type": "causes",
+            "klpRef": 2,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "a",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "free cash flow generation",
+            "reason": "rule:ctx-gemini",
+            "source": "b"
+          },
+          {
+            "klpRef": 3,
+            "concept": "capital structure optimization",
+            "reason": "rule:ctx-gemini",
+            "source": "b"
+          },
+          {
+            "klpRef": 0,
+            "concept": "organic revenue growth",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 1: compress:context dropped side a \"margin expansion\" (min-count 1)",
+          "klp 3: compress:context dropped side a \"free cash flow generation\" (min-count 1)",
+          "klp 2: compress:edge dropped side b add-on acquisitions --causes--> valuation multiple expansion (min-count 1)"
+        ]
+      }
+    },
+    {
+      "id": "cmtjcmjco000d04k4by5nbcdu",
+      "term": "What makes a good LBO candidate (5)?",
+      "setTitle": "LBO",
+      "klps": [
+        {
+          "text": "stable and predictable cash flows are necessary to service and pay down the heavy interest and principal burden of an LBO",
+          "kind": "causal"
+        },
+        {
+          "text": "low capital expenditure requirements ensure operating cash flows are preserved for debt paydown rather than reinvested just to maintain operations",
+          "kind": "mechanism"
+        },
+        {
+          "text": "limited cyclical risk prevents macroeconomic downturns from triggering a default on the leveraged capital structure",
+          "kind": "condition"
+        },
+        {
+          "text": "the potential to cut costs and increase efficiency allows financial sponsors to actively drive EBITDA expansion post-acquisition",
+          "kind": "mechanism"
+        },
+        {
+          "text": "a strong asset base provides tangible collateral that maximizes borrowing capacity and comforts lenders in debt financing",
+          "kind": "definition"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 3,
+          "kind": "name_conflict",
+          "klpKind": "mechanism",
+          "aName": "cost cutting and efficiency potential",
+          "bName": "cost reduction potential",
+          "conflictIndex": 0
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 3,
+          "conflictIndex": 0,
+          "sameConcept": true,
+          "klpFaithful": "a"
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-v4-flash",
+        "proposal": {
+          "parent": "lbo candidate characteristics",
+          "leaves": [
+            {
+              "name": "stable and predictable cash flows",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "low capital expenditure requirements",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "cost cutting and efficiency potential",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "strong asset base",
+              "klpRefs": [
+                4
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 0,
+              "concept": "debt paydown"
+            },
+            {
+              "klpRef": 1,
+              "concept": "operating cash flow"
+            },
+            {
+              "klpRef": 3,
+              "concept": "ebitda expansion"
+            },
+            {
+              "klpRef": 4,
+              "concept": "debt financing"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "limited cyclical risk",
+              "to": "leveraged capital structure",
+              "type": "applies_within"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "gemini-3.6-flash",
+        "proposal": {
+          "parent": "lbo candidate criteria",
+          "leaves": [
+            {
+              "name": "low capital expenditure requirements",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "limited cyclical risk",
+              "klpRefs": [
+                2
+              ]
+            },
+            {
+              "name": "cost reduction potential",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "strong asset base",
+              "klpRefs": [
+                4
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "debt paydown"
+            },
+            {
+              "klpRef": 3,
+              "concept": "ebitda expansion"
+            },
+            {
+              "klpRef": 4,
+              "concept": "debt financing"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 0,
+              "from": "stable cash flows",
+              "to": "debt service",
+              "type": "requires"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "lbo candidate criteria",
+        "parentReason": "rule:tie-gemini",
+        "leaves": [
+          {
+            "name": "low capital expenditure requirements",
+            "klpRefs": [
+              1
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "cost cutting and efficiency potential",
+            "klpRefs": [
+              3
+            ],
+            "reason": "judge:same-concept→klp-vocabulary",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "strong asset base",
+            "klpRefs": [
+              4
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "stable cash flows",
+            "to": "debt service",
+            "type": "requires",
+            "klpRef": 0,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "limited cyclical risk",
+            "to": "leveraged capital structure",
+            "type": "applies_within",
+            "klpRef": 2,
+            "reason": "rule:ds-extra-edge",
+            "source": "a",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "debt paydown",
+            "reason": "rule:ctx-in-vocab",
+            "source": "a"
+          },
+          {
+            "klpRef": 1,
+            "concept": "debt paydown",
+            "reason": "rule:ctx-gemini",
+            "source": "b"
+          },
+          {
+            "klpRef": 3,
+            "concept": "ebitda expansion",
+            "reason": "rule:ctx-both",
+            "source": "both"
+          },
+          {
+            "klpRef": 4,
+            "concept": "debt financing",
+            "reason": "rule:ctx-both",
+            "source": "both"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 0: rule:edge-priority dropped leaf A \"stable and predictable cash flows\"",
+          "klp 1: compress:context dropped side a \"operating cash flow\" (min-count 1)",
+          "klp 2: rule:edge-priority dropped leaf B \"limited cyclical risk\""
+        ]
+      }
+    },
+    {
+      "id": "cmtjcmjep000u04k41n614t20",
+      "term": "Why might increasing leverage sometimes reduce the IRR?",
+      "setTitle": "LBO",
+      "klps": [
+        {
+          "text": "Excessive debt creates large, fixed interest expense obligations that must be paid regardless of operational performance.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "If interest expense grows too rapidly, it can force management to sacrifice essential capital expenditures or working capital investment to maintain solvency.",
+          "kind": "causal"
+        },
+        {
+          "text": "Compromised operational investment limits the firm's ability to drive the EBITDA growth necessary to offset the interest burden.",
+          "kind": "causal"
+        },
+        {
+          "text": "A distressed liquidity position can lead to emergency financing costs or asset sales that destroy value.",
+          "kind": "condition"
+        },
+        {
+          "text": "When the cost of interest service exceeds the returns generated by the equity-saving benefit of leverage, the overall IRR decreases.",
+          "kind": "quantitative"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 1,
+          "kind": "edge_align",
+          "klpKind": "causal",
+          "aEdges": [
+            {
+              "from": "interest expense growth",
+              "to": "capital expenditure cuts",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "fixed interest expense obligations",
+              "to": "capital expenditures",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 2,
+          "kind": "edge_align",
+          "klpKind": "causal",
+          "aEdges": [
+            {
+              "from": "operational underinvestment",
+              "to": "ebitda growth",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "capital expenditures",
+              "to": "operating earnings growth",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 1
+        },
+        {
+          "klpRef": 3,
+          "kind": "edge_align",
+          "klpKind": "condition",
+          "aEdges": [
+            {
+              "from": "distressed liquidity",
+              "to": "emergency financing costs",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "distressed liquidity position",
+              "to": "emergency financing costs",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 2
+        },
+        {
+          "klpRef": 4,
+          "kind": "name_conflict",
+          "klpKind": "quantitative",
+          "aName": "irr decline from excessive interest cost",
+          "bName": "leverage irr reduction threshold",
+          "conflictIndex": 3
+        },
+        {
+          "klpRef": 2,
+          "kind": "extra_context",
+          "klpKind": "causal",
+          "concept": "operating cash flow",
+          "distinctFrom": [],
+          "conflictIndex": 4
+        },
+        {
+          "klpRef": 3,
+          "kind": "extra_context",
+          "klpKind": "condition",
+          "concept": "financing cash flow",
+          "distinctFrom": [],
+          "conflictIndex": 5
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 1,
+          "conflictIndex": 0,
+          "sameLinks": []
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 1,
+          "sameLinks": []
+        },
+        {
+          "klpRef": 3,
+          "conflictIndex": 2,
+          "sameLinks": [
+            {
+              "a": 0,
+              "b": 0
+            }
+          ]
+        },
+        {
+          "klpRef": 4,
+          "conflictIndex": 3,
+          "sameConcept": false,
+          "klpFaithful": "a"
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 4,
+          "distinct": true
+        },
+        {
+          "klpRef": 3,
+          "conflictIndex": 5,
+          "distinct": true
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-v4-flash",
+        "proposal": {
+          "parent": "leveraged irr dynamics",
+          "leaves": [
+            {
+              "name": "fixed interest expense obligations",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "irr decline from excessive interest cost",
+              "klpRefs": [
+                4
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 2,
+              "concept": "operating cash flow"
+            },
+            {
+              "klpRef": 3,
+              "concept": "financing cash flow"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 1,
+              "from": "interest expense growth",
+              "to": "capital expenditure cuts",
+              "type": "causes"
+            },
+            {
+              "klpRef": 2,
+              "from": "operational underinvestment",
+              "to": "ebitda growth",
+              "type": "causes"
+            },
+            {
+              "klpRef": 3,
+              "from": "distressed liquidity",
+              "to": "emergency financing costs",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "gemini-3.6-flash",
+        "proposal": {
+          "parent": "financial leverage impact on irr",
+          "leaves": [
+            {
+              "name": "fixed interest expense obligations",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "leverage irr reduction threshold",
+              "klpRefs": [
+                4
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 0,
+              "concept": "debt service"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 1,
+              "from": "fixed interest expense obligations",
+              "to": "capital expenditures",
+              "type": "causes"
+            },
+            {
+              "klpRef": 2,
+              "from": "capital expenditures",
+              "to": "operating earnings growth",
+              "type": "causes"
+            },
+            {
+              "klpRef": 3,
+              "from": "distressed liquidity position",
+              "to": "emergency financing costs",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "financial leverage impact on irr",
+        "parentReason": "rule:klp-vocabulary",
+        "leaves": [
+          {
+            "name": "fixed interest expense obligations",
+            "klpRefs": [
+              0
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "leverage irr reduction threshold",
+            "klpRefs": [
+              4
+            ],
+            "reason": "judge:gemini-weighted",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "fixed interest expense obligations",
+            "to": "capital expenditures",
+            "type": "causes",
+            "klpRef": 1,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "operational underinvestment",
+            "to": "ebitda growth",
+            "type": "causes",
+            "klpRef": 2,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "distressed liquidity position",
+            "to": "emergency financing costs",
+            "type": "causes",
+            "klpRef": 3,
+            "reason": "judge:same-link→gemini",
+            "source": "b",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "debt service",
+            "reason": "rule:ctx-gemini",
+            "source": "b"
+          },
+          {
+            "klpRef": 2,
+            "concept": "operating cash flow",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 3,
+            "concept": "financing cash flow",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 1: compress:edge dropped side a interest expense growth --causes--> capital expenditure cuts (min-count 1)",
+          "klp 2: compress:edge dropped side b capital expenditures --causes--> operating earnings growth (min-count 1)"
+        ]
+      }
+    },
+    {
+      "id": "cmtjcmje0000p04k4m78q0yzm",
+      "term": "Why is an LBO valuation generally considered a \"floor valuation\"?",
+      "setTitle": "LBO",
+      "klps": [
+        {
+          "text": "Financial sponsors underwriting an LBO target a strict internal rate of return hurdle, typically between 20% and 25%",
+          "kind": "definition"
+        },
+        {
+          "text": "To achieve these required returns using significant leverage, private equity firms must acquire the target at a conservative purchase price",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Strategic buyers can pay higher purchase prices because they can capture revenue and cost synergies unavailable to a standalone LBO",
+          "kind": "contrast"
+        },
+        {
+          "text": "The maximum bid a private equity firm can make while still clearing its return hurdle sits below strategic valuations",
+          "kind": "causal"
+        },
+        {
+          "text": "This lower bound established by private equity bidding creates a conservative valuation floor for the asset",
+          "kind": "definition"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 0,
+          "kind": "name_conflict",
+          "klpKind": "definition",
+          "aName": "private equity return hurdle rate",
+          "bName": "internal rate of return hurdle",
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 2,
+          "kind": "edge_align",
+          "klpKind": "contrast",
+          "aEdges": [
+            {
+              "from": "strategic buyer",
+              "to": "private equity firm",
+              "type": "confused_with"
+            },
+            {
+              "from": "synergies",
+              "to": "strategic buyer",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "lbo valuation floor",
+              "to": "strategic buyer valuation",
+              "type": "confused_with"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 1
+        },
+        {
+          "klpRef": 3,
+          "kind": "edge_align",
+          "klpKind": "causal",
+          "aEdges": [
+            {
+              "from": "return hurdle",
+              "to": "maximum bid",
+              "type": "causes"
+            },
+            {
+              "from": "maximum bid",
+              "to": "strategic valuations",
+              "type": "precedes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "internal rate of return hurdle",
+              "to": "strategic buyer valuation",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 2
+        },
+        {
+          "klpRef": 0,
+          "kind": "extra_context",
+          "klpKind": "definition",
+          "concept": "leveraged buyout underwriting",
+          "distinctFrom": [],
+          "conflictIndex": 3
+        },
+        {
+          "klpRef": 1,
+          "kind": "extra_context",
+          "klpKind": "mechanism",
+          "concept": "leveraged buyout underwriting",
+          "distinctFrom": [
+            "conservative purchase price"
+          ],
+          "conflictIndex": 4
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 0,
+          "conflictIndex": 0,
+          "sameConcept": true,
+          "klpFaithful": "both"
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 1,
+          "sameLinks": []
+        },
+        {
+          "klpRef": 3,
+          "conflictIndex": 2,
+          "sameLinks": []
+        },
+        {
+          "klpRef": 0,
+          "conflictIndex": 3,
+          "distinct": true
+        },
+        {
+          "klpRef": 1,
+          "conflictIndex": 4,
+          "distinct": false
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-v4-flash",
+        "proposal": {
+          "parent": "leveraged buyout valuation",
+          "leaves": [
+            {
+              "name": "private equity return hurdle rate",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "conservative purchase price",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "valuation floor",
+              "klpRefs": [
+                4
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "leveraged buyout underwriting"
+            },
+            {
+              "klpRef": 0,
+              "concept": "leveraged buyout underwriting"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "strategic buyer",
+              "to": "private equity firm",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 2,
+              "from": "synergies",
+              "to": "strategic buyer",
+              "type": "causes"
+            },
+            {
+              "klpRef": 3,
+              "from": "return hurdle",
+              "to": "maximum bid",
+              "type": "causes"
+            },
+            {
+              "klpRef": 3,
+              "from": "maximum bid",
+              "to": "strategic valuations",
+              "type": "precedes"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "gemini-3.6-flash",
+        "proposal": {
+          "parent": "lbo valuation floor",
+          "leaves": [
+            {
+              "name": "internal rate of return hurdle",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "conservative purchase price",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "lbo valuation floor",
+              "klpRefs": [
+                4
+              ]
+            }
+          ],
+          "contexts": [],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "lbo valuation floor",
+              "to": "strategic buyer valuation",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 3,
+              "from": "internal rate of return hurdle",
+              "to": "strategic buyer valuation",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "lbo valuation floor",
+        "parentReason": "rule:klp-vocabulary",
+        "leaves": [
+          {
+            "name": "internal rate of return hurdle",
+            "klpRefs": [
+              0
+            ],
+            "reason": "judge:same-concept→klp-vocabulary",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "conservative purchase price",
+            "klpRefs": [
+              1
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "valuation floor",
+            "klpRefs": [
+              4
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "synergies",
+            "to": "strategic buyer",
+            "type": "causes",
+            "klpRef": 2,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "return hurdle",
+            "to": "maximum bid",
+            "type": "causes",
+            "klpRef": 3,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "a",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "leveraged buyout underwriting",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 2: compress:edge dropped side b lbo valuation floor --confused_with--> strategic buyer valuation (min-count 1)",
+          "klp 2: compress:edge dropped side a strategic buyer --confused_with--> private equity firm (min-count 1)",
+          "klp 3: compress:edge dropped side a maximum bid --precedes--> strategic valuations (min-count 1)",
+          "klp 3: compress:edge dropped side b internal rate of return hurdle --causes--> strategic buyer valuation (min-count 1)",
+          "klp 1: judge:extra-dropped \"leveraged buyout underwriting\" (restates)"
+        ]
+      }
+    },
+    {
+      "id": "cmtfewhlf000104jrnvpa8qoi",
+      "term": "Can you describe how deferred revenue might be adjusted in a merger model?",
+      "setTitle": "M&A ",
+      "klps": [
+        {
+          "text": "Under current accounting guidance (ASU 2021-08), acquired deferred revenue is carried over at book value rather than being written down.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Historically, deferred revenue was written down to fair value based on the cost to fulfill the performance obligation plus a small profit margin.",
+          "kind": "contrast"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 0,
+          "kind": "name_conflict",
+          "klpKind": "mechanism",
+          "aName": "acquired deferred revenue carryover",
+          "bName": "acquired deferred revenue accounting",
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 1,
+          "kind": "extra_context",
+          "klpKind": "contrast",
+          "concept": "purchase price allocation",
+          "distinctFrom": [
+            "historical deferred revenue write-down -> acquired deferred revenue accounting"
+          ],
+          "conflictIndex": 1
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 0,
+          "conflictIndex": 0,
+          "sameConcept": false,
+          "klpFaithful": "b"
+        },
+        {
+          "klpRef": 1,
+          "conflictIndex": 1,
+          "distinct": true
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-v4-flash",
+        "proposal": {
+          "parent": "merger model adjustments",
+          "leaves": [
+            {
+              "name": "acquired deferred revenue carryover",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "deferred revenue fair value write-down",
+              "klpRefs": [
+                1
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 0,
+              "concept": "purchase price allocation"
+            },
+            {
+              "klpRef": 1,
+              "concept": "purchase price allocation"
+            }
+          ],
+          "relations": []
+        }
+      },
+      "gemini": {
+        "model": "gemini-3.6-flash",
+        "proposal": {
+          "parent": "acquired deferred revenue",
+          "leaves": [
+            {
+              "name": "acquired deferred revenue accounting",
+              "klpRefs": [
+                0
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 0,
+              "concept": "purchase accounting"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 1,
+              "from": "historical deferred revenue write-down",
+              "to": "acquired deferred revenue accounting",
+              "type": "confused_with"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "acquired deferred revenue",
+        "parentReason": "rule:klp-vocabulary",
+        "leaves": [
+          {
+            "name": "acquired deferred revenue accounting",
+            "klpRefs": [
+              0
+            ],
+            "reason": "judge:gemini-weighted",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "historical deferred revenue write-down",
+            "to": "acquired deferred revenue accounting",
+            "type": "confused_with",
+            "klpRef": 1,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "purchase accounting",
+            "reason": "rule:ctx-gemini",
+            "source": "b"
+          },
+          {
+            "klpRef": 1,
+            "concept": "purchase price allocation",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 0: compress:context dropped side a \"purchase price allocation\" (min-count 1)",
+          "klp 1: rule:edge-priority dropped leaf A \"deferred revenue fair value write-down\""
+        ]
+      }
+    },
+    {
+      "id": "cmtfewhma000404jrkjx7o69f",
+      "term": "Stock vs Asset vs 338h(10) purchase",
+      "setTitle": "M&A ",
+      "klps": [
+        {
+          "text": "In a stock purchase, the buyer acquires all assets and liabilities and receives no tax savings from asset write-ups, favoring the seller.",
+          "kind": "contrast"
+        },
+        {
+          "text": "In an asset purchase, the buyer selects specific assets and liabilities and gains tax savings from asset write-ups, favoring the buyer.",
+          "kind": "contrast"
+        },
+        {
+          "text": "A Section 338(h)(10) election combines a legal stock purchase structure with asset purchase tax treatment, allowing asset write-up depreciation for the buyer while avoiding entity-level tax on gains for the seller.",
+          "kind": "mechanism"
+        }
+      ],
+      "conflictsSent": [],
+      "verdicts": [],
+      "judgeCalls": 0,
+      "deepseek": {
+        "model": "deepseek-v4-flash",
+        "proposal": {
+          "parent": "acquisition tax structure",
+          "leaves": [
+            {
+              "name": "stock purchase",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "asset purchase",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "section 338(h)(10) election",
+              "klpRefs": [
+                2
+              ]
+            }
+          ],
+          "contexts": [],
+          "relations": [
+            {
+              "klpRef": 0,
+              "from": "stock purchase",
+              "to": "asset purchase",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 1,
+              "from": "asset purchase",
+              "to": "stock purchase",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 2,
+              "from": "section 338(h)(10) election",
+              "to": "stock purchase",
+              "type": "applies_within"
+            },
+            {
+              "klpRef": 2,
+              "from": "section 338(h)(10) election",
+              "to": "asset write-up",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "gemini-3.6-flash",
+        "proposal": {
+          "parent": "acquisition structures",
+          "leaves": [
+            {
+              "name": "stock purchase",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "asset purchase",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "section 338(h)(10) election",
+              "klpRefs": [
+                2
+              ]
+            }
+          ],
+          "contexts": [],
+          "relations": []
+        }
+      },
+      "merged": {
+        "parent": "acquisition tax structure",
+        "parentReason": "rule:klp-vocabulary",
+        "leaves": [
+          {
+            "name": "stock purchase",
+            "klpRefs": [
+              0
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "asset purchase",
+            "klpRefs": [
+              1
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "section 338(h)(10) election",
+            "klpRefs": [
+              2
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "stock purchase",
+            "to": "asset purchase",
+            "type": "confused_with",
+            "klpRef": 0,
+            "reason": "rule:ds-extra-edge",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "asset purchase",
+            "to": "stock purchase",
+            "type": "confused_with",
+            "klpRef": 1,
+            "reason": "rule:ds-extra-edge",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "section 338(h)(10) election",
+            "to": "stock purchase",
+            "type": "applies_within",
+            "klpRef": 2,
+            "reason": "rule:ds-extra-edge",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "section 338(h)(10) election",
+            "to": "asset write-up",
+            "type": "causes",
+            "klpRef": 2,
+            "reason": "rule:ds-extra-edge",
+            "source": "a",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [],
+        "conflicts": [],
+        "notes": []
+      }
+    },
+    {
+      "id": "cmtfewhmo000704jryqky1ddi",
+      "term": "What are break-even synergies? How are they calculated and what are they used for?",
+      "setTitle": "M&A ",
+      "klps": [
+        {
+          "text": "Break-even synergies are the amount of cost/revenue synergies required to make a transaction EPS neutral.",
+          "kind": "definition"
+        },
+        {
+          "text": "Break-even synergies are calculated by setting combined post-transaction EPS equal to the buyer standalone EPS and solving for required synergies.",
+          "kind": "quantitative"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 1,
+          "kind": "extra_context",
+          "klpKind": "quantitative",
+          "concept": "eps accretion dilution analysis",
+          "distinctFrom": [
+            "break-even synergies"
+          ],
+          "conflictIndex": 0
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 1,
+          "conflictIndex": 0,
+          "distinct": false
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-v4-flash",
+        "proposal": {
+          "parent": "merger synergies",
+          "leaves": [
+            {
+              "name": "break-even synergies",
+              "klpRefs": [
+                0,
+                1
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "eps accretion dilution analysis"
+            }
+          ],
+          "relations": []
+        }
+      },
+      "gemini": {
+        "model": "gemini-3.6-flash",
+        "proposal": {
+          "parent": "accretion dilution analysis",
+          "leaves": [
+            {
+              "name": "break-even synergies",
+              "klpRefs": [
+                0,
+                1
+              ]
+            }
+          ],
+          "contexts": [],
+          "relations": []
+        }
+      },
+      "merged": {
+        "parent": "merger synergies",
+        "parentReason": "rule:klp-vocabulary",
+        "leaves": [
+          {
+            "name": "break-even synergies",
+            "klpRefs": [
+              0,
+              1
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [],
+        "contexts": [],
+        "conflicts": [],
+        "notes": [
+          "klp 1: judge:extra-dropped \"eps accretion dilution analysis\" (restates)"
+        ]
+      }
+    }
+  ]
+}
