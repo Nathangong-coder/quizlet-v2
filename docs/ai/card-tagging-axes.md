@@ -676,3 +676,55 @@ qwen3.7-flash       3/3     5.3        0.47     0.40      0.88      2/3      0  
 Nothing here was persisted. The grid exists so the owner can read the actual points and
 decide what "good" is; the numbers above are the pipeline's own checks, which are
 necessary and not sufficient.
+
+---
+
+## Part H - the amended merge, replayed on the same 13 cards, 2026-09-11
+
+The owner read Part G's grid and set four rules (spec amendment,
+`2026-09-11-dual-model-topic-minting-design.md`): nothing DeepSeek adds is dropped for
+being extra, Gemini only replaces same-type items; type priority edge > context > leaf
+when the sides differ; the overly-broad check runs as a rule, with the statement WINNING
+on a `definition` KLP; and the judge must be less sure. `--replay` re-merged the SAME raw
+proposals, so every difference below is the rules, not the models.
+
+```
+                      kind-consistent  leaves  edges  contexts  self-dups  name-words  container-leaves
+ACCOUNTING (5)  merged (Part G)  100%     16     14        9         0        2.25         3
+                merged (Part H)  100%     16     14       13         0        2.32         0*
+SPREAD (8)      merged (Part G)  100%     18     14        8         0        3.29         0
+                merged (Part H)  100%     18     14       15         0        2.85         0
+* two statement leaves survive on definition KLPs by rule:statement-definition, flagged, not counted
+judge: 11 calls / 13 cards, 40 items, 0 failures on the final replay
+```
+
+**What the rules did.** Contexts went UP (9 -> 13, 8 -> 15): DeepSeek-only extras are
+now confirmed by the judge instead of dropped by rule - 18 checked, 9 kept as distinct,
+9 dropped as restatements, which is the count rule working with a filter on it. Container
+leaves went 3 -> 0 without a judge, and the two that remain are the income-statement and
+balance-sheet DEFINITION points, kept by `rule:statement-definition` - the exception the
+owner named, now a rule with the mechanism edge beside it (`net income --precedes-->
+operating cash flow`, `rule:avoid-container-endpoint`). Merged names are shorter than
+either raw side on the spread (2.85 against 3.00 / 3.55).
+
+**The judge's role shrank to what a rule cannot do**, which is the point: of 40 items, 11
+were edge ALIGNMENT (which of DeepSeek's edges is Gemini's same link), 18 were extra
+checks, and only 11 were name preferences - 4 "same concept", 7 preferences. DeepSeek was
+preferred on 3, and all 3 were the LONGER name, so under "preferred AND shorter" Gemini
+kept all 7. "Would the other be rejected outright" was answered no 11 of 11 times.
+
+**Three weightings were measured, and the middle one is the owner's "slightly":**
+- `clear`/`slight` (Part G): DeepSeek won 15 of 19 - the judge said "clear" on 18.
+- `otherAcceptable` alone: DeepSeek won 0 of 11 - the judge never said unacceptable.
+- `preferred AND (unacceptable OR shorter)`: DeepSeek needs two of the owner's priors,
+  Gemini one. On this replay that is 0 of 7 for DeepSeek, because its preferred names
+  were the long ones - which is the owner's own read of DeepSeek's naming.
+
+**Two more rules came out of reading the merged M&A card**, both agreement rather than
+difference, and both tested: when BOTH models emitted a leaf and an edge for a KLP, both
+are kept (edge priority settles a difference, not an agreement); and when one side has
+leaf + edge against the other's leaf only, that is 2 vs 1 - Gemini's leaf replaces the
+same-type leaf and the edge stays as the extra.
+
+**Still open, unchanged from Part G:** the owner's gold labels on the five accounting
+cards. Every number above is a property of the merge; none says whether a name is right.

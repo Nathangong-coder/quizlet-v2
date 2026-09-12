@@ -57,7 +57,7 @@
  * whole point, and batching cards would invite the model to fuse ACROSS cards.
  * Budget accordingly: the free tier is 20 requests per day per model.
  */
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { generateText, Output } from 'ai'
 import { prisma } from '../src/lib/db'
 import { resolveLanguageModel } from '../src/lib/ai/providers'
@@ -197,6 +197,18 @@ async function main() {
   // `--cards id,id,...` selects specific cards across sets (a spread run);
   // `--set` walks one set in position order. Never the whole corpus.
   const cardIds = (opt(args, '--cards') ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  // `--replay <dual.json>` re-runs the reconciler and the judge over the raw
+  // proposals a previous --dual run stored, minting nothing. Same inputs, new
+  // rules — the comparison stays apples to apples, and it costs only judge
+  // calls, which matters when the Gemini daily cap is already spent.
+  const replay = opt(args, '--replay')
+  if (replay) {
+    const prev = JSON.parse(readFileSync(replay, 'utf8')) as { results: DualResult[] }
+    const cards: ProbeCard[] = prev.results.map((r) => ({ id: r.id, term: r.term, setTitle: r.setTitle, klps: r.klps }))
+    const stored = new Map(prev.results.map((r) => [r.id, r]))
+    await runDual(cards, opt(args, '--json'), stored)
+    return
+  }
   if (!setId && cardIds.length === 0) {
     console.error('[probe-topic-minting] --set <setId> or --cards <id,...> is required. This never walks the corpus.')
     process.exit(1)
@@ -523,7 +535,11 @@ interface DualResult {
   error?: string
 }
 
-async function runDual(cards: ProbeCard[], jsonOut: string | undefined): Promise<void> {
+async function runDual(
+  cards: ProbeCard[],
+  jsonOut: string | undefined,
+  stored?: Map<string, DualResult>,
+): Promise<void> {
   const poolA = poolFor(DUAL_A.provider, DUAL_A.model)
   const poolB = poolFor(DUAL_B.provider, DUAL_B.model)
   const poolJ = poolFor(JUDGE.provider, JUDGE.model)
@@ -543,7 +559,13 @@ async function runDual(cards: ProbeCard[], jsonOut: string | undefined): Promise
   let cardNo = 0
   for (const card of cards) {
     progress(`[${++cardNo}/${cards.length}] ${card.term.slice(0, 56)}`)
-    const [ra, rb] = await Promise.all([mintCard(poolA, card, pacerA), mintCard(poolB, card, pacerB)])
+    const prev = stored?.get(card.id)
+    const [ra, rb] = prev
+      ? [
+          { proposal: prev.deepseek?.proposal, model: prev.deepseek?.model, error: prev.error ?? 'not minted' },
+          { proposal: prev.gemini?.proposal, model: prev.gemini?.model, error: prev.error ?? 'not minted' },
+        ]
+      : await Promise.all([mintCard(poolA, card, pacerA), mintCard(poolB, card, pacerB)])
     const rec: DualResult = {
       id: card.id,
       term: card.term,
@@ -606,8 +628,8 @@ async function runDual(cards: ProbeCard[], jsonOut: string | undefined): Promise
     )
     console.log(`── "${card.term.slice(0, 64)}"   [${card.setTitle}]`)
     console.log(`   parent: ${final.parent}  (${final.parentReason})`)
-    for (const l of final.leaves) console.log(`     • ${l.name}  ← KLP ${l.klpRefs.join(',')}  [${l.reason}]${l.container ? '  ⚠ container' : ''}`)
-    for (const r of final.relations) console.log(`     → ${r.from} --${r.type}--> ${r.to}  ← KLP ${r.klpRef}  [${r.reason}]`)
+    for (const l of final.leaves) console.log(`     • ${l.name}  ← KLP ${l.klpRefs.join(',')}  [${l.reason}]${l.container ? (l.containerAllowed ? '  (statement, definition KLP)' : '  ⚠ container') : ''}`)
+    for (const r of final.relations) console.log(`     → ${r.from} --${r.type}--> ${r.to}  ← KLP ${r.klpRef}  [${r.reason}]${r.containerEndpoint ? '  ⚠ container endpoint' : ''}`)
     if (final.contexts.length) console.log(`   contexts: ${final.contexts.map((c) => `${c.concept} [${c.reason}]`).join('; ')}`)
     for (const n of final.notes) console.log(`   · ${n}`)
     console.log()
@@ -660,6 +682,7 @@ async function runDual(cards: ProbeCard[], jsonOut: string | undefined): Promise
       selfDups += v.selfDups
       nNames += v.names.length
       for (const n of v.names) { wsum += words(n); if (isContainerName(n)) containers++ }
+      if (side.label === 'MERGED') containers -= r.merged!.leaves.filter((l) => l.containerAllowed).length
     }
     const pct = ktot ? Math.round((100 * kok) / ktot) : 0
     console.log(

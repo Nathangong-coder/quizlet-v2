@@ -70,8 +70,9 @@ export type ExpectedShape = 'leaf' | 'edge' | 'either'
  * `docs/ai/card-tagging-axes.md` showed a `contrast` KLP that two models made
  * a `confused_with` edge and three made a leaf — the label was there and did
  * nothing. It is a DEFAULT the model may override; TypeScript flags a
- * proposal that contradicts it as `kind_conflict` and sends it to the judge
- * rather than settling it by rule.
+ * proposal that contradicts it as `kind_conflict` in the merge notes. (It was
+ * a judge trigger for one run; the owner then ruled that an edge always beats
+ * a leaf, so the flag is now visibility, not a decision.)
  *
  * Every member of `KLP_KINDS` must have an entry — a kind added without one
  * would silently read as `either`. A test pins that.
@@ -136,6 +137,15 @@ with a word added ("cash flow statement mechanics"), as a leaf.
      subject leaf -> "stock-based compensation expense"
   "Share repurchases reduce cash in the financing section"
      subject leaf -> "share repurchases"
+THE ONE EXCEPTION: a (definition) point that describes what a statement IS or DOES may
+attach to the statement itself — there the statement is the subject. When you do that,
+ALSO emit what the statement does as a context or a relation, so the point carries the
+mechanism and not only the container:
+  "The income statement captures profitability over a period by netting expenses
+   against revenue to reach net income"
+     leaf -> "income statement"
+     context -> "profitability measurement"
+     relation -> { from: "revenue", to: "net income", type: "precedes" }
 
 RULE 4 — SETTINGS ARE STILL RECORDED, AT PROCESS GRAIN.
 For each KLP that genuinely operates inside a statement, add a "contexts" entry naming
@@ -156,7 +166,8 @@ calculation"; "accounting equation", not "accounting equation structure".
 
 RULE 6 — COVER EVERY KLP, as either ONE leaf member or ONE OR MORE relations.
 Every ref above appears in exactly one leaf's klpRefs, OR in one or more relations
-(a point that states two links is two relations). Never both.
+(a point that states two links is two relations). Never both — except the rule 3
+definition case, where the statement leaf and its mechanism relation sit together.
 
 RULE 7 — A KLP THAT IS A LINK BECOMES A RELATION, NOT A LEAF.
 Some points do not describe a thing; they describe how two things connect

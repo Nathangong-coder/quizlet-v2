@@ -2,16 +2,28 @@
  * Reconciles two models' topic proposals for ONE card into one merged
  * proposal. PURE: no AI, no database, every decision carries a `reason`.
  *
- * Design: `docs/superpowers/specs/2026-09-11-dual-model-topic-minting-design.md`.
- * Side A is DeepSeek, side B is Gemini — the asymmetry is deliberate and is
- * the owner's read of the Part F grid: when the two disagree on the TYPE of a
- * thing, Gemini is usually right; when they name the same thing differently,
- * the shorter name is usually right. Every tie-break here leans B.
+ * Design: `docs/superpowers/specs/2026-09-11-dual-model-topic-minting-design.md`,
+ * amended the same day after the first 13-card run (the "amendment" section).
+ * Side A is DeepSeek, side B is Gemini. The owner's rules, in the order the
+ * code applies them:
+ *
+ *   1. NOTHING A ADDS IS DROPPED FOR BEING EXTRA. Per KLP the merge keeps the
+ *      larger count. B only REPLACES A's item of the SAME TYPE (edge for edge,
+ *      leaf for leaf, context for context). An A-only extra is confirmed by the
+ *      judge as a distinct thing, not a restatement, and otherwise kept.
+ *   2. TYPE PRIORITY when the sides differ: edge > context > leaf. An edge
+ *      always beats a leaf; the `kind` prior is a visible note, not a trigger.
+ *   3. SAME TYPE, DIFFERENT CONTENT: same concept by rule -> the shorter name;
+ *      else a container name loses to a non-container without a call (or WINS,
+ *      on a `definition` KLP - the statement is the subject there); else the
+ *      judge, and A wins only when the judge prefers A AND either says B's
+ *      would be rejected outright or A's name is the shorter. Every tie leans B.
+ *   4. THE OVERLY-BROAD CHECK ALWAYS RUNS. The one exception is a `definition`
+ *      KLP, where the statement itself is the honest subject (rule 3 of the
+ *      prompt) - flagged, never blocked.
  *
  * ALIGNMENT IS BY KLP INDEX, never by name. Both models saw the same numbered
- * KLP list, so "are they talking about the same point" is already answered.
- * Only names and shapes need reconciling, and most of that is settled by rule
- * — the judge sees only what the rules could not settle.
+ * KLP list, so only names and shapes need reconciling.
  */
 import { EXPECTED_SHAPE, type CardTopicProposal, type KlpKind, type RelatableType } from './topic-minting'
 
@@ -69,18 +81,15 @@ function singular(token: string): string {
 
 export function normalizeName(raw: string): string {
   let s = raw.toLowerCase().trim()
-  // Expand abbreviations on whole tokens BEFORE punctuation is stripped, so
-  // `d&a` and `pp&e` are still recognisable.
   s = s
     .split(/\s+/)
     .map((t) => ABBREVIATIONS[t.replace(/[.,;:()]/g, '')] ?? t)
     .join(' ')
   s = s.replace(/&/g, ' and ')
-  s = s.replace(/-/g, '') // non-cash -> noncash, add-backs -> addbacks
+  s = s.replace(/-/g, '')
   s = s.replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
   let tokens = s.split(' ').filter(Boolean).map(singular)
   if (tokens.length > 1 && NOISE_SUFFIXES.has(tokens[tokens.length - 1])) tokens = tokens.slice(0, -1)
-  // `components` singularises to `component`; check the singular form too.
   if (tokens.length > 1 && NOISE_SUFFIXES.has(tokens[tokens.length - 1] + 's')) tokens = tokens.slice(0, -1)
   return tokens.join(' ')
 }
@@ -92,13 +101,9 @@ function contentTokens(normalized: string): Set<string> {
 /**
  * Same concept BY RULE: equal after normalization, or one name's content
  * tokens contain the other's with the smaller side at least two tokens.
- *
- * Containment, not Jaccard: Part E's token-overlap pass merged `effective tax
- * rate` with `marginal tax rate`, and those share a head noun too, so a
- * head-noun guard would not have saved it. Neither contains the other, so
- * containment refuses. The two-token floor stops `assets` being swallowed by
- * `long-term assets`. Everything this refuses goes to the judge — the rule is
- * biased toward NOT merging, as the spec requires.
+ * Containment, not Jaccard: `effective tax rate` / `marginal tax rate` share a
+ * head noun and neither contains the other, so containment refuses. The
+ * two-token floor stops `assets` being swallowed by `long-term assets`.
  */
 export function sameConceptByRule(x: string, y: string): boolean {
   const nx = normalizeName(x)
@@ -127,8 +132,7 @@ const CONTAINER_EXACT = new Set([
 ])
 const CONTAINER_STEM = /^(income statement|cash flow statement|balance sheet|financial statement)( |$)/
 
-/** A statement name, with or without a word added. Qwen's `cash flow statement
- * mechanics` is the case the exact list missed. */
+/** A statement name, with or without a word added. */
 export function isContainerName(raw: string): boolean {
   const n = normalizeName(raw)
   return CONTAINER_EXACT.has(n) || CONTAINER_STEM.test(n)
@@ -159,21 +163,22 @@ export interface EdgeDraft {
   type: RelatableType
 }
 
-export interface Candidate {
-  shape: 'leaf' | 'edge'
-  name?: string
-  edges?: EdgeDraft[]
-}
+export type ConflictKind = 'name_conflict' | 'edge_align' | 'extra_context'
 
 export interface Conflict {
   klpRef: number
-  /** Index within `MergedProposal.conflicts` at the time of creation; stable
-   * across `applyVerdicts` so a verdict can address it. */
   conflictIndex: number
-  kind: 'name_conflict' | 'kind_conflict' | 'edge_conflict'
+  kind: ConflictKind
   klpKind: string
-  a: Candidate
-  b: Candidate
+  /** name_conflict: the two leaf names. */
+  aName?: string
+  bName?: string
+  /** edge_align: the unmatched edges on each side. */
+  aEdges?: EdgeDraft[]
+  bEdges?: EdgeDraft[]
+  /** extra_context: the A-only context, and what it must be distinct from. */
+  concept?: string
+  distinctFrom?: string[]
 }
 
 export interface MergedLeaf {
@@ -182,12 +187,15 @@ export interface MergedLeaf {
   reason: string
   source: Source
   container: boolean
+  /** True when the container is the rule-3 exception (a `definition` KLP). */
+  containerAllowed: boolean
 }
 
 export interface MergedEdge extends EdgeDraft {
   klpRef: number
   reason: string
   source: Source
+  containerEndpoint: boolean
 }
 
 export interface MergedContext {
@@ -204,28 +212,31 @@ export interface MergedProposal {
   relations: MergedEdge[]
   contexts: MergedContext[]
   conflicts: Conflict[]
-  /** Everything dropped or noticed, one line each, for the run report. */
   notes: string[]
 }
 
 export interface ReconcileInput {
-  /** The card's KLPs by index; only `kind` is read. */
   klps: { kind: string }[]
   /** Side A — DeepSeek. */
   a: CardTopicProposal
   /** Side B — Gemini. */
   b: CardTopicProposal
-  /** Normalized names already minted elsewhere in the run (leaves and edge
-   * endpoints of other cards). A DeepSeek-only context survives if it is here. */
+  /** Normalized names already minted elsewhere in the run. */
   runVocabulary?: Set<string>
 }
 
 export interface Verdict {
   klpRef: number
   conflictIndex: number
-  sameConcept: boolean
+  /** name_conflict */
+  sameConcept?: boolean
   prefer?: 'a' | 'b'
-  strength?: 'clear' | 'slight'
+  /** name_conflict: would a careful expert accept the OTHER mapping too? */
+  otherAcceptable?: boolean
+  /** edge_align: pairs (index into aEdges, index into bEdges) that are the same link. */
+  sameLinks?: { a: number; b: number }[]
+  /** extra_context: is the A-only context a distinct additional concept? */
+  distinct?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -237,7 +248,6 @@ interface SideView {
   edges: EdgeDraft[]
   contexts: string[]
   selfDup: boolean
-  shape?: 'leaf' | 'edge'
 }
 
 function viewSide(p: CardTopicProposal, ref: number, label: 'a' | 'b', notes: string[]): SideView {
@@ -246,9 +256,6 @@ function viewSide(p: CardTopicProposal, ref: number, label: 'a' | 'b', notes: st
   const leafName = leaves[0]?.name
   const edges = p.relations.filter((r) => r.klpRef === ref).map(({ from, to, type }) => ({ from, to, type }))
   const rawCtx = p.contexts.filter((c) => c.klpRef === ref).map((c) => c.concept)
-  // Self-duplicate purge: a context that names the model's own leaf or edge
-  // endpoint on the same KLP is a mislabel, and the owner's read is that the
-  // point probably wants an edge. Drop the context, remember the suspicion.
   const own = new Set<string>()
   if (leafName) own.add(normalizeName(leafName))
   for (const e of edges) own.add(normalizeName(e.from)), own.add(normalizeName(e.to))
@@ -258,30 +265,46 @@ function viewSide(p: CardTopicProposal, ref: number, label: 'a' | 'b', notes: st
     if (own.has(normalizeName(c))) {
       selfDup = true
       notes.push(`klp ${ref}: purge:self-dup side ${label} context "${c}"`)
+    } else if (isContainerName(c)) {
+      notes.push(`klp ${ref}: drop:container-context side ${label} "${c}"`)
     } else contexts.push(c)
   }
-  let shape: SideView['shape']
-  if (edges.length > 0) {
-    shape = 'edge'
-    if (leafName) notes.push(`klp ${ref}: side ${label} emitted both a leaf and an edge; counted as edge`)
-  } else if (leafName) shape = 'leaf'
-  return { leafName: shape === 'leaf' ? leafName : undefined, edges, contexts, selfDup, shape }
+  return { leafName, edges, contexts, selfDup }
 }
 
 function edgeKey(e: EdgeDraft): string {
   return `${normalizeName(e.from)}|${normalizeName(e.to)}`
 }
 
+function edgeHasContainer(e: EdgeDraft): boolean {
+  return isContainerName(e.from) || isContainerName(e.to)
+}
+
 // ---------------------------------------------------------------------------
 // Reconcile
 // ---------------------------------------------------------------------------
 
+interface LeafPick {
+  name: string
+  reason: string
+  source: Source
+  kind: string
+}
+
 interface Working {
-  leafByRef: Map<number, { name: string; reason: string; source: Source }>
+  leafByRef: Map<number, LeafPick>
   edges: MergedEdge[]
   contexts: MergedContext[]
   conflicts: Conflict[]
   notes: string[]
+}
+
+function pushConflict(w: Working, c: Omit<Conflict, 'conflictIndex'>): void {
+  w.conflicts.push({ ...c, conflictIndex: w.conflicts.length })
+}
+
+function addEdge(w: Working, ref: number, e: EdgeDraft, reason: string, source: Source): void {
+  w.edges.push({ ...e, klpRef: ref, reason, source, containerEndpoint: edgeHasContainer(e) })
 }
 
 export function reconcileProposals(input: ReconcileInput): MergedProposal {
@@ -290,53 +313,51 @@ export function reconcileProposals(input: ReconcileInput): MergedProposal {
   const pendingContexts: { ref: number; concept: string; source: 'a' | 'b' }[] = []
 
   for (let ref = 0; ref < klps.length; ref++) {
-    const kind = klps[ref].kind as KlpKind
-    const prior = EXPECTED_SHAPE[kind] ?? 'either'
+    const kind = klps[ref].kind
+    const prior = EXPECTED_SHAPE[kind as KlpKind] ?? 'either'
     const va = viewSide(a, ref, 'a', w.notes)
     const vb = viewSide(b, ref, 'b', w.notes)
     for (const c of va.contexts) pendingContexts.push({ ref, concept: c, source: 'a' })
     for (const c of vb.contexts) pendingContexts.push({ ref, concept: c, source: 'b' })
 
-    if (!va.shape && !vb.shape) {
+    const anyEdge = va.edges.length > 0 || vb.edges.length > 0
+    const anyLeaf = !!va.leafName || !!vb.leafName
+    if (!anyEdge && !anyLeaf) {
       w.notes.push(`klp ${ref}: uncovered by both models`)
       continue
     }
-    if (!va.shape || !vb.shape) {
-      const v = va.shape ? va : vb
-      const src: Source = va.shape ? 'a' : 'b'
-      takeSide(w, ref, v, src, 'rule:only-coverage')
-      continue
-    }
 
-    if (va.shape === vb.shape) {
-      if (va.shape === 'leaf') reconcileLeafNames(w, ref, kind, va.leafName!, vb.leafName!)
-      else reconcileEdges(w, ref, kind, va.edges, vb.edges)
-      continue
-    }
+    // ---- Edges: union with same-link replacement by B. ----
+    if (anyEdge) reconcileEdges(w, ref, kind, va.edges, vb.edges)
 
-    // Split: one leaf, one edge.
-    const leafSide = va.shape === 'leaf' ? va : vb
-    const edgeSide = va.shape === 'edge' ? va : vb
-    const edgeSrc: Source = va.shape === 'edge' ? 'a' : 'b'
-    if (leafSide.selfDup) {
-      takeSide(w, ref, edgeSide, edgeSrc, 'rule:edge-wins-self-dup')
-    } else if (prior === 'edge' || prior === 'either') {
-      takeSide(w, ref, edgeSide, edgeSrc, 'rule:edge-wins-by-kind')
-    } else {
-      w.conflicts.push({
-        klpRef: ref,
-        conflictIndex: w.conflicts.length,
-        kind: 'kind_conflict',
-        klpKind: kind,
-        a: va.shape === 'leaf' ? { shape: 'leaf', name: va.leafName } : { shape: 'edge', edges: va.edges },
-        b: vb.shape === 'leaf' ? { shape: 'leaf', name: vb.leafName } : { shape: 'edge', edges: vb.edges },
-      })
+    // ---- Leaf: survives beside edges only for the rule-3 definition case —
+    // a `definition` KLP whose leaf IS the statement. Any other leaf loses to
+    // an edge (type priority: edge > context > leaf). ----
+    if (anyLeaf) {
+      const statementDefinition =
+        kind === 'definition' && [va.leafName, vb.leafName].some((n) => n && isContainerName(n))
+      // Type priority settles a PURE difference: one side said only-leaf, the
+      // other only-edge. If either side emitted BOTH a leaf and an edge, the
+      // larger-count rule applies instead — the leaf is reconciled (Gemini's
+      // replaces DeepSeek's, same type) and the edges are kept beside it.
+      const aOnlyLeaf = !!va.leafName && va.edges.length === 0
+      const bOnlyLeaf = !!vb.leafName && vb.edges.length === 0
+      const aOnlyEdge = !va.leafName && va.edges.length > 0
+      const bOnlyEdge = !vb.leafName && vb.edges.length > 0
+      const pureSplit = (aOnlyLeaf && bOnlyEdge) || (bOnlyLeaf && aOnlyEdge)
+      if (anyEdge && pureSplit && !statementDefinition) {
+        const dropped = [va.leafName && `A "${va.leafName}"`, vb.leafName && `B "${vb.leafName}"`].filter(Boolean).join(', ')
+        w.notes.push(
+          `klp ${ref}: rule:edge-priority dropped leaf ${dropped}` +
+            (prior === 'leaf' ? ` (kind_conflict: ${kind} expects a leaf)` : ''),
+        )
+      } else {
+        reconcileLeaf(w, ref, kind, va, vb)
+      }
     }
   }
 
-  // Contexts: both -> keep; Gemini -> keep; DeepSeek-only -> keep iff already
-  // in the vocabulary (this card's merged names or the run's). A context that
-  // names the KLP's own merged leaf is a cross-model self-dup and is dropped.
+  // ---- Contexts: union, B replaces same-name, A-only extras confirmed. ----
   const vocab = new Set<string>(input.runVocabulary ?? [])
   for (const l of w.leafByRef.values()) vocab.add(normalizeName(l.name))
   for (const e of w.edges) vocab.add(normalizeName(e.from)), vocab.add(normalizeName(e.to))
@@ -344,7 +365,6 @@ export function reconcileProposals(input: ReconcileInput): MergedProposal {
   for (const c of pendingContexts) {
     const key = `${c.ref}|${normalizeName(c.concept)}`
     const e = seen.get(key) ?? { ref: c.ref, concept: c.concept, sources: new Set() }
-    // Prefer Gemini's spelling when both wrote it.
     if (c.source === 'b') e.concept = c.concept
     e.sources.add(c.source)
     seen.set(key, e)
@@ -359,7 +379,15 @@ export function reconcileProposals(input: ReconcileInput): MergedProposal {
     if (e.sources.size === 2) w.contexts.push({ klpRef: e.ref, concept: e.concept, reason: 'rule:ctx-both', source: 'both' })
     else if (e.sources.has('b')) w.contexts.push({ klpRef: e.ref, concept: e.concept, reason: 'rule:ctx-gemini', source: 'b' })
     else if (vocab.has(n)) w.contexts.push({ klpRef: e.ref, concept: e.concept, reason: 'rule:ctx-in-vocab', source: 'a' })
-    else w.notes.push(`klp ${e.ref}: drop:ds-only-novel context "${e.concept}"`)
+    else {
+      // A-only and new: kept unless the judge says it restates the point.
+      const distinctFrom = [
+        ...(ownLeaf ? [ownLeaf.name] : []),
+        ...w.edges.filter((x) => x.klpRef === e.ref).map((x) => `${x.from} -> ${x.to}`),
+        ...w.contexts.filter((x) => x.klpRef === e.ref).map((x) => x.concept),
+      ]
+      pushConflict(w, { klpRef: e.ref, kind: 'extra_context', klpKind: klps[e.ref].kind, concept: e.concept, distinctFrom })
+    }
   }
 
   const parent = pickShorter(a.parent, b.parent)
@@ -374,25 +402,39 @@ export function reconcileProposals(input: ReconcileInput): MergedProposal {
   }
 }
 
-function takeSide(w: Working, ref: number, v: SideView, source: Source, reason: string): void {
-  if (v.shape === 'leaf') w.leafByRef.set(ref, { name: v.leafName!, reason, source })
-  else for (const e of v.edges) w.edges.push({ ...e, klpRef: ref, reason, source })
-}
-
-function reconcileLeafNames(w: Working, ref: number, kind: string, aName: string, bName: string): void {
+function reconcileLeaf(w: Working, ref: number, kind: string, va: SideView, vb: SideView): void {
+  const aName = va.leafName
+  const bName = vb.leafName
+  if (aName && !bName) return void w.leafByRef.set(ref, { name: aName, reason: 'rule:only-coverage', source: 'a', kind })
+  if (bName && !aName) return void w.leafByRef.set(ref, { name: bName, reason: 'rule:only-coverage', source: 'b', kind })
+  if (!aName || !bName) return
   if (sameConceptByRule(aName, bName)) {
     const pick = pickShorter(aName, bName)
-    w.leafByRef.set(ref, { name: pick.name, reason: pick.reason, source: normalizeName(aName) === normalizeName(bName) ? 'both' : pick.source })
+    w.leafByRef.set(ref, {
+      name: pick.name,
+      reason: pick.reason,
+      source: normalizeName(aName) === normalizeName(bName) ? 'both' : pick.source,
+      kind,
+    })
     return
   }
-  w.conflicts.push({
-    klpRef: ref,
-    conflictIndex: w.conflicts.length,
-    kind: 'name_conflict',
-    klpKind: kind,
-    a: { shape: 'leaf', name: aName },
-    b: { shape: 'leaf', name: bName },
-  })
+  // The overly-broad check, as a rule: a container loses to a non-container
+  // without a call. The rule-3 exception is its mirror image: on a
+  // `definition` KLP the statement IS the subject, so the statement wins over
+  // the noun the other model happened to mention ("income statement" over
+  // "net income" for "the income statement captures profitability...").
+  const ca = isContainerName(aName)
+  const cb = isContainerName(bName)
+  if (ca !== cb) {
+    const containerWins = kind === 'definition'
+    const reason = containerWins ? 'rule:statement-definition' : 'rule:avoid-container'
+    const pickA = ca === containerWins
+    w.leafByRef.set(ref, pickA
+      ? { name: aName, reason, source: 'a', kind }
+      : { name: bName, reason, source: 'b', kind })
+    return
+  }
+  pushConflict(w, { klpRef: ref, kind: 'name_conflict', klpKind: kind, aName, bName })
 }
 
 function reconcileEdges(w: Working, ref: number, kind: string, ea: EdgeDraft[], eb: EdgeDraft[]): void {
@@ -404,27 +446,29 @@ function reconcileEdges(w: Working, ref: number, kind: string, ea: EdgeDraft[], 
     const y = unmatchedB[j]
     unmatchedB.splice(j, 1)
     unmatchedA.splice(unmatchedA.indexOf(x), 1)
-    if (x.type === y.type) w.edges.push({ ...y, klpRef: ref, reason: 'rule:edge-both', source: 'both' })
-    else w.edges.push({ ...y, klpRef: ref, reason: 'rule:type-gemini', source: 'b' })
+    if (x.type === y.type) addEdge(w, ref, y, 'rule:edge-both', 'both')
+    else addEdge(w, ref, y, 'rule:type-gemini', 'b')
   }
   if (unmatchedA.length > 0 && unmatchedB.length > 0) {
-    w.conflicts.push({
-      klpRef: ref,
-      conflictIndex: w.conflicts.length,
-      kind: 'edge_conflict',
-      klpKind: kind,
-      a: { shape: 'edge', edges: unmatchedA },
-      b: { shape: 'edge', edges: unmatchedB },
-    })
+    // One-to-one and one side has a container endpoint the other lacks: the
+    // overly-broad check settles it without a call.
+    if (unmatchedA.length === 1 && unmatchedB.length === 1) {
+      const ca = edgeHasContainer(unmatchedA[0])
+      const cb = edgeHasContainer(unmatchedB[0])
+      if (ca !== cb) {
+        if (ca) addEdge(w, ref, unmatchedB[0], 'rule:avoid-container-endpoint', 'b')
+        else addEdge(w, ref, unmatchedA[0], 'rule:avoid-container-endpoint', 'a')
+        return
+      }
+    }
+    pushConflict(w, { klpRef: ref, kind: 'edge_align', klpKind: kind, aEdges: unmatchedA, bEdges: unmatchedB })
     return
   }
-  for (const e of unmatchedB) w.edges.push({ ...e, klpRef: ref, reason: 'rule:gemini-extra-edge', source: 'b' })
-  for (const e of unmatchedA) w.edges.push({ ...e, klpRef: ref, reason: 'rule:ds-extra-edge', source: 'a' })
+  for (const e of unmatchedB) addEdge(w, ref, e, 'rule:gemini-extra-edge', 'b')
+  for (const e of unmatchedA) addEdge(w, ref, e, 'rule:ds-extra-edge', 'a')
 }
 
-/** KLPs whose merged names coincide share one leaf — this is where a fused
- * leaf can legitimately appear, from two models each naming one KLP. */
-function regroupLeaves(leafByRef: Map<number, { name: string; reason: string; source: Source }>): MergedLeaf[] {
+function regroupLeaves(leafByRef: Map<number, LeafPick>): MergedLeaf[] {
   const byName = new Map<string, MergedLeaf>()
   for (const [ref, l] of [...leafByRef.entries()].sort((x, y) => x[0] - y[0])) {
     const key = normalizeName(l.name)
@@ -432,9 +476,18 @@ function regroupLeaves(leafByRef: Map<number, { name: string; reason: string; so
     if (existing) {
       existing.klpRefs.push(ref)
       if (wordCount(l.name) < wordCount(existing.name)) existing.name = l.name
+      if (l.kind !== 'definition') existing.containerAllowed = false
       continue
     }
-    byName.set(key, { name: l.name, klpRefs: [ref], reason: l.reason, source: l.source, container: isContainerName(l.name) })
+    const container = isContainerName(l.name)
+    byName.set(key, {
+      name: l.name,
+      klpRefs: [ref],
+      reason: l.reason,
+      source: l.source,
+      container,
+      containerAllowed: container && l.kind === 'definition',
+    })
   }
   return [...byName.values()]
 }
@@ -444,50 +497,84 @@ function regroupLeaves(leafByRef: Map<number, { name: string; reason: string; so
 // ---------------------------------------------------------------------------
 
 /**
- * Resolves the judge's verdicts into the merged proposal. The WEIGHTING lives
- * here, not in the judge: Gemini wins unless the judge prefers DeepSeek and
- * says so clearly. A missing verdict (call failed, item skipped) resolves to
- * Gemini and is written to `notes` — a silent fallback would be
- * indistinguishable from a judgement.
+ * Resolves the judge's verdicts. The WEIGHTING lives here, not in the judge:
+ *  - name_conflict: same concept -> shorter; else A wins only if the judge
+ *    prefers A AND says B's mapping would be rejected outright. Missing
+ *    verdict -> B (`fallback:gemini`).
+ *  - edge_align: B's edge replaces the A edge the judge says is the same link;
+ *    every other edge on both sides is kept. Missing verdict -> keep all
+ *    (`fallback:keep-both`), because nothing A adds is dropped for being extra.
+ *  - extra_context: kept unless the judge says it restates. Missing verdict ->
+ *    kept (`fallback:keep-extra`).
+ * Every fallback is written to `notes`.
  */
 export function applyVerdicts(merged: MergedProposal, verdicts: Verdict[]): MergedProposal {
-  const leafByRef = new Map<number, { name: string; reason: string; source: Source }>()
-  for (const l of merged.leaves) for (const ref of l.klpRefs) leafByRef.set(ref, { name: l.name, reason: l.reason, source: l.source })
-  const edges = [...merged.relations]
-  const notes = [...merged.notes]
+  const leafByRef = new Map<number, LeafPick>()
+  for (const l of merged.leaves) for (const ref of l.klpRefs) {
+    leafByRef.set(ref, { name: l.name, reason: l.reason, source: l.source, kind: l.containerAllowed ? 'definition' : 'other' })
+  }
+  const w: Working = { leafByRef, edges: [...merged.relations], contexts: [...merged.contexts], conflicts: [], notes: [...merged.notes] }
 
   for (const c of merged.conflicts) {
     const v = verdicts.find((x) => x.klpRef === c.klpRef && x.conflictIndex === c.conflictIndex)
-    let side: 'a' | 'b'
-    let reason: string
-    if (!v) {
-      side = 'b'
-      reason = 'fallback:gemini'
-      notes.push(`klp ${c.klpRef}: fallback:gemini — no verdict for ${c.kind}`)
-    } else if (v.sameConcept && c.kind === 'name_conflict') {
-      const pick = pickShorter(c.a.name!, c.b.name!)
-      side = pick.source === 'a' ? 'a' : 'b'
-      reason = 'judge:same-concept→shorter'
-    } else if (v.sameConcept) {
-      side = 'b'
-      reason = 'judge:same-concept→gemini'
-    } else if (v.prefer === 'a' && v.strength === 'clear') {
-      side = 'a'
-      reason = 'judge:ds-clear'
-    } else {
-      side = 'b'
-      reason = 'judge:gemini-weighted'
+    if (c.kind === 'name_conflict') {
+      let pick: LeafPick
+      if (!v) {
+        pick = { name: c.bName!, reason: 'fallback:gemini', source: 'b', kind: c.klpKind }
+        w.notes.push(`klp ${c.klpRef}: fallback:gemini — no verdict for name_conflict`)
+      } else if (v.sameConcept) {
+        const p = pickShorter(c.aName!, c.bName!)
+        pick = { name: p.name, reason: 'judge:same-concept→shorter', source: p.source, kind: c.klpKind }
+      } else if (v.prefer === 'a' && v.otherAcceptable === false) {
+        pick = { name: c.aName!, reason: 'judge:ds-clear', source: 'a', kind: c.klpKind }
+      } else if (v.prefer === 'a' && wordCount(c.aName!) < wordCount(c.bName!)) {
+        // "Slightly weighted toward Gemini": DeepSeek needs two of the owner's
+        // priors at once (the judge prefers it AND its name is the shorter);
+        // Gemini needs one. Measured 2026-09-11: "outright wrong" alone was
+        // 0 of 11, "clear" alone was 18 of 19 — neither is a slight lean.
+        pick = { name: c.aName!, reason: 'judge:ds-preferred+shorter', source: 'a', kind: c.klpKind }
+      } else {
+        pick = { name: c.bName!, reason: 'judge:gemini-weighted', source: 'b', kind: c.klpKind }
+      }
+      w.leafByRef.set(c.klpRef, pick)
+    } else if (c.kind === 'edge_align') {
+      const aE = c.aEdges ?? []
+      const bE = c.bEdges ?? []
+      if (!v) {
+        w.notes.push(`klp ${c.klpRef}: fallback:keep-both — no verdict for edge_align`)
+        for (const e of bE) addEdge(w, c.klpRef, e, 'fallback:keep-both', 'b')
+        for (const e of aE) addEdge(w, c.klpRef, e, 'fallback:keep-both', 'a')
+        continue
+      }
+      const replacedA = new Set<number>()
+      const usedB = new Set<number>()
+      for (const link of v.sameLinks ?? []) {
+        if (link.a < 0 || link.a >= aE.length || link.b < 0 || link.b >= bE.length) continue
+        if (replacedA.has(link.a) || usedB.has(link.b)) continue
+        replacedA.add(link.a)
+        usedB.add(link.b)
+        addEdge(w, c.klpRef, bE[link.b], 'judge:same-link→gemini', 'b')
+      }
+      bE.forEach((e, i) => { if (!usedB.has(i)) addEdge(w, c.klpRef, e, 'judge:distinct-extra', 'b') })
+      aE.forEach((e, i) => { if (!replacedA.has(i)) addEdge(w, c.klpRef, e, 'judge:distinct-extra', 'a') })
+    } else if (c.kind === 'extra_context') {
+      if (!v) {
+        w.contexts.push({ klpRef: c.klpRef, concept: c.concept!, reason: 'fallback:keep-extra', source: 'a' })
+        w.notes.push(`klp ${c.klpRef}: fallback:keep-extra — no verdict for extra_context "${c.concept}"`)
+      } else if (v.distinct === false) {
+        w.notes.push(`klp ${c.klpRef}: judge:extra-dropped "${c.concept}" (restates)`)
+      } else {
+        w.contexts.push({ klpRef: c.klpRef, concept: c.concept!, reason: 'judge:extra-kept', source: 'a' })
+      }
     }
-    const cand = c[side]
-    if (cand.shape === 'leaf') leafByRef.set(c.klpRef, { name: cand.name!, reason, source: side })
-    else for (const e of cand.edges ?? []) edges.push({ ...e, klpRef: c.klpRef, reason, source: side })
   }
 
   return {
     ...merged,
-    leaves: regroupLeaves(leafByRef),
-    relations: edges,
+    leaves: regroupLeaves(w.leafByRef),
+    relations: w.edges,
+    contexts: w.contexts,
     conflicts: [],
-    notes,
+    notes: w.notes,
   }
 }

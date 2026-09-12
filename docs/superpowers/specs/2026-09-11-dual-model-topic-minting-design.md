@@ -147,3 +147,39 @@ memorisation point (an authoring issue, noted for the re-authoring pass).
 2. Prompt rule 8 in the probe; `--dual`, `--cards`, judge call, JSON output.
 3. Run: the five accounting cards; then a spread of LBO (authored) + M&A (3 legacy) cards.
 4. Grid artifact v3: DeepSeek | Gemini | merged (with reasons), both card sets.
+
+## Amendment, same day, after the owner read the first 13-card merge
+
+The owner's rules, replacing sections 2-3 above where they differ. All built and pinned
+by tests in `tests/klp/topic-reconcile.test.ts`.
+
+1. **Nothing DeepSeek adds is dropped for being extra.** Per KLP the merge keeps the
+   larger count. Gemini only REPLACES DeepSeek's item of the SAME TYPE — edge for edge,
+   leaf for leaf, context for context. A DeepSeek-only extra (context, or an edge with no
+   Gemini counterpart) is confirmed by the judge as a distinct thing rather than a
+   restatement, and kept otherwise. A failed judge call KEEPS extras (`fallback:keep-extra`,
+   `fallback:keep-both`), never drops them.
+2. **Type priority when the sides differ: edge > context > leaf.** An edge always beats a
+   leaf; the `kind` prior is now a visible note (`kind_conflict`) in the merge notes, not a
+   judge trigger. Two exceptions, both agreement rather than difference: a `definition` KLP
+   whose leaf IS the statement keeps the leaf beside its mechanism edge (the rule-3
+   exception); and when BOTH models emitted a leaf AND an edge for one KLP, both are kept.
+3. **The overly-broad check always runs, as a rule.** A container name (statement, with or
+   without a word added; `leverage`, `valuation`, …) loses to a non-container without a
+   call — for leaves (`rule:avoid-container`) and for edge endpoints
+   (`rule:avoid-container-endpoint`). Container CONTEXTS are dropped outright (rule 4).
+   The mirror image on a `definition` KLP: the statement WINS over the noun the other
+   model mentioned (`rule:statement-definition`), because there the statement is the
+   subject. The prompt's rule 3 now states the exception and asks for the mechanism
+   (profitability, revenue → net income) beside the statement leaf.
+4. **"Qwen needs to be less sure."** The judge's name question gained `otherAcceptable`
+   ("would a careful expert also accept the other?"), with the prompt saying most pairs
+   are both defensible. Measured on replay: 0 of 11 said the other was unacceptable — the
+   opposite failure from "clear" on 18 of 19. So the weighting is a COMBINATION of the
+   owner's priors: DeepSeek wins a name conflict when the judge prefers it AND (Gemini's
+   is not acceptable OR DeepSeek's name is the shorter). Gemini needs one signal, DeepSeek
+   two. Edges no longer go to the judge for "more right" at all — only for ALIGNMENT
+   (which of DeepSeek's edges is the same link as Gemini's; Gemini's replaces that one).
+5. **`--replay <dual.json>`** re-runs the reconciler and judge over stored raw proposals so
+   rule changes are measured on identical inputs and cost only Qwen calls — which is how
+   the amendment was measured with the Gemini daily cap already spent.
