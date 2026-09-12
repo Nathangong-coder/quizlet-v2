@@ -486,7 +486,21 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
 
 2. **Repair the concept layer: assign topics inside authoring, and measure the grain.**
    **NEW 2026-09-09, and it jumped the queue because a probe found a live defect.** Findings:
-   `docs/ai/card-tagging-axes.md` §0 and Part C. Not yet designed.
+   `docs/ai/card-tagging-axes.md` §0 and Part C.
+
+   **2026-09-11: the DUAL-MODEL MINTING PIPELINE is designed and built as a probe, still
+   writing nothing.** Spec `docs/superpowers/specs/2026-09-11-dual-model-topic-minting-design.md`;
+   findings Parts F and G of `card-tagging-axes.md`; grids at
+   https://claude.ai/code/artifact/61511ace-d1d0-48a9-abba-e8ac81820096 (minting) and
+   https://claude.ai/code/artifact/bb78a8e9-ebaf-44bd-b589-1bebf005f80a (authoring bench).
+   DeepSeek + gemini-3.6-flash mint, `src/lib/klp/topic-reconcile.ts` merges by rule with a
+   reason on every item, qwen3.7-flash judges only the leftovers (0.77 calls/card). The
+   `kind` prior (rule 8 + `EXPECTED_SHAPE`) takes kind-consistency to 100%. **Open before
+   promotion:** (a) the judge says "clear" on 18/19 verdicts so the Gemini weighting never
+   fires - either a different judge scale or a different judge; (b) rule 3 needs an
+   exception for a KLP that DEFINES a statement; (c) the owner's gold labels on the five
+   accounting cards, which turn the grid into precision/recall. Qwen is live
+   (`KLP_DIRECT_PROVIDER=qwen`, 3.7 family only). 91 cards still have no KLPs (79 M&A).
 
    **THE DEFECT — authoring orphans a card's concept links.** Measured on the live database:
 
