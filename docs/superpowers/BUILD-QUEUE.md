@@ -11,7 +11,12 @@ write). Everything below is one command each.
    ```
    npx tsx --conditions=react-server --env-file=.env scripts/mint-topics.ts --from docs/ai/runs/2026-09-12/dual-accounting-5.json --write
    npx tsx --conditions=react-server --env-file=.env scripts/mint-topics.ts --from docs/ai/runs/2026-09-12/dual-lbo-mna-spread-8.json --write
+   npx tsx --conditions=react-server --env-file=.env scripts/mint-topics.ts --from docs/ai/runs/2026-09-12/dual-accounting-talking-43-of-68.json --write
    ```
+   The third file holds 43 merged cards (the other 25 failed on the 3.5-flash daily cap and
+   are skipped by the writer because they carry no `merged`); the five in the first file
+   overlap it and re-writing them is idempotent. Merged at scale: kind-consistent 92%,
+   container leaves 2, 0.57 judge calls/card, zero judge failures.
    Then open `/concepts` for `Accounting - "Talking"`: the dashed lines are the relation
    layer (toggle in the canvas toolbar). Endpoints the plan reports `unplaced` sit in the
    unplaced list; place them with the existing placement pass or by hand.
@@ -42,6 +47,8 @@ write). Everything below is one command each.
    ```
    `--skip N` resumes a minting run; `mint-topics` refuses a card whose KLPs changed since the
    proposal (re-mint it). Re-running the write on a card is idempotent.
+   **Where 2026-09-12 stopped:** Accounting-Talking minted 43 of 68 (resume `--skip 43`),
+   LBO 0 of 10, M&A authored 12 of 82 — every stop was a Gemini daily cap, none a failure.
 
 4. **After the corpus is written:** item 3's projection (`KlpRelation` lifted through topic
    links into `KltRelation` with provenance `projected`) is now a read-and-write over two
