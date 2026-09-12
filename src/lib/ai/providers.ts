@@ -75,6 +75,14 @@ export interface ResolveInput {
   apiKey: string;
   baseUrl?: string | null;
   model: string;
+  /**
+   * Extra JSON fields merged into every request body for the OpenAI-compatible
+   * (`custom` / `openrouter`) path, only where the SDK did not set them. Exists
+   * for endpoint-specific switches the SDK has no field for — DashScope's
+   * `enable_thinking: false`, which turns a 274-second, 12,588-reasoning-token
+   * qwen3.8-flash call into a 7-second one (measured 2026-09-12).
+   */
+  requestDefaults?: Record<string, unknown>;
 }
 
 /**
@@ -83,7 +91,7 @@ export interface ResolveInput {
  * NOTE: `createGoogle` is the v7 name — it was `createGoogleGenerativeAI`
  * before the rename. Do not "fix" it back.
  */
-export function resolveLanguageModel({ provider, apiKey, baseUrl, model }: ResolveInput): LanguageModel {
+export function resolveLanguageModel({ provider, apiKey, baseUrl, model, requestDefaults }: ResolveInput): LanguageModel {
   switch (provider) {
     case 'google':
       return createGoogle({ apiKey })(model);
@@ -134,6 +142,7 @@ export function resolveLanguageModel({ provider, apiKey, baseUrl, model }: Resol
         apiKey,
         baseURL: url,
         supportsStructuredOutputs: true,
+        ...(requestDefaults ? { fetch: withRequestDefaults(requestDefaults) } : {}),
       })(model);
     }
     default:
@@ -248,6 +257,24 @@ async function unfenceDeepSeekJson(response: Response): Promise<Response> {
     statusText: response.statusText,
     headers: response.headers,
   });
+}
+
+/**
+ * A fetch that merges `defaults` into a JSON request body where the SDK left
+ * the field unset. Same shape as `deepSeekFetch` below: a body that cannot be
+ * parsed passes through untouched, so a provider error is the provider's.
+ */
+function withRequestDefaults(defaults: Record<string, unknown>): typeof fetch {
+  return async (input, init) => {
+    if (!init?.body || typeof init.body !== 'string') return fetch(input, init);
+    try {
+      const body = JSON.parse(init.body) as Record<string, unknown>;
+      for (const [k, v] of Object.entries(defaults)) if (body[k] === undefined) body[k] = v;
+      return fetch(input, { ...init, body: JSON.stringify(body) });
+    } catch {
+      return fetch(input, init);
+    }
+  };
 }
 
 const deepSeekFetch: typeof fetch = async (input, init) => {

@@ -144,3 +144,12 @@ describe('readDirectPool', () => {
     )
   })
 })
+
+describe('QWEN_THINKING', () => {
+  it('off sends enable_thinking:false on every qwen combo; unset sends nothing', () => {
+    const off = readDirectPool({ KLP_DIRECT_PROVIDER: 'qwen', QWENCLOUD_API_KEY: 'k', QWEN_THINKING: 'off' } as unknown as NodeJS.ProcessEnv)
+    expect(comboResolveInput(off[0]).requestDefaults).toEqual({ enable_thinking: false })
+    const on = readDirectPool({ KLP_DIRECT_PROVIDER: 'qwen', QWENCLOUD_API_KEY: 'k' } as unknown as NodeJS.ProcessEnv)
+    expect(comboResolveInput(on[0])).not.toHaveProperty('requestDefaults')
+  })
+})

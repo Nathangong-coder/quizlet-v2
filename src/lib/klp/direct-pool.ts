@@ -52,6 +52,8 @@ export interface DirectCombo extends PoolCredential {
    * own endpoint. Qwen/DashScope is the first source that needs it.
    */
   baseUrl?: string
+  /** See `ResolveInput.requestDefaults`. Set by a source, never by a flag. */
+  requestDefaults?: Record<string, unknown>
 }
 
 /** Splits a comma/whitespace separated env value, dropping blanks and dupes. */
@@ -85,6 +87,7 @@ export function buildDirectPool(
   models: string[],
   provider = 'google',
   baseUrl?: string,
+  requestDefaults?: Record<string, unknown>,
 ): DirectCombo[] {
   const pool: DirectCombo[] = []
   keys.forEach((apiKey, keyIndex) => {
@@ -96,6 +99,7 @@ export function buildDirectPool(
         model,
         provider,
         ...(baseUrl ? { baseUrl } : {}),
+        ...(requestDefaults ? { requestDefaults } : {}),
         role: 'primary',
         enabled: true,
         lastUsedAt: null,
@@ -167,6 +171,8 @@ export const DIRECT_PROVIDER_SOURCES: Record<
      */
     resolveAs?: string
     baseUrl?: string
+    /** Read from the environment at pool-build time; see the qwen entry. */
+    requestDefaults?: (env: NodeJS.ProcessEnv) => Record<string, unknown> | undefined
   }
 > = {
   google: { keyVars: ['GOOGLE_API_KEYS', 'GOOGLE_API_KEY'], defaultModel: 'gemini-3.6-flash' },
@@ -187,6 +193,14 @@ export const DIRECT_PROVIDER_SOURCES: Record<
     defaultModel: 'qwen3.7-flash',
     resolveAs: 'custom',
     baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+    /**
+     * `QWEN_THINKING=off` sends DashScope's `enable_thinking: false`.
+     * qwen3.8-flash thinks by default: 274 s and 12,588 reasoning tokens on
+     * the shortest minting card, and a headers timeout on the longer ones;
+     * the same call with thinking off took 7 s (2026-09-12). Off by request
+     * rather than always, so runs measured with thinking on stay comparable.
+     */
+    requestDefaults: (env) => (env.QWEN_THINKING?.toLowerCase() === 'off' ? { enable_thinking: false } : undefined),
   },
 }
 
@@ -245,6 +259,7 @@ export function readDirectPool(
     models.length > 0 ? models : [source.defaultModel],
     source.resolveAs ?? provider,
     source.baseUrl,
+    source.requestDefaults?.(env),
   )
 }
 
@@ -261,11 +276,13 @@ export function comboResolveInput(combo: DirectCombo): {
   apiKey: string
   model: string
   baseUrl?: string
+  requestDefaults?: Record<string, unknown>
 } {
   return {
     provider: combo.provider as ProviderId,
     apiKey: combo.apiKey,
     model: combo.model,
     ...(combo.baseUrl ? { baseUrl: combo.baseUrl } : {}),
+    ...(combo.requestDefaults ? { requestDefaults: combo.requestDefaults } : {}),
   }
 }

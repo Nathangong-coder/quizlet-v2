@@ -368,3 +368,59 @@ https://claude.ai/code/artifact/bb78a8e9-ebaf-44bd-b589-1bebf005f80a. Full numbe
 KLPs/card, 7 `compound` defects); qwen3.7-flash zero defects but separation at the floor,
 one `accepts_weak`, and two cards where its OWN reference answer failed its own points
 (0.75, 0.90). gemini-3.6-flash managed one card before every key hit the daily cap.
+
+### qwen3.8-flash on all three jobs (2026-09-12)
+
+Page: https://claude.ai/code/artifact/921d7155-3711-46f8-83d6-f54165d8c93e. Same prompts, same
+cards, same code path as the models beside it.
+
+**It is a THINKING model by default, and that decides how it can be used.** On the shortest
+minting card, the default call took **274 s and 12,588 reasoning tokens** to produce the same
+four leaves and two edges that `enable_thinking: false` produced in **7.3 s**; the 8-KLP cards
+exceeded the 5-minute headers timeout three times running. `QWEN_THINKING=off` now sends
+DashScope's `enable_thinking: false` through `ResolveInput.requestDefaults` (a fetch wrapper on
+the OpenAI-compatible path, same pattern as `deepSeekFetch`). Off by request, not always, so
+runs measured with thinking on stay comparable.
+
+**Grading** — the pipeline's per-candidate grader on five answers to the $80/share M&A card
+(reference, DeepSeek's three adversaries, "IDK") against 8 KLPs, temperature 0:
+
+```
+grader                          separation  agrees w/ authoring verdicts  mean time
+qwen3.8-flash (thinking)           0.63             69%                     63.2 s
+qwen3.8-flash (thinking off)       0.56             75%                     11.2 s
+qwen3.7-flash                      0.44             75%                     37.0 s
+deepseek-v4-flash                  0.69             78%                      2.6 s
+gemini-3.6-flash                   0.44             81%                      8.6 s
+```
+
+Every grader passes the basic test (reference 1.00, IDK 0.00). qwen3.8 is the strictest
+Qwen on the memorized-template answer (0.38 / 0.44 against 3.7's 0.56), which is where its
+separation comes from; thinking on buys 0.07 of separation for 6x the time. DeepSeek stays
+the grader: strictest, fastest, most agreement — and note it authored these adversaries, so
+its agreement is partly self-agreement.
+
+**Topic minting** (13 cards, thinking off):
+
+```
+model              kind-consistent  leaves  edges  contexts  container-leaves  self-dups  name-words
+deepseek-v4-flash    97% (60/62)      38     24       32           1              2          3.07
+gemini-3.6-flash     95% (59/62)      40     22       20           0              0          2.69
+qwen3.8-flash        85% (52/61)      36     25       12           0              0          2.89
+```
+
+qwen3.8 is the least kind-consistent by a margin: `causal`/`condition` KLPs became leaves on
+the LBO cards (six of the nine misses), one KLP left uncovered, and on the linkage card it
+emitted a leaf AND an edge for five of six KLPs — the rule-6 violation — while fusing the
+accounting equation into a `balance sheet` leaf. It also used `cash flow statement` and
+`balance sheet` as edge ENDPOINTS. Fewest contexts of the three (12). Naming is plain and
+close to Gemini's length. Nothing here recommends it over DeepSeek + Gemini as the minting pair.
+
+**Authoring** (3 M&A cards, thinking off): 5 KLPs per card on every card, separations
+0.60 / 0.40 / 0.70 (mean 0.57), reference 1.00 on all three (qwen3.7 had failed its own
+reference on two), one `accepts_weak`, 4 defects (`count`, `disposition`,
+`not_self_contained`, `abstraction_spread`), 3.7 relations per card with one cycle dropped.
+Better than qwen3.7 as an author; still below gemini-3.5-flash on separation and reference.
+
+**Verdict:** a usable grader only with thinking off, and even then 4x slower than DeepSeek;
+not a minting candidate; a middling author. It stays out of every rotation.
