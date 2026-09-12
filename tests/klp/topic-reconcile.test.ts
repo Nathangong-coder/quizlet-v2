@@ -175,30 +175,63 @@ describe('reconcileProposals — edges', () => {
     expect(m.conflicts[0].aEdges).toHaveLength(2)
   })
 
-  it('A-only extra edges are kept as extras when B has none unmatched', () => {
+  it('same type on both sides compresses to min(nA, nB): A 2 edges vs B 1 -> 1 edge', () => {
     const a = { ...empty(), relations: [edge(0, 'x', 'y'), edge(0, 'y', 'z')] }
     const b = { ...empty(), relations: [edge(0, 'x', 'y')] }
     const m = reconcileProposals({ klps: kinds('causal'), a, b })
-    expect(m.relations.map((e) => e.reason).sort()).toEqual(['rule:ds-extra-edge', 'rule:edge-both'])
+    expect(m.relations.map((e) => e.reason)).toEqual(['rule:edge-both'])
+    expect(m.notes.some((n) => n.includes('compress:edge'))).toBe(true)
+  })
+
+  it('A-only edges are an EXTRA only when B has no edges at all', () => {
+    const a = { ...empty(), leaves: [], relations: [edge(0, 'x', 'y'), edge(0, 'y', 'z')] }
+    const b = { ...empty(), leaves: [leaf('thing', 0)] }
+    const m = reconcileProposals({ klps: kinds('causal'), a, b })
+    expect(m.relations).toHaveLength(2)
+    expect(m.relations.every((e) => e.reason === 'rule:ds-extra-edge')).toBe(true)
+  })
+
+  it('1 vs 1 different links compress to ONE, chosen by KLP vocabulary (the IRR card)', () => {
+    const text = "Compromised operational investment limits the firm's ability to drive the EBITDA growth necessary to offset the interest burden."
+    const a = { ...empty(), relations: [edge(0, 'operational underinvestment', 'ebitda growth', 'causes')] }
+    const b = { ...empty(), relations: [edge(0, 'capital expenditures', 'operating earnings growth', 'causes')] }
+    const m0 = reconcileProposals({ klps: [{ kind: 'causal', text }], a, b })
+    expect(m0.conflicts[0]).toMatchObject({ kind: 'edge_align', targetCount: 1 })
+    const m = applyVerdicts(m0, [{ klpRef: 0, conflictIndex: 0, sameLinks: [] }], [text])
+    expect(m.relations).toHaveLength(1)
+    expect(m.relations[0]).toMatchObject({ from: 'operational underinvestment', source: 'a' })
   })
 })
 
 describe('reconcileProposals — contexts', () => {
-  it('both → kept; Gemini-only → kept; A-only in vocabulary → kept; A-only novel → judge; container → dropped', () => {
+  it('both → kept; A-only novel → judge; A-only in vocabulary → kept; container → dropped', () => {
     const a = {
       ...empty(),
       leaves: [leaf('assets', 0), leaf('liabilities', 1), leaf('equity', 2)],
       contexts: [ctx(0, 'future economic benefits'), ctx(1, 'liability settlement'), ctx(2, 'equity rollforward'), ctx(0, 'balance sheet')],
     }
-    const b = {
-      ...empty(),
-      leaves: [leaf('assets', 0), leaf('liabilities', 1), leaf('equity', 2)],
-      contexts: [ctx(2, 'equity rollforward'), ctx(1, 'external claims')],
-    }
+    const b = { ...empty(), leaves: [leaf('assets', 0), leaf('liabilities', 1), leaf('equity', 2)], contexts: [ctx(2, 'equity rollforward')] }
     const m = reconcileProposals({ klps: kinds('definition', 'definition', 'definition'), a, b, runVocabulary: new Set([normalizeName('liability settlement')]) })
-    expect(m.contexts.map((c) => c.concept).sort()).toEqual(['equity rollforward', 'external claims', 'liability settlement'])
+    expect(m.contexts.map((c) => c.concept).sort()).toEqual(['equity rollforward', 'liability settlement'])
     expect(m.conflicts).toEqual([expect.objectContaining({ kind: 'extra_context', concept: 'future economic benefits' })])
     expect(m.notes.some((n) => n.includes('drop:container-context'))).toBe(true)
+  })
+
+  it('contexts on both sides compress to min-count by KLP vocabulary, tie to Gemini', () => {
+    const text = 'Debt paydown using cash flows shifts the capital structure, increasing the equity component at exit.'
+    const a = { ...empty(), leaves: [leaf('debt paydown', 0)], contexts: [ctx(0, 'free cash flow generation')] }
+    const b = { ...empty(), leaves: [leaf('debt paydown', 0)], contexts: [ctx(0, 'capital structure optimization')] }
+    const m = reconcileProposals({ klps: [{ kind: 'mechanism', text }], a, b })
+    expect(m.contexts.map((c) => c.concept)).toEqual(['capital structure optimization'])
+    expect(m.notes.some((n) => n.includes('compress:context'))).toBe(true)
+  })
+
+  it("a context that names the model's own EDGE ENDPOINT is not a self-dup (the linkage card)", () => {
+    const a = { ...empty(), relations: [edge(0, 'financing cash flow', 'debt and equity', 'causes')], contexts: [ctx(0, 'financing cash flow')] }
+    const b = { ...empty(), relations: [edge(0, 'debt and equity transactions', 'financing cash flow', 'causes')], contexts: [ctx(0, 'financing cash flow')] }
+    const m = reconcileProposals({ klps: kinds('causal'), a, b })
+    expect(m.contexts.map((c) => c.concept)).toEqual(['financing cash flow'])
+    expect(m.notes.some((n) => n.includes('purge:self-dup'))).toBe(false)
   })
 
   it('a self-duplicating context is purged', () => {
@@ -223,7 +256,7 @@ describe('applyVerdicts', () => {
   it('DeepSeek wins a name when preferred AND (Gemini\'s is not acceptable OR its own name is shorter)', () => {
     // nameCase: A "depreciation" (1 word) vs B "non-cash expense add-backs" (3 words) — A is shorter.
     const soft = applyVerdicts(nameCase(), [{ klpRef: 0, conflictIndex: 0, sameConcept: false, prefer: 'a', otherAcceptable: true }])
-    expect(soft.leaves[0]).toMatchObject({ name: 'depreciation', reason: 'judge:ds-preferred+shorter' })
+    expect(soft.leaves[0]).toMatchObject({ name: 'depreciation', reason: 'judge:ds-preferred+prior' })
     const hard = applyVerdicts(nameCase(), [{ klpRef: 0, conflictIndex: 0, sameConcept: false, prefer: 'a', otherAcceptable: false }])
     expect(hard.leaves[0]).toMatchObject({ name: 'depreciation', reason: 'judge:ds-clear' })
     // Preferred but LONGER and acceptable either way: Gemini keeps it.
@@ -242,19 +275,32 @@ describe('applyVerdicts', () => {
     expect(m.notes.some((n) => n.includes('fallback'))).toBe(true)
   })
 
-  it('edge alignment: B replaces the A edge it matches; every other edge survives', () => {
+  it('edge alignment: min-count wins — A 2 vs B 1 yields ONE edge, the aligned pair resolved by KLP vocabulary', () => {
+    const text = 'Liabilities and equity together fund the acquisition of productive assets.'
     const m0 = reconcileProposals({
-      klps: kinds('causal'),
+      klps: [{ kind: 'causal', text }],
       a: { ...empty(), relations: [edge(0, 'liabilities', 'assets', 'causes'), edge(0, 'equity', 'assets', 'causes')] },
       b: { ...empty(), relations: [edge(0, 'liabilities and equity', 'assets', 'requires')] },
     })
-    const m = applyVerdicts(m0, [{ klpRef: 0, conflictIndex: 0, sameLinks: [{ a: 0, b: 0 }] }])
-    expect(m.relations).toHaveLength(2)
-    expect(m.relations.find((e) => e.from === 'liabilities and equity')).toMatchObject({ type: 'requires', reason: 'judge:same-link→gemini' })
-    expect(m.relations.find((e) => e.from === 'equity')).toMatchObject({ reason: 'judge:distinct-extra' })
-    const none = applyVerdicts(m0, [])
-    expect(none.relations).toHaveLength(3)
-    expect(none.relations.every((e) => e.reason === 'fallback:keep-both')).toBe(true)
+    expect(m0.conflicts[0]).toMatchObject({ kind: 'edge_align', targetCount: 1 })
+    const m = applyVerdicts(m0, [{ klpRef: 0, conflictIndex: 0, sameLinks: [{ a: 0, b: 0 }] }], [text])
+    expect(m.relations).toHaveLength(1)
+    // Both aligned edges score 1.0 on the KLP text -> tie -> Gemini.
+    expect(m.relations[0]).toMatchObject({ from: 'liabilities and equity', reason: 'judge:same-link→gemini' })
+    const none = applyVerdicts(m0, [], [text])
+    expect(none.relations).toHaveLength(1)
+    expect(none.relations[0].reason).toBe('fallback:klp-vocabulary')
+  })
+
+  it('same concept: KLP vocabulary beats shortness (debt paydown over deleveraging)', () => {
+    const text = 'Debt paydown using cash flows shifts the capital structure, increasing the equity component of the value at exit.'
+    const m0 = reconcileProposals({
+      klps: [{ kind: 'mechanism', text }],
+      a: { ...empty(), leaves: [leaf('debt paydown', 0)] },
+      b: { ...empty(), leaves: [leaf('deleveraging', 0)] },
+    })
+    expect(m0.conflicts).toHaveLength(0)
+    expect(m0.leaves[0]).toMatchObject({ name: 'debt paydown', reason: 'rule:klp-vocabulary', source: 'a' })
   })
 
   it('an A-only extra context is kept unless the judge says it restates; missing verdict keeps it', () => {

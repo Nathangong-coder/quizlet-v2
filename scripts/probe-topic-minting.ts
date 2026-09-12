@@ -613,7 +613,7 @@ async function runDual(
           progress(`     judge failed: ${rec.judgeError.slice(0, 90)}`)
         }
       } else rec.judgeError = 'judge pool empty'
-      final = applyVerdicts(merged, rec.verdicts)
+      final = applyVerdicts(merged, rec.verdicts, card.klps.map((k) => k.text))
     }
     rec.merged = final
     for (const l of final.leaves) runVocabulary.add(normalizeName(l.name))

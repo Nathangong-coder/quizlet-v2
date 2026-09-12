@@ -728,3 +728,40 @@ same-type leaf and the edge stays as the extra.
 
 **Still open, unchanged from Part G:** the owner's gold labels on the five accounting
 cards. Every number above is a property of the merge; none says whether a name is right.
+
+---
+
+## Part I - third merge: KLP vocabulary first, same-type surplus compressed, 2026-09-11
+
+The owner read the second merge and named four cells (spec amendment 2). Traced through
+the JSON, two of the three removals were MY rule, not the judge: `financing cash flow`
+(linkage card) and `operating cash flow` (cash flow statement card) were purged as
+"self-duplicates" because they matched the model's own EDGE ENDPOINT - the owner's rule
+was about a context matching the model's own LEAF. The third, `debt paydown` ->
+`deleveraging`, was "shorter wins" overriding the key point's own words. The fourth was
+the IRR card keeping two rival edges for one point.
+
+Fixes, all as rules with tests: `klpFidelity` (share of a name's words present in the KLP
+text) decides before shortness and before the judge; same-type items compress to
+`min(nA, nB)` with fidelity choosing the survivors; self-dup is leaf-only. Replayed on the
+same 13 raw proposals:
+
+```
+                          DS-sourced  Gemini-sourced  both  by-vocabulary  compressed  judge failures
+second merge (Part H)         ~15          ~50         31       -              -            0
+third merge  (Part I)          35           36         31       9             19            0
+```
+
+The four named cells now read: IRR [2] one edge (`operational underinvestment --causes-->
+ebitda growth`, DeepSeek's, word for word from the point); CFS [2] one edge and the
+`operating cash flow` context kept; linkage [4] `financing cash flow` kept (both models had
+it); value creation [3] `debt paydown` by `rule:klp-vocabulary`.
+
+**An authoring finding the owner raised on the value-creation card, recorded for the
+re-authoring pass (queue item 4):** an ENUMERATION card ("what are the main sources of
+value creation in an LBO (5)?") should carry the five enumerated items as knowledge-grain
+KLPs, each optionally with a mechanism or causal point attached - not a set of
+mechanism/causal statements with the enumeration dissolved into them. Today's KLPs on that
+card are the dissolved form, which is why its topic proposals read as a list of processes
+rather than a list of sources. This is a prompt rule for `AUTHOR_KLPS_PROMPT`, not for
+minting.

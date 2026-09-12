@@ -183,3 +183,29 @@ by tests in `tests/klp/topic-reconcile.test.ts`.
 5. **`--replay <dual.json>`** re-runs the reconciler and judge over stored raw proposals so
    rule changes are measured on identical inputs and cost only Qwen calls — which is how
    the amendment was measured with the Gemini daily cap already spent.
+
+## Amendment 2, same day, after the owner read the second merge
+
+1. **KLP VOCABULARY FIRST.** `klpFidelity(name, klpText)` — the share of a name's content
+   words that occur in the key point's own text — is computed in TypeScript and consulted
+   before shortness and before the judge: same concept → the more faithful, then the
+   shorter, then Gemini; different concepts with a fidelity gap ≥ `FIDELITY_MARGIN` (0.5) →
+   settled by rule (`rule:klp-vocabulary`). The judge is told to re-read the key point and
+   answers `klpFaithful: A | B | both | neither`. DeepSeek wins a name when preferred AND any
+   one of: the other unacceptable, its name shorter, its name the more faithful (by the
+   judge or by measurement) — `judge:ds-preferred+prior`.
+2. **"EXTRA" MEANS A TYPE THE OTHER SIDE LACKS.** When both sides produced the same type on a
+   KLP, the merge compresses to `min(nA, nB)`: exact matches first, then judge-aligned pairs
+   (the more faithful of each, tie Gemini), then the most faithful of the remainder
+   (`compress:edge` / `compress:context` in the notes). One side only → keep all, confirmed
+   by the judge as distinct when DeepSeek-only. Edge alignment (`targetCount`) replaces
+   "keep every distinct edge", which had kept both of two 1-vs-1 rival edges.
+3. **SELF-DUP IS LEAF-ONLY.** A context is purged only when it names the model's own leaf on
+   that KLP. One that names its own edge endpoint stays — that rule had silently removed
+   `financing cash flow` and `operating cash flow` in the second merge.
+4. **Judge index robustness:** the prompt states 0-based `[A0]`/`[B1]` labels; an out-of-range
+   pair is noted and ignored rather than silently dropped.
+
+Measured on the same 13 cards (replay): merged items by source DeepSeek 35 / Gemini 36 / both
+31 (the second merge was Gemini-leaning: DeepSeek won 0 of 7 names); 9 names settled by KLP
+vocabulary without a call; 19 same-type surplus items compressed; 0 judge failures.

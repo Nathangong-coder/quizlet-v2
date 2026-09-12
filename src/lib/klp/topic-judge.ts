@@ -33,6 +33,7 @@ export const JudgeVerdictSchema = z.object({
       sameConcept: z.boolean().optional(),
       prefer: z.enum(['A', 'B']).optional(),
       otherAcceptable: z.boolean().optional(),
+      klpFaithful: z.enum(['A', 'B', 'both', 'neither']).optional(),
       /** edge items: pairs of (A index, B index) that are the same link */
       sameLinks: z.array(z.object({ a: z.number().int(), b: z.number().int() })).optional(),
       /** extra items */
@@ -96,7 +97,12 @@ Answer each item with closed fields only. Do not explain.
   sameConcept — are A and B naming the SAME concept, merely worded differently?
      ("accounting equation" / "fundamental accounting equation" -> true;
       "depreciation" / "non-cash expense add-backs" -> false)
+  RE-READ THE KEY POINT'S OWN WORDS before answering the rest.
+  klpFaithful — which candidate takes its vocabulary straight from the key point, or
+     honours its idea most directly: A, B, both, or neither. A name that reuses the key
+     point's own terms beats a paraphrase or a broader synonym.
   If not the same concept: prefer — which is the more accurate node for THIS point, A or B?
+     Weigh klpFaithful heavily.
   otherAcceptable — would a careful expert ALSO accept the other one as a correct node for
      this point? Answer true unless the other is outright wrong. MOST PAIRS ARE BOTH
      DEFENSIBLE; reserve false for a mapping that misreads the point, names the wrong
@@ -104,8 +110,9 @@ Answer each item with closed fields only. Do not explain.
 
 [edges] items:
   sameLinks — list every pair {a, b} where edge [Aa] and edge [Bb] express the SAME link
-     between the same two things (wording may differ; the edge type may differ). An edge
-     with no counterpart is simply left out. Two different links are NOT a pair.
+     between the same two things (wording may differ; the edge type may differ). Use the
+     0-based numbers exactly as labelled: {a: 0, b: 1} means [A0] and [B1]. An edge with
+     no counterpart is simply left out. Two different links are NOT a pair.
 
 [extra] items:
   distinct — is the candidate context a genuinely ADDITIONAL concept for this point,
@@ -124,9 +131,11 @@ export function toVerdicts(items: JudgeItem[], parsed: z.infer<typeof JudgeVerdi
     const c = it.conflict
     const base = { klpRef: c.klpRef, conflictIndex: c.conflictIndex }
     if (c.kind === 'name_conflict') {
-      let prefer: 'a' | 'b' | undefined
-      if (v.prefer) prefer = v.prefer === 'A' ? it.aIs : it.aIs === 'a' ? 'b' : 'a'
-      out.push({ ...base, sameConcept: v.sameConcept ?? false, prefer, otherAcceptable: v.otherAcceptable })
+      const flip = (x: 'A' | 'B'): 'a' | 'b' => (x === 'A' ? it.aIs : it.aIs === 'a' ? 'b' : 'a')
+      const prefer = v.prefer ? flip(v.prefer) : undefined
+      const klpFaithful =
+        v.klpFaithful === 'A' || v.klpFaithful === 'B' ? flip(v.klpFaithful) : v.klpFaithful
+      out.push({ ...base, sameConcept: v.sameConcept ?? false, prefer, otherAcceptable: v.otherAcceptable, klpFaithful })
     } else if (c.kind === 'edge_align') {
       // The judge's {a, b} index the SHOWN A/B lists; map back to reconciler sides.
       const sameLinks = (v.sameLinks ?? []).map((p) => (it.aIs === 'a' ? { a: p.a, b: p.b } : { a: p.b, b: p.a }))
