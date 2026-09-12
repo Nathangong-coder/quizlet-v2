@@ -217,6 +217,21 @@ conclusion that a paid gateway was required.
 | **reasoning none**, strict off | 5/5 | 2.0s (2.0–2.1) | 296 | 0 |
 | **reasoning none, strict ON** | 5/5 | **2.1s** (1.9–2.3) | 311 | 0 |
 
+**WHY REASONING STAYS OFF ON DEEPSEEK — the standing decision, recorded 2026-09-12 at
+the owner's request so it is not re-litigated.** Turning reasoning on (the default, and
+any `effort` above `none` — `minimal` still spends 541-810 reasoning tokens) did not make
+the grades better: the pass rate was identical (5/5 either way) and the verdicts were not
+more discriminating. What it did do was make the output MORE VERBOSE AND WORSE — the
+reasoning bled into longer, hedged evidence text — and make every call 4.7x slower with
+non-deterministic latency (6-13 s instead of a flat 2.0 s), 13x slower under strict mode.
+For grading, which judges one stated proposition against one answer, there is nothing to
+reason about; the extra tokens are spent restating the question. `deepSeekFetch` therefore
+sends `reasoning: { effort: 'none' }` unless a caller explicitly asks otherwise, and no
+caller does. The same shape showed up on other models the same week: qwen3.8-flash's
+thinking (274 s on one minting call for the same output as 7 s without) and glm-5.3-flash's
+forced thinking (`reasoning_effort` low/high/max) — where thinking helped at all it was
+for WRITING (GLM 0.60 → 0.70 as the writer at `high`), never for grading.
+
 Three findings, and the second was genuinely surprising:
 
 1. **`reasoning: { effort: 'none' }` is a 4.7x speedup for no measured loss.**
@@ -461,7 +476,16 @@ edges and the classification, computed after the loop.
 
 ### glm-5.3-flash (Z.ai), funded 2026-09-12 — the owner's replacement for gemini-3.6-flash
 
-Page: https://claude.ai/code/artifact/8901ecef-ba2a-4af1-bb15-1116b29aeddb.
+Page: https://claude.ai/code/artifact/8901ecef-ba2a-4af1-bb15-1116b29aeddb. Authoring
+bench with a five-column default view (Gemini 3.6 flash / Gemini 3.6 flash + DeepSeek /
+GLM 5.3 flash (high) / GLM 5.3 flash (high) + DeepSeek / DeepSeek):
+https://claude.ai/code/artifact/bb78a8e9-ebaf-44bd-b589-1bebf005f80a.
+
+**Every GLM number below is `glm-5.3-flash`.** Bare `glm-5.3` exists on the endpoint and
+costs more than gemini-3.6-flash; it was probed once for existence and never run. The
+bench labels were shortened to "glm-5.3" for a while and the owner read them as the
+non-flash model — they now say `-flash` everywhere. Verified from the run records:
+`CardAuthoring.model` reads `glm-5.3-flash+deepseek-v4-flash` on every split card.
 
 **Two endpoint facts decide how it is called.** Z.ai's compatible endpoint accepts only
 `response_format: json_object` (its own docs) and IGNORES a json_schema: every schema call
@@ -493,14 +517,23 @@ leaf + `revenue --precedes--> net income` + `profitability measurement` context)
 linkage card 0 leaves and 8 clean edges. Names as short as Gemini's. `MINT_B_PROVIDER=zai
 MINT_B_MODEL=glm-5.3-flash` puts it on the Gemini side of the dual pair.
 
-**Authoring as the WRITER** (role split, DeepSeek grading, same three M&A cards):
+**Authoring as the WRITER** (role split, DeepSeek grading, same three M&A cards), plus
+GLM grading its own material for the comparison the owner asked for:
 
 ```
-writer                          KLPs/card  mean sep  min sep  reference  revised
-gemini-3.6-flash                  5.0        0.80     0.60      0.97      2 of 3
-glm-5.3-flash (default effort)    8.7        0.60     0.44      0.93      3 of 3 (all twice)
-glm-5.3-flash (reasoning high)    7.0        0.70     0.63      0.98      1 of 3
+writer / grader                                 KLPs/card  mean sep  min sep  reference  revisions
+gemini-3.6-flash writes, deepseek grades           5.0        0.80     0.60      0.97       2
+glm-5.3-flash (default) writes, deepseek grades    8.7        0.60     0.44      0.93       6
+glm-5.3-flash (high) writes, deepseek grades       7.0        0.70     0.63      0.98       2
+glm-5.3-flash (high) writes AND grades             8.3        0.68     0.61      0.98       5
+deepseek-v4-flash writes AND grades                8.3        0.63     0.50      0.98       0
 ```
+
+GLM grading itself lands near the DeepSeek-graded number (0.68 vs 0.70) but needs five
+revision rounds to get there against two — the stricter grader reaches a clean set
+faster, and self-grading is the leniency the split exists to remove. Every GLM row is
+7-9 points a card where Gemini writes 5; whether that is coverage or padding is a
+point-by-point read on the bench page.
 
 At default effort it over-writes (8.7 points a card against the six the prompt leans to)
 and needs both revision rounds on every card. At `high` it is a different writer: 0.70,
