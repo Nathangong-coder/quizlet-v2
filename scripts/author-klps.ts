@@ -175,7 +175,12 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
   // generateObject does not exist in AI SDK v7; structured output is
   // generateText + Output.object.
   async function call<T>(prompt: string, schema: z.ZodSchema<T>, who: 'writer' | 'grader' = 'grader'): Promise<T> {
-    return callWithPacingAndRetry(
+    // A quota halt must retire the combo that HIT the quota. Before this tag,
+    // a Gemini writer's daily cap retired the DeepSeek grader combo (the only
+    // one in that pool) and stopped a whole run at card 10 of 82 with the
+    // grader untouched (2026-09-12).
+    try {
+      return await callWithPacingAndRetry(
       async () => {
         // maxRetries: 0 — THE PACING LAYER OWNS RETRY, and two retry
         // authorities multiply rather than compose. The SDK's default is 2
@@ -203,6 +208,10 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
           ),
       },
     )
+    } catch (err) {
+      if (err instanceof RunHaltedError) (err as RunHaltedError & { role?: 'writer' | 'grader' }).role = who
+      throw err
+    }
   }
 
   return {
@@ -536,6 +545,7 @@ async function main() {
     // Captured per card because the pool rotates between cards.
     let usedModel: string | undefined
 
+    let lastAuthorCombo: DirectCombo | undefined
     for (;;) {
       let gen: AuthoringGenerator
       let combo: DirectCombo | undefined
@@ -553,6 +563,7 @@ async function main() {
         }
         markTried(combo, new Date())
         let authorCombo: DirectCombo | undefined
+        lastAuthorCombo = undefined
         if (authorPool.length > 0) {
           authorCombo = nextCombo(authorPool)
           if (!authorCombo) {
@@ -561,6 +572,7 @@ async function main() {
             break
           }
           markTried(authorCombo, new Date())
+          lastAuthorCombo = authorCombo
         }
         // CardAuthoring.model records the WRITER when roles are split — the
         // key points are its text; the grader is recorded in the run log.
@@ -593,9 +605,12 @@ async function main() {
         // retries this exact card rather than skipping it.
         if (err instanceof RunHaltedError) {
           if (combo && err.haltReason === 'daily_quota') {
-            markExhausted(combo)
+            const role = (err as RunHaltedError & { role?: 'writer' | 'grader' }).role
+            const hit = role === 'writer' && lastAuthorCombo ? lastAuthorCombo : combo
+            const hitPool = hit === lastAuthorCombo ? authorPool : pool
+            markExhausted(hit)
             console.error(
-              `${tag} — ${combo.id} is out of daily quota; ${poolStatus(pool).available} combo(s) left`,
+              `${tag} — ${hit.id} (${role ?? 'grader'}) is out of daily quota; ${poolStatus(hitPool).available} combo(s) left in that pool`,
             )
             continue
           }
