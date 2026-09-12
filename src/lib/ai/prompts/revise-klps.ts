@@ -19,6 +19,13 @@ export interface ReviseKlpsBuildInput {
    * had shrunk below what the definition needed.
    */
   targetCount: number;
+  /**
+   * Named findings from the quality bar (2026-09-12), each with the fix the
+   * model is asked to make. Absent on the legacy separation-only trigger.
+   */
+  findings?: { index: number | null; issue: string; fix: string }[];
+  /** Card-level line explaining why this revision was triggered. */
+  reason?: string;
 }
 
 /**
@@ -35,32 +42,39 @@ export interface ReviseKlpsBuildInput {
  */
 export const REVISE_KLPS_PROMPT = {
   id: 'revise-klps',
-  version: 2,
+  version: 3,
   schema: ReviseKlpsSchema,
 
   build(input: ReviseKlpsBuildInput): string {
+    const findingsFor = (i: number) => (input.findings ?? []).filter((f) => f.index === i);
     const rows = input.klps
       .map((k, i) => {
         const d = input.discrimination.find((r) => r.index === i);
-        const status = d?.discriminates
-          ? 'DISCRIMINATES — keep as is'
-          : !d?.passesReference
-            ? 'FAILS ON THE REFERENCE — the reference answer itself does not support this claim; it may be hallucinated, or too specific to what the reference happens to say'
-            : 'CARRIES NO INFORMATION — every wrong answer also satisfies it';
-        return `[${i}] (${k.kind}) ${k.text}\n    ${status}`;
+        const lines: string[] = [];
+        if (d?.discriminates) lines.push('DISCRIMINATES — keep as is unless a finding below says otherwise');
+        else if (!d?.passesReference)
+          lines.push('FAILS ON THE REFERENCE — the reference answer itself does not support this claim; it may be hallucinated, or too specific to what the reference happens to say');
+        else lines.push('CARRIES NO INFORMATION — every wrong answer also satisfies it');
+        for (const f of findingsFor(i)) lines.push(`${f.issue.toUpperCase()} — ${f.fix}`);
+        return `[${i}] (${k.kind}) ${k.text}\n    ${lines.join('\n    ')}`;
       })
       .join('\n');
+    const setLevel = (input.findings ?? []).filter((f) => f.index === null);
+    const setLines = setLevel.length
+      ? `\nWhole-set findings:\n${setLevel.map((f) => `  ${f.issue.toUpperCase()} — ${f.fix}`).join('\n')}\n`
+      : '';
+    const reason = input.reason ? `\nWhy this revision: ${input.reason}\n` : '';
 
-    return `You wrote Key Learning Points (KLPs) for this question, and they were tested against a strong answer and three deliberately wrong answers. Some did not discriminate — a wrong answer scored as well on them as the strong one did.
+    return `You wrote Key Learning Points (KLPs) for this question, and they were tested against a strong answer and three deliberately wrong answers, then checked by rule. Each KLP below carries its test result and any named finding.
 
 Question: ${input.question}
-
-Current KLPs, each with its test result:
+${reason}
+Current KLPs, each with its findings:
 ${rows}
+${setLines}
+Fix ONLY the KLPs that carry a finding — "CARRIES NO INFORMATION", "FAILS ON THE REFERENCE", or a named rule such as COMPOUND or RESTATEMENT — and do exactly what the finding asks. A KLP that passes on every answer, right or wrong, is not wrong — it is USELESS, because it separates nobody. The usual fix is to SPLIT a vague point into the specific claims it was hiding, so each half can independently pass or fail. A KLP that fails on the reference should be cut or rewritten to match what the reference answer actually says.
 
-Fix ONLY the KLPs marked "CARRIES NO INFORMATION" or "FAILS ON THE REFERENCE". A KLP that passes on every answer, right or wrong, is not wrong — it is USELESS, because it separates nobody. The usual fix is to SPLIT a vague point into the specific claims it was hiding, so each half can independently pass or fail. A KLP that fails on the reference should be cut or rewritten to match what the reference answer actually says.
-
-Leave the KLPs marked "DISCRIMINATES" alone — they already earned their place.
+Leave a KLP with no finding alone — it already earned its place. Do not reword it, reorder it, or fold it into another.
 
 Aim for ${input.targetCount}-${MAX_KLPS_AUTHORED} KLPs total after revision — the same target this card was sized for, not a quota. If splitting a useless point into its specific claims takes you above it, that is the right outcome; if honestly cutting one takes you below it, say the fewer true things rather than padding.
 kind: one of ${KLP_KINDS.join(', ')}.

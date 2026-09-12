@@ -26,6 +26,29 @@ export const SEPARATION_FLOOR = 0.4
 export const MAX_REVISIONS = 2
 
 /**
+ * The QUALITY BAR that triggers a revision, distinct from `SEPARATION_FLOOR`.
+ *
+ * The floor (0.40) decides whether a card is FLAGGED `low_discrimination`; it
+ * is deliberately low, and until 2026-09-12 it was also the only thing that
+ * could make the pipeline revise. On the 15-card authoring bench that meant
+ * cards with a reference that failed its own key points, seven `compound`
+ * defects, or a weak answer scoring 0.60 were all accepted on the first
+ * draft. The owner asked that a meaningful share of cards — at least a fifth —
+ * be revised. This bar is the mechanism: a card is revised (up to
+ * `MAX_REVISIONS`) when ANY of these TypeScript-computed checks fails:
+ *   - separation at or below REVISION_BAR (a card must CLEAR it),
+ *   - the reference answer fails any of its own key points,
+ *   - any hygiene defect from `validateKlpSet` (compound, restatement, ...),
+ *   - a smoke failure (a weak answer above half the set).
+ * Not a quota: if every card on a run clears every check, none is revised,
+ * and the run report prints the revised share and warns below a fifth.
+ * `ordering` and `abstraction_spread` are NOT in the bar — they need the
+ * relation edges and the abstraction classification, which are computed
+ * after the loop — so they are reported on the card, not revised for.
+ */
+export const REVISION_BAR = 0.6
+
+/**
  * The smallest number of KLPs the sizing layer will ever target — the owner's
  * "base of 4+ KLPs" (increment A §5), and the lower end of the grain target
  * `validateKlpSet` and the prompts state.

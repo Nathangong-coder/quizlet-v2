@@ -500,10 +500,15 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
    check as a rule with the statement winning on a definition KLP, judge weighting = preferred
    AND (unacceptable OR shorter OR more KLP-faithful); `--replay` re-merges stored proposals.
    Third merge (Part I): KLP-vocabulary fidelity decides names first, same-type surplus
-   compresses to min(nA, nB), self-dup is leaf-only.** Open before promotion: the owner's gold
-   labels on the five accounting cards, which turn the grid into precision/recall; then the
-   WRITE step (persist merged proposals as `Klt` nodes + `KlpTopic` links, reconciled against
-   the 113 existing concepts) — which is what item 3 needs to produce any edges at all. Qwen is live
+   compresses to min(nA, nB), self-dup is leaf-only.** **THE WRITE STEP IS BUILT (2026-09-12), plan-only until the owner says write:**
+   `scripts/mint-topics.ts --from <dual.json> [--write]` over `src/lib/klt/mint-plan.ts`
+   (pure, tested) and `mint-write.ts`; design
+   `docs/superpowers/specs/2026-09-12-topic-minting-write-step-design.md`. It adds the
+   `KltRelation` model (migration `20260912000000_klt_relation`, NOT yet applied) — the
+   concept DAG beside the tree that item 3 will also write into. Planned on the five
+   accounting cards: 46 concepts (30 new), 32 links, 12 edges, 13 unplaced endpoints.
+   Open before the first `--write`: the owner's gold labels on those five cards, and the
+   owner's go — the write re-attaches every live KLP on those cards and applies a migration. Qwen is live
    (`KLP_DIRECT_PROVIDER=qwen`, 3.7 family only). 91 cards still have no KLPs (79 M&A).
 
    **THE DEFECT — authoring orphans a card's concept links.** Measured on the live database:
@@ -611,6 +616,15 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
      A count, not a boolean.
 
 4. **Re-author the whole corpus through the authoring pipeline.**
+
+   **2026-09-12: the pipeline to re-author WITH is now the ROLE SPLIT + QUALITY BAR** —
+   `KLP_AUTHOR_PROVIDER=google KLP_AUTHOR_MODELS=gemini-3.6-flash` writing,
+   `KLP_DIRECT_PROVIDER=deepseek` grading; `REVISION_BAR` revises a card that does not clear
+   0.60, fails its own reference, or carries a text-level defect. Six M&A cards: mean
+   separation 0.81, and a Gemini key does 6-10 cards a day instead of 2. Details in
+   `docs/ai/model-performance.md`. Also for this pass: the owner's enumeration-card rule
+   (an "N reasons" card carries the N items as knowledge KLPs with mechanism/causal points
+   attached, not dissolved) goes into `AUTHOR_KLPS_PROMPT`.
 
    **THIS ENTRY WAS STALE AND THE OWNER CAUGHT IT (2026-09-07).** It claimed only the LBO set had
    been authored and that `Accounting - "Talking"` was 68 cards of `promptVersion: 1`. Wrong: 51 of

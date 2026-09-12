@@ -157,7 +157,7 @@ function defaultGenerator(userId: string, onModel?: (model: string) => void): Au
  * whole run: pacing exists because a single card fires 6-16 calls back to back,
  * and a per-card pacer would reset that spacing at every card boundary.
  */
-function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
+function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectCombo): AuthoringGenerator {
   // Built through the SAME `resolveLanguageModel` the website uses, not a
   // provider factory called here. That function carries per-provider
   // corrections this script would otherwise have to duplicate — most
@@ -165,10 +165,16 @@ function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
   // without which every authoring call spends its output budget on invisible
   // thinking and returns `schema_invalid`.
   const languageModel = resolveLanguageModel(comboResolveInput(combo))
+  // ROLE SEPARATION (2026-09-12): `author` and `revise` — the writing calls —
+  // go to the author combo when one is configured (`KLP_AUTHOR_PROVIDER`);
+  // grading, relating, classifying and the panel stay on `combo`. Both are
+  // pinned for the card. The adversaries are still written by the author
+  // call, so they are now graded by a DIFFERENT model than wrote them.
+  const writerModel = authorCombo ? resolveLanguageModel(comboResolveInput(authorCombo)) : languageModel
 
   // generateObject does not exist in AI SDK v7; structured output is
   // generateText + Output.object.
-  async function call<T>(prompt: string, schema: z.ZodSchema<T>): Promise<T> {
+  async function call<T>(prompt: string, schema: z.ZodSchema<T>, who: 'writer' | 'grader' = 'grader'): Promise<T> {
     return callWithPacingAndRetry(
       async () => {
         // maxRetries: 0 — THE PACING LAYER OWNS RETRY, and two retry
@@ -180,7 +186,7 @@ function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
         // delayed classification: the daily-quota halt cannot fire until the
         // error surfaces, and the SDK swallowed the first two.
         const res = await generateText({
-          model: languageModel,
+          model: who === 'writer' ? writerModel : languageModel,
           prompt,
           output: Output.object({ schema }),
           maxRetries: 0,
@@ -209,9 +215,10 @@ function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
           minKlps: input.minKlps,
         }),
         AUTHOR_KLPS_PROMPT.schema,
+        'writer',
       ),
     grade: (input) => call(GRADE_CANDIDATE_PROMPT.build(input), GRADE_CANDIDATE_PROMPT.schema),
-    revise: (input) => call(REVISE_KLPS_PROMPT.build(input), REVISE_KLPS_PROMPT.schema),
+    revise: (input) => call(REVISE_KLPS_PROMPT.build(input), REVISE_KLPS_PROMPT.schema, 'writer'),
     relate: (input) => call(RELATE_KLPS_PROMPT.build(input), RELATE_KLPS_PROMPT.schema),
     classifyAbstraction: (input) =>
       call(CLASSIFY_ABSTRACTION_PROMPT.build(input), CLASSIFY_ABSTRACTION_PROMPT.schema),
@@ -240,6 +247,8 @@ function opt(args: string[], name: string): string | undefined {
 }
 
 interface RunStats {
+  /** Cards the quality bar sent through at least one revision. */
+  revised: number
   authored: number
   lowDiscrimination: number
   totalKlps: number
@@ -455,16 +464,24 @@ async function main() {
     console.log(`[author-klps] pacing — waiting ${(waitMs / 1000).toFixed(1)}s to stay under ${rpm} req/min`)
   })
   const pool = direct ? readDirectPool() : []
+  const authorPool = direct ? readDirectPool(process.env, 'author') : []
   if (direct) {
     const status = poolStatus(pool)
     console.log(
       `[author-klps] --direct pool: ${status.total} key x model combo(s) — ` +
         `${new Set(pool.map((c) => c.keyIndex)).size} key(s), models: ${status.modelsLeft.join(', ')}`,
     )
+    if (authorPool.length > 0) {
+      console.log(
+        `[author-klps] AUTHOR pool (writes + revises): ${authorPool.length} combo(s), ` +
+          `models: ${poolStatus(authorPool).modelsLeft.join(', ')} — grading/relating stay on the direct pool`,
+      )
+    }
   }
 
   let halted = false
   const stats: RunStats = {
+    revised: 0,
     authored: 0,
     lowDiscrimination: 0,
     totalKlps: 0,
@@ -535,9 +552,21 @@ async function main() {
           break
         }
         markTried(combo, new Date())
-        usedModel = combo.model
-        gen = directGenerator(combo, pacer)
-        console.log(`${tag} — using ${combo.id}`)
+        let authorCombo: DirectCombo | undefined
+        if (authorPool.length > 0) {
+          authorCombo = nextCombo(authorPool)
+          if (!authorCombo) {
+            console.error(`\\n[author-klps] STOPPING RUN — every AUTHOR combo is out of daily quota.`)
+            halted = true
+            break
+          }
+          markTried(authorCombo, new Date())
+        }
+        // CardAuthoring.model records the WRITER when roles are split — the
+        // key points are its text; the grader is recorded in the run log.
+        usedModel = authorCombo ? `${authorCombo.model}+${combo.model}` : combo.model
+        gen = directGenerator(combo, pacer, authorCombo)
+        console.log(`${tag} — using ${combo.id}${authorCombo ? ` (author ${authorCombo.id})` : ''}`)
       } else {
         gen = defaultGenerator(set.userId, (model) => {
           usedModel = model
@@ -610,6 +639,7 @@ async function main() {
     // operator can judge grain and quality BEFORE committing real spend
     // across a whole set, which requires seeing the actual artifacts.
     if (dryRun) printOutcomeDetail(card.term, outcome)
+    if (outcome.revisionReasons?.length) stats.revised++
     jsonOutcomes.push({ cardId: card.id, term: card.term, model: usedModel, outcome })
     flushJson()
 
@@ -652,6 +682,7 @@ async function main() {
             `${outcome.panelCurve.monotonic ? '' : ' NON-MONOTONIC'}, `
           : `separation ${outcome.separationScore.toFixed(2)}, `) +
         `${outcome.klps.length} KLPs, ` +
+        (outcome.revisionReasons?.length ? `revised ${outcome.revisionReasons.length}x [${outcome.revisionReasons[0].slice(0, 70)}], ` : '') +
         `${outcome.relations.length} relations (candidates ${outcome.relationStats.candidates}, ` +
         `cycles-dropped ${outcome.relationStats.droppedForCycles}, ` +
         `out-of-range-dropped ${outcome.relationStats.droppedOutOfRange})${flagSuffix}`,
@@ -678,7 +709,9 @@ async function main() {
 
   const meanSeparation = stats.authored > 0 ? stats.separationSum / stats.authored : 0
   console.log(
-    `[author-klps] done — ${stats.authored} cards authored, mean separation ${meanSeparation.toFixed(2)}, ` +
+    `[author-klps] done — ${stats.authored} cards authored, ${stats.revised} revised by the quality bar` +
+      (stats.authored > 0 && stats.revised / stats.authored < 0.2 ? ' (UNDER A FIFTH — the bar found little to fix on this run)' : '') +
+      `, mean separation ${meanSeparation.toFixed(2)}, ` +
       `${stats.lowDiscrimination} low_discrimination, ${stats.totalKlps} total KLPs, ` +
       `${stats.totalRelations} total relations`,
   )

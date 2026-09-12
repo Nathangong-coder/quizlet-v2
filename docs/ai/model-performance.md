@@ -424,3 +424,37 @@ Better than qwen3.7 as an author; still below gemini-3.5-flash on separation and
 
 **Verdict:** a usable grader only with thinking off, and even then 4x slower than DeepSeek;
 not a minting candidate; a middling author. It stays out of every rotation.
+
+### Role split: Gemini writes, DeepSeek grades — and the quality bar (2026-09-12)
+
+`author-klps --direct` now takes an AUTHOR pool (`KLP_AUTHOR_PROVIDER` / `KLP_AUTHOR_MODELS`)
+for the writing calls (`author`, `revise`) while the direct pool keeps grading, relating,
+classifying and the panel. Both combos pin per card. Six M&A cards, Gemini 3.6 writing,
+DeepSeek grading, dry-run:
+
+```
+card                                              KLPs  sep   ref   smoke  revised
+$80/share premium                                  5   0.90  1.00  pass   -
+sources & uses schedule                            5   0.60  0.90  pass   2x (0.40 -> 0.60)
+two ways an acquisition creates value              5   0.90  1.00  pass   -
+$1.8B / 50% debt / 5-year hold — what buyer         5   0.60  1.00  pass   -
+whose WACC discounts the target                    4   0.88  1.00  pass   -
+all-stock vs all-cash                              6   1.00  1.00  pass   -
+mean separation 0.81; 30 KLPs; 28 relations; Gemini calls per card 1-3 of 7-17
+```
+
+Against the single-model bench on the same first three cards: mean separation **0.80 vs
+0.71** (gemini-3.5-flash, the previous best), reference 0.97, 2 defects (`ordering`,
+`abstraction_spread` — both post-loop rules), 4.7 relations per card. A key now authors
+6-10 cards a day instead of 2, because the capped provider only writes.
+
+**The quality bar** (`REVISION_BAR = 0.60`, `src/lib/klp/authoring-config.ts`): a card is
+revised, up to `MAX_REVISIONS`, when its separation does not clear the bar, its reference
+fails a point, a text-level hygiene defect fires, or a weak answer passes the smoke test.
+Every finding is named per point with its fix in `REVISE_KLPS_PROMPT` v3 (`compound —
+split it into two`, `accepted by the vague answer — tighten`, `reference scored partial —
+rewrite or cut`). On this run the bar revised the sources & uses card twice and took it
+from 0.40 to 0.60. With `<` it revised 1 of 6; the bar is now inclusive (`<=`), which
+revises 3 of 6 on the same numbers. The run summary prints the revised share and warns
+under a fifth. `ordering` and `abstraction_spread` are outside the bar: they need the
+edges and the classification, computed after the loop.

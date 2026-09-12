@@ -34,6 +34,8 @@ import {
 } from '@/lib/klp/relations'
 import {
   MAX_REVISIONS,
+  REVISION_BAR,
+  SEPARATION_FLOOR,
   GRADE_CANDIDATES_SEPARATELY,
   USE_COMPETENCE_PANEL,
   type ProbeKind,
@@ -88,6 +90,8 @@ export interface ReviseInput {
   question: string
   klps: { text: string; kind: string }[]
   discrimination: KlpDiscrimination[]
+  findings?: { index: number | null; issue: string; fix: string }[]
+  reason?: string
   /** The card's sized target, so revision cannot silently undo the sizing decision. */
   targetCount: number
 }
@@ -217,6 +221,13 @@ export interface AuthoringOutcome {
   unseparatedBoundaries: { stronger: PanelLevel; weaker: PanelLevel }[]
   defects: KlpDefect[]
   /**
+   * Why each revision round was triggered, one entry per round, from the
+   * quality bar (`REVISION_BAR`). Empty when the first draft cleared every
+   * check. Persisted nowhere yet; printed by the run so the revised share and
+   * its causes are visible.
+   */
+  revisionReasons?: string[]
+  /**
    * How many KLPs this card was sized for (`src/lib/klp/sizing.ts`), carried
    * out so a reader can tell a correctly-small card from a thin one. With
    * sizing adaptive, the COUNT alone no longer says which it is.
@@ -340,6 +351,7 @@ export async function authorCard(
 
   let klps = draft.klps
   let revisions = 0
+  const revisionReasons: string[] = []
   let separation: SeparationResult
   let wrong: GradedCandidate[]
   // Kept out of the loop so the FINAL iteration's reference verdicts survive
@@ -429,13 +441,33 @@ export async function authorCard(
         ...findNonMonotonicKlps(gradedPanel, klps.length),
       ]
       unseparatedBoundaries = findUnseparatedBoundaries(gradedPanel, klps.length)
-      if (panelCurve.separated || revisions >= MAX_REVISIONS) break
-    } else if (separation.separated || revisions >= MAX_REVISIONS) break
+    }
+
+    // THE QUALITY BAR (2026-09-12). Separation alone let through cards whose
+    // reference failed its own points, compound points, and weak answers at
+    // 0.60. Every check here is computed in TypeScript; the model is told
+    // exactly which point failed which check and what to do about it.
+    const findings = revisionFindings({
+      separation,
+      panelSeparated: panel ? panelCurve?.separated : undefined,
+      referenceVerdicts,
+      wrong,
+      defects: validateKlpSet(klps.map((k) => ({ text: k.text })), input.question, { targetCount: target }),
+    })
+    if (findings.length === 0 || revisions >= MAX_REVISIONS) break
+    const reason = findings
+      .filter((f) => f.index === null)
+      .map((f) => f.issue)
+      .concat(findings.filter((f) => f.index !== null).map((f) => `[${f.index}] ${f.issue}`))
+      .join('; ')
+    revisionReasons.push(reason)
 
     const revised = await gen.revise({
       question: input.question,
       klps: klps.map((k) => ({ text: k.text, kind: k.kind })),
       discrimination: separation.perKlp,
+      findings,
+      reason,
       targetCount: target,
     })
     klps = revised.klps
@@ -545,5 +577,87 @@ export async function authorCard(
     ),
     targetKlpCount: target,
     concerns,
+    revisionReasons,
   }
+}
+
+/**
+ * Turns the quality bar into named, per-point findings for the revise call.
+ * Pure. Empty means "clears the bar". Every finding carries the FIX the model
+ * is asked to make, so revision is a list of edits, not a request to
+ * self-critique.
+ */
+export function revisionFindings(input: {
+  separation: SeparationResult
+  /** When the competence panel ran, its own verdict on separation. */
+  panelSeparated?: boolean
+  referenceVerdicts: KlpVerdict[]
+  wrong: GradedCandidate[]
+  defects: KlpDefect[]
+}): { index: number | null; issue: string; fix: string }[] {
+  const out: { index: number | null; issue: string; fix: string }[] = []
+  const sep = input.separation
+  const separated = input.panelSeparated ?? sep.separated
+
+  // Separation: the floor decides the flag, the bar decides revision.
+  if (!separated) {
+    out.push({
+      index: null,
+      issue: `separation ${sep.separation.toFixed(2)} is below the ${SEPARATION_FLOOR.toFixed(2)} floor`,
+      fix: 'the points marked CARRIES NO INFORMATION let a wrong answer score as well as the strong one; split each into the specific claim it hides',
+    })
+  } else if (sep.separation <= REVISION_BAR) {
+    // Inclusive: a card must CLEAR the bar to skip revision. Measured
+    // 2026-09-12 on six role-split cards: two sat at exactly 0.60 and one
+    // below, so `<` revised 17% and `<=` revises 50%; the owner asked for at
+    // least a fifth.
+    const best = input.wrong.reduce<GradedCandidate | undefined>(
+      (b, w) => (!b || scoreCandidate(w.verdicts) > scoreCandidate(b.verdicts) ? w : b),
+      undefined,
+    )
+    out.push({
+      index: null,
+      issue: `separation ${sep.separation.toFixed(2)} does not clear the ${REVISION_BAR.toFixed(2)} bar`,
+      fix: `the "${best?.kind ?? 'weak'}" answer scored ${best ? scoreCandidate(best.verdicts).toFixed(2) : '?'}; tighten the points it passed (marked below) to the specific claim a weak answer cannot make`,
+    })
+  }
+  // Points a weak answer passed outright — named per point so the fix is local.
+  input.wrong.forEach((w) => {
+    w.verdicts.forEach((v, i) => {
+      if (v === 'correct') {
+        out.push({
+          index: i,
+          issue: `accepted by the ${w.kind} answer`,
+          fix: 'this wrong answer satisfied the point fully; state the claim so that only a correct answer can meet it',
+        })
+      }
+    })
+  })
+  // Reference misses: the author wrote a point its own best answer does not satisfy.
+  input.referenceVerdicts.forEach((v, i) => {
+    if (v !== 'correct') {
+      out.push({
+        index: i,
+        issue: `reference answer scored ${v} on this point`,
+        fix: 'the strong answer does not establish this claim; rewrite it to what the answer actually says, or cut it',
+      })
+    }
+  })
+  // Hygiene, from the deterministic checks, with the fix each rule implies.
+  const FIX: Record<string, string> = {
+    compound: 'two claims joined in one point; split it into two points that can pass or fail independently',
+    restatement: 'this repeats another point in different words; drop it or merge the two',
+    duplicate: 'this duplicates another point; drop it',
+    not_self_contained: 'it refers to "this", "it" or "the above"; rewrite it so it stands alone with its subject named',
+    meta_language: 'it describes that a claim exists instead of stating the claim; state the claim',
+    numeric_inconsistency: 'a number here disagrees with the card; correct it to the card',
+    ordering: 'this point uses a result that a later point derives; reorder so prerequisites come first',
+    count: 'the set is outside its size target; add the missing claim or cut the padding',
+    disposition: 'this is advice or a judgement, not a testable proposition; restate it as a claim about the world',
+    abstraction_spread: 'this point is at a different level of abstraction from the rest; bring it to the level of the others',
+  }
+  for (const d of input.defects) {
+    out.push({ index: d.index, issue: d.rule.replace(/_/g, ' '), fix: FIX[d.rule] ?? d.detail ?? 'fix this point' })
+  }
+  return out
 }

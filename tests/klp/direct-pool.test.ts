@@ -153,3 +153,13 @@ describe('QWEN_THINKING', () => {
     expect(comboResolveInput(on[0])).not.toHaveProperty('requestDefaults')
   })
 })
+
+describe('author role', () => {
+  it('reads KLP_AUTHOR_PROVIDER/MODELS, and is EMPTY when neither is set — no author pool means no role split', () => {
+    const split = readDirectPool({ KLP_DIRECT_PROVIDER: 'deepseek', DEEPSEEK_API_KEY: 'd', KLP_AUTHOR_PROVIDER: 'google', GOOGLE_API_KEY: 'g', KLP_AUTHOR_MODELS: 'gemini-3.6-flash' } as unknown as NodeJS.ProcessEnv, 'author')
+    expect(split).toHaveLength(1)
+    expect(split[0]).toMatchObject({ provider: 'google', model: 'gemini-3.6-flash', apiKey: 'g' })
+    const none = readDirectPool({ KLP_DIRECT_PROVIDER: 'deepseek', DEEPSEEK_API_KEY: 'd' } as unknown as NodeJS.ProcessEnv, 'author')
+    expect(none).toEqual([])
+  })
+})

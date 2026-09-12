@@ -231,10 +231,17 @@ export function readDirectPool(
    * be the model that then rules on whether the attack succeeded. See
    * `scripts/klp-exploit.ts`.
    */
-  role: 'attack' | 'verify' = 'attack',
+  role: 'attack' | 'verify' | 'author' = 'attack',
 ): DirectCombo[] {
-  const providerVar = role === 'verify' ? 'KLP_VERIFIER_PROVIDER' : 'KLP_DIRECT_PROVIDER'
-  const modelsVar = role === 'verify' ? 'KLP_VERIFIER_MODELS' : 'KLP_DIRECT_MODELS'
+  // `author` reads `KLP_AUTHOR_PROVIDER` / `KLP_AUTHOR_MODELS` and exists for
+  // ROLE SEPARATION in authoring (2026-09-12): the model that WRITES the key
+  // points and revises them may differ from the model that grades, relates
+  // and classifies. Measured on the bench: the cheapest Gemini writes the
+  // tightest points and DeepSeek is the strictest, fastest grader — and the
+  // grader's calls are 5-14 of a card's 7-17, so putting only the writing on
+  // the capped provider takes a key from 2 cards a day to 6-10.
+  const providerVar = role === 'verify' ? 'KLP_VERIFIER_PROVIDER' : role === 'author' ? 'KLP_AUTHOR_PROVIDER' : 'KLP_DIRECT_PROVIDER'
+  const modelsVar = role === 'verify' ? 'KLP_VERIFIER_MODELS' : role === 'author' ? 'KLP_AUTHOR_MODELS' : 'KLP_DIRECT_MODELS'
   const provider = (env[providerVar] ?? env.KLP_DIRECT_PROVIDER ?? 'google').trim().toLowerCase()
 
   const source = DIRECT_PROVIDER_SOURCES[provider]
@@ -254,6 +261,7 @@ export function readDirectPool(
   }
 
   const models = parseList(env[modelsVar] ?? (role === 'attack' ? env.KLP_DIRECT_MODEL : undefined))
+  if (role === 'author' && !env[providerVar] && !env[modelsVar]) return []
   return buildDirectPool(
     keys,
     models.length > 0 ? models : [source.defaultModel],

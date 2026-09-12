@@ -60,6 +60,22 @@ const ABBREVIATIONS: Record<string, string> = {
 }
 
 /**
+ * The reverse of `ABBREVIATIONS`: a spelled-out name whose normalized form is
+ * a known expansion becomes its abbreviation, upper-cased. The minting prompt
+ * asks models to spell abbreviations out so that names MATCH across models;
+ * the topic layer caps a concept name at `MAX_KLT_WORDS`, and "earnings
+ * before interest and taxes" is five. The write step contracts it to "EBIT"
+ * rather than dropping the concept. Returns null when no expansion matches.
+ */
+export function contractAbbreviation(raw: string): string | null {
+  const n = normalizeName(raw)
+  for (const [abbr, full] of Object.entries(ABBREVIATIONS)) {
+    if (normalizeName(full) === n) return abbr.toUpperCase()
+  }
+  return null
+}
+
+/**
  * A trailing word that describes the name rather than naming the thing.
  * `gross profit calculation` IS `gross profit`. Only ONE is stripped, and
  * never from a one-word name, so `structure` stays `structure`.

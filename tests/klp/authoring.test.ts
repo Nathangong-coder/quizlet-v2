@@ -231,7 +231,12 @@ describe('authorCard', () => {
       }),
     })
     const out = await authorCard(card, g as never)
-    expect(out.defects.some((d) => d.rule === 'count')).toBe(true)
+    // Since the quality bar (2026-09-12) a hygiene defect TRIGGERS a revision
+    // rather than merely being reported: the count defect is the recorded
+    // reason, the revise mock replaces the set, and the card is not failed.
+    expect(out.status).not.toBe('failed')
+    expect(out.revisionReasons?.[0]).toContain('count')
+    expect(g.revise).toHaveBeenCalled()
   })
 
   it('reports failed status when the author call produces no KLPs at all', async () => {
