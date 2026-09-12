@@ -498,9 +498,12 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
    `kind` prior (rule 8 + `EXPECTED_SHAPE`) takes kind-consistency to 100%. **Amended the same
    day on the owner's rules (Part H): count-preserving merge, edge > context > leaf, container
    check as a rule with the statement winning on a definition KLP, judge weighting = preferred
-   AND (unacceptable OR shorter); `--replay` re-merges stored proposals.** Open before
-   promotion: the owner's gold labels on the five accounting cards, which turn the grid into
-   precision/recall. Qwen is live
+   AND (unacceptable OR shorter OR more KLP-faithful); `--replay` re-merges stored proposals.
+   Third merge (Part I): KLP-vocabulary fidelity decides names first, same-type surplus
+   compresses to min(nA, nB), self-dup is leaf-only.** Open before promotion: the owner's gold
+   labels on the five accounting cards, which turn the grid into precision/recall; then the
+   WRITE step (persist merged proposals as `Klt` nodes + `KlpTopic` links, reconciled against
+   the 113 existing concepts) — which is what item 3 needs to produce any edges at all. Qwen is live
    (`KLP_DIRECT_PROVIDER=qwen`, 3.7 family only). 91 cards still have no KLPs (79 M&A).
 
    **THE DEFECT — authoring orphans a card's concept links.** Measured on the live database:
