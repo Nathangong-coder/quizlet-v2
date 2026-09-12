@@ -458,3 +458,56 @@ from 0.40 to 0.60. With `<` it revised 1 of 6; the bar is now inclusive (`<=`), 
 revises 3 of 6 on the same numbers. The run summary prints the revised share and warns
 under a fifth. `ordering` and `abstraction_spread` are outside the bar: they need the
 edges and the classification, computed after the loop.
+
+### glm-5.3-flash (Z.ai), funded 2026-09-12 — the owner's replacement for gemini-3.6-flash
+
+Page: https://claude.ai/code/artifact/8901ecef-ba2a-4af1-bb15-1116b29aeddb.
+
+**Two endpoint facts decide how it is called.** Z.ai's compatible endpoint accepts only
+`response_format: json_object` (its own docs) and IGNORES a json_schema: every schema call
+came back as fenced ```json in the model's own field names. `ResolveInput.schemaInPrompt`
+(set by the `zai` pool source) moves the SDK's schema into the last user message, requests
+`json_object`, unfences `choices[].message.content`, and leaves Zod to validate — so a
+model that ignores the prompted schema fails loudly, not silently. And thinking is FORCED
+ON (`1210 cannot be disabled; use low, high, or max`); the level is the OpenAI-style
+`reasoning_effort`, exposed as `ZAI_REASONING_EFFORT`. Measured on one call: 1.3 s / 36
+output tokens at `low`, 5 s / 415 at the default. Free `glm-4.7-flash` cannot hold a schema
+even in the prompt; `glm-5.2-flash` is not a model id.
+
+**Grading** (same five answers, 8 KLPs): separation 0.44, 66% agreement with the authoring
+verdicts, 17.9 s mean — the weakest grader measured. DeepSeek stays the grader.
+
+**Topic minting** (13 cards, single model, default effort):
+
+```
+model              kind-consistent  leaves  edges  contexts  container-leaves  self-dups  name-words
+deepseek-v4-flash    97% (60/62)      38     24       32           1              2          3.07
+gemini-3.6-flash     95% (59/62)      40     22       20           0              0          2.69
+glm-5.3-flash        89% (55/62)      33     29       32           1              0          2.69
+qwen3.8-flash        85% (52/61)      36     25       12           0              0          2.89
+```
+
+The best minter after the two it would replace, and uncapped. On the three-statement
+walkthrough it produced exactly the rule-3 shape the owner asked for (`income statement`
+leaf + `revenue --precedes--> net income` + `profitability measurement` context); on the
+linkage card 0 leaves and 8 clean edges. Names as short as Gemini's. `MINT_B_PROVIDER=zai
+MINT_B_MODEL=glm-5.3-flash` puts it on the Gemini side of the dual pair.
+
+**Authoring as the WRITER** (role split, DeepSeek grading, same three M&A cards):
+
+```
+writer                          KLPs/card  mean sep  min sep  reference  revised
+gemini-3.6-flash                  5.0        0.80     0.60      0.97      2 of 3
+glm-5.3-flash (default effort)    8.7        0.60     0.44      0.93      3 of 3 (all twice)
+glm-5.3-flash (reasoning high)    7.0        0.70     0.63      0.98      1 of 3
+```
+
+At default effort it over-writes (8.7 points a card against the six the prompt leans to)
+and needs both revision rounds on every card. At `high` it is a different writer: 0.70,
+every card clears the floor by a margin, one revision in three. Still a step below Gemini
+3.6 (0.80), but it has no daily cap and costs a fraction. **Recommendation:** writer =
+`glm-5.3-flash` with `ZAI_REASONING_EFFORT=high`, grader = DeepSeek, minting pair =
+DeepSeek + GLM. Gemini 3.6 stays the quality reference, not the workhorse.
+
+A solo GLM authoring run (GLM grading itself) stalled 15 minutes on one card and was
+stopped; the grading number above already says why it is not a grader.

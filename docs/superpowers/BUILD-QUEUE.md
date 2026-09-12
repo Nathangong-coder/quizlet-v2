@@ -26,22 +26,27 @@ write). Everything below is one command each.
    legacy sets. The writer is capped at 20/day per key per model; add `,gemini-3.5-flash` to
    `KLP_AUTHOR_MODELS` to double the daily writer budget.
    ```
-   set KLP_DIRECT_PROVIDER=deepseek & set KLP_DIRECT_MODELS=deepseek-v4-flash & set KLP_AUTHOR_PROVIDER=google & set KLP_AUTHOR_MODELS=gemini-3.6-flash
+   set KLP_DIRECT_PROVIDER=deepseek & set KLP_DIRECT_MODELS=deepseek-v4-flash & set KLP_AUTHOR_PROVIDER=zai & set KLP_AUTHOR_MODELS=glm-5.3-flash & set ZAI_REASONING_EFFORT=high
+   (the owner's choice 2026-09-12: GLM writes — uncapped, mean separation 0.70 at `high` —
+   DeepSeek grades. Gemini 3.6 as the writer scored 0.80 but is capped and, per the owner,
+   too expensive; keep it as the quality reference: `KLP_AUTHOR_PROVIDER=google
+   KLP_AUTHOR_MODELS=gemini-3.6-flash`.)
    npx tsx --conditions=react-server --env-file=.env scripts/author-klps.ts --set cmtfewhjv000004jr901uq6eo --direct      # M&A (82)
    npx tsx --conditions=react-server --env-file=.env scripts/author-klps.ts --set cmtfexkmd001k04jr6t2wtl70 --direct      # Accounting - Knowledge (50, legacy)
    npx tsx --conditions=react-server --env-file=.env scripts/author-klps.ts --set cmtcecz4j000304l1q1suq9rf --direct      # Talking (copy/test) (67, legacy)
    ```
-   Arithmetic: 1-3 writer calls per card, 60 writer calls/day/model across the three keys
-   -> roughly 30-40 cards a day per writer model. "All KLPs" is a multi-day run on the free
-   tier, not a session. A funded Z.ai account (`KLP_AUTHOR_PROVIDER=zai`) or a paid Gemini
-   tier removes the cap; neither was available on 2026-09-12.
+   With GLM writing and DeepSeek grading there is NO daily cap: the whole corpus is a matter
+   of hours of paced calls, not days. (With a Gemini writer: 60 writer calls/day/model across
+   three keys, ~30-40 cards a day.)
 
 3. **Mint and write topics for every authored set.** Minting is two calls per card plus a
    judge call; put the Gemini side on a different model than the writer (`MINT_B_MODEL`).
    Then write with `mint-topics --write`. The two runs below were in flight; their JSON
    lands in `%TEMP%\claude-quizlet\` — copy it into `docs/ai/runs/` before writing.
    ```
-   set MINT_B_MODEL=gemini-3.5-flash
+   set MINT_B_PROVIDER=zai & set MINT_B_MODEL=glm-5.3-flash
+   (GLM on the Gemini side of the pair: uncapped, 89% kind-consistent, names as short as
+   Gemini's. For the Gemini pair instead: `set MINT_B_PROVIDER=google & set MINT_B_MODEL=gemini-3.5-flash`.)
    npx tsx --conditions=react-server --env-file=.env scripts/probe-topic-minting.ts --dual --set <setId> --limit 200 --json docs/ai/runs/<date>/dual-<set>.json
    npx tsx --conditions=react-server --env-file=.env scripts/mint-topics.ts --from docs/ai/runs/<date>/dual-<set>.json --write
    ```
