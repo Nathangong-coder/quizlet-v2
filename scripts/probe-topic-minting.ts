@@ -484,7 +484,14 @@ wrote ${jsonOut}`)
 // different model than the authoring writer is using the same day — the two
 // jobs otherwise compete for one 20/day/key bucket.
 const DUAL_A = { provider: 'deepseek', model: 'deepseek-v4-flash' }
-const DUAL_B = { provider: 'google', model: process.env.MINT_B_MODEL?.trim() || 'gemini-3.6-flash' }
+// `MINT_B_PROVIDER=zai MINT_B_MODEL=glm-5.3-flash` swaps the Gemini side for
+// GLM: measured 2026-09-12 as the best single minter after DeepSeek and
+// Gemini (89% kind-consistent, names as short as Gemini's, most edges) and
+// it has no daily cap. Reconciler side B remains "the model whose type wins".
+const DUAL_B = {
+  provider: process.env.MINT_B_PROVIDER?.trim() || 'google',
+  model: process.env.MINT_B_MODEL?.trim() || 'gemini-3.6-flash',
+}
 const JUDGE = { provider: 'qwen', model: 'qwen3.7-flash' }
 /** Recorded in the JSON so the A/B slot assignment can be reproduced. */
 const JUDGE_SEED = 20260911

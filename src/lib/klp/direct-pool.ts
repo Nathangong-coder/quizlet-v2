@@ -54,6 +54,7 @@ export interface DirectCombo extends PoolCredential {
   baseUrl?: string
   /** See `ResolveInput.requestDefaults`. Set by a source, never by a flag. */
   requestDefaults?: Record<string, unknown>
+  schemaInPrompt?: boolean
 }
 
 /** Splits a comma/whitespace separated env value, dropping blanks and dupes. */
@@ -88,6 +89,7 @@ export function buildDirectPool(
   provider = 'google',
   baseUrl?: string,
   requestDefaults?: Record<string, unknown>,
+  schemaInPrompt?: boolean,
 ): DirectCombo[] {
   const pool: DirectCombo[] = []
   keys.forEach((apiKey, keyIndex) => {
@@ -100,6 +102,7 @@ export function buildDirectPool(
         provider,
         ...(baseUrl ? { baseUrl } : {}),
         ...(requestDefaults ? { requestDefaults } : {}),
+        ...(schemaInPrompt ? { schemaInPrompt } : {}),
         role: 'primary',
         enabled: true,
         lastUsedAt: null,
@@ -171,6 +174,8 @@ export const DIRECT_PROVIDER_SOURCES: Record<
      */
     resolveAs?: string
     baseUrl?: string
+    /** See `ResolveInput.schemaInPrompt`; set by a source whose endpoint cannot enforce a schema. */
+    schemaInPrompt?: boolean
     /** Read from the environment at pool-build time; see the qwen entry. */
     requestDefaults?: (env: NodeJS.ProcessEnv) => Record<string, unknown> | undefined
   }
@@ -213,6 +218,13 @@ export const DIRECT_PROVIDER_SOURCES: Record<
     defaultModel: 'glm-5.3-flash',
     resolveAs: 'custom',
     baseUrl: 'https://api.z.ai/api/paas/v4',
+    // Z.ai accepts only `response_format: json_object` (its docs), so the
+    // schema rides in the prompt and the fence is stripped. glm-5.3-flash's
+    // thinking is forced on and cannot be disabled (error 1210); the level is
+    // the OpenAI-style `reasoning_effort` (low | high | max), measured 1.3 s /
+    // 36 output tokens at low against 5 s / 415 at the default on one call.
+    schemaInPrompt: true,
+    requestDefaults: (env) => (env.ZAI_REASONING_EFFORT ? { reasoning_effort: env.ZAI_REASONING_EFFORT } : undefined),
   },
 }
 
@@ -280,6 +292,7 @@ export function readDirectPool(
     source.resolveAs ?? provider,
     source.baseUrl,
     source.requestDefaults?.(env),
+    source.schemaInPrompt,
   )
 }
 
@@ -297,6 +310,7 @@ export function comboResolveInput(combo: DirectCombo): {
   model: string
   baseUrl?: string
   requestDefaults?: Record<string, unknown>
+  schemaInPrompt?: boolean
 } {
   return {
     provider: combo.provider as ProviderId,
@@ -304,5 +318,6 @@ export function comboResolveInput(combo: DirectCombo): {
     model: combo.model,
     ...(combo.baseUrl ? { baseUrl: combo.baseUrl } : {}),
     ...(combo.requestDefaults ? { requestDefaults: combo.requestDefaults } : {}),
+    ...(combo.schemaInPrompt ? { schemaInPrompt: true } : {}),
   }
 }

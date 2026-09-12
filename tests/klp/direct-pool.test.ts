@@ -163,3 +163,10 @@ describe('author role', () => {
     expect(none).toEqual([])
   })
 })
+
+describe('zai source', () => {
+  it('resolves as custom with schema-in-prompt on, and passes ZAI_REASONING_EFFORT through', () => {
+    const pool = readDirectPool({ KLP_DIRECT_PROVIDER: 'zai', ZAI_API_KEY: 'k', ZAI_REASONING_EFFORT: 'low' } as unknown as NodeJS.ProcessEnv)
+    expect(comboResolveInput(pool[0])).toEqual({ provider: 'custom', apiKey: 'k', model: 'glm-5.3-flash', baseUrl: 'https://api.z.ai/api/paas/v4', requestDefaults: { reasoning_effort: 'low' }, schemaInPrompt: true })
+  })
+})
