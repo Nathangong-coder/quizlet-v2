@@ -202,6 +202,18 @@ export const DIRECT_PROVIDER_SOURCES: Record<
      */
     requestDefaults: (env) => (env.QWEN_THINKING?.toLowerCase() === 'off' ? { enable_thinking: false } : undefined),
   },
+  /**
+   * Z.ai (GLM) via its OpenAI-compatible endpoint. Wired 2026-09-12; the key
+   * authenticates but the account returned `1113 Insufficient balance or no
+   * resource package` on every model, so nothing is measured yet. `glm-5.3-flash`
+   * and `glm-5.3` are valid ids (`glm-5.3-flashx` is not).
+   */
+  zai: {
+    keyVars: ['ZAI_API_KEYS', 'ZAI_API_KEY'],
+    defaultModel: 'glm-5.3-flash',
+    resolveAs: 'custom',
+    baseUrl: 'https://api.z.ai/api/paas/v4',
+  },
 }
 
 /**

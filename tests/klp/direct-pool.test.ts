@@ -140,7 +140,7 @@ describe('readDirectPool', () => {
 
   it('names the real options for an unsupported provider', () => {
     expect(() => readDirectPool({ KLP_DIRECT_PROVIDER: 'nope' } as unknown as NodeJS.ProcessEnv)).toThrow(
-      /google, deepseek, qwen/,
+      /google, deepseek, qwen, zai/,
     )
   })
 })

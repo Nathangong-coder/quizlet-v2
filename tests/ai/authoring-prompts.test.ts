@@ -84,8 +84,19 @@ describe('AUTHOR_KLPS_PROMPT', () => {
     expect(built.toLowerCase()).toContain('not a total to hit')
   })
 
-  it('is version 2 — promptVersion is persisted, so the change must be visible', () => {
-    expect(AUTHOR_KLPS_PROMPT.version).toBe(2)
+  it('is version 3 — promptVersion is persisted, so the change must be visible', () => {
+    expect(AUTHOR_KLPS_PROMPT.version).toBe(3)
+  })
+
+  it('v3 classifies the question first, defines the term as key point [0], keeps an enumeration as items, and leans the count to floor+1..floor+3', () => {
+    const built = AUTHOR_KLPS_PROMPT.build({ setTitle: 'S', term: 'What are 2 ways an acquisition can create value?', definition: 'd', minKlps: 5 })
+    expect(built).toContain('QUESTION TYPE')
+    expect(built).toContain('"questionType"')
+    expect(built).toContain('DEFINING THE TERM the question turns on')
+    expect(built).toContain('That definition is the FIRST key point')
+    expect(built).toContain('Never dissolve the list into a chain of mechanisms')
+    expect(built).toContain('the usual right number is 6 to 8')
+    expect(built).toContain('ONE short context clause')
   })
 })
 

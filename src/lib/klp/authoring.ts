@@ -227,6 +227,8 @@ export interface AuthoringOutcome {
    * its causes are visible.
    */
   revisionReasons?: string[]
+  /** The prompt's own classification of the question (v3). */
+  questionType?: string
   /**
    * How many KLPs this card was sized for (`src/lib/klp/sizing.ts`), carried
    * out so a reader can tell a correctly-small card from a thin one. With
@@ -578,6 +580,7 @@ export async function authorCard(
     targetKlpCount: target,
     concerns,
     revisionReasons,
+    questionType: (draft as { questionType?: string }).questionType,
   }
 }
 

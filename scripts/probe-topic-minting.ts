@@ -480,8 +480,11 @@ wrote ${jsonOut}`)
 // --dual: DeepSeek + Gemini, reconciled in TypeScript, judged by Qwen
 // ---------------------------------------------------------------------------
 
+// The pair and the judge. `MINT_B_MODEL` lets a run put the Gemini side on a
+// different model than the authoring writer is using the same day — the two
+// jobs otherwise compete for one 20/day/key bucket.
 const DUAL_A = { provider: 'deepseek', model: 'deepseek-v4-flash' }
-const DUAL_B = { provider: 'google', model: 'gemini-3.6-flash' }
+const DUAL_B = { provider: 'google', model: process.env.MINT_B_MODEL?.trim() || 'gemini-3.6-flash' }
 const JUDGE = { provider: 'qwen', model: 'qwen3.7-flash' }
 /** Recorded in the JSON so the A/B slot assignment can be reproduced. */
 const JUDGE_SEED = 20260911

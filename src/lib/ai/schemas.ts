@@ -415,7 +415,15 @@ export type KltSkeleton = z.infer<typeof KltSkeletonSchema>;
  * orchestrator, never asked of the model. Audit finding G1: a model asked
  * "how central is this?" says "very" — 92% of AI-assigned weights were 4 or 5.
  */
+/**
+ * How the authoring prompt classifies the question before answering it
+ * (v3, 2026-09-12). Recorded on the draft so the structure rule it followed
+ * is auditable; the closed list is what lets a later spec group cards by it.
+ */
+export const QUESTION_TYPES = ['define', 'enumerate', 'walkthrough', 'why', 'compare', 'scenario', 'calculate'] as const;
+
 export const AuthorDraftSchema = z.object({
+  questionType: z.enum(QUESTION_TYPES).optional(),
   /**
    * The points the card's own definition already makes, and how many KLPs each
    * needs once expanded — the judgment half of adaptive sizing (increment A
