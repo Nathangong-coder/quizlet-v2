@@ -1,0 +1,99 @@
+{
+  "runAt": "2026-09-09T00:40:17.753Z",
+  "cards": [
+    {
+      "cardId": "cmtjcmjbi000404k4fpqphmjw",
+      "term": "What is an LBO, in simple terms?",
+      "results": [
+        {
+          "index": 0,
+          "text": "A private equity firm acquires a target company using a capital structure heavily weighted toward debt (typically 60% to 80%), with the sponsor contributing only a small fraction of the purchase price as equity.",
+          "verdict": "unnecessary",
+          "answerWithout": "An LBO, or leveraged buyout, is a way to buy a company using borrowed money, but the key is that the loan is not taken out by the buyer. Instead, the debt is secured by the target company's own assets and placed on its balance sheet. So after the purchase, the company itself owes the debt. Over the years the company owns, it uses the cash flow from its normal operations to pay down that debt bit by bit. When the buyer eventually sells the company, the debt has been reduced. That reduction matters because the company's equity value—what the owner truly owns—goes up by the same amount, even if the overall business value hasn't grown. Since the buyer only put in a small amount of their own money at the start, that jump in equity value gives them a much bigger return percentage-wise than if they had paid the full price in cash. In simple terms, it's using the company's own future earnings to pay for itself, and the reward comes from shrinking the debt to grow the ownership stake.",
+          "judgeOverall": 9,
+          "reason": "an answer omitting it still scored 9/10"
+        },
+        {
+          "index": 3,
+          "text": "Upon exit, the reduction in outstanding debt directly increases the equity value of the business, even if the overall enterprise value of the company does not grow.",
+          "verdict": "unexamined",
+          "answerWithout": "",
+          "judgeOverall": null,
+          "reason": "the set is at the floor of 4; reducing further would break the card"
+        },
+        {
+          "index": 4,
+          "text": "Since the sponsor initially invested a small equity base, this growth in equity value represents a highly amplified percentage return compared to an all-equity purchase.",
+          "verdict": "unexamined",
+          "answerWithout": "",
+          "judgeOverall": null,
+          "reason": "the set is at the floor of 4; reducing further would break the card"
+        },
+        {
+          "index": 1,
+          "text": "The debt raised to fund the acquisition is secured by the target company's assets and is placed on the target company's balance sheet rather than the sponsor's.",
+          "verdict": "unexamined",
+          "answerWithout": "",
+          "judgeOverall": null,
+          "reason": "the set is at the floor of 4; reducing further would break the card"
+        },
+        {
+          "index": 2,
+          "text": "Over the holding period, the acquired company uses its ongoing free cash flow generated from operations to service and systematically pay down this debt balance.",
+          "verdict": "unexamined",
+          "answerWithout": "",
+          "judgeOverall": null,
+          "reason": "the set is at the floor of 4; reducing further would break the card"
+        }
+      ],
+      "starting": 5
+    },
+    {
+      "cardId": "cmtjcmjc0000704k4ufvhr7y1",
+      "term": "Can you walk me through an LBO (high level)?",
+      "results": [
+        {
+          "index": 3,
+          "text": "Projections assume the operating cash flows are prioritized for debt principal paydown throughout the holding period.",
+          "verdict": "unexamined",
+          "answerWithout": "",
+          "judgeOverall": null,
+          "reason": "probe failed: No object generated: could not parse the response."
+        },
+        {
+          "index": 4,
+          "text": "The IRR represents the annualized percentage return on the sponsor's initial equity stake based on the net proceeds after remaining debt is settled at exit.",
+          "verdict": "unnecessary",
+          "answerWithout": "Sure. At a high level, an LBO starts with setting an entry valuation based on a purchase multiple of EBITDA—for example, 8x EBITDA—to determine the total price. Next, we structure the funding: a significant portion is new debt (senior loans, mezzanine, etc.), and the sponsor contributes a smaller equity check to bridge the gap. On the balance sheet, we effectively reset the target: all existing debt and equity are removed, and we layer in the new debt and sponsor equity. From there, we run projections where the company’s operating cash flow is used primarily to pay down debt principal over the holding period. By reducing leverage each year, the equity value increases, and at exit—typically through a sale or recap—the sponsor realizes the upside from that debt reduction and any EBITDA growth or multiple expansion.",
+          "judgeOverall": 9,
+          "reason": "an answer omitting it still scored 9/10"
+        },
+        {
+          "index": 0,
+          "text": "The purchase price is typically derived from a multiple of EBITDA to anchor the entry valuation.",
+          "verdict": "unexamined",
+          "answerWithout": "",
+          "judgeOverall": null,
+          "reason": "the set is at the floor of 4; reducing further would break the card"
+        },
+        {
+          "index": 1,
+          "text": "Funding sources combine a large amount of new debt with a smaller, required sponsor equity contribution.",
+          "verdict": "unexamined",
+          "answerWithout": "",
+          "judgeOverall": null,
+          "reason": "the set is at the floor of 4; reducing further would break the card"
+        },
+        {
+          "index": 2,
+          "text": "Adjusting the balance sheet involves stripping out all legacy debt and equity and replacing them with the new transaction capital structure.",
+          "verdict": "unexamined",
+          "answerWithout": "",
+          "judgeOverall": null,
+          "reason": "the set is at the floor of 4; reducing further would break the card"
+        }
+      ],
+      "starting": 5
+    }
+  ]
+}

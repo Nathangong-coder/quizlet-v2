@@ -27,6 +27,7 @@
  * of the sort; rotating within one would invalidate it.
  */
 import { selectAttemptOrder, type PoolCredential } from '@/lib/ai/key-pool'
+import type { ProviderId } from '@/lib/ai/providers'
 
 export interface DirectCombo extends PoolCredential {
   /** Index of the key in the configured list — NEVER the key itself. */
@@ -45,6 +46,15 @@ export interface DirectCombo extends PoolCredential {
    * second code path.
    */
   provider: string
+  /**
+   * Base URL for providers that resolve through the SDK's OpenAI-compatible
+   * path (`custom`). Undefined for first-class providers, which know their
+   * own endpoint. Qwen/DashScope is the first source that needs it.
+   */
+  baseUrl?: string
+  /** See `ResolveInput.requestDefaults`. Set by a source, never by a flag. */
+  requestDefaults?: Record<string, unknown>
+  schemaInPrompt?: boolean
 }
 
 /** Splits a comma/whitespace separated env value, dropping blanks and dupes. */
@@ -77,6 +87,9 @@ export function buildDirectPool(
   keys: string[],
   models: string[],
   provider = 'google',
+  baseUrl?: string,
+  requestDefaults?: Record<string, unknown>,
+  schemaInPrompt?: boolean,
 ): DirectCombo[] {
   const pool: DirectCombo[] = []
   keys.forEach((apiKey, keyIndex) => {
@@ -87,6 +100,9 @@ export function buildDirectPool(
         apiKey,
         model,
         provider,
+        ...(baseUrl ? { baseUrl } : {}),
+        ...(requestDefaults ? { requestDefaults } : {}),
+        ...(schemaInPrompt ? { schemaInPrompt } : {}),
         role: 'primary',
         enabled: true,
         lastUsedAt: null,
@@ -137,5 +153,171 @@ export function poolStatus(pool: DirectCombo[]): PoolStatus {
     available: available.length,
     exhausted: pool.length - available.length,
     modelsLeft: Array.from(new Set(available.map((c) => c.model))),
+  }
+}
+
+/**
+ * The per-provider defaults `readDirectPool` builds from.
+ *
+ * Exported so a test can assert the table rather than duplicating it, and so
+ * the error message for an unsupported provider can name the real options.
+ */
+export const DIRECT_PROVIDER_SOURCES: Record<
+  string,
+  {
+    keyVars: string[]
+    defaultModel: string
+    /**
+     * The `ProviderId` `resolveLanguageModel` is called with. Defaults to the
+     * source name. A source whose provider is not first-class in the app
+     * (Qwen) resolves as `custom` and must carry a `baseUrl`.
+     */
+    resolveAs?: string
+    baseUrl?: string
+    /** See `ResolveInput.schemaInPrompt`; set by a source whose endpoint cannot enforce a schema. */
+    schemaInPrompt?: boolean
+    /** Read from the environment at pool-build time; see the qwen entry. */
+    requestDefaults?: (env: NodeJS.ProcessEnv) => Record<string, unknown> | undefined
+  }
+> = {
+  google: { keyVars: ['GOOGLE_API_KEYS', 'GOOGLE_API_KEY'], defaultModel: 'gemini-3.6-flash' },
+  deepseek: { keyVars: ['DEEPSEEK_API_KEYS', 'DEEPSEEK_API_KEY'], defaultModel: 'deepseek-flash' },
+  /**
+   * Qwen via DashScope's OpenAI-compatible endpoint (international region —
+   * the mainland host rejects this key with 401). Entitlement went live
+   * 2026-09-11; before that every model returned 403 `AccessDenied.Unpurchased`
+   * (see `docs/ai/model-performance.md`).
+   *
+   * Only the 3.7 family holds the structured-output contract here: DashScope
+   * downgrades a `json_schema` request to `json_object` for `qwen3.6-flash` and
+   * `qwen3.6-plus`, so nothing constrains the shape and Zod rejects the reply
+   * every time. Measured 2026-09-11. Do not put a 3.6 model in this pool.
+   */
+  qwen: {
+    keyVars: ['QWENCLOUD_API_KEYS', 'QWENCLOUD_API_KEY'],
+    defaultModel: 'qwen3.7-flash',
+    resolveAs: 'custom',
+    baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+    /**
+     * `QWEN_THINKING=off` sends DashScope's `enable_thinking: false`.
+     * qwen3.8-flash thinks by default: 274 s and 12,588 reasoning tokens on
+     * the shortest minting card, and a headers timeout on the longer ones;
+     * the same call with thinking off took 7 s (2026-09-12). Off by request
+     * rather than always, so runs measured with thinking on stay comparable.
+     */
+    requestDefaults: (env) => (env.QWEN_THINKING?.toLowerCase() === 'off' ? { enable_thinking: false } : undefined),
+  },
+  /**
+   * Z.ai (GLM) via its OpenAI-compatible endpoint. Wired 2026-09-12; the key
+   * authenticates but the account returned `1113 Insufficient balance or no
+   * resource package` on every model, so nothing is measured yet. `glm-5.3-flash`
+   * and `glm-5.3` are valid ids (`glm-5.3-flashx` is not).
+   */
+  zai: {
+    keyVars: ['ZAI_API_KEYS', 'ZAI_API_KEY'],
+    defaultModel: 'glm-5.3-flash',
+    resolveAs: 'custom',
+    baseUrl: 'https://api.z.ai/api/paas/v4',
+    // Z.ai accepts only `response_format: json_object` (its docs), so the
+    // schema rides in the prompt and the fence is stripped. glm-5.3-flash's
+    // thinking is forced on and cannot be disabled (error 1210); the level is
+    // the OpenAI-style `reasoning_effort` (low | high | max), measured 1.3 s /
+    // 36 output tokens at low against 5 s / 415 at the default on one call.
+    schemaInPrompt: true,
+    requestDefaults: (env) => (env.ZAI_REASONING_EFFORT ? { reasoning_effort: env.ZAI_REASONING_EFFORT } : undefined),
+  },
+}
+
+/**
+ * Reads the `--direct` pool from the environment.
+ *
+ * LIVES HERE rather than in a script because more than one operator tool needs
+ * it — `npm run author-klps` and `npm run klp-exploit` — and a second copy of
+ * the provider table is a second thing to keep correct. The first thing it
+ * would drift on is which provider's keys are being spent, which is exactly
+ * the log line that makes a billing surprise take an hour to trace.
+ *
+ * `KLP_DIRECT_PROVIDER` selects the provider and defaults to google, so every
+ * existing `.env` and documented command keeps working unchanged.
+ *
+ * Keys are read from the environment ONLY — never a flag, because argv is
+ * visible to every other process on the machine and lands in shell history.
+ */
+export function readDirectPool(
+  env: NodeJS.ProcessEnv = process.env,
+  /**
+   * Which env vars to read. `attack` is the historical pair
+   * (`KLP_DIRECT_PROVIDER` / `KLP_DIRECT_MODELS`), so every existing command
+   * keeps working unchanged.
+   *
+   * `verify` reads `KLP_VERIFIER_PROVIDER` / `KLP_VERIFIER_MODELS` and exists
+   * for ROLE SEPARATION: the model that writes an adversarial answer must not
+   * be the model that then rules on whether the attack succeeded. See
+   * `scripts/klp-exploit.ts`.
+   */
+  role: 'attack' | 'verify' | 'author' = 'attack',
+): DirectCombo[] {
+  // `author` reads `KLP_AUTHOR_PROVIDER` / `KLP_AUTHOR_MODELS` and exists for
+  // ROLE SEPARATION in authoring (2026-09-12): the model that WRITES the key
+  // points and revises them may differ from the model that grades, relates
+  // and classifies. Measured on the bench: the cheapest Gemini writes the
+  // tightest points and DeepSeek is the strictest, fastest grader — and the
+  // grader's calls are 5-14 of a card's 7-17, so putting only the writing on
+  // the capped provider takes a key from 2 cards a day to 6-10.
+  const providerVar = role === 'verify' ? 'KLP_VERIFIER_PROVIDER' : role === 'author' ? 'KLP_AUTHOR_PROVIDER' : 'KLP_DIRECT_PROVIDER'
+  const modelsVar = role === 'verify' ? 'KLP_VERIFIER_MODELS' : role === 'author' ? 'KLP_AUTHOR_MODELS' : 'KLP_DIRECT_MODELS'
+  const provider = (env[providerVar] ?? env.KLP_DIRECT_PROVIDER ?? 'google').trim().toLowerCase()
+
+  const source = DIRECT_PROVIDER_SOURCES[provider]
+  if (!source) {
+    throw new Error(
+      `${providerVar}=${provider} is not supported — use one of: ` +
+        `${Object.keys(DIRECT_PROVIDER_SOURCES).join(', ')}`,
+    )
+  }
+
+  const keys = [...new Set(source.keyVars.flatMap((v) => parseList(env[v])))]
+  if (keys.length === 0) {
+    throw new Error(
+      `--direct with ${providerVar}=${provider} needs one of ` +
+        `${source.keyVars.join(' or ')} in the environment`,
+    )
+  }
+
+  const models = parseList(env[modelsVar] ?? (role === 'attack' ? env.KLP_DIRECT_MODEL : undefined))
+  if (role === 'author' && !env[providerVar] && !env[modelsVar]) return []
+  return buildDirectPool(
+    keys,
+    models.length > 0 ? models : [source.defaultModel],
+    source.resolveAs ?? provider,
+    source.baseUrl,
+    source.requestDefaults?.(env),
+    source.schemaInPrompt,
+  )
+}
+
+/**
+ * The `resolveLanguageModel` input for one combo.
+ *
+ * Every operator script used to spell `{ provider, apiKey, model }` out by
+ * hand, which is how a new field on the combo (`baseUrl`) would silently reach
+ * none of them — each caller would compile, and each would send a `custom`
+ * provider with no URL and fail at request time.
+ */
+export function comboResolveInput(combo: DirectCombo): {
+  provider: ProviderId
+  apiKey: string
+  model: string
+  baseUrl?: string
+  requestDefaults?: Record<string, unknown>
+  schemaInPrompt?: boolean
+} {
+  return {
+    provider: combo.provider as ProviderId,
+    apiKey: combo.apiKey,
+    model: combo.model,
+    ...(combo.baseUrl ? { baseUrl: combo.baseUrl } : {}),
+    ...(combo.requestDefaults ? { requestDefaults: combo.requestDefaults } : {}),
+    ...(combo.schemaInPrompt ? { schemaInPrompt: true } : {}),
   }
 }

@@ -62,19 +62,22 @@ beforeEach(() => {
 const outcome = {
   referenceAnswer: 'ref',
   klps: [
-    { text: 'p0', kind: 'mechanism', weight: 3 },
-    { text: 'p1', kind: 'causal', weight: 2 },
-    { text: 'p2', kind: 'definition', weight: 1 },
+    { text: 'p0', kind: 'mechanism', weight: 3, role: 'substance' as const },
+    { text: 'p1', kind: 'causal', weight: 2, role: 'substance' as const },
+    { text: 'p2', kind: 'definition', weight: 1, role: 'framing' as const },
   ],
   probes: [{ kind: 'vague' as const, text: 'w', score: 0.2, verdicts: { '0': 'omission' as const } }],
   relations: [{ from: 0, to: 1, type: 'causes' as const, provenance: 'perturbation' as const, rationale: 'r', probe: 'p' }],
   relationStats: { candidates: 1, accepted: 1, droppedForCycles: 0, droppedOutOfRange: 0 },
   separationScore: 0.8,
+  substanceSeparation: 0.9,
   referenceVerdicts: ['correct' as const, 'correct' as const, 'partial' as const],
   revisions: 1,
   status: 'separated' as const,
   defects: [],
   targetKlpCount: 4,
+  klpShapes: [],
+  unseparatedBoundaries: [],
   concerns: [],
 }
 
@@ -88,9 +91,9 @@ describe('persistAuthoring', () => {
   it('writes the KLPs with their COMPUTED weights', async () => {
     await persistAuthoring('c1', outcome, 1, content)
     expect(h.write.mock.calls[0][1]).toEqual([
-      { text: 'p0', kind: 'mechanism', weight: 3, source: 'ai', promptVersion: 1 },
-      { text: 'p1', kind: 'causal', weight: 2, source: 'ai', promptVersion: 1 },
-      { text: 'p2', kind: 'definition', weight: 1, source: 'ai', promptVersion: 1 },
+      { text: 'p0', kind: 'mechanism', weight: 3, role: 'substance', source: 'ai', promptVersion: 1 },
+      { text: 'p1', kind: 'causal', weight: 2, role: 'substance', source: 'ai', promptVersion: 1 },
+      { text: 'p2', kind: 'definition', weight: 1, role: 'framing', source: 'ai', promptVersion: 1 },
     ])
   })
 
@@ -106,8 +109,14 @@ describe('persistAuthoring', () => {
     await persistAuthoring('c1', outcome, 1, content)
     expect(h.authoringCreate.mock.calls[0][0].data).toMatchObject({
       cardId: 'c1', klpVersion: 4, referenceAnswer: 'ref',
-      separationScore: 0.8, revisions: 1, status: 'separated',
+      separationScore: 0.8, substanceSeparation: 0.9, revisions: 1, status: 'separated',
     })
+  })
+
+  it('writes each point\'s role onto its KLP row (framing points are flagged, never dropped)', async () => {
+    await persistAuthoring('c1', outcome, 1, content)
+    const rows = h.write.mock.calls[0][1] as { role?: string }[]
+    expect(rows.map((r) => r.role)).toEqual(['substance', 'substance', 'framing'])
   })
 
   it('writes no relations when there are none, rather than an empty call', async () => {

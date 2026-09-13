@@ -1,0 +1,673 @@
+{
+  "setId": "cmsfkfumz000004jov11adgbu",
+  "skip": 0,
+  "outcomes": [
+    {
+      "cardId": "cmsfkfv8q001p04jofizww8u5",
+      "term": "Why are intangible assets not in the balance sheet?",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "An intangible asset is a non-physical resource that can generate future economic benefit — things like brand value, patents, customer relationships, or internally developed technology. The reason most intangibles don't appear on the balance sheet is a verification problem, and it flows from a core accounting principle: assets only get recognized when their value can be measured reliably. When a company builds an intangible internally — say, it spends years developing a brand or a customer list — it's almost impossible to reliably measure what that asset is worth or even to separate its cost from the general cost of running the business. Is the brand worth $10 million or $500 million? There's no market price, no arm's-length buyer, and management's own estimate is self-serving, so accounting standards don't let management invent a number and put it on the books. Under US GAAP, that means internally generated intangibles like R&D and advertising are simply expensed as incurred — the cost shows up on the income statement, not as an asset. The moment the intangible is acquired instead, the problem disappears: an actual arm's-length transaction with a third party produces a real price, which is objective, auditor-verifiable evidence of value — that's why acquired intangibles like goodwill and purchased patents do appear on the balance sheet. So the dividing line isn't physical vs. non-physical; it's verifiable vs. not.",
+        "klps": [
+          {
+            "text": "Assets are only recognized on the balance sheet when their value can be measured reliably; for most internally developed intangibles this reliability test cannot be met, so they are not booked as assets — a verification problem, not a physical-versus-non-physical distinction.",
+            "kind": "condition",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "For an internally developed intangible, there is no market price and no arm's-length buyer, and management's own estimate of its value is self-serving, so accounting standards do not let management invent a number for the books.",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Under US GAAP, internally generated intangibles such as R&D and advertising are expensed as incurred, so their cost sits on the income statement rather than appearing as an asset on the balance sheet.",
+            "kind": "mechanism",
+            "weight": 1,
+            "role": "substance"
+          },
+          {
+            "text": "Acquired intangibles such as goodwill and purchased patents do appear on the balance sheet, because their transaction price from an arm's-length third party is objective, auditor-verifiable evidence of value.",
+            "kind": "causal",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "The dividing line for balance sheet recognition is verifiable versus not verifiable, not physical versus non-physical.",
+            "kind": "contrast",
+            "weight": 3,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "Intangible assets are tricky because they're not physical, so they don't fit neatly into the traditional balance sheet. Accounting standards have a lot of rules about when you can recognize them, and it mostly depends on whether they meet certain criteria. Internally generated ones usually don't make the cut, while acquired ones sometimes do. There's a lot of judgment involved, and it often comes down to whether the value is clear enough. So in practice, many intangibles just end up being expensed rather than capitalized.",
+            "score": 0.3,
+            "verdicts": {
+              "0": "partial",
+              "1": "omission",
+              "2": "partial",
+              "3": "incomplete",
+              "4": "contradicted"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "Intangible assets are not on the balance sheet because of the matching principle and the reliability principle in accounting. Under both US GAAP and IFRS, assets must be measurable and probable, so internally generated intangibles fail the recognition criteria. That is why things like brand value, customer lists, and R&D are expensed rather than capitalized. When they are acquired in a business combination, they are recognized at fair value because there is an objective transaction. So the key distinction is internally generated versus acquired intangibles, and accounting standards treat them differently.",
+            "score": 0.7,
+            "verdicts": {
+              "0": "correct",
+              "1": "partial",
+              "2": "correct",
+              "3": "partial",
+              "4": "partial"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 4,
+            "to": 0,
+            "type": "requires",
+            "provenance": "order_violation",
+            "rationale": "The verifiable/not-verifiable dividing line is the criterion that makes the reliable-measurement recognition rule apply to intangibles.",
+            "probe": "A learner says recognition turns on verifiability and separately says intangibles are excluded for lack of reliable measurement, yet treats these as two unrelated standards."
+          },
+          {
+            "from": 0,
+            "to": 1,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "If reliable measurement were not the recognition test, the absence of market price and arm's-length buyer would lose its exclusionary force.",
+            "probe": "A learner explains no market price and no arm's-length buyer yet concludes intangibles fail because they are non-physical, not because of measurement reliability."
+          },
+          {
+            "from": 3,
+            "to": 1,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "Acquired intangibles have an objective transaction price, which is exactly what removes the self-serving-estimate problem for internal ones.",
+            "probe": "A learner notes acquired intangibles appear due to arm's-length pricing but still attributes internal exclusion to their non-physical nature rather than unverifiable estimates."
+          },
+          {
+            "from": 2,
+            "to": 3,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both contrast internal versus acquired intangibles, but one says internal costs are expensed while the other says acquired ones are booked.",
+            "probe": "A learner says internally generated intangibles appear on the balance sheet because acquired intangibles do, conflating the expensing rule with the recognition rule."
+          }
+        ],
+        "relationStats": {
+          "candidates": 4,
+          "accepted": 4,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.30000000000000004,
+        "substanceSeparation": 0.30000000000000004,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "low_discrimination",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 0,
+            "rule": "verbose",
+            "detail": "41 words; a point states one claim in at most 30"
+          },
+          {
+            "index": 1,
+            "rule": "compound",
+            "detail": "two claims joined by \"and\" — split it"
+          },
+          {
+            "index": 1,
+            "rule": "verbose",
+            "detail": "36 words; a point states one claim in at most 30"
+          },
+          {
+            "index": 2,
+            "rule": "verbose",
+            "detail": "33 words; a point states one claim in at most 30"
+          }
+        ],
+        "targetKlpCount": 4,
+        "concerns": [],
+        "revisionReasons": [
+          "separation 0.58 does not clear the 0.60 bar; [1] accepted by the memorized_template answer; [5] accepted by the memorized_template answer; [3] not self contained; [5] compound; [6] verbose; [0] restatement with [7]: Point 0's opening definition and Point 7's closing contrast both frame the answer as what an intangible is and where the line falls, repeating the same framing.; [7] restatement with [0]: Point 0's opening definition and Point 7's closing contrast both frame the answer as what an intangible is and where the line falls, repeating the same framing.; [1] restatement with [2], [7]: Points 1, 2, and 7 all make the same claim that the deciding factor is whether an objective, reliable value can be measured.; [2] restatement with [1], [7]: Points 1, 2, and 7 all make the same claim that the deciding factor is whether an objective, reliable value can be measured.; [7] restatement with [1], [2]: Points 1, 2, and 7 all make the same claim that the deciding factor is whether an objective, reliable value can be measured.; [5] restatement with [6], [7]: Points 5, 6, and 7 all say an acquisition is a third-party transaction that makes an intangible verifiable and therefore bookable.; [6] restatement with [5], [7]: Points 5, 6, and 7 all say an acquisition is a third-party transaction that makes an intangible verifiable and therefore bookable.; [7] restatement with [5], [6]: Points 5, 6, and 7 all say an acquisition is a third-party transaction that makes an intangible verifiable and therefore bookable.; [6] clause bloat: The because-clause in Point 6 about auditors verifying a completed third-party transaction restates the verifiability claim without adding a separately testable fact.; [4] not on the card: Point 4's US GAAP detail that R&D and advertising are expensed rather than capitalized is accounting treatment not carried by the owner's verifiability definition.",
+          "parity 0.50 is below the 0.70 bar — an answer rebuilt from the key points alone lost claims the reference makes; reference claim only gestured at by the key points: \"The reason most intangibles don't appear on the balance sheet is a verification problem.\"; reference claim not carried by the key points: \"A core accounting principle: assets are only recognized when their value can be measured reliably.\"; reference claim only gestured at by the key points: \"For an internally developed intangible, it is almost impossible to reliably measure what the asset is worth.\"; reference claim only gestured at by the key points: \"There is no market price, no arm's-length buyer, and management's estimate is self-serving, so standards don't let management invent a number for the books.\"; reference claim not carried by the key points: \"Under US GAAP, internally generated intangibles like R&D and advertising are expensed as incurred, with the cost on the income statement rather than as an asset.\"; reference claim only gestured at by the key points: \"That transaction price is objective, auditor-verifiable evidence of value.\"; reference claim only gestured at by the key points: \"Acquired intangibles such as goodwill and purchased patents do appear on the balance sheet.\"; reference claim not carried by the key points: \"The dividing line is verifiable vs. not, not physical vs. non-physical.\"; [2] not self contained; [3] restatement with [4]: Point 3 says the acquired price is set by an arm's-length third-party transaction and point 4 immediately repeats that the third-party acquisition price is objective evidence of value.; [4] restatement with [3]: Point 3 says the acquired price is set by an arm's-length third-party transaction and point 4 immediately repeats that the third-party acquisition price is objective evidence of value.; [0] not on the card: The opening definition of an intangible as a non-physical resource with future economic benefit is not part of the card owner's definition and is not needed to reach the conclusion.; [5] not on the card: The closing contrast that acquired intangibles sit on the balance sheet while internally built ones stay off is not carried by the card owner's definition and restates the conclusion rather than advancing it.; [2] clause bloat: Point 2's framing about separating the cost of building an intangible from general operating costs adds wording without a separately testable claim beyond unverifiability."
+        ],
+        "questionType": "why",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The conclusion that the line is 'verifiable vs. not' is stated at both the opening of the second sentence and again in the long final sentence, so the last sentence largely restates ground already covered."
+            },
+            {
+              "kind": "conciseness",
+              "text": "The acquired-intangible point is made twice in close succession — 'The moment the intangible is acquired instead...' and then 'That's why acquired intangibles... do appear on the balance sheet' — which could be compressed into one."
+            }
+          ],
+          "rewritten": true
+        },
+        "rebuild": {
+          "rebuiltAnswer": "Assets are only recognized on the balance sheet when their value can be measured reliably. For most internally developed intangibles, that reliability test cannot be met, so they are not booked as assets. This is a verification problem, not a physical-versus-non-physical distinction. For an internally developed intangible, there is no market price and no arm's-length buyer, and management's own estimate is self-serving, so standards do not let management invent a number for the books. Under US GAAP, internally generated intangibles like R&D and advertising are expensed as incurred, so their cost sits on the income statement rather than as an asset. Acquired intangibles such as goodwill and purchased patents do appear on the balance sheet because their transaction price from an arm's-length third party is objective, auditor-verifiable evidence of value. The dividing line for recognition is verifiable versus not verifiable, not physical versus non-physical.",
+          "cardCoverage": 1,
+          "referenceParity": 0.7,
+          "extractionLoss": 0.30000000000000004,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": ""
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "An intangible asset is a non-physical resource that can generate future economic benefit",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Examples of intangibles include brand value, patents, customer relationships, or internally developed technology",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Most intangibles don't appear on the balance sheet because of a verification problem",
+              "verdict": "partial"
+            },
+            {
+              "claim": "It flows from a core accounting principle: assets only get recognized when their value can be measured reliably",
+              "verdict": "present"
+            },
+            {
+              "claim": "When a company builds an intangible internally (e.g., spending years developing a brand or customer list), it's almost impossible to reliably measure what that asset is worth",
+              "verdict": "partial"
+            },
+            {
+              "claim": "It is almost impossible to separate the intangible's cost from the general cost of running the business",
+              "verdict": "absent"
+            },
+            {
+              "claim": "There is no market price for internally developed intangibles",
+              "verdict": "present"
+            },
+            {
+              "claim": "There is no arm's-length buyer for internally developed intangibles",
+              "verdict": "present"
+            },
+            {
+              "claim": "Management's own estimate is self-serving, so accounting standards don't let management invent a number and put it on the books",
+              "verdict": "present"
+            },
+            {
+              "claim": "Under US GAAP, internally generated intangibles like R&D and advertising are expensed as incurred",
+              "verdict": "present"
+            },
+            {
+              "claim": "The cost shows up on the income statement, not as an asset",
+              "verdict": "present"
+            },
+            {
+              "claim": "When the intangible is acquired instead, the problem disappears because an actual arm's-length transaction with a third party produces a real price",
+              "verdict": "partial"
+            },
+            {
+              "claim": "The transaction price is objective, auditor-verifiable evidence of value",
+              "verdict": "present"
+            },
+            {
+              "claim": "Acquired intangibles like goodwill and purchased patents do appear on the balance sheet",
+              "verdict": "present"
+            },
+            {
+              "claim": "The dividing line isn't physical vs. non-physical; it's verifiable vs. not",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Intangible assets are not verifiable (from the card owner's definition)",
+            "If acquired, they become verifiable through a third-party transaction and audits (from the card owner's definition)"
+          ],
+          "wordRatio": 0.6343612334801763,
+          "review": {
+            "conciseness": "bloated",
+            "clarity": "clear",
+            "issues": [
+              {
+                "kind": "restatement",
+                "points": [
+                  0,
+                  1,
+                  4
+                ],
+                "text": "Points 0, 1, and 4 all make the same claim — that intangibles are excluded because their value is not verifiable, not because they are non-physical."
+              },
+              {
+                "kind": "restatement",
+                "points": [
+                  0,
+                  4
+                ],
+                "text": "Point 0 and point 4 both state the verifiable-versus-not-verifiable dividing line, so the conclusion is delivered twice."
+              },
+              {
+                "kind": "clause_bloat",
+                "points": [
+                  1
+                ],
+                "text": "Point 1's clause explaining that there is no market price and no arm's-length buyer and that management's estimate is self-serving adds wording without a separately testable claim."
+              },
+              {
+                "kind": "not_on_card",
+                "points": [
+                  2
+                ],
+                "text": "Point 2's US GAAP expensing treatment of R&D and advertising is not carried by the owner's definition, which is about verifiability, and the answer does not need it to reach its conclusion."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmsfkfva7002104jolfvau4r4",
+      "term": "How does CapEx & depreciation shift for mature vs new companies?",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "CapEx is cash spent on long-term fixed assets, and depreciation spreads those costs over their useful lives. For a mature company, the building phase is over: it already owns the plants, equipment, and stores it needs, so it only spends on maintenance and replacement — CapEx is low and often falls at or below the depreciation line. Depreciation stays high because assets capitalized during earlier heavy-investment years are still being charged off every period; when depreciation exceeds CapEx, the fixed asset base is actually shrinking. A new or growth company is the reverse: it's aggressively building out capacity, so CapEx is high — often exceeding operating cash flow — while depreciation is low because the assets were only just placed in service and the expense builds up gradually over their useful lives. This is why the numbers must be read in context: CapEx running below depreciation at a mature firm may signal underinvestment and understated true maintenance costs, while high CapEx at a young firm depresses current earnings and free cash flow but represents investment in future growth — so a naive comparison of earnings or FCF between the two life stages misleads.",
+        "klps": [
+          {
+            "text": "CapEx is cash spent on long-term fixed assets, and depreciation spreads those costs over their useful lives",
+            "kind": "definition",
+            "weight": 3,
+            "role": "framing"
+          },
+          {
+            "text": "A mature company has already built its asset base, so it only spends on maintenance and replacement, keeping CapEx low",
+            "kind": "mechanism",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "For mature companies, depreciation is high relative to CapEx because assets bought in earlier heavy-investment years are still being charged off each period",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "A new company is building capacity, so CapEx is high",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "A new company's depreciation is low because its assets were only just placed in service and are being charged off gradually",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "So CapEx and depreciation definitely behave differently depending on where a company is in its lifecycle. For a mature company, things are more stable and the spending patterns kind of level out, whereas a newer company is still growing and figuring out its asset base, so the relationship between the two is going to look different. Depreciation is tied to how many assets you have and how long you've had them, so obviously that changes over time. The key thing is to look at both together rather than in isolation, because the context of the company's stage really matters for interpreting what the numbers mean. You can't just look at one line item and draw a conclusion.",
+            "score": 0,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "CapEx represents capital expenditures on long-term assets, while depreciation is the allocation of those costs over their useful lives. For a mature company, the dynamics differ meaningfully compared to a new or growth-stage company. On one hand, mature firms have already built out their asset base, so the relationship between CapEx and depreciation reflects that stage of the lifecycle. On the other hand, newer companies are still investing in growth, which changes the picture. Ultimately, it's important to read these figures in context, since the stage of the company shapes how CapEx and depreciation move relative to each other. This is why a simple comparison across life stages can be misleading without the proper framing.",
+            "score": 0.4,
+            "verdicts": {
+              "0": "correct",
+              "1": "incomplete",
+              "2": "omission",
+              "3": "incomplete",
+              "4": "omission"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 1,
+            "to": 2,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "Low current CapEx only leaves depreciation high relative to CapEx if prior heavy-investment assets are still being charged off.",
+            "probe": "Mature firms spend little on CapEx, so their depreciation expense is also low relative to CapEx."
+          },
+          {
+            "from": 3,
+            "to": 4,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "High new-company CapEx creates newly placed assets whose gradual charge-off is exactly what keeps depreciation low.",
+            "probe": "New companies build capacity with high CapEx, so their depreciation is high relative to CapEx."
+          },
+          {
+            "from": 0,
+            "to": 2,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Depreciation being high relative to CapEx presupposes that depreciation spreads long-asset cost over useful lives rather than being expensed immediately.",
+            "probe": "Mature firms show high depreciation relative to CapEx because CapEx is immediately expensed, not spread over asset lives."
+          },
+          {
+            "from": 1,
+            "to": 3,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "Low CapEx for maintenance only holds within the contrast condition that new companies are instead building capacity with high CapEx.",
+            "probe": "Mature firms keep CapEx low on maintenance, while new companies also keep CapEx low because they lease capacity."
+          },
+          {
+            "from": 1,
+            "to": 4,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both describe low spending on assets, so learners swap mature low CapEx for new-company low depreciation.",
+            "probe": "New companies have low asset spending, and mature companies have low depreciation from just-placed assets."
+          },
+          {
+            "from": 1,
+            "to": 2,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "You cannot claim depreciation outruns CapEx for mature firms without first having the low-maintenance CapEx result in hand.",
+            "probe": "Mature firms have depreciation high relative to CapEx, though their own CapEx is also high from constant rebuilding."
+          }
+        ],
+        "relationStats": {
+          "candidates": 6,
+          "accepted": 6,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.6,
+        "substanceSeparation": 0.75,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 0,
+            "rule": "abstraction_spread",
+            "detail": "one point is concrete while the other 4 are not — on a card this size that usually means it was written to a different brief. Judged WITHIN this card only; cards legitimately differ from each other."
+          }
+        ],
+        "targetKlpCount": 4,
+        "concerns": [],
+        "revisionReasons": [
+          "[4] compound; [4] verbose",
+          "[3] not on the card: Point 3's claim that the fixed asset base shrinks is an implication the card owner's definition (mature = lower CapEx, higher depreciation; new = reverse) does not carry and the answer does not need.; [7] not on the card: Point 7's underinvestment signal and understated maintenance cost is outside the owner's definition and unnecessary to the conclusion.; [5] not on the card: Point 5's detail that CapEx can exceed operating cash flow goes beyond the card and is not needed to show CapEx is high at a new company.; [8] not on the card: Point 8's warning that comparing earnings or FCF across life stages misleads is an evaluative aside the card owner's definition does not carry."
+        ],
+        "questionType": "compare",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The final sentence (\"That's the core contrast: mature companies harvest assets built earlier...\") simply restates the low CapEx/high depreciation vs. high CapEx/low depreciation point already made twice, adding no new work."
+            },
+            {
+              "kind": "conciseness",
+              "text": "The opening sentence defines CapEx and depreciation at length even though the question already assumes those terms, making the front half longer than a spoken answer needs."
+            }
+          ],
+          "rewritten": true
+        },
+        "rebuild": {
+          "rebuiltAnswer": "CapEx is cash spent on long-term fixed assets, and depreciation spreads those costs over their useful lives. A mature company has already built its asset base, so it only spends on maintenance and replacement, keeping CapEx low. Its depreciation is high relative to CapEx because assets bought in earlier heavy-investment years are still being charged off each period. A new company is building capacity, so CapEx is high, while its depreciation is low because its assets were only just placed in service and are being charged off gradually.",
+          "cardCoverage": 1,
+          "referenceParity": 0.5,
+          "extractionLoss": 0.5,
+          "clearsBar": true,
+          "clearsParityBar": false,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": ""
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "CapEx is cash spent on long-term fixed assets",
+              "verdict": "present"
+            },
+            {
+              "claim": "Depreciation spreads those costs over their useful lives",
+              "verdict": "present"
+            },
+            {
+              "claim": "For a mature company, the building phase is over: it already owns the plants, equipment, and stores it needs",
+              "verdict": "partial"
+            },
+            {
+              "claim": "A mature company only spends on maintenance and replacement",
+              "verdict": "present"
+            },
+            {
+              "claim": "For a mature company, CapEx is low",
+              "verdict": "present"
+            },
+            {
+              "claim": "For a mature company, CapEx often falls at or below the depreciation line",
+              "verdict": "absent"
+            },
+            {
+              "claim": "For a mature company, depreciation stays high because assets capitalized during earlier heavy-investment years are still being charged off every period",
+              "verdict": "present"
+            },
+            {
+              "claim": "When depreciation exceeds CapEx, the fixed asset base is actually shrinking",
+              "verdict": "absent"
+            },
+            {
+              "claim": "A new or growth company is the reverse: it is aggressively building out capacity",
+              "verdict": "present"
+            },
+            {
+              "claim": "For a new company, CapEx is high",
+              "verdict": "present"
+            },
+            {
+              "claim": "For a new company, CapEx often exceeds operating cash flow",
+              "verdict": "absent"
+            },
+            {
+              "claim": "For a new company, depreciation is low because assets were only just placed in service and the expense builds up gradually over their useful lives",
+              "verdict": "present"
+            },
+            {
+              "claim": "The numbers must be read in context",
+              "verdict": "absent"
+            },
+            {
+              "claim": "CapEx running below depreciation at a mature firm may signal underinvestment and understated true maintenance costs",
+              "verdict": "absent"
+            },
+            {
+              "claim": "High CapEx at a young firm depresses current earnings and free cash flow",
+              "verdict": "absent"
+            },
+            {
+              "claim": "High CapEx at a young firm represents investment in future growth",
+              "verdict": "absent"
+            },
+            {
+              "claim": "A naive comparison of earnings or FCF between the two life stages misleads",
+              "verdict": "absent"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Mature companies have lower CapEx and higher depreciation (from the card owner's definition)",
+            "New companies show the reverse — higher CapEx, lower depreciation (from the card owner's definition)"
+          ],
+          "wordRatio": 0.45595854922279794,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": []
+          }
+        }
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "step": "adversaries",
+      "model": "deepseek-v4-flash",
+      "calls": 3,
+      "input": 1863,
+      "output": 690,
+      "reasoning": 0,
+      "cached": 384
+    },
+    {
+      "step": "author-batch",
+      "model": "glm-5.3-flash",
+      "calls": 1,
+      "input": 2031,
+      "output": 1973,
+      "reasoning": 160,
+      "cached": 0
+    },
+    {
+      "step": "classify",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 1411,
+      "output": 146,
+      "reasoning": 0,
+      "cached": 512
+    },
+    {
+      "step": "coverage",
+      "model": "deepseek-v4-flash",
+      "calls": 6,
+      "input": 5177,
+      "output": 384,
+      "reasoning": 0,
+      "cached": 1152
+    },
+    {
+      "step": "grade",
+      "model": "deepseek-v4-flash",
+      "calls": 15,
+      "input": 18485,
+      "output": 2282,
+      "reasoning": 0,
+      "cached": 8064
+    },
+    {
+      "step": "parity",
+      "model": "deepseek-v4-flash",
+      "calls": 6,
+      "input": 4667,
+      "output": 2784,
+      "reasoning": 0,
+      "cached": 1024
+    },
+    {
+      "step": "rebuild",
+      "model": "deepseek-v4-flash",
+      "calls": 6,
+      "input": 2898,
+      "output": 1073,
+      "reasoning": 0,
+      "cached": 0
+    },
+    {
+      "step": "relate",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 1997,
+      "output": 914,
+      "reasoning": 0,
+      "cached": 256
+    },
+    {
+      "step": "review",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 1876,
+      "output": 273,
+      "reasoning": 0,
+      "cached": 256
+    },
+    {
+      "step": "review-rebuilt",
+      "model": "deepseek-v4-flash",
+      "calls": 6,
+      "input": 6155,
+      "output": 1089,
+      "reasoning": 0,
+      "cached": 1024
+    },
+    {
+      "step": "revise",
+      "model": "deepseek-v4-flash",
+      "calls": 4,
+      "input": 7920,
+      "output": 1022,
+      "reasoning": 0,
+      "cached": 0
+    },
+    {
+      "step": "revise-ref",
+      "model": "glm-5.3-flash",
+      "calls": 2,
+      "input": 2418,
+      "output": 1746,
+      "reasoning": 589,
+      "cached": 64
+    }
+  ]
+}

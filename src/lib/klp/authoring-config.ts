@@ -26,6 +26,29 @@ export const SEPARATION_FLOOR = 0.4
 export const MAX_REVISIONS = 2
 
 /**
+ * The QUALITY BAR that triggers a revision, distinct from `SEPARATION_FLOOR`.
+ *
+ * The floor (0.40) decides whether a card is FLAGGED `low_discrimination`; it
+ * is deliberately low, and until 2026-09-12 it was also the only thing that
+ * could make the pipeline revise. On the 15-card authoring bench that meant
+ * cards with a reference that failed its own key points, seven `compound`
+ * defects, or a weak answer scoring 0.60 were all accepted on the first
+ * draft. The owner asked that a meaningful share of cards — at least a fifth —
+ * be revised. This bar is the mechanism: a card is revised (up to
+ * `MAX_REVISIONS`) when ANY of these TypeScript-computed checks fails:
+ *   - separation at or below REVISION_BAR (a card must CLEAR it),
+ *   - the reference answer fails any of its own key points,
+ *   - any hygiene defect from `validateKlpSet` (compound, restatement, ...),
+ *   - a smoke failure (a weak answer above half the set).
+ * Not a quota: if every card on a run clears every check, none is revised,
+ * and the run report prints the revised share and warns below a fifth.
+ * `ordering` and `abstraction_spread` are NOT in the bar — they need the
+ * relation edges and the abstraction classification, which are computed
+ * after the loop — so they are reported on the card, not revised for.
+ */
+export const REVISION_BAR = 0.6
+
+/**
  * The smallest number of KLPs the sizing layer will ever target — the owner's
  * "base of 4+ KLPs" (increment A §5), and the lower end of the grain target
  * `validateKlpSet` and the prompts state.
@@ -84,16 +107,31 @@ export const MAX_KLPS_AUTHORED = 9
 export const GRADE_CANDIDATES_SEPARATELY = true
 
 /**
- * The three adversary archetypes, from the user's specification. Each fails
- * differently on purpose: the confident one is articulate and wrong, the vague
- * one refuses to commit, and the template one has structure with no substance.
+ * The adversary archetypes WRITTEN today. Each fails differently on purpose:
+ * the vague one refuses to commit, the template one has structure with no
+ * substance.
+ *
+ * `confident_wrong` was CUT on 2026-09-13 (owner): across every run recorded
+ * in docs/ai/model-performance.md it scored 0.00-0.19 against the key points
+ * and never once set the best-wrong bar — the separation test is decided by
+ * the template and the vague answer, so the third trap was a grading call per
+ * round that measured nothing. It survives in `LEGACY_PROBE_KINDS` because
+ * every `AuthoringProbe` row written before that date carries it, and
+ * `ProbeKind` must still type those rows when they are read back.
  *
  * `memorized_template` is not only an adversary — it is a ready-made near-miss
  * for the `template_anchoring` diagnosis, generated for free here.
+ *
+ * Weight consequence: `discriminationBreadth` is fails / adversaries, so with
+ * two traps it takes the values 0, 0.5, 1 rather than thirds. The histogram
+ * (`npm run klp-histogram`) is the check that this did not flatten weights.
  */
-export const PROBE_KINDS = ['confident_wrong', 'vague', 'memorized_template'] as const
+export const PROBE_KINDS = ['vague', 'memorized_template'] as const
 
-export type ProbeKind = (typeof PROBE_KINDS)[number]
+/** Kinds no longer written but present on stored rows. */
+export const LEGACY_PROBE_KINDS = ['confident_wrong'] as const
+
+export type ProbeKind = (typeof PROBE_KINDS)[number] | (typeof LEGACY_PROBE_KINDS)[number]
 
 /**
  * How the two weight signals are blended (increment A §1).
@@ -177,3 +215,23 @@ export const HISTOGRAM_UNIFORM_SHARE = 0.6
  * legitimate — but it is printed without a verdict.
  */
 export const HISTOGRAM_MIN_SAMPLE = 20
+
+/**
+ * Use the five-level competence panel instead of the three failure-kind
+ * adversaries (build item 4).
+ *
+ * A TOGGLE, not a silent replacement, because the two produce numbers on
+ * different scales — `min(passing) - max(failing)` against
+ * `referenceScore - max(weak)` — and every stored `CardAuthoring.separationScore`
+ * on the corpus was computed the old way. Being able to turn it off is what
+ * makes the corpus comparable while the panel is being evaluated.
+ *
+ * Off by default until a measured run says the panel's separation floor is
+ * calibrated; `PANEL_SEPARATION_FLOOR` currently has no measurement behind it.
+ *
+ * Read from `KLP_USE_PANEL` rather than being a hardcoded literal so a
+ * CALIBRATION run can turn it on without a code change — the run whose whole
+ * purpose is to produce the distribution the floor should be set from. Anything
+ * other than the exact string "true" is off, so a typo fails closed.
+ */
+export const USE_COMPETENCE_PANEL = process.env.KLP_USE_PANEL === 'true'

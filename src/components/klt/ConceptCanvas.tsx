@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Minus, Plus, Maximize2, Minimize2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Minus, Plus, Maximize2, Minimize2, ChevronDown, ChevronRight, Waypoints } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { layoutTree, LAYOUT_DEFAULTS, type LayoutNode } from '@/lib/klt/layout'
+import { layoutTree, relationPath, LAYOUT_DEFAULTS, type LayoutNode } from '@/lib/klt/layout'
 import { evaluateDrop, type DragSource } from '@/lib/klt/drag'
 import { iconFor, resolveNodeColor, NEUTRAL_NODE_COLOR } from '@/components/klt/node-style'
-import type { ConceptTreeNode } from '@/actions/klt-tree'
+import type { ConceptTreeNode, ConceptRelation } from '@/actions/klt-tree'
 import { SHADE_CLASS, SHADE_LABEL, type MasteryShade } from '@/lib/klt/mastery-shade'
 
 const CANVAS_PADDING = 48
@@ -31,6 +31,13 @@ interface ConceptCanvasProps {
   visible: ConceptTreeNode[]
   /** Every node in the set, for colour inheritance and drop arithmetic. */
   allNodes: ConceptTreeNode[]
+  /**
+   * Concept relations (`KltRelation`) with both ends in this set. Drawn as
+   * dashed curves OVER the tree between nodes that are currently visible;
+   * they never move a node and never enter the rollup. Optional so every
+   * existing caller and test keeps working unchanged.
+   */
+  relations?: ConceptRelation[]
   /** `kltId`s whose children are hidden. */
   collapsed: Set<string>
   selectedKltId: string | null
@@ -59,10 +66,21 @@ interface ConceptCanvasProps {
  * state, and adding a concept re-tidies everything rather than dropping it on
  * top of something else.
  */
+/** Stroke per relation type; the dash keeps every one visually distinct from a tree edge. */
+const RELATION_CLASS: Record<string, string> = {
+  requires: 'stroke-amber-600 dark:stroke-amber-400',
+  causes: 'stroke-rose-600 dark:stroke-rose-400',
+  precedes: 'stroke-sky-600 dark:stroke-sky-400',
+  applies_within: 'stroke-violet-600 dark:stroke-violet-400',
+  confused_with: 'stroke-orange-600 dark:stroke-orange-400',
+  analogous_to: 'stroke-teal-600 dark:stroke-teal-400',
+}
+
 export function ConceptCanvas({
   shades,
   visible,
   allNodes,
+  relations = [],
   collapsed,
   selectedKltId,
   canEdit,
@@ -75,6 +93,7 @@ export function ConceptCanvas({
 }: ConceptCanvasProps) {
   const [zoom, setZoom] = useState(1)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showRelations, setShowRelations] = useState(true)
   const shellRef = useRef<HTMLDivElement>(null)
   const [hoverTarget, setHoverTarget] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -191,6 +210,19 @@ export function ConceptCanvas({
         >
           {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
         </Button>
+        {relations.length > 0 && (
+          <Button
+            type="button"
+            variant={showRelations ? 'secondary' : 'ghost'}
+            size="sm"
+            aria-pressed={showRelations}
+            title="Dashed lines are concept relations — they never move a node or enter mastery"
+            onClick={() => setShowRelations((v) => !v)}
+          >
+            <Waypoints className="mr-1 size-4" />
+            {relations.length} relation{relations.length === 1 ? '' : 's'}
+          </Button>
+        )}
       </div>
 
       <div
@@ -243,6 +275,39 @@ export function ConceptCanvas({
             }}
             className="relative"
           >
+            {showRelations && relations.length > 0 && (
+              <svg
+                data-testid="concept-relations"
+                width={layout.width}
+                height={layout.height}
+                className="absolute inset-0 overflow-visible"
+                aria-hidden="true"
+              >
+                {relations.map((rel) => {
+                  const from = layout.byKltId.get(rel.fromKltId)
+                  const to = layout.byKltId.get(rel.toKltId)
+                  if (!from || !to) return null
+                  const geo = relationPath(from, to)
+                  const cls = RELATION_CLASS[rel.type] ?? 'stroke-muted-foreground'
+                  return (
+                    <g key={`${rel.fromKltId}-${rel.type}-${rel.toKltId}`} className="group">
+                      <path d={geo.d} fill="none" strokeWidth={1.5} strokeDasharray="5 4" className={`${cls} opacity-70`} />
+                      <path d={geo.d} fill="none" strokeWidth={10} className="stroke-transparent">
+                        <title>{`${rel.type.replace('_', ' ')} · ${rel.cardCount} card${rel.cardCount === 1 ? '' : 's'} · ${rel.provenance}`}</title>
+                      </path>
+                      <text
+                        x={geo.midX}
+                        y={geo.midY - 4}
+                        textAnchor="middle"
+                        className="fill-muted-foreground text-[10px] opacity-0 group-hover:opacity-100"
+                      >
+                        {rel.type.replace('_', ' ')}
+                      </text>
+                    </g>
+                  )
+                })}
+              </svg>
+            )}
             <svg
               data-testid="concept-edges"
               width={layout.width}

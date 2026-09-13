@@ -7,6 +7,9 @@ import { AUTHOR_KLPS_PROMPT } from '@/lib/ai/prompts/author-klps'
 import { GRADE_CANDIDATE_PROMPT } from '@/lib/ai/prompts/grade-candidate'
 import { REVISE_KLPS_PROMPT } from '@/lib/ai/prompts/revise-klps'
 import { RELATE_KLPS_PROMPT } from '@/lib/ai/prompts/relate-klps'
+import { CLASSIFY_ABSTRACTION_PROMPT } from '@/lib/ai/prompts/classify-abstraction'
+import { WRITE_PANEL_PROMPT } from '@/lib/ai/prompts/write-panel'
+import { findExistingPanel } from '@/lib/klp/panel-reuse'
 import { classifyProviderError } from '@/lib/errors/classify'
 import {
   CARDS_PER_RUN,
@@ -14,6 +17,10 @@ import {
   sweepReusable,
   outOfTime,
 } from '@/lib/klp/background-authoring'
+import { regradeSweep } from '@/lib/klp/regrade-run'
+import { GRADE_SHORT_ANSWER_PROMPT } from '@/lib/ai/prompts/grade-short-answer'
+import type { Card } from '@prisma/client'
+import type { KlpStatus } from '@/lib/errors/klp-credit'
 
 /**
  * Nightly-ish background authoring, so the free tier is never left unspent.
@@ -115,6 +122,51 @@ function generator(userId: string, onModel: (model: string) => void): AuthoringG
         prompt: RELATE_KLPS_PROMPT.build(input),
         schema: RELATE_KLPS_PROMPT.schema,
       }),
+    classifyAbstraction: (input) =>
+      generateJson({
+        userId,
+        task: 'author',
+        prompt: CLASSIFY_ABSTRACTION_PROMPT.build(input),
+        schema: CLASSIFY_ABSTRACTION_PROMPT.schema,
+      }),
+    writePanel: (input) =>
+      generateJson({
+        userId,
+        task: 'author',
+        prompt: WRITE_PANEL_PROMPT.build(input),
+        schema: WRITE_PANEL_PROMPT.schema,
+      }),
+  }
+}
+
+/**
+ * The re-grade sweep's grader: the SAME prompt the quiz uses, on the cron
+ * operator's credentials.
+ *
+ * Not a new prompt — a re-graded answer has to stay comparable to a freshly
+ * graded one. `errorTags` are discarded: a re-grade re-establishes which key
+ * points an answer supports, and re-deriving its error tags would rewrite the
+ * learner's error history under today's significance constants as a side
+ * effect of a repair.
+ */
+function regrader(userId: string) {
+  return async (input: {
+    term: string
+    definition: string
+    answer: string
+    klps: { ref: number; text: string; kind: string }[]
+  }): Promise<{ klpResults: { klpRef: number; status: KlpStatus; evidence?: string }[] }> => {
+    const grade = await generateJson({
+      userId,
+      task: 'grade',
+      prompt: GRADE_SHORT_ANSWER_PROMPT.build({
+        card: { term: input.term, definition: input.definition } as Card,
+        answer: input.answer,
+        klps: input.klps,
+      }),
+      schema: GRADE_SHORT_ANSWER_PROMPT.schema,
+    })
+    return { klpResults: (grade.klpResults ?? []) as { klpRef: number; status: KlpStatus }[] }
   }
 }
 
@@ -132,6 +184,24 @@ export async function GET(request: Request) {
   }
 
   const startedAt = Date.now()
+
+  // ── PHASE 1: REPAIR, BEFORE ANYTHING ELSE ────────────────────────────────
+  //
+  // Authoring a card SUPERSEDES its key points, and `AnswerKlpResult` rows
+  // point at the old ids — so every card this route authors detaches whatever
+  // evidence learners had on it, and `KlpState` silently resets. This route is
+  // therefore the largest single producer of the damage `regradeSweep` repairs,
+  // which is why the repair lives in the same invocation rather than a second
+  // cron (Vercel Hobby allows only daily crons anyway).
+  //
+  // IT RUNS FIRST, and the order is the whole design. Run last, it would be
+  // starved by whatever authoring left of the wall-clock budget — and a repair
+  // that only happens when there is time left over is not a repair. Running
+  // first means each invocation fixes the PREVIOUS one's damage, so a card
+  // authored today has its evidence re-attached tomorrow. That lag is the price
+  // of a daily cron; `npm run regrade-klps` closes it immediately when someone
+  // wants it closed sooner.
+  const regraded = await regradeSweep(startedAt, () => Date.now(), regrader(userId))
 
   // Pull more candidates than will be authored: the reuse sweep may serve
   // several for free, and the run should still author a full batch after it.
@@ -153,6 +223,7 @@ export async function GET(request: Request) {
           setTitle: card.setTitle,
           question: card.term,
           definition: card.definition,
+          existingPanel: (await findExistingPanel(card.id))?.members,
         },
         generator(userId, (m) => {
           model = m
@@ -185,6 +256,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     ok: true,
     elapsedMs: Date.now() - startedAt,
+    regraded,
     reused,
     authored,
     failed,

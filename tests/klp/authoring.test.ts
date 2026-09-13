@@ -12,7 +12,6 @@ function gen(over: Partial<Record<string, unknown>> = {}) {
       referenceAnswer: 'ref',
       klps,
       wrongAnswers: [
-        { kind: 'confident_wrong', text: 'w1' },
         { kind: 'vague', text: 'w2' },
         { kind: 'memorized_template', text: 'w3' },
       ],
@@ -40,10 +39,10 @@ describe('authorCard', () => {
     expect(g.revise).not.toHaveBeenCalled()
   })
 
-  it('grades every candidate in its OWN call — reference plus three wrong', async () => {
+  it('grades every candidate in its OWN call — reference plus two wrong', async () => {
     const g = gen()
     await authorCard(card, g as never)
-    expect(g.grade).toHaveBeenCalledTimes(4)
+    expect(g.grade).toHaveBeenCalledTimes(3)
   })
 
   /**
@@ -76,29 +75,104 @@ describe('authorCard', () => {
    * forces `authorCard` through its revise-then-re-grade branch rather than
    * merely asserting call counts that would pass even if revision never ran.
    */
-  it('revises when the wrong answers score too well, then re-grades', async () => {
+  it('revises when the wrong answers score too well, then re-grades the REWRITTEN points', async () => {
     const klps = Array.from({ length: 6 }, (_, i) => ({ text: `Proposition ${i}`, kind: 'mechanism' }))
+    const revised = klps.map((k) => ({ ...k, text: `${k.text} (sharpened)` }))
     let callCount = 0
     const g = gen({
-      grade: vi.fn().mockImplementation(({ candidateAnswer }: { candidateAnswer: string }) => {
+      grade: vi.fn().mockImplementation(({ candidateAnswer, klps: shown }: { candidateAnswer: string; klps: { text: string }[] }) => {
         callCount += 1
-        const isRound0 = callCount <= 4
+        const isRound0 = callCount <= 3
         if (candidateAnswer === 'ref') {
-          return { verdicts: klps.map((_, i) => ({ klpIndex: i, verdict: ok })) }
+          return { verdicts: shown.map((_, i) => ({ klpIndex: i, verdict: ok })) }
         }
         // Round 0: 5 of 6 KLPs pass (score 5/6, separation 1/6 — fails the
         // 0.4 floor). Round 1+: none pass (score 0, separation 1.0 — passes).
         return {
-          verdicts: klps.map((_, i) => ({
+          verdicts: shown.map((_, i) => ({
             klpIndex: i,
             verdict: isRound0 ? (i < 5 ? ok : no) : no,
           })),
         }
       }),
+      revise: vi.fn().mockResolvedValue({ klps: revised }),
     })
     const out = await authorCard(card, g as never)
     expect(g.revise).toHaveBeenCalled()
     expect(out.revisions).toBeGreaterThan(0)
+    expect(out.status).toBe('separated')
+    // Every point was rewritten, so every kept candidate needed a (partial) grade: 3 + 3.
+    expect(g.grade).toHaveBeenCalledTimes(6)
+  })
+
+  /**
+   * INCREMENTAL REGRADING (2026-09-13). A revision that leaves a point's
+   * text alone leaves its verdict alone; only rewritten points are graded,
+   * and only they appear in the partial call.
+   */
+  it('carries verdicts on unchanged points and grades only the rewritten ones', async () => {
+    const klps = Array.from({ length: 6 }, (_, i) => ({ text: `Proposition ${i}`, kind: 'mechanism' }))
+    // Round 1 rewrites points 4 and 5 only.
+    const revised = klps.map((k, i) => (i >= 4 ? { ...k, text: `${k.text} (sharpened)` } : k))
+    const shownSets: string[][] = []
+    let round = 0
+    const g = gen({
+      grade: vi.fn().mockImplementation(({ candidateAnswer, klps: shown }: { candidateAnswer: string; klps: { text: string }[] }) => {
+        shownSets.push(shown.map((k) => k.text))
+        if (candidateAnswer === 'ref') return { verdicts: shown.map((_, i) => ({ klpIndex: i, verdict: ok })) }
+        // Round 0: the template passes points 0-4 (separation 1/6). Round 1:
+        // it fails the two rewritten points; points 0-3 keep their carried pass.
+        const first = shownSets.length <= 3
+        return { verdicts: shown.map((_, i) => ({ klpIndex: i, verdict: first ? (i < 5 ? ok : no) : no })) }
+      }),
+      revise: vi.fn().mockImplementation(async () => {
+        round += 1
+        return { klps: round === 1 ? revised : revised }
+      }),
+    })
+    const out = await authorCard(card, g as never)
+    // Round 0: three full grades of 6 points. Round 1: three partial grades of the 2 rewritten points.
+    expect(shownSets.slice(0, 3).every((s) => s.length === 6)).toBe(true)
+    expect(shownSets[3]).toEqual(['Proposition 4 (sharpened)', 'Proposition 5 (sharpened)'])
+    expect(shownSets[4]).toEqual(['Proposition 4 (sharpened)', 'Proposition 5 (sharpened)'])
+    // Carried: the template's passes on 0-3 survive, so the round-1 template score is 4/6.
+    const template = out.probes.find((p) => p.kind === 'memorized_template')!
+    expect(Object.values(template.verdicts)).toEqual([ok, ok, ok, ok, no, no])
+  })
+
+  it('an identical revision grades nothing and rewrites no trap without an adversary writer', async () => {
+    const klps = Array.from({ length: 6 }, (_, i) => ({ text: `Proposition ${i}`, kind: 'mechanism' }))
+    const g = gen({
+      grade: vi.fn().mockImplementation(({ candidateAnswer, klps: shown }: { candidateAnswer: string; klps: { text: string }[] }) => ({
+        verdicts: shown.map((_, i) => ({ klpIndex: i, verdict: candidateAnswer === 'ref' || i < 5 ? ok : no })),
+      })),
+    })
+    const out = await authorCard(card, g as never)
+    expect(out.revisions).toBe(2)
+    expect(g.grade).toHaveBeenCalledTimes(3)
+    expect(out.status).toBe('low_discrimination')
+  })
+
+  it('rewrites only the trap that beat the set, via the adversary writer, and grades it in full', async () => {
+    const klps = Array.from({ length: 6 }, (_, i) => ({ text: `Proposition ${i}`, kind: 'mechanism' }))
+    const writeAdversaries = vi.fn().mockImplementation(async ({ kinds }: { kinds?: string[] }) => ({
+      wrongAnswers: (kinds ?? ['vague', 'memorized_template']).map((k) => ({ kind: k, text: kinds ? `${k} v2` : k === 'vague' ? 'w2' : 'w3' })),
+    }))
+    const g = gen({
+      writeAdversaries,
+      grade: vi.fn().mockImplementation(({ candidateAnswer, klps: shown }: { candidateAnswer: string; klps: { text: string }[] }) => {
+        if (candidateAnswer === 'ref') return { verdicts: shown.map((_, i) => ({ klpIndex: i, verdict: ok })) }
+        // The original template passes 5 of 6; the vague one fails all; a rewritten template fails all.
+        const passes = candidateAnswer === 'w3'
+        return { verdicts: shown.map((_, i) => ({ klpIndex: i, verdict: passes && i < 5 ? ok : no })) }
+      }),
+    })
+    const out = await authorCard(card, g as never)
+    expect(writeAdversaries).toHaveBeenCalledTimes(2)
+    expect(writeAdversaries.mock.calls[1][0].kinds).toEqual(['memorized_template'])
+    // Round 0: 3 grades. Round 1: identical points, vague carried (0 calls), new template graded in full (1 call).
+    expect(g.grade).toHaveBeenCalledTimes(4)
+    expect(out.probes.find((p) => p.kind === 'memorized_template')!.text).toBe('memorized_template v2')
     expect(out.status).toBe('separated')
   })
 
@@ -231,7 +305,12 @@ describe('authorCard', () => {
       }),
     })
     const out = await authorCard(card, g as never)
-    expect(out.defects.some((d) => d.rule === 'count')).toBe(true)
+    // Since the quality bar (2026-09-12) a hygiene defect TRIGGERS a revision
+    // rather than merely being reported: the count defect is the recorded
+    // reason, the revise mock replaces the set, and the card is not failed.
+    expect(out.status).not.toBe('failed')
+    expect(out.revisionReasons?.[0]).toContain('count')
+    expect(g.revise).toHaveBeenCalled()
   })
 
   it('reports failed status when the author call produces no KLPs at all', async () => {

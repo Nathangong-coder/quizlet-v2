@@ -26,10 +26,12 @@ describe('AUTHOR_KLPS_PROMPT', () => {
       .toBeLessThan(built.toLowerCase().indexOf('key learning point'))
   })
 
-  it('names all three adversary archetypes', () => {
-    for (const k of ['confident', 'vague', 'template']) {
+  it('names the two adversary archetypes and no longer the confident one', () => {
+    for (const k of ['vague', 'template']) {
       expect(built.toLowerCase()).toContain(k)
     }
+    expect(built).not.toContain('confident_wrong')
+    expect(built).toContain('EXACTLY TWO WRONG ANSWERS')
   })
 
   it('states the sized floor as a floor, not a quota', () => {
@@ -84,8 +86,20 @@ describe('AUTHOR_KLPS_PROMPT', () => {
     expect(built.toLowerCase()).toContain('not a total to hit')
   })
 
-  it('is version 2 — promptVersion is persisted, so the change must be visible', () => {
-    expect(AUTHOR_KLPS_PROMPT.version).toBe(2)
+  it('is version 5 — promptVersion is persisted, so the change must be visible', () => {
+    expect(AUTHOR_KLPS_PROMPT.version).toBe(5)
+  })
+
+  it('v3 classifies the question first, defines the term as key point [0], keeps an enumeration as items, and leans the count to floor+1..floor+3', () => {
+    const built = AUTHOR_KLPS_PROMPT.build({ setTitle: 'S', term: 'What are 2 ways an acquisition can create value?', definition: 'd', minKlps: 5 })
+    expect(built).toContain('QUESTION TYPE')
+    expect(built).toContain('"questionType"')
+    expect(built).toContain('DEFINING THE TERM the question turns on')
+    expect(built).toContain('That definition is the FIRST key point')
+    expect(built).toContain('Never dissolve the list into a chain of mechanisms')
+    expect(built).toContain('the usual right number is 6 to 8')
+    expect(built).toContain('KEEP EACH POINT SHORT')
+    expect(built).toContain('Do not state the conclusion twice')
   })
 })
 
@@ -196,16 +210,16 @@ describe('AuthorDraftSchema', () => {
    * `computeSeparation` reads the BEST wrong answer — so a card with only
    * one (easy) wrong answer silently loses most of its discrimination test.
    */
-  it('rejects fewer than three wrong answers', () => {
+  it('rejects fewer wrong answers than archetypes', () => {
     const result = AuthorDraftSchema.safeParse({
       referenceAnswer: 'ref',
       klps: validKlps,
-      wrongAnswers: wrongAnswers(PROBE_KINDS.slice(0, 2)),
+      wrongAnswers: wrongAnswers(PROBE_KINDS.slice(0, 1)),
     })
     expect(result.success).toBe(false)
   })
 
-  it('rejects more than three wrong answers', () => {
+  it('rejects more wrong answers than archetypes', () => {
     const result = AuthorDraftSchema.safeParse({
       referenceAnswer: 'ref',
       klps: validKlps,
@@ -245,5 +259,30 @@ describe('RelationDraftSchema', () => {
   it('rejects a draft containing analogous_to', () => {
     const result = RelationDraftSchema.safeParse({ relations: [{ ...base, type: 'analogous_to' }] })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('AUTHOR_KLPS_BATCH_PROMPT', () => {
+  it('shares the single prompt\'s instruction body and addresses each card by ref with its own floor', async () => {
+    const { AUTHOR_KLPS_BATCH_PROMPT, AUTHOR_KLPS_PROMPT: single } = await import('@/lib/ai/prompts/author-klps')
+    const batch = AUTHOR_KLPS_BATCH_PROMPT.build({
+      setTitle: 'S',
+      cards: [
+        { ref: 0, term: 'T0', definition: 'D0', minKlps: 4 },
+        { ref: 1, term: 'T1', definition: 'D1', minKlps: 6 },
+      ],
+    })
+    expect(batch).toContain('[0] Term: T0')
+    expect(batch).toContain('[1] Term: T1')
+    expect(batch).toContain('Floor: at least 6 KLPs; the usual right number is 7 to 9')
+    expect(batch).toContain('"cards": [ { "ref": number')
+    // The judgment text is the same text the single prompt carries.
+    const one = single.build({ setTitle: 'S', term: 'T0', definition: 'D0', minKlps: 4 })
+    for (const anchor of ['THE DEFINITION IS YOUR SKELETON', 'QUESTION TYPE', 'PHRASE THEM THE WAY A PRACTITIONER WOULD', 'EXACTLY TWO WRONG ANSWERS']) {
+      expect(batch).toContain(anchor)
+      expect(one).toContain(anchor)
+    }
+    const { AuthorDraftBatchSchema } = await import('@/lib/ai/schemas')
+    expect(AuthorDraftBatchSchema.safeParse({ cards: [] }).success).toBe(false)
   })
 })

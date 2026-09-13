@@ -46,7 +46,12 @@ export const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
   deepseek: {
     label: 'DeepSeek',
     requiresBaseUrl: false,
-    defaultModel: 'deepseek-v4-flash',
+    // `deepseek-flash` is the official id (2026-09-13): the page says the
+    // legacy `deepseek-v4-flash` name is retired but still accepted and is
+    // "served by the DeepSeek-V4.1-Flash model and billed at the Flash
+    // price" — verified by a real structured call: both ids answer as
+    // `deepseek-flash`, same price, same schema compliance.
+    defaultModel: 'deepseek-flash',
     defaultBaseUrl: 'https://api.deepseek.com/v1',
     keyPlaceholder: 'sk-…',
   },
@@ -75,6 +80,26 @@ export interface ResolveInput {
   apiKey: string;
   baseUrl?: string | null;
   model: string;
+  /**
+   * Extra JSON fields merged into every request body for the OpenAI-compatible
+   * (`custom` / `openrouter`) path, only where the SDK did not set them. Exists
+   * for endpoint-specific switches the SDK has no field for — DashScope's
+   * `enable_thinking: false`, which turns a 274-second, 12,588-reasoning-token
+   * qwen3.8-flash call into a 7-second one (measured 2026-09-12).
+   */
+  requestDefaults?: Record<string, unknown>;
+  /**
+   * For OpenAI-compatible endpoints that accept only `response_format:
+   * json_object` and cannot ENFORCE a schema (Z.ai / GLM, per its docs). The
+   * schema the SDK put in `response_format.json_schema` is moved into the
+   * last user message as text, `json_object` is requested instead, and a
+   * markdown fence around the reply is stripped. Zod validation downstream is
+   * unchanged, so a model that ignores the prompted schema still fails
+   * loudly as `schema_invalid` rather than silently. Measured 2026-09-12:
+   * without this, glm-5.3-flash answered in its own field names inside a
+   * ```json fence on every call.
+   */
+  schemaInPrompt?: boolean;
 }
 
 /**
@@ -83,7 +108,7 @@ export interface ResolveInput {
  * NOTE: `createGoogle` is the v7 name — it was `createGoogleGenerativeAI`
  * before the rename. Do not "fix" it back.
  */
-export function resolveLanguageModel({ provider, apiKey, baseUrl, model }: ResolveInput): LanguageModel {
+export function resolveLanguageModel({ provider, apiKey, baseUrl, model, requestDefaults, schemaInPrompt }: ResolveInput): LanguageModel {
   switch (provider) {
     case 'google':
       return createGoogle({ apiKey })(model);
@@ -129,11 +154,15 @@ export function resolveLanguageModel({ provider, apiKey, baseUrl, model }: Resol
       // it at all. Sending the schema makes that failure EXPLICIT — an API
       // error naming the unsupported feature — instead of silently producing
       // unparseable text that looks like a model quality problem.
+      let customFetch: typeof fetch | undefined;
+      if (requestDefaults) customFetch = withRequestDefaults(requestDefaults);
+      if (schemaInPrompt) customFetch = withSchemaInPrompt(customFetch ?? fetch);
       return createOpenAICompatible({
         name: provider,
         apiKey,
         baseURL: url,
         supportsStructuredOutputs: true,
+        ...(customFetch ? { fetch: customFetch } : {}),
       })(model);
     }
     default:
@@ -248,6 +277,73 @@ async function unfenceDeepSeekJson(response: Response): Promise<Response> {
     statusText: response.statusText,
     headers: response.headers,
   });
+}
+
+/**
+ * A fetch that merges `defaults` into a JSON request body where the SDK left
+ * the field unset. Same shape as `deepSeekFetch` below: a body that cannot be
+ * parsed passes through untouched, so a provider error is the provider's.
+ */
+function withRequestDefaults(defaults: Record<string, unknown>): typeof fetch {
+  return async (input, init) => {
+    if (!init?.body || typeof init.body !== 'string') return fetch(input, init);
+    try {
+      const body = JSON.parse(init.body) as Record<string, unknown>;
+      for (const [k, v] of Object.entries(defaults)) if (body[k] === undefined) body[k] = v;
+      return fetch(input, { ...init, body: JSON.stringify(body) });
+    } catch {
+      return fetch(input, init);
+    }
+  };
+}
+
+/**
+ * Moves the SDK's JSON schema into the prompt and asks for `json_object`;
+ * unfences the chat-completions reply. See `ResolveInput.schemaInPrompt`.
+ */
+function withSchemaInPrompt(inner: typeof fetch): typeof fetch {
+  return async (input, init) => {
+    if (!init?.body || typeof init.body !== 'string') return inner(input, init);
+    let body: Record<string, unknown>;
+    try {
+      body = JSON.parse(init.body) as Record<string, unknown>;
+    } catch {
+      return inner(input, init);
+    }
+    const rf = body.response_format as { type?: string; json_schema?: { schema?: unknown } } | undefined;
+    if (rf?.type === 'json_schema' && rf.json_schema?.schema) {
+      const messages = body.messages as { role: string; content: unknown }[] | undefined;
+      const last = messages && [...messages].reverse().find((m) => m.role === 'user');
+      if (last && typeof last.content === 'string') {
+        last.content +=
+          '\n\nRespond with ONLY a JSON object - no prose, no markdown fence - that matches this JSON Schema exactly, using these property names and types:\n' +
+          JSON.stringify(rf.json_schema.schema);
+      }
+      body.response_format = { type: 'json_object' };
+    }
+    return unfenceChatCompletion(await inner(input, { ...init, body: JSON.stringify(body) }));
+  };
+}
+
+/** The chat-completions shape: choices[].message.content. */
+async function unfenceChatCompletion(response: Response): Promise<Response> {
+  const type = response.headers.get('content-type') ?? '';
+  if (!type.includes('application/json')) return response;
+  const raw = await response.text();
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    return new Response(raw, { status: response.status, statusText: response.statusText, headers: response.headers });
+  }
+  const choices = (payload as { choices?: unknown }).choices;
+  if (Array.isArray(choices)) {
+    for (const c of choices) {
+      const msg = (c as { message?: { content?: unknown } })?.message;
+      if (msg && typeof msg.content === 'string') msg.content = unfenceJson(msg.content);
+    }
+  }
+  return new Response(JSON.stringify(payload), { status: response.status, statusText: response.statusText, headers: response.headers });
 }
 
 const deepSeekFetch: typeof fetch = async (input, init) => {

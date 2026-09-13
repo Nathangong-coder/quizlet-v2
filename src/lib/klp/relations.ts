@@ -39,7 +39,27 @@ export function isRelationType(value: unknown): value is RelationType {
  */
 export const RELATABLE_TYPES = [...DIRECTED_TYPES, 'confused_with'] as const
 
-export const RELATION_PROVENANCES = ['perturbation', 'order_violation', 'substitution'] as const
+/**
+ * How an edge was derived.
+ *
+ * `entailment` is the C3 addition (`src/lib/klp/independence.ts`): an edge found
+ * by asking whether an answer can state one key point WITHOUT satisfying the
+ * other, rather than by perturbing the world and re-deriving. It earns its own
+ * value rather than reusing `perturbation` because the two answer different
+ * questions and can disagree — perturbation asks how the subject matter hangs
+ * together, entailment asks what a learner cannot say in isolation. Keeping
+ * them apart is what lets a later pass ask which method finds the edges that
+ * matter.
+ *
+ * Adding a value is additive: `KlpRelation.provenance` is a string column, so
+ * existing rows keep meaning what they meant.
+ */
+export const RELATION_PROVENANCES = [
+  'perturbation',
+  'order_violation',
+  'substitution',
+  'entailment',
+] as const
 export type RelationProvenance = (typeof RELATION_PROVENANCES)[number]
 
 /** Endpoints are KLP INDEXES within one card, not ids — ids do not exist yet. */

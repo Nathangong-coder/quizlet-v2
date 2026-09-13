@@ -46,6 +46,18 @@ export type { SessionInsightBuildInput } from './session-insight';
 
 export { learnerContextBlock, distractorMemoryHint } from './shared';
 
+export { OMIT_KLP_PROMPT } from './omit-klp';
+export type { OmitKlpBuildInput } from './omit-klp';
+
+export { PROBE_INDEPENDENCE_PROMPT } from './probe-independence';
+export type { ProbeIndependenceBuildInput } from './probe-independence';
+
+export { WRITE_PANEL_PROMPT } from './write-panel';
+export type { WritePanelBuildInput } from './write-panel';
+
+export { CLASSIFY_ABSTRACTION_PROMPT } from './classify-abstraction';
+export type { ClassifyAbstractionBuildInput } from './classify-abstraction';
+
 export { EXTRACT_KLPS_PROMPT } from './extract-klps';
 export type { ExtractKlpsBuildInput } from './extract-klps';
 

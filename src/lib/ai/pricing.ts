@@ -99,6 +99,14 @@ export const MODEL_RATES: Record<string, ModelRate> = {
   // cache genuinely fires on repeat calls (measured: 1280 cached / 1280 input)
   // — which is why `estimateCallCost` subtracts cached tokens before applying
   // the miss rate rather than pricing all input the same.
+  // The official id since V4.1 (2026-09-13); `deepseek-v4-flash` below is
+  // the retired-but-accepted alias, served by the same model at this price.
+  'deepseek:deepseek-flash': {
+    inputPerMTok: 0.44,
+    outputPerMTok: 1.32,
+    cachedInputPerMTok: 0.014,
+    checkedOn: '2026-09-13',
+  },
   'deepseek:deepseek-v4-flash': {
     inputPerMTok: 0.44,
     outputPerMTok: 1.32,

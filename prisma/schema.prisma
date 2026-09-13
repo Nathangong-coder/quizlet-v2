@@ -338,6 +338,14 @@ model CardKlp {
   text               String            @db.Text
   weight             Int // 1-5 centrality -> significance.relevance
   kind               String // definition|mechanism|causal|condition|quantitative|contrast|example
+  /// framing | substance (2026-09-12, src/lib/klp/framing.ts). A framing point is
+  /// a definition/contrast the memorized-template trap was credited on: kept,
+  /// mapped to topics, excluded from the substance separation, and the
+  /// evidence base of the conditional communication dimension. NULL on every
+  /// row authored before the column existed and on legacy extraction, which
+  /// never ran the traps that decide it — never a default, because "substance"
+  /// on an untested row would be a claim nobody tested.
+  role               String?
   sourceHash         String
   promptVersion      Int
   source             String            @default("ai") // ai | user
@@ -448,6 +456,8 @@ model Klt {
   links          KlpTopic[]
   /// Per-set structure over this concept. See `SetKltNode`.
   nodes          SetKltNode[]
+  relationsFrom  KltRelation[] @relation("KltRelationFrom")
+  relationsTo    KltRelation[] @relation("KltRelationTo")
 
   @@index([parentKltId])
   @@index([depth])
@@ -1472,6 +1482,11 @@ model CardAuthoring {
   /// answer.
   referenceAnswer String   @db.Text
   separationScore Float
+  /// Separation over the SUBSTANCE points only (framing points excluded, see
+  /// CardKlp.role). This is what the quality bar and `status` read from
+  /// 2026-09-12; `separationScore` stays on the full set so every stored score
+  /// remains on one scale. NULL before that date.
+  substanceSeparation Float?
   /// How the REFERENCE answer scored on each final KLP, in KLP order.
   ///
   /// Added 2026-09-07 because the evidence was one-sided without it:
@@ -1486,6 +1501,22 @@ model CardAuthoring {
   /// forward-looking only, which is the honest state rather than a
   /// backfilled guess.
   referenceVerdicts Json?
+  /// THE REBUILD TEST (spec 2026-09-12-rebuild-test-design.md). `cardCoverage`
+  /// replaces `separationScore`'s companion `referenceScore` as the
+  /// completeness number: the share of the CARD's own definition points an
+  /// answer rebuilt from the key points alone establishes. `referenceParity`
+  /// is what that rebuild kept of the writer's reference (1 - parity is
+  /// extraction loss). `cardDisputes` is the grader's override channel - the
+  /// answer judged right and the card wrong on a point - surfaced to the set
+  /// owner as a warning, never applied. All nullable, no backfill: rows
+  /// authored before 2026-09-12 have no rebuild and say so.
+  rebuiltAnswer   String?  @db.Text
+  cardCoverage    Float?
+  referenceParity Float?
+  cardDisputes    Json?
+  /// `{ coverage: [...], parity: [...], definitionPoints: [...] }` so a
+  /// formula change can recompute history - the same rule AnswerKlpResult follows.
+  rebuildVerdicts Json?
   revisions       Int
   /// The model id that authored this run, e.g. "gemini-3.6-flash".
   ///
@@ -1533,7 +1564,7 @@ model KlpRelation {
   toKlpId    String
   /// causes | requires | precedes | confused_with | applies_within | analogous_to
   type       String
-  /// perturbation | order_violation | substitution
+  /// perturbation | order_violation | substitution | entailment
   provenance String
   rationale  String   @db.Text
   /// The adversarial artifact that proved this edge informative: an answer
@@ -1549,4 +1580,47 @@ model KlpRelation {
   @@unique([fromKlpId, toKlpId, type])
   @@index([fromKlpId])
   @@index([toKlpId])
+}
+
+/// A typed, directed edge between two CONCEPTS, living BESIDE the per-set tree
+/// (`SetKltNode`) and never inside it.
+///
+/// The tree stays a tree: one parent per concept per set, so mastery rollup
+/// counts every key point once. Everything a second parent would have said —
+/// "depreciation applies within the income statement", "net income precedes
+/// retained earnings" — is an edge here instead. Edges render as dashed lines,
+/// drive navigation and insight, and NEVER enter the mastery rollup. Decided in
+/// BUILD-QUEUE item 3 (2026-09-09); first rows written by the topic-minting
+/// write step (item 2, 2026-09-12).
+///
+/// Provenance is what makes a row trustworthy. `minted` edges come from a key
+/// point whose content IS the link (rule 7 of the minting prompt), reconciled
+/// across two models; `projected` edges (item 3) will come from lifting a
+/// within-card `KlpRelation` through its endpoints' topic links. `cardIds` and
+/// `klpIds` are the evidence: an edge one card produced is contextual, one
+/// eight cards produced is structural — a count, not a boolean.
+///
+/// Acyclicity over the directed types (`requires`, `precedes`, `causes`) is
+/// enforced by the writer, not the database — an AI will happily emit X→Y and
+/// Y→X across two cards, and a cycle in a prerequisite graph makes every
+/// "blocked" explanation circular.
+model KltRelation {
+  id         String   @id @default(cuid())
+  fromKltId  String
+  toKltId    String
+  /// causes | requires | precedes | applies_within | confused_with | analogous_to
+  type       String
+  /// minted | projected
+  provenance String
+  cardIds    String[]
+  klpIds     String[]
+  /// The models whose agreement produced the row, for the audit trail.
+  models     String[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  from       Klt      @relation("KltRelationFrom", fields: [fromKltId], references: [id], onDelete: Cascade)
+  to         Klt      @relation("KltRelationTo", fields: [toKltId], references: [id], onDelete: Cascade)
+
+  @@unique([fromKltId, toKltId, type])
+  @@index([toKltId])
 }

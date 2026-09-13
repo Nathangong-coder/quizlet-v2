@@ -51,6 +51,7 @@ vi.mock('@/lib/db', () => ({
     // reached.
     setKltNode: { findMany: h.setKltNodeFindMany },
     klpTopic: { findMany: h.klpTopicFindMany },
+    kltRelation: { findMany: vi.fn().mockResolvedValue([]) },
     cardProgress: { findMany: h.progressFindMany },
     card: { findMany: h.cardFindMany },
     set: { findUnique: h.setFindUnique, findFirst: h.setFindFirst },

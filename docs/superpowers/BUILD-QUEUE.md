@@ -1,5 +1,109 @@
 # Build queue & carried-over findings
 
+**HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress. Read this before
+anything else in this file.** Two long runs were started this day and both are RESUMABLE;
+the topic WRITE needs the owner's shell (the agent's auto-mode denied it as a shared-resource
+write). Everything below is one command each.
+
+**Latest (2026-09-12, evening): framing points + kind-aware strictness are built and
+migrated** (`20260912150000_klp_role`, applied). `CardKlp.role` (`framing | substance`) and
+`CardAuthoring.substanceSeparation` are written by every authoring run from now on; the
+quality bar and `status` read the SUBSTANCE separation. Spec and the draft communication
+dimension: `docs/superpowers/specs/2026-09-12-framing-points-design.md`. The M&A set was
+authored BEFORE this landed, so its 82 cards have `role = NULL` — re-authoring them is a
+re-run of command 2 with `--force` once the owner wants roles on them (the two legacy sets
+will get roles on their first run). Under `KLP_GRADE_STRICT=true` the grader now sees each
+point's kind and relaxes on mechanism/condition/quantitative; the stored M&A scores were
+graded without that clause and are comparable only to each other. **Queued from the re-run:**
+the writer's `definitionPoints` split can sanitise a card's error (it rewrote "price > NAV" as
+"price that differs from worth"), which blinds the dispute channel — make the split quote the
+card verbatim, or hand the coverage grader the raw definition too.
+**2026-09-13 cost pass (owner):** `confident_wrong` cut (two traps), incremental regrading
+(`src/lib/klp/regrade-plan.ts`), evidence-only-on-miss grading, cache-ordered grade prompt,
+`KLP_AUTHOR_BATCH`, one retry on a malformed reply — $0.0089 → $0.0053 a card off-peak.
+`scripts/author-klps.ts` prints a per-step token/USD table at the end of every run. Author
+prompt is v4, grade prompt v2. Stored M&A rows were authored on v3 with three traps.
+**2026-09-13, later: the communication check + parity bar are built** (`KLP_COMMS_CHECK`, on by
+default; `REBUILD_PARITY_BAR` 0.7; the rebuild test now runs every round and its misses go
+into the one combined revise). First run: every reference "wordy" and rewritten, every REBUILT
+answer wordier than its reference — the key points carry the bloat (one context clause each);
+`rebuild.communication` records it, nothing acts on it yet. Neither review is persisted.
+**2026-09-13, latest: compression is in the revise loop** (owner's plan A–F, `src/lib/klp/compression.ts`):
+the grader reviews the rebuilt answer against the numbered points every round, restatement /
+clause-bloat issues become per-point findings, a `verbose` hygiene rule and the rebuilt/reference
+word ratio ride along, rebuilder v2 and author v5 stop adding words, and the revise prompt (v4)
+carries *cut words, never distinct claims*. Spread ×2: mean separation 0.48 → 0.80 / 0.66,
+rebuilt tight 6/7 and 4/7, word ratio 0.74; `not_on_card` was demoted to informational after it
+cut reference content the card omits (parity 0.50 on CapEx). ~$0.008 a card, 28 calls.
+**The corpus is being re-authored on this configuration** (M&A `--force`, then the two legacy sets).
+
+1. **Write the merged topics that already exist** (13 cards; applies the write step,
+   `docs/superpowers/specs/2026-09-12-topic-minting-write-step-design.md`). The
+   `KltRelation` migration IS applied. Plan-only first if you want to read it (drop `--write`).
+   ```
+   npx tsx --conditions=react-server --env-file=.env scripts/mint-topics.ts --from docs/ai/runs/2026-09-12/dual-accounting-5.json --write
+   npx tsx --conditions=react-server --env-file=.env scripts/mint-topics.ts --from docs/ai/runs/2026-09-12/dual-lbo-mna-spread-8.json --write
+   npx tsx --conditions=react-server --env-file=.env scripts/mint-topics.ts --from docs/ai/runs/2026-09-12/dual-accounting-talking-43-of-68.json --write
+   ```
+   The third file holds 43 merged cards (the other 25 failed on the 3.5-flash daily cap and
+   are skipped by the writer because they carry no `merged`); the five in the first file
+   overlap it and re-writing them is idempotent. Merged at scale: kind-consistent 92%,
+   container leaves 2, 0.57 judge calls/card, zero judge failures.
+   Then open `/concepts` for `Accounting - "Talking"`: the dashed lines are the relation
+   layer (toggle in the canvas toolbar). Endpoints the plan reports `unplaced` sit in the
+   unplaced list; place them with the existing placement pass or by hand.
+
+2. **Author the rest of the corpus** — role split + quality bar, resumable (already-authored
+   cards are skipped). 82 M&A cards were in flight when this was written; then the two
+   legacy sets. The writer is capped at 20/day per key per model; add `,gemini-3.5-flash` to
+   `KLP_AUTHOR_MODELS` to double the daily writer budget.
+   ```
+   set KLP_DIRECT_PROVIDER=deepseek & set KLP_DIRECT_MODELS=deepseek-flash & set KLP_AUTHOR_PROVIDER=zai & set KLP_AUTHOR_MODELS=glm-5.3-flash & set ZAI_REASONING_EFFORT=high
+   (the owner's choice 2026-09-12: GLM writes — uncapped, mean separation 0.70 at `high` —
+   DeepSeek grades. Gemini 3.6 as the writer scored 0.80 but is capped and, per the owner,
+   too expensive; keep it as the quality reference: `KLP_AUTHOR_PROVIDER=google
+   KLP_AUTHOR_MODELS=gemini-3.6-flash`.)
+   npx tsx --conditions=react-server --env-file=.env scripts/author-klps.ts --set cmtfewhjv000004jr901uq6eo --direct      # M&A (82)
+   npx tsx --conditions=react-server --env-file=.env scripts/author-klps.ts --set cmtfexkmd001k04jr6t2wtl70 --direct      # Accounting - Knowledge (50, legacy)
+   npx tsx --conditions=react-server --env-file=.env scripts/author-klps.ts --set cmtcecz4j000304l1q1suq9rf --direct      # Talking (copy/test) (67, legacy)
+   ```
+   With GLM writing and DeepSeek grading there is NO daily cap: the whole corpus is a matter
+   of hours of paced calls, not days. (With a Gemini writer: 60 writer calls/day/model across
+   three keys, ~30-40 cards a day.)
+
+3. **Mint and write topics for every authored set.** Minting is two calls per card plus a
+   judge call; put the Gemini side on a different model than the writer (`MINT_B_MODEL`).
+   Then write with `mint-topics --write`. The two runs below were in flight; their JSON
+   lands in `%TEMP%\claude-quizlet\` — copy it into `docs/ai/runs/` before writing.
+   ```
+   set MINT_B_PROVIDER=zai & set MINT_B_MODEL=glm-5.3-flash
+   (GLM on the Gemini side of the pair: uncapped, 89% kind-consistent, names as short as
+   Gemini's. For the Gemini pair instead: `set MINT_B_PROVIDER=google & set MINT_B_MODEL=gemini-3.5-flash`.)
+   npx tsx --conditions=react-server --env-file=.env scripts/probe-topic-minting.ts --dual --set <setId> --limit 200 --json docs/ai/runs/<date>/dual-<set>.json
+   npx tsx --conditions=react-server --env-file=.env scripts/mint-topics.ts --from docs/ai/runs/<date>/dual-<set>.json --write
+   ```
+   `--skip N` resumes a minting run; `mint-topics` refuses a card whose KLPs changed since the
+   proposal (re-mint it). Re-running the write on a card is idempotent.
+   **Where 2026-09-12 stopped:** Accounting-Talking minted 43 of 68 (resume `--skip 43`),
+   LBO 0 of 10, M&A authored 12 of 82 — every stop was a Gemini daily cap, none a failure.
+
+3b. **Rotation and the rebuild test (2026-09-12, owner's design).** `author-klps --direct
+   --rotate` with `KLP_ROTATION="google:gemini-3.6-flash,gemini-3.5-flash;deepseek:deepseek-flash;zai:glm-5.3-flash;qwen:qwen3.7-flash"`
+   draws writer / adversary writer / grader from three families per card (google / cn =
+   {DeepSeek, GLM} / qwen), rotating writers LRU; the adversaries are written from the
+   question and reference only (`WRITE_ADVERSARIES_PROMPT`), never the key points. Built and
+   dry-run on the bench cards; a Gemini quota hit retires that combo and the run continues.
+   **The rebuild test** — `docs/superpowers/specs/2026-09-12-rebuild-test-design.md` —
+   replaces the circular reference score with `cardCoverage` (rebuilt answer vs the card's
+   own points), `referenceParity` (vs the writer's reference; 1 − parity = extraction loss)
+   and `cardDisputes` (grader-vs-card override, surfaced as a warning, never applied).
+   Designed, NOT built; build order in the spec.
+
+4. **After the corpus is written:** item 3's projection (`KlpRelation` lifted through topic
+   links into `KltRelation` with provenance `projected`) is now a read-and-write over two
+   tables that exist; the place-unplaced pass for edge endpoints; the owner's gold labels on
+   the five accounting cards (still owed) turn the minting grid into precision/recall.
+
 **Shipped since (2026-09-07, not yet its own queue item):** DeepSeek as a first-class provider
 (reasoning off by default, `/responses` endpoint, 2.0-2.5s deterministic); an operator record at
 `docs/ai/model-performance.md`; and **shared API keys** - an admin can lend a key to every user
@@ -9,13 +113,364 @@ user. Qwen remains entitlement-blocked (403 `AccessDenied.Unpurchased`, retried 
 in no rotation. **The owner verified the shared-key flow in a browser on 2026-09-07** — that gate is
 closed. The budget is **weekly**, a fixed window resetting Monday 00:00 UTC.
 
+**GRADING-ENGINE DESIGN WRITTEN (2026-09-08), NOT BUILT:**
+`docs/superpowers/specs/2026-09-08-grading-engine-and-misconception-library-design.md`. Covers the
+grading engine, ACCURACY SIGNATURES, and an automatic misconception library, with unbiasedness as a
+first-class requirement rather than a footnote.
+
+**Its central claim: DIAGNOSIS IS LONGITUDINAL.** One answer cannot distinguish a gap from a slip
+from a misconception - the identical row ("failed KLP 3, `inversion`") is produced by a learner who
+never understood it, one who mis-spoke under pressure, one who never met it, and one blocked by a
+missing prerequisite. Today the engine tries to answer this per answer and therefore cannot. Every
+signature is computed over a learner's HISTORY on one key point, never over one row - which is also
+why the existing `deriveMisconceptions` is the right shape (longitudinal, deterministic, decays)
+and the wrong scope (conflation only).
+
+**Two signatures are computable TODAY with zero new capture:** `brittle` (passes recognition, fails
+production - `AnswerKlpResult` has stored `mode` and `klpId` all along) and `blocked`
+(`attributeBlame`, built). Nothing computes either.
+
+**THE CHEAPEST SEED FOR THE LIBRARY IS ALREADY IN THE DATABASE - verified: 130 `confident_wrong`
+authoring probes.** Each is a plausible, specific, wrong answer with per-KLP verdicts, written as a
+by-product of discrimination testing and never read since. They are misconceptions in everything
+but name. Verbatim sample: *"debt has a cheaper cost of capital than equity, which directly lowers
+WACC. By lowering WACC, intrinsic enterprise value is automatically maximized."*
+
+**The blocker is self-rated confidence (G3), and the design says so plainly.** Without it,
+wrong-and-certain cannot be told from wrong-and-guessing - which is a misconception and a gap. Days
+of work, blocks nothing, nothing blocks it, and every week it waits is history that can never be
+classified. **Item 1 of the design's build order.**
+
+**Unbiasedness, four mechanisms:** the AI never assigns a signature; GRADER STABILITY (unbuilt, and
+a prerequisite for any repetition-based signature - if the grader is unstable, "repeated" is noise
+and the library fills with artefacts of grader variance); cross-model confirmation before a
+misconception is promoted (the pattern is proven twice already - the negative-check probe and C1's
+three roles); and a held-out human-labelled set reporting Cohen's kappa, grading the graders first.
+
+**Corpus reality check, measured: 18 quiz answers, 13 with text, 2 error tags.** Online item
+analysis needs ~50 responses PER KEY POINT. Everything longitudinal is a design target, not a gate.
+
+**C4 (NECESSITY) IS BUILT — hygiene is now complete except for tag validity.** `npm run
+klp-necessity`, read-only, deletes nothing. It is **C1 pointed at a single omission**: construct
+the best answer that covers the remaining points and says nothing about ONE of them, then let the
+BLIND judge (the app's own grader, no key points) decide whether that answer is still good. The
+model that writes the answer never renders the verdict, and the prompt never reveals that the
+point might be deleted - one that knows it is justifying a deletion writes a deliberately poor
+answer, one that knows it is defending the point writes a suspiciously complete one.
+
+**R2's greedy-sequential loop is the algorithm, not a detail.** Each candidate is judged against
+the set AS REDUCED SO FAR, weakest weight first. Batch-asking deletes both halves of a two-point
+idea, since each looks optional while the other is still present; and testing the spine of a card
+while every peripheral point still props it up is exactly when a central point looks droppable.
+`NECESSITY_FLOOR` equals `MIN_KLPS_PER_CARD`, pinned by a test, so necessity cannot reduce a card
+below what authoring considers viable.
+
+**First real run (3 LBO cards): the FLOOR does most of the work on this corpus.** Cards carry 5
+points, so one removal hits the floor and the rest go `unexamined` - which is the honest outcome.
+Necessity is a check for BLOATED sets (fifteen points where seven do the work) and this corpus does
+not have them. One genuine finding: an IRR-definition point on a "walk me through an LBO at high
+level" card, where an answer omitting it still scored 9/10.
+
+**PREREQUISITE BLAME IS BUILT (`src/lib/klp/prerequisites.ts`) — two of the owner's three asks are
+done, and the third is deliberately NOT half-shipped.**
+
+The owner's read of the C3 entailment was right and sharper than mine: when B implies A, failing
+both is ONE gap, the prerequisite should become MORE important, and the relationship should be
+recordable so an insight can say "you got X wrong because you never had Y".
+
+1. **More important — DONE, and it was free.** An entailment is a `requires` edge, and the
+   vocabulary's direction convention (`RELATE_KLPS_PROMPT`) is that `from: X, to: Y` reads "Y
+   cannot hold without X". So the edge runs implied -> implier, `blastRadius` counts what depends
+   on a point, and `weightFromSignals` raises the PREREQUISITE's weight on the next authoring
+   pass. Getting the direction backwards would have inverted every weight, which is why it was
+   checked rather than assumed. `npm run klp-independence -- --write` persists them with a new
+   `entailment` provenance - additive, supersedes nothing, resets no mastery.
+2. **The explanation — DONE.** `attributeBlame` splits an answer's failures into ROOT and BLOCKED,
+   walking the `requires` chain, and `explainBlocked` names the ROOT rather than the nearest link
+   ("you missed the EV conclusion because you never had the cash step" is actionable; naming the
+   intermediate inference sends the learner to the wrong place). Only `requires` licenses the
+   excuse - `causes` says how the world works, not what a learner cannot say in isolation.
+   It NEVER upgrades a blocked failure to a pass: not knowing whether they hold B is not evidence
+   that they do.
+3. **NOT double-docking BKT — NOT BUILT, and half-building it would be worse than nothing.**
+   Applying the filter on the WRITE path alone is silently undone by the next `rebuildKlpStates`,
+   which the design makes authoritative. Applying it on the REPLAY path needs the rebuild to see
+   an answer's FULL result set to know what was blocked, and its query deliberately narrows to
+   specific klpIds - so it cannot currently tell a blocked failure from a root one. That is a real
+   change to the most safety-critical function in the engine and wants its own increment.
+
+**C3 (INDEPENDENCE) IS BUILT AND RUN — it was the largest open hygiene defect, and it is the one
+the owner named first.** `npm run klp-independence`, read-only, merges nothing. Two stages, and the
+first is FREE: pairs whose credit vectors are identical across every candidate the authoring run
+already graded (R5's point - that matrix is built for the discrimination test whether or not
+anything reads it), then one confirming call per shortlisted pair.
+
+**Measured over the corpus: 25.3% of pairs co-fire, on 92% of cards. Confirmed on a 19-pair
+sample: 18 independent, 1 not.** So the shortlist over-proposes roughly 5x and **the co-firing rate
+must never be reported as a redundancy rate** - a verdict vector is only as wide as the three or
+four candidates a run graded, so independent points collide by chance. Only the call decides.
+
+**A CONCEPTUAL BUG IN MY OWN MODULE, found by reading the first real confirmed result rather than
+by any test: ENTAILMENT IS NOT REDUNDANCY.** The pair was A "the $100 deposit increases cash and
+equity by the same amount" / B "because the cash rise is offset by lower Net Debt, EV is
+unchanged". A stands alone; B presupposes it, so **B implies A**. The first version reported B as
+"the redundant one" - backwards on the direction, AND the wrong frame, because B carries
+information A does not. What an entailment actually breaks is **conditional independence**: anyone
+demonstrating B has demonstrated A, so crediting both records two observations for one
+demonstration and every posterior moves twice. **The fix is in the scoring, not in deleting a
+proposition.** Only `equivalent` is a merge candidate, and even then the module refuses to pick
+which survives.
+
+**THE DISCRIMINATION SMOKE TEST (`src/lib/klp/smoke.ts`), replacing discrimination-as-quality-score.**
+Four gross failures only: `accepts_off_target` (any credit at all for an answer to a different
+question), `accepts_weak` (a weak answer above half the set), `rejects_reference` (a FIDELITY alarm
+surfacing through a discrimination check), `inverted`. It reads only the WEAK end plus one sanity
+check at the top, and **works with or without the panel** - the legacy three adversaries are enough
+- so a smoke test exists on every card rather than only re-authored ones.
+
+**WHY discrimination was demoted, and it is the owner's framing backed by measurement.** A
+key-point set is a conjunction of POSITIVE requirements: it cannot forbid a falsehood, and every
+confirmed C1 hole was exactly that shape. Meanwhile the test is saturated (AUC 1.000 on 129/130)
+and once corrected, 96% of real points read healthy. **A key point's job is to be true, atomic,
+independent and complete; deciding how wrong an answer is belongs to the grading engine** - error
+taxonomy, negative check, misconception library, follow-ups. Discrimination is a check ON the key
+points, not the instrument that grades wrongness. Marked SEMI-RESOLVED in the artifact's quality
+tab; the owner is taking the system-design question to a separate chat.
+
+**STILL UNBUILT in hygiene:** C4 (necessity, needs R2's greedy loop), tag validity against the
+concept DAG, and a model confirm on atomicity (the regex only catches "and"-joined compounds).
+Nothing grounds a key point against the WORLD - a hygienic set derived from a wrong card passes
+every check here.
+
+**THE PANEL IS CALIBRATED ON REAL CARDS (2026-09-08, 6 LBO cards, deepseek-v4-flash, dry-run).**
+Curves are MONOTONIC on 5 of 6 - L4 > L3 > L2 > L1 > L0 - which is the thing the old single-gap
+test structurally could not show. Separations: **-0.06, 0.29, 0.31, 0.31, 0.38, 0.44**. The guessed
+`PANEL_SEPARATION_FLOOR = 0.25` lands in a WIDE GAP: any floor in (-0.06, 0.29] gives the identical
+verdict, so it is robust rather than knife-edge, and the one card it flags is the genuinely broken
+one (non-monotonic, L2 outscoring L3 by 0.06). **The floor stands as measured.** Still OFF by
+default: 6 cards on one set is not a corpus.
+
+**THREE WRONG VERSIONS OF THE PER-POINT DIAGNOSIS, all caught by measuring, and the last is the
+interesting one.** v1 compared whether a point FIRED at L3 vs L2, where "fires" is credit > 0 -
+that collapses `correct` and `partial` into one bucket and flagged **35 of 49 points**, including
+`correct -> correct -> partial -> omission -> omission`, which is textbook healthy. v2 compared
+CREDIT and still flagged 47%; that error was conceptual, not numeric - **a key point does not have
+to separate every boundary**, since a card legitimately carries some points that split expert from
+competent and others that split partial from confused. v3 flagged points whose credit never
+changes at all: correct in principle and UNREACHABLE, because a flat point above zero fires at L0
+(`keyword_matching`) and one at zero fails L4 (`too_strict`), both of which name the cause rather
+than the symptom. **Final rules over the same 49 real points: 96% healthy, 4% too_loose, zero
+unseparated boundaries.**
+
+"Does the SET fail to separate a boundary" is now its own check (`findUnseparatedBoundaries`),
+because that is a property of the card, not of a point. It excludes the L1/L0 boundary on
+measurement: both are FAILING levels designed to score zero, and 4 of 6 healthy cards had no point
+separating them.
+
+**A reporting bug the calibration run exposed.** With the panel on, the runner still printed the
+OLD number - and `bestWrongScore` is a max over every non-reference candidate, which under a panel
+includes L4. So it reported "best wrong 0.93" (the expert answer, counted as an adversary) and a
+separation of 0.07 on a card that was fine. The runner now prints the curve, the per-point shapes,
+and a separation DISTRIBUTION rather than a mean - a floor is set from the spread, and a mean hides
+whether it is tight or bimodal.
+
+**PHASE A IS COMPLETE AND THE SYNTHETIC PANEL IS BUILT (2026-09-08) - items 1-4 all done.**
+
+**Phase A's classifier (R4) landed:** `CLASSIFY_ABSTRACTION_PROMPT` labels each key point
+`concrete | relational | dispositional`, wired into `authorCard` as an OPTIONAL generator method
+so every deterministic rule still runs for a caller with no AI budget. A skipped point stays
+`undefined`, never defaulted to `concrete` - defaulting invents a level nobody judged AND picks
+the one least likely to fire a finding, so a truncated reply would read as clean rather than
+unexamined. The prompt never sees `CardKlp.kind` (`mechanism` lives in both vocabularies with
+different meanings) and is forbidden from comparing statements to each other.
+
+**THE SYNTHETIC PANEL (item 4) IS BUILT, behind `USE_COMPETENCE_PANEL` (default OFF).**
+Five levels L4-L0 by COMPETENCE replace the three failure-kind adversaries; the curve, its
+monotonicity, and a per-key-point shape diagnosis are all computed in TypeScript
+(`src/lib/klp/panel.ts`). Separation becomes `min(passing) - max(failing)` with L3 counted as
+passing - strictly harder than `referenceScore - max(weak)`, so it gets its OWN
+`PANEL_SEPARATION_FLOOR` rather than reusing the old one and silently retuning the pipeline.
+The panel is written from the question and reference answer ONLY, never the key points, or every
+number from it is circular. Off by default because the new floor has no measurement behind it yet
+and every stored `separationScore` on the corpus was computed the old way.
+
+**THE SPEC'S STRONGEST STATED ARGUMENT FOR THE PANEL IS FALSE, and the doc now says so.** It
+claimed adversaries are "regenerated every revision", making a rising score ambiguous. They are
+not: the revision loop grades `draft.wrongAnswers`, written once by the author call, against each
+revised set. **The real argument is saturation** - re-measured across all 130 runs, AUC is
+**1.000 on 129 of them**. The reference outranks every adversary every time, so the test cannot
+tell a sharp key-point set from an adequate one. L3, the near-miss, is what makes it informative
+again. **Cross-run reuse IS built, and it needed no migration** (`src/lib/klp/panel-reuse.ts`):
+`AuthoringProbe.text` already persists each answer verbatim, so a re-authoring run reads back the
+card's previous panel and grades the same five answers instead of writing new ones. That is what
+makes two runs' separation scores comparable at all - a fresh panel each time means a higher
+score could mean sharper key points OR a weaker panel. Historic failure-kind probes
+(`confident_wrong` etc.) are never read as levels: they are a different instrument, and mixing
+them would put two scales inside one curve. An incomplete stored panel is ignored rather than
+used with a hole in it.
+
+**ROLE SEPARATION IN C1 (attacker vs verifier), from a question worth asking.** The exploit test
+separated the PROMPTS but ran all three calls on ONE model - so the attacker graded its own
+counterexamples, which is the self-report problem moved one level down. Now
+`KLP_VERIFIER_MODELS` / `KLP_VERIFIER_PROVIDER` configure a separate verifier pool, and the
+verifier PREFERS the model that authored the card's key points: the author is motivated to defend
+its own specification, so a hole IT concedes is a real hole. Absent a verifier pool the run warns
+loudly and fires a `self_verified` finding at any sample size.
+
+**THE NEGATIVE CHECK IS BUILT (2026-09-08) — items 1, 2 and 3 of the pipeline are done.**
+`src/lib/errors/contamination.ts`. A key-point set is a conjunction of POSITIVE requirements,
+so it can never express "and nothing false is asserted" - no key point closes that hole. The
+check is therefore a GRADING-TIME term, not an authoring check: `klpCredit` is now
+`statusCredit x evidenceStrength x contaminationFactor`, where the factor drops below 1 when the
+answer carries a whole-answer ACCURACY error tag. Only accuracy counts (clarity and conciseness
+are delivery, not truth) and only whole-answer scope (a tag on a specific point is already
+scored through that point). `CONTAMINATION_MAX_DOCK = 0.5` is an ANCHOR, not a round number:
+worst-case contamination reduces a fully-correct answer to exactly `STATUS_CREDIT.partial`, and
+a test pins the equality.
+
+**Validated adversarially against real data, cross-model: 11/15 caught (73%).**
+`npm run probe-negative-check` replays the contamination exploits C1 already produced - graded
+by `gemini-3.5-flash-lite`, which is NOT the `deepseek-v4-flash` that wrote them. Before this,
+all 15 scored full positive credit. The 4 misses are subtle domain claims ("DSCR is mostly used
+for real estate"); the check catches what the grader knows is false, which is a real ceiling.
+`GRADE_SHORT_ANSWER_PROMPT` went to v4 because the instruction was previously implicit - it
+described the MECHANICS of a whole-answer tag without ever telling the grader to look for one,
+and a dock for a tag no model emits is a dock that never happens.
+
+**MODEL SEPARATION IS NOW TRACKED AND ENFORCEABLE, and it was NOT guaranteed before.** The
+pipeline's isolation was always PROMPT-level (the grader is never told where an answer came
+from), never model-level. Measured on the first C1 run: 7 cards attacked by a different model
+than authored them, **1 card attacked by the model that wrote it**, and 12 with no recorded
+authoring model at all. `klp-exploit` now reports the split, fires a `self_attacked` finding at
+any sample size, and takes `--require-model-separation` to skip self-attacked cards. `unknown`
+is its own bucket - assuming separation we cannot demonstrate is the flattering direction.
+
+**PHASE A IS BUILT (2026-09-08), deterministic half.** `validate.ts` gains `not_self_contained`,
+`meta_language`, `numeric_inconsistency` (R6), `disposition` and `abstraction_spread` (R4), plus
+a real `restatement` check. R4 renames the axis to `abstraction`
+(`concrete/relational/dispositional`, `src/lib/klp/abstraction.ts`) so it cannot collide with
+`CardKlp.kind`, and a test asserts the vocabularies stay disjoint - this project already
+collapsed two axes into one field once with categories-as-concepts. Dispositions are rejected at
+any count: "understands X" is a claim about a PERSON and cannot be true of an answer. Spread is
+judged WITHIN one card only.
+
+**Measured over all 923 live key points before committing, which is how the one false positive
+was found.** `not_self_contained` 11% of cards (true positives - "This creates a deliberate
+downward bias..." has no antecedent), `meta_language` 1%, `restatement` 1%, and
+`numeric_inconsistency` **fired on a card with no tax arithmetic at all**: an earlier version
+treated any bare percentage as a candidate tax rate, so on a non-controlling-interest card the
+80%/50%/20% OWNERSHIP stakes played the part of a tax rate while "operating income" and "net
+income" supplied the two sides. Fixed by requiring the rate to be named as a tax rate; that real
+card is now a regression test. A rule that cries wolf on correct authoring gets ignored, which is
+worse than no rule.
+
+**Still unbuilt in Phase A:** the abstraction CLASSIFIER (the seam and the arithmetic exist;
+nothing calls a model to label points yet) and tag validity against the concept DAG.
+
 **AGREED 2026-09-07, NOT BUILT — the KLP quality pipeline.** Design:
 `docs/superpowers/specs/2026-09-07-klp-quality-pipeline-design.md`. A third quality axis
 (**hygiene** — atomicity, independence, coverage, grain, tags, all scoped to ONE CARD's key points,
 never a deck) beside fidelity and discrimination, plus a **synthetic competence panel (L0-L4)**
 replacing the three adversaries. Six revisions recorded there.
 
-**R1 is the first build item, and it is a BACKGROUND RE-GRADE, not a publish gate.** Every auto-fix
+**C1 IS BUILT AND RUN (2026-09-07) AND ITS RESULT IS A WARNING, NOT A COVERAGE NUMBER.**
+`npm run klp-exploit` - read-only, no schema change, no mutation. Over the SAME seeded 20 cards
+on one model, two defensible phrasings of R3's bar gave **40% and 95% of cards holed**; 44 of 60
+attempts flipped, 36 of them straight from `abstained` to `confirmed`. The corpus never changed.
+An exploit makes two claims - "it satisfies every key point" (verified by the existing
+`GRADE_CANDIDATE_PROMPT`, stable) and "it would be marked down in a real interview" (the
+generator's own judgment, unverified). **The whole swing lives in the second.** So R3 is necessary
+and not sufficient, and C1 cannot produce a corpus figure until that claim has a blind judge -
+cheapest is `GRADE_SHORT_ANSWER_PROMPT`, which already scores an answer against the card with no
+knowledge of the key points, at one extra call per confirmed attempt. Details and both runs: R7 in
+the design doc; raw exploit text in `docs/ai/klp-exploit-deepseek{,-v2}.json`.
+
+**What C1 DID establish, independent of the framing: the routing table is wrong for ~90% of holes.**
+The design has one action for a C1 hole ("generate candidate KLP"), and it only fits `omission`.
+`contamination` needs a NEGATIVE check - no added key point fixes "and it also said something
+false" - and `scope_drift` needs anchoring to the question. Routed as designed, most findings
+become key points that fix nothing, C4 deletes them, and C1 re-finds the hole. Two of the three
+routes do not exist.
+
+**CORPUS FIGURES BELOW WERE STALE; measured 2026-09-07 with `npm run klp-histogram`:** 923 live
+KLPs on 200 cards - **432 authored, 373 reused, 118 legacy** - over 130 authoring runs. Authored
+and reused both read mean weight 2.83 with NO failure mode firing. Only the 118 legacy rows still
+fail `clustered_high` (92.4% at 4-5). Baselines as of this session: **3128 tests, lint 164.**
+
+**BOTH ITEMS 1 AND 2 ARE NOW BUILT (2026-09-07).** Baselines: **3352 tests, lint 164.**
+
+**C1 IS CALIBRATED AND THE ANSWER IS: COVERAGE IS NOT THE PROBLEM.** After adding a blind
+judge for the claim nothing verified, the same 20 cards read **10% holed (2/20)**, not the 40%
+or 95% two prompt phrasings gave. 31 of 42 claimed exploits were rejected by the app's OWN
+short-answer grader as perfectly good answers. **Zero confirmed omission holes, zero scope
+drift; both survivors are contamination. Authored cards: 0 of 10.** The judge is
+`GRADE_SHORT_ANSWER_PROMPT` with no key points - its shipped rubric-only path, so no new
+prompt. Read the sensitivity curve, not the number: `<4:0 <5:0 <6:0 <7:2 <8:9 <9:22`, i.e.
+stable at every defensible bar.
+
+**THE ROUTING FIX: route by strategy, and only ONE route may touch key points.** A key-point
+set is a conjunction of POSITIVE requirements; no such conjunction can say "and nothing false
+is asserted" (contamination) or "and this answers THIS question" (scope drift), so adding
+members never closes those. `omission` splits further - if the missing content traces to the
+card, draft the point; if it does not, the CARD is thin and it goes to the existing `concerns`
+channel, never auto-added. Full table in the design doc.
+
+**Contamination is the priority, and the reason is verified in code, not inferred.**
+`klpResults` and `errorTags` are written independently and `klpCredit` reads only
+`status x mode`, so an answer that satisfies every key point AND asserts something false is
+recorded as full positive evidence on every point - **the learner's mastery goes UP for having
+said something wrong.** That argument does not depend on C1's numbers.
+
+**R1 IS BUILT: `npm run regrade-klps`.** Carry forward where the key point survived verbatim,
+re-grade free text only where the new set has uncovered points, drop what is gone, and NEVER
+re-grade MC/TF. No new column and no queue table - "does every result point at a live key
+point" is both the idempotency gate and the work queue. **Live dry-run: 7 cards, 8 answers, 9
+stranded results, and only 1 of 9 `KlpState` rows corpus-wide sits on a live key point.** The
+mastery wipe has already happened; it is not a risk, it is a backlog. **NOT YET RUN against
+production - it is an irreversible write to real learner history and needs the owner's go.**
+
+**RUN AGAINST PRODUCTION 2026-09-08, and it corrupted history before it repaired it. Read this
+before touching the re-grade job.** The run cleared all 9 stranded results, but 5 of the 6
+re-graded answers were DIAGNOSTIC, and re-grading a diagnostic is wrong for a reason that is
+about SCOPE, not format. A diagnostic question probes exactly ONE key point
+(`DiagnosticQuestion.klpId`); `GRADE_SHORT_ANSWER_PROMPT` judges the whole card. So the grader
+was handed a one-question answer and asked about six points, and marked the five untouched
+ones `failed` - because an answer to one question does not mention the others. **A learner who
+correctly answered "Gross Profit" to "what is Revenue minus COGS?" came out recorded as having
+FAILED four points on operating expenses, EBIT, EBITDA and net income.** 30 fabricated
+negative results across 5 answers.
+
+Fixed two ways: `diagnostic` moved into `CARRY_ONLY_MODES` (its honest scope is its one probed
+point, and if that point did not survive verbatim there is nothing to grade against - the same
+position MC/TF are in), and `scripts/repair-diagnostic-overcredit.ts` removed the 30 rows and
+replayed the posteriors. Verified: stranded 9 -> 0, KlpState on dead points 8 -> 0, no
+out-of-scope evidence remains, both scripts idempotent on a second run. Checked across all 12
+diagnostic questions: **not one probed key point survived re-authoring**, so the honest outcome
+for every diagnostic answer was to keep no key-point evidence - which is the loss that already
+existed, not a new one.
+
+**IT AUTO-RUNS.** `regradeSweep` is wired into the existing daily cron
+(`/api/cron/author-klps`) and runs **BEFORE** the authoring phase, bounded by
+`REGRADE_CARDS_PER_RUN` (10) and `REGRADE_BUDGET_MS` (60s). The order is the design: this route
+is the largest producer of the damage, since authoring supersedes key points - and run last the
+sweep would get whatever wall clock authoring left over, which is not a repair. Running first
+means each invocation fixes the previous one's damage, so a card authored today is re-attached
+tomorrow; `npm run regrade-klps` closes that lag on demand. No second cron, because Vercel Hobby
+allows only daily ones. A source-scan test pins the ordering, the reporting, and the reuse of
+`GRADE_SHORT_ANSWER_PROMPT`; both "moved after authoring" and "removed" fail it.
+
+**The lesson, and it generalises past this job: an answer's re-gradable scope is WHAT IT WAS
+ASKED, never what format it is in.** Free text was the wrong test. `quiz-sa` qualifies because
+its prompt IS the card; nothing else does.
+
+**A defect the suite could not see, found by the live dry-run:** `QuizAnswer.mode` holds a
+`QuizMode` (`short-answer`) while `AnswerKlpResult.mode` holds a `StudySource` (`quiz-sa`).
+Comparing the raw column matched nothing, so every short-answer answer had its evidence
+dropped instead of re-graded - the exact damage the job repairs, caused by the repair. All
+unit tests passed because they used `quiz-sa`. Fixed through `src/lib/quiz/mode.ts` and pinned
+by a test. **Live verification catches what mocks cannot, again.**
+
+**Original R1 framing, for context - it is a BACKGROUND RE-GRADE, not a publish gate.** Every auto-fix
 supersedes a `CardKlp`, which silently resets `KlpState`. The owner rejected gating hygiene behind
 publication — people edit cards constantly and would route around it — and the rejection was right:
 `QuizAnswer.answer` stores the raw text and `rebuildKlpStates` already replays posteriors from
@@ -28,11 +483,20 @@ re-authoring cost ~$2-5 instead of ~15 days of free-tier drip, but nothing has e
 authors as well as it grades. Author ONE set, run `npm run klp-histogram` on it, compare to the
 Gemini LBO pilot, and only then decide about the rest of the corpus.
 
-**Last updated:** 2026-09-06. **NEXT UP item 1 (wire the diagnostic to real key points) is DONE
+**Last updated:** 2026-09-09. **The order changed: two NEW items jumped to 2 and 3, pushing
+re-authoring to 4 and the answer overlay to 5.** A read-only probe session found that
+**authoring silently orphans a card's concept links** — 258 topic links on authored cards, of
+which **zero** point at a live KLP, and **zero overlap** between the 78 cards carrying relations
+and the 54 carrying live topic links. Findings: `docs/ai/card-tagging-axes.md`. Item 2 repairs
+it inside the authoring pipeline at zero extra AI cost; item 3 is the free measurement that
+decides whether `KltRelation` gets built. Do not start item 4 (re-authoring) first — it would
+mint another 100+ cards' worth of orphaned links.
+
+**Previous:** 2026-09-06. **NEXT UP item 1 (wire the diagnostic to real key points) is DONE
 and the gate is off** - see the struck-through entry below for what shipped, the four defects live
-probes found that the suite could not, and the one human gate still owed. Items 2 and 3 are
-unchanged and are where to start. Note item 1 changed item 2's arithmetic: a 12-question
-diagnostic now costs 7 AI calls, so it competes with re-authoring for the same daily quota.
+probes found that the suite could not, and the one human gate still owed. Note item 1 changed
+item 4's arithmetic: a 12-question diagnostic now costs 7 AI calls, so it competes with
+re-authoring for the same daily quota.
 
 **Previous:** 2026-09-05. Spec 2 increment A is DONE and G1 is closed. Shipped since:
 the public KLP view + interactive relation graph, the model quality floor, production quota/retry
@@ -124,7 +588,147 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
    attempt. Run a 12-question diagnostic on `Accounting - "Talking"` and then
    `npm run verify:diagnostic -- <attemptId>`.
 
-2. **Re-author the whole corpus through the authoring pipeline.**
+2. **Repair the concept layer: assign topics inside authoring, and measure the grain.**
+   **NEW 2026-09-09, and it jumped the queue because a probe found a live defect.** Findings:
+   `docs/ai/card-tagging-axes.md` §0 and Part C.
+
+   **2026-09-11: the DUAL-MODEL MINTING PIPELINE is designed and built as a probe, still
+   writing nothing.** Spec `docs/superpowers/specs/2026-09-11-dual-model-topic-minting-design.md`;
+   findings Parts F and G of `card-tagging-axes.md`; grids at
+   https://claude.ai/code/artifact/61511ace-d1d0-48a9-abba-e8ac81820096 (minting) and
+   https://claude.ai/code/artifact/bb78a8e9-ebaf-44bd-b589-1bebf005f80a (authoring bench).
+   DeepSeek + gemini-3.6-flash mint, `src/lib/klp/topic-reconcile.ts` merges by rule with a
+   reason on every item, qwen3.7-flash judges only the leftovers (0.77 calls/card). The
+   `kind` prior (rule 8 + `EXPECTED_SHAPE`) takes kind-consistency to 100%. **Amended the same
+   day on the owner's rules (Part H): count-preserving merge, edge > context > leaf, container
+   check as a rule with the statement winning on a definition KLP, judge weighting = preferred
+   AND (unacceptable OR shorter OR more KLP-faithful); `--replay` re-merges stored proposals.
+   Third merge (Part I): KLP-vocabulary fidelity decides names first, same-type surplus
+   compresses to min(nA, nB), self-dup is leaf-only.** **THE WRITE STEP IS BUILT (2026-09-12), plan-only until the owner says write:**
+   `scripts/mint-topics.ts --from <dual.json> [--write]` over `src/lib/klt/mint-plan.ts`
+   (pure, tested) and `mint-write.ts`; design
+   `docs/superpowers/specs/2026-09-12-topic-minting-write-step-design.md`. It adds the
+   `KltRelation` model (migration `20260912000000_klt_relation`, NOT yet applied) — the
+   concept DAG beside the tree that item 3 will also write into. Planned on the five
+   accounting cards: 46 concepts (30 new), 32 links, 12 edges, 13 unplaced endpoints.
+   Open before the first `--write`: the owner's gold labels on those five cards, and the
+   owner's go — the write re-attaches every live KLP on those cards and applies a migration. Qwen is live
+   (`KLP_DIRECT_PROVIDER=qwen`, 3.7 family only). 91 cards still have no KLPs (79 M&A).
+
+   **THE DEFECT — authoring orphans a card's concept links.** Measured on the live database:
+
+   ```
+   topic links (KlpTopic) total ...... 509    on LIVE KLPs .... 231    on DEAD (superseded) .... 278
+   topic links on authored cards ..... 258    of which LIVE ... 0
+   cards with KLP relations .......... 78     cards with live topic links ... 54    OVERLAP ... 0
+   KlpRelation edges ................. 477    with BOTH endpoints tagged .... 0
+   ```
+
+   `author-klps` writes a new `klpVersion`, superseding the old `CardKlp` rows and minting new
+   ids. `KlpTopic` keys on `klpId`, so the old links survive pointing at dead rows — and the new
+   KLPs get nothing, because **`author-klps` never calls `summarizeKltsForCards`** (its only
+   callers are `createSet`, `updateSet` and `scripts/backfill-klts.ts`). **This is the exact
+   failure `summarize.ts`'s own doc comment guards against for `KlpState`** — "superseding would
+   orphan every accumulated BKT posterior, a silent total mastery reset, invisible to `tsc`".
+   Someone reasoned it through for mastery and guarded it. Nobody checked topics, and it happened.
+   **Check `KlpState` for the same orphaning before anything else** — the guard may be equally
+   absent there, in which case re-authoring has been resetting learners' mastery.
+
+   **What to build.** Fold concept assignment into the authoring pipeline's existing *relate*
+   call — that call already has the card, the reference answer and every KLP in context, so
+   assignment costs **zero extra requests**, which matters against a 20/day/model cap. It then
+   inherits the authoring pipeline's hygiene checks instead of coming from a separate blind batch.
+
+   **A DRY-RUN PROBE ALREADY EXISTS AND HAS BEEN RUN — read its output before designing.**
+   `scripts/probe-topic-minting.ts` (writes nothing). Findings in
+   `docs/ai/card-tagging-axes.md` Part D. It inverts both halves of the live pass: **per CARD,
+   not per KLP** (a card's KLPs came from one reference answer and already cohere), and
+   **blind**, with no reuse vocabulary shown. That second half matters more than it sounds:
+   `assembleCandidates` ranks its 150 candidates set-local, then token-overlap, then
+   **globally-most-linked** — and the broadest node is by definition the most-linked, so it is
+   shown most often, reused most often, and grows broader still. **The existing prompt already
+   says "do NOT give broader categories" and still drifts, which is the evidence that wording
+   was never the binding constraint.** Reconcile minted names against existing ones AFTER, in
+   TypeScript.
+
+   **Seven rules, all in the probe's prompt.** The two that came from the owner: a card fuses
+   into a **subtree, not a leaf** (DSCR and FCCR are separate children of `debt coverage
+   ratios`, because a learner can know one and not the other — *the failure-grain rule*); and
+   **settings are kept but recorded at MECHANISM grain** (`non-cash adjustments`, `financing
+   cash flow`), never as a bare statement name. **Rule 7** turns a KLP that IS a link into a
+   RELATION rather than a leaf, with **both endpoints named as standalone concepts** — that
+   naming requirement is the entire mechanism by which the graph crosses card boundaries, since
+   card A's leaf `retained earnings` and card B's edge `net income -> retained earnings` meet on
+   the name. It reuses `RELATABLE_TYPES` from `relations.ts` rather than minting a second edge
+   vocabulary.
+
+   **The measure of grain is CROSS-CARD CONVERGENCE, not KLPs-per-leaf.** The first run
+   returned 1.04 KLPs per leaf, and that is the *logically correct* reading of the failure-grain
+   rule — KLPs are already the unit of independent failure, so one-leaf-per-failable-thing
+   collapses the topic layer onto the KLP layer. A leaf earns its place by being reached from
+   several DIFFERENT cards. The probe now reports distinct/total leaves and a **cross-card join
+   rate** for relation endpoints.
+
+   **The grain rule** (the owner's, refined 2026-09-09): attach every KLP to the **deepest node in
+   the set's tree that the point is honestly about**. Broad nodes get their numbers by ROLLUP,
+   never by direct attachment — which is what `KlpTopic.rank`'s own doc comment already says
+   ("CENTRALITY, not breadth: breadth comes from the tree") and what `rollUpKltLinks` already
+   implements. **The architecture is right; the assignment pass ignores it.**
+
+   Measured today, mean KLPs attached DIRECTLY by tree depth: `d1 3.4 | d2 6.2 | d3 7.9 | d4 10.3
+   | d5 8.1 | d6 3.4`. Leaves 6.1, internal nodes 6.5 — **identical. The tree does no funneling.**
+   `income statement` sits at depth 4 collecting 19 KLPs directly.
+
+   **The count pyramid (~3-6 at a leaf, more each level up) is the ACCEPTANCE MEASUREMENT, never a
+   quota.** Enforce counts and the assigner invents concepts to hit them. Same relationship the
+   weight histogram has to G1 — ship a `npm run klp-grain` style read-only check beside it.
+
+   **Corollary that will bite if ignored:** 923 KLPs over 65 leaves is 14/leaf at perfect
+   distribution. Reaching 3-6 needs ~150-300 leaves, **2-4x today's 113 concepts**. A KLP with no
+   honest leaf must be allowed to **mint** one, or it settles onto a broad ancestor and re-flattens
+   the histogram. **Assignment and tree growth are one job.**
+
+3. **Then re-run the concept-graph projection — it is free, and it is the go/no-go for
+   `KltRelation`.** Read-only, zero AI calls, zero schema change.
+
+   **The idea.** Do NOT try to draw cross-card KLP edges (combinatorial, needs pairwise AI
+   judgment). **Project the within-card edges UP to concepts**: KLP a (concept A) `requires` KLP b
+   (concept B) is evidence for concept-level `A requires B`. Aggregate; the count of **independent
+   cards** producing the same edge is its confidence. Every edge traces to a card and a `probe`,
+   nothing is invented, and TypeScript computes the graph property from local AI judgments — the
+   same discipline as `weightFromSignals`. Strictly better than asking a model for a curriculum
+   graph (the "concept-graph extraction" bet in CLAUDE.md), because a fabricated edge cannot
+   appear.
+
+   **Ran it 2026-09-09: ZERO edges**, because 0 of 477 relations have both endpoints tagged. That
+   is not evidence against the idea, it is the reason item 2 comes first. Re-running costs nothing.
+
+   **Multi-parent — the owner's depreciation case.** Depreciation belongs under both the cash flow
+   statement and the income statement. **Not expressible today:** `SetKltNode` is
+   `@@unique([setId, kltId])`, so within a set a concept has exactly one parent. (Across sets it is
+   already allowed — 21 concepts have different parents in different sets.)
+   - *Making the tree a DAG is REJECTED.* `depth`/`ancestorIds` stop being single values,
+     `rollUpKltLinks` double-counts any KLP reachable two ways, `layout.ts` assumes one parent, and
+     node mastery becomes ambiguous. It corrupts the metrics substrate to fix a display problem.
+   - *Keep the tree, add `KltRelation` beside it.* The owner's own framing has the tell — "has a
+     clear one in cash flow statement" — so there IS a primary parent and the second link is a
+     weaker, different relation. Renders as a dashed line, drives navigation and insight, **never
+     enters mastery rollup**. The vocabulary already exists: `applies_within` is literally
+     "depreciation applies within the income statement".
+   - *"Relations that hold only in specific moments/cards"* (the owner's hardest observation) falls
+     out for free: a projected edge carries `cardIds`. One card = contextual, eight = structural.
+     A count, not a boolean.
+
+4. **Re-author the whole corpus through the authoring pipeline.**
+
+   **2026-09-12: the pipeline to re-author WITH is now the ROLE SPLIT + QUALITY BAR** —
+   `KLP_AUTHOR_PROVIDER=google KLP_AUTHOR_MODELS=gemini-3.6-flash` writing,
+   `KLP_DIRECT_PROVIDER=deepseek` grading; `REVISION_BAR` revises a card that does not clear
+   0.60, fails its own reference, or carries a text-level defect. Six M&A cards: mean
+   separation 0.81, and a Gemini key does 6-10 cards a day instead of 2. Details in
+   `docs/ai/model-performance.md`. Also for this pass: the owner's enumeration-card rule
+   (an "N reasons" card carries the N items as knowledge KLPs with mechanism/causal points
+   attached, not dissolved) goes into `AUTHOR_KLPS_PROMPT`.
 
    **THIS ENTRY WAS STALE AND THE OWNER CAUGHT IT (2026-09-07).** It claimed only the LBO set had
    been authored and that `Accounting - "Talking"` was 68 cards of `promptVersion: 1`. Wrong: 51 of
@@ -169,7 +773,7 @@ stores strings — so existing pins were unaffected and the new tasks start unpi
    (`/api/cron/author-klps`, every 3 hours) now spends that quota automatically instead of leaving
    it to expire; DeepSeek stays the paid fallback for grading, where it is genuinely good.
 
-3. **Wire the solution/answer overlay to real data.** `KlpGraphCanvas` already takes an `answer`
+5. **Wire the solution/answer overlay to real data.** `KlpGraphCanvas` already takes an `answer`
    prop and renders correct/partial/failed per key point; nothing passes one yet. Natural homes are
    quiz results (a learner seeing their own attempt) and `/staff/learners/[id]`. NOTE: a red LINE is
    currently INFERRED from its endpoints and the UI says so — real link-level verdicts need Spec 3's
@@ -1831,6 +2435,47 @@ being whatever the learner finds useful without corrupting mastery.
   the closest existing thing and the first question the design must answer: is "type of question" a
   **closed vocabulary at KLP grain that generalizes `kind`**, or a **new label at card grain**? Two
   overlapping enums describing the same distinction is the drift class this repo keeps flagging.
+
+**UPDATED 2026-09-09 — the owner endorsed this axis ("I love that idea of tagging the question")
+and set the shape of the work. Full findings: `docs/ai/card-tagging-axes.md`.**
+
+- **RANKED AFTER items 2-3, by the owner's delegation.** Three reasons, in order: topic assignment
+  is a *repair* of a working pipeline while this is a *new* axis with an unvalidated vocabulary;
+  per-question-type mastery reads through the metrics substrate, whose topic axis is currently 25%
+  populated and 0% overlapped with the best cards, so a third axis stacked on a broken second one
+  compounds; and topic assignment rides inside an existing AI call for free while this needs new
+  ones against a 20/day/model cap.
+- **The order of work the owner asked for:** a **test run** of question tagging first, then a
+  **structure-tagging visibility panel** — not the panel first.
+- **GRAIN IS DECIDED: the QUESTION, not the card and not the KLP.** A card is usually mixed ("walk
+  me through a DCF" carries a definitional point, a step-order point and a math point), so a single
+  card-level tag is a lie about two-thirds of it; and the same KLP can legitimately be probed by
+  recall or by application, which makes response mode a property of the *asking*. Card-level is the
+  multiset of its questions' tags, for free. This also unlocks **recognition-vs-production**
+  diagnosis, already flagged as computable-today and unbuilt.
+- **THE OWNER IS EXPLICITLY SUSPICIOUS OF `response_mode` OUTPUT QUALITY, and is right.** Four
+  checks are mandatory before it becomes a column, in this order: (1) **correlate against
+  `CardKlp.kind`** on the existing 923 KLPs — if `kind` predicts it more than ~90% of the time it
+  is one axis with two names, do not ship it; (2) **does it change a graded outcome** — flat error
+  rates across all six values means the axis carries no information; (3) **validate against REAL
+  model output, never a fixture** — a unit test hand-writing `procedure` proves nothing, and that
+  is precisely what let the diagnostic grading prompt drop *every* tag while 2,948 tests passed;
+  (4) the prompt must **name the closed vocabulary verbatim**, with a test pinning it.
+- **A second axis may be the better first build: `answer shape`**
+  (`single_value | enumeration | ordered_sequence | argument`). It earns its place by changing
+  CODE rather than labels — `single_value` needs no AI grader at all, `enumeration` is set-coverage
+  scoring, `ordered_sequence` makes transposition a nameable error, and it should modulate
+  `evidenceStrength`. Lowest ambiguity, most downstream leverage.
+- **Bloom / cognitive-demand scales are REJECTED** — they duplicate `abstraction`
+  (`concrete | relational | dispositional`, `src/lib/klp/abstraction.ts`), which already exists and
+  already carries the "a disposition is never a key point" rule. Note `abstraction` is an
+  authoring-time hygiene check only and is NOT persisted; **persisting it is a smaller and better
+  move than inventing a new scale.**
+- **Non-structural axes were also collected** and are numbered 4-10 in `card-tagging-axes.md`. The
+  two the owner should look at first: **contestedness** (`identity | convention | judgment` — the
+  line between a misconception and a house preference, load-bearing for item 11) and **salience**
+  (`core | common | niche | trivia` — which the owner has *already been hand-rolling* as the
+  `must-know` / `niche` / `classic` categories).
 
 **Design questions, none answered:**
 - **Closed vocabulary or open?** Spec 2's ruling on error types applies verbatim: open-ended tags

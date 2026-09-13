@@ -1,0 +1,211 @@
+# Dual-model topic minting with a deterministic reconciler
+
+**Status:** approved in chat 2026-09-11 (owner); BUILT the same day as a PROBE extension and run on 13 cards — findings in `docs/ai/card-tagging-axes.md` Part G, including the judge-weighting defect. Nothing here
+writes to the database. Promotion into the authoring pipeline is a later decision, taken
+after the owner has read a merged run and a human-labelled gold set exists for at least the
+five accounting cards.
+
+**Context:** BUILD-QUEUE item 2. `docs/ai/card-tagging-axes.md` Parts D-F measured three
+single-model minting runs. Part F (five fixed cards, five models) established the two facts
+this design rests on: models agree on NOUNS and disagree on the LEAF-OR-EDGE decision; and
+every leaf/edge split between DeepSeek and gemini-3.6-flash was DeepSeek under-emitting
+edges. The owner's read of the grid: DeepSeek is the best overall minter but over-produces
+contexts and names things oddly; gemini-3.6-flash names things well ~80% of the time but
+sometimes under-covers or mis-orders; when the two disagree on the TYPE of a thing, Gemini
+is usually right.
+
+## What the owner asked for, verbatim in substance
+
+1. Use the KLP `kind` to guide leaf-vs-edge. Today it is printed as a hint and nothing reads it.
+2. Mint with both DeepSeek and Gemini 3.6, but conserve tokens.
+3. When they name the same concept differently, take the SHORTER name.
+4. When they disagree on type (leaf / edge / context) for the same concept, Gemini wins.
+5. When one model emits a leaf and a context with the same name on one KLP, it has
+   mislabelled one of them and the point probably wants an edge.
+6. A third model may judge "which is more right" but must never be asked "are both wrong";
+   weight it slightly toward Gemini on naming/type conflicts. Adjudicator: **qwen3.7-flash**
+   (uncapped, not a minter, so no self-preference).
+
+## Components
+
+### 1. `kind` prior — prompt rule 8 + `EXPECTED_SHAPE`
+
+`KLP_KINDS` (`src/lib/ai/schemas.ts`) is a closed vocabulary set at authoring time. It
+becomes a DEFAULT shape, stated in the prompt and pinned in TypeScript:
+
+| kind | expected shape | default edge type |
+| --- | --- | --- |
+| `contrast` | edge | `confused_with` |
+| `causal` | edge | `causes` / `precedes` |
+| `condition` | edge | `applies_within` |
+| `mechanism` | either | — |
+| `definition` | leaf | — |
+| `quantitative` | leaf | — |
+| `example` | leaf | — |
+
+The prompt states it as a default the model may override. TypeScript flags a proposal whose
+shape contradicts the table as `kind_conflict`. The table is exported so a test pins it, and
+`EXPECTED_SHAPE` must have an entry for every member of `KLP_KINDS` (tested) — a new kind
+added without a shape would silently be "either".
+
+### 2. `src/lib/klp/topic-reconcile.ts` — pure, zero AI, zero DB
+
+Input: two `CardTopicProposal`s (A = DeepSeek, B = Gemini) for one card, plus the card's
+KLPs with `kind`. Output: a `MergedProposal` where every leaf, edge and context carries a
+`reason` string and, where applicable, an `unresolved` marker for the adjudicator.
+
+**Alignment is by KLP index**, never by name. Both models saw the same numbered list, so
+the question "are they talking about the same KLP" is already answered; only NAMES and
+SHAPES need reconciling. This is the main token saving: the judge is never asked to align.
+
+Rules, per KLP, in this order:
+
+1. **Self-duplicate purge.** Within ONE model's proposal, a context whose normalized name
+   equals that same model's leaf name or edge endpoint on the same KLP is dropped
+   (`reason: purge:self-dup`) and the KLP is marked `shape_suspect`.
+2. **Shape.** Both leaf, or both edge → keep. Split:
+   - prior is `edge` or `either` → **edge wins** (`rule:edge-wins-by-kind`).
+   - prior is `leaf` → `kind_conflict`, adjudicate.
+   - a `shape_suspect` leaf against the other model's edge → edge wins
+     (`rule:edge-wins-self-dup`).
+   - one model covered the KLP and the other did not → take the one that did
+     (`rule:only-coverage`).
+3. **Leaf names, same shape.** `normalizeName`: lowercase; strip punctuation; expand
+   `EBIT`/`EBITDA`/`D&A`/`FCF`/`PP&E`/`SBC`/`COGS`/`NI`/`OCF` (fixed table); drop ONE trailing
+   noise word from `NOISE_SUFFIXES` (`concept`, `calculation`, `definition`, `structure`,
+   `mechanics`, `derivation`, `purpose`, `components`, `flow`, `overview`). Then:
+   - equal → same concept, **shorter original wins** by word count, tie → Gemini
+     (`rule:shorter` / `rule:tie-gemini`).
+   - one name's content tokens CONTAIN the other's, smaller side ≥ 2 tokens → same
+     concept, shorter wins. (Built as containment, not Jaccard + head noun: `effective tax
+     rate` / `marginal tax rate` share the head noun `rate` and would have merged; the test
+     pins that pair apart. The two-token floor stops `assets` being swallowed by `long-term
+     assets`.)
+   - otherwise → `name_conflict`, adjudicate.
+4. **Edges.** Same endpoints (after normalization), same type → keep. Same endpoints,
+   different type → Gemini's type (`rule:type-gemini`). Different endpoints →
+   `edge_conflict`, adjudicate. If only one model emitted an edge for the KLP and shape
+   resolved to edge, take it.
+5. **Contexts.** Keep iff (a) both produced it (name-match), or (b) Gemini produced it, or
+   (c) it matches a leaf or endpoint name anywhere in the run's merged vocabulary.
+   DeepSeek-only, run-novel contexts are dropped (`reason: drop:ds-only-novel`).
+6. **Container stem check.** `isContainerName` matches
+   `^(income statement|cash flow statement|balance sheet|financial statements?)\b` and
+   the exact list from the probe, so `cash flow statement mechanics` is caught.
+7. **Coverage.** A KLP may be covered by ONE leaf or by ONE OR MORE edges (replaces the
+   probe's "exactly once"; Part F showed two independent models correctly splitting one
+   KLP into two edges).
+
+### 3. Adjudicator call — qwen3.7-flash, batched, one call per card, often zero
+
+Only `name_conflict`, `kind_conflict` and `edge_conflict` items reach it. The prompt shows,
+per item, the KLP text and `kind` and the two candidates labelled A/B with **Gemini's side
+randomised** per item (seeded, recorded) so the judge cannot learn a slot. It answers two
+closed questions per item, never "are both wrong":
+
+- `sameConcept: boolean` — if true, the rule (shorter wins) decides; the judge does not
+  pick a name.
+- else `prefer: 'A' | 'B'`, `strength: 'clear' | 'slight'`.
+
+**Weighting is applied in TypeScript, not by the judge:** Gemini wins unless the verdict is
+DeepSeek + `clear` (`judge:ds-clear`). If the judge call fails, the item resolves to Gemini
+(`fallback:gemini`) and the failure is counted — never silently.
+
+### 4. Probe flag `--dual`
+
+`probe-topic-minting.ts --dual` mints each card with `deepseek-v4-flash` and
+`gemini-3.6-flash` (two direct pools, one per provider), reconciles, adjudicates, and writes
+`{ term, deepseek, gemini, merged, judgeCalls }` per card to `--json`. `--cards <id,id,...>`
+selects specific cards so a spread across sets can be run in one invocation. Same pacing,
+same bounded retries, same stderr progress as today.
+
+### 5. Measurement
+
+The dual run prints, for merged vs each raw model: self-duplicates (should be 0),
+kind-consistent shapes (%), mean name length (words), share of names reached by ≥2 cards,
+container stems, and judge calls per card. When the owner's gold labels exist for a card
+set, `scripts/score-topic-gold.ts` (later) scores merged / DeepSeek / Gemini against them.
+Every merged decision carries its `reason`, so a wrong rule is visible as a wrong reason.
+
+### 6. Cost
+
+Per card: 2 mint calls + ~0.4 judge calls, ~4k tokens. gemini-3.6-flash's 20/day/key is the
+binding quota; DeepSeek and Qwen are uncapped.
+
+## Out of scope
+
+Writing `Klt`/`KlpTopic`/`KltRelation`; reconciling against the 113 existing concepts; the
+"edges affect both endpoint topics at rank 2" mastery question (recorded in
+`topic-minting-engine-state` memory and Part F); fixing KLPs that carry reasoning on a
+memorisation point (an authoring issue, noted for the re-authoring pass).
+
+## Build order
+
+1. `topic-reconcile.ts` with tests: `normalizeName`, `EXPECTED_SHAPE` covers `KLP_KINDS`,
+   self-dup purge, each shape rule, shorter-wins and tie, overlap threshold with the head-noun
+   guard (the `effective/marginal tax rate` pair must NOT merge), context rules, coverage.
+2. Prompt rule 8 in the probe; `--dual`, `--cards`, judge call, JSON output.
+3. Run: the five accounting cards; then a spread of LBO (authored) + M&A (3 legacy) cards.
+4. Grid artifact v3: DeepSeek | Gemini | merged (with reasons), both card sets.
+
+## Amendment, same day, after the owner read the first 13-card merge
+
+The owner's rules, replacing sections 2-3 above where they differ. All built and pinned
+by tests in `tests/klp/topic-reconcile.test.ts`.
+
+1. **Nothing DeepSeek adds is dropped for being extra.** Per KLP the merge keeps the
+   larger count. Gemini only REPLACES DeepSeek's item of the SAME TYPE — edge for edge,
+   leaf for leaf, context for context. A DeepSeek-only extra (context, or an edge with no
+   Gemini counterpart) is confirmed by the judge as a distinct thing rather than a
+   restatement, and kept otherwise. A failed judge call KEEPS extras (`fallback:keep-extra`,
+   `fallback:keep-both`), never drops them.
+2. **Type priority when the sides differ: edge > context > leaf.** An edge always beats a
+   leaf; the `kind` prior is now a visible note (`kind_conflict`) in the merge notes, not a
+   judge trigger. Two exceptions, both agreement rather than difference: a `definition` KLP
+   whose leaf IS the statement keeps the leaf beside its mechanism edge (the rule-3
+   exception); and when BOTH models emitted a leaf AND an edge for one KLP, both are kept.
+3. **The overly-broad check always runs, as a rule.** A container name (statement, with or
+   without a word added; `leverage`, `valuation`, …) loses to a non-container without a
+   call — for leaves (`rule:avoid-container`) and for edge endpoints
+   (`rule:avoid-container-endpoint`). Container CONTEXTS are dropped outright (rule 4).
+   The mirror image on a `definition` KLP: the statement WINS over the noun the other
+   model mentioned (`rule:statement-definition`), because there the statement is the
+   subject. The prompt's rule 3 now states the exception and asks for the mechanism
+   (profitability, revenue → net income) beside the statement leaf.
+4. **"Qwen needs to be less sure."** The judge's name question gained `otherAcceptable`
+   ("would a careful expert also accept the other?"), with the prompt saying most pairs
+   are both defensible. Measured on replay: 0 of 11 said the other was unacceptable — the
+   opposite failure from "clear" on 18 of 19. So the weighting is a COMBINATION of the
+   owner's priors: DeepSeek wins a name conflict when the judge prefers it AND (Gemini's
+   is not acceptable OR DeepSeek's name is the shorter). Gemini needs one signal, DeepSeek
+   two. Edges no longer go to the judge for "more right" at all — only for ALIGNMENT
+   (which of DeepSeek's edges is the same link as Gemini's; Gemini's replaces that one).
+5. **`--replay <dual.json>`** re-runs the reconciler and judge over stored raw proposals so
+   rule changes are measured on identical inputs and cost only Qwen calls — which is how
+   the amendment was measured with the Gemini daily cap already spent.
+
+## Amendment 2, same day, after the owner read the second merge
+
+1. **KLP VOCABULARY FIRST.** `klpFidelity(name, klpText)` — the share of a name's content
+   words that occur in the key point's own text — is computed in TypeScript and consulted
+   before shortness and before the judge: same concept → the more faithful, then the
+   shorter, then Gemini; different concepts with a fidelity gap ≥ `FIDELITY_MARGIN` (0.5) →
+   settled by rule (`rule:klp-vocabulary`). The judge is told to re-read the key point and
+   answers `klpFaithful: A | B | both | neither`. DeepSeek wins a name when preferred AND any
+   one of: the other unacceptable, its name shorter, its name the more faithful (by the
+   judge or by measurement) — `judge:ds-preferred+prior`.
+2. **"EXTRA" MEANS A TYPE THE OTHER SIDE LACKS.** When both sides produced the same type on a
+   KLP, the merge compresses to `min(nA, nB)`: exact matches first, then judge-aligned pairs
+   (the more faithful of each, tie Gemini), then the most faithful of the remainder
+   (`compress:edge` / `compress:context` in the notes). One side only → keep all, confirmed
+   by the judge as distinct when DeepSeek-only. Edge alignment (`targetCount`) replaces
+   "keep every distinct edge", which had kept both of two 1-vs-1 rival edges.
+3. **SELF-DUP IS LEAF-ONLY.** A context is purged only when it names the model's own leaf on
+   that KLP. One that names its own edge endpoint stays — that rule had silently removed
+   `financing cash flow` and `operating cash flow` in the second merge.
+4. **Judge index robustness:** the prompt states 0-based `[A0]`/`[B1]` labels; an out-of-range
+   pair is noted and ignored rather than silently dropped.
+
+Measured on the same 13 cards (replay): merged items by source DeepSeek 35 / Gemini 36 / both
+31 (the second merge was Gemini-leaning: DeepSeek won 0 of 7 names); 9 names settled by KLP
+vocabulary without a call; 19 same-type surplus items compressed; 0 judge failures.

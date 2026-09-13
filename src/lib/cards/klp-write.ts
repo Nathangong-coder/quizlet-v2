@@ -18,6 +18,8 @@ export interface KlpRowInput {
   text: string;
   weight: number;
   kind: string;
+  /** framing | substance; undefined where the traps never ran (extraction, user edits). */
+  role?: string;
   /** 'ai' for extraction, 'user' for a hand-corrected point. */
   source: string;
   promptVersion: number;
@@ -87,6 +89,7 @@ export async function writeKlpVersion(
           text: k.text,
           weight: k.weight,
           kind: k.kind,
+          role: k.role ?? null,
           sourceHash: hash,
           promptVersion: k.promptVersion,
           source: k.source,

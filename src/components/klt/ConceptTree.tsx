@@ -15,6 +15,7 @@ import {
   setNodeStyle,
   type ConceptTreeNode,
   type UnplacedConcept,
+  type ConceptRelation,
 } from '@/actions/klt-tree'
 import { suggestSkeleton, applySkeleton } from '@/actions/klt-seed'
 import { listPresets, applyPreset, savePresetFromSet, type KltPresetSummary } from '@/actions/klt-presets'
@@ -131,6 +132,7 @@ interface ConceptTreeProps {
 export function ConceptTree({ setId, setTitle, isAdmin = false, canEdit = false }: ConceptTreeProps) {
   const [nodes, setNodes] = useState<ConceptTreeNode[] | null>(null)
   const [unplaced, setUnplaced] = useState<UnplacedConcept[]>([])
+  const [relations, setRelations] = useState<ConceptRelation[]>([])
 
   const [filter, setFilter] = useState('')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -164,6 +166,7 @@ export function ConceptTree({ setId, setTitle, isAdmin = false, canEdit = false 
       }
       setNodes(res.data.nodes)
       setUnplaced(res.data.unplaced)
+      setRelations(res.data.relations ?? [])
     })
   }, [setId])
 
@@ -621,6 +624,7 @@ export function ConceptTree({ setId, setTitle, isAdmin = false, canEdit = false 
                   <ConceptCanvas
                     visible={visible}
                     allNodes={allNodes}
+                    relations={relations}
                     collapsed={collapsed}
                     selectedKltId={selectedKltId}
                     canEdit={canEdit}

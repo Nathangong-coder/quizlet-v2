@@ -6,6 +6,9 @@ import {
   markTried,
   markExhausted,
   poolStatus,
+  readDirectPool,
+  comboResolveInput,
+  DIRECT_PROVIDER_SOURCES,
 } from '@/lib/klp/direct-pool'
 
 describe('parseList', () => {
@@ -97,5 +100,73 @@ describe('poolStatus', () => {
       exhausted: 2,
       modelsLeft: ['m2'],
     })
+  })
+})
+
+describe('readDirectPool', () => {
+  /**
+   * Qwen is not a first-class provider in the app: it resolves through the
+   * OpenAI-compatible `custom` path, which needs a base URL. A source that
+   * forgot to carry one would build a pool that compiles and then fails on
+   * every request — so the URL, and its delivery to `resolveLanguageModel`'s
+   * input, are pinned here rather than discovered at run time.
+   */
+  it('resolves qwen as custom with the DashScope base URL on every combo', () => {
+    const pool = readDirectPool({
+      KLP_DIRECT_PROVIDER: 'qwen',
+      QWENCLOUD_API_KEY: 'k',
+      KLP_DIRECT_MODELS: 'qwen3.7-flash',
+    } as unknown as NodeJS.ProcessEnv)
+    expect(pool).toHaveLength(1)
+    expect(pool[0].provider).toBe('custom')
+    expect(pool[0].baseUrl).toBe(DIRECT_PROVIDER_SOURCES.qwen.baseUrl)
+    expect(comboResolveInput(pool[0])).toEqual({
+      provider: 'custom',
+      apiKey: 'k',
+      model: 'qwen3.7-flash',
+      baseUrl: DIRECT_PROVIDER_SOURCES.qwen.baseUrl,
+    })
+  })
+
+  it('leaves baseUrl off first-class providers', () => {
+    const pool = readDirectPool({
+      KLP_DIRECT_PROVIDER: 'deepseek',
+      DEEPSEEK_API_KEY: 'k',
+    } as unknown as NodeJS.ProcessEnv)
+    expect(pool[0].provider).toBe('deepseek')
+    expect(pool[0].model).toBe('deepseek-flash')
+    expect(comboResolveInput(pool[0])).not.toHaveProperty('baseUrl')
+  })
+
+  it('names the real options for an unsupported provider', () => {
+    expect(() => readDirectPool({ KLP_DIRECT_PROVIDER: 'nope' } as unknown as NodeJS.ProcessEnv)).toThrow(
+      /google, deepseek, qwen, zai/,
+    )
+  })
+})
+
+describe('QWEN_THINKING', () => {
+  it('off sends enable_thinking:false on every qwen combo; unset sends nothing', () => {
+    const off = readDirectPool({ KLP_DIRECT_PROVIDER: 'qwen', QWENCLOUD_API_KEY: 'k', QWEN_THINKING: 'off' } as unknown as NodeJS.ProcessEnv)
+    expect(comboResolveInput(off[0]).requestDefaults).toEqual({ enable_thinking: false })
+    const on = readDirectPool({ KLP_DIRECT_PROVIDER: 'qwen', QWENCLOUD_API_KEY: 'k' } as unknown as NodeJS.ProcessEnv)
+    expect(comboResolveInput(on[0])).not.toHaveProperty('requestDefaults')
+  })
+})
+
+describe('author role', () => {
+  it('reads KLP_AUTHOR_PROVIDER/MODELS, and is EMPTY when neither is set — no author pool means no role split', () => {
+    const split = readDirectPool({ KLP_DIRECT_PROVIDER: 'deepseek', DEEPSEEK_API_KEY: 'd', KLP_AUTHOR_PROVIDER: 'google', GOOGLE_API_KEY: 'g', KLP_AUTHOR_MODELS: 'gemini-3.6-flash' } as unknown as NodeJS.ProcessEnv, 'author')
+    expect(split).toHaveLength(1)
+    expect(split[0]).toMatchObject({ provider: 'google', model: 'gemini-3.6-flash', apiKey: 'g' })
+    const none = readDirectPool({ KLP_DIRECT_PROVIDER: 'deepseek', DEEPSEEK_API_KEY: 'd' } as unknown as NodeJS.ProcessEnv, 'author')
+    expect(none).toEqual([])
+  })
+})
+
+describe('zai source', () => {
+  it('resolves as custom with schema-in-prompt on, and passes ZAI_REASONING_EFFORT through', () => {
+    const pool = readDirectPool({ KLP_DIRECT_PROVIDER: 'zai', ZAI_API_KEY: 'k', ZAI_REASONING_EFFORT: 'low' } as unknown as NodeJS.ProcessEnv)
+    expect(comboResolveInput(pool[0])).toEqual({ provider: 'custom', apiKey: 'k', model: 'glm-5.3-flash', baseUrl: 'https://api.z.ai/api/paas/v4', requestDefaults: { reasoning_effort: 'low' }, schemaInPrompt: true })
   })
 })

@@ -210,6 +210,8 @@ vi.mock('@/lib/db', () => ({
     klt: { upsert: h.kltUpsert },
     setKltNode: { findMany: h.nodeFindMany, findUnique: h.nodeFindUnique, create: h.nodeCreate, upsert: h.nodeUpsert },
     klpTopic: { findMany: h.topicFindMany },
+    // Relations are drawn over the tree; these tests are about the tree.
+    kltRelation: { findMany: vi.fn().mockResolvedValue([]) },
     kltPreset: { findMany: h.presetFindMany, findUnique: h.presetFindUnique, upsert: h.presetUpsert, delete: h.presetDelete },
     $transaction: h.transaction,
   },

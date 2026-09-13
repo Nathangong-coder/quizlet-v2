@@ -70,6 +70,13 @@ Additionally return:
   dimension "clarity"      — types: ${CLARITY_TYPES.join(', ')}
   dimension "conciseness"  — types: ${CONCISENESS_TYPES.join(', ')}
 
+  AN ANSWER THAT COVERS EVERY KEY POINT CAN STILL BE WRONG. The points above
+  say what must be PRESENT; they say nothing about what must be ABSENT. If the
+  answer states all of them and ALSO asserts something false, misleading, or
+  invented, tag that with klpRef OMITTED — it is about the whole answer, not
+  about any one point. Do not skip it because the listed points were covered;
+  that addition is exactly what nothing else in this rubric can see.
+
   Each tag needs:
   - "type" from that dimension's list. Use NO other word.
   - "klpRef" when the error is about a specific point; omit it when the error
@@ -99,10 +106,24 @@ Rank by what matters most. Do not pad to the cap.`;
  * (1-10, degree within the chosen type). The band table in TS converts it to
  * severity, which keeps the model out of cross-type ranking — a judgment it
  * has no stable anchor for.
+ *
+ * v4 (the negative check): ANALYSIS_BODY now says explicitly that an answer
+ * covering every key point can still be wrong, and that an added falsehood must
+ * be tagged with `klpRef` omitted. The instruction was previously implicit —
+ * "omit it when the error is about the whole answer" described the MECHANICS of
+ * a whole-answer tag without ever telling the grader to look for one — and a
+ * grader working through a list of points it has just marked `passed` has no
+ * prompt-level reason to go looking for what the answer added.
+ *
+ * That silence had teeth: `klpCredit` now DOCKS key-point credit when such a
+ * tag exists (`src/lib/errors/contamination.ts`), so a tag the grader never
+ * emits is a dock that never happens. Measured beforehand: an answer satisfying
+ * every point AND asserting something false scored full positive evidence on
+ * every point, and the learner's mastery ROSE for having said something wrong.
  */
 export const GRADE_SHORT_ANSWER_PROMPT = {
   id: 'grade-short-answer',
-  version: 3,
+  version: 4,
   schema: ShortAnswerGradeSchema,
 
   build(input: GradeShortAnswerBuildInput): string {

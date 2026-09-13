@@ -1,14 +1,26 @@
-import { resolveLanguageModel, type ProviderId } from '../src/lib/ai/providers'
-import { generateText, Output } from 'ai'
+import { resolveLanguageModel} from '../src/lib/ai/providers'
+import { generateText, Output, NoObjectGeneratedError } from 'ai'
 import type { z } from 'zod'
 import { prisma } from '../src/lib/db'
 import { generateJson, generateJsonWithMeta } from '../src/lib/ai/generate'
-import { authorCard, type AuthoringGenerator, type AuthoringOutcome } from '../src/lib/klp/authoring'
+import { authorCard, authorMinKlps, type AuthoringGenerator, type AuthoringOutcome, type AuthorResult } from '../src/lib/klp/authoring'
+import { writeFileSync } from 'node:fs'
 import { persistAuthoring } from '../src/lib/klp/authoring-persist'
-import { AUTHOR_KLPS_PROMPT } from '../src/lib/ai/prompts/author-klps'
+import { AUTHOR_KLPS_PROMPT, AUTHOR_KLPS_BATCH_PROMPT } from '../src/lib/ai/prompts/author-klps'
+import { isDeepSeekPeak } from '../src/lib/klp/token-meter'
 import { GRADE_CANDIDATE_PROMPT } from '../src/lib/ai/prompts/grade-candidate'
 import { REVISE_KLPS_PROMPT } from '../src/lib/ai/prompts/revise-klps'
 import { RELATE_KLPS_PROMPT } from '../src/lib/ai/prompts/relate-klps'
+import { CLASSIFY_ABSTRACTION_PROMPT } from '../src/lib/ai/prompts/classify-abstraction'
+import { WRITE_PANEL_PROMPT } from '../src/lib/ai/prompts/write-panel'
+import { WRITE_ADVERSARIES_PROMPT } from '../src/lib/ai/prompts/write-adversaries'
+import { WRITE_REBUILD_PROMPT, GRADE_COVERAGE_PROMPT, GRADE_PARITY_PROMPT } from '../src/lib/ai/prompts/rebuild'
+import { REVIEW_REFERENCE_PROMPT, REVISE_REFERENCE_PROMPT, REVIEW_REBUILT_PROMPT } from '../src/lib/ai/prompts/review-reference'
+import { REBUILD_COVERAGE_BAR, REBUILD_PARITY_BAR } from '../src/lib/klp/rebuild'
+import { TokenMeter } from '../src/lib/klp/token-meter'
+import { parseRotationSpec, pickRoles, markRoles, familyOf, familiesAvailable, type RotationCombo, type RoleAssignment } from '../src/lib/klp/rotation'
+import { DIRECT_PROVIDER_SOURCES, buildDirectPool, parseList } from '../src/lib/klp/direct-pool'
+import { findExistingPanel } from '../src/lib/klp/panel-reuse'
 import type { CardKlpStatus } from '../src/lib/cards/klp-status'
 import {
   buildWeightHistogram,
@@ -19,14 +31,15 @@ import {
   formatBreadthHistogram,
 } from '../src/lib/klp/histogram'
 import { PROBE_KINDS } from '../src/lib/klp/authoring-config'
+import { formatPanelCurve } from '../src/lib/klp/panel'
 import {
-  parseList,
-  buildDirectPool,
+  readDirectPool,
   nextCombo,
   markTried,
   markExhausted,
   poolStatus,
   type DirectCombo,
+  comboResolveInput,
 } from '../src/lib/klp/direct-pool'
 import {
   Pacer,
@@ -101,6 +114,20 @@ function defaultGenerator(userId: string, onModel?: (model: string) => void): Au
         prompt: RELATE_KLPS_PROMPT.build(input),
         schema: RELATE_KLPS_PROMPT.schema,
       }),
+    classifyAbstraction: (input) =>
+      generateJson({
+        userId,
+        task: 'author',
+        prompt: CLASSIFY_ABSTRACTION_PROMPT.build(input),
+        schema: CLASSIFY_ABSTRACTION_PROMPT.schema,
+      }),
+    writePanel: (input) =>
+      generateJson({
+        userId,
+        task: 'author',
+        prompt: WRITE_PANEL_PROMPT.build(input),
+        schema: WRITE_PANEL_PROMPT.schema,
+      }),
   }
 }
 
@@ -126,61 +153,6 @@ function defaultGenerator(userId: string, onModel?: (model: string) => void): Au
  * cards — that's where the pilot's burst actually was.
  */
 /**
- * Reads the `--direct` pool from the environment.
- *
- * `GOOGLE_API_KEYS` (comma or whitespace separated) and `KLP_DIRECT_MODELS`
- * are the plural forms; the original singular `GOOGLE_API_KEY` /
- * `KLP_DIRECT_MODEL` still work and are merged in, so an existing `.env` keeps
- * running unchanged. Keys are read from the environment only — never a flag,
- * because argv is visible to every other process on the machine and lands in
- * shell history.
- */
-function readDirectPool(): DirectCombo[] {
-  // `KLP_DIRECT_PROVIDER` selects which provider's keys the pool is built
-  // from. It defaults to google, so every existing `.env` and every documented
-  // command keeps working unchanged.
-  //
-  // The point of supporting a second provider HERE rather than in a separate
-  // benchmark script is that authoring quality is only comparable if the
-  // prompts, pacing, per-card pinning and separation arithmetic are identical.
-  // A parallel script would drift from this one, and the first thing it would
-  // drift on is the thing being measured.
-  const provider = (process.env.KLP_DIRECT_PROVIDER ?? 'google').trim().toLowerCase()
-
-  const sources: Record<string, { keys: string[]; defaultModel: string }> = {
-    google: {
-      keys: [...parseList(process.env.GOOGLE_API_KEYS), ...parseList(process.env.GOOGLE_API_KEY)],
-      defaultModel: 'gemini-3.6-flash',
-    },
-    deepseek: {
-      keys: [
-        ...parseList(process.env.DEEPSEEK_API_KEYS),
-        ...parseList(process.env.DEEPSEEK_API_KEY),
-      ],
-      defaultModel: 'deepseek-v4-flash',
-    },
-  }
-
-  const source = sources[provider]
-  if (!source) {
-    throw new Error(
-      `KLP_DIRECT_PROVIDER=${provider} is not supported — use one of: ${Object.keys(sources).join(', ')}`,
-    )
-  }
-
-  const keys = [...new Set(source.keys)]
-  if (keys.length === 0) {
-    throw new Error(
-      `--direct with KLP_DIRECT_PROVIDER=${provider} needs ${provider.toUpperCase()}_API_KEY or ` +
-        `${provider.toUpperCase()}_API_KEYS in the environment`,
-    )
-  }
-
-  const models = parseList(process.env.KLP_DIRECT_MODELS ?? process.env.KLP_DIRECT_MODEL)
-  return buildDirectPool(keys, models.length > 0 ? models : [source.defaultModel], provider)
-}
-
-/**
  * A generator pinned to ONE key+model combo, for ONE card.
  *
  * The pin is deliberate — see `src/lib/klp/direct-pool.ts`. A card's separation
@@ -193,23 +165,79 @@ function readDirectPool(): DirectCombo[] {
  * whole run: pacing exists because a single card fires 6-16 calls back to back,
  * and a per-card pacer would reset that spacing at every card boundary.
  */
-function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
+/**
+ * Builds the rotation pool from `KLP_ROTATION` (`source:model,model;source:model;...`),
+ * attaching each source's keys, base URL and request defaults exactly as
+ * `readDirectPool` would. Every combo carries its family so `pickRoles` can
+ * keep the three roles apart.
+ */
+function readRotationPool(env: NodeJS.ProcessEnv = process.env): RotationCombo[] {
+  const spec = parseRotationSpec(env.KLP_ROTATION)
+  const pool: RotationCombo[] = []
+  const bySource = new Map<string, string[]>()
+  for (const { source, model } of spec) bySource.set(source, [...(bySource.get(source) ?? []), model])
+  for (const [source, models] of bySource) {
+    const src = DIRECT_PROVIDER_SOURCES[source]
+    if (!src) throw new Error(`KLP_ROTATION: unknown source "${source}" — use one of ${Object.keys(DIRECT_PROVIDER_SOURCES).join(', ')}`)
+    const keys = [...new Set(src.keyVars.flatMap((v) => parseList(env[v])))]
+    if (keys.length === 0) throw new Error(`KLP_ROTATION: source "${source}" needs ${src.keyVars.join(' or ')} in the environment`)
+    for (const c of buildDirectPool(keys, models, src.resolveAs ?? source, src.baseUrl, src.requestDefaults?.(env), src.schemaInPrompt)) {
+      pool.push({ ...c, id: `${source}:${c.id}`, source, family: familyOf(source) })
+    }
+  }
+  return pool
+}
+
+/** Run-level knobs read once; see `.env.example`. */
+const REVISE_WITH_GRADER = (process.env.KLP_REVISE_WITH ?? '').toLowerCase() === 'grader'
+const ADVERSARIES_WITH_GRADER = (process.env.KLP_ADVERSARIES_WITH ?? '').toLowerCase() === 'grader'
+const GRADE_STRICT = (process.env.KLP_GRADE_STRICT ?? '').toLowerCase() === 'true'
+/** KLP_COMMS_CHECK=false turns off the communication check (on by default from 2026-09-13). */
+const COMMS_CHECK = (process.env.KLP_COMMS_CHECK ?? 'true').toLowerCase() !== 'false'
+
+/** One meter for the whole run; printed at the end and written to --json. */
+const METER = new TokenMeter()
+
+/**
+ * KLP_AUTHOR_BATCH (2026-09-13, cost item 4): author up to N cards per writer
+ * call. Drafts are cached here by card content and served to `author`; a
+ * card whose draft the batch reply did not carry falls back to a single call.
+ * 1 (default) is the old behaviour.
+ */
+const AUTHOR_BATCH = Math.max(1, Math.min(10, Number(process.env.KLP_AUTHOR_BATCH ?? '1') || 1))
+const DRAFTS = new Map<string, AuthorResult>()
+const draftKey = (question: string, definition: string) => `${question}\u0000${definition}`
+
+function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectCombo, adversaryCombo?: DirectCombo, rebuildTest = false): AuthoringGenerator {
+  // KLP_ADVERSARIES_WITH=grader: in the two-pool split, the grader combo also
+  // writes the traps with the independent prompt (question + reference only),
+  // so they are not tuned to the key points even without a third family.
+  if (!adversaryCombo && ADVERSARIES_WITH_GRADER && authorCombo) adversaryCombo = combo
   // Built through the SAME `resolveLanguageModel` the website uses, not a
   // provider factory called here. That function carries per-provider
   // corrections this script would otherwise have to duplicate — most
   // importantly DeepSeek's `/responses` endpoint and reasoning-off default,
   // without which every authoring call spends its output budget on invisible
   // thinking and returns `schema_invalid`.
-  const languageModel = resolveLanguageModel({
-    provider: combo.provider as ProviderId,
-    apiKey: combo.apiKey,
-    model: combo.model,
-  })
+  const languageModel = resolveLanguageModel(comboResolveInput(combo))
+  // ROLE SEPARATION (2026-09-12): `author` and `revise` — the writing calls —
+  // go to the author combo when one is configured (`KLP_AUTHOR_PROVIDER`);
+  // grading, relating, classifying and the panel stay on `combo`. Both are
+  // pinned for the card. The adversaries are still written by the author
+  // call, so they are now graded by a DIFFERENT model than wrote them.
+  const writerModel = authorCombo ? resolveLanguageModel(comboResolveInput(authorCombo)) : languageModel
+  const adversaryModel = adversaryCombo ? resolveLanguageModel(comboResolveInput(adversaryCombo)) : undefined
 
   // generateObject does not exist in AI SDK v7; structured output is
   // generateText + Output.object.
-  async function call<T>(prompt: string, schema: z.ZodSchema<T>): Promise<T> {
-    return callWithPacingAndRetry(
+  async function call<T>(prompt: string, schema: z.ZodSchema<T>, who: 'writer' | 'grader' | 'adversary' = 'grader', step = 'other'): Promise<T> {
+    const target = who === 'writer' ? authorCombo ?? combo : who === 'adversary' && adversaryCombo ? adversaryCombo : combo
+    // A quota halt must retire the combo that HIT the quota. Before this tag,
+    // a Gemini writer's daily cap retired the DeepSeek grader combo (the only
+    // one in that pool) and stopped a whole run at card 10 of 82 with the
+    // grader untouched (2026-09-12).
+    try {
+      return await callWithPacingAndRetry(
       async () => {
         // maxRetries: 0 — THE PACING LAYER OWNS RETRY, and two retry
         // authorities multiply rather than compose. The SDK's default is 2
@@ -219,11 +247,30 @@ function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
         // that is the entire day's budget burned retrying a wall. It also
         // delayed classification: the daily-quota halt cannot fire until the
         // error surfaces, and the SDK swallowed the first two.
-        const res = await generateText({
-          model: languageModel,
-          prompt,
-          output: Output.object({ schema }),
-          maxRetries: 0,
+        const model = who === 'writer' ? writerModel : who === 'adversary' && adversaryModel ? adversaryModel : languageModel
+        const attempt = () => generateText({ model, prompt, output: Output.object({ schema }), maxRetries: 0 })
+        let res: Awaited<ReturnType<typeof attempt>>
+        try {
+          res = await attempt()
+        } catch (err) {
+          // ONE immediate retry on a malformed reply (2026-09-13). A structured-
+          // output failure used to fail the CARD — "trying another model" — and
+          // with one combo in the pool that re-ran every call the card had
+          // already spent (a sell-side card lost ~10 grades to one bad JSON).
+          // The reply is stochastic; the same prompt almost always parses on
+          // the second try, and one call is cheaper than a card.
+          if (!NoObjectGeneratedError.isInstance(err)) throw err
+          console.log(`[author-klps] ${step} on ${target.model}: malformed reply (${err.finishReason ?? 'no finish reason'}); retrying once`)
+          await pacer.waitTurn()
+          res = await attempt()
+        }
+        // Metered on success only; a failed attempt's usage is not reported
+        // by the SDK, so the meter understates retries — say so when reading it.
+        METER.add(step, target.model, {
+          inputTokens: res.usage?.inputTokens,
+          outputTokens: res.usage?.outputTokens,
+          reasoningTokens: res.usage?.outputTokenDetails?.reasoningTokens,
+          cachedTokens: res.usage?.inputTokenDetails?.cacheReadTokens,
         })
         return res.output
       },
@@ -237,11 +284,20 @@ function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
           ),
       },
     )
+    } catch (err) {
+      if (err instanceof RunHaltedError) (err as RunHaltedError & { role?: 'writer' | 'grader' | 'adversary' }).role = who
+      throw err
+    }
   }
 
   return {
-    author: (input) =>
-      call(
+    author: async (input) => {
+      const cached = DRAFTS.get(draftKey(input.question, input.definition))
+      if (cached) {
+        DRAFTS.delete(draftKey(input.question, input.definition))
+        return cached
+      }
+      return call(
         AUTHOR_KLPS_PROMPT.build({
           setTitle: input.setTitle,
           term: input.question,
@@ -249,10 +305,51 @@ function directGenerator(combo: DirectCombo, pacer: Pacer): AuthoringGenerator {
           minKlps: input.minKlps,
         }),
         AUTHOR_KLPS_PROMPT.schema,
+        'writer',
+        'author',
+      )
+    },
+    authorBatch: (input) =>
+      call(
+        AUTHOR_KLPS_BATCH_PROMPT.build({
+          setTitle: input.setTitle,
+          cards: input.cards.map((c) => ({ ref: c.ref, term: c.question, definition: c.definition, minKlps: c.minKlps })),
+        }),
+        AUTHOR_KLPS_BATCH_PROMPT.schema,
+        'writer',
+        'author-batch',
       ),
-    grade: (input) => call(GRADE_CANDIDATE_PROMPT.build(input), GRADE_CANDIDATE_PROMPT.schema),
-    revise: (input) => call(REVISE_KLPS_PROMPT.build(input), REVISE_KLPS_PROMPT.schema),
-    relate: (input) => call(RELATE_KLPS_PROMPT.build(input), RELATE_KLPS_PROMPT.schema),
+    grade: (input) => call(GRADE_CANDIDATE_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_CANDIDATE_PROMPT.schema, 'grader', 'grade'),
+    // KLP_REVISE_WITH=grader: the bar's revise calls go to the grader combo
+    // instead of the writer (the owner's "GLM writes, DeepSeek revises").
+    revise: (input) => call(REVISE_KLPS_PROMPT.build(input), REVISE_KLPS_PROMPT.schema, REVISE_WITH_GRADER ? 'grader' : 'writer', 'revise'),
+    relate: (input) => call(RELATE_KLPS_PROMPT.build(input), RELATE_KLPS_PROMPT.schema, 'grader', 'relate'),
+    classifyAbstraction: (input) =>
+      call(CLASSIFY_ABSTRACTION_PROMPT.build(input), CLASSIFY_ABSTRACTION_PROMPT.schema, 'grader', 'classify'),
+    writePanel: (input) => call(WRITE_PANEL_PROMPT.build(input), WRITE_PANEL_PROMPT.schema, 'grader', 'panel'),
+    ...(adversaryCombo
+      ? { writeAdversaries: (input) => call(WRITE_ADVERSARIES_PROMPT.build(input), WRITE_ADVERSARIES_PROMPT.schema, 'adversary', 'adversaries') }
+      : {}),
+    // The communication check: the GRADER reviews, the WRITER rewrites.
+    ...(COMMS_CHECK
+      ? {
+          reviewReference: (input) => call(REVIEW_REFERENCE_PROMPT.build(input), REVIEW_REFERENCE_PROMPT.schema, 'grader', 'review'),
+          reviseReference: (input) => call(REVISE_REFERENCE_PROMPT.build(input), REVISE_REFERENCE_PROMPT.schema, 'writer', 'revise-ref'),
+          reviewRebuilt: (input) => call(REVIEW_REBUILT_PROMPT.build(input), REVIEW_REBUILT_PROMPT.schema, 'grader', 'review-rebuilt'),
+        }
+      : {}),
+    // The rebuild test. The REBUILDER is the adversary combo when one exists
+    // (a different family than the writer, by construction) and otherwise
+    // the grader combo — a documented compromise for the two-pool split,
+    // where no third family is configured. Coverage and parity are graded
+    // by the grader.
+    ...(rebuildTest
+      ? {
+          rebuild: (input) => call(WRITE_REBUILD_PROMPT.build(input), WRITE_REBUILD_PROMPT.schema, adversaryCombo ? 'adversary' : 'grader', 'rebuild'),
+          gradeCoverage: (input) => call(GRADE_COVERAGE_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_COVERAGE_PROMPT.schema, 'grader', 'coverage'),
+          gradeParity: (input) => call(GRADE_PARITY_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_PARITY_PROMPT.schema, 'grader', 'parity'),
+        }
+      : {}),
   }
 }
 
@@ -277,11 +374,23 @@ function opt(args: string[], name: string): string | undefined {
 }
 
 interface RunStats {
+  /** Cards the quality bar sent through at least one revision. */
+  revised: number
   authored: number
   lowDiscrimination: number
   totalKlps: number
   totalRelations: number
   separationSum: number
+  /** Separation over substance points only (framing excluded); see src/lib/klp/framing.ts. */
+  substanceSum: number
+  framingPoints: number
+  /** Cards whose reference the communication check sent back to the writer. */
+  referenceRewritten: number
+  parityBelowBar: number
+  /** Word ratios (rebuilt / reference) and the reviewer's verdict on the rebuilt answer — the compression acceptance numbers. */
+  wordRatios: number[]
+  rebuiltTight: number
+  rebuiltReviewed: number
   /**
    * Every weight this run computed, and how many adversaries failed each KLP.
    *
@@ -298,6 +407,13 @@ interface RunStats {
   probesPerCard: number
   /** Cards whose reference answer flagged something wrong in the owner's own definition. */
   concerns: { term: string; concerns: string[] }[]
+  /**
+   * Panel separations, when the panel ran. Collected so a CALIBRATION run
+   * reports a DISTRIBUTION rather than a mean — a floor has to be set from the
+   * shape, and a mean hides whether the spread is tight or bimodal.
+   */
+  panelSeparations: number[]
+  panelNonMonotonic: number
 }
 
 /** Best-effort. Never throws — see `extractKlpsForCards`'s identical posture. */
@@ -351,12 +467,35 @@ function printOutcomeDetail(term: string, outcome: AuthoringOutcome): void {
     console.log(`    verdicts: ${JSON.stringify(p.verdicts)}`)
   }
 
-  const bestWrongScore = outcome.probes.length > 0 ? Math.max(...outcome.probes.map((p) => p.score)) : 0
-  const referenceScore = outcome.separationScore + bestWrongScore
-  console.log(
-    `\n-- Separation -- reference ${referenceScore.toFixed(2)}, best wrong ${bestWrongScore.toFixed(2)}, ` +
-      `separation ${outcome.separationScore.toFixed(2)} (revisions: ${outcome.revisions})`,
-  )
+  // WITH A PANEL, THE OLD NUMBERS ARE MEANINGLESS AND MUST NOT BE PRINTED ALONE.
+  // `bestWrongScore` is a max over every non-reference candidate, and under a
+  // panel that set includes L4 and L3 - the members that are SUPPOSED to score
+  // high. So "best wrong 0.93" is the expert answer being counted as an
+  // adversary, and the separation derived from it reads as a catastrophic
+  // failure on a card that is fine. The curve is the number that applies.
+  if (outcome.panelCurve) {
+    console.log(`\n-- Competence panel (revisions: ${outcome.revisions}) --`)
+    console.log(formatPanelCurve(outcome.panelCurve))
+    const notable = outcome.klpShapes.filter((s) => s.shape !== 'healthy')
+    console.log(
+      `  per-KLP shapes: ${outcome.klpShapes.length - notable.length} healthy` +
+        (notable.length > 0 ? `, ${notable.length} flagged` : ''),
+    )
+    for (const s of notable) console.log(`    [${s.index}] ${s.shape} - ${s.detail}`)
+    for (const b of outcome.unseparatedBoundaries) {
+      console.log(
+        `    SET-LEVEL: no key point separates ${b.stronger} from ${b.weaker} — this card cannot ` +
+          `tell those two competence levels apart however good its individual points look.`,
+      )
+    }
+  } else {
+    const bestWrongScore = outcome.probes.length > 0 ? Math.max(...outcome.probes.map((p) => p.score)) : 0
+    const referenceScore = outcome.separationScore + bestWrongScore
+    console.log(
+      `\n-- Separation -- reference ${referenceScore.toFixed(2)}, best wrong ${bestWrongScore.toFixed(2)}, ` +
+        `separation ${outcome.separationScore.toFixed(2)} (revisions: ${outcome.revisions})`,
+    )
+  }
 
   console.log(
     `\n-- Relations (${outcome.relations.length}) -- ` +
@@ -386,10 +525,27 @@ async function main() {
   }
 
   const direct = flag(args, '--direct')
+  // `--rotate`: three roles per card from three model families (`KLP_ROTATION`).
+  const rotate = flag(args, '--rotate')
+  // `--rebuild`: run the rebuild test (three more calls per card) and persist
+  // cardCoverage / referenceParity / cardDisputes.
+  const rebuildTest = flag(args, '--rebuild')
+  if (rotate && !direct) {
+    console.error('[author-klps] --rotate implies --direct (raw keys from the environment); pass both.')
+    process.exitCode = 1
+    return
+  }
   const dryRun = flag(args, '--dry-run')
   const force = flag(args, '--force')
   const limitRaw = opt(args, '--limit')
   const limit = limitRaw !== undefined ? Number.parseInt(limitRaw, 10) : undefined
+  // `--skip N` starts N cards into the set, so the SAME cards can be authored
+  // by several models for a comparison; `--json <file>` keeps every dry-run
+  // outcome verbatim (KLPs, weights, probes, verdicts, relations), rewritten
+  // after each card so a killed run loses nothing it paid for.
+  const skipRaw = opt(args, '--skip')
+  const skip = skipRaw !== undefined ? Number.parseInt(skipRaw, 10) : 0
+  const jsonOut = opt(args, '--json')
 
   const rpmRaw = opt(args, '--rpm')
   const rpm = rpmRaw !== undefined ? Number.parseInt(rpmRaw, 10) : DEFAULT_RPM
@@ -442,34 +598,91 @@ async function main() {
     },
   })
 
-  const cards = limit !== undefined ? allCards.slice(0, limit) : allCards
+  // `--cards id,id,...` picks specific cards from the set (a spread run); wins over --skip/--limit.
+  const onlyIds = (opt(args, '--cards') ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  const cards = onlyIds.length
+    ? onlyIds.map((id) => allCards.find((c) => c.id === id)).filter((c): c is (typeof allCards)[number] => !!c)
+    : limit !== undefined ? allCards.slice(skip, skip + limit) : allCards.slice(skip)
   const total = cards.length
+  const jsonOutcomes: { cardId: string; term: string; model: string | undefined; outcome: unknown }[] = []
+  const flushJson = () => {
+    if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ setId: set.id, skip, outcomes: jsonOutcomes, tokens: METER.toJSON() }, null, 2))
+  }
 
   // ONE pacer for the whole run — a card's 6-16 calls are where the burst is,
   // so a per-card pacer would reset the spacing at every card boundary.
   const pacer = new Pacer(rpmToIntervalMs(rpm), realClock, (waitMs) => {
     console.log(`[author-klps] pacing — waiting ${(waitMs / 1000).toFixed(1)}s to stay under ${rpm} req/min`)
   })
-  const pool = direct ? readDirectPool() : []
-  if (direct) {
+  const rotationPool: RotationCombo[] = rotate ? readRotationPool() : []
+  if (rotate) {
+    const fams = familiesAvailable(rotationPool)
+    if (fams.length < 2) {
+      console.error(`[author-klps] --rotate needs models from at least two families (google / cn / qwen); KLP_ROTATION gives ${fams.join(', ') || 'none'}`)
+      process.exitCode = 1
+      return
+    }
+    console.log(`[author-klps] --rotate: ${rotationPool.length} combo(s) across families ${fams.join(', ')} — writer / adversary / grader from three different families per card`)
+  }
+  const pool = direct && !rotate ? readDirectPool() : []
+  const authorPool = direct && !rotate ? readDirectPool(process.env, 'author') : []
+  if (direct && !rotate) {
     const status = poolStatus(pool)
     console.log(
       `[author-klps] --direct pool: ${status.total} key x model combo(s) — ` +
         `${new Set(pool.map((c) => c.keyIndex)).size} key(s), models: ${status.modelsLeft.join(', ')}`,
     )
+    if (authorPool.length > 0) {
+      console.log(
+        `[author-klps] AUTHOR pool (writes + revises): ${authorPool.length} combo(s), ` +
+          `models: ${poolStatus(authorPool).modelsLeft.join(', ')} — grading/relating stay on the direct pool`,
+      )
+    }
   }
 
   let halted = false
   const stats: RunStats = {
+    revised: 0,
     authored: 0,
     lowDiscrimination: 0,
     totalKlps: 0,
     totalRelations: 0,
     separationSum: 0,
+    substanceSum: 0,
+    framingPoints: 0,
+    referenceRewritten: 0,
+    parityBelowBar: 0,
+    wordRatios: [],
+    rebuiltTight: 0,
+    rebuiltReviewed: 0,
     weights: [],
     failCounts: [],
     probesPerCard: PROBE_KINDS.length,
     concerns: [],
+    panelSeparations: [],
+    panelNonMonotonic: 0,
+  }
+
+  // The resumability check, memoised so the batch look-ahead and the loop
+  // itself query each card once.
+  const skipCache = new Map<string, boolean>()
+  async function alreadyAuthored(card: (typeof cards)[number]): Promise<boolean> {
+    const hit = skipCache.get(card.id)
+    if (hit !== undefined) return hit
+    let skip = false
+    if (!force && card.klpVersion > 0 && card.klpStatus !== 'failed') {
+      const existing = await prisma.cardAuthoring.findFirst({
+        where: { cardId: card.id, klpVersion: card.klpVersion },
+        select: { id: true },
+      })
+      skip = !!existing
+    }
+    skipCache.set(card.id, skip)
+    return skip
+  }
+
+  if (direct && isDeepSeekPeak(new Date())) {
+    console.log('[author-klps] NOTE: DeepSeek PEAK pricing right now (Mon-Fri 01-04 / 06-10 UTC) — every DeepSeek call costs 2x the off-peak rate.')
   }
 
   for (let i = 0; i < cards.length; i++) {
@@ -491,15 +704,9 @@ async function main() {
     // card is marked failed, it is retried rather than silently skipped
     // because some CardAuthoring row happens to exist at its current
     // version.
-    if (!force && card.klpVersion > 0 && card.klpStatus !== 'failed') {
-      const existing = await prisma.cardAuthoring.findFirst({
-        where: { cardId: card.id, klpVersion: card.klpVersion },
-        select: { id: true },
-      })
-      if (existing) {
-        console.log(`${tag} — skipped (already authored at version ${card.klpVersion})`)
-        continue
-      }
+    if (await alreadyAuthored(card)) {
+      console.log(`${tag} — skipped (already authored at version ${card.klpVersion})`)
+      continue
     }
 
     // Try this card on successive key x model combos. A per-DAY quota retires
@@ -513,11 +720,26 @@ async function main() {
     // Captured per card because the pool rotates between cards.
     let usedModel: string | undefined
 
+    let lastAuthorCombo: DirectCombo | undefined
     for (;;) {
       let gen: AuthoringGenerator
       let combo: DirectCombo | undefined
 
-      if (direct) {
+      let roles: RoleAssignment | undefined
+      if (rotate) {
+        roles = pickRoles(rotationPool) ?? undefined
+        if (!roles) {
+          console.error(`\n[author-klps] STOPPING RUN — fewer than two families still have quota.`)
+          halted = true
+          break
+        }
+        markRoles(roles, new Date())
+        combo = roles.grader
+        lastAuthorCombo = roles.writer
+        usedModel = `${roles.writer.model}+${roles.adversary.model}+${roles.grader.model}`
+        gen = directGenerator(roles.grader, pacer, roles.writer, roles.adversary, rebuildTest)
+        console.log(`${tag} — writer ${roles.writer.id}, adversary ${roles.adversary.id}, grader ${roles.grader.id}`)
+      } else if (direct) {
         combo = nextCombo(pool)
         if (!combo) {
           console.error(`\n[author-klps] STOPPING RUN — every key x model combo is out of daily quota.`)
@@ -529,18 +751,74 @@ async function main() {
           break
         }
         markTried(combo, new Date())
-        usedModel = combo.model
-        gen = directGenerator(combo, pacer)
-        console.log(`${tag} — using ${combo.id}`)
+        let authorCombo: DirectCombo | undefined
+        lastAuthorCombo = undefined
+        if (authorPool.length > 0) {
+          authorCombo = nextCombo(authorPool)
+          if (!authorCombo) {
+            console.error(`\\n[author-klps] STOPPING RUN — every AUTHOR combo is out of daily quota.`)
+            halted = true
+            break
+          }
+          markTried(authorCombo, new Date())
+          lastAuthorCombo = authorCombo
+        }
+        // CardAuthoring.model records the WRITER when roles are split — the
+        // key points are its text; the grader is recorded in the run log.
+        usedModel = authorCombo ? `${authorCombo.model}+${combo.model}` : combo.model
+        if (authorCombo && (REVISE_WITH_GRADER || ADVERSARIES_WITH_GRADER || GRADE_STRICT || AUTHOR_BATCH > 1 || COMMS_CHECK)) {
+          usedModel += ` [${[REVISE_WITH_GRADER && 'revise=grader', ADVERSARIES_WITH_GRADER && 'adversaries=grader', GRADE_STRICT && 'strict', AUTHOR_BATCH > 1 && `batch=${AUTHOR_BATCH}`, COMMS_CHECK && 'comms'].filter(Boolean).join(',')}]`
+        }
+        gen = directGenerator(combo, pacer, authorCombo, undefined, rebuildTest)
+        console.log(`${tag} — using ${combo.id}${authorCombo ? ` (author ${authorCombo.id})` : ''}`)
       } else {
         gen = defaultGenerator(set.userId, (model) => {
           usedModel = model
         })
       }
 
+      // BATCHED AUTHORING: when this card has no cached draft, write the next
+      // AUTHOR_BATCH unskipped cards in one call and cache their drafts. A
+      // reply missing a card, or failing the schema, leaves those cards to
+      // the single call inside authorCard; a quota halt propagates as usual.
+      if (AUTHOR_BATCH > 1 && gen.authorBatch && !DRAFTS.has(draftKey(card.term, card.definition))) {
+        const group = [card]
+        for (let j = i + 1; j < cards.length && group.length < AUTHOR_BATCH; j++) {
+          if (!(await alreadyAuthored(cards[j]))) group.push(cards[j])
+        }
+        if (group.length > 1) {
+          try {
+            const reply = await gen.authorBatch({
+              setTitle: set.title,
+              cards: group.map((c, ref) => ({ ref, question: c.term, definition: c.definition, minKlps: authorMinKlps({ question: c.term, definition: c.definition }) })),
+            })
+            let served = 0
+            for (const d of reply.cards) {
+              const c = group[d.ref]
+              if (!c) continue
+              const draft: AuthorResult & { ref?: number } = { ...d }
+              delete draft.ref
+              DRAFTS.set(draftKey(c.term, c.definition), draft)
+              served += 1
+            }
+            console.log(`${tag} — batch-authored ${served}/${group.length} cards in one writer call`)
+          } catch (err) {
+            if (err instanceof RunHaltedError) throw err
+            console.log(`${tag} — batch author call failed (${err instanceof Error ? err.message.slice(0, 80) : String(err)}); falling back to single calls`)
+          }
+        }
+      }
+
       try {
         outcome = await authorCard(
-          { question: card.term, definition: card.definition, setTitle: set.title },
+          {
+            question: card.term,
+            definition: card.definition,
+            setTitle: set.title,
+            // Reuse this card's existing panel so this run's separation score is
+            // comparable with the last one's.
+            existingPanel: (await findExistingPanel(card.id))?.members,
+          },
           gen,
         )
         break
@@ -551,9 +829,18 @@ async function main() {
         // retries this exact card rather than skipping it.
         if (err instanceof RunHaltedError) {
           if (combo && err.haltReason === 'daily_quota') {
-            markExhausted(combo)
+            const role = (err as RunHaltedError & { role?: 'writer' | 'grader' | 'adversary' }).role
+            if (roles) {
+              const hit = role === 'writer' ? roles.writer : role === 'adversary' ? roles.adversary : roles.grader
+              markExhausted(hit)
+              console.error(`${tag} — ${hit.id} (${role ?? 'grader'}) is out of daily quota; families left: ${familiesAvailable(rotationPool).join(', ')}`)
+              continue
+            }
+            const hit = role === 'writer' && lastAuthorCombo ? lastAuthorCombo : combo
+            const hitPool = hit === lastAuthorCombo ? authorPool : pool
+            markExhausted(hit)
             console.error(
-              `${tag} — ${combo.id} is out of daily quota; ${poolStatus(pool).available} combo(s) left`,
+              `${tag} — ${hit.id} (${role ?? 'grader'}) is out of daily quota; ${poolStatus(hitPool).available} combo(s) left in that pool`,
             )
             continue
           }
@@ -597,6 +884,9 @@ async function main() {
     // operator can judge grain and quality BEFORE committing real spend
     // across a whole set, which requires seeing the actual artifacts.
     if (dryRun) printOutcomeDetail(card.term, outcome)
+    if (outcome.revisionReasons?.length) stats.revised++
+    jsonOutcomes.push({ cardId: card.id, term: card.term, model: usedModel, outcome })
+    flushJson()
 
     if (outcome.status === 'failed') {
       // The author call itself produced zero KLPs. This is NOT persisted —
@@ -631,7 +921,29 @@ async function main() {
     // apart from "over-pruned" needs the numbers behind it, which is exactly
     // what a later multi-card run has to judge.
     console.log(
-      `${tag} — separation ${outcome.separationScore.toFixed(2)}, ${outcome.klps.length} KLPs, ` +
+      `${tag} — ` +
+        (outcome.panelCurve
+          ? `panel separation ${outcome.panelCurve.separation.toFixed(2)}` +
+            `${outcome.panelCurve.monotonic ? '' : ' NON-MONOTONIC'}, `
+          : `separation ${outcome.separationScore.toFixed(2)}` +
+            (outcome.substanceSeparation !== outcome.separationScore
+              ? ` (substance ${outcome.substanceSeparation.toFixed(2)}, ${outcome.klps.filter((k) => k.role === 'framing').length} framing)`
+              : '') +
+            ', ') +
+        `${outcome.klps.length} KLPs, ` +
+        (outcome.revisionReasons?.length ? `revised ${outcome.revisionReasons.length}x [${outcome.revisionReasons[0].slice(0, 70)}], ` : '') +
+        (outcome.keptRoundReason ? `VETO: ${outcome.keptRoundReason}, ` : '') +
+        (outcome.referenceReview
+          ? `reference ${outcome.referenceReview.accuracy}/${outcome.referenceReview.conciseness}/${outcome.referenceReview.clarity}${outcome.referenceReview.rewritten ? ' → REWRITTEN' : ''}, `
+          : '') +
+        (outcome.rebuild
+          ? `coverage ${outcome.rebuild.cardCoverage?.toFixed(2) ?? 'n/a'}${outcome.rebuild.clearsBar === false ? ` (BELOW the ${REBUILD_COVERAGE_BAR} bar; missing ${outcome.rebuild.missingPoints.map((i) => `[${i}]`).join('')})` : ''}, ` +
+            `parity ${outcome.rebuild.referenceParity?.toFixed(2) ?? 'n/a'}${outcome.rebuild.clearsParityBar === false ? ` (BELOW the ${REBUILD_PARITY_BAR} bar)` : ''}` +
+            (outcome.rebuild.wordRatio !== null ? `, rebuilt/ref words ${outcome.rebuild.wordRatio.toFixed(2)}` : '') +
+            (outcome.rebuild.review ? ` [rebuilt: ${outcome.rebuild.review.conciseness}/${outcome.rebuild.review.clarity}${outcome.rebuild.review.issues.length ? `, ${outcome.rebuild.review.issues.map((i) => i.kind).join('+')}` : ''}]` : '') +
+            (outcome.rebuild.cardDisputes.length ? `, DISPUTES ${outcome.rebuild.cardDisputes.length} — the grader believes the answer over the card: ${outcome.rebuild.cardDisputes.map((d) => `[${d.index}] ${d.reason.slice(0, 80)}`).join(' | ')}` : '') +
+            ', '
+          : '') +
         `${outcome.relations.length} relations (candidates ${outcome.relationStats.candidates}, ` +
         `cycles-dropped ${outcome.relationStats.droppedForCycles}, ` +
         `out-of-range-dropped ${outcome.relationStats.droppedOutOfRange})${flagSuffix}`,
@@ -639,6 +951,15 @@ async function main() {
 
     stats.authored += 1
     stats.separationSum += outcome.separationScore
+    stats.substanceSum += outcome.substanceSeparation
+    stats.framingPoints += outcome.klps.filter((k) => k.role === 'framing').length
+    if (outcome.referenceReview?.rewritten) stats.referenceRewritten += 1
+    if (outcome.rebuild?.clearsParityBar === false) stats.parityBelowBar += 1
+    if (outcome.rebuild?.wordRatio != null) stats.wordRatios.push(outcome.rebuild.wordRatio)
+    if (outcome.rebuild?.review) {
+      stats.rebuiltReviewed += 1
+      if (outcome.rebuild.review.conciseness === 'tight') stats.rebuiltTight += 1
+    }
     stats.totalKlps += outcome.klps.length
     stats.totalRelations += outcome.relations.length
     if (outcome.status === 'low_discrimination') stats.lowDiscrimination += 1
@@ -650,14 +971,42 @@ async function main() {
       stats.probesPerCard = Math.max(stats.probesPerCard, wrongAnswerCount)
     }
     if (outcome.concerns.length > 0) stats.concerns.push({ term: card.term, concerns: outcome.concerns })
+    if (outcome.panelCurve) {
+      stats.panelSeparations.push(outcome.panelCurve.separation)
+      if (!outcome.panelCurve.monotonic) stats.panelNonMonotonic += 1
+    }
   }
 
+  console.log(`[author-klps] tokens by step (successful calls only; list prices, see src/lib/klp/token-meter.ts):\n${METER.format(stats.authored)}`)
   const meanSeparation = stats.authored > 0 ? stats.separationSum / stats.authored : 0
+  const meanSubstance = stats.authored > 0 ? stats.substanceSum / stats.authored : 0
   console.log(
-    `[author-klps] done — ${stats.authored} cards authored, mean separation ${meanSeparation.toFixed(2)}, ` +
-      `${stats.lowDiscrimination} low_discrimination, ${stats.totalKlps} total KLPs, ` +
+    `[author-klps] done — ${stats.authored} cards authored, ${stats.revised} revised by the quality bar` +
+      (stats.authored > 0 && stats.revised / stats.authored < 0.2 ? ' (UNDER A FIFTH — the bar found little to fix on this run)' : '') +
+      `, mean separation ${meanSeparation.toFixed(2)}` +
+      (stats.framingPoints > 0 ? ` (substance ${meanSubstance.toFixed(2)}; ${stats.framingPoints} framing points excluded)` : '') +
+      `, ${stats.referenceRewritten} reference(s) rewritten by the communication check, ${stats.parityBelowBar} still below the ${REBUILD_PARITY_BAR} parity bar` +
+      (stats.wordRatios.length ? `, rebuilt/ref words mean ${(stats.wordRatios.reduce((a, b) => a + b, 0) / stats.wordRatios.length).toFixed(2)}, rebuilt tight ${stats.rebuiltTight}/${stats.rebuiltReviewed}` : '') +
+      `, ${stats.lowDiscrimination} low_discrimination, ${stats.totalKlps} total KLPs, ` +
       `${stats.totalRelations} total relations`,
   )
+
+  if (stats.panelSeparations.length > 0) {
+    const sorted = [...stats.panelSeparations].sort((a, b) => a - b)
+    const mean = sorted.reduce((a, b) => a + b, 0) / sorted.length
+    console.log()
+    console.log(
+      `[author-klps] PANEL separations — min ${sorted[0].toFixed(2)}, ` +
+        `median ${sorted[Math.floor(sorted.length / 2)].toFixed(2)}, ` +
+        `max ${sorted[sorted.length - 1].toFixed(2)}, mean ${mean.toFixed(2)}; ` +
+        `${stats.panelNonMonotonic} non-monotonic`,
+    )
+    console.log(`  all: ${sorted.map((x) => x.toFixed(2)).join(' ')}`)
+    console.log(
+      `  The MEAN is not what a floor is set from — read the spread. A floor above the minimum ` +
+        `flags that card; one below the maximum passes it.`,
+    )
+  }
 
   // The weight histogram, on this run's own output. A run can post a healthy
   // mean separation and still produce a useless weight signal — the two measure

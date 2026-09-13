@@ -1,0 +1,266 @@
+{
+  "runAt": "2026-09-08T23:27:26.694Z",
+  "summary": {
+    "cards": 78,
+    "klpPairsTotal": 1075,
+    "shortlisted": 272,
+    "confirmed": 19,
+    "byVerdict": {
+      "independent": 18,
+      "entails_b": 1,
+      "entails_a": 0,
+      "equivalent": 0
+    },
+    "cardsWithRedundancy": 1,
+    "redundantKlps": 1
+  },
+  "results": [
+    {
+      "cardId": "cmsfkfvni005m04joikylcdr8",
+      "term": "A company grants an executive $10M of stock options (valued with the Black-Scholes method) at a 40% tax rate. Please describes the immediate accounting that follows & what might happen after",
+      "pair": {
+        "a": 0,
+        "b": 3
+      },
+      "textA": "The grant of stock options is immediately expensed on the income statement at the fair value determined by Black-Scholes, here $10M, even though no cash changes hands at that moment.",
+      "textB": "Since a future tax deduction of $10M is expected, the company records a deferred tax asset equal to 40% times that $10M, which is $4M.",
+      "verdict": "independent",
+      "exampleAWithoutB": "The grant of stock options is immediately expensed on the income statement at its fair value of $10M, as determined by Black-Scholes, even though no cash changes hands at that moment. This expense reduces current period earnings.",
+      "exampleBWithoutA": "Because the company expects a future tax deduction of $10M for these options when they are exercised, it records a deferred tax asset of $4M (40% × $10M) on its balance sheet, reflecting the future tax benefit."
+    },
+    {
+      "cardId": "cmsfkfvni005m04joikylcdr8",
+      "term": "A company grants an executive $10M of stock options (valued with the Black-Scholes method) at a 40% tax rate. Please describes the immediate accounting that follows & what might happen after",
+      "pair": {
+        "a": 4,
+        "b": 5
+      },
+      "textA": "The DTA is the offsetting balance-sheet entry: it reduces the tax expense recognized today, so the net hit to retained earnings is only $6M ($10M expense less the $4M tax benefit) rather than the full $10M.",
+      "textB": "At exercise, the tax deduction becomes real — the company pays $4M less in cash taxes — and that DTA is reversed off the balance sheet, with any difference between the actual intrinsic value at exercise and the original $10M Black-Scholes value adjusting the deferred tax asset.",
+      "verdict": "independent",
+      "exampleAWithoutB": "Upon grant, the company records a $10M stock-based compensation expense. Since the options are non-qualified and will generate a tax deduction in the future, the company recognizes a $4M deferred tax asset (40% of $10M) as a tax benefit. Therefore, the net reduction to retained earnings is only $6M, because the $4M tax benefit offsets the expense on the income statement today.",
+      "exampleBWithoutA": "When the executive exercises the options, the company actually receives a tax deduction equal to the intrinsic value at exercise. If that intrinsic value equals the original $10M Black-Scholes value, the company will pay $4M less in cash taxes, and the deferred tax asset recorded at grant will be reversed. If the intrinsic value differs, the deferred tax asset is adjusted to reflect the actual tax benefit, with the offset to income tax expense or additional paid-in capital as appropriate."
+    },
+    {
+      "cardId": "cmsfkfvni005m04joikylcdr8",
+      "term": "A company grants an executive $10M of stock options (valued with the Black-Scholes method) at a 40% tax rate. Please describes the immediate accounting that follows & what might happen after",
+      "pair": {
+        "a": 4,
+        "b": 6
+      },
+      "textA": "The DTA is the offsetting balance-sheet entry: it reduces the tax expense recognized today, so the net hit to retained earnings is only $6M ($10M expense less the $4M tax benefit) rather than the full $10M.",
+      "textB": "If the options expire worthless without exercise, the expected tax deduction never happens, so the company must write off the $4M DTA, which creates a future income-statement charge.",
+      "verdict": "independent",
+      "exampleAWithoutB": "The company recognizes a $10M stock-based compensation expense. Because the options are non-qualified and the tax rate is 40%, the company also records a deferred tax asset of $4M. This DTA reduces the current tax expense, so the net reduction to retained earnings is only $6M.",
+      "exampleBWithoutA": "If the executive never exercises the options and they expire worthless, the company will not receive the tax deduction it initially expected. Consequently, the deferred tax asset of $4M must be written off. This write-off will be reflected as an additional income tax expense in the period the options expire."
+    },
+    {
+      "cardId": "cmsfkfvni005m04joikylcdr8",
+      "term": "A company grants an executive $10M of stock options (valued with the Black-Scholes method) at a 40% tax rate. Please describes the immediate accounting that follows & what might happen after",
+      "pair": {
+        "a": 5,
+        "b": 6
+      },
+      "textA": "At exercise, the tax deduction becomes real — the company pays $4M less in cash taxes — and that DTA is reversed off the balance sheet, with any difference between the actual intrinsic value at exercise and the original $10M Black-Scholes value adjusting the deferred tax asset.",
+      "textB": "If the options expire worthless without exercise, the expected tax deduction never happens, so the company must write off the $4M DTA, which creates a future income-statement charge.",
+      "verdict": "independent",
+      "exampleAWithoutB": "Upon exercise of the options, the company realizes a tax deduction equal to the intrinsic value of the options at that time. Given the 40% tax rate, this reduces cash taxes by $4M (assuming intrinsic value equals the original $10M Black-Scholes value). The company will reverse the deferred tax asset that was originally recorded for the expected tax benefit, and any difference between the actual intrinsic value at exercise and the original $10M valuation will adjust the deferred tax asset balance. No other accounting effects are considered here.",
+      "exampleBWithoutA": "If the options expire unexercised, the company never receives the tax deduction it had anticipated. The deferred tax asset of $4M (40% of $10M) must be written off. This write-off will result in a charge to income in the period the options expire, reflecting the reversal of the previously recognized tax benefit."
+    },
+    {
+      "cardId": "cmsfkfvn9005j04joevtt0qbu",
+      "term": "Why do you add back non-controlling interests when moving from equity to enterprise value?",
+      "pair": {
+        "a": 0,
+        "b": 1
+      },
+      "textA": "Equity value only reflects the parent company's common shareholders, not all owners of the consolidated business.",
+      "textB": "A non-controlling interest arises when the parent owns less than 100% of a subsidiary, so the subsidiary has other shareholders.",
+      "verdict": "independent",
+      "exampleAWithoutB": "When moving from equity to enterprise value, we add back non-controlling interests because equity value represents only the ownership stake of the parent company's common shareholders. That equity number does not include the value attributable to other owners of the consolidated group's net assets.",
+      "exampleBWithoutA": "A non-controlling interest exists when a parent company owns less than 100% of a subsidiary, and therefore there are other shareholders who own part of that subsidiary. These other shareholders' claims on the subsidiary's assets and earnings are reflected as a separate line item on the consolidated balance sheet."
+    },
+    {
+      "cardId": "cmsfkfvn9005j04joevtt0qbu",
+      "term": "Why do you add back non-controlling interests when moving from equity to enterprise value?",
+      "pair": {
+        "a": 0,
+        "b": 2
+      },
+      "textA": "Equity value only reflects the parent company's common shareholders, not all owners of the consolidated business.",
+      "textB": "Those minority shareholders hold a genuine claim on the subsidiary's net assets and cash flows, even though they have no direct claim on the parent.",
+      "verdict": "independent",
+      "exampleAWithoutB": "We add back non-controlling interests because equity value represents only the value attributable to the parent's common shareholders, not the full value of the consolidated entity's equity.",
+      "exampleBWithoutA": "We add back non-controlling interests because those minority shareholders have a genuine claim on the subsidiary's net assets and cash flows, even though they have no direct claim on the parent. Their claim is part of the enterprise's total value, so we must include it when moving to enterprise value."
+    },
+    {
+      "cardId": "cmsfkfvn9005j04joevtt0qbu",
+      "term": "Why do you add back non-controlling interests when moving from equity to enterprise value?",
+      "pair": {
+        "a": 0,
+        "b": 5
+      },
+      "textA": "Equity value only reflects the parent company's common shareholders, not all owners of the consolidated business.",
+      "textB": "Omitting the NCI would understate enterprise value, because a buyer would still have to pay for the entire subsidiary, including the portion held by minority shareholders.",
+      "verdict": "independent",
+      "exampleAWithoutB": "Enterprise value should reflect the total value of the operating business from the perspective of all capital providers. Equity value, however, represents only the claim of the parent company's common shareholders. Since the consolidated entity includes subsidiaries that are not fully owned, the equity value does not capture the minority shareholders' stake in those subsidiaries.",
+      "exampleBWithoutA": "When calculating enterprise value, you must add back non-controlling interests because a potential acquirer purchasing the entire consolidated business would need to pay for 100% of the subsidiary, not just the parent's share. Failing to include the NCI would understate the true cost of acquiring the whole operation."
+    },
+    {
+      "cardId": "cmsfkfvn9005j04joevtt0qbu",
+      "term": "Why do you add back non-controlling interests when moving from equity to enterprise value?",
+      "pair": {
+        "a": 1,
+        "b": 2
+      },
+      "textA": "A non-controlling interest arises when the parent owns less than 100% of a subsidiary, so the subsidiary has other shareholders.",
+      "textB": "Those minority shareholders hold a genuine claim on the subsidiary's net assets and cash flows, even though they have no direct claim on the parent.",
+      "verdict": "independent",
+      "exampleAWithoutB": "A non-controlling interest arises when a parent owns less than 100% of a subsidiary, and the remaining ownership is held by other shareholders. When moving from equity value to enterprise value, you add back this non-controlling interest because enterprise value should reflect the total value of the entire consolidated business, not just the portion attributable to the parent's shareholders.",
+      "exampleBWithoutA": "When calculating enterprise value, we must account for all claims on the operating assets of the group. Minority shareholders have a genuine claim on the subsidiary's net assets and cash flows, even though they have no direct claim on the parent. This is why we add back the non-controlling interest — it represents an outside equity claim that is not captured in the parent's equity value."
+    },
+    {
+      "cardId": "cmsfkfvmy005g04jot15fgl4l",
+      "term": "How does the consolidation method work? Say you had 80% of the company, how would you record that?",
+      "pair": {
+        "a": 2,
+        "b": 5
+      },
+      "textA": "To reflect the portion you don't own, you compute the subsidiary's net assets (assets minus liabilities) and multiply by the minority interest percentage (e.g., 20% for 80% ownership).",
+      "textB": "On the income statement, you consolidate 100% of the subsidiary's net income because the parent controls the entire operation, then subtract the minority share (subsidiary net income times the minority percentage) to arrive at Net Income Attributable to Parent.",
+      "verdict": "independent",
+      "exampleAWithoutB": "In consolidation, we combine the parent's and subsidiary's financials line by line, but since we own only 80%, the other 20% of the subsidiary's net assets must be shown as a noncontrolling interest on the balance sheet. For example, if the subsidiary has net assets of $1 million, we record $200,000 as the minority interest (20% of $1 million) in the equity section.",
+      "exampleBWithoutA": "When consolidating the income statement, we add 100% of the subsidiary's revenues and expenses because the parent has control. Then we deduct the portion of net income that belongs to minority shareholders. For instance, if the subsidiary earned $500,000, we include that entire amount in consolidated income, and then subtract $100,000 (20% of $500,000) to arrive at net income attributable to the parent."
+    },
+    {
+      "cardId": "cmsfkfvmy005g04jot15fgl4l",
+      "term": "How does the consolidation method work? Say you had 80% of the company, how would you record that?",
+      "pair": {
+        "a": 4,
+        "b": 6
+      },
+      "textA": "A numerical example: with $100 assets and $40 liabilities, net assets are $60; at 80% ownership, NCI is 20% of $60, which equals $12.",
+      "textB": "Continuing the example, if the subsidiary has $10 net income, you subtract $2 (20% of $10) to get the parent's attributable net income from that subsidiary.",
+      "verdict": "independent",
+      "exampleAWithoutB": "In consolidation, you combine the subsidiary's assets and liabilities with the parent's, then allocate the subsidiary's net assets between the parent and non-controlling interest (NCI). If the subsidiary has $100 assets and $40 liabilities, its net assets are $60. At 80% ownership, the NCI is 20% of $60, which equals $12, and the parent's share is $48.",
+      "exampleBWithoutA": "When consolidating, the subsidiary's net income is fully included in the consolidated income statement, but the portion attributable to non-controlling interest is deducted to arrive at net income attributable to the parent. For instance, if the subsidiary earns $10 net income, you subtract $2 (20% of $10) from the consolidated net income to report the parent's attributable amount."
+    },
+    {
+      "cardId": "cmsfkfvmy005g04jot15fgl4l",
+      "term": "How does the consolidation method work? Say you had 80% of the company, how would you record that?",
+      "pair": {
+        "a": 4,
+        "b": 7
+      },
+      "textA": "A numerical example: with $100 assets and $40 liabilities, net assets are $60; at 80% ownership, NCI is 20% of $60, which equals $12.",
+      "textB": "This differs from the equity method used for 20-50% ownership, where you recognize only your proportional share of net income and carry an investment asset, not the full underlying assets and liabilities.",
+      "verdict": "independent",
+      "exampleAWithoutB": "If you own 80% of a company with $100 in assets and $40 in liabilities, the net assets are $60. Under consolidation, you include all $100 of assets and $40 of liabilities on your balance sheet, and you report the noncontrolling interest (NCI) as 20% of $60, which is $12, within equity.",
+      "exampleBWithoutA": "For an investment in another company, the consolidation method is used when you have control, typically over 50% ownership. This is different from the equity method, which is used for 20-50% ownership. Under the equity method, you do not consolidate the investee's assets and liabilities; instead, you carry an investment asset and recognize only your proportional share of the investee's net income."
+    },
+    {
+      "cardId": "cmsfkfvmy005g04jot15fgl4l",
+      "term": "How does the consolidation method work? Say you had 80% of the company, how would you record that?",
+      "pair": {
+        "a": 4,
+        "b": 8
+      },
+      "textA": "A numerical example: with $100 assets and $40 liabilities, net assets are $60; at 80% ownership, NCI is 20% of $60, which equals $12.",
+      "textB": "Intercompany transactions between the parent and subsidiary must be eliminated in consolidation because they are internal to the combined economic entity and would otherwise double-count revenue, expenses, assets, and liabilities.",
+      "verdict": "independent",
+      "exampleAWithoutB": "To record an 80% acquisition, I would first identify the subsidiary's net assets at fair value. If the subsidiary has $100 in assets and $40 in liabilities, its net assets are $60. Since we own 80%, we record $48 as our share of net assets, and the remaining 20% ($12) is recognized as non-controlling interest on the consolidated balance sheet.",
+      "exampleBWithoutA": "In consolidation, we must eliminate all intercompany transactions, such as sales from the parent to the subsidiary or loans between them. This is because from the perspective of the combined entity, these are internal movements that do not create external revenue or expense, and failing to eliminate them would overstate both assets and liabilities as well as income."
+    },
+    {
+      "cardId": "cmsfkfvmk005d04jovub0h5dv",
+      "term": "Why does issuing dividends lower the P/E multiple and gaining cash increase the P/E multiple?",
+      "pair": {
+        "a": 1,
+        "b": 3
+      },
+      "textA": "Issuing a dividend pays cash out, reducing total assets and, with liabilities unchanged, reducing shareholders' equity by the same amount.",
+      "textB": "When a dividend is paid, the market value of equity typically falls by the cash paid out, so the numerator of P/E decreases.",
+      "verdict": "independent",
+      "exampleAWithoutB": "Issuing a dividend reduces total assets because cash is paid out, and since liabilities are unchanged, shareholders' equity must decrease by the same amount to keep the accounting equation balanced.",
+      "exampleBWithoutA": "When a company pays a dividend, the market price of its stock typically drops by the amount of the dividend per share, so the market value of equity falls, which reduces the numerator of the P/E ratio."
+    },
+    {
+      "cardId": "cmsfkfvmk005d04jovub0h5dv",
+      "term": "Why does issuing dividends lower the P/E multiple and gaining cash increase the P/E multiple?",
+      "pair": {
+        "a": 2,
+        "b": 6
+      },
+      "textA": "A dividend is a distribution of prior earnings, not an expense, so Net Income is unchanged—the denominator of P/E stays the same.",
+      "textB": "Receiving cash is not itself revenue, so Net Income is unchanged in that instant—the denominator remains flat.",
+      "verdict": "independent",
+      "exampleAWithoutB": "Issuing dividends lowers the P/E multiple because dividends are paid out of retained earnings, not from current profits, so Net Income is unchanged. Therefore the denominator of P/E stays the same, and since the market price drops by the dividend amount, the P/E multiple falls.",
+      "exampleBWithoutA": "When a company receives cash (e.g., from a customer prepayment or a loan), that cash inflow is not revenue, so Net Income is unchanged at that instant. Thus the denominator of the P/E ratio stays the same, while the increased cash raises the market value (and hence the numerator), so the P/E multiple rises."
+    },
+    {
+      "cardId": "cmsfkfvmk005d04jovub0h5dv",
+      "term": "Why does issuing dividends lower the P/E multiple and gaining cash increase the P/E multiple?",
+      "pair": {
+        "a": 5,
+        "b": 8
+      },
+      "textA": "Gaining cash increases total assets and, with liabilities either unchanged or increasing by less, shareholders' equity rises.",
+      "textB": "These P/E moves are mechanical ratio effects from balance-sheet changes, not signals of improved or worsened profitability.",
+      "verdict": "independent",
+      "exampleAWithoutB": "Dividends reduce cash and retained earnings, so shareholders' equity falls. Conversely, gaining cash from operations or asset sales increases assets, and if liabilities are constant, equity rises. This is simply the accounting identity: assets = liabilities + equity.",
+      "exampleBWithoutA": "The change in the P/E ratio from dividends or cash accumulation is a mechanical outcome of the balance sheet altering the denominator (equity) or the numerator (price per share) without any change in earnings power. It does not indicate that the company has become more or less profitable."
+    },
+    {
+      "cardId": "cmsfkfvma005a04jozinodldr",
+      "term": "Suppose a CEO literally finds $100 of cash on the street and deposits it into the company's bank account. Ignoring the strangeness of the scenario, what is the immediate impact on Equity Value, Enterprise Value, and the P / E multiple?",
+      "pair": {
+        "a": 0,
+        "b": 2
+      },
+      "textA": "The $100 cash deposit increases the cash asset and, since it is unencumbered by any liability, increases shareholders' equity by the same amount.",
+      "textB": "Enterprise Value is computed as Equity Value plus Net Debt (Debt minus Cash) plus other adjustments like minority interest and preferred stock.",
+      "verdict": "independent",
+      "exampleAWithoutB": "The $100 cash deposit increases the cash asset and, since it is unencumbered by any liability, increases shareholders' equity by the same amount. Therefore, the immediate impact is that Equity Value rises by $100, while Enterprise Value remains unchanged because the increase in equity is offset by the increase in cash (which reduces net debt).",
+      "exampleBWithoutA": "To analyze the impact of the $100 cash deposit, remember that Enterprise Value is computed as Equity Value plus Net Debt (Debt minus Cash) plus other adjustments like minority interest and preferred stock. Using this formula, we can see that the increase in cash will reduce net debt, but we need to separately determine how equity value changes."
+    },
+    {
+      "cardId": "cmsfkfvma005a04jozinodldr",
+      "term": "Suppose a CEO literally finds $100 of cash on the street and deposits it into the company's bank account. Ignoring the strangeness of the scenario, what is the immediate impact on Equity Value, Enterprise Value, and the P / E multiple?",
+      "pair": {
+        "a": 0,
+        "b": 3
+      },
+      "textA": "The $100 cash deposit increases the cash asset and, since it is unencumbered by any liability, increases shareholders' equity by the same amount.",
+      "textB": "Because the cash rise is exactly offset by the reduction in Net Debt (cash is subtracted), the increase in Equity Value is neutralized, leaving Enterprise Value unchanged.",
+      "verdict": "entails_b",
+      "exampleAWithoutB": "The $100 deposit increases the cash asset on the balance sheet. Since the cash is not offset by any liability, shareholders' equity increases by $100.",
+      "exampleBWithoutA": ""
+    },
+    {
+      "cardId": "cmsfkfvma005a04jozinodldr",
+      "term": "Suppose a CEO literally finds $100 of cash on the street and deposits it into the company's bank account. Ignoring the strangeness of the scenario, what is the immediate impact on Equity Value, Enterprise Value, and the P / E multiple?",
+      "pair": {
+        "a": 0,
+        "b": 4
+      },
+      "textA": "The $100 cash deposit increases the cash asset and, since it is unencumbered by any liability, increases shareholders' equity by the same amount.",
+      "textB": "The P/E multiple is Equity Value (or price per share) divided by Net Income (or EPS), so it increases when the numerator rises while the denominator stays the same.",
+      "verdict": "independent",
+      "exampleAWithoutB": "The $100 cash deposit increases the cash asset and, since it is unencumbered by any liability, increases shareholders' equity by the same amount, keeping the balance sheet balanced.",
+      "exampleBWithoutA": "Since net income is unchanged but the market value of equity rises (because the company now has more cash), the P/E multiple must increase as the numerator is higher for the same denominator."
+    },
+    {
+      "cardId": "cmsfkfvma005a04jozinodldr",
+      "term": "Suppose a CEO literally finds $100 of cash on the street and deposits it into the company's bank account. Ignoring the strangeness of the scenario, what is the immediate impact on Equity Value, Enterprise Value, and the P / E multiple?",
+      "pair": {
+        "a": 2,
+        "b": 3
+      },
+      "textA": "Enterprise Value is computed as Equity Value plus Net Debt (Debt minus Cash) plus other adjustments like minority interest and preferred stock.",
+      "textB": "Because the cash rise is exactly offset by the reduction in Net Debt (cash is subtracted), the increase in Equity Value is neutralized, leaving Enterprise Value unchanged.",
+      "verdict": "independent",
+      "exampleAWithoutB": "Enterprise Value is a standard valuation metric defined as Equity Value plus Net Debt, with Net Debt being Debt minus Cash. In this scenario, the immediate impact on Enterprise Value depends on this formula and any change to its components.",
+      "exampleBWithoutA": "The cash on the street increases the company's cash balance, which increases Equity Value by $100 (since assets rise). But because cash is subtracted in the Net Debt calculation, the Debt minus Cash figure drops by $100, exactly offsetting the equity increase. So the net effect on the combined valuation is zero: Enterprise Value stays the same."
+    }
+  ]
+}

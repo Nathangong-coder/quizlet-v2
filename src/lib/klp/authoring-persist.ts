@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db'
+import type { Prisma } from '@prisma/client'
 import { writeKlpVersion, type KlpRowInput } from '@/lib/cards/klp-write'
 import { klpSourceHash, type HashableBlock } from '@/lib/cards/klp-hash'
 import type { AuthoringOutcome } from '@/lib/klp/authoring'
@@ -85,6 +86,7 @@ export async function persistAuthoring(
     text: k.text,
     weight: k.weight,
     kind: k.kind,
+    role: k.role,
     source: 'ai',
     promptVersion,
     // The same model that `CardAuthoring.model` records, now on the KLP rows
@@ -104,7 +106,23 @@ export async function persistAuthoring(
         promptVersion,
         referenceAnswer: outcome.referenceAnswer,
         separationScore: outcome.separationScore,
+        substanceSeparation: outcome.substanceSeparation,
         referenceVerdicts: outcome.referenceVerdicts,
+        ...(outcome.rebuild
+          ? {
+              rebuiltAnswer: outcome.rebuild.rebuiltAnswer,
+              cardCoverage: outcome.rebuild.cardCoverage,
+              referenceParity: outcome.rebuild.referenceParity,
+              cardDisputes: JSON.parse(JSON.stringify(outcome.rebuild.cardDisputes)) as Prisma.InputJsonValue,
+              rebuildVerdicts: JSON.parse(
+                JSON.stringify({
+                  coverage: outcome.rebuild.coverageVerdicts,
+                  parity: outcome.rebuild.parityVerdicts,
+                  definitionPoints: outcome.rebuild.definitionPoints,
+                }),
+              ) as Prisma.InputJsonValue,
+            }
+          : {}),
         revisions: outcome.revisions,
         status: outcome.status,
         model: model ?? null,

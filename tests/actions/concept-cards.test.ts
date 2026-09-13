@@ -24,6 +24,8 @@ vi.mock('@/lib/db', () => ({
     klt: {},
     setKltNode: { findMany: h.nodeFindMany },
     klpTopic: { findMany: h.topicFindMany },
+    // Relations are drawn over the tree; these tests are about the tree.
+    kltRelation: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(),
   },
 }))

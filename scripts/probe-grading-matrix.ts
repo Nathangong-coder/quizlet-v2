@@ -92,7 +92,7 @@ async function main() {
   const samples = Number(process.argv[2] ?? 5)
   const key = process.env.DEEPSEEK_API_KEY
   if (!key) throw new Error('DEEPSEEK_API_KEY is not set')
-  const model = process.env.PROBE_MODEL ?? 'deepseek-v4-flash'
+  const model = process.env.PROBE_MODEL ?? 'deepseek-flash'
   const endpoint = process.env.PROBE_ENDPOINT ?? 'https://api.deepseek.com/v1/responses'
 
   const klps = await prisma.cardKlp.findMany({

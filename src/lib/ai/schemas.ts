@@ -5,6 +5,9 @@ import { KLP_STATUSES } from '@/lib/errors/klp-credit';
 import { PROBE_KINDS, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
 import { KLP_VERDICTS } from '@/lib/klp/verdicts';
 import { RELATABLE_TYPES, RELATION_PROVENANCES } from '@/lib/klp/relations';
+import { EXPLOIT_STRATEGIES } from '@/lib/klp/exploit';
+import { ABSTRACTION_LEVELS } from '@/lib/klp/abstraction';
+import { PANEL_LEVELS } from '@/lib/klp/panel';
 
 export const MultipleChoiceOptionsSchema = z.object({
   options: z.array(z.string().min(1)).length(4),
@@ -412,7 +415,15 @@ export type KltSkeleton = z.infer<typeof KltSkeletonSchema>;
  * orchestrator, never asked of the model. Audit finding G1: a model asked
  * "how central is this?" says "very" — 92% of AI-assigned weights were 4 or 5.
  */
+/**
+ * How the authoring prompt classifies the question before answering it
+ * (v3, 2026-09-12). Recorded on the draft so the structure rule it followed
+ * is auditable; the closed list is what lets a later spec group cards by it.
+ */
+export const QUESTION_TYPES = ['define', 'enumerate', 'walkthrough', 'why', 'compare', 'scenario', 'calculate'] as const;
+
 export const AuthorDraftSchema = z.object({
+  questionType: z.enum(QUESTION_TYPES).optional(),
   /**
    * The points the card's own definition already makes, and how many KLPs each
    * needs once expanded — the judgment half of adaptive sizing (increment A
@@ -472,6 +483,11 @@ export const AuthorDraftSchema = z.object({
 
 export type AuthorDraft = z.infer<typeof AuthorDraftSchema>;
 
+/** The batched author call: one draft per card, addressed by batch position. */
+export const AuthorDraftBatchSchema = z.object({
+  cards: z.array(AuthorDraftSchema.extend({ ref: z.number().int().min(0) })).min(1),
+});
+
 /**
  * Call B's output: one verdict per KLP for ONE candidate answer. `klpIndex`
  * is a position in the prompt's KLP list, never a cuid — the grader never
@@ -523,3 +539,104 @@ export const RelationDraftSchema = z.object({
 });
 
 export type RelationDraft = z.infer<typeof RelationDraftSchema>;
+
+/**
+ * C1's output — one exploit attempt per strategy (`src/lib/ai/prompts/exploit-klps.ts`).
+ *
+ * FLAT AND FULLY REQUIRED, deliberately. The natural shape is a nullable
+ * attempt, but a nullable object inside an array is exactly where
+ * structured-output compliance falls apart, and a schema failure here is
+ * indistinguishable from an output-token cutoff (`docs/ai/model-performance.md`,
+ * trap 4) — so the abstention path would look like a broken model.
+ *
+ * `answer` is therefore an empty string on abstention rather than absent, and
+ * it is `z.string()` with NO `.min(1)`: a minimum length would reject every
+ * abstention, which is the one outcome that makes this check falsifiable at
+ * all (revision R3).
+ *
+ * `min(1)` on the array, not `.length(EXPLOIT_STRATEGIES.length)` — a model
+ * that returns two of three strategies has still produced usable evidence for
+ * those two, and the runner records the missing one as absent rather than
+ * discarding the whole card.
+ */
+export const ExploitKlpsSchema = z.object({
+  attempts: z.array(z.object({
+    strategy: z.enum(EXPLOIT_STRATEGIES),
+    exploitFound: z.boolean(),
+    answer: z.string(),
+    rationale: z.string(),
+  })).min(1).max(EXPLOIT_STRATEGIES.length),
+});
+
+export type ExploitKlps = z.infer<typeof ExploitKlpsSchema>;
+
+/**
+ * Phase A's abstraction classification (R4) — one level per key point.
+ *
+ * `klpIndex`-keyed rather than positional, matching `CandidateGradeSchema`: a
+ * model that returns the entries out of order, or omits one, must not silently
+ * shift every other point's level onto the wrong proposition. The caller fills
+ * gaps explicitly rather than inferring.
+ */
+export const AbstractionClassificationSchema = z.object({
+  levels: z.array(z.object({
+    klpIndex: z.number().int().min(0),
+    level: z.enum(ABSTRACTION_LEVELS),
+  })),
+});
+
+export type AbstractionClassification = z.infer<typeof AbstractionClassificationSchema>;
+
+/**
+ * The synthetic competence panel (build item 4) — five answers, one per level.
+ *
+ * `.length(PANEL_LEVELS.length)` rather than `.min(1)`: unlike a partial
+ * exploit reply, a partial panel is USELESS rather than merely reduced. The
+ * whole measurement is a curve across ordered levels, and a missing L3 removes
+ * exactly the near-miss the panel exists to add. Better to fail the call and
+ * retry than to compute a curve with a hole in it and report a number.
+ */
+export const PanelSchema = z.object({
+  members: z.array(z.object({
+    level: z.enum(PANEL_LEVELS),
+    text: z.string().min(1),
+    weakness: z.string(),
+  })).length(PANEL_LEVELS.length),
+});
+
+export type Panel = z.infer<typeof PanelSchema>;
+
+/**
+ * C3's independence probe (`src/lib/ai/prompts/probe-independence.ts`).
+ *
+ * The booleans are the answer; the examples are the EVIDENCE for them, and the
+ * caller cross-checks the two — a direction claimed possible with no example
+ * written has not been demonstrated. So the example strings carry no `.min(1)`:
+ * an empty one is the correct output for an impossible direction, and
+ * rejecting it would make impossibility unexpressible.
+ */
+export const IndependenceProbeSchema = z.object({
+  aWithoutB: z.boolean(),
+  exampleAWithoutB: z.string(),
+  bWithoutA: z.boolean(),
+  exampleBWithoutA: z.string(),
+  note: z.string(),
+});
+
+export type IndependenceProbe = z.infer<typeof IndependenceProbeSchema>;
+
+/**
+ * C4's omission construction (`src/lib/ai/prompts/omit-klp.ts`).
+ *
+ * `answer` carries no `.min(1)`: an empty answer is the correct output when the
+ * constraint makes a coherent response impossible, and rejecting it would make
+ * that outcome unexpressible — the same reason the exploit schema allows an
+ * empty abstention.
+ */
+export const OmitKlpSchema = z.object({
+  answer: z.string(),
+  impossible: z.boolean(),
+  note: z.string(),
+});
+
+export type OmitKlp = z.infer<typeof OmitKlpSchema>;

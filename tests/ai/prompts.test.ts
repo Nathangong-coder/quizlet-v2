@@ -98,8 +98,8 @@ describe('GRADE_SHORT_ANSWER_PROMPT v2 (KLP-aware)', () => {
     { ref: 1, text: 'D&A is added back because it is non-cash', kind: 'causal' },
   ]
 
-  it('is version 3', () => {
-    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(3)
+  it('is version 4', () => {
+    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(4)
   })
 
   it('lists each KLP by ref and asks for a per-KLP status', () => {

@@ -8,6 +8,7 @@ import {
   formatBreadthHistogram,
 } from '../src/lib/klp/histogram'
 import { PROBE_KINDS } from '../src/lib/klp/authoring-config'
+import { authoredVersionKeys, classifyProvenance } from '../src/lib/klp/provenance'
 
 /**
  * `npm run klp-histogram` — the weight distribution of the live corpus, and
@@ -39,16 +40,6 @@ function opt(args: string[], name: string): string | undefined {
   return i >= 0 ? args[i + 1] : undefined
 }
 
-/** A live KLP, plus enough to tell where it came from. */
-interface KlpRow {
-  cardId: string
-  version: number
-  index: number
-  weight: number
-  /** Which authoring prompt wrote it. 1 is the legacy single-pass extractor. */
-  promptVersion: number
-}
-
 async function main() {
   const args = process.argv.slice(2)
   const setId = opt(args, '--set')
@@ -67,11 +58,6 @@ async function main() {
     return
   }
 
-  // A KLP is "authored" when a CardAuthoring run exists for its card at its own
-  // version. Version equality is load-bearing: a card authored once and then
-  // re-extracted by the legacy path has a CardAuthoring row AND legacy KLPs,
-  // and matching on cardId alone would credit the pipeline with weights it
-  // never computed.
   const cardIds = Array.from(new Set(klps.map((k) => k.cardId)))
   const authorings = await prisma.cardAuthoring.findMany({
     where: { cardId: { in: cardIds } },
@@ -83,31 +69,15 @@ async function main() {
     },
   })
 
-  const authoredVersions = new Set(authorings.map((a) => `${a.cardId}@${a.klpVersion}`))
-  const isAuthored = (k: KlpRow) => authoredVersions.has(`${k.cardId}@${k.version}`)
-
-  const authored = klps.filter(isAuthored)
-
-  // A THIRD provenance, and it has to be separated from both of the others.
-  //
-  // `npm run reuse-klps` copies discrimination-tested key points onto a card
-  // that is byte-identical to one already authored. The copy deliberately
-  // carries NO CardAuthoring row — duplicating the run would double-count
-  // every reused card in the authored histogram, and this histogram is the
-  // acceptance criterion for the weight formula.
-  //
-  // But the two-way split then filed those rows under "legacy — weight
-  // assigned by the model", which is false: their weights were computed by
-  // `weightFromSignals` on the donor. Their own distribution proves it (mean
-  // 2.83, 21% at 4-5 against the legacy baseline's 92.3%) — the label was
-  // wrong, not the data.
-  //
-  // The test needs no schema change: a copy carries the donor's
-  // `promptVersion` (>= 2) while having no authoring run at its version. A
-  // legacy row is promptVersion 1.
-  const isReused = (k: KlpRow) => !isAuthored(k) && k.promptVersion >= 2
-  const reused = klps.filter(isReused)
-  const legacy = klps.filter((k) => !isAuthored(k) && !isReused(k))
+  // THE THREE-WAY PROVENANCE SPLIT — authored / reused / legacy — and its full
+  // reasoning now live in `src/lib/klp/provenance.ts`, because
+  // `npm run klp-exploit` reports over the same slices. Two definitions of
+  // "authored" that drift apart would make two reports over one corpus
+  // disagree about which slice each was measuring, which reads as a finding.
+  const authoredKeys = authoredVersionKeys(authorings)
+  const authored = klps.filter((k) => classifyProvenance(k, authoredKeys) === 'authored')
+  const reused = klps.filter((k) => classifyProvenance(k, authoredKeys) === 'reused')
+  const legacy = klps.filter((k) => classifyProvenance(k, authoredKeys) === 'legacy')
 
   const overallHist = buildWeightHistogram(klps.map((k) => k.weight))
   const authoredHist = buildWeightHistogram(authored.map((k) => k.weight))

@@ -222,3 +222,43 @@ export function layoutTree(nodes: LayoutNode[], options: LayoutOptions = {}): Tr
     byKltId,
   }
 }
+
+/**
+ * A relation edge drawn OVER the tree: a curve from the right edge of `from`
+ * to the left edge of `to` (or the reverse when `to` is left of `from`), bowed
+ * away from the straight line so it does not run along tree edges. Pure, so
+ * the canvas can be tested without a DOM; the width/height are the same
+ * `LAYOUT_DEFAULTS` the tree uses, so the ends land on node borders.
+ *
+ * Relations are NOT tree edges: they connect any two nodes, at any depth, in
+ * any direction, and they never move a node. `layoutTree` positions nodes;
+ * this only reads those positions.
+ */
+export function relationPath(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  options: { nodeWidth?: number; nodeHeight?: number } = {},
+): { d: string; midX: number; midY: number } {
+  const w = options.nodeWidth ?? LAYOUT_DEFAULTS.nodeWidth
+  const h = options.nodeHeight ?? LAYOUT_DEFAULTS.nodeHeight
+  const leftToRight = to.x >= from.x
+  const x1 = leftToRight ? from.x + w / 2 : from.x - w / 2
+  const x2 = leftToRight ? to.x - w / 2 : to.x + w / 2
+  const y1 = from.y + h / 2
+  const y2 = to.y + h / 2
+  const dx = x2 - x1
+  const dy = y2 - y1
+  // Bow perpendicular to the chord, proportional to its length, capped so a
+  // long cross-tree relation does not swing off the canvas.
+  const len = Math.max(1, Math.hypot(dx, dy))
+  const bow = Math.min(60, len * 0.2)
+  const nx = -dy / len
+  const ny = dx / len
+  const cx = (x1 + x2) / 2 + nx * bow
+  const cy = (y1 + y2) / 2 + ny * bow
+  return {
+    d: `M ${round(x1)} ${round(y1)} Q ${round(cx)} ${round(cy)} ${round(x2)} ${round(y2)}`,
+    midX: round((x1 + 2 * cx + x2) / 4),
+    midY: round((y1 + 2 * cy + y2) / 4),
+  }
+}

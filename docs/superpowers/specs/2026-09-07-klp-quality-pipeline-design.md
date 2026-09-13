@@ -202,6 +202,148 @@ confidently confirm it when verifying. Cheapest high-value check available.
 
 ---
 
+## R7 (CRITICAL, measured 2026-09-07) — C1 is not yet a measurement instrument
+
+**Built and run.** `npm run klp-exploit` (`scripts/klp-exploit.ts`,
+`src/lib/klp/exploit.ts`, `src/lib/ai/prompts/exploit-klps.ts`). Read-only:
+no schema change, no mutation, exploit text to a JSON file. Two calls per
+attempt — the new generator prompt, then the EXISTING `GRADE_CANDIDATE_PROMPT`
+verifying independently that the exploit really does satisfy every key point,
+because the generator is otherwise the party grading its own success.
+
+**The same 20 cards, one model (`deepseek-v4-flash`), two phrasings of the
+same bar:**
+
+| | prompt v1 | prompt v2 |
+| --- | --- | --- |
+| cards with a verified hole | 8/20 (40%) | 19/20 (95%) |
+| abstentions | 43/60 (72%) | 8/60 (13%) |
+| `omission` confirmed | 1 | 16 |
+
+**44 of 60 attempts flipped**; 36 went straight from `abstained` to
+`confirmed`. The corpus did not change — the sample is seeded, so both runs hit
+byte-identical cards. **The headline number is dominated by prompt framing, not
+by the key points being measured.**
+
+Both prompts are defensible. v1 said "the list is the entire specification:
+nothing else is checked", describing the automated grader; the model read it as
+the *standard of judgment* and concluded that an answer satisfying the list
+cannot be marked down — making `omission` unfindable by construction. On one
+card it named the hole ("the question also asks how leases change over time")
+in the same sentence as abstaining from it. v2 scoped that rule to the grader
+and stated that the interviewer has never seen the list. That correction was
+right, and it over-corrected.
+
+**Why R3 is necessary but not sufficient.** R3 requires a stated bar so the
+check is falsifiable. It is now stated, and abstention does occur, so
+`unfalsifiable` never fires — yet the number still moves 2.4x on wording.
+Stating a bar does not calibrate it. **An exploit makes two claims and only one
+is verified:**
+
+- **A: "this satisfies every key point."** Verified by an independent grader.
+  Stable — of the 15 attempts graded in both runs, the grader agreed on 10, and
+  the texts were different, so that understates its stability.
+- **B: "this would be marked down in a real interview."** The generator's own
+  judgment. **This is where the entire 40%-to-95% swing lives.**
+
+**So `confirmed` was an upper bound, and C1 could not produce a corpus number
+until B had a blind judge. THE JUDGE IS NOW BUILT** (2026-09-07, same session)
+and it needed no new prompt: `GRADE_SHORT_ANSWER_PROMPT` called with NO key
+points is its shipped rubric-only path — the app's own short-answer grader,
+scoring the answer against the card exactly as it scores a real learner's, with
+no knowledge of the key points or of the answer's origin. That also makes the
+bar operational rather than hypothetical: an exploit the product's own grader
+likes was never an exploit. It fires only where claim A held, so it costs one
+call per otherwise-confirmed attempt.
+
+### The calibrated result (same 20 cards, same model, third run)
+
+| | v1 | v2 | **v2 + blind judge** |
+| --- | --- | --- | --- |
+| cards holed | 40% | 95% | **10% (2/20)** |
+| confirmed attempts | 16 | 46 | **2** |
+| rejected by the judge as fine answers | n/a | n/a | **31** |
+
+Of 42 attempts the generator claimed, **40 did not survive checking** — 9
+because the key points caught the answer, 31 because the app's own grader
+thought the answer was good. The generator's raw claim rate is not a usable
+measure of anything.
+
+**COVERAGE IS NOT THE PROBLEM.** `coverage_clean` fires. And the per-strategy
+split is sharper than the headline: **zero confirmed `omission` holes and zero
+confirmed `scope_drift` holes.** Both surviving holes are `contamination`.
+Authored cards had none at all (0/10); the two were one reused and one legacy.
+
+**Read the curve, not the number.** `threshold_sensitive` fires: confirmed
+counts by judge floor are `<4: 0, <5: 0, <6: 0, <7: 2, <8: 9, <9: 22`. The
+answer is stable across every defensible bar — a "marked down" answer is one
+scoring below about 7 — and only takes off at floors 8 and 9, which would mark
+down an answer scoring 8/10. So *at any bar worth defending, coverage holes are
+rare*; the run does not support a stronger claim than that.
+
+### What the run does establish, independent of the framing
+
+**The routing table is wrong for most holes.** Under v1 the split of 16
+confirmed exploits was `scope_drift` 8, `contamination` 7, `omission` 1; under
+v2, 16 / 14 / 16. Either way the design's single C1 action — *"generate
+candidate KLP, re-enter Phase A"* — only applies to `omission`:
+
+| Strategy | Fix |
+| --- | --- |
+| `omission` | add a key point — the routing table's action |
+| `contamination` | **a negative check.** No added key point fixes "and it also said something false"; the model has no concept of a requirement that something be ABSENT |
+| `scope_drift` | **anchoring to the question.** Every key point is present and true; the answer addresses a neighbour |
+
+Routed as designed, most findings become key points that fix nothing, C4 then
+deletes them as unnecessary, and C1 re-finds the hole — the oscillation the
+iteration cap was meant to bound, arising for a structural reason a cap cannot
+fix. **C1 must route by strategy, and two of the three routes do not exist
+yet.** On the calibrated run the shipped action fits **0%** of confirmed holes.
+
+### The proposed routing table
+
+`add_klp` is the only route that touches key points, and therefore the only one
+that needs the re-grade job (R1) to be safe. `KLP_MUTATING_ROUTES`
+(`src/lib/klp/exploit.ts`) encodes that so the claim is computed, not asserted.
+
+| C1 outcome | What it means | Route | Auto? |
+| --- | --- | --- | --- |
+| `refuted` | the key points caught it | discard | — |
+| `judged_fine` | key points accepted it, the app's grader liked it | discard, but TREND it — a rising rate means the generator is drifting | — |
+| `omission`, missing content traceable to the card | a real coverage hole | draft the point, re-enter Phase A, re-run C1/C2, capped at 2 | auto |
+| `omission`, missing content NOT in the card | the CARD is thin; the key points are faithful to it | the existing `concerns` channel, to a human. **Never auto-add** — Phase B's own rule is that a proposition with no trace to the artifact is a fabrication | human |
+| `contamination` | **a gap in the grading contract, not in this card** | do not touch the key points | never |
+| `scope_drift` | **a gap in the grading contract, not in this card** | do not touch the key points | never |
+
+**Why the last two are not key-point defects.** A key-point set is a
+*conjunction of positive requirements*. No such conjunction can express "and
+nothing false is asserted", nor "and this answers THIS question". Adding
+members never gets you either, so this is an expressiveness limit rather than a
+tuning problem — which is exactly why the iteration cap bounds the loop's cost
+without making it converge.
+
+**Contamination is worse than an evasion — VERIFIED IN CODE, 2026-09-07.**
+`klpResults` and `errorTags` are written independently
+(`src/lib/analysis/write-answer.ts`) and `klpCredit` reads only
+`status x mode`. Nothing reduces key-point credit because of a card-level error
+tag. So an answer that satisfies every key point AND asserts something false is
+recorded as **full positive evidence on every point**: the error tag lands
+beside it and feeds severity, while `KlpState` and the BKT posterior go UP. The
+learner is marked as knowing the card better for having said something wrong.
+That is the argument for the negative check, and it does not depend on C1's
+numbers at all.
+
+### Corpus, measured the same day (`npm run klp-histogram`)
+
+The queue's figures were stale. **923 live KLPs on 200 cards — 432 authored,
+373 reused, 118 legacy**, across 130 authoring runs. Authored and reused both
+read mean weight 2.83 with no failure mode firing; only the 118 legacy rows
+still fail `clustered_high` (92.4% at 4-5). Provenance made no clear difference
+to hole rate in either run, but 20 cards cannot support that comparison — the
+per-slice samples are 10 / 5 / 5.
+
+---
+
 ## Discrimination: replace the three adversaries with a synthetic panel
 
 | Shipped today | Synthetic panel |
@@ -212,16 +354,27 @@ confidently confirm it when verifying. Cheapest high-value check available.
 
 ### Three things it buys
 
-1. **L3 is the near-miss that does not currently exist.** Measured 2026-09-07: AUC = 1.000 for every
-   model — the reference outranks every adversary every time. `bestWrongScore` uses `max`
-   specifically to catch an answer that nearly passes, and nothing is nearly passing.
+1. **L3 is the near-miss that does not currently exist. THIS IS THE REAL ARGUMENT.** Re-measured
+   2026-09-08 across all 130 authoring runs: AUC is **1.000 on 129 of them** (one at 0.996). The
+   reference outranks every adversary, every time, on every model. `bestWrongScore` uses `max`
+   specifically to catch an answer that nearly passes, and nothing is nearly passing — so the
+   test is SATURATED. It can still catch a set so loose that an obviously bad answer passes; it
+   cannot tell a sharp set from a merely adequate one, which is the distinction the pipeline
+   exists to make.
 2. **Monotonicity is a free, stronger test.** Five ordered levels should score in order; an
    inversion is a defect the single-gap test cannot express.
-3. **A fixed panel is a regression suite — and its absence is a real flaw in what is shipped.**
-   The current loop regenerates adversaries on every revision, so a revised set is tested against
-   *different* wrong answers. A rising separation score cannot distinguish "the edit improved the
-   item" from "the new adversaries were weaker". **This is the strongest argument for the change**,
-   and no additional statistic on top of the current design can fix it.
+3. ~~**A fixed panel is a regression suite — and its absence is a real flaw in what is shipped.**~~
+   **THIS ARGUMENT IS FALSE ABOUT THE SHIPPED CODE, and it was billed as the strongest.**
+   Checked in `src/lib/klp/authoring.ts` on 2026-09-08: the revision loop grades
+   `draft.wrongAnswers` — written ONCE by the author call — against each revised key-point set.
+   The adversaries are already fixed within a run, so a rising separation score is already
+   attributable to the edit. Reason 1 (the missing near-miss) and reason 2 (monotonicity) both
+   hold and are enough on their own; this one should not be repeated, or someone will go looking
+   for a bug that is not there.
+
+   What IS still missing is a panel fixed ACROSS runs, so two separate authoring passes on one
+   card are comparable. That needs the panel persisted against the CARD rather than the
+   klpVersion — a schema change, and not in this increment.
 
 ### Per-KLP diagnosis from the curve
 
@@ -273,13 +426,52 @@ humans instead of three synthetic adversaries. The data is already accumulating 
 
 ## Build order
 
-1. **C1 alone, read-only, over the existing bank.** One prompt, no infrastructure. Answers whether
-   the quality problem is coverage holes or something else, in an afternoon. **Ship R3's stated bar
-   in the prompt from the start** or the output is unfalsifiable.
-2. **The background re-grade job, before writing any auto-fix.** Re-grade a card's stored answers
-   against its new KLPs, then `rebuildKlpStates`. This is what makes every auto-fix safe, so it
-   comes first — building checks that mutate KLPs before this exists is how the evidence-wipe
-   ships. Handle MC/TF by carrying forward or dropping, never by inferring. Closes R1.
+1. ~~**C1 alone, read-only, over the existing bank.**~~ **BUILT AND RUN 2026-09-07 - see R7.**
+   `npm run klp-exploit`. It did NOT answer whether coverage is the problem: the headline number
+   moves 2.4x (40% -> 95% of cards) on prompt wording alone, over a byte-identical card sample.
+   R3's bar shipped as required and is necessary but NOT sufficient - stating a bar does not
+   calibrate it, and the swing lives entirely in the one claim nothing verifies. Needs a blind
+   judge for "would this be marked down" before any coverage figure is usable.
+   It DID establish that the routing table is wrong for roughly 90% of holes.
+2. ~~**The background re-grade job, before writing any auto-fix.**~~ **BUILT 2026-09-07.**
+   `npm run regrade-klps` — `src/lib/klp/regrade.ts` (pure planner) and
+   `regrade-run.ts` (executor). Carries a result forward when its key point survived
+   VERBATIM (whitespace/case normalised, nothing looser), re-grades a free-text answer only
+   when the new set has points the carried evidence does not cover, drops what is gone, and
+   NEVER re-grades multiple choice or true/false. Idempotent with no new column and no queue
+   table: "does every result point at a live key point" is both the gate and the work queue.
+   **Live dry-run, 2026-09-07: 7 cards, 8 answers, 9 stranded results — and only 1 of 9
+   `KlpState` rows in the whole corpus sits on a live key point.** The damage is not
+   hypothetical; it has already happened. Two answers (one MC, one TF) lose their evidence
+   with no honest alternative.
+
+   **RUN AGAINST PRODUCTION 2026-09-08 — and it fabricated evidence before it repaired any.**
+   All 9 stranded results were cleared, but 5 of the 6 re-graded answers were DIAGNOSTIC, and a
+   diagnostic must not be re-graded. The reason is SCOPE, not format: a diagnostic question
+   probes exactly one key point (`DiagnosticQuestion.klpId`), while
+   `GRADE_SHORT_ANSWER_PROMPT` judges the card's whole set. The grader marked every untouched
+   point `failed`, because an answer to one question does not mention the other five — 30
+   systematic false negatives. A learner who correctly answered "Gross Profit" was recorded as
+   failing four points on operating expenses, EBIT, EBITDA and net income.
+   `diagnostic` is now in `CARRY_ONLY_MODES`; `scripts/repair-diagnostic-overcredit.ts` removed
+   the fabricated rows and replayed the posteriors. Not one of the 12 diagnostic questions had a
+   probed key point that survived re-authoring, so keeping no key-point evidence is the honest
+   outcome for all of them.
+
+   **An answer's re-gradable scope is WHAT IT WAS ASKED, never its format.** "Is it free text"
+   was the wrong test and it is the one this module originally used. `quiz-sa` qualifies because
+   its prompt IS the card; nothing else currently does.
+
+   **A defect the 3,000-test suite could not see, found by the live dry-run.**
+   `QuizAnswer.mode` stores a `QuizMode` (`short-answer`); `AnswerKlpResult.mode` and the
+   whole memory layer store a `StudySource` (`quiz-sa`). The planner reasons in
+   `StudySource`, and the loader compared the raw column — matching nothing, so every
+   short-answer answer fell to the carry-only branch and had its evidence DROPPED instead of
+   re-graded. That is the exact damage this job exists to repair, caused by the repair. Every
+   unit test passed because they were written with `quiz-sa`, which is what the RESULT rows
+   use. Fixed via the existing bridge in `src/lib/quiz/mode.ts`; a test now pins that every
+   `QUIZ_MODE` classifies only after translation, and that the raw values do not.
+
 3. **Phase A, plus numeric consistency.** Needs R4's renaming, adds R6.
 4. **The synthetic panel, replacing the three adversaries.** Before C3 and C4, not after — it is the
    only change that makes revisions comparable, and C3/C4 are revision-generating machines.
