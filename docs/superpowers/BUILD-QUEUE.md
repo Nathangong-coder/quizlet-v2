@@ -23,6 +23,11 @@ card verbatim, or hand the coverage grader the raw definition too.
 `KLP_AUTHOR_BATCH`, one retry on a malformed reply — $0.0089 → $0.0053 a card off-peak.
 `scripts/author-klps.ts` prints a per-step token/USD table at the end of every run. Author
 prompt is v4, grade prompt v2. Stored M&A rows were authored on v3 with three traps.
+**2026-09-13, later: the communication check + parity bar are built** (`KLP_COMMS_CHECK`, on by
+default; `REBUILD_PARITY_BAR` 0.7; the rebuild test now runs every round and its misses go
+into the one combined revise). First run: every reference "wordy" and rewritten, every REBUILT
+answer wordier than its reference — the key points carry the bloat (one context clause each);
+`rebuild.communication` records it, nothing acts on it yet. Neither review is persisted.
 
 1. **Write the merged topics that already exist** (13 cards; applies the write step,
    `docs/superpowers/specs/2026-09-12-topic-minting-write-step-design.md`). The

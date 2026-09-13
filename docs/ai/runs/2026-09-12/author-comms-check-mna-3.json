@@ -1,0 +1,1037 @@
+{
+  "setId": "cmtfewhjv000004jr901uq6eo",
+  "skip": 0,
+  "outcomes": [
+    {
+      "cardId": "cmtffeya8000g04i9mgzafc6r",
+      "term": "What are 2 ways an acquisition can create value (not accretion necessarily) for acquirers’ shareholders?\n",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=3,comms]",
+      "outcome": {
+        "referenceAnswer": "An acquisition creates value when it makes acquirers' shareholders genuinely wealthier — an economic test, not the accounting test of whether EPS goes up. The first way is value arbitrage: buying the target for less than its true worth. If the target's net asset value or intrinsic value exceeds the purchase price, that spread is captured by the acquirers' shareholders, because they've bought a dollar of value for less than a dollar. The second way is synergies: the combination is worth more than the two companies standing alone. Cost synergies come from eliminating duplicated overhead, procurement, or facilities; revenue synergies come from cross-selling to each other's customers or combining distribution. Only the portion of synergy value exceeding the control premium paid to the target's shareholders accrues to the acquirer. The key nuance is that accretion is neither necessary nor sufficient for value — a deal can be accretive and still destroy value if you overpaid, or dilutive and still create value if the acquired earnings yield exceeds the cost of capital.",
+        "klps": [
+          {
+            "text": "Value creation is an economic test — whether acquirers' shareholders are wealthier — and is distinct from EPS accretion, which is only an accounting outcome",
+            "kind": "definition",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "The first way is value arbitrage: acquiring the target for less than its intrinsic value, i.e., the purchase price is below the target's NAV",
+            "kind": "definition",
+            "weight": 1,
+            "role": "framing"
+          },
+          {
+            "text": "The spread between what the target is truly worth and the price paid is captured by the acquirers' shareholders, because they bought a dollar of value for less than a dollar",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "The value created by arbitrage accrues to the acquirers' shareholders only when the acquirer genuinely paid below the target's intrinsic value, so a nominal discount that is not real does not create value",
+            "kind": "condition",
+            "weight": 1,
+            "role": "substance"
+          },
+          {
+            "text": "The second way is synergies: the combined business is worth more than the two companies on a standalone basis",
+            "kind": "definition",
+            "weight": 1,
+            "role": "framing"
+          },
+          {
+            "text": "Cost synergies remove duplicated overhead, procurement, or facilities, and revenue synergies come from cross-selling or shared distribution",
+            "kind": "causal",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Only the portion of synergy value that exceeds the control premium paid accrues to the acquirer's shareholders; any premium consumes value before it reaches them",
+            "kind": "condition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Accretion is neither necessary nor sufficient for value: a deal can be accretive and still destroy value if you overpaid, or dilutive and still create value",
+            "kind": "contrast",
+            "weight": 2,
+            "role": "framing"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "An acquisition can create value for acquirers' shareholders in a couple of ways. One is that you're able to generate some kind of economic benefit that wouldn't be available if the two companies stayed separate. Another is that you might be able to get a good deal on the price, so the value you receive is worth more than what you paid. There are also operational improvements and strategic benefits that can come into play. It really depends on the specific situation, but those are the main areas where value creation tends to happen.",
+            "score": 0.25,
+            "verdicts": {
+              "0": "omission",
+              "1": "partial",
+              "2": "partial",
+              "3": "incomplete",
+              "4": "partial",
+              "5": "omission",
+              "6": "omission",
+              "7": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "There are two primary ways an acquisition can create value for acquirers' shareholders. The first is value arbitrage, which is the difference between the intrinsic value of the target and the purchase price paid. The second is synergies, which arise because the combined entity is worth more than the sum of its parts. Cost synergies come from eliminating duplicate functions, while revenue synergies come from cross-selling opportunities. The key is that only the portion of synergies exceeding the control premium accrues to the acquirer, and accretion is neither necessary nor sufficient for value creation.",
+            "score": 0.6875,
+            "verdicts": {
+              "0": "omission",
+              "1": "correct",
+              "2": "omission",
+              "3": "incomplete",
+              "4": "correct",
+              "5": "correct",
+              "6": "correct",
+              "7": "correct"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 0,
+            "to": 1,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Value arbitrage can only be named value creation if the economic test in KLP0 is the standard, not accretion.",
+            "probe": "A learner says buying below NAV creates value because the deal is EPS-accretive, holding both KLP0 and KLP1 yet collapsing the economic test into accretion."
+          },
+          {
+            "from": 2,
+            "to": 4,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both are portrayed as the source of shareholder value, so a learner may state the arbitrage spread when they mean standalone-vs-combined synergies.",
+            "probe": "A learner explains synergy value as 'we bought a dollar of value for less than a dollar,' swapping the arbitrage mechanism for the combination mechanism."
+          },
+          {
+            "from": 6,
+            "to": 4,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "Synergy is only value creation for acquirers if the synergy exceeds the control premium; otherwise premium consumes it.",
+            "probe": "A learner says synergies create value for acquirer shareholders while ignoring that the control premium may exceed the synergy, holding KLP4 and KLP6 but missing the condition."
+          }
+        ],
+        "relationStats": {
+          "candidates": 4,
+          "accepted": 3,
+          "droppedForCycles": 1,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.3125,
+        "substanceSeparation": 0.5,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 2,
+            "rule": "compound",
+            "detail": "two claims joined by \"and\" — split it"
+          }
+        ],
+        "targetKlpCount": 5,
+        "concerns": [
+          "The card's parenthetical '(purchase price > NAV)' is inverted as written: paying MORE than net asset value destroys value. Value arbitrage creates value when the purchase price is BELOW the target's intrinsic value/NAV — the reference answer states it correctly and flags the discrepancy here rather than silently changing the card."
+        ],
+        "revisionReasons": [
+          "[2] compound",
+          "[2] compound"
+        ],
+        "questionType": "enumerate",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The opening sentence ('Value creation for acquirers' shareholders means the deal makes them genuinely wealthier — the market value of what they own rises — which is an economic test, not the accounting test of whether EPS goes up') restates the accretion-vs-value point that the final sentence makes again, so one of the two should be cut."
+            },
+            {
+              "kind": "conciseness",
+              "text": "The framing that synergies are 'worth more than the two companies standing alone' duplicates 'the combination is worth more than the two companies standing alone' and could be compressed into the definition itself."
+            }
+          ],
+          "rewritten": true
+        },
+        "rebuild": {
+          "rebuiltAnswer": "The right way to think about this is that value creation is an economic test — whether the acquirer's shareholders are actually wealthier — and that's distinct from EPS accretion, which is only an accounting outcome. So with that framing, there are two ways an acquisition can create value. The first is value arbitrage: you acquire the target for less than its intrinsic value, meaning the purchase price is below the target's net asset value. The spread between what the target is truly worth and the price paid is captured by the acquirer's shareholders, because they bought a dollar of value for less than a dollar. But that value only accrues to them when the acquirer genuinely paid below the target's intrinsic value — a nominal discount that isn't real doesn't create value. The second way is synergies, where the combined business is worth more than the two companies on a standalone basis. Cost synergies remove duplicated overhead, procurement, or facilities, and revenue synergies come from cross-selling or shared distribution. But only the portion of synergy value that exceeds the control premium paid accrues to the acquirer's shareholders — any premium consumes value before it reaches them. And to tie it back to the beginning, accretion is neither necessary nor sufficient for value: a deal can be accretive and still destroy value if you overpaid, or dilutive and still create value.",
+          "cardCoverage": 1,
+          "referenceParity": 0.9090909090909091,
+          "extractionLoss": 0.09090909090909094,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct"
+            },
+            {
+              "index": 1,
+              "verdict": "correct"
+            },
+            {
+              "index": 2,
+              "verdict": "correct"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "An acquisition creates value when it makes acquirers' shareholders genuinely wealthier — an economic test, not the accounting test of whether EPS goes up.",
+              "verdict": "present"
+            },
+            {
+              "claim": "First way: value arbitrage — buying the target for less than its true worth.",
+              "verdict": "present"
+            },
+            {
+              "claim": "If the target's net asset value or intrinsic value exceeds the purchase price, that spread is captured by the acquirers' shareholders.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Acquirers' shareholders capture the spread because they've bought a dollar of value for less than a dollar.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Second way: synergies — the combination is worth more than the two companies standing alone.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Cost synergies come from eliminating duplicated overhead, procurement, or facilities.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Revenue synergies come from cross-selling to each other's customers or combining distribution.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Only the portion of synergy value exceeding the control premium paid to the target's shareholders accrues to the acquirer.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The key nuance is that accretion is neither necessary nor sufficient for value.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A deal can be accretive and still destroy value if you overpaid.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A deal can be dilutive and still create value if the acquired earnings yield exceeds the cost of capital.",
+              "verdict": "absent"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Way 1: value arbitrage (purchase price vs NAV)",
+            "Way 2: synergies",
+            "Implicit framing: value creation is distinct from accretion"
+          ],
+          "communication": {
+            "accuracy": "sound",
+            "conciseness": "wordy",
+            "clarity": "clear",
+            "issues": [
+              {
+                "kind": "conciseness",
+                "text": "The framing preamble about value creation being an economic test distinct from EPS accretion and the closing restatement of the same point ('accretion is neither necessary nor sufficient for value') both repeat a caveat the question already excludes, so cutting one would tighten the answer without losing substance."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtibnhmy008q04ihgcxup05w",
+      "term": "If you have WACC of 6%, acquirer’s WACC is 10% and a yield of 8%. Is it EPS accretive/dilutive (assuming you use the same capital structure blend as current company)? Does it create/destroy value?",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=3,comms]",
+      "outcome": {
+        "referenceAnswer": "This deal is EPS dilutive but value creating, and the two answers come from different tests. On EPS: the target's earnings come in at an 8% yield on the purchase price, but the blended cost of the capital used to buy it — the acquirer's mix of debt and equity at its own 10% cost of capital — exceeds that yield, so the acquired earnings don't cover the financing cost of the shares and dollars raised and EPS falls. On value: the right hurdle for the target's cash flows is the target's 6% WACC, not the acquirer's 10%, because the discount rate must reflect the risk of the assets being acquired. Earning 8% on an investment whose risk justifies only a 6% return means the IRR exceeds the appropriate cost of capital — a positive-NPV, value-creating deal. That is exactly why the deal can be dilutive and still create value: accretion/dilution is a per-share accounting test driven by the acquirer's expensive financing, while value creation is an economics question driven by the target's discount rate.",
+        "klps": [
+          {
+            "text": "The target's WACC of 6%, not the acquirer's 10%, is the correct discount rate for judging the target's cash flows, because it reflects the risk of the assets actually being acquired",
+            "kind": "definition",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "The deal is EPS dilutive: the target's earnings yield of 8% on the purchase price is below the acquirer's blended 10% cost of the debt and equity used to fund it at the current capital structure",
+            "kind": "quantitative",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Accretion/dilution is a per-share accounting test — it only asks whether acquired earnings cover the financing cost of the shares and dollars raised",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Passing the EPS accretion test does not by itself establish that the deal is a good investment",
+            "kind": "mechanism",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "The deal creates value because the 8% IRR exceeds the target's 6% WACC, meaning the acquisition earns more than the return its risk justifies — a positive NPV investment",
+            "kind": "quantitative",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The acquirer's 10% WACC overstates the hurdle for this target because the two businesses carry different risk, which is exactly why the deal can be dilutive and still create value",
+            "kind": "contrast",
+            "weight": 4,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "I think it really depends on a lot of things, like how the deal is structured and what assumptions you're making about the capital structure. Generally, you'd compare the yield you're getting on the target to the cost of the capital you're using, but there are several ways to think about it depending on which rate you pick. The EPS outcome and whether it creates value can go in different directions, so you can't just look at one number. You'd want to build out the model and see how it flows through, and then judge whether the deal makes economic sense. Honestly, there's no single right answer without more context.",
+            "score": 0,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "The deal is both EPS accretive and value creating because the yield exceeds the WACC, which is the key relationship in any accretion/dilution analysis. On EPS, since the acquisition yield is higher than the relevant cost of capital, the target's earnings more than cover the financing cost, so EPS goes up. On value, a positive spread between the yield and the discount rate means the deal is NPV positive and therefore creates value. This is why the two tests line up: the yield beats both the target WACC and the acquirer WACC, so there's no tension here. The capital structure blend only reinforces the conclusion because the blended cost stays below the yield.",
+            "score": 0,
+            "verdicts": {
+              "0": "contradicted",
+              "1": "failed",
+              "2": "failed",
+              "3": "failed",
+              "4": "failed",
+              "5": "failed"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 5,
+            "to": 4,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Value creation is defined against the target's own WACC, so the 8%>6% conclusion collapses if the acquirer's 10% is accepted as the hurdle.",
+            "probe": "Learner says: \"The 8% return beats the 10% WACC, so the deal creates value,\" concluding value creation but using the wrong hurdle rate."
+          },
+          {
+            "from": 0,
+            "to": 4,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Positive NPV can only be asserted once 6% is fixed as the correct discount rate for the target's cash flows.",
+            "probe": "Learner says: \"The deal creates value\" and \"the acquirer's 10% WACC is the right hurdle,\" holding both endpoints while missing the dependency."
+          },
+          {
+            "from": 1,
+            "to": 2,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "The dilutive verdict only holds inside the per-share accounting frame where acquired earnings must cover financing cost.",
+            "probe": "Learner says: \"The deal is EPS dilutive\" and \"accretion is just an accounting test,\" treating dilution as economic value destruction."
+          },
+          {
+            "from": 1,
+            "to": 4,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Learners conflate the EPS dilutive result with economic value destruction, though the deal is dilutive and NPV-positive.",
+            "probe": "Learner says: \"The deal is EPS dilutive, so it destroys value,\" stating dilution as if it settled the value question."
+          },
+          {
+            "from": 0,
+            "to": 1,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "The 6% target WACC and the 10% blended financing cost are both rates in the problem and get swapped.",
+            "probe": "Learner says: \"Because 8%>6%, the deal is EPS accretive,\" comparing the yield to the target WACC instead of the financing cost."
+          },
+          {
+            "from": 3,
+            "to": 4,
+            "type": "requires",
+            "provenance": "order_violation",
+            "rationale": "Concluding the deal creates value presupposes one has separated the EPS accounting test from the investment merits.",
+            "probe": "Learner says: \"The deal creates value because it passes the EPS accretion test,\" merging the two separate KLPs into one claim."
+          }
+        ],
+        "relationStats": {
+          "candidates": 6,
+          "accepted": 6,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 1,
+        "substanceSeparation": 1,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 1,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [],
+        "targetKlpCount": 4,
+        "concerns": [],
+        "revisionReasons": [
+          "[2] compound"
+        ],
+        "questionType": "scenario",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The final 'punchline' sentence restates the conclusion already given ('dilutive to EPS but value creating') that the two prior paragraphs had fully established."
+            }
+          ],
+          "rewritten": true
+        },
+        "rebuild": {
+          "rebuiltAnswer": "So, to answer whether this deal is EPS accretive or dilutive and whether it creates or destroys value, we need to separate the accounting test from the economic test. First, the EPS test: accretion/dilution is a per-share accounting test — it only asks whether acquired earnings cover the financing cost of the shares and dollars raised. Here, the target's earnings yield of 8% on the purchase price is below the acquirer's blended 10% cost of the debt and equity used to fund it at the current capital structure. So the deal is EPS dilutive. But that does not mean it destroys value. To judge value, we need the correct discount rate for the target's cash flows, which is the target's WACC of 6%, not the acquirer's 10%, because it reflects the risk of the assets actually being acquired. The deal creates value because the 8% IRR exceeds the target's 6% WACC, meaning the acquisition earns more than the return its risk justifies — a positive NPV investment. The acquirer's 10% WACC overstates the hurdle for this target because the two businesses carry different risk, which is exactly why the deal can be dilutive and still create value. And importantly, passing the EPS accretion test does not by itself establish that the deal is a good investment.",
+          "cardCoverage": 1,
+          "referenceParity": 1,
+          "extractionLoss": 0,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct"
+            },
+            {
+              "index": 1,
+              "verdict": "correct"
+            },
+            {
+              "index": 2,
+              "verdict": "correct"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "The deal is EPS dilutive.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The deal is value creating.",
+              "verdict": "present"
+            },
+            {
+              "claim": "EPS and value answers come from different tests.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The target's earnings come in at an 8% yield on the purchase price.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The blended cost of the capital used to buy the target — the acquirer's mix of debt and equity at its own 10% cost of capital — exceeds the 8% yield.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The acquired earnings do not cover the financing cost of the shares and dollars raised.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The acquired earnings failing to cover financing cost causes EPS to fall.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The right hurdle for the target's cash flows is the target's 6% WACC, not the acquirer's 10%.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The discount rate must reflect the risk of the assets being acquired.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Earning 8% on an investment whose risk justifies only a 6% return means the IRR exceeds the appropriate cost of capital.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The deal is positive-NPV.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The deal is value-creating.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Accretion/dilution is a per-share accounting test driven by the acquirer's expensive financing.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Value creation is an economics question driven by the target's discount rate.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "The setup: WACC of 6%, acquirer's WACC of 10%, yield of 8%, same capital structure blend",
+            "Verdict on accretion/dilution: EPS dilutive",
+            "Verdict on value: creates value because IRR exceeds the target's WACC"
+          ],
+          "communication": {
+            "accuracy": "sound",
+            "conciseness": "wordy",
+            "clarity": "clear",
+            "issues": [
+              {
+                "kind": "conciseness",
+                "text": "\"But that does not mean it destroys value\" and the later \"which is exactly why the deal can be dilutive and still create value\" plus the closing \"passing the EPS accretion test does not by itself establish that the deal is a good investment\" all restate the same dilutive-but-value-creating point three times."
+              },
+              {
+                "kind": "conciseness",
+                "text": "The opening \"we need to separate the accounting test from the economic test\" is repeated by the explicit \"First, the EPS test\" and the later \"To judge value, we need the correct discount rate\" transition, so the roadmap is laid out more than once."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtgesf36005004jvh65aos7r",
+      "term": "Walk me through the sell-side M&A process, including key documents (8 steps)\n",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=3,comms]",
+      "outcome": {
+        "referenceAnswer": "The sell-side M&A process is the staged auction an advisor runs on behalf of a selling company, creating competitive tension among buyers to get the best deal. It runs in eight steps. Step one is planning: we prepare for legal due diligence, build the marketing materials — a one-to-two-page anonymous teaser and the full confidential information memorandum — and sharpen the equity story around competitive positioning, brand strength, and customer relationships. Step two is marketing: the teaser goes out to prospective buyers, and only after a buyer signs an NDA do we distribute the CIM; in parallel we analyze CapEx requirements, historical and projected cash flows, and working capital trends. Step three is initial bids: buyers submit letters of intent, and we evaluate them on price and certainty of closing — financing, approvals, and track record all matter. Step four is management presentations: shortlisted buyers meet management and get data room access for deeper diligence. Step five is final bids: buyers submit LOIs with draft purchase agreements, built on normalized financials — quality of earnings, sustainable rather than lumpy CapEx, normalized working capital, and cleaned-up free cash flow. Step six is negotiations: we finalize the purchase agreement, haggling over reps and warranties and other risk allocation. Step seven is signing: the parties execute the definitive purchase agreement. Step eight is closing: we obtain regulatory approvals, the buyer funds the transaction, and money changes hands.",
+        "klps": [
+          {
+            "text": "The sell-side process is a staged competitive auction run by the seller's advisor, designed to create competitive tension among buyers to get the best deal, and it culminates in a binding written agreement rather than a handshake; the signature deliverable of a completed deal is the definitive purchase agreement.",
+            "kind": "definition",
+            "weight": 1,
+            "role": "substance"
+          },
+          {
+            "text": "Planning produces the two marketing documents — the anonymous one-to-two-page teaser and the full CIM — plus prepared legal due diligence, with the equity story emphasizing competitive positioning, brand, and customer reputation.",
+            "kind": "definition",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Marketing works in two gates: the teaser goes out to prospective buyers first, and the CIM is only distributed after a buyer signs an NDA, while the advisor analyzes CapEx requirements, historical and projected cash flows, and working capital trends.",
+            "kind": "condition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Initial bids come in as letters of intent and are evaluated on both price AND certainty of closing — financing in place, approvals needed, and the buyer's track record.",
+            "kind": "quantitative",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Management presentations come after initial bids: shortlisted buyers meet the management team and receive data room access for detailed diligence.",
+            "kind": "condition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Final bids include draft purchase agreements so the seller can compare buyers on price and on the terms each is willing to commit to before granting exclusivity.",
+            "kind": "definition",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Negotiations are where the parties mark up and negotiate the purchase agreement so the final contract reflects agreed terms before signing.",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Signing executes the definitive purchase agreement, but the deal is not done until closing, which requires regulatory approvals and the buyer funding the transaction.",
+            "kind": "contrast",
+            "weight": 2,
+            "role": "framing"
+          },
+          {
+            "text": "The eight-step sell-side sequence runs: planning and preparation of marketing materials and diligence; marketing through the teaser then the CIM under NDA; receipt and evaluation of initial letters of intent; management presentations and data room diligence for shortlisted buyers; final bids with draft purchase agreements; grant of exclusivity; negotiation and signing of the definitive purchase agreement; and closing on regulatory approval and buyer funding.",
+            "kind": "definition",
+            "weight": 2,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "The sell-side M&A process is basically a structured way to run a sale on behalf of the seller. You start with preparation, putting together the materials and getting the company ready, then you go out to the market and see who's interested. After that, it's about managing the back-and-forth with buyers, narrowing down the field, and eventually getting to a signed deal and closing. There are key documents along the way, like marketing materials and agreements, but the specific names and order can vary depending on the deal. Overall, the goal is to create competition and get the best outcome for the seller.",
+            "score": 0.16666666666666666,
+            "verdicts": {
+              "0": "partial",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission",
+              "6": "omission",
+              "7": "incomplete",
+              "8": "incomplete"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "First, we prepare a teaser and a CIM. Second, we reach out to buyers who sign NDAs. Third, we take initial bids in the form of IOIs. Fourth, we hold management presentations. Fifth, we collect final bids with markups. Sixth, we negotiate the purchase agreement, focusing on reps and warranties. Seventh, we sign the deal. Eighth, we close after regulatory approval and funding. The key documents are the teaser, CIM, IOIs, NDAs, and the purchase agreement, and we manage the data room throughout.",
+            "score": 0.6111111111111112,
+            "verdicts": {
+              "0": "partial",
+              "1": "partial",
+              "2": "partial",
+              "3": "partial",
+              "4": "partial",
+              "5": "partial",
+              "6": "correct",
+              "7": "correct",
+              "8": "partial"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 8,
+            "to": 3,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Evaluating LOIs on certainty (financing, approvals, track record) requires already having marketed the teaser and CIM under NDA to generate those bids.",
+            "probe": "A learner recites the eight steps in order but says LOIs are evaluated on price and certainty without ever having sent the CIM to the bidders."
+          },
+          {
+            "from": 6,
+            "to": 5,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Negotiating the markup of the purchase agreement cannot be stated without first having the draft purchase agreements submitted with final bids.",
+            "probe": "A learner describes negotiation of the definitive agreement's terms but never has buyers submit draft purchase agreements at the final-bid stage."
+          },
+          {
+            "from": 4,
+            "to": 2,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Granting data room access for management presentations depends on buyers having already passed the NDA gate that unlocked the CIM.",
+            "probe": "A learner says shortlisted buyers get data room access after initial bids but never ties that access to an NDA having been signed earlier."
+          },
+          {
+            "from": 7,
+            "to": 0,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "In a counterfactual where deals end at a handshake, the staged competitive auction has no binding purchase agreement to sign or close.",
+            "probe": "A learner states the process culminates in a binding definitive purchase agreement but then describes closing as a non-binding handshake."
+          },
+          {
+            "from": 2,
+            "to": 1,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "The teaser and CIM gates cannot operate unless planning has already produced those two marketing documents.",
+            "probe": "A learner explains the teaser-then-CIM marketing gates but denies planning produced the teaser and CIM as its deliverables."
+          },
+          {
+            "from": 3,
+            "to": 5,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both are bid-evaluation stages, so learners conflate evaluating initial LOIs on certainty with evaluating final bids on committed agreement terms.",
+            "probe": "A learner correctly lists initial LOIs and final bids with draft agreements but says exclusivity is granted at the LOI stage."
+          },
+          {
+            "from": 7,
+            "to": 8,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both cover the full sequence, but signing-plus-closing is one step while the eight-step list is the whole process.",
+            "probe": "A learner enumerates eight steps but treats signing and closing as the first step of the sell-side sequence."
+          }
+        ],
+        "relationStats": {
+          "candidates": 8,
+          "accepted": 7,
+          "droppedForCycles": 1,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.33333333333333326,
+        "substanceSeparation": 0.375,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "partial"
+        ],
+        "revisions": 2,
+        "status": "low_discrimination",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 0,
+            "rule": "compound",
+            "detail": "two claims joined by \"and\" — split it"
+          },
+          {
+            "index": 8,
+            "rule": "ordering",
+            "detail": "KLP 8 must precede KLP 3, but is stored after it"
+          },
+          {
+            "index": 6,
+            "rule": "ordering",
+            "detail": "KLP 6 must precede KLP 5, but is stored after it"
+          },
+          {
+            "index": 4,
+            "rule": "ordering",
+            "detail": "KLP 4 must precede KLP 2, but is stored after it"
+          }
+        ],
+        "targetKlpCount": 9,
+        "concerns": [
+          "The card's step ordering bundles financial analysis (CapEx, cash flows, working capital) into marketing and the normalization/QoE work into final bids — that matches the card and I've kept it, though in practice much of the normalization groundwork starts earlier in planning."
+        ],
+        "revisionReasons": [
+          "separation 0.43 does not clear the 0.60 bar; count; [5] reference answer scored partial on this point; [6] reference answer scored partial on this point",
+          "separation 0.43 does not clear the 0.60 bar; count; [6] reference answer scored partial on this point"
+        ],
+        "questionType": "walkthrough",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The opening sentence's framing ('the staged auction an advisor runs... maximize both price and certainty of closing') is restated by the step-by-step detail on competitive tension and certainty of closing, so it could be trimmed."
+            }
+          ],
+          "rewritten": true
+        },
+        "rebuild": {
+          "rebuiltAnswer": "The sell-side process is a staged competitive auction run by the seller's advisor, designed to create competitive tension among buyers to get the best deal. It culminates in a binding written agreement rather than a handshake, and the signature deliverable of a completed deal is the definitive purchase agreement. The eight-step sell-side sequence runs as follows. First is planning and preparation of marketing materials and diligence. Planning produces the two marketing documents — the anonymous one-to-two-page teaser and the full CIM — plus prepared legal due diligence, with the equity story emphasizing competitive positioning, brand, and customer reputation. Second is marketing through the teaser then the CIM under NDA. Marketing works in two gates: the teaser goes out to prospective buyers first, and the CIM is only distributed after a buyer signs an NDA, while the advisor analyzes CapEx requirements, historical and projected cash flows, and working capital trends. Third is receipt and evaluation of initial letters of intent. Initial bids come in as letters of intent and are evaluated on both price AND certainty of closing — financing in place, approvals needed, and the buyer's track record. Fourth are management presentations and data room diligence for shortlisted buyers. Management presentations come after initial bids: shortlisted buyers meet the management team and receive data room access for detailed diligence. Fifth are final bids with draft purchase agreements. Final bids include draft purchase agreements so the seller can compare buyers on price and on the terms each is willing to commit to before granting exclusivity. Sixth is the grant of exclusivity. Seventh is negotiation and signing of the definitive purchase agreement. Negotiations are where the parties mark up and negotiate the purchase agreement so the final contract reflects agreed terms before signing. Signing executes the definitive purchase agreement, but the deal is not done until closing. Eighth is closing on regulatory approval and buyer funding. Closing requires regulatory approvals and the buyer funding the transaction.",
+          "cardCoverage": 0.875,
+          "referenceParity": 0.7884615384615384,
+          "extractionLoss": 0.21153846153846156,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 2,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 3,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 4,
+              "verdict": "partial",
+              "evidence": "mentions draft PAs and price/terms but omits QoE, normalized cash flows, sustainable CapEx"
+            },
+            {
+              "index": 5,
+              "verdict": "partial",
+              "evidence": "negotiation mentioned but no reps and warranties"
+            },
+            {
+              "index": 6,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 7,
+              "verdict": "correct",
+              "evidence": ""
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "The sell-side M&A process is a staged auction an advisor runs on behalf of a selling company.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The process creates competitive tension among buyers to get the best deal.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The process runs in eight steps.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step one is planning: prepare for legal due diligence.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step one includes building marketing materials — a one-to-two-page anonymous teaser.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step one includes building the full confidential information memorandum (CIM).",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step one includes sharpening the equity story around competitive positioning, brand strength, and customer relationships.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step two is marketing: the teaser goes out to prospective buyers.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Only after a buyer signs an NDA do we distribute the CIM.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In parallel during marketing we analyze CapEx requirements, historical and projected cash flows, and working capital trends.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step three is initial bids: buyers submit letters of intent.",
+              "verdict": "present"
+            },
+            {
+              "claim": "We evaluate initial bids on price and certainty of closing.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Certainty of closing includes financing, approvals, and track record.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step four is management presentations: shortlisted buyers meet management.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Shortlisted buyers get data room access for deeper diligence.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step five is final bids: buyers submit LOIs with draft purchase agreements.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Final bids are built on normalized financials — quality of earnings.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Final bids are built on normalized financials — sustainable rather than lumpy CapEx.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Final bids are built on normalized financials — normalized working capital.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Final bids are built on normalized financials — cleaned-up free cash flow.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Step six is negotiations: we finalize the purchase agreement.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Negotiations involve haggling over reps and warranties and other risk allocation.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Step seven is signing: the parties execute the definitive purchase agreement.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step eight is closing: we obtain regulatory approvals.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step eight is closing: the buyer funds the transaction.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step eight is closing: money changes hands.",
+              "verdict": "partial"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Plan process: legal due diligence prep, teaser, CIM, competitive positioning",
+            "Marketing: teasers to prospects, NDA, then CIM distribution; analyze CapEx, cash flows, working capital",
+            "Initial bids: LOIs, evaluated on price and certainty of closing",
+            "Management presentations: buyers meet management, access data room",
+            "Final bids: LOIs/purchase agreement drafts, normalized cash flows, QoE, sustainable CapEx, working capital, FCF normalization",
+            "Negotiations: finalize purchase agreement, reps and warranties",
+            "Signing: execute definitive purchase agreement",
+            "Closing: regulatory approvals, funding"
+          ],
+          "communication": {
+            "accuracy": "sound",
+            "conciseness": "wordy",
+            "clarity": "clear",
+            "issues": [
+              {
+                "kind": "conciseness",
+                "text": "The closing stretch, 'Signing executes the definitive purchase agreement, but the deal is not done until closing,' largely restates the opening line about culminating in a binding agreement and the eighth step."
+              },
+              {
+                "kind": "conciseness",
+                "text": "The intro spends three sentences (staged auction description, binding agreement vs. handshake, definitive purchase agreement deliverable) before the eight steps, which could be compressed to one."
+              },
+              {
+                "kind": "conciseness",
+                "text": "The definition's sixth step (exclusivity) does not exist as its own distinct stage in the anchor, so three sentences are spent on a step that the card doesn't carry."
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "step": "adversaries",
+      "model": "deepseek-v4-flash",
+      "calls": 5,
+      "input": 3136,
+      "output": 1164,
+      "reasoning": 0,
+      "cached": 1024
+    },
+    {
+      "step": "author-batch",
+      "model": "glm-5.3-flash",
+      "calls": 1,
+      "input": 2242,
+      "output": 4948,
+      "reasoning": 1056,
+      "cached": 0
+    },
+    {
+      "step": "classify",
+      "model": "deepseek-v4-flash",
+      "calls": 3,
+      "input": 2563,
+      "output": 335,
+      "reasoning": 0,
+      "cached": 896
+    },
+    {
+      "step": "coverage",
+      "model": "deepseek-v4-flash",
+      "calls": 8,
+      "input": 8235,
+      "output": 1081,
+      "reasoning": 0,
+      "cached": 1920
+    },
+    {
+      "step": "grade",
+      "model": "deepseek-v4-flash",
+      "calls": 24,
+      "input": 30531,
+      "output": 3709,
+      "reasoning": 0,
+      "cached": 13952
+    },
+    {
+      "step": "parity",
+      "model": "deepseek-v4-flash",
+      "calls": 8,
+      "input": 7098,
+      "output": 4909,
+      "reasoning": 0,
+      "cached": 1536
+    },
+    {
+      "step": "rebuild",
+      "model": "deepseek-v4-flash",
+      "calls": 8,
+      "input": 4153,
+      "output": 2409,
+      "reasoning": 0,
+      "cached": 128
+    },
+    {
+      "step": "relate",
+      "model": "deepseek-v4-flash",
+      "calls": 3,
+      "input": 3442,
+      "output": 1817,
+      "reasoning": 0,
+      "cached": 384
+    },
+    {
+      "step": "review",
+      "model": "deepseek-v4-flash",
+      "calls": 6,
+      "input": 5970,
+      "output": 807,
+      "reasoning": 0,
+      "cached": 768
+    },
+    {
+      "step": "revise",
+      "model": "deepseek-v4-flash",
+      "calls": 5,
+      "input": 5372,
+      "output": 1881,
+      "reasoning": 0,
+      "cached": 384
+    },
+    {
+      "step": "revise-ref",
+      "model": "glm-5.3-flash",
+      "calls": 3,
+      "input": 3779,
+      "output": 2651,
+      "reasoning": 982,
+      "cached": 64
+    }
+  ]
+}

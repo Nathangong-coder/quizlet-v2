@@ -717,3 +717,50 @@ variance recorded above still applies, so read the cost column, not the quality 
 
 Peak-hour warning: the script now prints a notice when a DeepSeek run starts inside Mon-Fri
 01-04 / 06-10 UTC (2x the off-peak rate).
+
+### The communication check and the parity bar, first run (2026-09-13, three M&A cards)
+
+Built on the owner's two asks: a grader-family review of the reference (accuracy /
+conciseness / clarity, categorical; `src/lib/ai/prompts/review-reference.ts`), with ONE writer
+rewrite when TypeScript says the labels warrant it (anything but sound / tight / clear), and
+the rebuild test run EVERY round with parity below 0.70 (`REBUILD_PARITY_BAR`) and coverage
+misses folded into the same revise call as the separation findings. The reviewer reads the
+rebuilt answer too, so the two reviews can be compared.
+
+```
+card                       sep (subst)  ref review → rewrite   parity  rebuilt review     ref → rebuilt words
+2 ways to create value     0.31 (0.50)  sound/wordy/clear → Y   0.91   sound/wordy/clear   171 → 231
+WACC 6% / yield            1.00 (1.00)  sound/wordy/clear → Y   1.00   sound/wordy/clear   175 → 216
+sell-side (8 steps)        0.33 (0.38)  sound/wordy/clear → Y   0.79   sound/wordy/clear   234 → 324
+```
+
+**Accuracy: the hedge is gone.** The WACC reference after the rewrite reads "This deal is EPS
+dilutive but value creating ... Earning 8% on an investment whose risk justifies only a 6%
+return means the IRR exceeds the appropriate cost of capital — a positive-NPV, value-creating
+deal." The review labelled the first draft `sound` on accuracy — it was the wordiness that
+triggered the rewrite — so on this run the accuracy check was not what fixed it; the draft was
+already right (GLM's coin came up heads). The instrument for the hedge exists; it has not yet
+caught one live.
+
+**Conciseness: every reference was "wordy", and every REBUILT answer was wordier still**
+(+25-40% words). The reviewer's reasons are specific and right: the restated conclusion, the
+roadmap given twice, and on the sell-side card "three sentences on a step (exclusivity) the
+card doesn't carry". That last one is a content finding the coverage grader cannot make (it
+only checks the card's points are present, not that extra ones are absent). The rebuilt
+answer being longer than the reference is the key points carrying context clauses each
+("because ...", "which is why ...") that the rebuilder dutifully expands — the v3 author prompt
+allowed one clause per point, and eight points with a clause each is a long answer. Not acted
+on yet; recorded on `rebuild.communication`.
+
+**Parity: 0 of 3 below the bar after the loop**, with the lost claims named to the revise call
+when a round dipped. Cost of running the rebuild every round: rebuild/coverage/parity went from
+one set per card to one per round — the parity grade's output (it lists every reference claim
+each time) is the largest new line. Per card: $0.0053 → $0.0077 off-peak, 25 calls. The review
+itself is ~$0.0004 a card.
+
+**The WACC card separated at 1.00 with 6 points** — the tightest reference of the three gave the template nothing to recite. **Separation fell on the other pair** (0.92/0.67 last run → 0.31/0.33; the acquisition card's
+substance 0.50). Not attributable on one run — the traps are written from the reference, and a
+tighter reference gives the template trap less to paraphrase, which is one mechanism; run-to-run
+variance on these two cards has been 0.29-0.92 today, which is the other. The rewrite is the
+first change in this file that could plausibly LOWER separation, so it needs the 7-card spread
+×2 before it stays on by default (`KLP_COMMS_CHECK=false` turns it off).

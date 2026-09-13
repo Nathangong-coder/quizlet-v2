@@ -15,7 +15,8 @@ import { CLASSIFY_ABSTRACTION_PROMPT } from '../src/lib/ai/prompts/classify-abst
 import { WRITE_PANEL_PROMPT } from '../src/lib/ai/prompts/write-panel'
 import { WRITE_ADVERSARIES_PROMPT } from '../src/lib/ai/prompts/write-adversaries'
 import { WRITE_REBUILD_PROMPT, GRADE_COVERAGE_PROMPT, GRADE_PARITY_PROMPT } from '../src/lib/ai/prompts/rebuild'
-import { REBUILD_COVERAGE_BAR } from '../src/lib/klp/rebuild'
+import { REVIEW_REFERENCE_PROMPT, REVISE_REFERENCE_PROMPT } from '../src/lib/ai/prompts/review-reference'
+import { REBUILD_COVERAGE_BAR, REBUILD_PARITY_BAR } from '../src/lib/klp/rebuild'
 import { TokenMeter } from '../src/lib/klp/token-meter'
 import { parseRotationSpec, pickRoles, markRoles, familyOf, familiesAvailable, type RotationCombo, type RoleAssignment } from '../src/lib/klp/rotation'
 import { DIRECT_PROVIDER_SOURCES, buildDirectPool, parseList } from '../src/lib/klp/direct-pool'
@@ -191,6 +192,8 @@ function readRotationPool(env: NodeJS.ProcessEnv = process.env): RotationCombo[]
 const REVISE_WITH_GRADER = (process.env.KLP_REVISE_WITH ?? '').toLowerCase() === 'grader'
 const ADVERSARIES_WITH_GRADER = (process.env.KLP_ADVERSARIES_WITH ?? '').toLowerCase() === 'grader'
 const GRADE_STRICT = (process.env.KLP_GRADE_STRICT ?? '').toLowerCase() === 'true'
+/** KLP_COMMS_CHECK=false turns off the communication check (on by default from 2026-09-13). */
+const COMMS_CHECK = (process.env.KLP_COMMS_CHECK ?? 'true').toLowerCase() !== 'false'
 
 /** One meter for the whole run; printed at the end and written to --json. */
 const METER = new TokenMeter()
@@ -327,6 +330,13 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
     ...(adversaryCombo
       ? { writeAdversaries: (input) => call(WRITE_ADVERSARIES_PROMPT.build(input), WRITE_ADVERSARIES_PROMPT.schema, 'adversary', 'adversaries') }
       : {}),
+    // The communication check: the GRADER reviews, the WRITER rewrites.
+    ...(COMMS_CHECK
+      ? {
+          reviewReference: (input) => call(REVIEW_REFERENCE_PROMPT.build(input), REVIEW_REFERENCE_PROMPT.schema, 'grader', 'review'),
+          reviseReference: (input) => call(REVISE_REFERENCE_PROMPT.build(input), REVISE_REFERENCE_PROMPT.schema, 'writer', 'revise-ref'),
+        }
+      : {}),
     // The rebuild test. The REBUILDER is the adversary combo when one exists
     // (a different family than the writer, by construction) and otherwise
     // the grader combo — a documented compromise for the two-pool split,
@@ -373,6 +383,9 @@ interface RunStats {
   /** Separation over substance points only (framing excluded); see src/lib/klp/framing.ts. */
   substanceSum: number
   framingPoints: number
+  /** Cards whose reference the communication check sent back to the writer. */
+  referenceRewritten: number
+  parityBelowBar: number
   /**
    * Every weight this run computed, and how many adversaries failed each KLP.
    *
@@ -632,6 +645,8 @@ async function main() {
     separationSum: 0,
     substanceSum: 0,
     framingPoints: 0,
+    referenceRewritten: 0,
+    parityBelowBar: 0,
     weights: [],
     failCounts: [],
     probesPerCard: PROBE_KINDS.length,
@@ -743,8 +758,8 @@ async function main() {
         // CardAuthoring.model records the WRITER when roles are split — the
         // key points are its text; the grader is recorded in the run log.
         usedModel = authorCombo ? `${authorCombo.model}+${combo.model}` : combo.model
-        if (authorCombo && (REVISE_WITH_GRADER || ADVERSARIES_WITH_GRADER || GRADE_STRICT || AUTHOR_BATCH > 1)) {
-          usedModel += ` [${[REVISE_WITH_GRADER && 'revise=grader', ADVERSARIES_WITH_GRADER && 'adversaries=grader', GRADE_STRICT && 'strict', AUTHOR_BATCH > 1 && `batch=${AUTHOR_BATCH}`].filter(Boolean).join(',')}]`
+        if (authorCombo && (REVISE_WITH_GRADER || ADVERSARIES_WITH_GRADER || GRADE_STRICT || AUTHOR_BATCH > 1 || COMMS_CHECK)) {
+          usedModel += ` [${[REVISE_WITH_GRADER && 'revise=grader', ADVERSARIES_WITH_GRADER && 'adversaries=grader', GRADE_STRICT && 'strict', AUTHOR_BATCH > 1 && `batch=${AUTHOR_BATCH}`, COMMS_CHECK && 'comms'].filter(Boolean).join(',')}]`
         }
         gen = directGenerator(combo, pacer, authorCombo, undefined, rebuildTest)
         console.log(`${tag} — using ${combo.id}${authorCombo ? ` (author ${authorCombo.id})` : ''}`)
@@ -909,9 +924,13 @@ async function main() {
             ', ') +
         `${outcome.klps.length} KLPs, ` +
         (outcome.revisionReasons?.length ? `revised ${outcome.revisionReasons.length}x [${outcome.revisionReasons[0].slice(0, 70)}], ` : '') +
+        (outcome.referenceReview
+          ? `reference ${outcome.referenceReview.accuracy}/${outcome.referenceReview.conciseness}/${outcome.referenceReview.clarity}${outcome.referenceReview.rewritten ? ' → REWRITTEN' : ''}, `
+          : '') +
         (outcome.rebuild
           ? `coverage ${outcome.rebuild.cardCoverage?.toFixed(2) ?? 'n/a'}${outcome.rebuild.clearsBar === false ? ` (BELOW the ${REBUILD_COVERAGE_BAR} bar; missing ${outcome.rebuild.missingPoints.map((i) => `[${i}]`).join('')})` : ''}, ` +
-            `parity ${outcome.rebuild.referenceParity?.toFixed(2) ?? 'n/a'}` +
+            `parity ${outcome.rebuild.referenceParity?.toFixed(2) ?? 'n/a'}${outcome.rebuild.clearsParityBar === false ? ` (BELOW the ${REBUILD_PARITY_BAR} bar)` : ''}` +
+            (outcome.rebuild.communication ? ` [rebuilt: ${outcome.rebuild.communication.accuracy}/${outcome.rebuild.communication.conciseness}/${outcome.rebuild.communication.clarity}]` : '') +
             (outcome.rebuild.cardDisputes.length ? `, DISPUTES ${outcome.rebuild.cardDisputes.length} — the grader believes the answer over the card: ${outcome.rebuild.cardDisputes.map((d) => `[${d.index}] ${d.reason.slice(0, 80)}`).join(' | ')}` : '') +
             ', '
           : '') +
@@ -924,6 +943,8 @@ async function main() {
     stats.separationSum += outcome.separationScore
     stats.substanceSum += outcome.substanceSeparation
     stats.framingPoints += outcome.klps.filter((k) => k.role === 'framing').length
+    if (outcome.referenceReview?.rewritten) stats.referenceRewritten += 1
+    if (outcome.rebuild?.clearsParityBar === false) stats.parityBelowBar += 1
     stats.totalKlps += outcome.klps.length
     stats.totalRelations += outcome.relations.length
     if (outcome.status === 'low_discrimination') stats.lowDiscrimination += 1
@@ -949,6 +970,7 @@ async function main() {
       (stats.authored > 0 && stats.revised / stats.authored < 0.2 ? ' (UNDER A FIFTH — the bar found little to fix on this run)' : '') +
       `, mean separation ${meanSeparation.toFixed(2)}` +
       (stats.framingPoints > 0 ? ` (substance ${meanSubstance.toFixed(2)}; ${stats.framingPoints} framing points excluded)` : '') +
+      `, ${stats.referenceRewritten} reference(s) rewritten by the communication check, ${stats.parityBelowBar} still below the ${REBUILD_PARITY_BAR} parity bar` +
       `, ${stats.lowDiscrimination} low_discrimination, ${stats.totalKlps} total KLPs, ` +
       `${stats.totalRelations} total relations`,
   )

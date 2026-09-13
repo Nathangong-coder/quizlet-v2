@@ -24,6 +24,7 @@ import {
 } from '@/lib/klp/separation'
 import { FRAMING_PROBE, classifyPointRoles, substanceSeparation, type PointRole } from '@/lib/klp/framing'
 import { carryVerdicts, mergePartial, trapsToReplace } from '@/lib/klp/regrade-plan'
+import { referenceNeedsRewrite, type ReferenceReview } from '@/lib/ai/prompts/review-reference'
 import { validateKlpSet, type KlpDefect } from '@/lib/klp/validate'
 import { toOrderedLevels, type AbstractionLevel } from '@/lib/klp/abstraction'
 import {
@@ -34,7 +35,7 @@ import {
   type RelationEdge,
   type RelationProvenance,
 } from '@/lib/klp/relations'
-import { rebuildScores, type RebuildDispute } from './rebuild'
+import { rebuildFindings, rebuildScores, type RebuildDispute } from './rebuild'
 import type { CoverageVerdict, ParityVerdict } from '@/lib/ai/prompts/rebuild'
 import {
   MAX_REVISIONS,
@@ -177,6 +178,23 @@ export interface AuthoringGenerator {
    */
   authorBatch?(input: { setTitle: string; cards: { ref: number; question: string; definition: string; minKlps: number }[] }): Promise<{ cards: (AuthorResult & { ref: number })[] }>
   /**
+   * THE COMMUNICATION CHECK (2026-09-13). `reviewReference` is served by the
+   * GRADER family and labels an answer on accuracy / conciseness / clarity;
+   * `reviseReference` is served by the WRITER and rewrites the reference and
+   * re-derives the key points when TypeScript says the review warrants it.
+   * Both optional; with only the reviewer present the review is recorded and
+   * nothing is rewritten. The same reviewer reads the rebuilt answer after
+   * the loop (`rebuild.communication`).
+   */
+  reviewReference?(input: { question: string; answer: string; definition: string }): Promise<ReferenceReview>
+  reviseReference?(input: {
+    question: string
+    definition: string
+    referenceAnswer: string
+    klps: { text: string; kind: string }[]
+    review: ReferenceReview
+  }): Promise<{ referenceAnswer: string; klps: { text: string; kind: string }[] }>
+  /**
    * The rebuild test (spec 2026-09-12-rebuild-test-design.md). All three
    * optional together: a generator without them produces an outcome without
    * `rebuild`, and nothing existing changes. `rebuild` must be served by a
@@ -222,6 +240,7 @@ export interface RebuildOutcome {
   referenceParity: number | null
   extractionLoss: number | null
   clearsBar: boolean | null
+  clearsParityBar: boolean | null
   /** Definition points the rebuild left missing, by index. */
   missingPoints: number[]
   coverageVerdicts: { index: number; verdict: CoverageVerdict; evidence?: string }[]
@@ -229,6 +248,8 @@ export interface RebuildOutcome {
   cardDisputes: RebuildDispute[]
   /** The card's definition points the coverage was graded against, for the record. */
   definitionPoints: string[]
+  /** The reviewer's read of the REBUILT answer, when a reviewer ran. */
+  communication?: ReferenceReview
 }
 
 export interface AuthoringOutcome {
@@ -290,6 +311,12 @@ export interface AuthoringOutcome {
   revisionReasons?: string[]
   /** The prompt's own classification of the question (v3). */
   questionType?: string
+  /**
+   * The communication check on the reference (2026-09-13): the reviewer's
+   * labels on the FIRST draft, and whether the writer was sent back for a
+   * rewrite. Undefined when no reviewer ran. Not persisted yet.
+   */
+  referenceReview?: ReferenceReview & { rewritten: boolean }
   /**
    * The rebuild test. Undefined when the generator did not run it — never a
    * zero. `cardCoverage` replaces `referenceScore` as the completeness number;
@@ -440,6 +467,40 @@ export async function authorCard(
   const draft = await gen.author({ ...input, minKlps: authorMinKlps(input) })
   const target = targetKlpCount({ prior, points: draft.definitionPoints })
   const concerns = draft.concerns ?? []
+
+  // THE COMMUNICATION CHECK, before anything is graded or trapped: a wordy or
+  // hedged reference spawns wordy or hedged key points, and the separation
+  // test cannot see either. One rewrite at most; best-effort — a failed review
+  // or rewrite keeps the first draft rather than failing the card.
+  let referenceReview: (ReferenceReview & { rewritten: boolean }) | undefined
+  if (gen.reviewReference && draft.klps.length > 0) {
+    try {
+      const review = await gen.reviewReference({ question: input.question, answer: draft.referenceAnswer, definition: input.definition })
+      let rewritten = false
+      if (referenceNeedsRewrite(review) && gen.reviseReference) {
+        try {
+          const fixed = await gen.reviseReference({
+            question: input.question,
+            definition: input.definition,
+            referenceAnswer: draft.referenceAnswer,
+            klps: draft.klps.map((k) => ({ text: k.text, kind: k.kind })),
+            review,
+          })
+          if (fixed.klps.length > 0) {
+            draft.referenceAnswer = fixed.referenceAnswer
+            draft.klps = fixed.klps as typeof draft.klps
+            rewritten = true
+          }
+        } catch {
+          rewritten = false
+        }
+      }
+      referenceReview = { ...review, rewritten }
+    } catch {
+      referenceReview = undefined
+    }
+  }
+
   if (gen.writeAdversaries) {
     // Independent adversaries: written from the question and the reference,
     // never the key points, by a different family than wrote them.
@@ -522,6 +583,7 @@ export async function authorCard(
     }
   }
 
+  let rebuild: RebuildOutcome | undefined
   let panelCurve: PanelCurve | undefined
   let klpShapes: KlpCurveDiagnosis[] = []
   let unseparatedBoundaries: { stronger: PanelLevel; weaker: PanelLevel }[] = []
@@ -599,6 +661,13 @@ export async function authorCard(
       unseparatedBoundaries = findUnseparatedBoundaries(gradedPanel, klps.length)
     }
 
+    // THE REBUILD TEST, EVERY ROUND (2026-09-13): rebuild from this round's
+    // points, grade against the card's points and the reference, and hand the
+    // parity and coverage misses to the SAME revise call as the separation
+    // findings — one combined rewrite, then one regrade. The last round's
+    // result is what the outcome carries.
+    rebuild = await runRebuildTest(input.question, draft, klps, gen)
+
     // THE QUALITY BAR (2026-09-12). Separation alone let through cards whose
     // reference failed its own points, compound points, and weak answers at
     // 0.60. Every check here is computed in TypeScript; the model is told
@@ -611,6 +680,15 @@ export async function authorCard(
       wrong,
       defects: validateKlpSet(klps.map((k) => ({ text: k.text })), input.question, { targetCount: target }),
     })
+    if (rebuild) {
+      findings.push(
+        ...rebuildFindings({
+          scores: rebuild,
+          parity: rebuild.parityVerdicts,
+          definitionPoints: rebuild.definitionPoints,
+        }),
+      )
+    }
     if (findings.length === 0 || revisions >= MAX_REVISIONS) break
     // Decide now, on THIS round's verdicts, which traps the next round rewrites.
     replaceKinds = trapsToReplace(
@@ -638,29 +716,14 @@ export async function authorCard(
     revisions += 1
   }
 
-  // THE REBUILD TEST — after the key points have settled, before relations.
-  // Rebuild from the FINAL points only; grade against the card's own points
-  // (the rubric) and against the writer's reference (extraction loss).
-  let rebuild: RebuildOutcome | undefined
-  if (gen.rebuild && gen.gradeCoverage && gen.gradeParity) {
-    const built = await gen.rebuild({ question: input.question, klps: klps.map((k) => ({ text: k.text })) })
-    const definitionPoints = (draft.definitionPoints ?? []).map((p) => ({ point: p.point }))
-    const [coverage, parity] = await Promise.all([
-      gen.gradeCoverage({ question: input.question, definitionPoints, rebuiltAnswer: built.rebuiltAnswer }),
-      gen.gradeParity({ question: input.question, referenceAnswer: draft.referenceAnswer, rebuiltAnswer: built.rebuiltAnswer }),
-    ])
-    const scores = rebuildScores({ coverage: coverage.points, definitionPointCount: definitionPoints.length, parity: parity.claims })
-    rebuild = {
-      rebuiltAnswer: built.rebuiltAnswer,
-      cardCoverage: scores.cardCoverage,
-      referenceParity: scores.referenceParity,
-      extractionLoss: scores.extractionLoss,
-      clearsBar: scores.clearsBar,
-      missingPoints: scores.missingPoints,
-      coverageVerdicts: coverage.points,
-      parityVerdicts: parity.claims,
-      cardDisputes: coverage.disputes ?? [],
-      definitionPoints: definitionPoints.map((p) => p.point),
+  // The reviewer reads the REBUILT answer too (the last round's), so the
+  // reference's review and the rebuild's can be compared: bloat that appears
+  // only in the rebuild is carried by the key points, not the writer.
+  if (rebuild && gen.reviewReference) {
+    try {
+      rebuild.communication = await gen.reviewReference({ question: input.question, answer: rebuild.rebuiltAnswer, definition: input.definition })
+    } catch {
+      // informational only
     }
   }
 
@@ -770,7 +833,38 @@ export async function authorCard(
     concerns,
     revisionReasons,
     questionType: (draft as { questionType?: string }).questionType,
+    ...(referenceReview ? { referenceReview } : {}),
     ...(rebuild ? { rebuild } : {}),
+  }
+}
+
+/** One rebuild-test round: rebuild from the points, grade coverage and parity. Undefined when the generator lacks the test. */
+async function runRebuildTest(
+  question: string,
+  draft: { referenceAnswer: string; definitionPoints?: { point: string }[] },
+  klps: { text: string }[],
+  gen: AuthoringGenerator,
+): Promise<RebuildOutcome | undefined> {
+  if (!gen.rebuild || !gen.gradeCoverage || !gen.gradeParity) return undefined
+  const built = await gen.rebuild({ question, klps: klps.map((k) => ({ text: k.text })) })
+  const definitionPoints = (draft.definitionPoints ?? []).map((p) => ({ point: p.point }))
+  const [coverage, parity] = await Promise.all([
+    gen.gradeCoverage({ question, definitionPoints, rebuiltAnswer: built.rebuiltAnswer }),
+    gen.gradeParity({ question, referenceAnswer: draft.referenceAnswer, rebuiltAnswer: built.rebuiltAnswer }),
+  ])
+  const scores = rebuildScores({ coverage: coverage.points, definitionPointCount: definitionPoints.length, parity: parity.claims })
+  return {
+    rebuiltAnswer: built.rebuiltAnswer,
+    cardCoverage: scores.cardCoverage,
+    referenceParity: scores.referenceParity,
+    extractionLoss: scores.extractionLoss,
+    clearsBar: scores.clearsBar,
+    clearsParityBar: scores.clearsParityBar,
+    missingPoints: scores.missingPoints,
+    coverageVerdicts: coverage.points,
+    parityVerdicts: parity.claims,
+    cardDisputes: coverage.disputes ?? [],
+    definitionPoints: definitionPoints.map((p) => p.point),
   }
 }
 
