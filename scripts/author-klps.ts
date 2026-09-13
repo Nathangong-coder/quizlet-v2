@@ -15,7 +15,7 @@ import { WRITE_PANEL_PROMPT } from '../src/lib/ai/prompts/write-panel'
 import { WRITE_ADVERSARIES_PROMPT } from '../src/lib/ai/prompts/write-adversaries'
 import { WRITE_REBUILD_PROMPT, GRADE_COVERAGE_PROMPT, GRADE_PARITY_PROMPT } from '../src/lib/ai/prompts/rebuild'
 import { REBUILD_COVERAGE_BAR } from '../src/lib/klp/rebuild'
-import { parseRotationSpec, pickRoles, familyOf, familiesAvailable, type RotationCombo, type RoleAssignment } from '../src/lib/klp/rotation'
+import { parseRotationSpec, pickRoles, markRoles, familyOf, familiesAvailable, type RotationCombo, type RoleAssignment } from '../src/lib/klp/rotation'
 import { DIRECT_PROVIDER_SOURCES, buildDirectPool, parseList } from '../src/lib/klp/direct-pool'
 import { findExistingPanel } from '../src/lib/klp/panel-reuse'
 import type { CardKlpStatus } from '../src/lib/cards/klp-status'
@@ -622,7 +622,7 @@ async function main() {
           halted = true
           break
         }
-        for (const c of [roles.writer, roles.adversary, roles.grader]) markTried(c, new Date())
+        markRoles(roles, new Date())
         combo = roles.grader
         lastAuthorCombo = roles.writer
         usedModel = `${roles.writer.model}+${roles.adversary.model}+${roles.grader.model}`

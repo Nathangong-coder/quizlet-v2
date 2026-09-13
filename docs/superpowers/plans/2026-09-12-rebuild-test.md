@@ -37,3 +37,13 @@ must not share the writer's family; the grader must not be the adversary writer.
    differ from the adversary's. Tests updated.
 7. **Run** on the three bench cards under `--rotate` (dry-run, `--force`) and record the
    numbers beside the reference scores they carry today. Staff UI display is a follow-up.
+
+## Status 2026-09-12 (end of day)
+
+Tasks 1-6 built and committed; task 7 run on the three bench cards under `cn + qwen`
+(Gemini capped): coverage 1.00 x3, parity 0.83 / 0.88 / 0.85, one dispute — the card's
+known "purchase price > NAV" inversion. Findings in `docs/ai/model-performance.md`.
+Follow-ups: finer `definitionPoints` splitting (each listed item its own point) so
+coverage has grain; wire `REBUILD_COVERAGE_BAR` into the revise loop; staff UI display of
+coverage / parity / a dispute badge; re-run under a three-family rotation once Gemini
+quota is back.

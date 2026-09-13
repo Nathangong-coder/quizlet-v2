@@ -30,6 +30,14 @@ export interface RotationCombo extends DirectCombo {
    * combo is the resolve id, which is `custom` for zai and qwen. */
   source: string
   family: string
+  /**
+   * When this combo last WROTE (author + revise). Separate from
+   * `lastUsedAt`, which every role stamps: with one shared stamp all three
+   * roles of a card land at the same instant, the LRU order never changes,
+   * and the same model writes every card — measured 2026-09-12, DeepSeek
+   * wrote all three bench cards under a three-model rotation.
+   */
+  lastWrittenAt?: Date | null
 }
 
 export interface RoleAssignment {
@@ -71,7 +79,10 @@ export function parseRotationSpec(spec: string | undefined): { source: string; m
  */
 export function pickRoles(pool: RotationCombo[]): RoleAssignment | null {
   const ordered = selectAttemptOrder(pool) as RotationCombo[]
-  const writer = ordered[0]
+  // Writer: least recently WRITTEN (never-written first), then the pool's LRU.
+  const writer = [...ordered]
+    .filter((c) => c.enabled)
+    .sort((a, b) => (a.lastWrittenAt?.getTime() ?? -1) - (b.lastWrittenAt?.getTime() ?? -1))[0]
   if (!writer) return null
   const adversary = ordered.find((c) => c.family !== writer.family)
   if (!adversary) return null
@@ -81,6 +92,12 @@ export function pickRoles(pool: RotationCombo[]): RoleAssignment | null {
     (writer.family !== adversary.family ? writer : undefined)
   if (!grader) return null
   return { writer, adversary, grader }
+}
+
+/** Stamp the roles after a pick: every role as tried, the writer as written. */
+export function markRoles(roles: RoleAssignment, now: Date): void {
+  for (const c of [roles.writer, roles.adversary, roles.grader]) c.lastUsedAt = now
+  roles.writer.lastWrittenAt = now
 }
 
 export function familiesAvailable(pool: RotationCombo[]): string[] {

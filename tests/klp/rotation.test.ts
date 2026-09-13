@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseRotationSpec, pickRoles, familyOf, familiesAvailable, type RotationCombo } from '@/lib/klp/rotation'
+import { parseRotationSpec, pickRoles, markRoles, familyOf, familiesAvailable, type RotationCombo } from '@/lib/klp/rotation'
 
 const combo = (source: string, model: string, lastUsedAt: Date | null = null): RotationCombo => ({
   id: `${source}:${model}`, keyIndex: 0, apiKey: 'k', model, provider: source, role: 'primary', enabled: true, lastUsedAt, source, family: familyOf(source),
@@ -36,5 +36,18 @@ describe('rotation', () => {
     expect(r.grader.family).not.toBe(r.adversary.family)
     expect(familiesAvailable(pool)).toEqual(['google', 'cn'])
     expect(pickRoles([combo('deepseek', 'deepseek-v4-flash'), combo('zai', 'glm-5.3-flash')])).toBeNull()
+  })
+})
+
+describe('writer rotation', () => {
+  it('rotates the writer across cards even though every role is stamped at the same instant', () => {
+    const pool = [combo('deepseek', 'deepseek-v4-flash'), combo('zai', 'glm-5.3-flash'), combo('qwen', 'qwen3.7-flash')]
+    const writers: string[] = []
+    for (let card = 0; card < 3; card++) {
+      const r = pickRoles(pool)!
+      writers.push(r.writer.model)
+      markRoles(r, new Date(2026, 8, 12, 0, card))
+    }
+    expect(new Set(writers).size).toBe(3)
   })
 })

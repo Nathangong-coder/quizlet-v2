@@ -544,3 +544,47 @@ DeepSeek + GLM. Gemini 3.6 stays the quality reference, not the workhorse.
 
 A solo GLM authoring run (GLM grading itself) stalled 15 minutes on one card and was
 stopped; the grading number above already says why it is not a grader.
+
+### The rebuild test, first run (2026-09-12) — the dispute channel fired on card 3
+
+`author-klps --rotate --rebuild --dry-run`, three bench cards, rotation `cn + qwen` (Gemini
+capped for the day): DeepSeek wrote, Qwen wrote the traps and the rebuild, GLM (high) graded.
+Design: `docs/superpowers/specs/2026-09-12-rebuild-test-design.md`.
+
+```
+card                      sep   coverage  parity  lost claims (of N)   dispute
+$80/share premium         0.71   1.00      0.83    3 of 12             -
+sources & uses schedule   0.39*  1.00      0.88    3 of 17             -
+2 ways to create value    0.63   1.00      0.85    3 of 17             YES
+* low_discrimination - Qwen's adversaries scored high under GLM grading
+```
+
+**The dispute is real and it is the card's known error.** On "2 ways an acquisition can
+create value" the card's parenthetical reads "Value Arbitrage (purchase price > NAV)"; the
+grader raised: *"buying at a price above NAV would destroy value absent synergies, whereas
+arbitrage value comes from paying a price below the target's intrinsic NAV"* — the same
+inversion the writer had flagged in `concerns` on 2026-09-12's first authoring run. Two
+roles, two families, same finding, surfaced as a warning to the owner. The channel works.
+
+**Coverage 1.00 on all three is the rubric's grain, not the sets' completeness.** The
+sources & uses definition splits into TWO points ("Sources: new debt tranches, equity
+contribution, target cash, rollover equity" / "Uses: ..."), so a rebuild that mentions the
+items at all is `correct` on both, and the sponsor-equity gap the owner spotted is
+invisible to it — exactly the limit the spec states. The card is the rubric; a terse card
+is a coarse rubric. Two fixes, in order of value: the writer's `definitionPoints` step
+should split a listed item into its own point (each source and each use), and the owner
+can enrich the definition or notes. Until then, treat coverage as a floor check and read
+parity.
+
+**Parity is the informative number.** 12-17% extraction loss on every card, and the lost
+claims are substantive: "the sources & uses and the purchase price allocation are prepared
+together at signing", "the arbitrage gain accrues to shareholders the moment the deal
+closes", the numeric illustration, the sinkhole example. Those are the things the writer
+knew that never became a key point.
+
+**Two defects found by running it:** the writer did not rotate (every role was stamped
+"tried" at the same instant, so the LRU order never moved - fixed with a separate
+`lastWrittenAt`); and Qwen as adversary writer produces traps the graders score high,
+which reads as low separation - the owner predicted "artificially low numbers" from Qwen
+and was right about the direction, though it shows in the adversary role, not the
+reference. Re-run with Gemini in the rotation before drawing a model conclusion.
