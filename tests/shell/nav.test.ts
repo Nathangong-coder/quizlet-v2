@@ -8,7 +8,7 @@ import {
 
 describe('railItems', () => {
   it('offers Home, Browse, Library and New set when signed in', () => {
-    expect(railItems(true).map((i) => i.href)).toEqual(['/', '/browse', '/sets', '/sets/new'])
+    expect(railItems(true).map((i) => i.href)).toEqual(['/', '/browse', '/sets', '/sets/new', '/groups'])
   })
 
   it('omits Library and New set when signed out', () => {

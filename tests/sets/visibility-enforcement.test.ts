@@ -69,6 +69,13 @@ const ENFORCED_PATHS = [
   // predicate with listable + userId, and the page references it.
   'src/lib/users/public-profile.ts',
   'src/app/(app)/u/[handle]/page.tsx',
+  // --- Added with study groups, 2026-09-13 ---
+  // Membership grants NO read rights: every set read inside a group composes
+  // the predicate, and attaching a set reads it through it first.
+  'src/lib/groups/load.ts',
+  'src/actions/groups.ts',
+  'src/app/(app)/groups/[id]/page.tsx',
+  'src/app/(app)/groups/[id]/sets/[setId]/page.tsx',
 ]
 
 describe('every set read path applies readableSetWhere', () => {

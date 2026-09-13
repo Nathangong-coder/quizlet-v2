@@ -133,6 +133,9 @@ model User {
   learnerTuning    LearnerTuning?
   setViews         SetView[]
   setReports       SetReport[]
+  groupsOwned      StudyGroup[]
+  groupMemberships StudyGroupMember[]
+  groupSetsAdded   StudyGroupSet[]
   feedback         Feedback[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -246,6 +249,7 @@ model Set {
   postmortems   PostmortemSession[]
   diagnosticAttempts DiagnosticAttempt[]
   folderLinks   FolderSet[]
+  groupLinks    StudyGroupSet[]
   kltNodes      SetKltNode[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -699,6 +703,66 @@ model ConfidenceEvent {
 
   @@index([userId, cardId])
   @@index([userId, createdAt])
+}
+
+/// Study groups (2026-09-13, docs/superpowers/specs/2026-09-13-study-groups-design.md).
+///
+/// THE PRIVACY CONTRACT, in one sentence: joining a group lets its members see
+/// your progress on the GROUP'S sets, and nothing else. There is no snapshot —
+/// every number a member sees is computed live from `CardProgress` and
+/// `StudySession` rows filtered by (member, group set), so leaving the group
+/// ends the sharing at once and there is nothing to erase.
+///
+/// Private only: a group is reached by its invite code, never listed.
+model StudyGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// Bearer code in the join link. Rotated by the owner; the old link then
+  /// 404s. Rules in src/lib/groups/invite.ts.
+  inviteCode  String   @unique
+  members     StudyGroupMember[]
+  sets        StudyGroupSet[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+model StudyGroupMember {
+  id       String     @id @default(cuid())
+  groupId  String
+  group    StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// owner | member — vocabulary GROUP_ROLES in src/lib/groups/roles.ts.
+  /// The owner ALSO has a member row, so "everyone in the group" is one query.
+  role     String     @default("member")
+  joinedAt DateTime   @default(now())
+
+  @@unique([groupId, userId])
+  @@index([userId])
+}
+
+/// A set attached to a group. Only link/public sets may be attached (the
+/// action refuses a private one), so membership grants NO read rights of its
+/// own — `readableSetWhere` is untouched by this feature. A set that later
+/// goes private stays attached but renders as "no longer shared" and is
+/// excluded from every progress read.
+model StudyGroupSet {
+  id        String     @id @default(cuid())
+  groupId   String
+  group     StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  setId     String
+  set       Set        @relation(fields: [setId], references: [id], onDelete: Cascade)
+  addedById String
+  addedBy   User       @relation(fields: [addedById], references: [id], onDelete: Cascade)
+  addedAt   DateTime   @default(now())
+
+  @@unique([groupId, setId])
+  @@index([setId])
 }
 
 /// Unified study-memory event log. The single write path (recordStudyEvent

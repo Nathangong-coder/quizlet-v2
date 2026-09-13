@@ -8,7 +8,7 @@
 
 import { isStaff } from '@/lib/auth/roles'
 
-export type RailIcon = 'home' | 'compass' | 'library' | 'plus' | 'login' | 'gauge'
+export type RailIcon = 'home' | 'compass' | 'library' | 'plus' | 'login' | 'gauge' | 'users'
 
 export interface RailItem {
   href: string
@@ -38,6 +38,7 @@ export function railItems(signedIn: boolean, role?: string | null): RailItem[] {
     { href: '/browse', label: 'Browse', icon: 'compass' },
     { href: '/sets', label: 'Library', icon: 'library' },
     { href: '/sets/new', label: 'New set', icon: 'plus' },
+    { href: '/groups', label: 'Groups', icon: 'users' },
   ]
   // A signed-out visitor never sees it regardless of role — there is no role
   // without a session, and the early return above already guarantees that.
