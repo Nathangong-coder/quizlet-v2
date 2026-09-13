@@ -61,6 +61,7 @@ Offer only these relation types: ${RELATABLE_TYPES.join(', ')}. Do not use any o
 
 Output JSON:
 { "relations": [ { "from": number, "to": number, "type": string, "provenance": "perturbation" | "order_violation" | "substitution", "rationale": string, "probe": string } ] }
+"rationale" and "probe" are each ONE sentence, at most 25 words.
 "from"/"to" are the [index] numbers above.`;
   },
 };

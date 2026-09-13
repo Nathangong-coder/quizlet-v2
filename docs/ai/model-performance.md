@@ -677,3 +677,43 @@ is 4.4x the grading line (≈ +$0.02/card); bare GLM 5.3 as the writer is ~9x th
 (0.60 substance) and 0.31 on three runs of the same configuration in one evening; that spread
 is larger than most effects measured here, so any new check has to be judged over repeated
 runs, not one.
+
+### The cost cuts, measured (2026-09-13, same two M&A cards, off-peak)
+
+Five changes, all on the owner's read of the first metered table, then the same pair
+re-run (`--dry-run --force --rebuild`, GLM `high` writes, DeepSeek does the rest, strict):
+
+1. **`confident_wrong` cut** (`PROBE_KINDS` is now `vague`, `memorized_template`; the old
+   kind survives as `LEGACY_PROBE_KINDS` for stored rows). It scored 0.00-0.19 on every run
+   in this file and never set the best-wrong bar.
+2. **Incremental regrading** (`src/lib/klp/regrade-plan.ts`): a revision round carries every
+   verdict on a point whose text did not change, grades only the rewritten points per kept
+   candidate (one short call each), rewrites only the trap that beat the last set (credited
+   on a substance point, or the best wrong answer under an uncleared bar) and grades that
+   one in full. The reference is "adjusted" the same way — carried plus partial.
+3. **Grader evidence only off a `correct` verdict, one clause** (grade-candidate v2, coverage);
+   relate rationale/probe capped at a sentence. No computation reads any of these strings.
+4. **Prefix order for the DeepSeek cache**: shared part first, candidate answer last.
+5. **`KLP_AUTHOR_BATCH`**: N cards per writer call, drafts cached and served per card.
+   Plus **one immediate retry on a malformed reply** — before this, one bad JSON ten calls
+   into a card restarted the whole card ("trying another model" with one combo in the pool).
+
+```
+                     baseline (2026-09-13 06:28)      after (2026-09-13)
+calls                       37                          33
+input / cached          48,434 / 13,696            36,062 / 10,752
+output (reasoning)      21,628 (1,827)             11,866 (1,993)
+grade calls / output    20 / 9,860 → $0.0087       15 / 2,300 → $0.0031
+author                  2 calls  → $0.0029         1 batch call → $0.0026
+TOTAL                   $0.0178  ($0.0089/card)    $0.0105  ($0.0053/card)   −41%
+```
+
+Where it came from: grade output −77% (the evidence rule), grade calls −25% (two traps,
+partial regrades), author input shared across the pair. The batch call itself is a small
+saving — a card's own content is most of an author prompt — and GLM's batch reply failed the
+schema once in three tries, which the retry now absorbs. Quality on the pair: separation
+0.92 / 0.67, coverage 1.00 / 0.69, parity 0.91 / 0.81, both `separated`; the same-card
+variance recorded above still applies, so read the cost column, not the quality column.
+
+Peak-hour warning: the script now prints a notice when a DeepSeek run starts inside Mon-Fri
+01-04 / 06-10 UTC (2x the off-peak rate).

@@ -1,0 +1,607 @@
+{
+  "setId": "cmtfewhjv000004jr901uq6eo",
+  "skip": 0,
+  "outcomes": [
+    {
+      "cardId": "cmtffeya8000g04i9mgzafc6r",
+      "term": "What are 2 ways an acquisition can create value (not accretion necessarily) for acquirers’ shareholders?\n",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=2]",
+      "outcome": {
+        "referenceAnswer": "Creating value for the acquirer's shareholders means the deal actually increases the acquirer's intrinsic worth — the cash flows and assets the shareholders now control exceed what they paid. That is an economic test, and it is deliberately different from accretion, which is just an accounting statement about EPS. The first way an acquisition creates value is value arbitrage: buying an asset for less than its net asset value, its intrinsic value. If a target's assets are truly worth $100 million and you acquire them for $85 million, that $15 million gap belongs to the acquirer's shareholders even if the target never performs any better — you simply paid less than what you got. This is why acquirers hunt for targets trading below intrinsic value in public markets, or sellers in distress who must transact at a discount. The second way is synergies: the two businesses combined are worth more than they are apart. Cost synergies come from eliminating overlapping headcount, combining procurement, and consolidating facilities; revenue synergies come from cross-selling, wider distribution, and pricing power. The critical caveat is that synergies create value only net of what you pay for them: the present value of the synergies must exceed the control premium paid plus the costs to achieve them, like restructuring and integration spend. So the two levers are capturing the gap between price and NAV, and synergies that survive the premium and execution costs — economics, not accounting accretion.",
+        "klps": [
+          {
+            "text": "Value creation for shareholders means the deal increases the acquirer's intrinsic worth — an economic test that is distinct from EPS accretion, which is only an accounting outcome",
+            "kind": "definition",
+            "weight": 5,
+            "role": "substance"
+          },
+          {
+            "text": "The first way is value arbitrage: acquiring the target for less than its net asset value, so the acquirer pays less than the intrinsic value of what it receives",
+            "kind": "definition",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "The arbitrage gap accrues to shareholders even if the target never improves — buying assets worth $100 million for $85 million captures $15 million — which is why acquirers seek targets mispriced by the market or sold under distress",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The second way is synergies: the combination is worth more than the two firms apart because of identifiable improvements such as cost savings from overlapping headcount, shared procurement, and consolidated facilities, or revenue gains from cross-selling and wider distribution",
+            "kind": "definition",
+            "weight": 1,
+            "role": "substance"
+          },
+          {
+            "text": "Synergies create value only when their present value exceeds the control premium paid plus the one-time costs to achieve them, such as restructuring and integration spend — the deal must clear both hurdles, not merely be expected to produce synergies",
+            "kind": "condition",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "So an acquisition creates value through either capturing the gap between price and NAV or through synergies that survive the premium and execution costs — an economic result, not necessarily accretion",
+            "kind": "causal",
+            "weight": 3,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "An acquisition can create value in a few different ways, and it really depends on the situation. Generally, when you combine two companies, you can get benefits from doing things more efficiently and from being able to offer more to customers. There’s also the idea that you might be able to buy something for a good price, which can be beneficial for shareholders. Overall, it’s about making the combined entity better off than it would be otherwise, but the specifics vary from deal to deal.",
+            "score": 0.08333333333333333,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "omission",
+              "3": "incomplete",
+              "4": "omission",
+              "5": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "First, acquisitions create value through synergies, which are the cost savings and revenue enhancements that come from combining two businesses. Second, they create value through accretion, which is when the deal increases the acquirer's earnings per share. A good acquisition typically has both synergies and accretion, and these are the two main ways shareholders benefit. The key is to make sure the synergies are real and that accretion is achieved in the first year. So synergies and accretion are the two primary value drivers.",
+            "score": 0.08333333333333333,
+            "verdicts": {
+              "0": "contradicted",
+              "1": "omission",
+              "2": "omission",
+              "3": "partial",
+              "4": "omission",
+              "5": "contradicted"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 0,
+            "to": 1,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "Value arbitrage only counts as shareholder value creation under the economic test that separates intrinsic worth from EPS accretion.",
+            "probe": "Learner says buying $100M NAV for $85M creates value but justifies it by saying the deal is EPS accretive."
+          },
+          {
+            "from": 4,
+            "to": 3,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Synergies cannot count as a value-creation mechanism unless their present value exceeds premium plus integration costs.",
+            "probe": "Learner lists cost and revenue synergies as value creation but never subtracts the control premium or one-time integration costs."
+          },
+          {
+            "from": 0,
+            "to": 4,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "The premium-plus-costs hurdle is only the right test because value creation means intrinsic worth, not accounting accretion.",
+            "probe": "Learner applies the premium-plus-costs hurdle but then treats any accretive deal as passing it."
+          },
+          {
+            "from": 1,
+            "to": 2,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "The arbitrage gap exists because price below NAV lets the discount accrue to shareholders without target improvement.",
+            "probe": "Learner says arbitrage creates value only if the target is later improved, denying that the $15M gap alone accrues."
+          },
+          {
+            "from": 2,
+            "to": 4,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Learners conflate a NAV discount (arbitrage) with synergies needing to beat premium plus costs, two distinct hurdles.",
+            "probe": "Learner says an $85M price for $100M NAV creates value because the $15M discount exceeds the control premium."
+          }
+        ],
+        "relationStats": {
+          "candidates": 6,
+          "accepted": 5,
+          "droppedForCycles": 1,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.9166666666666666,
+        "substanceSeparation": 0.9166666666666666,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [],
+        "targetKlpCount": 4,
+        "concerns": [
+          "The card states value arbitrage is 'purchase price > NAV'. That appears reversed: arbitrage for the acquirer means paying LESS than the target's NAV — buying above NAV destroys value. The reference answer uses the 'below NAV' framing; the owner should correct the card."
+        ],
+        "revisionReasons": [
+          "separation 0.50 does not clear the 0.60 bar; [4] accepted by the memorized_template answer",
+          "[4] accepted by the memorized_template answer"
+        ],
+        "questionType": "enumerate",
+        "rebuild": {
+          "rebuiltAnswer": "Value creation for shareholders means the deal increases the acquirer's intrinsic worth—an economic test that is distinct from EPS accretion, which is only an accounting outcome. The first way is value arbitrage: acquiring the target for less than its net asset value, so the acquirer pays less than the intrinsic value of what it receives. The arbitrage gap accrues to shareholders even if the target never improves—buying assets worth $100 million for $85 million captures $15 million—which is why acquirers seek targets mispriced by the market or sold under distress. The second way is synergies: the combination is worth more than the two firms apart because of identifiable improvements such as cost savings from overlapping headcount, shared procurement, and consolidated facilities, or revenue gains from cross-selling and wider distribution. Synergies create value only when their present value exceeds the control premium paid plus the one-time costs to achieve them, such as restructuring and integration spend—the deal must clear both hurdles, not merely be expected to produce synergies. So an acquisition creates value through either capturing the gap between price and NAV or through synergies that survive the premium and execution costs—an economic result, not necessarily accretion.",
+          "cardCoverage": 1,
+          "referenceParity": 0.9090909090909091,
+          "extractionLoss": 0.09090909090909094,
+          "clearsBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct"
+            },
+            {
+              "index": 1,
+              "verdict": "correct"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "Creating value for acquirer's shareholders means the deal increases the acquirer's intrinsic worth — the cash flows and assets the shareholders now control exceed what they paid.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "This economic test is deliberately different from accretion, which is just an accounting statement about EPS.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The first value-creation way is value arbitrage: buying an asset for less than its net asset value / intrinsic value.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Illustration: if a target's assets are truly worth $100 million and you acquire them for $85 million, the $15 million gap belongs to the acquirer's shareholders even if the target never performs any better.",
+              "verdict": "present"
+            },
+            {
+              "claim": "This is why acquirers hunt for targets trading below intrinsic value in public markets, or sellers in distress who must transact at a discount.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The second value-creation way is synergies: the two businesses combined are worth more than they are apart.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Cost synergies come from eliminating overlapping headcount, combining procurement, and consolidating facilities.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Revenue synergies come from cross-selling, wider distribution, and pricing power.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Critical caveat: synergies create value only net of what you pay for them — the present value of the synergies must exceed the control premium paid plus the costs to achieve them.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Costs to achieve synergies include restructuring and integration spend.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The two levers are (1) capturing the gap between price and NAV, and (2) synergies that survive the premium and execution costs — economics, not accounting accretion.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "First way an acquisition creates value: \"Value Arbitrage\" — the relationship between purchase price and NAV",
+            "Second way: synergies"
+          ]
+        }
+      }
+    },
+    {
+      "cardId": "cmtgesf36005004jvh65aos7r",
+      "term": "Walk me through the sell-side M&A process, including key documents (8 steps)\n",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=2]",
+      "outcome": {
+        "referenceAnswer": "The sell-side M&A process is the staged competitive auction an advisor runs on behalf of a selling company, designed to maximize price and certainty of closing. Step one is planning the process: we prepare the legal due diligence materials and write the two key marketing documents — the teaser, a one-to-two page anonymous summary, and the CIM, the full confidential information memorandum. Here we frame the company's competitive positioning, emphasizing its brand and customer reputation. Step two is marketing: we send teasers out to prospective buyers, both strategics and financial sponsors, and distribute the full CIM only after a buyer signs an NDA. As part of marketing, we underwrite the business ourselves — analyzing CapEx requirements, historical and projected cash flows, and working capital trends — so we can defend our valuation. Step three is initial bids: buyers submit letters of intent, and we evaluate each bid on both price and certainty of closing — can this buyer actually finance and get approvals for the deal? Step four is management presentations: the shortlisted buyers meet the management team and get access to the data room for deeper diligence. Step five is final bids: buyers submit binding LOIs and drafts of the purchase agreement, and their numbers are now grounded in normalized financials — quality of earnings, sustainable CapEx, normalized working capital, and normalized free cash flow. Step six is negotiations: we finalize the purchase agreement, hammering out reps and warranties and the risk allocation between buyer and seller. Step seven is signing: both parties execute the definitive purchase agreement. Step eight is closing: the parties obtain regulatory approvals, the buyer funds the transaction, and the process ends with cash delivered to shareholders and a change of control.",
+        "klps": [
+          {
+            "text": "The sell-side process is a staged, competitive auction an advisor runs to sell a company, designed to maximize both price and certainty of closing",
+            "kind": "definition",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "In planning, the advisor collects and organizes the legal due diligence materials and drafts the marketing documents",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The marketing materials are a 1-2 page anonymous teaser (which does not name the company) and the full CIM, which positions the company's brand and customer reputation",
+            "kind": "definition",
+            "weight": 1,
+            "role": "substance"
+          },
+          {
+            "text": "In marketing, teasers go out to prospective buyers, and the full CIM is distributed only after the buyer signs an NDA",
+            "kind": "condition",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "As part of marketing, the bank underwrites the business itself — analyzing CapEx requirements, historical and projected cash flows, and working capital trends — so it can defend its valuation to bidders",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "In initial bids, buyers submit letters of intent, and each bid is judged on two dimensions: price and certainty of closing, meaning whether the buyer can actually finance and approve the deal",
+            "kind": "contrast",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Shortlisted buyers then attend management presentations, where they meet the management team and gain access to the data room",
+            "kind": "definition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "In final bids, buyers submit binding LOIs and draft purchase agreements grounded in normalized financials — quality of earnings, sustainable CapEx, normalized working capital, and normalized free cash flow",
+            "kind": "definition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Negotiations finalize the purchase agreement, with reps and warranties hammered out to allocate risk between buyer and seller",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "The sell-side M&A process is all about running a competitive auction to get the best price for the seller. You start by getting the company ready and putting together some marketing materials that tell the story. Then you reach out to potential buyers and get them interested, eventually narrowing it down to the most serious ones. After that, there's a lot of back-and-forth with diligence and negotiations, and finally you sign the deal and work through closing. The key documents are things like the teaser, the CIM, and the purchase agreement, but the exact steps can vary depending on the situation.",
+            "score": 0.16666666666666666,
+            "verdicts": {
+              "0": "partial",
+              "1": "partial",
+              "2": "incomplete",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission",
+              "6": "omission",
+              "7": "omission",
+              "8": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "The sell-side M&A process typically involves eight key steps. First is planning, where you prepare the teaser and CIM. Second is marketing to strategic and financial buyers. Third is receiving initial indications of interest. Fourth is management presentations. Fifth is final bids and binding LOIs. Sixth is negotiations of the purchase agreement. Seventh is signing the definitive agreement. Eighth is closing, which includes regulatory approvals and funding. Key documents include the teaser, CIM, NDA, LOI, and purchase agreement.",
+            "score": 0.3333333333333333,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "incomplete",
+              "3": "incomplete",
+              "4": "omission",
+              "5": "incomplete",
+              "6": "incomplete",
+              "7": "incomplete",
+              "8": "incomplete"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 1,
+            "to": 3,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "Preparing diligence and drafting docs in planning is what makes staged teaser-then-NDA-CIM distribution possible in marketing.",
+            "probe": "An answer listing teaser and CIM distribution but placing all document preparation after buyers sign NDAs—right endpoints, wrong sequencing link."
+          },
+          {
+            "from": 7,
+            "to": 8,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "You cannot hammer out reps and warranties allocating risk without the normalized financials from the binding LOIs already in hand.",
+            "probe": "An answer negotiating reps and warranties first, then asking for normalizations—both right, but treating normalization as downstream of negotiation."
+          },
+          {
+            "from": 5,
+            "to": 7,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "Screening initial bids on price and financing certainty is what funnels the shortlist whose final binding LOIs are grounded in normalized financials.",
+            "probe": "An answer describing initial bids and final normalized LOIs but claiming every initial bidder submits a binding normalized LOI without a screening step."
+          },
+          {
+            "from": 6,
+            "to": 7,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "Final binding LOIs grounded in normalized financials only make sense for buyers who already got data-room access via management presentations.",
+            "probe": "An answer describing binding normalized LOIs without noting buyers needed the data room, as if due diligence access were irrelevant to normalizing financials."
+          },
+          {
+            "from": 2,
+            "to": 3,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Learners conflate the teaser/CIM distribution rule with the teaser/CIM document description, swapping content for gating.",
+            "probe": "An answer correctly saying CIM follows NDA but describing the teaser as the full branded document and the CIM as the anonymous one-pager."
+          }
+        ],
+        "relationStats": {
+          "candidates": 5,
+          "accepted": 5,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.6666666666666667,
+        "substanceSeparation": 0.6666666666666667,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 1,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [],
+        "targetKlpCount": 9,
+        "concerns": [],
+        "revisionReasons": [
+          "[8] compound"
+        ],
+        "questionType": "walkthrough",
+        "rebuild": {
+          "rebuiltAnswer": "The sell-side process is a staged, competitive auction that an advisor runs to sell a company, designed to maximize both price and certainty of closing. In planning, the advisor collects and organizes the legal due diligence materials and drafts the marketing documents. The marketing materials are a 1-2 page anonymous teaser, which does not name the company, and the full CIM, which positions the company's brand and customer reputation. In marketing, teasers go out to prospective buyers, and the full CIM is distributed only after the buyer signs an NDA. As part of marketing, the bank underwrites the business itself — analyzing CapEx requirements, historical and projected cash flows, and working capital trends — so it can defend its valuation to bidders. In initial bids, buyers submit letters of intent, and each bid is judged on two dimensions: price and certainty of closing, meaning whether the buyer can actually finance and approve the deal. Shortlisted buyers then attend management presentations, where they meet the management team and gain access to the data room. In final bids, buyers submit binding LOIs and draft purchase agreements grounded in normalized financials — quality of earnings, sustainable CapEx, normalized working capital, and normalized free cash flow. Negotiations finalize the purchase agreement, with reps and warranties hammered out to allocate risk between buyer and seller.",
+          "cardCoverage": 0.6875,
+          "referenceParity": 0.8055555555555556,
+          "extractionLoss": 0.19444444444444442,
+          "clearsBar": false,
+          "missingPoints": [
+            6,
+            7
+          ],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "partial",
+              "evidence": "emphasizing competitive positioning not stated; brand and customer reputation covered"
+            },
+            {
+              "index": 1,
+              "verdict": "correct"
+            },
+            {
+              "index": 2,
+              "verdict": "correct"
+            },
+            {
+              "index": 3,
+              "verdict": "correct"
+            },
+            {
+              "index": 4,
+              "verdict": "correct"
+            },
+            {
+              "index": 5,
+              "verdict": "correct"
+            },
+            {
+              "index": 6,
+              "verdict": "missing",
+              "evidence": "no mention of signing or executing a definitive purchase agreement"
+            },
+            {
+              "index": 7,
+              "verdict": "missing",
+              "evidence": "no mention of closing, regulatory approval, or funding the transaction"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "The sell-side M&A process is a staged competitive auction an advisor runs on behalf of a selling company.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The process is designed to maximize price and certainty of closing.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step one is planning the process: prepare the legal due diligence materials.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step one includes writing the two key marketing documents — the teaser and the CIM.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The teaser is a one-to-two page anonymous summary.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The CIM is the full confidential information memorandum.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "In planning, frame the company's competitive positioning, emphasizing its brand and customer reputation.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Step two is marketing: send teasers out to prospective buyers, both strategics and financial sponsors.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Distribute the full CIM only after a buyer signs an NDA.",
+              "verdict": "present"
+            },
+            {
+              "claim": "As part of marketing, underwrite the business ourselves — analyzing CapEx requirements, historical and projected cash flows, and working capital trends — so we can defend our valuation.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step three is initial bids: buyers submit letters of intent.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Evaluate each bid on both price and certainty of closing — can this buyer actually finance and get approvals for the deal?",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step four is management presentations: the shortlisted buyers meet the management team and get access to the data room for deeper diligence.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step five is final bids: buyers submit binding LOIs and drafts of the purchase agreement.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Final bids are grounded in normalized financials — quality of earnings, sustainable CapEx, normalized working capital, and normalized free cash flow.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step six is negotiations: finalize the purchase agreement, hammering out reps and warranties and the risk allocation between buyer and seller.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step seven is signing: both parties execute the definitive purchase agreement.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Step eight is closing: the parties obtain regulatory approvals, the buyer funds the transaction, and the process ends with cash delivered to shareholders and a change of control.",
+              "verdict": "absent"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Plan the process — prepare legal due diligence, create the teaser and CIM, emphasizing competitive positioning, brand, and customer reputation",
+            "Marketing — distribute the CIM only after an NDA is signed; send teasers to prospective buyers; analyze CapEx requirements, historical/projected cash flows, and working capital trends",
+            "Initial bids — LOIs, evaluated on price plus certainty of closing",
+            "Management presentations — buyers meet management and see the data room",
+            "Final bids — submit LOIs / purchase agreement drafts based on normalized financials: QoE, sustainable CapEx, working capital, normalized FCF",
+            "Negotiations — finalize the purchase agreement, negotiate reps and warranties",
+            "Signing — execute a definitive purchase agreement",
+            "Closing — obtain regulatory approval and fund the transaction"
+          ]
+        }
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "step": "adversaries",
+      "model": "deepseek-v4-flash",
+      "calls": 4,
+      "input": 2654,
+      "output": 780,
+      "reasoning": 0,
+      "cached": 896
+    },
+    {
+      "step": "author-batch",
+      "model": "glm-5.3-flash",
+      "calls": 1,
+      "input": 2135,
+      "output": 4483,
+      "reasoning": 1993,
+      "cached": 0
+    },
+    {
+      "step": "classify",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 1645,
+      "output": 218,
+      "reasoning": 0,
+      "cached": 512
+    },
+    {
+      "step": "coverage",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 2039,
+      "output": 275,
+      "reasoning": 0,
+      "cached": 256
+    },
+    {
+      "step": "grade",
+      "model": "deepseek-v4-flash",
+      "calls": 15,
+      "input": 19366,
+      "output": 2300,
+      "reasoning": 0,
+      "cached": 7808
+    },
+    {
+      "step": "parity",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 1866,
+      "output": 1149,
+      "reasoning": 0,
+      "cached": 0
+    },
+    {
+      "step": "rebuild",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 1027,
+      "output": 532,
+      "reasoning": 0,
+      "cached": 0
+    },
+    {
+      "step": "relate",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 2231,
+      "output": 1045,
+      "reasoning": 0,
+      "cached": 256
+    },
+    {
+      "step": "revise",
+      "model": "deepseek-v4-flash",
+      "calls": 3,
+      "input": 3099,
+      "output": 1084,
+      "reasoning": 0,
+      "cached": 1024
+    }
+  ]
+}

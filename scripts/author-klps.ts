@@ -1,12 +1,13 @@
 import { resolveLanguageModel} from '../src/lib/ai/providers'
-import { generateText, Output } from 'ai'
+import { generateText, Output, NoObjectGeneratedError } from 'ai'
 import type { z } from 'zod'
 import { prisma } from '../src/lib/db'
 import { generateJson, generateJsonWithMeta } from '../src/lib/ai/generate'
-import { authorCard, type AuthoringGenerator, type AuthoringOutcome } from '../src/lib/klp/authoring'
+import { authorCard, authorMinKlps, type AuthoringGenerator, type AuthoringOutcome, type AuthorResult } from '../src/lib/klp/authoring'
 import { writeFileSync } from 'node:fs'
 import { persistAuthoring } from '../src/lib/klp/authoring-persist'
-import { AUTHOR_KLPS_PROMPT } from '../src/lib/ai/prompts/author-klps'
+import { AUTHOR_KLPS_PROMPT, AUTHOR_KLPS_BATCH_PROMPT } from '../src/lib/ai/prompts/author-klps'
+import { isDeepSeekPeak } from '../src/lib/klp/token-meter'
 import { GRADE_CANDIDATE_PROMPT } from '../src/lib/ai/prompts/grade-candidate'
 import { REVISE_KLPS_PROMPT } from '../src/lib/ai/prompts/revise-klps'
 import { RELATE_KLPS_PROMPT } from '../src/lib/ai/prompts/relate-klps'
@@ -194,6 +195,16 @@ const GRADE_STRICT = (process.env.KLP_GRADE_STRICT ?? '').toLowerCase() === 'tru
 /** One meter for the whole run; printed at the end and written to --json. */
 const METER = new TokenMeter()
 
+/**
+ * KLP_AUTHOR_BATCH (2026-09-13, cost item 4): author up to N cards per writer
+ * call. Drafts are cached here by card content and served to `author`; a
+ * card whose draft the batch reply did not carry falls back to a single call.
+ * 1 (default) is the old behaviour.
+ */
+const AUTHOR_BATCH = Math.max(1, Math.min(10, Number(process.env.KLP_AUTHOR_BATCH ?? '1') || 1))
+const DRAFTS = new Map<string, AuthorResult>()
+const draftKey = (question: string, definition: string) => `${question}\u0000${definition}`
+
 function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectCombo, adversaryCombo?: DirectCombo, rebuildTest = false): AuthoringGenerator {
   // KLP_ADVERSARIES_WITH=grader: in the two-pool split, the grader combo also
   // writes the traps with the independent prompt (question + reference only),
@@ -233,12 +244,23 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
         // that is the entire day's budget burned retrying a wall. It also
         // delayed classification: the daily-quota halt cannot fire until the
         // error surfaces, and the SDK swallowed the first two.
-        const res = await generateText({
-          model: who === 'writer' ? writerModel : who === 'adversary' && adversaryModel ? adversaryModel : languageModel,
-          prompt,
-          output: Output.object({ schema }),
-          maxRetries: 0,
-        })
+        const model = who === 'writer' ? writerModel : who === 'adversary' && adversaryModel ? adversaryModel : languageModel
+        const attempt = () => generateText({ model, prompt, output: Output.object({ schema }), maxRetries: 0 })
+        let res: Awaited<ReturnType<typeof attempt>>
+        try {
+          res = await attempt()
+        } catch (err) {
+          // ONE immediate retry on a malformed reply (2026-09-13). A structured-
+          // output failure used to fail the CARD — "trying another model" — and
+          // with one combo in the pool that re-ran every call the card had
+          // already spent (a sell-side card lost ~10 grades to one bad JSON).
+          // The reply is stochastic; the same prompt almost always parses on
+          // the second try, and one call is cheaper than a card.
+          if (!NoObjectGeneratedError.isInstance(err)) throw err
+          console.log(`[author-klps] ${step} on ${target.model}: malformed reply (${err.finishReason ?? 'no finish reason'}); retrying once`)
+          await pacer.waitTurn()
+          res = await attempt()
+        }
         // Metered on success only; a failed attempt's usage is not reported
         // by the SDK, so the meter understates retries — say so when reading it.
         METER.add(step, target.model, {
@@ -266,8 +288,13 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
   }
 
   return {
-    author: (input) =>
-      call(
+    author: async (input) => {
+      const cached = DRAFTS.get(draftKey(input.question, input.definition))
+      if (cached) {
+        DRAFTS.delete(draftKey(input.question, input.definition))
+        return cached
+      }
+      return call(
         AUTHOR_KLPS_PROMPT.build({
           setTitle: input.setTitle,
           term: input.question,
@@ -277,6 +304,17 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
         AUTHOR_KLPS_PROMPT.schema,
         'writer',
         'author',
+      )
+    },
+    authorBatch: (input) =>
+      call(
+        AUTHOR_KLPS_BATCH_PROMPT.build({
+          setTitle: input.setTitle,
+          cards: input.cards.map((c) => ({ ref: c.ref, term: c.question, definition: c.definition, minKlps: c.minKlps })),
+        }),
+        AUTHOR_KLPS_BATCH_PROMPT.schema,
+        'writer',
+        'author-batch',
       ),
     grade: (input) => call(GRADE_CANDIDATE_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_CANDIDATE_PROMPT.schema, 'grader', 'grade'),
     // KLP_REVISE_WITH=grader: the bar's revise calls go to the grader combo
@@ -602,6 +640,28 @@ async function main() {
     panelNonMonotonic: 0,
   }
 
+  // The resumability check, memoised so the batch look-ahead and the loop
+  // itself query each card once.
+  const skipCache = new Map<string, boolean>()
+  async function alreadyAuthored(card: (typeof cards)[number]): Promise<boolean> {
+    const hit = skipCache.get(card.id)
+    if (hit !== undefined) return hit
+    let skip = false
+    if (!force && card.klpVersion > 0 && card.klpStatus !== 'failed') {
+      const existing = await prisma.cardAuthoring.findFirst({
+        where: { cardId: card.id, klpVersion: card.klpVersion },
+        select: { id: true },
+      })
+      skip = !!existing
+    }
+    skipCache.set(card.id, skip)
+    return skip
+  }
+
+  if (direct && isDeepSeekPeak(new Date())) {
+    console.log('[author-klps] NOTE: DeepSeek PEAK pricing right now (Mon-Fri 01-04 / 06-10 UTC) — every DeepSeek call costs 2x the off-peak rate.')
+  }
+
   for (let i = 0; i < cards.length; i++) {
     const card = cards[i]
     const n = i + 1
@@ -621,15 +681,9 @@ async function main() {
     // card is marked failed, it is retried rather than silently skipped
     // because some CardAuthoring row happens to exist at its current
     // version.
-    if (!force && card.klpVersion > 0 && card.klpStatus !== 'failed') {
-      const existing = await prisma.cardAuthoring.findFirst({
-        where: { cardId: card.id, klpVersion: card.klpVersion },
-        select: { id: true },
-      })
-      if (existing) {
-        console.log(`${tag} — skipped (already authored at version ${card.klpVersion})`)
-        continue
-      }
+    if (await alreadyAuthored(card)) {
+      console.log(`${tag} — skipped (already authored at version ${card.klpVersion})`)
+      continue
     }
 
     // Try this card on successive key x model combos. A per-DAY quota retires
@@ -689,8 +743,8 @@ async function main() {
         // CardAuthoring.model records the WRITER when roles are split — the
         // key points are its text; the grader is recorded in the run log.
         usedModel = authorCombo ? `${authorCombo.model}+${combo.model}` : combo.model
-        if (authorCombo && (REVISE_WITH_GRADER || ADVERSARIES_WITH_GRADER || GRADE_STRICT)) {
-          usedModel += ` [${[REVISE_WITH_GRADER && 'revise=grader', ADVERSARIES_WITH_GRADER && 'adversaries=grader', GRADE_STRICT && 'strict'].filter(Boolean).join(',')}]`
+        if (authorCombo && (REVISE_WITH_GRADER || ADVERSARIES_WITH_GRADER || GRADE_STRICT || AUTHOR_BATCH > 1)) {
+          usedModel += ` [${[REVISE_WITH_GRADER && 'revise=grader', ADVERSARIES_WITH_GRADER && 'adversaries=grader', GRADE_STRICT && 'strict', AUTHOR_BATCH > 1 && `batch=${AUTHOR_BATCH}`].filter(Boolean).join(',')}]`
         }
         gen = directGenerator(combo, pacer, authorCombo, undefined, rebuildTest)
         console.log(`${tag} — using ${combo.id}${authorCombo ? ` (author ${authorCombo.id})` : ''}`)
@@ -698,6 +752,38 @@ async function main() {
         gen = defaultGenerator(set.userId, (model) => {
           usedModel = model
         })
+      }
+
+      // BATCHED AUTHORING: when this card has no cached draft, write the next
+      // AUTHOR_BATCH unskipped cards in one call and cache their drafts. A
+      // reply missing a card, or failing the schema, leaves those cards to
+      // the single call inside authorCard; a quota halt propagates as usual.
+      if (AUTHOR_BATCH > 1 && gen.authorBatch && !DRAFTS.has(draftKey(card.term, card.definition))) {
+        const group = [card]
+        for (let j = i + 1; j < cards.length && group.length < AUTHOR_BATCH; j++) {
+          if (!(await alreadyAuthored(cards[j]))) group.push(cards[j])
+        }
+        if (group.length > 1) {
+          try {
+            const reply = await gen.authorBatch({
+              setTitle: set.title,
+              cards: group.map((c, ref) => ({ ref, question: c.term, definition: c.definition, minKlps: authorMinKlps({ question: c.term, definition: c.definition }) })),
+            })
+            let served = 0
+            for (const d of reply.cards) {
+              const c = group[d.ref]
+              if (!c) continue
+              const draft: AuthorResult & { ref?: number } = { ...d }
+              delete draft.ref
+              DRAFTS.set(draftKey(c.term, c.definition), draft)
+              served += 1
+            }
+            console.log(`${tag} — batch-authored ${served}/${group.length} cards in one writer call`)
+          } catch (err) {
+            if (err instanceof RunHaltedError) throw err
+            console.log(`${tag} — batch author call failed (${err instanceof Error ? err.message.slice(0, 80) : String(err)}); falling back to single calls`)
+          }
+        }
       }
 
       try {

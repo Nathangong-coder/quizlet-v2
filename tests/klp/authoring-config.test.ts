@@ -76,7 +76,7 @@ describe('authoring config', () => {
     expect(GRADE_CANDIDATES_SEPARATELY).toBe(true)
   })
 
-  it('names exactly the three adversary archetypes', () => {
-    expect(PROBE_KINDS).toEqual(['confident_wrong', 'vague', 'memorized_template'])
+  it('names exactly the two active adversary archetypes (confident_wrong cut 2026-09-13, kept as legacy)', () => {
+    expect(PROBE_KINDS).toEqual(['vague', 'memorized_template'])
   })
 })

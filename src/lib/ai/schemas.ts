@@ -483,6 +483,11 @@ export const AuthorDraftSchema = z.object({
 
 export type AuthorDraft = z.infer<typeof AuthorDraftSchema>;
 
+/** The batched author call: one draft per card, addressed by batch position. */
+export const AuthorDraftBatchSchema = z.object({
+  cards: z.array(AuthorDraftSchema.extend({ ref: z.number().int().min(0) })).min(1),
+});
+
 /**
  * Call B's output: one verdict per KLP for ONE candidate answer. `klpIndex`
  * is a position in the prompt's KLP list, never a cuid — the grader never

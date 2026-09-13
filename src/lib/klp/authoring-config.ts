@@ -107,16 +107,31 @@ export const MAX_KLPS_AUTHORED = 9
 export const GRADE_CANDIDATES_SEPARATELY = true
 
 /**
- * The three adversary archetypes, from the user's specification. Each fails
- * differently on purpose: the confident one is articulate and wrong, the vague
- * one refuses to commit, and the template one has structure with no substance.
+ * The adversary archetypes WRITTEN today. Each fails differently on purpose:
+ * the vague one refuses to commit, the template one has structure with no
+ * substance.
+ *
+ * `confident_wrong` was CUT on 2026-09-13 (owner): across every run recorded
+ * in docs/ai/model-performance.md it scored 0.00-0.19 against the key points
+ * and never once set the best-wrong bar — the separation test is decided by
+ * the template and the vague answer, so the third trap was a grading call per
+ * round that measured nothing. It survives in `LEGACY_PROBE_KINDS` because
+ * every `AuthoringProbe` row written before that date carries it, and
+ * `ProbeKind` must still type those rows when they are read back.
  *
  * `memorized_template` is not only an adversary — it is a ready-made near-miss
  * for the `template_anchoring` diagnosis, generated for free here.
+ *
+ * Weight consequence: `discriminationBreadth` is fails / adversaries, so with
+ * two traps it takes the values 0, 0.5, 1 rather than thirds. The histogram
+ * (`npm run klp-histogram`) is the check that this did not flatten weights.
  */
-export const PROBE_KINDS = ['confident_wrong', 'vague', 'memorized_template'] as const
+export const PROBE_KINDS = ['vague', 'memorized_template'] as const
 
-export type ProbeKind = (typeof PROBE_KINDS)[number]
+/** Kinds no longer written but present on stored rows. */
+export const LEGACY_PROBE_KINDS = ['confident_wrong'] as const
+
+export type ProbeKind = (typeof PROBE_KINDS)[number] | (typeof LEGACY_PROBE_KINDS)[number]
 
 /**
  * How the two weight signals are blended (increment A §1).

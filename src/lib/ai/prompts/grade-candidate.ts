@@ -74,9 +74,25 @@ export const KIND_STRICTNESS_CLAUSE = `Strictness by kind. Each key point is tag
  * graded IS the reference; the KLPs are judged directly against the same
  * text with no "here is the standard" framing to lean on.
  */
+/**
+ * v2 (2026-09-13) — the same judgment, laid out for the bill:
+ *
+ *  - PREFIX ORDER. Everything shared across a card's grading calls (question,
+ *    key points, verdict vocabulary, strictness) comes FIRST and the candidate
+ *    answer LAST, so DeepSeek's prefix cache hits on the whole shared part.
+ *    A cache hit is billed at 1/50th of a miss; before this the candidate sat
+ *    in the middle and nothing after it ever cached. The reference block sits
+ *    just before the candidate, so the self-graded call (which omits it)
+ *    still shares the prefix up to that point.
+ *  - EVIDENCE ONLY WHERE IT SAYS SOMETHING. Output tokens are 4x the price
+ *    of input and the grader's evidence strings were a third of a card's
+ *    whole bill (docs/ai/model-performance.md, "What a card costs") while no
+ *    computation reads them. A `correct` verdict now carries no evidence; the
+ *    others carry one clause.
+ */
 export const GRADE_CANDIDATE_PROMPT = {
   id: 'grade-candidate',
-  version: 1,
+  version: 2,
   schema: CandidateGradeSchema,
 
   build(input: GradeCandidateBuildInput): string {
@@ -97,11 +113,8 @@ ${input.referenceAnswer}
 
 Question: ${input.question}
 
-${referenceBlock}Key Learning Points:
+Key Learning Points:
 ${klps}
-
-Candidate's answer:
-${input.candidateAnswer}
 
 For each KLP above, decide whether the candidate's answer supports it. Choose exactly one verdict per KLP from this vocabulary:
 ${KLP_VERDICTS.join(', ')}
@@ -110,6 +123,9 @@ Use "correct" when the answer clearly states the point. Use "omission" when the 
 
 Output JSON:
 { "verdicts": [ { "klpIndex": number, "verdict": string, "evidence": string } ] }
-One entry per KLP, referencing it by its [index] above.${input.strict ? `\n\n${STRICT_GRADING_CLAUSE}${showKinds ? `\n\n${KIND_STRICTNESS_CLAUSE}` : ''}` : ''}`;
+One entry per KLP, referencing it by its [index] above. "evidence" is ONE short clause (at most 15 words) quoting or naming what in the answer decided the verdict; OMIT it entirely when the verdict is "correct".${input.strict ? `\n\n${STRICT_GRADING_CLAUSE}${showKinds ? `\n\n${KIND_STRICTNESS_CLAUSE}` : ''}` : ''}
+
+${referenceBlock}Candidate's answer:
+${input.candidateAnswer}`;
   },
 };

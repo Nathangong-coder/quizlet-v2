@@ -18,6 +18,11 @@ graded without that clause and are comparable only to each other. **Queued from 
 the writer's `definitionPoints` split can sanitise a card's error (it rewrote "price > NAV" as
 "price that differs from worth"), which blinds the dispute channel — make the split quote the
 card verbatim, or hand the coverage grader the raw definition too.
+**2026-09-13 cost pass (owner):** `confident_wrong` cut (two traps), incremental regrading
+(`src/lib/klp/regrade-plan.ts`), evidence-only-on-miss grading, cache-ordered grade prompt,
+`KLP_AUTHOR_BATCH`, one retry on a malformed reply — $0.0089 → $0.0053 a card off-peak.
+`scripts/author-klps.ts` prints a per-step token/USD table at the end of every run. Author
+prompt is v4, grade prompt v2. Stored M&A rows were authored on v3 with three traps.
 
 1. **Write the merged topics that already exist** (13 cards; applies the write step,
    `docs/superpowers/specs/2026-09-12-topic-minting-write-step-design.md`). The

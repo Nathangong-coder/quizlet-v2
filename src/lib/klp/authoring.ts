@@ -23,6 +23,7 @@ import {
   type SeparationResult,
 } from '@/lib/klp/separation'
 import { FRAMING_PROBE, classifyPointRoles, substanceSeparation, type PointRole } from '@/lib/klp/framing'
+import { carryVerdicts, mergePartial, trapsToReplace } from '@/lib/klp/regrade-plan'
 import { validateKlpSet, type KlpDefect } from '@/lib/klp/validate'
 import { toOrderedLevels, type AbstractionLevel } from '@/lib/klp/abstraction'
 import {
@@ -167,7 +168,14 @@ export interface AuthoringGenerator {
    * its output REPLACES `draft.wrongAnswers`. Optional so every existing
    * generator and test is unchanged.
    */
-  writeAdversaries?(input: { question: string; referenceAnswer: string }): Promise<{ wrongAnswers: { kind: ProbeKind; text: string }[] }>
+  writeAdversaries?(input: { question: string; referenceAnswer: string; kinds?: readonly ProbeKind[] }): Promise<{ wrongAnswers: { kind: ProbeKind; text: string }[] }>
+  /**
+   * The batched author call (2026-09-13). OPTIONAL and never called by
+   * `authorCard` — the operator script pre-authors a group of cards with it
+   * and serves the drafts to `author` from a cache, so the per-card
+   * orchestration is unchanged. `ref` is the position in `cards`.
+   */
+  authorBatch?(input: { setTitle: string; cards: { ref: number; question: string; definition: string; minKlps: number }[] }): Promise<{ cards: (AuthorResult & { ref: number })[] }>
   /**
    * The rebuild test (spec 2026-09-12-rebuild-test-design.md). All three
    * optional together: a generator without them produces an outcome without
@@ -359,6 +367,51 @@ async function gradeAllCandidates(
   return Promise.all(candidates.map(gradeOne))
 }
 
+/**
+ * A revision round's grading (src/lib/klp/regrade-plan.ts): carry every
+ * verdict on an unchanged point, grade only the new or rewritten points for
+ * each kept candidate, and grade a replaced trap in full. Candidates are
+ * matched to their previous grade by kind — one of each by construction.
+ */
+async function regradeIncrementally(
+  base: { question: string; referenceAnswer: string; klps: { text: string; kind: string }[] },
+  previousKlps: { text: string }[],
+  previous: GradedCandidate[],
+  candidates: { kind: 'reference' | ProbeKind; text: string }[],
+  replaced: ReadonlySet<string>,
+  gen: AuthoringGenerator,
+): Promise<GradedCandidate[]> {
+  const out: GradedCandidate[] = []
+  for (const c of candidates) {
+    const prev = previous.find((g) => g.kind === c.kind)
+    if (!prev || replaced.has(c.kind) || prev.text !== c.text) {
+      out.push(...(await gradeAllCandidates(base, [c], gen)))
+      continue
+    }
+    const carried = carryVerdicts(previousKlps, prev.verdicts, base.klps)
+    if (carried.pending.length === 0) {
+      out.push({ kind: c.kind, text: c.text, verdicts: carried.verdicts as KlpVerdict[] })
+      continue
+    }
+    // The partial call carries the SAME key set as a full one (the isolation
+    // guard pins it); only the KLP list is shorter.
+    const result = await gen.grade({
+      question: base.question,
+      referenceAnswer: base.referenceAnswer,
+      klps: carried.pending.map((i) => ({ text: base.klps[i].text, kind: base.klps[i].kind })),
+      candidateAnswer: c.text,
+    })
+    out.push({ kind: c.kind, text: c.text, verdicts: mergePartial(carried.verdicts, carried.pending, result.verdicts) })
+  }
+  return out
+}
+
+/** The sizing floor the author call states — computed here so a batched pre-pass sizes cards identically. */
+export function authorMinKlps(input: { question: string; definition: string }): number {
+  const prior = mechanicalKlpPrior({ question: input.question, definition: input.definition })
+  return Math.max(prior, targetKlpCount({ prior }))
+}
+
 export async function authorCard(
   input: {
     question: string
@@ -384,7 +437,7 @@ export async function authorCard(
   // only raise the target. Both are combined in TypeScript — the model never
   // states a total, for the same reason it never states a weight.
   const prior = mechanicalKlpPrior({ question: input.question, definition: input.definition })
-  const draft = await gen.author({ ...input, minKlps: Math.max(prior, targetKlpCount({ prior })) })
+  const draft = await gen.author({ ...input, minKlps: authorMinKlps(input) })
   const target = targetKlpCount({ prior, points: draft.definitionPoints })
   const concerns = draft.concerns ?? []
   if (gen.writeAdversaries) {
@@ -424,6 +477,11 @@ export async function authorCard(
   let substance: SeparationResult
   let roles: PointRole[] = []
   let wrong: GradedCandidate[]
+  // Incremental regrading state: last round's grades and points, and the
+  // traps the last round decided to rewrite before this one.
+  let graded: GradedCandidate[] | undefined
+  let previousKlps: { text: string }[] = []
+  let replaceKinds: ProbeKind[] = []
   // Kept out of the loop so the FINAL iteration's reference verdicts survive
   // it. They were computed on every pass and discarded on every pass, which
   // made any per-KLP information measure uncomputable after the fact: the
@@ -479,15 +537,37 @@ export async function authorCard(
         : draft.wrongAnswers.map((w) => ({ kind: w.kind, text: w.text }))),
     ]
 
-    const graded = await gradeAllCandidates(
-      {
-        question: input.question,
-        referenceAnswer: draft.referenceAnswer,
-        klps: klps.map((k) => ({ text: k.text, kind: k.kind })),
-      },
-      candidates,
-      gen,
-    )
+    const base = {
+      question: input.question,
+      referenceAnswer: draft.referenceAnswer,
+      klps: klps.map((k) => ({ text: k.text, kind: k.kind })),
+    }
+    if (!graded) {
+      graded = await gradeAllCandidates(base, candidates, gen)
+    } else {
+      // A trap that beat the last set is rewritten (same kind, fresh answer)
+      // when an independent adversary writer exists; otherwise it is kept and
+      // partially regraded like everything else. Best-effort: a failed write
+      // keeps the old trap rather than failing the card.
+      const replaced = new Set<string>()
+      if (replaceKinds.length > 0 && gen.writeAdversaries && !panel) {
+        try {
+          const fresh = await gen.writeAdversaries({ question: input.question, referenceAnswer: draft.referenceAnswer, kinds: replaceKinds })
+          for (const w of fresh.wrongAnswers) {
+            if (!replaceKinds.includes(w.kind)) continue
+            const slot = candidates.findIndex((c) => c.kind === w.kind)
+            if (slot < 0) continue
+            candidates[slot] = { kind: w.kind, text: w.text }
+            draft.wrongAnswers = draft.wrongAnswers.map((x) => (x.kind === w.kind ? { kind: w.kind, text: w.text } : x))
+            replaced.add(w.kind)
+          }
+        } catch {
+          // keep the previous traps
+        }
+      }
+      graded = await regradeIncrementally(base, previousKlps, graded, candidates, replaced, gen)
+    }
+    previousKlps = klps.map((k) => ({ text: k.text }))
 
     const referenceGrade: CandidateGrade = { kind: 'reference', verdicts: graded[0].verdicts }
     referenceVerdicts = graded[0].verdicts
@@ -532,6 +612,12 @@ export async function authorCard(
       defects: validateKlpSet(klps.map((k) => ({ text: k.text })), input.question, { targetCount: target }),
     })
     if (findings.length === 0 || revisions >= MAX_REVISIONS) break
+    // Decide now, on THIS round's verdicts, which traps the next round rewrites.
+    replaceKinds = trapsToReplace(
+      wrong.map((w) => ({ kind: w.kind as ProbeKind, verdicts: w.verdicts })),
+      roles,
+      substance.separation > REVISION_BAR,
+    )
     const reason = findings
       .filter((f) => f.index === null)
       .map((f) => f.issue)

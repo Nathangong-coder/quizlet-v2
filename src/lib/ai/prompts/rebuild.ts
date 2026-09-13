@@ -111,7 +111,7 @@ ${points}
 The answer:
 ${input.rebuiltAnswer}
 
-For each card point: "correct" if the answer states it or clearly entails it; "partial" if the answer gestures at it without the substance; "missing" if the answer does not cover it. Judge substance, not wording. An answer may say MORE than the card — extra content is not penalised here.
+For each card point: "correct" if the answer states it or clearly entails it; "partial" if the answer gestures at it without the substance; "missing" if the answer does not cover it. Judge substance, not wording. An answer may say MORE than the card — extra content is not penalised here. "evidence" is ONE short clause (at most 15 words); omit it when the verdict is "correct".
 
 DISPUTES — rarely, the answer will contradict a card point and the ANSWER will be right. Only then, add an entry to "disputes" naming the point, what the card says, what the answer says, and why the answer is correct. This is a warning to the card's owner, not a correction: do not soften the verdict on that point, and do not raise a dispute for a difference of emphasis or completeness. Leave "disputes" empty in the normal case.
 
