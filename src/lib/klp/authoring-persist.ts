@@ -86,6 +86,7 @@ export async function persistAuthoring(
     text: k.text,
     weight: k.weight,
     kind: k.kind,
+    role: k.role,
     source: 'ai',
     promptVersion,
     // The same model that `CardAuthoring.model` records, now on the KLP rows
@@ -105,6 +106,7 @@ export async function persistAuthoring(
         promptVersion,
         referenceAnswer: outcome.referenceAnswer,
         separationScore: outcome.separationScore,
+        substanceSeparation: outcome.substanceSeparation,
         referenceVerdicts: outcome.referenceVerdicts,
         ...(outcome.rebuild
           ? {

@@ -26,6 +26,14 @@ export interface ReviseKlpsBuildInput {
   findings?: { index: number | null; issue: string; fix: string }[];
   /** Card-level line explaining why this revision was triggered. */
   reason?: string;
+  /**
+   * Per-point roles from `src/lib/klp/framing.ts`. A `framing` point is a
+   * definition/contrast the template answer recites; it is rendered as such
+   * and the model is told to leave it — without this it would read as
+   * CARRIES NO INFORMATION and be "tightened" into something that is no
+   * longer a definition. Absent means every point is substance.
+   */
+  roles?: ('framing' | 'substance')[];
 }
 
 /**
@@ -51,7 +59,9 @@ export const REVISE_KLPS_PROMPT = {
       .map((k, i) => {
         const d = input.discrimination.find((r) => r.index === i);
         const lines: string[] = [];
-        if (d?.discriminates) lines.push('DISCRIMINATES — keep as is unless a finding below says otherwise');
+        if (input.roles?.[i] === 'framing')
+          lines.push('FRAMING — a definition or contrast any prepared candidate states; it is not expected to separate answers. Keep it as a clean, correct statement; do not tighten, split or cut it');
+        else if (d?.discriminates) lines.push('DISCRIMINATES — keep as is unless a finding below says otherwise');
         else if (!d?.passesReference)
           lines.push('FAILS ON THE REFERENCE — the reference answer itself does not support this claim; it may be hallucinated, or too specific to what the reference happens to say');
         else lines.push('CARRIES NO INFORMATION — every wrong answer also satisfies it');
@@ -74,7 +84,7 @@ ${rows}
 ${setLines}
 Fix ONLY the KLPs that carry a finding — "CARRIES NO INFORMATION", "FAILS ON THE REFERENCE", or a named rule such as COMPOUND or RESTATEMENT — and do exactly what the finding asks. A KLP that passes on every answer, right or wrong, is not wrong — it is USELESS, because it separates nobody. The usual fix is to SPLIT a vague point into the specific claims it was hiding, so each half can independently pass or fail. A KLP that fails on the reference should be cut or rewritten to match what the reference answer actually says.
 
-Leave a KLP with no finding alone — it already earned its place. Do not reword it, reorder it, or fold it into another.
+Leave a KLP with no finding alone — it already earned its place. Do not reword it, reorder it, or fold it into another. A KLP marked FRAMING is kept for the same reason: it is judged on being a correct definition or contrast, not on separating answers.
 
 Aim for ${input.targetCount}-${MAX_KLPS_AUTHORED} KLPs total after revision — the same target this card was sized for, not a quota. If splitting a useless point into its specific claims takes you above it, that is the right outcome; if honestly cutting one takes you below it, say the fewer true things rather than padding.
 kind: one of ${KLP_KINDS.join(', ')}.

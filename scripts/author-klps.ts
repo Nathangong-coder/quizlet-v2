@@ -318,6 +318,9 @@ interface RunStats {
   totalKlps: number
   totalRelations: number
   separationSum: number
+  /** Separation over substance points only (framing excluded); see src/lib/klp/framing.ts. */
+  substanceSum: number
+  framingPoints: number
   /**
    * Every weight this run computed, and how many adversaries failed each KLP.
    *
@@ -575,6 +578,8 @@ async function main() {
     totalKlps: 0,
     totalRelations: 0,
     separationSum: 0,
+    substanceSum: 0,
+    framingPoints: 0,
     weights: [],
     failCounts: [],
     probesPerCard: PROBE_KINDS.length,
@@ -797,7 +802,11 @@ async function main() {
         (outcome.panelCurve
           ? `panel separation ${outcome.panelCurve.separation.toFixed(2)}` +
             `${outcome.panelCurve.monotonic ? '' : ' NON-MONOTONIC'}, `
-          : `separation ${outcome.separationScore.toFixed(2)}, `) +
+          : `separation ${outcome.separationScore.toFixed(2)}` +
+            (outcome.substanceSeparation !== outcome.separationScore
+              ? ` (substance ${outcome.substanceSeparation.toFixed(2)}, ${outcome.klps.filter((k) => k.role === 'framing').length} framing)`
+              : '') +
+            ', ') +
         `${outcome.klps.length} KLPs, ` +
         (outcome.revisionReasons?.length ? `revised ${outcome.revisionReasons.length}x [${outcome.revisionReasons[0].slice(0, 70)}], ` : '') +
         (outcome.rebuild
@@ -813,6 +822,8 @@ async function main() {
 
     stats.authored += 1
     stats.separationSum += outcome.separationScore
+    stats.substanceSum += outcome.substanceSeparation
+    stats.framingPoints += outcome.klps.filter((k) => k.role === 'framing').length
     stats.totalKlps += outcome.klps.length
     stats.totalRelations += outcome.relations.length
     if (outcome.status === 'low_discrimination') stats.lowDiscrimination += 1
@@ -831,11 +842,13 @@ async function main() {
   }
 
   const meanSeparation = stats.authored > 0 ? stats.separationSum / stats.authored : 0
+  const meanSubstance = stats.authored > 0 ? stats.substanceSum / stats.authored : 0
   console.log(
     `[author-klps] done — ${stats.authored} cards authored, ${stats.revised} revised by the quality bar` +
       (stats.authored > 0 && stats.revised / stats.authored < 0.2 ? ' (UNDER A FIFTH — the bar found little to fix on this run)' : '') +
-      `, mean separation ${meanSeparation.toFixed(2)}, ` +
-      `${stats.lowDiscrimination} low_discrimination, ${stats.totalKlps} total KLPs, ` +
+      `, mean separation ${meanSeparation.toFixed(2)}` +
+      (stats.framingPoints > 0 ? ` (substance ${meanSubstance.toFixed(2)}; ${stats.framingPoints} framing points excluded)` : '') +
+      `, ${stats.lowDiscrimination} low_discrimination, ${stats.totalKlps} total KLPs, ` +
       `${stats.totalRelations} total relations`,
   )
 

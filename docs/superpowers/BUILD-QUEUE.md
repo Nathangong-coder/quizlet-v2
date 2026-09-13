@@ -5,6 +5,20 @@ anything else in this file.** Two long runs were started this day and both are R
 the topic WRITE needs the owner's shell (the agent's auto-mode denied it as a shared-resource
 write). Everything below is one command each.
 
+**Latest (2026-09-12, evening): framing points + kind-aware strictness are built and
+migrated** (`20260912150000_klp_role`, applied). `CardKlp.role` (`framing | substance`) and
+`CardAuthoring.substanceSeparation` are written by every authoring run from now on; the
+quality bar and `status` read the SUBSTANCE separation. Spec and the draft communication
+dimension: `docs/superpowers/specs/2026-09-12-framing-points-design.md`. The M&A set was
+authored BEFORE this landed, so its 82 cards have `role = NULL` — re-authoring them is a
+re-run of command 2 with `--force` once the owner wants roles on them (the two legacy sets
+will get roles on their first run). Under `KLP_GRADE_STRICT=true` the grader now sees each
+point's kind and relaxes on mechanism/condition/quantitative; the stored M&A scores were
+graded without that clause and are comparable only to each other. **Queued from the re-run:**
+the writer's `definitionPoints` split can sanitise a card's error (it rewrote "price > NAV" as
+"price that differs from worth"), which blinds the dispute channel — make the split quote the
+card verbatim, or hand the coverage grader the raw definition too.
+
 1. **Write the merged topics that already exist** (13 cards; applies the write step,
    `docs/superpowers/specs/2026-09-12-topic-minting-write-step-design.md`). The
    `KltRelation` migration IS applied. Plan-only first if you want to read it (drop `--write`).

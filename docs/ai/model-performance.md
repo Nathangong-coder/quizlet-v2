@@ -588,3 +588,51 @@ knew that never became a key point.
 which reads as low separation - the owner predicted "artificially low numbers" from Qwen
 and was right about the direction, though it shows in the adversary role, not the
 reference. Re-run with Gemini in the rotation before drawing a model conclusion.
+
+### Framing points and kind-aware strictness, first run (2026-09-12, evening)
+
+Design: `docs/superpowers/specs/2026-09-12-framing-points-design.md`. Same bent
+configuration as the spread (GLM 5.3 flash `high` writes; DeepSeek revises, writes the traps,
+rebuilds, grades strictly), `--dry-run --force` on the three M&A cards the spread had flagged.
+Two changes between the runs: definition/contrast points the template trap passes are
+`framing` and leave the separation the bar reads; and the strict grader sees each point's
+kind, relaxing on mechanism/condition/quantitative and staying strict on causal.
+
+```
+card                         spread   full   substance  framing  template  status
+2 ways to create value        0.29    0.38    0.60       3/8      0.63     separated (was low_discrimination)
+WACC 6% / acquirer's yield    0.22    0.81    0.81       0/8      0.00     separated
+sell-side process (8 steps)   0.39    0.61    0.61       0/9      0.39     separated
+mean                          0.30    0.60    0.67
+```
+
+**What the split did.** On the acquisition-value card the three points the template recites —
+"value creation means the shareholders are wealthier, distinct from accretion", "the first way is
+value arbitrage: …", "arbitrage and synergies are the economic sources, distinct from accounting
+accretion" — are now framing; the five substance points separate at 0.60 and the card is no
+longer flagged. The other two cards had no framing point: their definitions are step
+descriptions the template did not fully recite, so the rule left them alone. That is the rule
+working as specified, not the rule being lenient — it moved exactly the card whose low number
+was a definition problem.
+
+**Attribution warning on the WACC card.** 0.22 → 0.81 is NOT a measurement of kind-aware
+strictness. The writer produced a different draft: this reference gets both tests right (8% <
+10% blended cost → EPS dilutive; 8% > the target's 6% → positive NPV), where the spread's
+draft had the knowledge gap the owner spotted. The template trap scored 0.00 against it. GLM
+sometimes has this one and sometimes does not; the rotation's "next family" re-author is still
+the right handling, and a per-clause A/B on a fixed draft is the only way to price the
+strictness change (`KLP_GRADE_STRICT` with and without kinds, same stored draft — not run).
+
+**A hole found by running it: the writer's `definitionPoints` can launder the card.** The card
+reads "Value Arbitrage (purchase price > NAV)" — the inversion the dispute channel caught on the
+first rebuild run. This time the writer split the definition into "buying the target at a price
+that *differs from* the worth of its underlying assets", the rebuild said "less than", the
+coverage grader marked it `correct` against the sanitised point, and `disputes` was empty. The
+dispute channel only sees the split, and the split is written by a model that already knows
+the right answer. Fix (queued): `definitionPoints` must quote the card's own wording, or the
+coverage grader must receive the raw definition beside the points. Until then a clean
+`disputes` on a card with a known error means nothing.
+
+**Cost.** Unchanged: 17 calls per card with the rebuild, no new call. Two DeepSeek structured-
+output failures on the sell-side card (schema mismatch, then unparseable) were retried on the
+same combo and passed; 25 KLPs, breadth histogram 0 / 3 / 12 / 10 by adversaries failed.

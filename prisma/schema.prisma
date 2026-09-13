@@ -338,6 +338,14 @@ model CardKlp {
   text               String            @db.Text
   weight             Int // 1-5 centrality -> significance.relevance
   kind               String // definition|mechanism|causal|condition|quantitative|contrast|example
+  /// framing | substance (2026-09-12, src/lib/klp/framing.ts). A framing point is
+  /// a definition/contrast the memorized-template trap was credited on: kept,
+  /// mapped to topics, excluded from the substance separation, and the
+  /// evidence base of the conditional communication dimension. NULL on every
+  /// row authored before the column existed and on legacy extraction, which
+  /// never ran the traps that decide it — never a default, because "substance"
+  /// on an untested row would be a claim nobody tested.
+  role               String?
   sourceHash         String
   promptVersion      Int
   source             String            @default("ai") // ai | user
@@ -1474,6 +1482,11 @@ model CardAuthoring {
   /// answer.
   referenceAnswer String   @db.Text
   separationScore Float
+  /// Separation over the SUBSTANCE points only (framing points excluded, see
+  /// CardKlp.role). This is what the quality bar and `status` read from
+  /// 2026-09-12; `separationScore` stays on the full set so every stored score
+  /// remains on one scale. NULL before that date.
+  substanceSeparation Float?
   /// How the REFERENCE answer scored on each final KLP, in KLP order.
   ///
   /// Added 2026-09-07 because the evidence was one-sided without it:

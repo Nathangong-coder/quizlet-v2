@@ -22,6 +22,7 @@ import {
   type CandidateGrade,
   type SeparationResult,
 } from '@/lib/klp/separation'
+import { FRAMING_PROBE, classifyPointRoles, substanceSeparation, type PointRole } from '@/lib/klp/framing'
 import { validateKlpSet, type KlpDefect } from '@/lib/klp/validate'
 import { toOrderedLevels, type AbstractionLevel } from '@/lib/klp/abstraction'
 import {
@@ -94,6 +95,8 @@ export interface ReviseInput {
   discrimination: KlpDiscrimination[]
   findings?: { index: number | null; issue: string; fix: string }[]
   reason?: string
+  /** Per-point roles (framing points are rendered "keep", see src/lib/klp/framing.ts). */
+  roles?: PointRole[]
   /** The card's sized target, so revision cannot silently undo the sizing decision. */
   targetCount: number
 }
@@ -232,11 +235,22 @@ export interface AuthoringOutcome {
    * measure that reads only the adversaries.
    */
   referenceVerdicts: KlpVerdict[]
-  klps: { text: string; kind: string; weight: number }[]
+  /**
+   * `role` (2026-09-12): `framing` for a definition/contrast point the
+   * memorized-template trap was credited on — kept, mapped to topics, but
+   * outside `substanceSeparation` and the quality bar. See `src/lib/klp/framing.ts`.
+   */
+  klps: { text: string; kind: string; weight: number; role: PointRole }[]
   probes: { kind: ProbeKind; text: string; score: number; verdicts: Record<string, KlpVerdict> }[]
   relations: AuthoredRelationDraft[]
   relationStats: RelationStats
+  /** Over every point, exactly as before — every stored score is on this scale. */
   separationScore: number
+  /**
+   * Over the substance points only. This is the number the bar and the
+   * `status` read; equal to `separationScore` on a card with no framing points.
+   */
+  substanceSeparation: number
   revisions: number
   /** `failed` only when the author call produced no KLPs at all. */
   status: 'separated' | 'low_discrimination' | 'failed'
@@ -392,6 +406,7 @@ export async function authorCard(
       relations: [],
       relationStats: { candidates: 0, accepted: 0, droppedForCycles: 0, droppedOutOfRange: 0 },
       separationScore: 0,
+      substanceSeparation: 0,
       revisions: 0,
       status: 'failed',
       klpShapes: [],
@@ -406,6 +421,8 @@ export async function authorCard(
   let revisions = 0
   const revisionReasons: string[] = []
   let separation: SeparationResult
+  let substance: SeparationResult
+  let roles: PointRole[] = []
   let wrong: GradedCandidate[]
   // Kept out of the loop so the FINAL iteration's reference verdicts survive
   // it. They were computed on every pass and discarded on every pass, which
@@ -466,7 +483,7 @@ export async function authorCard(
       {
         question: input.question,
         referenceAnswer: draft.referenceAnswer,
-        klps: klps.map((k) => ({ text: k.text })),
+        klps: klps.map((k) => ({ text: k.text, kind: k.kind })),
       },
       candidates,
       gen,
@@ -478,6 +495,12 @@ export async function authorCard(
     const wrongGrades: CandidateGrade[] = wrong.map((w) => ({ kind: w.kind, verdicts: w.verdicts }))
 
     separation = computeSeparation(referenceGrade, wrongGrades)
+    // Framing points are classified on the SAME verdicts, then the bar reads
+    // the separation over what is left. Recomputed every round: a revision can
+    // turn a framing point into a substance one and back. The panel has no
+    // template member, so with a panel every point is substance.
+    roles = panel ? klps.map((): PointRole => 'substance') : classifyPointRoles(klps, wrongGrades)
+    substance = substanceSeparation(referenceGrade, wrongGrades, roles)
 
     if (panel) {
       // The curve is computed from the SAME verdicts the old number uses, so
@@ -501,7 +524,8 @@ export async function authorCard(
     // 0.60. Every check here is computed in TypeScript; the model is told
     // exactly which point failed which check and what to do about it.
     const findings = revisionFindings({
-      separation,
+      separation: substance,
+      roles,
       panelSeparated: panel ? panelCurve?.separated : undefined,
       referenceVerdicts,
       wrong,
@@ -518,7 +542,8 @@ export async function authorCard(
     const revised = await gen.revise({
       question: input.question,
       klps: klps.map((k) => ({ text: k.text, kind: k.kind })),
-      discrimination: separation.perKlp,
+      discrimination: substance.perKlp,
+      roles,
       findings,
       reason,
       targetCount: target,
@@ -623,7 +648,7 @@ export async function authorCard(
 
   return {
     referenceAnswer: draft.referenceAnswer,
-    klps: klps.map((k, i) => ({ text: k.text, kind: k.kind, weight: weights[i] })),
+    klps: klps.map((k, i) => ({ text: k.text, kind: k.kind, weight: weights[i], role: roles[i] ?? 'substance' })),
     probes,
     relations: accepted,
     relationStats: {
@@ -633,12 +658,13 @@ export async function authorCard(
       droppedOutOfRange,
     },
     separationScore: separation.separation,
+    substanceSeparation: substance.separation,
     referenceVerdicts,
     revisions,
     // The PANEL's verdict wins when a panel ran, because that is the quantity
-    // the run was testing. Falls back to the old number otherwise, so a card
-    // authored with the toggle off is scored exactly as before.
-    status: (panelCurve ? panelCurve.separated : separation.separated)
+    // the run was testing. Otherwise the SUBSTANCE separation decides: a card
+    // whose only unseparated points are framing is not low-discrimination.
+    status: (panelCurve ? panelCurve.separated : substance.separated)
       ? 'separated'
       : 'low_discrimination',
     panelCurve,
@@ -669,7 +695,14 @@ export async function authorCard(
  * self-critique.
  */
 export function revisionFindings(input: {
+  /** The SUBSTANCE separation when roles are given; the full one otherwise. */
   separation: SeparationResult
+  /**
+   * Per-point roles. A `framing` point's acceptance by the memorized-template
+   * answer is expected and is not a finding; every other trap's acceptance
+   * still is. Absent means every point is substance.
+   */
+  roles?: PointRole[]
   /** When the competence panel ran, its own verdict on separation. */
   panelSeparated?: boolean
   referenceVerdicts: KlpVerdict[]
@@ -705,7 +738,7 @@ export function revisionFindings(input: {
   // Points a weak answer passed outright — named per point so the fix is local.
   input.wrong.forEach((w) => {
     w.verdicts.forEach((v, i) => {
-      if (v === 'correct') {
+      if (v === 'correct' && !(w.kind === FRAMING_PROBE && input.roles?.[i] === 'framing')) {
         out.push({
           index: i,
           issue: `accepted by the ${w.kind} answer`,
