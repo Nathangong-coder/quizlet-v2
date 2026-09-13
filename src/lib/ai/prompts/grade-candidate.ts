@@ -6,7 +6,17 @@ export interface GradeCandidateBuildInput {
   referenceAnswer: string;
   klps: { text: string }[];
   candidateAnswer: string;
+  /**
+   * Adds the strict clause (2026-09-12, owner): credit a point only when the
+   * answer states it explicitly; when in doubt, the lower verdict. Off by
+   * default so every stored score stays comparable; a run that turns it on
+   * says so in its model label.
+   */
+  strict?: boolean;
 }
+
+export const STRICT_GRADING_CLAUSE =
+  'GRADE STRICTLY. Credit a key point only when the answer states it explicitly or entails it unmistakably. When in doubt between two verdicts, give the lower one. Do not infer what the candidate probably meant.';
 
 /**
  * Call B of the authoring pipeline. ONE candidate answer per call — this is
@@ -78,6 +88,6 @@ Use "correct" when the answer clearly states the point. Use "omission" when the 
 
 Output JSON:
 { "verdicts": [ { "klpIndex": number, "verdict": string, "evidence": string } ] }
-One entry per KLP, referencing it by its [index] above.`;
+One entry per KLP, referencing it by its [index] above.${input.strict ? `\n\n${STRICT_GRADING_CLAUSE}` : ''}`;
   },
 };

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { STRICT_GRADING_CLAUSE } from './grade-candidate';
 
 /**
  * The REBUILD TEST (design: docs/superpowers/specs/2026-09-12-rebuild-test-design.md).
@@ -90,6 +91,7 @@ export interface CoverageBuildInput {
   question: string;
   definitionPoints: { point: string }[];
   rebuiltAnswer: string;
+  strict?: boolean;
 }
 
 export const GRADE_COVERAGE_PROMPT = {
@@ -117,7 +119,7 @@ Output JSON:
 {
   "points": [ { "index": number, "verdict": "correct" | "partial" | "missing", "evidence": string } ],
   "disputes": [ { "index": number, "cardSays": string, "answerSays": string, "reason": string } ]
-}`;
+}${input.strict ? `\n\n${STRICT_GRADING_CLAUSE.replace('key point', 'card point')}` : ''}`;
   },
 };
 
@@ -141,6 +143,7 @@ export interface ParityBuildInput {
   question: string;
   referenceAnswer: string;
   rebuiltAnswer: string;
+  strict?: boolean;
 }
 
 export const GRADE_PARITY_PROMPT = {
@@ -161,6 +164,6 @@ ${input.rebuiltAnswer}
 
 First list every distinct substantive claim the reference makes — each fact, mechanism, number or distinction a grader could mark right or wrong, one per entry, in the reference's own order. Then for each claim say whether the rebuild makes it: "present" (stated or clearly entailed), "partial" (mentioned without the substance), or "absent". Judge substance, not wording.
 
-Output JSON: { "claims": [ { "claim": string, "verdict": "present" | "partial" | "absent" } ] }`;
+Output JSON: { "claims": [ { "claim": string, "verdict": "present" | "partial" | "absent" } ] }${input.strict ? `\n\n${STRICT_GRADING_CLAUSE.replace('key point', 'claim')}` : ''}`;
   },
 };

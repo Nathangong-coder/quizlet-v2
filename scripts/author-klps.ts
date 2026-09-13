@@ -185,7 +185,16 @@ function readRotationPool(env: NodeJS.ProcessEnv = process.env): RotationCombo[]
   return pool
 }
 
+/** Run-level knobs read once; see `.env.example`. */
+const REVISE_WITH_GRADER = (process.env.KLP_REVISE_WITH ?? '').toLowerCase() === 'grader'
+const ADVERSARIES_WITH_GRADER = (process.env.KLP_ADVERSARIES_WITH ?? '').toLowerCase() === 'grader'
+const GRADE_STRICT = (process.env.KLP_GRADE_STRICT ?? '').toLowerCase() === 'true'
+
 function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectCombo, adversaryCombo?: DirectCombo, rebuildTest = false): AuthoringGenerator {
+  // KLP_ADVERSARIES_WITH=grader: in the two-pool split, the grader combo also
+  // writes the traps with the independent prompt (question + reference only),
+  // so they are not tuned to the key points even without a third family.
+  if (!adversaryCombo && ADVERSARIES_WITH_GRADER && authorCombo) adversaryCombo = combo
   // Built through the SAME `resolveLanguageModel` the website uses, not a
   // provider factory called here. That function carries per-provider
   // corrections this script would otherwise have to duplicate — most
@@ -255,8 +264,10 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
         AUTHOR_KLPS_PROMPT.schema,
         'writer',
       ),
-    grade: (input) => call(GRADE_CANDIDATE_PROMPT.build(input), GRADE_CANDIDATE_PROMPT.schema),
-    revise: (input) => call(REVISE_KLPS_PROMPT.build(input), REVISE_KLPS_PROMPT.schema, 'writer'),
+    grade: (input) => call(GRADE_CANDIDATE_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_CANDIDATE_PROMPT.schema),
+    // KLP_REVISE_WITH=grader: the bar's revise calls go to the grader combo
+    // instead of the writer (the owner's "GLM writes, DeepSeek revises").
+    revise: (input) => call(REVISE_KLPS_PROMPT.build(input), REVISE_KLPS_PROMPT.schema, REVISE_WITH_GRADER ? 'grader' : 'writer'),
     relate: (input) => call(RELATE_KLPS_PROMPT.build(input), RELATE_KLPS_PROMPT.schema),
     classifyAbstraction: (input) =>
       call(CLASSIFY_ABSTRACTION_PROMPT.build(input), CLASSIFY_ABSTRACTION_PROMPT.schema),
@@ -272,8 +283,8 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
     ...(rebuildTest
       ? {
           rebuild: (input) => call(WRITE_REBUILD_PROMPT.build(input), WRITE_REBUILD_PROMPT.schema, adversaryCombo ? 'adversary' : 'grader'),
-          gradeCoverage: (input) => call(GRADE_COVERAGE_PROMPT.build(input), GRADE_COVERAGE_PROMPT.schema),
-          gradeParity: (input) => call(GRADE_PARITY_PROMPT.build(input), GRADE_PARITY_PROMPT.schema),
+          gradeCoverage: (input) => call(GRADE_COVERAGE_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_COVERAGE_PROMPT.schema),
+          gradeParity: (input) => call(GRADE_PARITY_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_PARITY_PROMPT.schema),
         }
       : {}),
   }
@@ -514,7 +525,11 @@ async function main() {
     },
   })
 
-  const cards = limit !== undefined ? allCards.slice(skip, skip + limit) : allCards.slice(skip)
+  // `--cards id,id,...` picks specific cards from the set (a spread run); wins over --skip/--limit.
+  const onlyIds = (opt(args, '--cards') ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  const cards = onlyIds.length
+    ? onlyIds.map((id) => allCards.find((c) => c.id === id)).filter((c): c is (typeof allCards)[number] => !!c)
+    : limit !== undefined ? allCards.slice(skip, skip + limit) : allCards.slice(skip)
   const total = cards.length
   const jsonOutcomes: { cardId: string; term: string; model: string | undefined; outcome: unknown }[] = []
   const flushJson = () => {
@@ -655,6 +670,9 @@ async function main() {
         // CardAuthoring.model records the WRITER when roles are split — the
         // key points are its text; the grader is recorded in the run log.
         usedModel = authorCombo ? `${authorCombo.model}+${combo.model}` : combo.model
+        if (authorCombo && (REVISE_WITH_GRADER || ADVERSARIES_WITH_GRADER || GRADE_STRICT)) {
+          usedModel += ` [${[REVISE_WITH_GRADER && 'revise=grader', ADVERSARIES_WITH_GRADER && 'adversaries=grader', GRADE_STRICT && 'strict'].filter(Boolean).join(',')}]`
+        }
         gen = directGenerator(combo, pacer, authorCombo, undefined, rebuildTest)
         console.log(`${tag} — using ${combo.id}${authorCombo ? ` (author ${authorCombo.id})` : ''}`)
       } else {
