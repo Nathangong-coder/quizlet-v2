@@ -1,0 +1,649 @@
+{
+  "setId": "cmsfkfumz000004jov11adgbu",
+  "skip": 0,
+  "outcomes": [
+    {
+      "cardId": "cmsfkfv8q001p04jofizww8u5",
+      "term": "Why are intangible assets not in the balance sheet?",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "Intangible assets are non-physical resources like brands, patents, software, and customer relationships. The reason they often don't appear on the balance sheet comes down to a recognition rule: an asset can only be recorded if its value is reliably measurable at verifiable cost. For intangibles a company builds itself, that verifiability fails. When a company develops a brand or technology internally, there's no arm's-length transaction that puts a third-party-verified price tag on it, and the spend is hard to separate from ordinary operating expenses. Accounting rules are deliberately conservative here: if management could book self-assessed values for internally generated intangibles, they could inflate the balance sheet with subjective numbers auditors couldn't test. So under GAAP and IFRS, most internally generated intangible costs — like R&D and advertising — are expensed as incurred rather than capitalized on the balance sheet. The exception is acquired intangibles: a purchase price is a verifiable, third-party transaction that auditors can test, which is why goodwill or a purchased brand does sit on the balance sheet.",
+        "klps": [
+          {
+            "text": "Intangible assets are non-physical resources like brands, patents, software, and customer relationships",
+            "kind": "definition",
+            "weight": 1,
+            "role": "substance"
+          },
+          {
+            "text": "Balance sheet recognition requires an asset's value to be reliably measurable at a verifiable cost",
+            "kind": "condition",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Internally generated intangibles fail that test because no arm's-length transaction ever establishes their value",
+            "kind": "mechanism",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Allowing self-assessed values would let management inflate the balance sheet with numbers auditors couldn't test, so rules are deliberately conservative",
+            "kind": "causal",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "As a result, internally generated intangible spend like R&D and advertising is expensed as incurred instead of capitalized",
+            "kind": "causal",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Acquired intangibles do go on the balance sheet because the purchase price is a third-party-verified transaction that auditors can test",
+            "kind": "contrast",
+            "weight": 2,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "Intangible assets are things like brands and intellectual property, and they're just kind of tricky to deal with in accounting. There are a lot of rules and standards around them that make them different from physical assets like buildings or equipment. Companies and accountants have to make judgment calls, and that's why you often won't see them on the balance sheet. It really depends on the situation, but generally the accounting treatment is more complicated than for tangible assets. That's the basic idea behind why they aren't always recorded.",
+            "score": 0.08333333333333333,
+            "verdicts": {
+              "0": "partial",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "Intangible assets are non-physical resources, and the key issue is the recognition criteria for asset measurement. Under both GAAP and IFRS, an asset must meet certain conditions to be recorded on the balance sheet. For internally generated intangibles, these conditions are often not satisfied due to the lack of reliable measurement. As a result, most of these costs are expensed as incurred rather than capitalized. However, acquired intangibles are treated differently because they arise from a transaction. So the accounting treatment depends on how the intangible was obtained.",
+            "score": 0.3333333333333333,
+            "verdicts": {
+              "0": "partial",
+              "1": "partial",
+              "2": "failed",
+              "3": "omission",
+              "4": "partial",
+              "5": "partial"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 1,
+            "to": 2,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "The arm's-length failure only disqualifies internally generated intangibles because the reliable-measurability test is the operative condition.",
+            "probe": "An answer saying internally generated brands aren't recognized because they lack physical substance, while correctly stating the cost-measurability test."
+          },
+          {
+            "from": 2,
+            "to": 3,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "Because no arm's-length transaction fixes value, self-assessment would be untestable, which is exactly why the rules turn conservative.",
+            "probe": "An answer citing the absence of arm's-length transactions and separately saying auditors dislike estimates, without linking the two."
+          },
+          {
+            "from": 2,
+            "to": 4,
+            "type": "causes",
+            "provenance": "order_violation",
+            "rationale": "You cannot derive expensing of R&D as incurred without first having the finding that internal spend fails the verifiable-value test.",
+            "probe": "An answer stating R&D is expensed because accounting is conservative, while correctly explaining that internal intangibles lack arm's-length valuation."
+          },
+          {
+            "from": 2,
+            "to": 5,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Learners conflate 'internally generated intangibles fail recognition' with 'acquired intangibles are recognized', treating them as one rule rather than contrasting cases.",
+            "probe": "An answer saying all intangibles are kept off the balance sheet because internal ones can't be valued, despite knowing acquired ones have verified purchase prices."
+          },
+          {
+            "from": 1,
+            "to": 5,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Recognition of acquired intangibles only makes sense as a contrast to the reliability test that internal ones fail.",
+            "probe": "An answer saying purchased brands are capitalized simply because money was paid, without invoking verifiable third-party transaction value."
+          }
+        ],
+        "relationStats": {
+          "candidates": 5,
+          "accepted": 5,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.6666666666666667,
+        "substanceSeparation": 0.6666666666666667,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 0,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 0,
+            "rule": "abstraction_spread",
+            "detail": "one point is concrete while the other 5 are not — on a card this size that usually means it was written to a different brief. Judged WITHIN this card only; cards legitimately differ from each other."
+          }
+        ],
+        "targetKlpCount": 5,
+        "concerns": [],
+        "revisionReasons": [],
+        "questionType": "why",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The final two sentences ('That's why acquired intangibles...' and 'So the point isn't that intangibles aren't real assets...') restate the acquired-vs-internally-generated conclusion already made, and the closing 'not that intangibles aren't real assets' recap could be cut."
+            }
+          ],
+          "rewritten": true
+        },
+        "rebuild": {
+          "rebuiltAnswer": "Intangible assets are non-physical resources like brands, patents, software, and customer relationships. But balance sheet recognition requires an asset's value to be reliably measurable at a verifiable cost. Internally generated intangibles fail that test because no arm's-length transaction ever establishes their value. Allowing self-assessed values would let management inflate the balance sheet with numbers auditors couldn't test, so the rules are deliberately conservative. That's why internally generated intangible spend like R&D and advertising is expensed as incurred instead of capitalized. Acquired intangibles do go on the balance sheet, because the purchase price is a third-party-verified transaction auditors can test.",
+          "cardCoverage": 1,
+          "referenceParity": 0.8,
+          "extractionLoss": 0.19999999999999996,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": ""
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "Intangible assets are non-physical resources such as brands, patents, software, and customer relationships.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The reason intangibles often don't appear on the balance sheet is a recognition rule: an asset can only be recorded if its value is reliably measurable at verifiable cost.",
+              "verdict": "present"
+            },
+            {
+              "claim": "For internally generated intangibles, verifiability fails.",
+              "verdict": "present"
+            },
+            {
+              "claim": "When a company develops a brand or technology internally, there is no arm's-length transaction that puts a third-party-verified price tag on it.",
+              "verdict": "present"
+            },
+            {
+              "claim": "For internally generated intangibles, the spend is hard to separate from ordinary operating expenses.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Accounting rules are deliberately conservative here.",
+              "verdict": "present"
+            },
+            {
+              "claim": "If management could book self-assessed values for internally generated intangibles, they could inflate the balance sheet with subjective numbers auditors couldn't test.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Under GAAP and IFRS, most internally generated intangible costs, like R&D and advertising, are expensed as incurred rather than capitalized on the balance sheet.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "The exception is acquired intangibles: a purchase price is a verifiable, third-party transaction that auditors can test.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Goodwill or a purchased brand does sit on the balance sheet.",
+              "verdict": "partial"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Intangible assets are not verifiable unless acquired",
+            "When acquired, the value is verified by a third party and audits"
+          ],
+          "wordRatio": 0.5823529411764706,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": []
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmsfkfva7002104jolfvau4r4",
+      "term": "How does CapEx & depreciation shift for mature vs new companies?",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "CapEx is cash spent buying or building long-term assets, and depreciation is the accounting charge that spreads each asset's cost over its useful life. A mature company's growth has slowed, so it spends only maintenance-level CapEx to replace what wears out. Its depreciation is still high, though, because the large asset base built during its growth years is still being written off — depreciation can even exceed CapEx, meaning the company consumes its assets faster than it replaces them. A new or high-growth company is the mirror image: it spends heavily on CapEx — factories, equipment, systems — to build capacity, but depreciation is low because those assets were just placed in service and straight-line depreciation puts only a small early slice of their cost on the income statement. Over the company's life the pattern flips: as growth slows and the asset base ages, it migrates toward the mature profile. The cash consequence is that the mature company converts earnings into free cash flow, while the new company can burn cash even when it's profitable on paper.",
+        "klps": [
+          {
+            "text": "CapEx is cash spent acquiring or building long-term assets, while depreciation spreads each asset's cost over its useful life",
+            "kind": "definition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Mature companies spend only maintenance-level CapEx",
+            "kind": "contrast",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Mature companies still carry high depreciation because the large asset base built during their growth years is still being written off",
+            "kind": "contrast",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "At the mature stage depreciation can exceed CapEx, meaning assets are being consumed faster than they're replaced",
+            "kind": "causal",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "New companies spend heavily on CapEx to build capacity — factories, equipment, systems",
+            "kind": "contrast",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "New companies show low depreciation",
+            "kind": "contrast",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Depreciation on newly placed assets is only a small early slice of the asset's cost",
+            "kind": "mechanism",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "The pattern flips over a company's life: as growth slows and assets age, it migrates from the new profile to the mature one",
+            "kind": "causal",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "The cash consequence for a mature company is that it converts earnings into free cash flow, because depreciation exceeds the maintenance CapEx it actually pays out",
+            "kind": "causal",
+            "weight": 3,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "Well, it really depends on the company and the industry. In general, mature companies have different spending patterns than newer ones, and depreciation kind of follows along with that in some way. New companies are usually investing more because they're growing, while mature ones are more stable and don't need to spend as much. The accounting treatment also varies, so depreciation might be higher or lower depending on various factors. It's a relationship that changes over time as the company evolves, and you have to look at the specifics to really understand it.",
+            "score": 0.16666666666666666,
+            "verdicts": {
+              "0": "omission",
+              "1": "partial",
+              "2": "omission",
+              "3": "omission",
+              "4": "partial",
+              "5": "omission",
+              "6": "omission",
+              "7": "incomplete",
+              "8": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "There are two main types of companies, mature and new, and they handle CapEx and depreciation differently. For a mature company, the key is that it has been around for a while, so it tends to be more stable and has a different trend for these items. A new company, on the other hand, is more focused on growth, so its metrics will look different and reflect its stage. This is a very important distinction that analysts should always consider. Overall, it’s all about where the company is in its lifecycle.",
+            "score": 0,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission",
+              "6": "omission",
+              "7": "omission",
+              "8": "omission"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 2,
+            "to": 3,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "A still-unwritten-off asset base is exactly what forces depreciation above replacement spend.",
+            "probe": "Says mature firms have high depreciation and depreciation exceeds CapEx, but attributes the excess to aggressive accounting rather than legacy asset base."
+          },
+          {
+            "from": 6,
+            "to": 5,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "Low depreciation at new firms follows from early cost slices being small.",
+            "probe": "States new firms show low depreciation yet insists each new asset is fully expensed to depreciation when placed."
+          },
+          {
+            "from": 3,
+            "to": 8,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "Depreciation exceeding CapEx is what converts earnings into free cash flow.",
+            "probe": "Says depreciation exceeds CapEx and that FCF rises, but claims the FCF gain comes from revenue growth, not the depreciation-CapEx gap."
+          },
+          {
+            "from": 4,
+            "to": 6,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "You cannot get a small early depreciation slice without heavy newly placed CapEx.",
+            "probe": "Says new firms spend heavily on CapEx and depreciation is a small slice, but treats the small slice as unrelated to the timing of new spend."
+          },
+          {
+            "from": 7,
+            "to": 2,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Explaining why mature firms carry high depreciation presupposes the growth-year asset buildup described by the flip.",
+            "probe": "Describes the new-to-mature flip and high mature depreciation, but says mature firms hold no legacy growth-year assets."
+          }
+        ],
+        "relationStats": {
+          "candidates": 5,
+          "accepted": 5,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.8333333333333334,
+        "substanceSeparation": 0.8333333333333334,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 7,
+            "rule": "ordering",
+            "detail": "KLP 7 must precede KLP 2, but is stored after it"
+          }
+        ],
+        "targetKlpCount": 5,
+        "concerns": [],
+        "revisionReasons": [
+          "separation 0.50 does not clear the 0.60 bar; [7] accepted by the memorized_template answer; [5] compound",
+          "[1] clause bloat: Point [1] carries a growth-slowed because-clause that pads the maintenance-CapEx claim.; [5] clause bloat: Point [5] carries a just-placed-in-service because-clause that adds no separately testable claim.; [6] clause bloat: Point [6] carries a straight-line because-clause that adds words without a separate claim."
+        ],
+        "questionType": "compare",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The closing free-cash-flow sentence restates the CapEx-vs-depreciation relationship a third time (after the mature and new-company explanations) rather than adding a new point."
+            }
+          ],
+          "rewritten": true
+        },
+        "rebuild": {
+          "rebuiltAnswer": "CapEx is cash spent acquiring or building long-term assets, while depreciation spreads each asset's cost over its useful life. New companies spend heavily on CapEx to build capacity — factories, equipment, systems — yet show low depreciation, because depreciation on newly placed assets is only a small early slice of the asset's cost. Mature companies spend only maintenance-level CapEx, but still carry high depreciation because the large asset base built during their growth years is still being written off. At the mature stage depreciation can exceed CapEx, meaning assets are being consumed faster than they're replaced. The cash consequence for a mature company is that it converts earnings into free cash flow, because depreciation exceeds the maintenance CapEx it actually pays out. The pattern flips over a company's life: as growth slows and assets age, it migrates from the new profile to the mature one.",
+          "cardCoverage": 1,
+          "referenceParity": 0.8333333333333334,
+          "extractionLoss": 0.16666666666666663,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": ""
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "CapEx is cash spent buying or building long-term assets.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Depreciation is the accounting charge that spreads each asset's cost over its useful life.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A mature company's growth has slowed, so it spends only maintenance-level CapEx to replace what wears out.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A mature company's depreciation is still high because the large asset base built during its growth years is still being written off.",
+              "verdict": "present"
+            },
+            {
+              "claim": "For a mature company, depreciation can even exceed CapEx, meaning the company consumes its assets faster than it replaces them.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A new or high-growth company is the mirror image of a mature company.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "A new or high-growth company spends heavily on CapEx — factories, equipment, systems — to build capacity.",
+              "verdict": "present"
+            },
+            {
+              "claim": "For a new company, depreciation is low because those assets were just placed in service.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Straight-line depreciation puts only a small early slice of an asset's cost on the income statement.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Over the company's life the pattern flips: as growth slows and the asset base ages, it migrates toward the mature profile.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The cash consequence is that the mature company converts earnings into free cash flow.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The new company can burn cash even when it's profitable on paper.",
+              "verdict": "absent"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Mature companies have lower CapEx and higher depreciation",
+            "New companies have the reverse: higher CapEx and lower depreciation"
+          ],
+          "wordRatio": 0.8192090395480226,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": [
+              {
+                "kind": "clause_bloat",
+                "points": [
+                  0
+                ],
+                "text": "Point 0 bundles a full definition of CapEx with a definition of depreciation, adding words the question's mature-vs-new contrast does not require."
+              },
+              {
+                "kind": "not_on_card",
+                "points": [
+                  6
+                ],
+                "text": "Point 6 explains the mechanics of depreciation timing, which the card's mature-vs-new definition does not carry and the answer does not need."
+              },
+              {
+                "kind": "not_on_card",
+                "points": [
+                  8
+                ],
+                "text": "Point 8 introduces a free-cash-flow consequence that goes beyond the card's CapEx-and-depreciation definition."
+              },
+              {
+                "kind": "transition",
+                "points": [
+                  7
+                ],
+                "text": "Point 7 is a closing roadmap sentence restating the mature-vs-new flip the answer has already fully covered."
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "step": "adversaries",
+      "model": "deepseek-v4-flash",
+      "calls": 3,
+      "input": 1705,
+      "output": 653,
+      "reasoning": 0,
+      "cached": 256
+    },
+    {
+      "step": "author-batch",
+      "model": "glm-5.3-flash",
+      "calls": 1,
+      "input": 2031,
+      "output": 2134,
+      "reasoning": 427,
+      "cached": 0
+    },
+    {
+      "step": "classify",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 1426,
+      "output": 237,
+      "reasoning": 0,
+      "cached": 512
+    },
+    {
+      "step": "coverage",
+      "model": "deepseek-v4-flash",
+      "calls": 4,
+      "input": 3398,
+      "output": 283,
+      "reasoning": 0,
+      "cached": 768
+    },
+    {
+      "step": "grade",
+      "model": "deepseek-v4-flash",
+      "calls": 12,
+      "input": 14154,
+      "output": 2088,
+      "reasoning": 0,
+      "cached": 6912
+    },
+    {
+      "step": "parity",
+      "model": "deepseek-v4-flash",
+      "calls": 4,
+      "input": 2932,
+      "output": 1741,
+      "reasoning": 0,
+      "cached": 512
+    },
+    {
+      "step": "rebuild",
+      "model": "deepseek-v4-flash",
+      "calls": 4,
+      "input": 1966,
+      "output": 711,
+      "reasoning": 0,
+      "cached": 0
+    },
+    {
+      "step": "relate",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 2012,
+      "output": 881,
+      "reasoning": 0,
+      "cached": 256
+    },
+    {
+      "step": "review",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 1796,
+      "output": 193,
+      "reasoning": 0,
+      "cached": 256
+    },
+    {
+      "step": "review-rebuilt",
+      "model": "deepseek-v4-flash",
+      "calls": 4,
+      "input": 4131,
+      "output": 488,
+      "reasoning": 0,
+      "cached": 512
+    },
+    {
+      "step": "revise",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 2587,
+      "output": 618,
+      "reasoning": 0,
+      "cached": 0
+    },
+    {
+      "step": "revise-ref",
+      "model": "glm-5.3-flash",
+      "calls": 2,
+      "input": 2174,
+      "output": 1993,
+      "reasoning": 1022,
+      "cached": 0
+    }
+  ]
+}

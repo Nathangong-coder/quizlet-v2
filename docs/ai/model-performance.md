@@ -764,3 +764,65 @@ tighter reference gives the template trap less to paraphrase, which is one mecha
 variance on these two cards has been 0.29-0.92 today, which is the other. The rewrite is the
 first change in this file that could plausibly LOWER separation, so it needs the 7-card spread
 ×2 before it stays on by default (`KLP_COMMS_CHECK=false` turns it off).
+
+### Compression as a revise input — the spread ×2 (2026-09-13)
+
+The owner's six-step plan, built as written: (A) the grader reviews the rebuilt answer
+against the numbered points every round and names the points behind each issue —
+restatement / clause bloat / not-on-card / transition — and TypeScript makes them per-point
+findings for the same revise call; (B) a precedence rule in the revise prompt, *cut words,
+never distinct claims*; (C) a `verbose` hygiene rule (>30 words or two subordinate clauses)
+and the rebuilt/reference word ratio (>1.2 is a set-level finding); (D) rebuilder v2 says each
+point once, no transitions, no restated conclusion; (E) author v5 asks for ~25-word points and
+no conclusion stated twice; (F) the 7-card definition-length spread, twice, `--rpm 40`.
+
+```
+card                              before (09-12)          run 1                   run 2
+                                  sep  par  ratio n       sep  par  ratio rev  n  sep  par  ratio rev  n
+intangibles off the balance sheet 0.50 0.92 0.80  7       0.83 0.58 0.53 tight 6  0.30 0.70 0.63 bloat 5
+CapEx & depreciation, mature/new  0.81 0.77 0.69  8       1.00 0.95 0.83 wordy 7  0.60 0.50 0.46 tight 5
+DTL vs DTA                        0.44 0.97 0.79  9       0.78 0.75 0.58 tight 9  0.89 0.58 0.74 tight 9
+luxury soap (working capital)     0.72 0.79 0.72  9       0.67 0.71 0.86 tight 9  0.56 0.70 0.85 wordy 9
+2 ways to create value            0.29 0.82 0.62  7       0.75 0.67 0.83 tight 6  0.92 0.75 0.61 tight 6
+sell-side process                 0.39 0.68 0.70  9       0.83 0.73 0.76 tight 9  0.44 0.91 0.87 tight 9
+WACC 6% / yield                   0.22 0.79 1.21  9       0.75 0.92 0.80 tight 6  0.93 0.80 1.25 wordy 7
+mean                              0.48 0.82 0.79  8.3     0.80 0.76 0.74       7.4 0.66 0.71 0.77       7.1
+low_discrimination                3                       0                       1
+rebuilt reviewed "tight"          -                       6/7                     4/7
+reference words (mean)            316                     192                     198
+cost per card (off-peak)          -                       $0.0083                 $0.0075
+```
+
+**Against the acceptance criteria set before the run:** rebuilt review `tight` on at least
+half the cards — 6/7 and 4/7, met. Word ratio ≤ 1.1 — 0.74 and 0.77, met (the rebuilt answer
+is now shorter than the reference, and the reference itself is 40% shorter than before the
+communication check). Substance separation not lower than the last spread — 0.80 and 0.66
+against 0.48, met, with low_discrimination 3 → 0 / 1. Parity ≥ 0.7 — met on the mean (0.76,
+0.71) and **not on every card**: two cards in run 1 and three in run 2 finished under the
+bar after the two revision rounds. The plan said that if parity dropped when compressing, the
+precedence rule was wrong and it would be reported rather than tuned — here is the report.
+
+**What actually cut the parity.** The CapEx card in run 2 (parity 0.50, five points) had its
+round-2 revision triggered by `not_on_card: "the fixed asset base shrinks is an implication the
+card owner's definition does not carry"`. The reviewer was right that the card does not say it;
+the parity grader then listed it, and four other claims, as lost — "CapEx below depreciation at
+a mature firm may signal underinvestment", "high CapEx at a young firm depresses current
+earnings". Those are exactly the things the author prompt tells the writer to ADD ("what a
+strong answer needs that the card omits"), and the owner does not enrich terse cards. So
+`not_on_card` was cutting the reference's own content one round before the parity grader could
+object to the cut, and with `MAX_REVISIONS` 2 there was no round left. **`not_on_card` is now
+recorded and never a finding** (`src/lib/klp/compression.ts`); restatement and clause bloat
+remain. The precedence rule itself held: no run lost a claim a parity finding had named.
+
+**Variance is still the largest effect in the table.** The same card, same configuration,
+40 minutes apart: CapEx 1.00 → 0.60, sell-side 0.83 → 0.44, intangibles 0.83 → 0.30. Every
+comparison in this file is subject to that; the mean over seven cards moves less, and the
+direction of the mean (0.48 → 0.80 / 0.66) is what the change is judged on.
+
+**Cost with everything on:** 28-29 calls and ~$0.008 a card off-peak. The per-round rebuild
+(rebuild + coverage + parity + review, ~4 calls) is the bulk of the increase over the $0.0053
+the cost pass reached; grading is no longer the largest line.
+
+**Confirmation, the two accounting cards with `not_on_card` off:** intangibles 0.67 / parity
+0.80 / ratio 0.58 / tight; CapEx 0.83 / parity 0.83 / ratio 0.82 / tight. Both clear every bar.
+This is the configuration the corpus is authored with.

@@ -28,6 +28,14 @@ default; `REBUILD_PARITY_BAR` 0.7; the rebuild test now runs every round and its
 into the one combined revise). First run: every reference "wordy" and rewritten, every REBUILT
 answer wordier than its reference — the key points carry the bloat (one context clause each);
 `rebuild.communication` records it, nothing acts on it yet. Neither review is persisted.
+**2026-09-13, latest: compression is in the revise loop** (owner's plan A–F, `src/lib/klp/compression.ts`):
+the grader reviews the rebuilt answer against the numbered points every round, restatement /
+clause-bloat issues become per-point findings, a `verbose` hygiene rule and the rebuilt/reference
+word ratio ride along, rebuilder v2 and author v5 stop adding words, and the revise prompt (v4)
+carries *cut words, never distinct claims*. Spread ×2: mean separation 0.48 → 0.80 / 0.66,
+rebuilt tight 6/7 and 4/7, word ratio 0.74; `not_on_card` was demoted to informational after it
+cut reference content the card omits (parity 0.50 on CapEx). ~$0.008 a card, 28 calls.
+**The corpus is being re-authored on this configuration** (M&A `--force`, then the two legacy sets).
 
 1. **Write the merged topics that already exist** (13 cards; applies the write step,
    `docs/superpowers/specs/2026-09-12-topic-minting-write-step-design.md`). The

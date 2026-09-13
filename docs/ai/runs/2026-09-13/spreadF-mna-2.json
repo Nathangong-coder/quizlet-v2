@@ -1,0 +1,1700 @@
+{
+  "setId": "cmtfewhjv000004jr901uq6eo",
+  "skip": 0,
+  "outcomes": [
+    {
+      "cardId": "cmtibnhi6007c04ihvqt6da2s",
+      "term": "Please explain how a DTL vs DTA works, please (then how they apply in merger models). ",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "A deferred tax asset or liability arises when book taxes and cash taxes differ in a period — a pure timing difference that reverses over time, not a permanent difference. If cash taxes paid exceed book tax expense, you have effectively prepaid taxes, so that is a DTA — you collect the benefit later. If book tax expense exceeds cash taxes paid, that is a DTL — you have reported income today that will be taxed in cash later, so future cash taxes will exceed future book taxes.\n\nIn a merger model, the classic DTL comes from an asset write-up in purchase accounting. In a stock acquisition, you can write the assets up for book purposes, which raises book depreciation, but there is no step-up for cash tax purposes — so you are recognizing a book tax expense that does not exist in cash. At close you book a DTL equal to roughly the write-up times the tax rate, and as the extra depreciation flows through the P&L, that DTL unwinds — later-year cash taxes run above book taxes, so deal cash flows are lower than book earnings suggest.\n\nStraight-line book depreciation against accelerated tax depreciation creates a DTL the same way — cash tax savings today are repaid through higher cash taxes in later years. On the other side, DTAs most commonly come from NOLs, and a buyer's ability to use a target's NOLs after a change of control is capped by Section 382. Net takeaway: write-ups and depreciation timing create DTLs that give no current cash benefit and push real cash taxes into the future, while DTAs like NOLs are real value but capped.",
+        "klps": [
+          {
+            "text": "A DTA or DTL arises from a timing difference between book taxes and cash taxes — the same total tax is paid, just shifted between periods.",
+            "kind": "definition",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "When cash taxes paid exceed book tax expense, that is a deferred tax asset — you have effectively prepaid taxes and collect the benefit later.",
+            "kind": "definition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "When book tax expense exceeds cash taxes paid, that is a deferred tax liability — future cash taxes will exceed future book taxes as it reverses.",
+            "kind": "definition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "In a merger model, writing up an asset in purchase accounting raises book depreciation with no cash tax step-up, so it creates a DTL.",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The write-up DTL is booked at close at roughly the write-up times the tax rate and unwinds as the extra book depreciation flows through.",
+            "kind": "mechanism",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Straight-line book depreciation against accelerated tax depreciation also creates a DTL — cash tax savings today are repaid through higher cash taxes in later years.",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The write-up scenario implies a stock acquisition, because a stock deal steps up assets for book but not for cash tax purposes.",
+            "kind": "condition",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Deferred tax assets most commonly come from NOLs.",
+            "kind": "example",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Net effect in the model: the DTL gives no current cash benefit and raises future cash taxes relative to book, lowering later-year deal cash flows.",
+            "kind": "causal",
+            "weight": 2,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "So basically deferred tax assets and liabilities come up because of differences between accounting and tax accounting. It's all about timing, and depending on which way things go, you either end up with a DTA or a DTL. In M&A, there are all sorts of adjustments that can create these, especially when you're dealing with write-ups and that kind of thing. The details depend a lot on the specific deal and the tax rules, but the general idea is that they represent future tax effects that you need to account for. It's one of those areas where you really need to look at the specifics to know what's going on.",
+            "score": 0.05555555555555555,
+            "verdicts": {
+              "0": "partial",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission",
+              "6": "omission",
+              "7": "omission",
+              "8": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "A DTL is a deferred tax liability and a DTA is a deferred tax asset, and they both arise because of timing differences between book and tax accounting. In a merger model, they show up because of purchase accounting and write-ups. DTAs increase assets and DTLs increase liabilities on the balance sheet, and you have to adjust the deferred tax balances when you do a deal. They reverse over time, so they affect future cash taxes and therefore free cash flow in the model. The key is to know the difference between a DTL and a DTA and how to model them.",
+            "score": 0.1111111111111111,
+            "verdicts": {
+              "0": "partial",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission",
+              "6": "omission",
+              "7": "omission",
+              "8": "incomplete"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 0,
+            "to": 1,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "The DTA definition only makes sense inside the timing-difference frame, since a permanent difference would never reverse into a future benefit.",
+            "probe": "A learner correctly says a DTA means cash taxes exceed book tax expense, and correctly explains timing differences shift taxes between periods, but calls a permanent tax credit a DTA because cash exceeded book this year."
+          },
+          {
+            "from": 0,
+            "to": 2,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Same: the DTL claim depends on the difference being a timing difference that reverses, otherwise there is no future cash tax step-up.",
+            "probe": "A learner correctly states book expense above cash taxes is a DTL and that timing differences shift taxes across periods, but treats a permanent book-tax difference as a DTL that will reverse."
+          },
+          {
+            "from": 6,
+            "to": 3,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "The write-up DTL only exists in a stock acquisition; an asset deal creates a cash tax step-up instead, so no DTL arises.",
+            "probe": "A learner says writing up an asset raises book depreciation without cash tax step-up, creating a DTL, and says write-ups only apply in stock deals, but applies the write-up DTL to an asset deal."
+          },
+          {
+            "from": 4,
+            "to": 8,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "Because the write-up DTL is booked at close and unwinds through extra book depreciation, the later-year cash-tax drag on deal cash flows mechanically follows.",
+            "probe": "A learner correctly books a write-up DTL at close times the tax rate and correctly notes DTLs raise future cash taxes, but claims the write-up DTL creates an immediate cash inflow at close that boosts cash flows."
+          },
+          {
+            "from": 1,
+            "to": 5,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "A learner often flips the sign, treating straight-line book vs accelerated tax depreciation as a DTA rather than a DTL.",
+            "probe": "A learner explains straight-line book depreciation against accelerated tax depreciation creates a DTL and explains a DTA means cash taxes exceed book tax expense, but asserts the depreciation mismatch produces a DTA."
+          },
+          {
+            "from": 3,
+            "to": 5,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both generate a DTL, so learners state the write-up mechanism when they mean the depreciation-timing mechanism, and vice versa.",
+            "probe": "A learner says writing up an asset raises book depreciation and creates a DTL, and says straight-line vs accelerated depreciation creates a DTL, but explains the write-up DTL as reversing because tax depreciation is accelerated."
+          },
+          {
+            "from": 1,
+            "to": 7,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Learners conflate the DTA's typical source (NOLs) with its definition, so they define a DTA as an NOL carryforward rather than a cash-over-book timing difference.",
+            "probe": "A learner states NOLs most commonly produce DTAs and states a DTA means cash taxes exceed book expense, but defines a DTA as any operating loss carryforward regardless of book-cash tax relationship."
+          }
+        ],
+        "relationStats": {
+          "candidates": 7,
+          "accepted": 7,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.8888888888888888,
+        "substanceSeparation": 0.8888888888888888,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [],
+        "targetKlpCount": 9,
+        "concerns": [
+          "The card's line 'in the future you will get more tax savings represented in the book than in your cash taxes' inverts the liability logic — a DTL means future cash taxes EXCEED future book taxes, i.e., you pay more cash later.",
+          "Straight-line depreciation alone does not create a DTL; it is straight-line book depreciation versus accelerated tax depreciation that does. The card should name the book-versus-tax depreciation gap explicitly."
+        ],
+        "revisionReasons": [
+          "separation 0.57 does not clear the 0.60 bar; [7] accepted by the memorized_template answer",
+          "[7] verbose"
+        ],
+        "questionType": "compare",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "\"That is what makes it a liability — the payment is still coming\" restates the immediately preceding sentence about future cash taxes exceeding future book taxes."
+            },
+            {
+              "kind": "conciseness",
+              "text": "The depreciation paragraph repeats the same DTL mechanism already explained in the write-up paragraph (book expense exceeds cash deduction, reverses later, less OCF benefit), so it could be compressed to a single sentence."
+            }
+          ],
+          "rewritten": true
+        },
+        "rebuild": {
+          "rebuiltAnswer": "A DTA or DTL arises from a timing difference between book taxes and cash taxes — the same total tax is paid, just shifted between periods. When cash taxes paid exceed book tax expense, that is a deferred tax asset — you have effectively prepaid taxes and collect the benefit later. Deferred tax assets most commonly come from NOLs. When book tax expense exceeds cash taxes paid, that is a deferred tax liability — future cash taxes will exceed future book taxes as it reverses. Straight-line book depreciation against accelerated tax depreciation also creates a DTL — cash tax savings today are repaid through higher cash taxes in later years. In a merger model, writing up an asset in purchase accounting raises book depreciation with no cash tax step-up, so it creates a DTL. The write-up DTL is booked at close at roughly the write-up times the tax rate and unwinds as the extra book depreciation flows through. The write-up scenario implies a stock acquisition, because a stock deal steps up assets for book but not for cash tax purposes. Net effect in the model: the DTL gives no current cash benefit and raises future cash taxes relative to book, lowering later-year deal cash flows.",
+          "cardCoverage": 0.9,
+          "referenceParity": 0.5833333333333334,
+          "extractionLoss": 0.41666666666666663,
+          "clearsBar": true,
+          "clearsParityBar": false,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 2,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 3,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 4,
+              "verdict": "partial",
+              "evidence": "omits Section 382 NOL limitation"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "A DTA or DTL arises when book taxes and cash taxes differ in a period — a pure timing difference that reverses over time, not a permanent difference.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "If cash taxes paid exceed book tax expense, you have effectively prepaid taxes, so that is a DTA — you collect the benefit later.",
+              "verdict": "present"
+            },
+            {
+              "claim": "If book tax expense exceeds cash taxes paid, that is a DTL — you have reported income today that will be taxed in cash later, so future cash taxes will exceed future book taxes.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "In a merger model, the classic DTL comes from an asset write-up in purchase accounting.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "In a stock acquisition, you can write the assets up for book purposes, which raises book depreciation, but there is no step-up for cash tax purposes — so you are recognizing a book tax expense that does not exist in cash.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "At close you book a DTL equal to roughly the write-up times the tax rate.",
+              "verdict": "present"
+            },
+            {
+              "claim": "As the extra depreciation flows through the P&L, that DTL unwinds — later-year cash taxes run above book taxes, so deal cash flows are lower than book earnings suggest.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Straight-line book depreciation against accelerated tax depreciation creates a DTL the same way — cash tax savings today are repaid through higher cash taxes in later years.",
+              "verdict": "present"
+            },
+            {
+              "claim": "DTAs most commonly come from NOLs.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A buyer's ability to use a target's NOLs after a change of control is capped by Section 382.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Write-ups and depreciation timing create DTLs that give no current cash benefit and push real cash taxes into the future.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "DTAs like NOLs are real value but capped.",
+              "verdict": "absent"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "DTA if cash taxes exceed book taxes; DTL if book taxes exceed cash taxes",
+            "Asset write-up in M&A creates a DTL because you recognize a book tax expense with no cash tax behind it",
+            "Straight-line book depreciation versus tax depreciation also creates a DTL",
+            "The liability logic: future cash taxes exceed future book taxes as the difference reverses",
+            "Both arise from timing differences; DTAs commonly come from NOLs (limited by Section 382), DTLs from write-ups implying a stock sale"
+          ],
+          "wordRatio": 0.7427536231884058,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": []
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtg6w8yh002h04i83aqp291m",
+      "term": "A luxury soap brand manufactures in-house in the US and sell to big-box, via Amazon and DTC. How would you position this company for sale? Who is your ideal strategic buyer?",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "I'd position this company as a prime diversifier. Selling through big-box retail, Amazon, and DTC means demand is not concentrated in any one channel — that multi-channel mix is a de-risked revenue base, and that's the headline of the pitch. Beyond diversification, two assets make it especially attractive: the DTC channel comes with first-party customer data and insights that most shelf brands can't match, and the in-house US manufacturing is a supply chain advantage — quality control, speed to market, and insulation from tariff and logistics risk. And as a premium brand, it has genuine pricing power in the luxury care segment — margins other brands envy and can't easily replicate.\n\nThe ideal strategic buyer is a horizontal integrator: a large CPG looking to expand its premium and luxury portfolio — think P&G, L'Oreal, or Unilever — which would gain brand equity, the DTC data capability, and the domestic supply base in one deal. I'd also run two adjacent buyer classes: mid-market beauty platforms backed by private equity that are rolling up brands and could bolt this on, and big-box retailers that already run private-label soap lines and want to vertically integrate into wellness and private-label luxury goods. Running all of these concurrently builds competitive tension, and that's what maximizes price.",
+        "klps": [
+          {
+            "text": "Lead the pitch by positioning the company as a prime diversifier — sales across big-box, Amazon, and DTC mean a de-risked, channel-diversified revenue base.",
+            "kind": "definition",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "The DTC channel is valuable to any strategic buyer because it comes with first-party customer data and insights most shelf brands lack.",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "In-house US manufacturing gives the brand direct control over quality standards, sustaining the premium product claims a luxury soap requires.",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "In-house US manufacturing shortens lead times and insulates the brand from tariff and international logistics risk, which a buyer dependent on overseas contract manufacturers cannot match.",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Premium positioning gives the brand real pricing power in luxury care that competing brands envy and cannot easily replicate.",
+            "kind": "causal",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The ideal strategic buyer already owns premium or luxury personal-care brands.",
+            "kind": "example",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "That buyer buys this asset to extend its existing luxury portfolio rather than to build an entirely new category.",
+            "kind": "example",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "A second buyer class is mid-market beauty platforms backed by private equity that are rolling up brands.",
+            "kind": "example",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "A third buyer class is big-box retailers that already run private-label soap lines and want to vertically integrate into wellness and private-label luxury goods.",
+            "kind": "example",
+            "weight": 3,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "I think the main thing here is just making the business look as attractive as possible to whoever might buy it, and there are a few ways to do that. You'd want to highlight all the things that make the company special and kind of lean into its strengths across the board. The right buyer is probably someone in the space who sees the value and can take it to the next level, so I'd think about parties that make sense strategically and culturally. There are definitely some interesting angles around the channel mix and the manufacturing side that a sophisticated buyer would appreciate. At the end of the day it's about telling a good story and creating some competition in the process.",
+            "score": 0,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission",
+              "6": "omission",
+              "7": "omission",
+              "8": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "To position this company for sale, I would focus on three core pillars: a compelling growth story, a defensible competitive moat, and multiple potential acquirers. The first step is to build a narrative around the company's unique value proposition—its luxury positioning, in-house manufacturing, and omnichannel presence. Then, I'd identify the ideal strategic buyer by mapping the landscape of large CPG players, private equity-backed platforms, and adjacent retailers that could leverage synergies. The pitch would emphasize revenue diversification, customer data assets, and supply chain advantages as key differentiators. Finally, I'd run a competitive process to create tension and maximize valuation. This approach ensures the seller captures the full strategic premium.",
+            "score": 0.4444444444444444,
+            "verdicts": {
+              "0": "partial",
+              "1": "partial",
+              "2": "incomplete",
+              "3": "partial",
+              "4": "incomplete",
+              "5": "partial",
+              "6": "partial",
+              "7": "partial",
+              "8": "omission"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 5,
+            "to": 6,
+            "type": "requires",
+            "provenance": "entailment",
+            "rationale": "Naming the ideal buyer from its existing portfolio only makes sense if the purchase is defined as portfolio extension, not category creation.",
+            "probe": "A learner can say the ideal buyer already owns luxury brands and still claim the buyer purchases this asset to build a new category."
+          },
+          {
+            "from": 1,
+            "to": 0,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "DTC first-party data is what makes the channel-diversified revenue base valuable enough to lead the pitch as a de-risking story.",
+            "probe": "A learner can say DTC brings first-party data and still pitch diversification purely as multi-channel revenue without crediting the data advantage."
+          },
+          {
+            "from": 4,
+            "to": 0,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "Leading with a premium de-risked brand only holds if the pricing power claim is true; a discounter with three channels tells the same story.",
+            "probe": "A learner can assert premium pricing power and still lead the pitch with diversity as the prime value driver."
+          }
+        ],
+        "relationStats": {
+          "candidates": 4,
+          "accepted": 3,
+          "droppedForCycles": 1,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.5555555555555556,
+        "substanceSeparation": 0.5555555555555556,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 6,
+            "rule": "not_self_contained",
+            "detail": "opens with \"That\", which has no antecedent inside this point — name the subject"
+          }
+        ],
+        "targetKlpCount": 9,
+        "concerns": [],
+        "revisionReasons": [
+          "separation 0.29 is below the 0.40 floor; count; [3] accepted by the memorized_template answer; [4] accepted by the memorized_template answer; [7] accepted by the memorized_template answer; [5] compound",
+          "[6] accepted by the memorized_template answer; [5] verbose; [6] compound"
+        ],
+        "questionType": "scenario",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The positioning half of the answer restates the same pitch twice — the multi-channel \"de-risked revenue base\" headline is announced, then each channel is walked through again with added color (\"control over quality, speed to market, and insulation from the tariff and logistics risk\"), which could be cut to roughly two-thirds of its length."
+            },
+            {
+              "kind": "conciseness",
+              "text": "The buyer list overlaps with itself — the big-box/private-label semi-vertical fit is described as a retailer play, then the fourth bullet repeats \"retailers looking for vertical integration into private-label luxury goods,\" so one of the two should be merged or dropped."
+            }
+          ],
+          "rewritten": true
+        },
+        "rebuild": {
+          "rebuiltAnswer": "I'd lead the pitch by positioning the company as a prime diversifier — sales across big-box, Amazon, and DTC mean a de-risked, channel-diversified revenue base. The DTC channel is valuable to any strategic buyer because it comes with first-party customer data and insights most shelf brands lack. In-house US manufacturing gives the brand direct control over quality standards, sustaining the premium product claims a luxury soap requires, and it shortens lead times and insulates the brand from tariff and international logistics risk, which a buyer dependent on overseas contract manufacturers cannot match. Premium positioning gives the brand real pricing power in luxury care that competing brands envy and cannot easily replicate. My ideal strategic buyer already owns premium or luxury personal-care brands and buys this asset to extend its existing luxury portfolio rather than to build an entirely new category. A second buyer class is mid-market beauty platforms backed by private equity that are rolling up brands. A third is big-box retailers that already run private-label soap lines and want to vertically integrate into wellness and private-label luxury goods.",
+          "cardCoverage": 0.8333333333333334,
+          "referenceParity": 0.7,
+          "extractionLoss": 0.30000000000000004,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 2,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 3,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 4,
+              "verdict": "partial",
+              "evidence": "Buyer described is portfolio extender, not horizontal integrator"
+            },
+            {
+              "index": 5,
+              "verdict": "partial",
+              "evidence": "Only CPG class named; no P&G, L'Oreal, Unilever examples"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "The company should be positioned as a prime diversifier.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Selling through big-box retail, Amazon, and DTC means demand is not concentrated in any one channel.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The multi-channel mix is a de-risked revenue base and is the headline of the pitch.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Beyond diversification, two assets make the company especially attractive.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "The DTC channel comes with first-party customer data and insights that most shelf brands can't match.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The in-house US manufacturing is a supply chain advantage involving quality control, speed to market, and insulation from tariff and logistics risk.",
+              "verdict": "present"
+            },
+            {
+              "claim": "As a premium brand, the company has genuine pricing power in the luxury care segment.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The company has margins other brands envy and can't easily replicate.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The ideal strategic buyer is a horizontal integrator.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "A large CPG looking to expand its premium and luxury portfolio.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Examples of such buyers include P&G, L'Oreal, or Unilever.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Such a buyer would gain brand equity, the DTC data capability, and the domestic supply base in one deal.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "A second adjacent buyer class is mid-market beauty platforms backed by private equity that are rolling up brands and could bolt this on.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "A third buyer class is big-box retailers that already run private-label soap lines and want to vertically integrate into wellness and private-label luxury goods.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Running all of these concurrently builds competitive tension, and that's what maximizes price.",
+              "verdict": "partial"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Position as a prime diversifier: multi-channel demand de-risks the revenue base",
+            "DTC channel provides customer data and insights valuable to any strategic buyer",
+            "Domestic in-house manufacturing is a supply chain advantage",
+            "Premium brand gives pricing power in luxury care that other brands envy",
+            "Ideal strategic buyer is a horizontal integrator, or a semi-vertical fit with big-box retailers building private-label wellness lines",
+            "Three buyer classes: large CPG expanding premium portfolios (P&G, L'Oreal, Unilever), PE-backed mid-market beauty roll-ups, and retailers seeking vertical integration"
+          ],
+          "wordRatio": 0.8483412322274881,
+          "review": {
+            "conciseness": "wordy",
+            "clarity": "clear",
+            "issues": [
+              {
+                "kind": "restatement",
+                "points": [
+                  5,
+                  6
+                ],
+                "text": "Point 5 states the buyer owns premium or luxury personal-care brands while point 6 restates the same idea as buying to extend an existing luxury portfolio, repeating the conclusion in different words."
+              },
+              {
+                "kind": "restatement",
+                "points": [
+                  3,
+                  4
+                ],
+                "text": "Points 3 and 4 both assert the brand's advantage over rivals ('cannot match' / 'cannot easily replicate') with roughly the same competitive framing."
+              },
+              {
+                "kind": "clause_bloat",
+                "points": [
+                  2
+                ],
+                "text": "Point 2's 'sustaining the premium product claims a luxury soap requires' adds description without a separately testable claim."
+              },
+              {
+                "kind": "clause_bloat",
+                "points": [
+                  3
+                ],
+                "text": "Point 3's 'which a buyer dependent on overseas contract manufacturers cannot match' is a comparative flourish rather than an independent claim."
+              },
+              {
+                "kind": "not_on_card",
+                "points": [
+                  4
+                ],
+                "text": "The envy framing ('that competing brands envy') goes beyond the owner's card, which only claims pricing power in the luxury care segment."
+              },
+              {
+                "kind": "not_on_card",
+                "points": [
+                  7
+                ],
+                "text": "The PE mid-market roll-up buyer class is not carried by the owner's buyer definition and is not needed to reach the recommendation."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtffeya8000g04i9mgzafc6r",
+      "term": "What are 2 ways an acquisition can create value (not accretion necessarily) for acquirers’ shareholders?\n",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "Value creation here means the acquirer's intrinsic value — what its shares are actually worth — rises by more than what was paid, an economic test rather than an accounting one like EPS accretion. The first way is value arbitrage: buying the target for less than its true standalone value, its net asset value. If a business is worth $100 on a standalone basis and you acquire it for $80, that $20 gap accrues to your shareholders even before any synergies — you've bought a dollar's worth of assets for less than a dollar. The second way is synergies: revenue, cost, or tax benefits the combined company generates that neither company could achieve on its own. But synergies only create value for the acquirer if their present value exceeds the control premium paid — if you hand the full synergy value to the seller in the purchase price, value was created for someone, but not for your shareholders. That's the key distinction from accretion: a deal can be EPS-accretive while still destroying economic value.",
+        "klps": [
+          {
+            "text": "Value creation means the acquirer's intrinsic value rises by more than the cost paid — an economic test, not an accounting one.",
+            "kind": "definition",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "The first way is value arbitrage: acquiring the target for less than its true standalone value, its net asset value.",
+            "kind": "definition",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "If you pay $80 for a business worth $100, the $20 gap accrues to your shareholders with no synergies required.",
+            "kind": "example",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The second way is synergies — revenue, cost, or tax benefits the combination generates that neither company could alone.",
+            "kind": "definition",
+            "weight": 1,
+            "role": "substance"
+          },
+          {
+            "text": "For synergies to create value, the synergy PV must exceed the premium paid over standalone value.",
+            "kind": "condition",
+            "weight": 5,
+            "role": "substance"
+          },
+          {
+            "text": "A deal can be EPS-accretive while still destroying economic value.",
+            "kind": "contrast",
+            "weight": 3,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "There are several ways an acquisition can create value, but it really depends on the situation. Generally, it's about unlocking something that wasn't there before, like combining resources or finding hidden opportunities. Some deals work because the buyer sees something others miss, or because the whole becomes greater than the sum of its parts. It's not just about the numbers on the surface; you have to look deeper at strategic fit. Ultimately, value creation is about making the combined entity better in some way, though it's hard to pin down exactly how.",
+            "score": 0.08333333333333333,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "omission",
+              "3": "incomplete",
+              "4": "omission",
+              "5": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "An acquisition can create value for acquirers' shareholders through synergies, which are the cost savings and revenue enhancements that result from combining two companies. These synergies can come from eliminating duplicate functions, cross-selling products, or leveraging combined purchasing power. Another way is through accretion, where the deal increases the acquirer's earnings per share, which is often seen as a sign of value creation. Additionally, acquisitions can provide growth opportunities by expanding into new markets or acquiring new technologies. Ultimately, the key is to ensure that the acquisition is strategically and financially sound, delivering benefits that outweigh the costs.",
+            "score": 0.08333333333333333,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "omission",
+              "3": "partial",
+              "4": "omission",
+              "5": "contradicted"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 4,
+            "to": 3,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Synergies only create value when the PV exceeds the premium, so the second way cannot be stated as value creation without this test.",
+            "probe": "Learner says synergies are the second way value is created, and separately agrees the synergy PV must beat the premium, but never links them — treating any synergy as automatically value-creating."
+          },
+          {
+            "from": 0,
+            "to": 5,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "If value creation is an intrinsic economic test, then EPS accretion cannot by itself establish value creation.",
+            "probe": "Learner defines value creation as a rise in intrinsic value over cost, yet still cites EPS accretion as evidence the deal created value, missing that the economic test overrides accounting optics."
+          },
+          {
+            "from": 1,
+            "to": 2,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "The $80-for-$100 illustration consumes the arbitrage definition, since you need 'pay less than standalone value' before the $20 gap means anything.",
+            "probe": "Learner states the $80/$100 example correctly and names value arbitrage correctly, but cannot say why the $20 accrues to shareholders — they never connect the gap to buying below net asset value."
+          },
+          {
+            "from": 4,
+            "to": 0,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "The synergy-versus-premium test only functions inside the economic framing where value creation means intrinsic value beats cost paid.",
+            "probe": "Learner asserts the synergy PV must exceed the premium, and separately says value creation is a rise in intrinsic value over cost, but treats the premium test as a standalone rule detached from that economic definition."
+          },
+          {
+            "from": 2,
+            "to": 4,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both involve a gap between price and value, so learners conflate the arbitrage gap with the premium-versus-synergy gap.",
+            "probe": "Learner explains the $80-for-$100 arbitrage correctly and the synergy-exceeds-premium rule correctly, but swaps them — saying the $20 arbitrage requires synergies to exceed the premium."
+          }
+        ],
+        "relationStats": {
+          "candidates": 5,
+          "accepted": 5,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.9166666666666666,
+        "substanceSeparation": 0.9166666666666666,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [],
+        "targetKlpCount": 4,
+        "concerns": [
+          "The card writes 'purchase price > NAV'; value arbitrage as conventionally taught means paying BELOW the target's intrinsic value/NAV — treated as a likely typo, and the reference answer states the value-creating direction as paying less than NAV."
+        ],
+        "revisionReasons": [
+          "separation 0.50 does not clear the 0.60 bar; [4] accepted by the memorized_template answer",
+          "[4] verbose"
+        ],
+        "questionType": "enumerate",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The closing sentence re-summarizes both ways already named ('paying below intrinsic value and capturing synergies above the premium') after the value-arbitrage and synergy points were each fully established, so the recap is restated work."
+            }
+          ],
+          "rewritten": true
+        },
+        "rebuild": {
+          "rebuiltAnswer": "Value creation means the acquirer's intrinsic value rises by more than the cost paid — an economic test, not an accounting one. The first way is value arbitrage: acquiring the target for less than its true standalone value, its net asset value. If you pay $80 for a business worth $100, the $20 gap accrues to your shareholders with no synergies required. The second way is synergies — revenue, cost, or tax benefits the combination generates that neither company could alone. For synergies to create value, the synergy PV must exceed the premium paid over standalone value. A deal can be EPS-accretive while still destroying economic value.",
+          "cardCoverage": 1,
+          "referenceParity": 0.75,
+          "extractionLoss": 0.25,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": ""
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "Value creation means the acquirer's intrinsic value — what its shares are actually worth — rises by more than what was paid.",
+              "verdict": "present"
+            },
+            {
+              "claim": "This is an economic test rather than an accounting one like EPS accretion.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The first way is value arbitrage: buying the target for less than its true standalone value, its net asset value.",
+              "verdict": "present"
+            },
+            {
+              "claim": "If a business is worth $100 standalone and you acquire it for $80, the $20 gap accrues to your shareholders.",
+              "verdict": "present"
+            },
+            {
+              "claim": "This $20 gain occurs even before any synergies.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "You've bought a dollar's worth of assets for less than a dollar.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "The second way is synergies: revenue, cost, or tax benefits the combined company generates that neither company could achieve on its own.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Synergies only create value for the acquirer if their present value exceeds the control premium paid.",
+              "verdict": "present"
+            },
+            {
+              "claim": "If you hand the full synergy value to the seller in the purchase price, value was created for someone, but not for your shareholders.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "That is the key distinction from accretion: a deal can be EPS-accretive while still destroying economic value.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "First way: 'value arbitrage' — the relationship between purchase price and the target's NAV",
+            "Second way: synergies"
+          ],
+          "wordRatio": 0.6149425287356322,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": []
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtgesf36005004jvh65aos7r",
+      "term": "Walk me through the sell-side M&A process, including key documents (8 steps)\n",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "The sell-side M&A process — the banker-run sequence that markets a company to multiple buyers to build competitive tension and close at maximum value — runs in eight steps. First, planning and preparation: prepare legal due diligence, draft the teaser — a one-to-two page anonymous document — and write the full Confidential Information Memorandum, building the narrative around competitive positioning, brand, and customer reputation. Second, marketing: send the teaser to prospective buyers and distribute the CIM once a buyer signs an NDA, analyzing each buyer's CapEx requirements, historical and projected cash flows, and working capital trends. Third, initial bids: buyers submit non-binding Letters of Intent, evaluated on price plus certainty of closing. Fourth, management presentations: shortlisted buyers meet management and gain data room access for deeper diligence. Fifth, final bids: buyers submit more binding LOIs and purchase agreement drafts, while the sell side normalizes the cash flows behind each bid — quality of earnings, sustainable CapEx, working capital, and free cash flow. Sixth, negotiations: finalize the purchase agreement and negotiate reps and warranties. Seventh, signing: the parties execute the definitive purchase agreement. Eighth, closing: obtain regulatory approvals and fund the transaction, completing the deal.",
+        "klps": [
+          {
+            "text": "The sell-side process is the banker-run sequence that markets a company to multiple buyers to build competitive tension and close at maximum value.",
+            "kind": "definition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Step one, planning: prepare legal due diligence, draft the one-to-two page teaser, and write the CIM emphasizing brand and customer reputation.",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Step two, marketing: send teasers to prospects and release the CIM only after an NDA, screening buyers on CapEx needs, cash flows, and working capital trends.",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Step three, initial bids: buyers submit non-binding LOIs, evaluated on price plus certainty of closing — not price alone.",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Step four, management presentations: shortlisted buyers meet management and enter the data room for deeper diligence.",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Step five, final bids: buyers submit firmer LOIs and purchase agreement drafts while the sell side normalizes QoE, sustainable CapEx, working capital, and FCF.",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Step six, negotiations: finalize the purchase agreement, negotiating reps and warranties and risk allocation.",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Step seven, signing: the parties execute the definitive purchase agreement, which is typically signed before closing subject to regulatory approvals and funding conditions.",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Step eight, closing: obtain regulatory approvals and fund the transaction after signing.",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "Sell-side M&A is basically about running a structured process to get the best outcome for the seller. There are a number of stages, starting with preparation and ending with closing, and along the way you'd be dealing with various documents and buyer interactions. The key is to create competition and keep things moving, while making sure the seller's interests are protected. Every deal is different, so the specifics depend on the situation, but the overall flow is well-established. I could go into more detail on any particular part if you'd like.",
+            "score": 0.05555555555555555,
+            "verdicts": {
+              "0": "incomplete",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission",
+              "6": "omission",
+              "7": "omission",
+              "8": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "The sell-side M&A process consists of eight key steps. First, you prepare a teaser and a CIM to market the company. Second, you send the teaser to potential buyers and get NDAs signed. Third, you collect indications of interest and evaluate them. Fourth, you hold management presentations for the shortlisted buyers. Fifth, you receive final bids and negotiate the purchase agreement. Sixth, you finalize the deal terms and sign the definitive agreement. Seventh, you obtain regulatory approvals, and eighth, you close the transaction.",
+            "score": 0.4444444444444444,
+            "verdicts": {
+              "0": "omission",
+              "1": "partial",
+              "2": "partial",
+              "3": "incomplete",
+              "4": "partial",
+              "5": "partial",
+              "6": "incomplete",
+              "7": "partial",
+              "8": "incomplete"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 0,
+            "to": 3,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "Competitive tension from marketing to multiple buyers is what makes price-plus-certainty evaluation meaningful rather than single-bidder negotiation.",
+            "probe": "A learner says buyers' non-binding LOIs are ranked on price alone even in a broad auction, missing that competitive tension is what forces certainty to be weighed."
+          },
+          {
+            "from": 2,
+            "to": 3,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "You cannot have a pool of initial bids to compare without first releasing the CIM and screening buyers who submitted them.",
+            "probe": "A learner lists initial bid evaluation before any CIM release or buyer screening, treating bid comparison as generating the bidder pool."
+          },
+          {
+            "from": 5,
+            "to": 6,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Finalizing the purchase agreement requires the QoE and working-capital normalization produced during final bids.",
+            "probe": "A learner negotiates reps and warranties before normalizing QoE and working capital, treating risk allocation as independent of those adjustments."
+          },
+          {
+            "from": 7,
+            "to": 8,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Closing funding and regulatory approval consume the signed definitive agreement, so closing cannot be derived without signing first.",
+            "probe": "A learner describes regulatory approval and funding as occurring before the definitive agreement is executed, treating signing as a mere formality after closing."
+          },
+          {
+            "from": 4,
+            "to": 5,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Firmer final LOIs presuppose management presentations and data-room diligence, since buyers cannot commit without that deeper access.",
+            "probe": "A learner says buyers submit firm final bids and draft purchase agreements without ever meeting management or entering the data room."
+          },
+          {
+            "from": 1,
+            "to": 2,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Teasers and the CIM must exist from planning before marketing can send teasers and gate the CIM behind NDAs.",
+            "probe": "A learner says marketing sends teasers and releases the CIM before the teaser and CIM have been drafted in planning."
+          },
+          {
+            "from": 7,
+            "to": 8,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Signing and closing are routinely conflated, yet signing executes the agreement while closing funds it after approvals.",
+            "probe": "A learner says the deal closes when the definitive purchase agreement is executed, treating signing and closing as the same event."
+          },
+          {
+            "from": 3,
+            "to": 5,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both are LOI rounds, but initial bids are non-binding price-plus-certainty screens while final bids are firmer and paired with agreement drafts.",
+            "probe": "A learner treats the initial non-binding LOIs as the final bids, missing the second firmer round with purchase agreement drafts."
+          }
+        ],
+        "relationStats": {
+          "candidates": 8,
+          "accepted": 8,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.4444444444444444,
+        "substanceSeparation": 0.4444444444444444,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "partial",
+          "partial"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [],
+        "targetKlpCount": 9,
+        "concerns": [],
+        "revisionReasons": [
+          "separation 0.25 is below the 0.40 floor; [4] accepted by the memorized_template answer; [6] accepted by the memorized_template answer; [7] accepted by the memorized_template answer; [8] accepted by the memorized_template answer",
+          "separation 0.50 does not clear the 0.60 bar; [7] accepted by the memorized_template answer"
+        ],
+        "questionType": "walkthrough",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The opening two sentences ('The sell-side M&A process is the banker-run sequence... so the seller closes at the maximum value. It runs in eight steps.') delay the actual walkthrough and could be compressed to a single clause."
+            },
+            {
+              "kind": "conciseness",
+              "text": "The parenthetical editorial asides — 'a higher bid from a shakier buyer can be worth less' and 'so you're comparing real numbers' — add color but no content to an already long enumeration."
+            }
+          ],
+          "rewritten": true
+        },
+        "rebuild": {
+          "rebuiltAnswer": "The sell-side process is the banker-run sequence that markets a company to multiple buyers to build competitive tension and close at maximum value. First, planning: prepare legal due diligence, draft the one-to-two page teaser, and write the CIM emphasizing brand and customer reputation. Second, marketing: send teasers to prospects and release the CIM only after an NDA, screening buyers on CapEx needs, cash flows, and working capital trends. Third, initial bids: buyers submit non-binding LOIs, evaluated on price plus certainty of closing — not price alone. Fourth, management presentations: shortlisted buyers meet management and enter the data room for deeper diligence. Fifth, final bids: buyers submit firmer LOIs and purchase agreement drafts while the sell side normalizes QoE, sustainable CapEx, working capital, and FCF. Sixth, negotiations: finalize the purchase agreement, negotiating reps and warranties and risk allocation. Seventh, signing: the parties execute the definitive purchase agreement, typically signed before closing subject to regulatory approvals and funding conditions. Eighth, closing: obtain regulatory approvals and fund the transaction after signing.",
+          "cardCoverage": 1,
+          "referenceParity": 0.9102564102564102,
+          "extractionLoss": 0.08974358974358976,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct"
+            },
+            {
+              "index": 1,
+              "verdict": "correct"
+            },
+            {
+              "index": 2,
+              "verdict": "correct"
+            },
+            {
+              "index": 3,
+              "verdict": "correct"
+            },
+            {
+              "index": 4,
+              "verdict": "correct"
+            },
+            {
+              "index": 5,
+              "verdict": "correct"
+            },
+            {
+              "index": 6,
+              "verdict": "correct"
+            },
+            {
+              "index": 7,
+              "verdict": "correct"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "The sell-side process is run by the banker and markets the company to multiple buyers.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The purpose of the sell-side process is to build competitive tension and close at maximum value.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The process has eight steps.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step one is planning and preparation.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step one includes preparing legal due diligence.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step one includes drafting the teaser document.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The teaser is a one-to-two page anonymous document.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Step one includes writing the full Confidential Information Memorandum (CIM).",
+              "verdict": "present"
+            },
+            {
+              "claim": "The CIM narrative is built around competitive positioning.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "The CIM narrative is built around brand.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The CIM narrative is built around customer reputation.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step two is marketing.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step two includes sending the teaser to prospective buyers.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step two includes distributing the CIM once a buyer signs an NDA.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step two includes analyzing each buyer's CapEx requirements.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Step two includes analyzing historical and projected cash flows.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Step two includes analyzing working capital trends.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step three is initial bids.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In step three, buyers submit non-binding Letters of Intent (LOIs).",
+              "verdict": "present"
+            },
+            {
+              "claim": "Initial LOIs are evaluated on price plus certainty of closing.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step four is management presentations.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In step four, shortlisted buyers meet management.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In step four, shortlisted buyers gain data room access for deeper diligence.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step five is final bids.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In step five, buyers submit more binding LOIs.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "In step five, buyers submit purchase agreement drafts.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In step five, the sell side normalizes the cash flows behind each bid.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Normalization in step five covers quality of earnings (QoE).",
+              "verdict": "present"
+            },
+            {
+              "claim": "Normalization in step five covers sustainable CapEx.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Normalization in step five covers working capital.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Normalization in step five covers free cash flow (FCF).",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step six is negotiations.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step six includes finalizing the purchase agreement.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step six includes negotiating representations and warranties.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step seven is signing.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In step seven, the parties execute the definitive purchase agreement.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step eight is closing.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step eight includes obtaining regulatory approvals.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step eight includes funding the transaction.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Plan process: legal due diligence prep; create the 1–2 page teaser and the CIM; emphasize competitive positioning, brand, and customer reputation",
+            "Marketing: distribute the teaser to prospects and the CIM after NDAs; analyze CapEx requirements, historical/projected cash flows, working capital trends",
+            "Initial bids: LOIs evaluated on price plus certainty of closing",
+            "Management presentations: buyers meet management and see the data room",
+            "Final bids: LOIs/purchase agreement drafts; normalize cash flows via QoE, sustainable CapEx, working capital, FCF",
+            "Negotiations: finalize the purchase agreement, negotiate reps and warranties",
+            "Signing: execute the definitive purchase agreement",
+            "Closing: obtain regulatory approval and fund the transaction"
+          ],
+          "wordRatio": 0.865979381443299,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": [
+              {
+                "kind": "clause_bloat",
+                "points": [
+                  1
+                ],
+                "text": "Point 1's phrase 'emphasizing brand and customer reputation' adds a which-style elaboration that is not carried in the owner's definition and creates no separately testable step."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtibnhmy008q04ihgcxup05w",
+      "term": "If you have WACC of 6%, acquirer’s WACC is 10% and a yield of 8%. Is it EPS accretive/dilutive (assuming you use the same capital structure blend as current company)? Does it create/destroy value?",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "There are two different tests here, and they point in opposite directions. On value: the target earns an 8% yield against its own 6% WACC — its returns exceed its risk-adjusted cost of capital, so the deal creates value. On accretion: the question says we fund the deal at the acquirer's capital structure blend, whose cost is 10%. An 8% yield doesn't cover a 10% blended financing cost, so EPS falls — the deal is dilutive. Bottom line: the deal creates value but is EPS dilutive — which is exactly why accretion/dilution and value creation must never be conflated; a deal can be accretive and destroy value, or, as here, dilutive and create value.",
+        "klps": [
+          {
+            "text": "EPS accretion is an accounting test based on the blended funding cost versus the acquired yield, while value creation is an economic test based on the target's own risk-adjusted cost of capital — the two can give opposite answers on the same deal.",
+            "kind": "definition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The target's 8% yield exceeds the target's own risk-adjusted WACC of 6%, so the acquired business generates returns above its risk-adjusted cost of capital.",
+            "kind": "quantitative",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Because the acquired asset earns more than its risk-adjusted cost of capital, the acquisition creates economic value for the buyer.",
+            "kind": "causal",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Because the deal is funded at the acquirer's capital structure blend, the applicable financing cost is the acquirer's 10% WACC, not the target's 6% WACC.",
+            "kind": "quantitative",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "The 10% blended funding cost exceeds the target's 8% yield, so the acquired earnings do not cover the cost of funding them.",
+            "kind": "quantitative",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Because the acquired earnings do not cover the blended cost of funding them, the deal is EPS dilutive.",
+            "kind": "causal",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Bottom line: the deal creates economic value but is EPS dilutive.",
+            "kind": "contrast",
+            "weight": 3,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "This is a classic accretion/dilution and value creation question, and the answer really depends on the assumptions you make. You have to look at the yield relative to the cost of capital, and there are different ways to think about which WACC applies. In practice, the deal could be accretive or dilutive depending on how you blend the capital structure, and value creation is a separate consideration. So the key is to be careful about which discount rate you use and what the acquisition financing looks like. Overall, it's not a simple yes or no—you'd need to work through the numbers to see how it shakes out.",
+            "score": 0.07142857142857142,
+            "verdicts": {
+              "0": "incomplete",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission",
+              "6": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "I recall that accretion/dilution is determined by comparing the target's earnings yield to the blended cost of financing. Here, the target's yield is 8%, the acquirer's WACC is 10%, and there's a 6% WACC as well. The key is that if the yield exceeds the financing cost, it's accretive; otherwise dilutive. Since the yield is 8% and the WACC is 6%, it must be accretive because the yield is higher than the WACC. So the deal is EPS accretive and also creates value because accretion always means value creation. This is a standard rule of thumb: if it's accretive, it's good, and if it's dilutive, it's bad.",
+            "score": 0.07142857142857142,
+            "verdicts": {
+              "0": "conflation",
+              "1": "partial",
+              "2": "misapplication",
+              "3": "contradicted",
+              "4": "contradicted",
+              "5": "contradicted",
+              "6": "contradicted"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 3,
+            "to": 4,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "Once the blended funding cost is the acquirer's 10% WACC, the funding cost exceeding the 8% yield follows arithmetically.",
+            "probe": "A learner states the deal is funded at the acquirer's 10% blend yet still compares the target's 8% yield against the target's own 6% cost, concluding the earnings cover funding."
+          },
+          {
+            "from": 0,
+            "to": 6,
+            "type": "requires",
+            "provenance": "order_violation",
+            "rationale": "The bottom line of value-creation-plus-EPS-dilution only holds because the two tests are conceded to be independent.",
+            "probe": "A learner asserts 'creates value but EPS dilutive' as the bottom line while believing EPS accretion and value creation must always agree."
+          },
+          {
+            "from": 3,
+            "to": 5,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Concluding EPS dilution consumes the setup that the applicable financing cost is the acquirer's 10%, not the target's 6%.",
+            "probe": "A learner says the deal is EPS dilutive but derives it from the target's 6% WACC rather than the acquirer's 10% blend."
+          },
+          {
+            "from": 4,
+            "to": 5,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "EPS dilution cannot be concluded without first establishing that the 8% yield falls short of the 10% funding cost.",
+            "probe": "A learner concludes EPS dilution while believing the target's 8% yield exceeds the funding cost, so dilution would not follow."
+          },
+          {
+            "from": 1,
+            "to": 2,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Value creation is derived from the acquired business earning above its own risk-adjusted cost of capital.",
+            "probe": "A learner claims the deal creates economic value without establishing that the 8% yield exceeds the target's 6% risk-adjusted WACC."
+          },
+          {
+            "from": 3,
+            "to": 5,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Learners conflate which WACC applies — the target's 6% or the acquirer's 10% — when testing EPS accretion.",
+            "probe": "A learner correctly identifies the acquirer's 10% blend but then uses the target's 6% WACC to judge whether the deal is EPS accretive."
+          }
+        ],
+        "relationStats": {
+          "candidates": 6,
+          "accepted": 6,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.9285714285714286,
+        "substanceSeparation": 0.9285714285714286,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 0,
+            "rule": "verbose",
+            "detail": "43 words; a point states one claim in at most 30"
+          }
+        ],
+        "targetKlpCount": 4,
+        "concerns": [
+          "The card's value test is 'IRR > target's WACC'; some interviewers frame value creation against the acquirer's cost of funding (10%), under which this deal would destroy value. The card's answer (creates value because 8% > 6%) was kept, but the candidate should be ready to defend the chosen benchmark."
+        ],
+        "revisionReasons": [
+          "separation 0.25 is below the 0.40 floor; [1] accepted by the memorized_template answer; [3] accepted by the memorized_template answer; [5] compound; [3] clause bloat: \"whose WACC is 10%\" adds words to point [3] without a separately testable claim.; [5] clause bloat: \"proof that accretion and value creation are different tests\" adds words to point [5] without a separately testable claim.; [0] restatement with [5]: Points [0] and [5] both say the deal creates value but is EPS dilutive because the two tests diverge.; [5] restatement with [0]: Points [0] and [5] both say the deal creates value but is EPS dilutive because the two tests diverge.",
+          "[0] compound; [1] restatement with [2]: Points 1 and 2 both assert the target earns above its risk-adjusted cost of capital, so one of them repeats the other's claim.; [2] restatement with [1]: Points 1 and 2 both assert the target earns above its risk-adjusted cost of capital, so one of them repeats the other's claim.; [1] clause bloat: The trailing clause about generating returns above its risk-adjusted cost of capital is restated as a separate claim in point 2, so it only adds words here.; [4] clause bloat: The because-clause in point 4 restates point 3's 10% funding cost exceeding the 8% yield rather than adding a separately testable claim.; [0] restatement with [5]: The opening line and the closing bottom line both frame the answer as value creation versus EPS dilution, so the conclusion is stated twice.; [5] restatement with [0]: The opening line and the closing bottom line both frame the answer as value creation versus EPS dilution, so the conclusion is stated twice."
+        ],
+        "questionType": "scenario",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "bloated",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "Each conclusion gets restated multiple times: 'it earns economic profit — so acquiring it creates value; you're buying a business whose returns exceed what its risk requires,' 'after-tax EPS goes down, and the deal is EPS dilutive,' and the closing 'the deal creates value but is dilutive' all repeat points already made."
+            }
+          ],
+          "rewritten": true
+        },
+        "rebuild": {
+          "rebuiltAnswer": "EPS accretion is an accounting test based on the blended funding cost versus the acquired yield, while value creation is an economic test based on the target's own risk-adjusted cost of capital — the two can give opposite answers on the same deal. The target's 8% yield exceeds the target's own risk-adjusted WACC of 6%, so the acquired business generates returns above its risk-adjusted cost of capital, and therefore the acquisition creates economic value for the buyer. But because the deal is funded at the acquirer's capital structure blend, the applicable financing cost is the acquirer's 10% WACC, not the target's 6% WACC. That 10% blended funding cost exceeds the target's 8% yield, so the acquired earnings do not cover the cost of funding them, and the deal is EPS dilutive. Bottom line: the deal creates economic value but is EPS dilutive.",
+          "cardCoverage": 1,
+          "referenceParity": 0.8,
+          "extractionLoss": 0.19999999999999996,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "There are two different tests here (accretion/dilution and value creation) and they point in opposite directions",
+              "verdict": "present"
+            },
+            {
+              "claim": "On value: the target earns an 8% yield against its own 6% WACC",
+              "verdict": "present"
+            },
+            {
+              "claim": "Because the target's returns exceed its risk-adjusted cost of capital, the deal creates value",
+              "verdict": "present"
+            },
+            {
+              "claim": "On accretion: the deal is funded at the acquirer's capital structure blend, whose cost is 10%",
+              "verdict": "present"
+            },
+            {
+              "claim": "An 8% yield does not cover a 10% blended financing cost, so EPS falls",
+              "verdict": "present"
+            },
+            {
+              "claim": "The deal is dilutive (EPS falls)",
+              "verdict": "present"
+            },
+            {
+              "claim": "Bottom line: the deal creates value but is EPS dilutive",
+              "verdict": "present"
+            },
+            {
+              "claim": "This is exactly why accretion/dilution and value creation must never be conflated",
+              "verdict": "present"
+            },
+            {
+              "claim": "A deal can be accretive and destroy value",
+              "verdict": "absent"
+            },
+            {
+              "claim": "A deal can be dilutive and create value (as here)",
+              "verdict": "absent"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Answer: the deal creates value (IRR/yield above the target's WACC) but is EPS dilutive"
+          ],
+          "wordRatio": 1.2456140350877194,
+          "review": {
+            "conciseness": "wordy",
+            "clarity": "clear",
+            "issues": [
+              {
+                "kind": "restatement",
+                "points": [
+                  5,
+                  6
+                ],
+                "text": "Point 5 already states the deal is EPS dilutive and point 6 restates the same conclusion along with value creation."
+              },
+              {
+                "kind": "clause_bloat",
+                "points": [
+                  4
+                ],
+                "text": "The explanation that the acquired earnings do not cover the cost of funding them is a because-style clause that restates the 10% versus 8% comparison without adding a separately testable claim."
+              },
+              {
+                "kind": "transition",
+                "points": [],
+                "text": "The answer adds a closing \"Bottom line\" sentence that is connective filler restating the two conclusions rather than any new point content."
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "step": "adversaries",
+      "model": "deepseek-v4-flash",
+      "calls": 12,
+      "input": 7301,
+      "output": 2544,
+      "reasoning": 0,
+      "cached": 2816
+    },
+    {
+      "step": "author-batch",
+      "model": "glm-5.3-flash",
+      "calls": 1,
+      "input": 2820,
+      "output": 9022,
+      "reasoning": 3588,
+      "cached": 64
+    },
+    {
+      "step": "classify",
+      "model": "deepseek-v4-flash",
+      "calls": 5,
+      "input": 3924,
+      "output": 591,
+      "reasoning": 0,
+      "cached": 1536
+    },
+    {
+      "step": "coverage",
+      "model": "deepseek-v4-flash",
+      "calls": 15,
+      "input": 14484,
+      "output": 1902,
+      "reasoning": 0,
+      "cached": 4224
+    },
+    {
+      "step": "grade",
+      "model": "deepseek-v4-flash",
+      "calls": 43,
+      "input": 53144,
+      "output": 6937,
+      "reasoning": 0,
+      "cached": 22656
+    },
+    {
+      "step": "parity",
+      "model": "deepseek-v4-flash",
+      "calls": 15,
+      "input": 12171,
+      "output": 8060,
+      "reasoning": 0,
+      "cached": 3584
+    },
+    {
+      "step": "rebuild",
+      "model": "deepseek-v4-flash",
+      "calls": 15,
+      "input": 8016,
+      "output": 3157,
+      "reasoning": 0,
+      "cached": 896
+    },
+    {
+      "step": "relate",
+      "model": "deepseek-v4-flash",
+      "calls": 5,
+      "input": 5389,
+      "output": 2998,
+      "reasoning": 0,
+      "cached": 640
+    },
+    {
+      "step": "review",
+      "model": "deepseek-v4-flash",
+      "calls": 5,
+      "input": 5245,
+      "output": 670,
+      "reasoning": 0,
+      "cached": 1408
+    },
+    {
+      "step": "review-rebuilt",
+      "model": "deepseek-v4-flash",
+      "calls": 15,
+      "input": 18153,
+      "output": 1203,
+      "reasoning": 0,
+      "cached": 6016
+    },
+    {
+      "step": "revise",
+      "model": "deepseek-v4-flash",
+      "calls": 10,
+      "input": 13030,
+      "output": 3367,
+      "reasoning": 0,
+      "cached": 1536
+    },
+    {
+      "step": "revise-ref",
+      "model": "glm-5.3-flash",
+      "calls": 5,
+      "input": 6514,
+      "output": 4216,
+      "reasoning": 1501,
+      "cached": 128
+    }
+  ]
+}

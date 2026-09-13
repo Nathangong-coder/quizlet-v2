@@ -10,9 +10,17 @@
  * renders under the points:
  *
  *  - the REVIEWER's read of the rebuilt answer, attached to point indices
- *    (`compressionFindings`): restatement, clause bloat, content the card
- *    does not carry. Transitions are the rebuilder's doing, not the points',
- *    and are recorded but never a finding.
+ *    (`compressionFindings`): restatement and clause bloat. Transitions are
+ *    the rebuilder's doing, not the points', and are recorded but never a
+ *    finding. NOT-ON-CARD is recorded but never a finding either, since the
+ *    spread x2 (2026-09-13): it cut "CapEx below depreciation at a mature firm
+ *    may signal underinvestment" from a card whose owner wrote one line, and
+ *    parity fell to 0.50 with nothing left to revise. The author prompt says
+ *    to add what a strong answer needs that the card omits, and the owner
+ *    does not enrich terse cards — so a point being absent from the card is
+ *    expected, not a defect. The parity grader is the authority on whether a
+ *    claim belongs; a cut it would object to must not be made a round before
+ *    it can object.
  *  - a per-point VERBOSE bound (`verboseDefect`): over VERBOSE_POINT_WORDS
  *    words, or two subordinate clauses. A hygiene bound in the family of
  *    `compound`, computed for free; the reviewer does the judgement.
@@ -78,7 +86,7 @@ export function compressionFindings(review: RebuiltReview | undefined, klpCount:
   if (!review) return []
   const out: CompressionFinding[] = []
   for (const issue of review.issues) {
-    if (issue.kind === 'transition') continue
+    if (issue.kind === 'transition' || issue.kind === 'not_on_card') continue
     const points = [...new Set(issue.points.filter((i) => Number.isInteger(i) && i >= 0 && i < klpCount))]
     if (points.length === 0) continue
     const others = (i: number) => points.filter((p) => p !== i).map((p) => `[${p}]`).join(', ')
@@ -89,17 +97,11 @@ export function compressionFindings(review: RebuiltReview | undefined, klpCount:
           issue: `restatement${others(i) ? ` with ${others(i)}` : ''}: ${issue.text}`,
           fix: 'these points make the same claim in different words; keep ONE of them (the one a wrong answer is likeliest to fail) and cut the rest',
         })
-      } else if (issue.kind === 'clause_bloat') {
+      } else {
         out.push({
           index: i,
           issue: `clause bloat: ${issue.text}`,
           fix: 'cut to the bare claim; move the because-clause to its own point ONLY if a wrong answer could fail it on its own, otherwise drop it',
-        })
-      } else {
-        out.push({
-          index: i,
-          issue: `not on the card: ${issue.text}`,
-          fix: "the card's definition does not carry this; cut it unless the reference answer needs it to reach its conclusion",
         })
       }
     }

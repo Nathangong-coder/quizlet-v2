@@ -35,7 +35,7 @@ describe('wordRatio and ratioFinding', () => {
 })
 
 describe('compressionFindings (step A)', () => {
-  it('turns restatement into one finding per point naming the others, clause bloat and not-on-card into per-point findings, and drops transitions and bad indices', () => {
+  it('turns restatement into one finding per point naming the others and clause bloat into a per-point finding; drops transitions, not-on-card and bad indices', () => {
     const f = compressionFindings(
       {
         conciseness: 'wordy',
@@ -54,7 +54,6 @@ describe('compressionFindings (step A)', () => {
       [0, 'restatement with [7]'],
       [7, 'restatement with [0]'],
       [3, 'clause bloat'],
-      [5, 'not on the card'],
     ])
     expect(f[0].fix).toContain('keep ONE')
     expect(compressionFindings(undefined, 8)).toEqual([])
