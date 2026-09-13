@@ -42,6 +42,7 @@ export const RESERVED_HANDLES: readonly string[] = [
   'auth',
   // Routes the roadmap already names
   'browse',
+  'features',
   'learning',
   'learner',
   'login',

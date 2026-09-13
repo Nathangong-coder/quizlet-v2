@@ -61,7 +61,7 @@ describe('Landing links', () => {
 describe('FeatureShowcase tabs', () => {
   it('names every way of studying that the app actually has', () => {
     expect(SHOWCASE_TABS.map((t) => t.id)).toEqual([
-      'short-answer', 'key-points', 'concept-tree', 'insights', 'memory', 'diagnostic',
+      'flashcards', 'learn', 'study-guides', 'postmortems', 'test', 'review', 'games',
     ])
   })
 
@@ -77,8 +77,8 @@ describe('FeatureShowcase tabs', () => {
 
   it('switches the panel on click', () => {
     render(<FeatureShowcase />)
-    fireEvent.click(screen.getByRole('tab', { name: /concept tree/i }))
-    expect(screen.getByRole('tab', { name: /concept tree/i })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('tab', { name: /study guides/i }))
+    expect(screen.getByRole('tab', { name: /study guides/i })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(SHOWCASE_TABS[2].claim)
   })
 

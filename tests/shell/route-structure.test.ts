@@ -38,6 +38,8 @@ const BARE_ROUTES = [
 const SHELLED_ROUTES = [
   'page.tsx',
   'browse/page.tsx',
+  'features/page.tsx',
+  'features/[slug]/page.tsx',
   'sets/page.tsx',
   'sets/new/page.tsx',
   'sets/[id]/(views)/page.tsx',

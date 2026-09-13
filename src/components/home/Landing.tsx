@@ -75,7 +75,7 @@ export function Landing() {
 
       {/* ---------- Feature showcase (tabs) ---------- */}
       <Section className="mx-auto mt-20 max-w-5xl" rule={false}>
-        <SectionHeader title="Six ways to study one set" hint="every one of them feeds the same memory" />
+        <SectionHeader title="Seven ways to study one set" hint="every one of them feeds the same memory" action={<Link href="/features" className="underline underline-offset-4">All features</Link>} />
         <SectionBody>
           <FeatureShowcase />
         </SectionBody>
