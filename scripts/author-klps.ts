@@ -12,6 +12,9 @@ import { REVISE_KLPS_PROMPT } from '../src/lib/ai/prompts/revise-klps'
 import { RELATE_KLPS_PROMPT } from '../src/lib/ai/prompts/relate-klps'
 import { CLASSIFY_ABSTRACTION_PROMPT } from '../src/lib/ai/prompts/classify-abstraction'
 import { WRITE_PANEL_PROMPT } from '../src/lib/ai/prompts/write-panel'
+import { WRITE_ADVERSARIES_PROMPT } from '../src/lib/ai/prompts/write-adversaries'
+import { parseRotationSpec, pickRoles, familyOf, familiesAvailable, type RotationCombo, type RoleAssignment } from '../src/lib/klp/rotation'
+import { DIRECT_PROVIDER_SOURCES, buildDirectPool, parseList } from '../src/lib/klp/direct-pool'
 import { findExistingPanel } from '../src/lib/klp/panel-reuse'
 import type { CardKlpStatus } from '../src/lib/cards/klp-status'
 import {
@@ -157,7 +160,30 @@ function defaultGenerator(userId: string, onModel?: (model: string) => void): Au
  * whole run: pacing exists because a single card fires 6-16 calls back to back,
  * and a per-card pacer would reset that spacing at every card boundary.
  */
-function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectCombo): AuthoringGenerator {
+/**
+ * Builds the rotation pool from `KLP_ROTATION` (`source:model,model;source:model;...`),
+ * attaching each source's keys, base URL and request defaults exactly as
+ * `readDirectPool` would. Every combo carries its family so `pickRoles` can
+ * keep the three roles apart.
+ */
+function readRotationPool(env: NodeJS.ProcessEnv = process.env): RotationCombo[] {
+  const spec = parseRotationSpec(env.KLP_ROTATION)
+  const pool: RotationCombo[] = []
+  const bySource = new Map<string, string[]>()
+  for (const { source, model } of spec) bySource.set(source, [...(bySource.get(source) ?? []), model])
+  for (const [source, models] of bySource) {
+    const src = DIRECT_PROVIDER_SOURCES[source]
+    if (!src) throw new Error(`KLP_ROTATION: unknown source "${source}" — use one of ${Object.keys(DIRECT_PROVIDER_SOURCES).join(', ')}`)
+    const keys = [...new Set(src.keyVars.flatMap((v) => parseList(env[v])))]
+    if (keys.length === 0) throw new Error(`KLP_ROTATION: source "${source}" needs ${src.keyVars.join(' or ')} in the environment`)
+    for (const c of buildDirectPool(keys, models, src.resolveAs ?? source, src.baseUrl, src.requestDefaults?.(env), src.schemaInPrompt)) {
+      pool.push({ ...c, id: `${source}:${c.id}`, source, family: familyOf(source) })
+    }
+  }
+  return pool
+}
+
+function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectCombo, adversaryCombo?: DirectCombo): AuthoringGenerator {
   // Built through the SAME `resolveLanguageModel` the website uses, not a
   // provider factory called here. That function carries per-provider
   // corrections this script would otherwise have to duplicate — most
@@ -171,10 +197,11 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
   // pinned for the card. The adversaries are still written by the author
   // call, so they are now graded by a DIFFERENT model than wrote them.
   const writerModel = authorCombo ? resolveLanguageModel(comboResolveInput(authorCombo)) : languageModel
+  const adversaryModel = adversaryCombo ? resolveLanguageModel(comboResolveInput(adversaryCombo)) : undefined
 
   // generateObject does not exist in AI SDK v7; structured output is
   // generateText + Output.object.
-  async function call<T>(prompt: string, schema: z.ZodSchema<T>, who: 'writer' | 'grader' = 'grader'): Promise<T> {
+  async function call<T>(prompt: string, schema: z.ZodSchema<T>, who: 'writer' | 'grader' | 'adversary' = 'grader'): Promise<T> {
     // A quota halt must retire the combo that HIT the quota. Before this tag,
     // a Gemini writer's daily cap retired the DeepSeek grader combo (the only
     // one in that pool) and stopped a whole run at card 10 of 82 with the
@@ -191,7 +218,7 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
         // delayed classification: the daily-quota halt cannot fire until the
         // error surfaces, and the SDK swallowed the first two.
         const res = await generateText({
-          model: who === 'writer' ? writerModel : languageModel,
+          model: who === 'writer' ? writerModel : who === 'adversary' && adversaryModel ? adversaryModel : languageModel,
           prompt,
           output: Output.object({ schema }),
           maxRetries: 0,
@@ -209,7 +236,7 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
       },
     )
     } catch (err) {
-      if (err instanceof RunHaltedError) (err as RunHaltedError & { role?: 'writer' | 'grader' }).role = who
+      if (err instanceof RunHaltedError) (err as RunHaltedError & { role?: 'writer' | 'grader' | 'adversary' }).role = who
       throw err
     }
   }
@@ -232,6 +259,9 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
     classifyAbstraction: (input) =>
       call(CLASSIFY_ABSTRACTION_PROMPT.build(input), CLASSIFY_ABSTRACTION_PROMPT.schema),
     writePanel: (input) => call(WRITE_PANEL_PROMPT.build(input), WRITE_PANEL_PROMPT.schema),
+    ...(adversaryCombo
+      ? { writeAdversaries: (input) => call(WRITE_ADVERSARIES_PROMPT.build(input), WRITE_ADVERSARIES_PROMPT.schema, 'adversary') }
+      : {}),
   }
 }
 
@@ -397,6 +427,13 @@ async function main() {
   }
 
   const direct = flag(args, '--direct')
+  // `--rotate`: three roles per card from three model families (`KLP_ROTATION`).
+  const rotate = flag(args, '--rotate')
+  if (rotate && !direct) {
+    console.error('[author-klps] --rotate implies --direct (raw keys from the environment); pass both.')
+    process.exitCode = 1
+    return
+  }
   const dryRun = flag(args, '--dry-run')
   const force = flag(args, '--force')
   const limitRaw = opt(args, '--limit')
@@ -472,9 +509,19 @@ async function main() {
   const pacer = new Pacer(rpmToIntervalMs(rpm), realClock, (waitMs) => {
     console.log(`[author-klps] pacing — waiting ${(waitMs / 1000).toFixed(1)}s to stay under ${rpm} req/min`)
   })
-  const pool = direct ? readDirectPool() : []
-  const authorPool = direct ? readDirectPool(process.env, 'author') : []
-  if (direct) {
+  const rotationPool: RotationCombo[] = rotate ? readRotationPool() : []
+  if (rotate) {
+    const fams = familiesAvailable(rotationPool)
+    if (fams.length < 3) {
+      console.error(`[author-klps] --rotate needs models from three families (google / cn / qwen); KLP_ROTATION gives ${fams.join(', ') || 'none'}`)
+      process.exitCode = 1
+      return
+    }
+    console.log(`[author-klps] --rotate: ${rotationPool.length} combo(s) across families ${fams.join(', ')} — writer / adversary / grader from three different families per card`)
+  }
+  const pool = direct && !rotate ? readDirectPool() : []
+  const authorPool = direct && !rotate ? readDirectPool(process.env, 'author') : []
+  if (direct && !rotate) {
     const status = poolStatus(pool)
     console.log(
       `[author-klps] --direct pool: ${status.total} key x model combo(s) — ` +
@@ -550,7 +597,21 @@ async function main() {
       let gen: AuthoringGenerator
       let combo: DirectCombo | undefined
 
-      if (direct) {
+      let roles: RoleAssignment | undefined
+      if (rotate) {
+        roles = pickRoles(rotationPool) ?? undefined
+        if (!roles) {
+          console.error(`\n[author-klps] STOPPING RUN — fewer than three families still have quota.`)
+          halted = true
+          break
+        }
+        for (const c of [roles.writer, roles.adversary, roles.grader]) markTried(c, new Date())
+        combo = roles.grader
+        lastAuthorCombo = roles.writer
+        usedModel = `${roles.writer.model}+${roles.adversary.model}+${roles.grader.model}`
+        gen = directGenerator(roles.grader, pacer, roles.writer, roles.adversary)
+        console.log(`${tag} — writer ${roles.writer.id}, adversary ${roles.adversary.id}, grader ${roles.grader.id}`)
+      } else if (direct) {
         combo = nextCombo(pool)
         if (!combo) {
           console.error(`\n[author-klps] STOPPING RUN — every key x model combo is out of daily quota.`)
@@ -605,7 +666,13 @@ async function main() {
         // retries this exact card rather than skipping it.
         if (err instanceof RunHaltedError) {
           if (combo && err.haltReason === 'daily_quota') {
-            const role = (err as RunHaltedError & { role?: 'writer' | 'grader' }).role
+            const role = (err as RunHaltedError & { role?: 'writer' | 'grader' | 'adversary' }).role
+            if (roles) {
+              const hit = role === 'writer' ? roles.writer : role === 'adversary' ? roles.adversary : roles.grader
+              markExhausted(hit)
+              console.error(`${tag} — ${hit.id} (${role ?? 'grader'}) is out of daily quota; families left: ${familiesAvailable(rotationPool).join(', ')}`)
+              continue
+            }
             const hit = role === 'writer' && lastAuthorCombo ? lastAuthorCombo : combo
             const hitPool = hit === lastAuthorCombo ? authorPool : pool
             markExhausted(hit)

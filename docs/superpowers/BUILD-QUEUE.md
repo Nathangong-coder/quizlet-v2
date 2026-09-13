@@ -55,6 +55,18 @@ write). Everything below is one command each.
    **Where 2026-09-12 stopped:** Accounting-Talking minted 43 of 68 (resume `--skip 43`),
    LBO 0 of 10, M&A authored 12 of 82 — every stop was a Gemini daily cap, none a failure.
 
+3b. **Rotation and the rebuild test (2026-09-12, owner's design).** `author-klps --direct
+   --rotate` with `KLP_ROTATION="google:gemini-3.6-flash,gemini-3.5-flash;deepseek:deepseek-v4-flash;zai:glm-5.3-flash;qwen:qwen3.7-flash"`
+   draws writer / adversary writer / grader from three families per card (google / cn =
+   {DeepSeek, GLM} / qwen), rotating writers LRU; the adversaries are written from the
+   question and reference only (`WRITE_ADVERSARIES_PROMPT`), never the key points. Built and
+   dry-run on the bench cards; a Gemini quota hit retires that combo and the run continues.
+   **The rebuild test** — `docs/superpowers/specs/2026-09-12-rebuild-test-design.md` —
+   replaces the circular reference score with `cardCoverage` (rebuilt answer vs the card's
+   own points), `referenceParity` (vs the writer's reference; 1 − parity = extraction loss)
+   and `cardDisputes` (grader-vs-card override, surfaced as a warning, never applied).
+   Designed, NOT built; build order in the spec.
+
 4. **After the corpus is written:** item 3's projection (`KlpRelation` lifted through topic
    links into `KltRelation` with provenance `projected`) is now a read-and-write over two
    tables that exist; the place-unplaced pass for edge endpoints; the owner's gold labels on

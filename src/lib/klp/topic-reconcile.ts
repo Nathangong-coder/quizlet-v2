@@ -93,6 +93,37 @@ export const NOISE_SUFFIXES = new Set([
   'basics',
 ])
 
+/**
+ * A trailing word that names a FACET of a concept rather than a concept.
+ * Measured on 12 GLM-authored M&A cards (2026-09-12): 4 of 58 merged leaves
+ * were `spin-off advantages`, `spin-off disadvantages`, `eps accretion/dilution
+ * limitations`, `divestiture advantages` — the answer-step shape of the key
+ * point minted as a node. The leaf is the concept; the facet is stripped and
+ * noted. Distinct from `NOISE_SUFFIXES` (which describe the name) because a
+ * facet is real information about the KLP, just not a node.
+ */
+export const FACET_SUFFIXES = new Set([
+  'advantages',
+  'disadvantages',
+  'limitations',
+  'considerations',
+  'implications',
+  'benefits',
+  'drawbacks',
+  'risks',
+  'pros',
+  'cons',
+])
+
+/** `spin-off advantages` -> { name: 'spin-off', facet: 'advantages' }; a name with no facet returns it unchanged. */
+export function splitFacet(name: string): { name: string; facet?: string } {
+  const tokens = name.trim().split(/\s+/)
+  if (tokens.length < 2) return { name }
+  const last = tokens[tokens.length - 1].toLowerCase()
+  if (!FACET_SUFFIXES.has(last)) return { name }
+  return { name: tokens.slice(0, -1).join(' '), facet: last }
+}
+
 const FILLERS = new Set(['of', 'the', 'and', 'to', 'in', 'on', 'for', 'a', 'an', 'vs', 'versus'])
 
 function singular(token: string): string {
@@ -312,7 +343,15 @@ interface SideView {
 function viewSide(p: CardTopicProposal, ref: number, label: 'a' | 'b', notes: string[]): SideView {
   const leaves = p.leaves.filter((l) => l.klpRefs.includes(ref))
   if (leaves.length > 1) notes.push(`klp ${ref}: side ${label} put it in ${leaves.length} leaves; using the first`)
-  const leafName = leaves[0]?.name
+  let leafName = leaves[0]?.name
+  if (leafName) {
+    // Rule 9: a facet of a thing is not a thing. The concept is the leaf.
+    const split = splitFacet(leafName)
+    if (split.facet) {
+      notes.push(`klp ${ref}: facet:stripped side ${label} "${leafName}" -> "${split.name}" (${split.facet})`)
+      leafName = split.name
+    }
+  }
   const edges = p.relations.filter((r) => r.klpRef === ref).map(({ from, to, type }) => ({ from, to, type }))
   const rawCtx = p.contexts.filter((c) => c.klpRef === ref).map((c) => c.concept)
   // Self-dup is a context that names the model's own LEAF on the same KLP -

@@ -205,6 +205,12 @@ default unless the point clearly is not that shape.
   (definition), (quantitative), (example) -> a leaf
   (mechanism)     -> a leaf, unless the point is about how two named things connect
 
+RULE 9 — A FACET OF A THING IS NOT A THING.
+A point that states an advantage, disadvantage, limitation, risk or consideration OF a
+concept belongs to that concept. Never mint "spin-off advantages" or "eps accretion
+limitations" as a leaf: the leaf is "spin-off" or "eps accretion", and the facet may be
+recorded as a context ("advantages of spin-offs" is not a node a learner masters).
+
 Names are lowercase noun phrases, no articles, no trailing punctuation. Spell out an
 abbreviation the first time it is the leaf name (write "fixed charge coverage ratio",
 not "FCCR"; "earnings before interest and taxes", not "EBIT").`

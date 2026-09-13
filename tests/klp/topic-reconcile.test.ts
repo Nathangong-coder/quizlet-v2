@@ -372,3 +372,20 @@ describe('reconcileProposals — larger count with mixed types', () => {
     expect(m.relations).toHaveLength(1)
   })
 })
+
+describe('rule 9 — a facet of a thing is not a thing', () => {
+  it('strips a facet suffix from a leaf and notes it; a one-word name is left alone', async () => {
+    const { splitFacet } = await import('@/lib/klp/topic-reconcile')
+    expect(splitFacet('spin-off advantages')).toEqual({ name: 'spin-off', facet: 'advantages' })
+    expect(splitFacet('eps accretion/dilution limitations')).toEqual({ name: 'eps accretion/dilution', facet: 'limitations' })
+    expect(splitFacet('risks')).toEqual({ name: 'risks' })
+    expect(splitFacet('gross profit')).toEqual({ name: 'gross profit' })
+    const m = reconcileProposals({
+      klps: kinds('contrast'),
+      a: { ...empty(), leaves: [leaf('spin-off advantages', 0)] },
+      b: { ...empty(), leaves: [leaf('spin-off', 0)] },
+    })
+    expect(m.leaves.map((l) => l.name)).toEqual(['spin-off'])
+    expect(m.notes.some((n) => n.includes('facet:stripped'))).toBe(true)
+  })
+})

@@ -156,6 +156,13 @@ export interface AuthoringGenerator {
    * Absent, or `USE_COMPETENCE_PANEL` off, and the pipeline uses the three
    * failure-kind adversaries exactly as before.
    */
+  /**
+   * Rotation mode (2026-09-12): the three wrong answers written by a model
+   * that did not write the key points and is not shown them. When present,
+   * its output REPLACES `draft.wrongAnswers`. Optional so every existing
+   * generator and test is unchanged.
+   */
+  writeAdversaries?(input: { question: string; referenceAnswer: string }): Promise<{ wrongAnswers: { kind: ProbeKind; text: string }[] }>
   writePanel?(input: {
     question: string
     referenceAnswer: string
@@ -328,6 +335,12 @@ export async function authorCard(
   const draft = await gen.author({ ...input, minKlps: Math.max(prior, targetKlpCount({ prior })) })
   const target = targetKlpCount({ prior, points: draft.definitionPoints })
   const concerns = draft.concerns ?? []
+  if (gen.writeAdversaries) {
+    // Independent adversaries: written from the question and the reference,
+    // never the key points, by a different family than wrote them.
+    const external = await gen.writeAdversaries({ question: input.question, referenceAnswer: draft.referenceAnswer })
+    draft.wrongAnswers = external.wrongAnswers
+  }
 
   if (draft.klps.length === 0) {
     return {
