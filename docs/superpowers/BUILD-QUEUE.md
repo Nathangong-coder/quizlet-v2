@@ -58,7 +58,7 @@ cut reference content the card omits (parity 0.50 on CapEx). ~$0.008 a card, 28 
    legacy sets. The writer is capped at 20/day per key per model; add `,gemini-3.5-flash` to
    `KLP_AUTHOR_MODELS` to double the daily writer budget.
    ```
-   set KLP_DIRECT_PROVIDER=deepseek & set KLP_DIRECT_MODELS=deepseek-v4-flash & set KLP_AUTHOR_PROVIDER=zai & set KLP_AUTHOR_MODELS=glm-5.3-flash & set ZAI_REASONING_EFFORT=high
+   set KLP_DIRECT_PROVIDER=deepseek & set KLP_DIRECT_MODELS=deepseek-flash & set KLP_AUTHOR_PROVIDER=zai & set KLP_AUTHOR_MODELS=glm-5.3-flash & set ZAI_REASONING_EFFORT=high
    (the owner's choice 2026-09-12: GLM writes — uncapped, mean separation 0.70 at `high` —
    DeepSeek grades. Gemini 3.6 as the writer scored 0.80 but is capped and, per the owner,
    too expensive; keep it as the quality reference: `KLP_AUTHOR_PROVIDER=google
@@ -88,7 +88,7 @@ cut reference content the card omits (parity 0.50 on CapEx). ~$0.008 a card, 28 
    LBO 0 of 10, M&A authored 12 of 82 — every stop was a Gemini daily cap, none a failure.
 
 3b. **Rotation and the rebuild test (2026-09-12, owner's design).** `author-klps --direct
-   --rotate` with `KLP_ROTATION="google:gemini-3.6-flash,gemini-3.5-flash;deepseek:deepseek-v4-flash;zai:glm-5.3-flash;qwen:qwen3.7-flash"`
+   --rotate` with `KLP_ROTATION="google:gemini-3.6-flash,gemini-3.5-flash;deepseek:deepseek-flash;zai:glm-5.3-flash;qwen:qwen3.7-flash"`
    draws writer / adversary writer / grader from three families per card (google / cn =
    {DeepSeek, GLM} / qwen), rotating writers LRU; the adversaries are written from the
    question and reference only (`WRITE_ADVERSARIES_PROMPT`), never the key points. Built and

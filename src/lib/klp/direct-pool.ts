@@ -181,7 +181,7 @@ export const DIRECT_PROVIDER_SOURCES: Record<
   }
 > = {
   google: { keyVars: ['GOOGLE_API_KEYS', 'GOOGLE_API_KEY'], defaultModel: 'gemini-3.6-flash' },
-  deepseek: { keyVars: ['DEEPSEEK_API_KEYS', 'DEEPSEEK_API_KEY'], defaultModel: 'deepseek-v4-flash' },
+  deepseek: { keyVars: ['DEEPSEEK_API_KEYS', 'DEEPSEEK_API_KEY'], defaultModel: 'deepseek-flash' },
   /**
    * Qwen via DashScope's OpenAI-compatible endpoint (international region —
    * the mainland host rejects this key with 401). Entitlement went live

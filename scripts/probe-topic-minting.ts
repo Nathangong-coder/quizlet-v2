@@ -497,7 +497,7 @@ wrote ${jsonOut}`)
 // The pair and the judge. `MINT_B_MODEL` lets a run put the Gemini side on a
 // different model than the authoring writer is using the same day — the two
 // jobs otherwise compete for one 20/day/key bucket.
-const DUAL_A = { provider: 'deepseek', model: 'deepseek-v4-flash' }
+const DUAL_A = { provider: 'deepseek', model: 'deepseek-flash' }
 // `MINT_B_PROVIDER=zai MINT_B_MODEL=glm-5.3-flash` swaps the Gemini side for
 // GLM: measured 2026-09-12 as the best single minter after DeepSeek and
 // Gemini (89% kind-consistent, names as short as Gemini's, most edges) and

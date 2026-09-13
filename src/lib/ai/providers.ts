@@ -46,7 +46,12 @@ export const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
   deepseek: {
     label: 'DeepSeek',
     requiresBaseUrl: false,
-    defaultModel: 'deepseek-v4-flash',
+    // `deepseek-flash` is the official id (2026-09-13): the page says the
+    // legacy `deepseek-v4-flash` name is retired but still accepted and is
+    // "served by the DeepSeek-V4.1-Flash model and billed at the Flash
+    // price" — verified by a real structured call: both ids answer as
+    // `deepseek-flash`, same price, same schema compliance.
+    defaultModel: 'deepseek-flash',
     defaultBaseUrl: 'https://api.deepseek.com/v1',
     keyPlaceholder: 'sk-…',
   },

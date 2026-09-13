@@ -26,6 +26,7 @@ import { FRAMING_PROBE, classifyPointRoles, substanceSeparation, type PointRole 
 import { carryVerdicts, mergePartial, trapsToReplace } from '@/lib/klp/regrade-plan'
 import { referenceNeedsRewrite, type ReferenceReview } from '@/lib/ai/prompts/review-reference'
 import { compressionFindings, ratioFinding, wordRatio, type RebuiltReview } from '@/lib/klp/compression'
+import { pickBestRound, describeChoice, type RoundSummary } from '@/lib/klp/best-round'
 import { validateKlpSet, type KlpDefect } from '@/lib/klp/validate'
 import { toOrderedLevels, type AbstractionLevel } from '@/lib/klp/abstraction'
 import {
@@ -102,6 +103,8 @@ export interface ReviseInput {
   roles?: PointRole[]
   /** The card's sized target, so revision cannot silently undo the sizing decision. */
   targetCount: number
+  /** The parity grader's reference claims, when a round compresses. */
+  mustKeep?: string[]
 }
 
 export interface ReviseResult {
@@ -321,6 +324,13 @@ export interface AuthoringOutcome {
   revisionReasons?: string[]
   /** The prompt's own classification of the question (v3). */
   questionType?: string
+  /**
+   * The graders' veto (src/lib/klp/best-round.ts): which round's set this
+   * outcome carries, and why, when it is not the last. `revisions` still
+   * counts the rounds run.
+   */
+  keptRound?: number
+  keptRoundReason?: string
   /**
    * The communication check on the reference (2026-09-13): the reviewer's
    * labels on the FIRST draft, and whether the writer was sent back for a
@@ -594,6 +604,17 @@ export async function authorCard(
   }
 
   let rebuild: RebuildOutcome | undefined
+  // One snapshot per round, so the best round (not the last) can be kept.
+  type Snapshot = {
+    klps: typeof klps
+    graded: GradedCandidate[]
+    separation: SeparationResult
+    substance: SeparationResult
+    roles: PointRole[]
+    rebuild: RebuildOutcome | undefined
+    summary: RoundSummary
+  }
+  const snapshots: Snapshot[] = []
   let panelCurve: PanelCurve | undefined
   let klpShapes: KlpCurveDiagnosis[] = []
   let unseparatedBoundaries: { stronger: PanelLevel; weaker: PanelLevel }[] = []
@@ -717,6 +738,24 @@ export async function authorCard(
       const ratio = ratioFinding(rebuild.wordRatio)
       if (ratio) findings.push(ratio)
     }
+    snapshots.push({
+      klps,
+      graded,
+      separation,
+      substance,
+      roles,
+      rebuild,
+      summary: {
+        round: revisions,
+        substanceSeparation: substance.separation,
+        separated: panelCurve ? panelCurve.separated : substance.separated,
+        referenceParity: rebuild?.referenceParity ?? null,
+        clearsParityBar: rebuild?.clearsParityBar ?? null,
+        clearsCoverageBar: rebuild?.clearsBar ?? null,
+        rebuiltTight: rebuild?.review?.conciseness === 'tight',
+        wordRatio: rebuild?.wordRatio ?? null,
+      },
+    })
     if (findings.length === 0 || revisions >= MAX_REVISIONS) break
     // Decide now, on THIS round's verdicts, which traps the next round rewrites.
     replaceKinds = trapsToReplace(
@@ -731,6 +770,11 @@ export async function authorCard(
       .join('; ')
     revisionReasons.push(reason)
 
+    // The parity grader objects BEFORE a cut: on a round that compresses,
+    // every reference claim it decomposed is handed to the revise call as a
+    // claim that must survive.
+    const compresses = findings.some((f) => /^(restatement|clause bloat)|rebuild to/.test(f.issue))
+    const mustKeep = compresses && rebuild ? rebuild.parityVerdicts.map((v) => v.claim) : undefined
     const revised = await gen.revise({
       question: input.question,
       klps: klps.map((k) => ({ text: k.text, kind: k.kind })),
@@ -739,13 +783,27 @@ export async function authorCard(
       findings,
       reason,
       targetCount: target,
+      ...(mustKeep ? { mustKeep } : {}),
     })
     klps = revised.klps
     revisions += 1
   }
 
-  // The rebuilt answer's review is the LAST round's (`rebuild.review`), set
-  // inside the loop; nothing more to do here.
+  // THE GRADERS' VETO: keep the best round, not the last. Everything after
+  // this point (relations, weights, classification, the outcome) reads the
+  // kept round's points and verdicts.
+  const keptRound = pickBestRound(snapshots.map((s) => s.summary))
+  const keptRoundReason = describeChoice(snapshots.map((s) => s.summary), keptRound)
+  if (keptRound >= 0 && keptRound !== snapshots.length - 1) {
+    const s = snapshots[keptRound]
+    klps = s.klps
+    separation = s.separation
+    substance = s.substance
+    roles = s.roles
+    rebuild = s.rebuild
+    referenceVerdicts = s.graded[0].verdicts
+    wrong = s.graded.slice(1)
+  }
 
   const relateResult = await gen.relate({
     question: input.question,
@@ -854,6 +912,8 @@ export async function authorCard(
     revisionReasons,
     questionType: (draft as { questionType?: string }).questionType,
     ...(referenceReview ? { referenceReview } : {}),
+    ...(keptRound >= 0 ? { keptRound } : {}),
+    ...(keptRoundReason ? { keptRoundReason } : {}),
     ...(rebuild ? { rebuild } : {}),
   }
 }

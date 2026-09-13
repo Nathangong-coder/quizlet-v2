@@ -932,6 +932,7 @@ async function main() {
             ', ') +
         `${outcome.klps.length} KLPs, ` +
         (outcome.revisionReasons?.length ? `revised ${outcome.revisionReasons.length}x [${outcome.revisionReasons[0].slice(0, 70)}], ` : '') +
+        (outcome.keptRoundReason ? `VETO: ${outcome.keptRoundReason}, ` : '') +
         (outcome.referenceReview
           ? `reference ${outcome.referenceReview.accuracy}/${outcome.referenceReview.conciseness}/${outcome.referenceReview.clarity}${outcome.referenceReview.rewritten ? ' → REWRITTEN' : ''}, `
           : '') +

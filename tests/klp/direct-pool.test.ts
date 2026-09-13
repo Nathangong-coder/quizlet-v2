@@ -134,7 +134,7 @@ describe('readDirectPool', () => {
       DEEPSEEK_API_KEY: 'k',
     } as unknown as NodeJS.ProcessEnv)
     expect(pool[0].provider).toBe('deepseek')
-    expect(pool[0].model).toBe('deepseek-v4-flash')
+    expect(pool[0].model).toBe('deepseek-flash')
     expect(comboResolveInput(pool[0])).not.toHaveProperty('baseUrl')
   })
 

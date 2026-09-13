@@ -34,6 +34,13 @@ export interface ReviseKlpsBuildInput {
    * longer a definition. Absent means every point is substance.
    */
   roles?: ('framing' | 'substance')[];
+  /**
+   * The parity grader's decomposition of the reference — every claim it
+   * found, present in the points or not. Passed when a round carries a
+   * compression finding, so the grader objects BEFORE a cut: each of these
+   * must still be stated by some point after the edit (2026-09-13).
+   */
+  mustKeep?: string[];
 }
 
 /**
@@ -75,6 +82,9 @@ export const REVISE_KLPS_PROMPT = {
       ? `\nWhole-set findings:\n${setLevel.map((f) => `  ${f.issue.toUpperCase()} — ${f.fix}`).join('\n')}\n`
       : '';
     const reason = input.reason ? `\nWhy this revision: ${input.reason}\n` : '';
+    const keep = input.mustKeep && input.mustKeep.length
+      ? `\nClaims the reference makes — EVERY one must still be stated by some key point after your edit (merge and shorten freely, but none of these may disappear):\n${input.mustKeep.map((c) => `  - ${c}`).join('\n')}\n`
+      : '';
 
     return `You wrote Key Learning Points (KLPs) for this question, and they were tested against a strong answer and three deliberately wrong answers, then checked by rule. Each KLP below carries its test result and any named finding.
 
@@ -82,7 +92,7 @@ Question: ${input.question}
 ${reason}
 Current KLPs, each with its findings:
 ${rows}
-${setLines}
+${setLines}${keep}
 Fix ONLY the KLPs that carry a finding — "CARRIES NO INFORMATION", "FAILS ON THE REFERENCE", or a named rule such as COMPOUND or RESTATEMENT — and do exactly what the finding asks. A KLP that passes on every answer, right or wrong, is not wrong — it is USELESS, because it separates nobody. The usual fix is to SPLIT a vague point into the specific claims it was hiding, so each half can independently pass or fail. A KLP that fails on the reference should be cut or rewritten to match what the reference answer actually says.
 
 Leave a KLP with no finding alone — it already earned its place. Do not reword it, reorder it, or fold it into another. A KLP marked FRAMING is kept for the same reason: it is judged on being a correct definition or contrast, not on separating answers.
