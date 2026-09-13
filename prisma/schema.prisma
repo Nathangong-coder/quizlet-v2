@@ -212,6 +212,13 @@ model Set {
   /// date rather than jumping to the front of the list again.
   publishedAt    DateTime?
 
+  /// Subject taxonomy leaf slug (2026-09-13). Vocabulary: SUBJECTS in
+  /// src/lib/subjects/taxonomy.ts — a FIXED two-level tree in code; this
+  /// column holds the LEAF and the group is derived. Nullable: nothing forces
+  /// a subject. Slugs are persisted, so a slug rename strands rows; add a leaf
+  /// and migrate instead. Owner-set only; validated against the tree on write.
+  subject        String?
+
   /// Fork attribution. `forkedFromId` is the LIVE link and may go dark
   /// (SetNull on source delete); the two denormalized fields are captured AT
   /// FORK TIME and are what actually renders. See spec §7.3 — rendering from
@@ -240,6 +247,7 @@ model Set {
 
   @@index([userId])
   @@index([visibility, listingBlocked, publishedAt])
+  @@index([subject])
   @@index([forkedFromId])
 }
 

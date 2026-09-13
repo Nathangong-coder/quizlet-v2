@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { SetGlyph } from '@/components/sets/SetGlyph'
 import type { DirectoryEntry } from '@/lib/sets/directory'
+import { subjectPath } from '@/lib/subjects/taxonomy'
 
 /**
  * One row of the public directory.
@@ -44,6 +45,15 @@ export function DirectoryCard({ entry }: { entry: DirectoryEntry }) {
         )}
 
         <p className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+          {/* Plain text, not a SubjectChip: this whole block is already a link,
+              and a link inside a link is invalid HTML. The filter lives in the
+              bar above the list. */}
+          {subjectPath(entry.subject) && (
+            <>
+              <span className="text-foreground/80">{subjectPath(entry.subject)}</span>
+              <span aria-hidden="true">·</span>
+            </>
+          )}
           <span className="metric">{entry.cardCount}</span>
           <span>{entry.cardCount === 1 ? 'card' : 'cards'}</span>
           {/*

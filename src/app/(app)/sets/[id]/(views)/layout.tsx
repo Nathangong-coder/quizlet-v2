@@ -10,6 +10,7 @@ import { readableSetWhere, toSetVisibility } from '@/lib/sets/visibility'
 import { recordSetView } from '@/lib/sets/recents'
 import { ForkButton } from '@/components/sets/ForkButton'
 import { ForkAttribution } from '@/components/sets/ForkAttribution'
+import { SubjectChip } from '@/components/sets/SubjectChip'
 import ReportSetDialog from '@/components/sets/ReportSetDialog'
 import { SetViewTabs } from '@/components/sets/SetViewTabs'
 
@@ -48,6 +49,7 @@ export default async function SetViewsLayout({
       id: true,
       title: true,
       description: true,
+      subject: true,
       userId: true,
       visibility: true,
       listingBlocked: true,
@@ -78,6 +80,7 @@ export default async function SetViewsLayout({
     <div className="max-w-4xl">
       <div className="flex items-start justify-between gap-4 mb-2">
         <div className="min-w-0">
+          <SubjectChip slug={set.subject} className="mb-2" />
           <h1 className="display">{set.title}</h1>
           {set.description && <p className="lede mt-2 max-w-prose">{set.description}</p>}
           {/* Renders nothing unless this set is a fork. The credit text comes

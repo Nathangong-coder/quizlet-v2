@@ -108,6 +108,9 @@ export async function forkSet(setId: string): Promise<ActionResult<{ setId: stri
       data: {
         title: source.title,
         description: source.description,
+        // Inherited: a copy of an accounting set is still an accounting set,
+        // and the owner can change it on the edit form like any field.
+        subject: source.subject,
         userId: viewerId,
         // ALWAYS private, never inherited. A fork that auto-published would
         // republish someone else's work under a new name with no deliberate

@@ -15,6 +15,7 @@ import { toast } from 'sonner'
 import { ContentBlock } from '@/lib/cards/content'
 import { contentBlocksToPlainText, legacyCardToContentBlocks, normalizeTextMarks } from '@/lib/cards/content'
 import { CategoryManager } from './CategoryManager'
+import { SubjectSelect } from '@/components/sets/SubjectSelect'
 import { normalizeCategoryName, pickDefaultColor } from '@/lib/cards/categories'
 
 interface InitialContentBlock {
@@ -42,6 +43,7 @@ interface SetFormProps {
   mode: 'create' | 'edit'
   initialTitle?: string
   initialDescription?: string
+  initialSubject?: string | null
   initialCards?: InitialCard[]
   initialCategories?: { name: string; color?: string | null }[]
   setId?: string
@@ -105,6 +107,7 @@ export function SetForm({
   mode,
   initialTitle = '',
   initialDescription = '',
+  initialSubject = null,
   initialCards = [],
   initialCategories = [],
   setId,
@@ -115,6 +118,7 @@ export function SetForm({
 
   const [title, setTitle] = useState(initialTitle)
   const [description, setDescription] = useState(initialDescription)
+  const [subject, setSubject] = useState(initialSubject ?? '')
   const [cards, setCards] = useState(
     initialCards.map((c, i) => ({
       ...cardToEditorBlocks(c),
@@ -265,6 +269,7 @@ export function SetForm({
         const payload = {
           title,
           description,
+          subject: subject || null,
           cards: cardsForApi,
           categories: categoryMeta.map((m) => ({ name: m.name, color: m.color })),
         }
@@ -315,6 +320,14 @@ export function SetForm({
             onChange={(e) => setDescription(e.target.value)}
             className="resize-none"
           />
+        </div>
+
+        <div className="space-y-2 sm:max-w-sm">
+          <label htmlFor="subject" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+            Subject (optional)
+          </label>
+          <SubjectSelect id="subject" value={subject} onChange={setSubject} />
+          <p className="text-xs text-muted-foreground">How this set is filed in your library and in Browse. Categories on each card are separate.</p>
         </div>
       </div>
 
