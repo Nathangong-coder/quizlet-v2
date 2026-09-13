@@ -59,6 +59,10 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { generateText, Output } from 'ai'
+import { TokenMeter } from '../src/lib/klp/token-meter'
+
+/** Tokens per step (mint / judge) x model for the run — A and B are told apart by model; printed at the end and written to --json. */
+const METER = new TokenMeter()
 import { prisma } from '../src/lib/db'
 import { resolveLanguageModel } from '../src/lib/ai/providers'
 import {
@@ -165,6 +169,7 @@ async function mintCard(
     markTried(combo, new Date())
     try {
       const model = resolveLanguageModel(comboResolveInput(combo))
+      const modelId = combo.model
       const proposal = await callWithPacingAndRetry(
         async () => {
           const res = await generateText({
@@ -172,6 +177,12 @@ async function mintCard(
             prompt: buildTopicMintingPrompt(card.term, klps),
             output: Output.object({ schema: CardTopicProposalSchema }),
             maxRetries: 0,
+          })
+          METER.add('mint', modelId, {
+            inputTokens: res.usage?.inputTokens,
+            outputTokens: res.usage?.outputTokens,
+            reasoningTokens: res.usage?.outputTokenDetails?.reasoningTokens,
+            cachedTokens: res.usage?.inputTokenDetails?.cacheReadTokens,
           })
           return res.output
         },
@@ -267,7 +278,7 @@ async function main() {
    */
   const flush = () => {
     if (!jsonOut) return
-    writeFileSync(jsonOut, JSON.stringify({ setId, skip, results, failures }, null, 2))
+    writeFileSync(jsonOut, JSON.stringify({ setId, skip, results, failures, tokens: METER.toJSON() }, null, 2))
   }
 
   let cardNo = 0
@@ -471,6 +482,9 @@ async function main() {
       `${novel.length}/${new Set(leafNames).size}`,
   )
   console.log(`  ${novel.join(' | ')}`)
+  console.log(`
+[mint] tokens by step (successful calls only; list prices):
+${METER.format(results.length)}`)
 
   if (jsonOut) console.log(`
 wrote ${jsonOut}`)
@@ -563,7 +577,7 @@ async function runDual(
   const results: DualResult[] = []
   const runVocabulary = new Set<string>()
   const flush = () => {
-    if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ a: DUAL_A, b: DUAL_B, judge: JUDGE, seed: JUDGE_SEED, results }, null, 2))
+    if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ a: DUAL_A, b: DUAL_B, judge: JUDGE, seed: JUDGE_SEED, results, tokens: METER.toJSON() }, null, 2))
   }
 
   let cardNo = 0
@@ -612,6 +626,12 @@ async function runDual(
                 prompt: buildJudgePrompt(items),
                 output: Output.object({ schema: JudgeVerdictSchema }),
                 maxRetries: 0,
+              })
+              METER.add('judge', combo.model, {
+                inputTokens: res.usage?.inputTokens,
+                outputTokens: res.usage?.outputTokens,
+                reasoningTokens: res.usage?.outputTokenDetails?.reasoningTokens,
+                cachedTokens: res.usage?.inputTokenDetails?.cacheReadTokens,
               })
               return res.output
             },
@@ -705,6 +725,7 @@ async function runDual(
   const reasons = new Map<string, number>()
   for (const r of ok) for (const x of [...r.merged!.leaves, ...r.merged!.relations, ...r.merged!.contexts]) reasons.set(x.reason, (reasons.get(x.reason) ?? 0) + 1)
   console.log(`reasons: ${[...reasons.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join('  ')}`)
+  console.log(`\n[mint] tokens by step (successful calls only; list prices, see src/lib/klp/token-meter.ts):\n${METER.format(cards.length)}`)
   if (jsonOut) console.log(`\nwrote ${jsonOut}`)
 }
 
