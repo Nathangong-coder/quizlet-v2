@@ -13,6 +13,8 @@ import { RELATE_KLPS_PROMPT } from '../src/lib/ai/prompts/relate-klps'
 import { CLASSIFY_ABSTRACTION_PROMPT } from '../src/lib/ai/prompts/classify-abstraction'
 import { WRITE_PANEL_PROMPT } from '../src/lib/ai/prompts/write-panel'
 import { WRITE_ADVERSARIES_PROMPT } from '../src/lib/ai/prompts/write-adversaries'
+import { WRITE_REBUILD_PROMPT, GRADE_COVERAGE_PROMPT, GRADE_PARITY_PROMPT } from '../src/lib/ai/prompts/rebuild'
+import { REBUILD_COVERAGE_BAR } from '../src/lib/klp/rebuild'
 import { parseRotationSpec, pickRoles, familyOf, familiesAvailable, type RotationCombo, type RoleAssignment } from '../src/lib/klp/rotation'
 import { DIRECT_PROVIDER_SOURCES, buildDirectPool, parseList } from '../src/lib/klp/direct-pool'
 import { findExistingPanel } from '../src/lib/klp/panel-reuse'
@@ -183,7 +185,7 @@ function readRotationPool(env: NodeJS.ProcessEnv = process.env): RotationCombo[]
   return pool
 }
 
-function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectCombo, adversaryCombo?: DirectCombo): AuthoringGenerator {
+function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectCombo, adversaryCombo?: DirectCombo, rebuildTest = false): AuthoringGenerator {
   // Built through the SAME `resolveLanguageModel` the website uses, not a
   // provider factory called here. That function carries per-provider
   // corrections this script would otherwise have to duplicate — most
@@ -261,6 +263,18 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
     writePanel: (input) => call(WRITE_PANEL_PROMPT.build(input), WRITE_PANEL_PROMPT.schema),
     ...(adversaryCombo
       ? { writeAdversaries: (input) => call(WRITE_ADVERSARIES_PROMPT.build(input), WRITE_ADVERSARIES_PROMPT.schema, 'adversary') }
+      : {}),
+    // The rebuild test. The REBUILDER is the adversary combo when one exists
+    // (a different family than the writer, by construction) and otherwise
+    // the grader combo — a documented compromise for the two-pool split,
+    // where no third family is configured. Coverage and parity are graded
+    // by the grader.
+    ...(rebuildTest
+      ? {
+          rebuild: (input) => call(WRITE_REBUILD_PROMPT.build(input), WRITE_REBUILD_PROMPT.schema, adversaryCombo ? 'adversary' : 'grader'),
+          gradeCoverage: (input) => call(GRADE_COVERAGE_PROMPT.build(input), GRADE_COVERAGE_PROMPT.schema),
+          gradeParity: (input) => call(GRADE_PARITY_PROMPT.build(input), GRADE_PARITY_PROMPT.schema),
+        }
       : {}),
   }
 }
@@ -429,6 +443,9 @@ async function main() {
   const direct = flag(args, '--direct')
   // `--rotate`: three roles per card from three model families (`KLP_ROTATION`).
   const rotate = flag(args, '--rotate')
+  // `--rebuild`: run the rebuild test (three more calls per card) and persist
+  // cardCoverage / referenceParity / cardDisputes.
+  const rebuildTest = flag(args, '--rebuild')
   if (rotate && !direct) {
     console.error('[author-klps] --rotate implies --direct (raw keys from the environment); pass both.')
     process.exitCode = 1
@@ -512,8 +529,8 @@ async function main() {
   const rotationPool: RotationCombo[] = rotate ? readRotationPool() : []
   if (rotate) {
     const fams = familiesAvailable(rotationPool)
-    if (fams.length < 3) {
-      console.error(`[author-klps] --rotate needs models from three families (google / cn / qwen); KLP_ROTATION gives ${fams.join(', ') || 'none'}`)
+    if (fams.length < 2) {
+      console.error(`[author-klps] --rotate needs models from at least two families (google / cn / qwen); KLP_ROTATION gives ${fams.join(', ') || 'none'}`)
       process.exitCode = 1
       return
     }
@@ -601,7 +618,7 @@ async function main() {
       if (rotate) {
         roles = pickRoles(rotationPool) ?? undefined
         if (!roles) {
-          console.error(`\n[author-klps] STOPPING RUN — fewer than three families still have quota.`)
+          console.error(`\n[author-klps] STOPPING RUN — fewer than two families still have quota.`)
           halted = true
           break
         }
@@ -609,7 +626,7 @@ async function main() {
         combo = roles.grader
         lastAuthorCombo = roles.writer
         usedModel = `${roles.writer.model}+${roles.adversary.model}+${roles.grader.model}`
-        gen = directGenerator(roles.grader, pacer, roles.writer, roles.adversary)
+        gen = directGenerator(roles.grader, pacer, roles.writer, roles.adversary, rebuildTest)
         console.log(`${tag} — writer ${roles.writer.id}, adversary ${roles.adversary.id}, grader ${roles.grader.id}`)
       } else if (direct) {
         combo = nextCombo(pool)
@@ -638,7 +655,7 @@ async function main() {
         // CardAuthoring.model records the WRITER when roles are split — the
         // key points are its text; the grader is recorded in the run log.
         usedModel = authorCombo ? `${authorCombo.model}+${combo.model}` : combo.model
-        gen = directGenerator(combo, pacer, authorCombo)
+        gen = directGenerator(combo, pacer, authorCombo, undefined, rebuildTest)
         console.log(`${tag} — using ${combo.id}${authorCombo ? ` (author ${authorCombo.id})` : ''}`)
       } else {
         gen = defaultGenerator(set.userId, (model) => {
@@ -765,6 +782,12 @@ async function main() {
           : `separation ${outcome.separationScore.toFixed(2)}, `) +
         `${outcome.klps.length} KLPs, ` +
         (outcome.revisionReasons?.length ? `revised ${outcome.revisionReasons.length}x [${outcome.revisionReasons[0].slice(0, 70)}], ` : '') +
+        (outcome.rebuild
+          ? `coverage ${outcome.rebuild.cardCoverage?.toFixed(2) ?? 'n/a'}${outcome.rebuild.clearsBar === false ? ` (BELOW the ${REBUILD_COVERAGE_BAR} bar; missing ${outcome.rebuild.missingPoints.map((i) => `[${i}]`).join('')})` : ''}, ` +
+            `parity ${outcome.rebuild.referenceParity?.toFixed(2) ?? 'n/a'}` +
+            (outcome.rebuild.cardDisputes.length ? `, DISPUTES ${outcome.rebuild.cardDisputes.length} — the grader believes the answer over the card: ${outcome.rebuild.cardDisputes.map((d) => `[${d.index}] ${d.reason.slice(0, 80)}`).join(' | ')}` : '') +
+            ', '
+          : '') +
         `${outcome.relations.length} relations (candidates ${outcome.relationStats.candidates}, ` +
         `cycles-dropped ${outcome.relationStats.droppedForCycles}, ` +
         `out-of-range-dropped ${outcome.relationStats.droppedOutOfRange})${flagSuffix}`,

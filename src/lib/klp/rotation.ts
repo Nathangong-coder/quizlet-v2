@@ -61,10 +61,13 @@ export function parseRotationSpec(spec: string | undefined): { source: string; m
  * Picks the three roles for one card.
  *
  * WRITER: least-recently-used enabled combo (via the same `selectAttemptOrder`
- * the pools use), so writers rotate across cards. ADVERSARY: least-recently-
- * used enabled combo from a family other than the writer's. GRADER: from a
- * family other than both. Returns null when three families are not available
- * — the caller stops rather than quietly collapsing two roles onto one model.
+ * the pools use), so writers rotate across cards. ADVERSARY (who also serves
+ * the rebuild): least-recently-used combo from a family other than the
+ * writer's. GRADER: from a family other than the adversary's — it may share
+ * the writer's family (the owner, 2026-09-12: "model 1 & 3 can be the same
+ * family"), but must not grade traps it wrote. Two families are therefore
+ * the minimum; with fewer the caller stops rather than collapsing two roles
+ * onto one model.
  */
 export function pickRoles(pool: RotationCombo[]): RoleAssignment | null {
   const ordered = selectAttemptOrder(pool) as RotationCombo[]
@@ -72,7 +75,10 @@ export function pickRoles(pool: RotationCombo[]): RoleAssignment | null {
   if (!writer) return null
   const adversary = ordered.find((c) => c.family !== writer.family)
   if (!adversary) return null
-  const grader = ordered.find((c) => c.family !== writer.family && c.family !== adversary.family)
+  const grader =
+    ordered.find((c) => c.family !== writer.family && c.family !== adversary.family) ??
+    ordered.find((c) => c !== writer && c.family !== adversary.family) ??
+    (writer.family !== adversary.family ? writer : undefined)
   if (!grader) return null
   return { writer, adversary, grader }
 }

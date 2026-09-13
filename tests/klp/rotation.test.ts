@@ -29,11 +29,12 @@ describe('rotation', () => {
     expect(new Set([r.writer.family, r.adversary.family, r.grader.family]).size).toBe(3)
   })
 
-  it('returns null rather than doubling a family when only two remain', () => {
+  it('with two families the grader may share the writer\'s family but never the adversary\'s; one family is null', () => {
     const pool = [combo('google', 'gemini-3.6-flash'), combo('deepseek', 'deepseek-v4-flash'), combo('zai', 'glm-5.3-flash')]
-    expect(pickRoles(pool)).toBeNull()
+    const r = pickRoles(pool)!
+    expect(r.adversary.family).not.toBe(r.writer.family)
+    expect(r.grader.family).not.toBe(r.adversary.family)
     expect(familiesAvailable(pool)).toEqual(['google', 'cn'])
-    const q = combo('qwen', 'qwen3.7-flash'); q.enabled = false
-    expect(pickRoles([...pool, q])).toBeNull()
+    expect(pickRoles([combo('deepseek', 'deepseek-v4-flash'), combo('zai', 'glm-5.3-flash')])).toBeNull()
   })
 })

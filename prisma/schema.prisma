@@ -1488,6 +1488,22 @@ model CardAuthoring {
   /// forward-looking only, which is the honest state rather than a
   /// backfilled guess.
   referenceVerdicts Json?
+  /// THE REBUILD TEST (spec 2026-09-12-rebuild-test-design.md). `cardCoverage`
+  /// replaces `separationScore`'s companion `referenceScore` as the
+  /// completeness number: the share of the CARD's own definition points an
+  /// answer rebuilt from the key points alone establishes. `referenceParity`
+  /// is what that rebuild kept of the writer's reference (1 - parity is
+  /// extraction loss). `cardDisputes` is the grader's override channel - the
+  /// answer judged right and the card wrong on a point - surfaced to the set
+  /// owner as a warning, never applied. All nullable, no backfill: rows
+  /// authored before 2026-09-12 have no rebuild and say so.
+  rebuiltAnswer   String?  @db.Text
+  cardCoverage    Float?
+  referenceParity Float?
+  cardDisputes    Json?
+  /// `{ coverage: [...], parity: [...], definitionPoints: [...] }` so a
+  /// formula change can recompute history - the same rule AnswerKlpResult follows.
+  rebuildVerdicts Json?
   revisions       Int
   /// The model id that authored this run, e.g. "gemini-3.6-flash".
   ///

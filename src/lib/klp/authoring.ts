@@ -32,6 +32,8 @@ import {
   type RelationEdge,
   type RelationProvenance,
 } from '@/lib/klp/relations'
+import { rebuildScores, type RebuildDispute } from './rebuild'
+import type { CoverageVerdict, ParityVerdict } from '@/lib/ai/prompts/rebuild'
 import {
   MAX_REVISIONS,
   REVISION_BAR,
@@ -163,6 +165,21 @@ export interface AuthoringGenerator {
    * generator and test is unchanged.
    */
   writeAdversaries?(input: { question: string; referenceAnswer: string }): Promise<{ wrongAnswers: { kind: ProbeKind; text: string }[] }>
+  /**
+   * The rebuild test (spec 2026-09-12-rebuild-test-design.md). All three
+   * optional together: a generator without them produces an outcome without
+   * `rebuild`, and nothing existing changes. `rebuild` must be served by a
+   * model from a different family than the writer, and receives ONLY the
+   * question and the final key points.
+   */
+  rebuild?(input: { question: string; klps: { text: string }[] }): Promise<{ rebuiltAnswer: string }>
+  gradeCoverage?(input: { question: string; definitionPoints: { point: string }[]; rebuiltAnswer: string }): Promise<{
+    points: { index: number; verdict: CoverageVerdict; evidence?: string }[]
+    disputes: RebuildDispute[]
+  }>
+  gradeParity?(input: { question: string; referenceAnswer: string; rebuiltAnswer: string }): Promise<{
+    claims: { claim: string; verdict: ParityVerdict }[]
+  }>
   writePanel?(input: {
     question: string
     referenceAnswer: string
@@ -186,6 +203,21 @@ export interface RelationStats {
   droppedForCycles: number
   /** Dropped because an endpoint referenced a KLP index that doesn't exist on this card. */
   droppedOutOfRange: number
+}
+
+export interface RebuildOutcome {
+  rebuiltAnswer: string
+  cardCoverage: number | null
+  referenceParity: number | null
+  extractionLoss: number | null
+  clearsBar: boolean | null
+  /** Definition points the rebuild left missing, by index. */
+  missingPoints: number[]
+  coverageVerdicts: { index: number; verdict: CoverageVerdict; evidence?: string }[]
+  parityVerdicts: { claim: string; verdict: ParityVerdict }[]
+  cardDisputes: RebuildDispute[]
+  /** The card's definition points the coverage was graded against, for the record. */
+  definitionPoints: string[]
 }
 
 export interface AuthoringOutcome {
@@ -236,6 +268,12 @@ export interface AuthoringOutcome {
   revisionReasons?: string[]
   /** The prompt's own classification of the question (v3). */
   questionType?: string
+  /**
+   * The rebuild test. Undefined when the generator did not run it — never a
+   * zero. `cardCoverage` replaces `referenceScore` as the completeness number;
+   * `referenceScore` stays as `klpFidelity` for the smoke test's sake.
+   */
+  rebuild?: RebuildOutcome
   /**
    * How many KLPs this card was sized for (`src/lib/klp/sizing.ts`), carried
    * out so a reader can tell a correctly-small card from a thin one. With
@@ -489,6 +527,32 @@ export async function authorCard(
     revisions += 1
   }
 
+  // THE REBUILD TEST — after the key points have settled, before relations.
+  // Rebuild from the FINAL points only; grade against the card's own points
+  // (the rubric) and against the writer's reference (extraction loss).
+  let rebuild: RebuildOutcome | undefined
+  if (gen.rebuild && gen.gradeCoverage && gen.gradeParity) {
+    const built = await gen.rebuild({ question: input.question, klps: klps.map((k) => ({ text: k.text })) })
+    const definitionPoints = (draft.definitionPoints ?? []).map((p) => ({ point: p.point }))
+    const [coverage, parity] = await Promise.all([
+      gen.gradeCoverage({ question: input.question, definitionPoints, rebuiltAnswer: built.rebuiltAnswer }),
+      gen.gradeParity({ question: input.question, referenceAnswer: draft.referenceAnswer, rebuiltAnswer: built.rebuiltAnswer }),
+    ])
+    const scores = rebuildScores({ coverage: coverage.points, definitionPointCount: definitionPoints.length, parity: parity.claims })
+    rebuild = {
+      rebuiltAnswer: built.rebuiltAnswer,
+      cardCoverage: scores.cardCoverage,
+      referenceParity: scores.referenceParity,
+      extractionLoss: scores.extractionLoss,
+      clearsBar: scores.clearsBar,
+      missingPoints: scores.missingPoints,
+      coverageVerdicts: coverage.points,
+      parityVerdicts: parity.claims,
+      cardDisputes: coverage.disputes ?? [],
+      definitionPoints: definitionPoints.map((p) => p.point),
+    }
+  }
+
   const relateResult = await gen.relate({
     question: input.question,
     klps: klps.map((k) => ({ text: k.text })),
@@ -594,6 +658,7 @@ export async function authorCard(
     concerns,
     revisionReasons,
     questionType: (draft as { questionType?: string }).questionType,
+    ...(rebuild ? { rebuild } : {}),
   }
 }
 
