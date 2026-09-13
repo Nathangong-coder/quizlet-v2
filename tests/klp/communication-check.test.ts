@@ -108,13 +108,23 @@ describe('the parity bar inside the loop', () => {
     expect(out.rebuild?.clearsParityBar).toBe(true)
   })
 
-  it('the reviewer reads the rebuilt answer after the loop', async () => {
+  it('the rebuilt-answer reviewer runs every round and its per-point issues reach the same revise call', async () => {
     const rg = rebuildGen([['present']])
-    const reviewReference = vi.fn().mockImplementation(async ({ answer }: { answer: string }) => ({ accuracy: 'sound', conciseness: answer === 'rebuilt' ? 'wordy' : 'tight', clarity: 'clear', issues: [] }))
-    const out = await authorCard(card, gen({ ...rg, reviewReference }) as never)
-    expect(reviewReference).toHaveBeenCalledTimes(2)
-    expect(out.rebuild?.communication?.conciseness).toBe('wordy')
-    expect(out.referenceReview?.conciseness).toBe('tight')
+    let n = 0
+    const reviewRebuilt = vi.fn().mockImplementation(async () => {
+      n += 1
+      return n === 1
+        ? { conciseness: 'wordy', clarity: 'clear', issues: [{ kind: 'restatement', points: [0, 4], text: 'P0 and P4 both state the conclusion' }, { kind: 'transition', points: [], text: 'roadmap sentence' }] }
+        : { conciseness: 'tight', clarity: 'clear', issues: [] }
+    })
+    const revise = vi.fn().mockImplementation(async ({ klps }: { klps: { text: string; kind: string }[] }) => ({ klps: klps.filter((k) => k.text !== 'P4') }))
+    const out = await authorCard(card, gen({ ...rg, reviewRebuilt, revise }) as never)
+    expect(reviewRebuilt).toHaveBeenCalledTimes(2)
+    const findings = revise.mock.calls[0][0].findings as { index: number | null; issue: string }[]
+    expect(findings.filter((f) => f.issue.startsWith('restatement')).map((f) => f.index)).toEqual([0, 4])
+    expect(findings.some((f) => f.issue.includes('roadmap'))).toBe(false)
+    expect(out.rebuild?.review?.conciseness).toBe('tight')
+    expect(out.klps.map((k) => k.text)).not.toContain('P4')
   })
 })
 

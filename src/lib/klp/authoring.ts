@@ -25,6 +25,7 @@ import {
 import { FRAMING_PROBE, classifyPointRoles, substanceSeparation, type PointRole } from '@/lib/klp/framing'
 import { carryVerdicts, mergePartial, trapsToReplace } from '@/lib/klp/regrade-plan'
 import { referenceNeedsRewrite, type ReferenceReview } from '@/lib/ai/prompts/review-reference'
+import { compressionFindings, ratioFinding, wordRatio, type RebuiltReview } from '@/lib/klp/compression'
 import { validateKlpSet, type KlpDefect } from '@/lib/klp/validate'
 import { toOrderedLevels, type AbstractionLevel } from '@/lib/klp/abstraction'
 import {
@@ -187,6 +188,13 @@ export interface AuthoringGenerator {
    * the loop (`rebuild.communication`).
    */
   reviewReference?(input: { question: string; answer: string; definition: string }): Promise<ReferenceReview>
+  /**
+   * Step A of the compression plan (2026-09-13): the grader reviews the
+   * REBUILT answer against the numbered points every round and names the
+   * points behind each issue; `compressionFindings` turns them into per-point
+   * findings for the same revise call. Optional.
+   */
+  reviewRebuilt?(input: { question: string; definition: string; rebuiltAnswer: string; klps: { text: string }[] }): Promise<RebuiltReview>
   reviseReference?(input: {
     question: string
     definition: string
@@ -248,8 +256,10 @@ export interface RebuildOutcome {
   cardDisputes: RebuildDispute[]
   /** The card's definition points the coverage was graded against, for the record. */
   definitionPoints: string[]
-  /** The reviewer's read of the REBUILT answer, when a reviewer ran. */
-  communication?: ReferenceReview
+  /** The reviewer's read of the REBUILT answer against the points (last round), when a reviewer ran. */
+  review?: RebuiltReview
+  /** Rebuilt words / reference words; the number that says whether compression worked. */
+  wordRatio: number | null
 }
 
 export interface AuthoringOutcome {
@@ -667,6 +677,18 @@ export async function authorCard(
     // findings — one combined rewrite, then one regrade. The last round's
     // result is what the outcome carries.
     rebuild = await runRebuildTest(input.question, draft, klps, gen)
+    if (rebuild && gen.reviewRebuilt) {
+      try {
+        rebuild.review = await gen.reviewRebuilt({
+          question: input.question,
+          definition: input.definition,
+          rebuiltAnswer: rebuild.rebuiltAnswer,
+          klps: klps.map((k) => ({ text: k.text })),
+        })
+      } catch {
+        rebuild.review = undefined
+      }
+    }
 
     // THE QUALITY BAR (2026-09-12). Separation alone let through cards whose
     // reference failed its own points, compound points, and weak answers at
@@ -688,6 +710,12 @@ export async function authorCard(
           definitionPoints: rebuild.definitionPoints,
         }),
       )
+      // COMPRESSION (steps A and C): the reviewer's per-point issues and the
+      // word ratio, into the same round. Precedence is stated in the revise
+      // prompt: cut words, never distinct claims.
+      findings.push(...compressionFindings(rebuild.review, klps.length))
+      const ratio = ratioFinding(rebuild.wordRatio)
+      if (ratio) findings.push(ratio)
     }
     if (findings.length === 0 || revisions >= MAX_REVISIONS) break
     // Decide now, on THIS round's verdicts, which traps the next round rewrites.
@@ -716,16 +744,8 @@ export async function authorCard(
     revisions += 1
   }
 
-  // The reviewer reads the REBUILT answer too (the last round's), so the
-  // reference's review and the rebuild's can be compared: bloat that appears
-  // only in the rebuild is carried by the key points, not the writer.
-  if (rebuild && gen.reviewReference) {
-    try {
-      rebuild.communication = await gen.reviewReference({ question: input.question, answer: rebuild.rebuiltAnswer, definition: input.definition })
-    } catch {
-      // informational only
-    }
-  }
+  // The rebuilt answer's review is the LAST round's (`rebuild.review`), set
+  // inside the loop; nothing more to do here.
 
   const relateResult = await gen.relate({
     question: input.question,
@@ -865,6 +885,7 @@ async function runRebuildTest(
     parityVerdicts: parity.claims,
     cardDisputes: coverage.disputes ?? [],
     definitionPoints: definitionPoints.map((p) => p.point),
+    wordRatio: wordRatio(built.rebuiltAnswer, draft.referenceAnswer),
   }
 }
 
@@ -949,6 +970,7 @@ export function revisionFindings(input: {
     count: 'the set is outside its size target; add the missing claim or cut the padding',
     disposition: 'this is advice or a judgement, not a testable proposition; restate it as a claim about the world',
     abstraction_spread: 'this point is at a different level of abstraction from the rest; bring it to the level of the others',
+    verbose: 'cut it to one claim in about 25 words; a because-clause stays only if the claim is ambiguous without it, and becomes its own point only if a wrong answer could fail it on its own',
   }
   for (const d of input.defects) {
     out.push({ index: d.index, issue: d.rule.replace(/_/g, ' '), fix: FIX[d.rule] ?? d.detail ?? 'fix this point' })

@@ -37,7 +37,10 @@ export interface RebuildBuildInput {
 
 export const WRITE_REBUILD_PROMPT = {
   id: 'write-rebuild',
-  version: 1,
+  // v2 (2026-09-13): say each point once, no transitions or restated
+  // conclusion — otherwise the rebuild adds words the points never carried,
+  // and the compression review would be editing the wrong thing.
+  version: 2,
   schema: RebuildSchema,
 
   build(input: RebuildBuildInput): string {
@@ -49,7 +52,7 @@ Question: ${input.question}
 Key points:
 ${points}
 
-Write the answer a strong candidate would give if these points were everything they knew: connect them, order them as the answer should flow, phrase them as spoken prose. You may reorder and reword. You may NOT add a claim, a number, a mechanism or an example that is not in the points, and you may not leave a point out. If the points do not answer the question fully, the answer should read as incomplete — do not fill the gap.
+Write the answer a strong candidate would give if these points were everything they knew: order them as the answer should flow and phrase them as spoken prose. Say each point ONCE, in the fewest words that keep its claim. No roadmap sentences, no transitions that carry no claim, no restated conclusion — if a point already lands the conclusion, do not land it again. The answer should be about the length of the points combined, not longer. You may reorder and reword. You may NOT add a claim, a number, a mechanism or an example that is not in the points, and you may not leave a point out. If the points do not answer the question fully, the answer should read as incomplete — do not fill the gap.
 
 Output JSON: { "rebuiltAnswer": string }`;
   },

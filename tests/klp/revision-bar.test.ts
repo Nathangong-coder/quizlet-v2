@@ -55,6 +55,7 @@ describe('revisionFindings — the quality bar', () => {
     expect(prompt).toContain('Why this revision: separation 0.52')
     expect(prompt).toContain('Whole-set findings')
     expect(prompt).toContain('Leave a KLP with no finding alone')
-    expect(REVISE_KLPS_PROMPT.version).toBe(3)
+    expect(REVISE_KLPS_PROMPT.version).toBe(4)
+    expect(prompt).toContain('CUT WORDS, NEVER DISTINCT CLAIMS')
   })
 })

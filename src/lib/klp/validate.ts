@@ -4,6 +4,7 @@
  * These are the defects a model reliably produces and cannot reliably
  * self-detect, so they are checked with code rather than asked about.
  */
+import { verboseDefect } from '@/lib/klp/compression'
 import { MIN_KLPS_PER_CARD, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config'
 import type { RelationEdge } from '@/lib/klp/relations'
 import { findNumericDefects } from '@/lib/klp/numeric'
@@ -24,6 +25,9 @@ export interface KlpDefect {
     | 'numeric_inconsistency'
     | 'disposition'
     | 'abstraction_spread'
+    // 2026-09-13, compression plan step C: over VERBOSE_POINT_WORDS words or
+    // two subordinate clauses. A hygiene bound, not a quality judgement.
+    | 'verbose'
   detail: string
 }
 
@@ -248,6 +252,10 @@ export function validateKlpSet(
     const containment = selfContainmentDefect(klp.text)
     if (containment) {
       defects.push({ index, rule: 'not_self_contained', detail: containment })
+    }
+    const verbose = verboseDefect(klp.text)
+    if (verbose) {
+      defects.push({ index, rule: 'verbose', detail: verbose })
     }
     if (META_LANGUAGE.test(klp.text)) {
       defects.push({

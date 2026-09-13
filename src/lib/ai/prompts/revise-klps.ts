@@ -50,7 +50,8 @@ export interface ReviseKlpsBuildInput {
  */
 export const REVISE_KLPS_PROMPT = {
   id: 'revise-klps',
-  version: 3,
+  // v4 (2026-09-13): the compression precedence rule.
+  version: 4,
   schema: ReviseKlpsSchema,
 
   build(input: ReviseKlpsBuildInput): string {
@@ -85,6 +86,8 @@ ${setLines}
 Fix ONLY the KLPs that carry a finding — "CARRIES NO INFORMATION", "FAILS ON THE REFERENCE", or a named rule such as COMPOUND or RESTATEMENT — and do exactly what the finding asks. A KLP that passes on every answer, right or wrong, is not wrong — it is USELESS, because it separates nobody. The usual fix is to SPLIT a vague point into the specific claims it was hiding, so each half can independently pass or fail. A KLP that fails on the reference should be cut or rewritten to match what the reference answer actually says.
 
 Leave a KLP with no finding alone — it already earned its place. Do not reword it, reorder it, or fold it into another. A KLP marked FRAMING is kept for the same reason: it is judged on being a correct definition or contrast, not on separating answers.
+
+CUT WORDS, NEVER DISTINCT CLAIMS. A RESTATEMENT, CLAUSE BLOAT, NOT ON THE CARD or VERBOSE finding asks you to merge or shorten — do that — but every claim a parity or coverage finding names must survive as a point, and a point you shorten must still state its claim in full. When a compression finding and a coverage finding touch the same point, the claim wins and the words go.
 
 Aim for ${input.targetCount}-${MAX_KLPS_AUTHORED} KLPs total after revision — the same target this card was sized for, not a quota. If splitting a useless point into its specific claims takes you above it, that is the right outcome; if honestly cutting one takes you below it, say the fewer true things rather than padding.
 kind: one of ${KLP_KINDS.join(', ')}.

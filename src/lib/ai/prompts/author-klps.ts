@@ -69,7 +69,9 @@ export interface AuthorKlpsBuildInput {
 export const AUTHOR_KLPS_PROMPT = {
   id: 'author-klps',
   // v4 (2026-09-13): two wrong answers — `confident_wrong` cut, see PROBE_KINDS.
-  version: 4,
+  // v5 (2026-09-13): short points — ~25 words, a context clause only where
+  // the bare claim is ambiguous, no conclusion stated twice (compression plan, step E).
+  version: 5,
   schema: AuthorDraftSchema,
 
   build(input: AuthorKlpsBuildInput): string {
@@ -124,7 +126,9 @@ Do this in order.
      BUT: "the same dollar gain is measured against a smaller equity base, so it is a larger percentage return"
    The second explains; the first restates arithmetic.
 
-   ${opts.floor} That floor comes from how much the definition already covers and how much of it needs expanding. It is a FLOOR YOU MAY EXCEED, NOT A QUOTA TO PAD TO — the discrimination test that follows this call decides whether each KLP earns its place, and a padded KLP fires identically on every answer, so it is worse than absent. A key point may carry ONE short context clause — "because ...", "which is why ..." — where the bare claim would be less useful to learn from; it stays one proposition.
+   ${opts.floor} That floor comes from how much the definition already covers and how much of it needs expanding. It is a FLOOR YOU MAY EXCEED, NOT A QUOTA TO PAD TO — the discrimination test that follows this call decides whether each KLP earns its place, and a padded KLP fires identically on every answer, so it is worse than absent.
+
+   KEEP EACH POINT SHORT: one claim, about 25 words at most. A context clause — "because ...", "which is why ..." — is allowed ONLY where the bare claim would be ambiguous without it; if the clause is a claim of its own, it is its own point. Do not state the conclusion twice: an opening definition and a closing contrast that both say the same thing is one point, not two — keep whichever a wrong answer is likelier to fail.
    kind: one of ${KLP_KINDS.join(', ')}.
 
 4. EXACTLY TWO WRONG ANSWERS, one for each archetype below. Each must be WRITTEN TO FAIL specific KLPs above — not a random bad answer, but one that deliberately misses particular points while still sounding like a real attempt.

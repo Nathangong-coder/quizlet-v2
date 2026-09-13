@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { KLP_KINDS } from '@/lib/ai/schemas';
+import { REBUILT_ISSUE_KINDS } from '@/lib/klp/compression';
 
 /**
  * THE COMMUNICATION CHECK (2026-09-13, owner).
@@ -74,6 +75,69 @@ CLARITY — "clear": a listener could follow the structure and knows what was co
 Output JSON:
 { "accuracy": "sound" | "hedged" | "wrong", "conciseness": "tight" | "wordy" | "bloated", "clarity": "clear" | "muddled", "issues": [ { "kind": "accuracy" | "conciseness" | "clarity", "text": string } ] }
 "issues" is empty when everything is sound, tight and clear. Each issue is ONE sentence naming the specific passage.`;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// The REBUILT answer, reviewed against the numbered key points (step A of the
+// compression plan, 2026-09-13). Same labels, but every issue names the
+// points responsible, so it can be a per-point finding in the revise call.
+// ---------------------------------------------------------------------------
+
+export const RebuiltReviewSchema = z.object({
+  conciseness: z.enum(CONCISENESS_VERDICTS),
+  clarity: z.enum(CLARITY_VERDICTS),
+  issues: z
+    .array(
+      z.object({
+        kind: z.enum(REBUILT_ISSUE_KINDS),
+        /** Indices into the key-point list the issue is about; empty for a transition. */
+        points: z.array(z.number().int().min(0)).default([]),
+        text: z.string().min(1),
+      }),
+    )
+    .default([]),
+});
+
+export interface ReviewRebuiltBuildInput {
+  question: string;
+  definition: string;
+  rebuiltAnswer: string;
+  klps: { text: string }[];
+}
+
+export const REVIEW_REBUILT_PROMPT = {
+  id: 'review-rebuilt',
+  version: 1,
+  schema: RebuiltReviewSchema,
+
+  build(input: ReviewRebuiltBuildInput): string {
+    const points = input.klps.map((k, i) => `[${i}] ${k.text}`).join('\n');
+    return `An answer to a finance interview question was written from a numbered list of key points and nothing else. Review it for length and clarity, and for every problem name the key points that caused it — the points are what will be edited, not the answer.
+
+Question: ${input.question}
+
+The card owner's definition (what the answer is supposed to cover):
+${input.definition}
+
+The key points the answer was built from:
+${points}
+
+The answer:
+${input.rebuiltAnswer}
+
+CONCISENESS — "tight": every sentence does work. "wordy": it would be better at two-thirds the length. "bloated": more than twice what a strong spoken answer needs, or the conclusion restated more than once.
+CLARITY — "clear" or "muddled" (the order or wording obscures the point).
+
+Issues, each with a kind and the point indices responsible:
+- "restatement": two or more points make the same claim in different words (for example an opening definition and a closing contrast that both say the conclusion). List every point involved.
+- "clause_bloat": a point carries a because-/which-clause that adds words but no separately testable claim. List that point.
+- "not_on_card": a point states something the owner's definition does not carry and the answer does not need to reach its conclusion. List that point.
+- "transition": roadmap sentences, restated conclusions or connective filler the ANSWER added that no point contains. No points.
+
+Output JSON:
+{ "conciseness": "tight" | "wordy" | "bloated", "clarity": "clear" | "muddled", "issues": [ { "kind": "restatement" | "clause_bloat" | "not_on_card" | "transition", "points": [ number ], "text": string } ] }
+"issues" is empty when the answer is tight and clear. Each "text" is ONE sentence.`;
   },
 };
 

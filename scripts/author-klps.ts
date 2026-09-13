@@ -15,7 +15,7 @@ import { CLASSIFY_ABSTRACTION_PROMPT } from '../src/lib/ai/prompts/classify-abst
 import { WRITE_PANEL_PROMPT } from '../src/lib/ai/prompts/write-panel'
 import { WRITE_ADVERSARIES_PROMPT } from '../src/lib/ai/prompts/write-adversaries'
 import { WRITE_REBUILD_PROMPT, GRADE_COVERAGE_PROMPT, GRADE_PARITY_PROMPT } from '../src/lib/ai/prompts/rebuild'
-import { REVIEW_REFERENCE_PROMPT, REVISE_REFERENCE_PROMPT } from '../src/lib/ai/prompts/review-reference'
+import { REVIEW_REFERENCE_PROMPT, REVISE_REFERENCE_PROMPT, REVIEW_REBUILT_PROMPT } from '../src/lib/ai/prompts/review-reference'
 import { REBUILD_COVERAGE_BAR, REBUILD_PARITY_BAR } from '../src/lib/klp/rebuild'
 import { TokenMeter } from '../src/lib/klp/token-meter'
 import { parseRotationSpec, pickRoles, markRoles, familyOf, familiesAvailable, type RotationCombo, type RoleAssignment } from '../src/lib/klp/rotation'
@@ -335,6 +335,7 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
       ? {
           reviewReference: (input) => call(REVIEW_REFERENCE_PROMPT.build(input), REVIEW_REFERENCE_PROMPT.schema, 'grader', 'review'),
           reviseReference: (input) => call(REVISE_REFERENCE_PROMPT.build(input), REVISE_REFERENCE_PROMPT.schema, 'writer', 'revise-ref'),
+          reviewRebuilt: (input) => call(REVIEW_REBUILT_PROMPT.build(input), REVIEW_REBUILT_PROMPT.schema, 'grader', 'review-rebuilt'),
         }
       : {}),
     // The rebuild test. The REBUILDER is the adversary combo when one exists
@@ -386,6 +387,10 @@ interface RunStats {
   /** Cards whose reference the communication check sent back to the writer. */
   referenceRewritten: number
   parityBelowBar: number
+  /** Word ratios (rebuilt / reference) and the reviewer's verdict on the rebuilt answer — the compression acceptance numbers. */
+  wordRatios: number[]
+  rebuiltTight: number
+  rebuiltReviewed: number
   /**
    * Every weight this run computed, and how many adversaries failed each KLP.
    *
@@ -647,6 +652,9 @@ async function main() {
     framingPoints: 0,
     referenceRewritten: 0,
     parityBelowBar: 0,
+    wordRatios: [],
+    rebuiltTight: 0,
+    rebuiltReviewed: 0,
     weights: [],
     failCounts: [],
     probesPerCard: PROBE_KINDS.length,
@@ -930,7 +938,8 @@ async function main() {
         (outcome.rebuild
           ? `coverage ${outcome.rebuild.cardCoverage?.toFixed(2) ?? 'n/a'}${outcome.rebuild.clearsBar === false ? ` (BELOW the ${REBUILD_COVERAGE_BAR} bar; missing ${outcome.rebuild.missingPoints.map((i) => `[${i}]`).join('')})` : ''}, ` +
             `parity ${outcome.rebuild.referenceParity?.toFixed(2) ?? 'n/a'}${outcome.rebuild.clearsParityBar === false ? ` (BELOW the ${REBUILD_PARITY_BAR} bar)` : ''}` +
-            (outcome.rebuild.communication ? ` [rebuilt: ${outcome.rebuild.communication.accuracy}/${outcome.rebuild.communication.conciseness}/${outcome.rebuild.communication.clarity}]` : '') +
+            (outcome.rebuild.wordRatio !== null ? `, rebuilt/ref words ${outcome.rebuild.wordRatio.toFixed(2)}` : '') +
+            (outcome.rebuild.review ? ` [rebuilt: ${outcome.rebuild.review.conciseness}/${outcome.rebuild.review.clarity}${outcome.rebuild.review.issues.length ? `, ${outcome.rebuild.review.issues.map((i) => i.kind).join('+')}` : ''}]` : '') +
             (outcome.rebuild.cardDisputes.length ? `, DISPUTES ${outcome.rebuild.cardDisputes.length} — the grader believes the answer over the card: ${outcome.rebuild.cardDisputes.map((d) => `[${d.index}] ${d.reason.slice(0, 80)}`).join(' | ')}` : '') +
             ', '
           : '') +
@@ -945,6 +954,11 @@ async function main() {
     stats.framingPoints += outcome.klps.filter((k) => k.role === 'framing').length
     if (outcome.referenceReview?.rewritten) stats.referenceRewritten += 1
     if (outcome.rebuild?.clearsParityBar === false) stats.parityBelowBar += 1
+    if (outcome.rebuild?.wordRatio != null) stats.wordRatios.push(outcome.rebuild.wordRatio)
+    if (outcome.rebuild?.review) {
+      stats.rebuiltReviewed += 1
+      if (outcome.rebuild.review.conciseness === 'tight') stats.rebuiltTight += 1
+    }
     stats.totalKlps += outcome.klps.length
     stats.totalRelations += outcome.relations.length
     if (outcome.status === 'low_discrimination') stats.lowDiscrimination += 1
@@ -971,6 +985,7 @@ async function main() {
       `, mean separation ${meanSeparation.toFixed(2)}` +
       (stats.framingPoints > 0 ? ` (substance ${meanSubstance.toFixed(2)}; ${stats.framingPoints} framing points excluded)` : '') +
       `, ${stats.referenceRewritten} reference(s) rewritten by the communication check, ${stats.parityBelowBar} still below the ${REBUILD_PARITY_BAR} parity bar` +
+      (stats.wordRatios.length ? `, rebuilt/ref words mean ${(stats.wordRatios.reduce((a, b) => a + b, 0) / stats.wordRatios.length).toFixed(2)}, rebuilt tight ${stats.rebuiltTight}/${stats.rebuiltReviewed}` : '') +
       `, ${stats.lowDiscrimination} low_discrimination, ${stats.totalKlps} total KLPs, ` +
       `${stats.totalRelations} total relations`,
   )
