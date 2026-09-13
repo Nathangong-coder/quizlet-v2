@@ -71,6 +71,12 @@ export { PLACE_KLTS_PROMPT } from './place-klts';
 export type { PlaceKltsBuildInput } from './place-klts';
 
 export { SUGGEST_SKELETON_PROMPT } from './suggest-skeleton';
+
+export { MAKE_GAME_PIECES_PROMPT } from './make-game-pieces';
+export type { MakeGamePiecesBuildInput } from './make-game-pieces';
+
+export { HOT_SEAT_PROBE_PROMPT } from './hot-seat-probe';
+export type { HotSeatProbeBuildInput } from './hot-seat-probe';
 export type { SuggestSkeletonBuildInput } from './suggest-skeleton';
 
 import { MULTIPLE_CHOICE_PROMPT } from './multiple-choice';
@@ -88,6 +94,8 @@ import { TRUE_FALSE_PROMPT } from './true-false';
 import { SUMMARIZE_KLTS_PROMPT } from './summarize-klts';
 import { PLACE_KLTS_PROMPT } from './place-klts';
 import { SUGGEST_SKELETON_PROMPT } from './suggest-skeleton';
+import { MAKE_GAME_PIECES_PROMPT } from './make-game-pieces';
+import { HOT_SEAT_PROBE_PROMPT } from './hot-seat-probe';
 
 /** All registry entries keyed by `id`, for introspection/tooling. */
 export const PROMPT_REGISTRY = {
@@ -108,4 +116,6 @@ export const PROMPT_REGISTRY = {
   [SUMMARIZE_KLTS_PROMPT.id]: SUMMARIZE_KLTS_PROMPT,
   [PLACE_KLTS_PROMPT.id]: PLACE_KLTS_PROMPT,
   [SUGGEST_SKELETON_PROMPT.id]: SUGGEST_SKELETON_PROMPT,
+  [MAKE_GAME_PIECES_PROMPT.id]: MAKE_GAME_PIECES_PROMPT,
+  [HOT_SEAT_PROBE_PROMPT.id]: HOT_SEAT_PROBE_PROMPT,
 } as const;

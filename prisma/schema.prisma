@@ -250,6 +250,14 @@ model Set {
   diagnosticAttempts DiagnosticAttempt[]
   folderLinks   FolderSet[]
   groupLinks    StudyGroupSet[]
+  gamePieces    GamePiece[]
+  /// Learning games (2026-09-13, docs/superpowers/specs/2026-09-13-learning-games-design.md).
+  /// The last "Prepare games" run: when, and its per-card summary
+  /// ({ made, copied, generated, skipped: [{cardId, reason}], failed: [...] })
+  /// so the hub can say "Prepared 12 Sep · 41 pieces · 3 skipped" without
+  /// recomputing. Null until the owner has prepared once.
+  gamesPreparedAt      DateTime?
+  gamesPrepareSummary  Json?
   kltNodes      SetKltNode[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -314,6 +322,7 @@ model Card {
   confidenceEvents    ConfidenceEvent[]
   studyEvents         StudyEvent[]
   quizOptionCaches    QuizOptionCache[]
+  gamePieces          GamePiece[]
   quizAnswers         QuizAnswer[]
   contentBlocks       CardContentBlock[]
   categoryAssignments CardCategoryAssignment[]
@@ -1203,6 +1212,43 @@ model AiTaskRouting {
 
   @@unique([userId, task])
   @@index([userId])
+}
+
+/// A short prompt/answer pair derived from ONE key point (or, for a
+/// vocabulary-shaped card, from the card itself), so arcade formats work on
+/// cards whose definitions are paragraphs. Blitz, Crossword and the pieces
+/// variant of Match consume these; Gauntlet and Hot Seat use whole cards.
+///
+/// Versioned like `CardKlp`: a card whose `klpVersion` moved on has its older
+/// pieces IGNORED, never deleted. Reused across identical cards on
+/// `sourceHash` (= `Card.klpSourceHash`), exact match only — see
+/// src/lib/klp/reuse.ts for why a similarity match is wrong here too.
+model GamePiece {
+  id         String   @id @default(cuid())
+  cardId     String
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  /// Denormalised so a set's whole pool is one query.
+  setId      String
+  set        Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
+  /// NULL when `kind = term` (the card's own term/definition).
+  klpId      String?
+  klpVersion Int
+  sourceHash String
+  /// term | cloze — PIECE_KINDS in src/lib/games/pieces.ts
+  kind       String
+  prompt     String   @db.Text
+  answer     String
+  /// string[] of alternative spellings accepted by typed games.
+  aliases    Json     @default("[]")
+  enabled    Boolean  @default(true)
+  /// Model attribution. NULL for a deterministic `term` piece; a COPIED piece
+  /// carries the donor's model, because that is who wrote it.
+  model      String?
+  createdAt  DateTime @default(now())
+
+  @@index([setId, klpVersion])
+  @@index([cardId])
+  @@index([sourceHash])
 }
 
 model QuizOptionCache {

@@ -76,6 +76,15 @@ const ENFORCED_PATHS = [
   'src/actions/groups.ts',
   'src/app/(app)/groups/[id]/page.tsx',
   'src/app/(app)/groups/[id]/sets/[setId]/page.tsx',
+  // --- Added with learning games, 2026-09-13 ---
+  'src/lib/games/load.ts',
+  'src/actions/games.ts',
+  'src/app/sets/[id]/games/page.tsx',
+  'src/app/sets/[id]/games/pieces/page.tsx',
+  'src/app/sets/[id]/games/gauntlet/page.tsx',
+  'src/app/sets/[id]/games/hot-seat/page.tsx',
+  'src/app/sets/[id]/games/blitz/page.tsx',
+  'src/app/sets/[id]/games/crossword/page.tsx',
 ]
 
 describe('every set read path applies readableSetWhere', () => {

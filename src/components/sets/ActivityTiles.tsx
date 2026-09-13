@@ -31,8 +31,10 @@ const TILE_SURFACE =
 
 const TILES: Tile[] = [
   {
-    label: "Matching Game",
-    href: (id) => `/sets/${id}/match`,
+    // The games hub, not Match directly. Match keeps its old route and is the
+    // first card on the hub, so `/sets/[id]/match` deep links still work.
+    label: "Games",
+    href: (id) => `/sets/${id}/games`,
     icon: Gamepad2,
     requiresAuth: false,
   },

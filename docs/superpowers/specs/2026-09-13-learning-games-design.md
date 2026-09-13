@@ -1,6 +1,7 @@
 # Learning games — design
 
-**Date:** 2026-09-13 · **Status:** designed, not built (sub-project 1 of 6 on `study-platform`)
+**Date:** 2026-09-13 · **Status:** **BUILT 2026-09-13** (sub-project 6 of 6 on `study-platform`); **live gate owed** — see §8
+**Migration:** `20260913150000_game_pieces` (applied to the dev database 2026-09-13)
 **Builds on:** `2026-08-01-klp-question-generation-design.md` (KLPs), `src/lib/klp/reuse.ts`
 (exact-hash reuse), `2026-08-27-public-sets-and-discovery-design.md` (`readableSetWhere`)
 **Consumed by:** the landing page revamp (sub-project 2) advertises these four games by name;
@@ -273,3 +274,33 @@ Multiplayer and leaderboards; any persistence of runs or scores; editing a piece
 (toggle only); speech input for Hot Seat (Stage 4); personas beyond the static table; changing
 Match's own card-pair source; showing game activity in study groups (sub-project 5 may
 revisit, but only as "played", never as evidence).
+
+## §8 As built — departures from the design above, and the live gate
+
+- **Match-on-pieces is deferred.** The existing Match game records a `StudySession` (it
+  predates decision §0.1 and is a Stage-1 study activity that feeds memory). A pieces variant
+  would inherit that write, so it was not built rather than either leaving a memory write in a
+  "just for fun" game or refactoring Match's session plumbing. Match keeps its route and its
+  behaviour and is the last card on the hub; the hub gates it on two cards, not on pieces.
+- **Gauntlet corridors use deterministic MC options** (other cards' terms/definitions), never
+  the cached AI distractors: the distractor cache is keyed per model and reading it would tie
+  a zero-AI mode to the credential pool. MC-only Gauntlet therefore makes zero calls, as §2.1
+  promised.
+- **`MAX_ANSWER_WORDS` is 5, not 4** — the canonical example ("weighted average cost of
+  capital") is five words.
+- **A boss whose card has no memory cannot exist**: bosses are the lowest-confidence cards
+  *with* a progress row; unstudied cards are corridors (nothing says they are weak).
+- **Hit rule** (`isHit`, `src/actions/games.ts`): every substance point with weight ≥ 4
+  `passed`; framing points (`CardKlp.role = framing`) are excluded. A card with no heavy
+  substance points is a hit when nothing failed.
+- **Best scores** go through `useBest` (`useSyncExternalStore` over `localStorage`, server
+  snapshot null) so SSR and the first client render agree.
+- **Pieces are generated under the `distractors` task** (the closest existing routing task;
+  no new `AiTask` was added). The two prompts are `make-game-pieces` v1 and `hot-seat-probe`
+  v1 in the registry.
+
+**Live gate owed.** The reducers, the prepare/donor/skip paths, the no-writes guarantee, and
+the page access rules are tested; the hub, pieces page and the signed-out game pages were
+rendered in a browser. Not yet walked with a signed-in owner: **Prepare games** on a real set
+(a real `make-game-pieces` call), a Blitz and Crossword round on real pieces, a Gauntlet run
+with typed rooms, and a full Hot Seat interview with a probe. Walk those once.

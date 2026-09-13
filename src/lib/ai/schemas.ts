@@ -640,3 +640,27 @@ export const OmitKlpSchema = z.object({
 });
 
 export type OmitKlp = z.infer<typeof OmitKlpSchema>;
+
+/**
+ * Learning games (2026-09-13). `cardRef`/`klpRef` are prompt-local indexes,
+ * never cuids. `acceptCloze` (src/lib/games/pieces.ts) validates the blank
+ * count and the answer cap in TypeScript and DROPS a bad piece rather than
+ * repairing it.
+ */
+export const GamePiecesSchema = z.object({
+  pieces: z.array(z.object({
+    cardRef: z.number().int().min(0),
+    klpRef: z.number().int().min(0),
+    prompt: z.string().min(1),
+    answer: z.string().min(1),
+    aliases: z.array(z.string()).default([]),
+  })),
+});
+
+export type GamePieces = z.infer<typeof GamePiecesSchema>;
+
+export const HotSeatProbeSchema = z.object({
+  question: z.string().min(1),
+});
+
+export type HotSeatProbe = z.infer<typeof HotSeatProbeSchema>;
