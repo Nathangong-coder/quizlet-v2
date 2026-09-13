@@ -5,7 +5,6 @@ export default NextAuth(authConfig).auth((req) => {
   const isProtectedRoute =
     req.nextUrl.pathname.startsWith("/sets/new") ||
     req.nextUrl.pathname.includes("/edit") ||
-    req.nextUrl.pathname.includes("/match") ||
     req.nextUrl.pathname.includes("/review") ||
     req.nextUrl.pathname.includes("/quiz") ||
     // `/settings` as a prefix rather than `/settings/ai` specifically, so
@@ -25,7 +24,6 @@ export const config = {
   matcher: [
     '/sets/new',
     '/sets/:id*/edit',
-    '/sets/:id*/match',
     '/sets/:id*/review',
     '/sets/:id*/quiz',
     // Every settings page, present and future. The predicate above tests the

@@ -277,11 +277,12 @@ revisit, but only as "played", never as evidence).
 
 ## §8 As built — departures from the design above, and the live gate
 
-- **Match-on-pieces is deferred.** The existing Match game records a `StudySession` (it
-  predates decision §0.1 and is a Stage-1 study activity that feeds memory). A pieces variant
-  would inherit that write, so it was not built rather than either leaving a memory write in a
-  "just for fun" game or refactoring Match's session plumbing. Match keeps its route and its
-  behaviour and is the last card on the hub; the hub gates it on two cards, not on pieces.
+- **Match now writes nothing too** (owner's call, same day, on being told it recorded a
+  `StudySession` + `StudyEvent`s: "it was a bad call to have it at the start"). The session
+  plumbing and `submitMatchSession` are deleted, `/match` left the sign-in middleware (nothing to
+  protect), and a device-local best time replaced the record. `?source=pieces` is the pieces
+  variant from §3, offered on the hub when ≥ 6 pieces exist. `tests/games/match-writes-nothing.test.ts`
+  scans the component, the page and the middleware.
 - **Gauntlet corridors use deterministic MC options** (other cards' terms/definitions), never
   the cached AI distractors: the distractor cache is keyed per model and reading it would tie
   a zero-AI mode to the credential pool. MC-only Gauntlet therefore makes zero calls, as §2.1

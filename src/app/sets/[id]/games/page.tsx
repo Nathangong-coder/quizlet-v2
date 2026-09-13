@@ -79,9 +79,10 @@ export default async function GamesHubPage({ params }: { params: Promise<{ id: s
 
       <ul className="mt-8 grid gap-3 sm:grid-cols-2">
         {GAMES.map((g) => {
-          // Match is the original card game, not the (deferred) pieces variant:
-          // it needs two cards, nothing else.
+          // Match on cards needs two cards, nothing else; `hub.availability.match`
+          // is the PIECES variant, offered as a second link below when ready.
           const a: GameAvailability = g.id === 'match' ? (hub.cardCount >= 2 ? { state: 'playable' } : { state: 'needs_pieces', short: 2 - hub.cardCount }) : hub.availability[g.id]
+          const piecesMatch = g.id === 'match' && hub.availability.match.state === 'playable'
           const blocked = describe(a)
           const Icon = g.icon
           const body = (
@@ -96,11 +97,16 @@ export default async function GamesHubPage({ params }: { params: Promise<{ id: s
             </>
           )
           return (
-            <li key={g.id}>
+            <li key={g.id} className="flex flex-col gap-1.5">
               {blocked ? (
                 <div className="h-full rounded-xl border border-dashed border-border p-5 opacity-80" aria-disabled="true">{body}</div>
               ) : (
                 <Link href={g.href(id)} className="block h-full rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-sm)] transition-colors hover:border-primary/60">{body}</Link>
+              )}
+              {piecesMatch && (
+                <Link href={`/sets/${id}/match?source=pieces`} className="self-end text-xs text-primary underline-offset-4 hover:underline">
+                  or match key points instead of cards →
+                </Link>
               )}
             </li>
           )

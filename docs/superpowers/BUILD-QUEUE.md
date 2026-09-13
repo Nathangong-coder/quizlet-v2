@@ -18,8 +18,8 @@ each its own commit and spec; four migrations applied to the dev database
 **Live gates owed (need a signed-in browser; the agent cannot sign in):** groups end to end
 (create → invite → join on a second account → attach → leaderboard → leave); games with a
 real **Prepare games** run on an authored set, then one round of each game; setting a subject
-on the set edit form and seeing it in the Library facet. Deferred on purpose: Match-on-pieces
-(Match records a `StudySession`; see games spec §8), study stats on profiles, public groups.
+on the set edit form and seeing it in the Library facet. Follow-up commit: Match now writes nothing and gained `?source=pieces`.
+Deferred on purpose: study stats on profiles, public groups.
 
 **HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress. Read this before
 anything else in this file.** Two long runs were started this day and both are RESUMABLE;
