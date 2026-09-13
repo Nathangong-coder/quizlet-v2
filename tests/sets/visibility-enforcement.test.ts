@@ -64,6 +64,27 @@ const ENFORCED_PATHS = [
   'src/lib/sets/directory.ts',
   'src/lib/sets/recommend.ts',
   'src/actions/set-reports.ts',
+  // --- Added with public profiles, 2026-09-13 ---
+  // /u/<handle> lists a stranger's sets to anyone; the loader composes the
+  // predicate with listable + userId, and the page references it.
+  'src/lib/users/public-profile.ts',
+  'src/app/(app)/u/[handle]/page.tsx',
+  // --- Added with study groups, 2026-09-13 ---
+  // Membership grants NO read rights: every set read inside a group composes
+  // the predicate, and attaching a set reads it through it first.
+  'src/lib/groups/load.ts',
+  'src/actions/groups.ts',
+  'src/app/(app)/groups/[id]/page.tsx',
+  'src/app/(app)/groups/[id]/sets/[setId]/page.tsx',
+  // --- Added with learning games, 2026-09-13 ---
+  'src/lib/games/load.ts',
+  'src/actions/games.ts',
+  'src/app/sets/[id]/games/page.tsx',
+  'src/app/sets/[id]/games/pieces/page.tsx',
+  'src/app/sets/[id]/games/gauntlet/page.tsx',
+  'src/app/sets/[id]/games/hot-seat/page.tsx',
+  'src/app/sets/[id]/games/blitz/page.tsx',
+  'src/app/sets/[id]/games/crossword/page.tsx',
 ]
 
 describe('every set read path applies readableSetWhere', () => {

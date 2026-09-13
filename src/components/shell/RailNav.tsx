@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Compass, FileText, Folder, FolderPlus, Gauge, Home, Library, LogIn, NotebookPen, Plus, Stethoscope } from 'lucide-react'
+import { Compass, FileText, Folder, FolderPlus, Gauge, Home, Library, LogIn, NotebookPen, Plus, Stethoscope, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isRailItemCurrent, isRecentCurrent, railItems, type RailIcon } from '@/lib/shell/nav'
 
@@ -13,6 +13,7 @@ const ICONS: Record<RailIcon, React.ComponentType<{ className?: string }>> = {
   plus: Plus,
   login: LogIn,
   gauge: Gauge,
+  users: Users,
 }
 
 export interface RailRecent {

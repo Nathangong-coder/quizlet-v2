@@ -4,11 +4,14 @@ import { revalidatePath } from 'next/cache'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { checkHandle, HANDLE_REJECTION_MESSAGES } from '@/lib/users/handle'
+import { checkBio, BIO_MAX_LENGTH } from '@/lib/users/bio'
 import type { ActionResult } from '@/types/action'
 
 export interface AccountSettings {
   /** Display handle, or null if never chosen. */
   handle: string | null
+  /** Public-profile bio, or null. Only shown on /u/<handle>. */
+  bio: string | null
   /** The OAuth account email. Read-only by design — see the schema comment. */
   email: string
   /** Optional "write to me here" address. */
@@ -40,6 +43,7 @@ export async function getAccountSettings(): Promise<ActionResult<AccountSettings
       where: { id: session.user.id },
       select: {
         handle: true,
+        bio: true,
         email: true,
         contactEmail: true,
         emailUpdates: true,
@@ -93,6 +97,23 @@ export async function saveHandle(raw: string): Promise<ActionResult<{ handle: st
     }
     console.error('Save handle error:', error)
     return { success: false, error: 'Failed to save your handle' }
+  }
+}
+
+export async function saveBio(raw: string): Promise<ActionResult<{ bio: string | null }>> {
+  const session = await auth()
+  if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
+
+  const checked = checkBio(raw)
+  if (!checked.ok) return { success: false, error: `Keep your bio to ${BIO_MAX_LENGTH} characters.` }
+
+  try {
+    await prisma.user.update({ where: { id: session.user.id }, data: { bio: checked.bio } })
+    revalidatePath('/account')
+    return { success: true, data: { bio: checked.bio } }
+  } catch (error) {
+    console.error('Save bio error:', error)
+    return { success: false, error: 'Failed to save your bio' }
   }
 }
 

@@ -18,6 +18,7 @@ import { selectRefreshableStaleCardIds } from '@/lib/cards/stale'
 import { rescoreSetAttempts } from '@/lib/quiz/rescore'
 import type { CardKlpStatus } from '@/lib/cards/klp-status'
 import { toSetVisibility, type SetVisibility } from '@/lib/sets/visibility'
+import { isSubjectSlug } from '@/lib/subjects/taxonomy'
 
 const CardInputSchema = z.object({
   // Present when the editor is round-tripping an existing card. Absent for
@@ -173,6 +174,15 @@ async function backfillAssetLinks(
 const SetInputSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
   description: z.string().max(1000, 'Description too long').optional(),
+  // A leaf slug from the fixed tree, or null/'' to clear. REJECTED when
+  // unknown rather than coerced to null: a mistyped slug from a stale client
+  // would otherwise silently drop the subject the owner thought they set.
+  subject: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v ? v : null))
+    .refine((v) => v === null || isSubjectSlug(v), 'Unrecognised subject'),
   cards: z.array(CardInputSchema).min(1, 'At least one card is required'),
   categories: z
     .array(
@@ -184,7 +194,7 @@ const SetInputSchema = z.object({
     .optional(),
 })
 
-type SetInput = z.infer<typeof SetInputSchema>
+type SetInput = z.input<typeof SetInputSchema>
 
 function isRedirectError(error: any): boolean {
   return error && (error as any).digest?.includes('NEXT_REDIRECT')
@@ -205,6 +215,7 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
       data: {
         title: validated.title,
         description: validated.description,
+        subject: validated.subject,
         userId: session.user.id,
         categories: {
           create: collected.map((c) => ({
@@ -337,7 +348,7 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
       }
       await tx.set.update({
         where: { id },
-        data: { title: validated.title, description: validated.description },
+        data: { title: validated.title, description: validated.description, subject: validated.subject },
       })
       // A card delete cascades away its QuizAnswer rows, leaving every attempt
       // that tested it holding a score derived from evidence that no longer

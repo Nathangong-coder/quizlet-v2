@@ -3,6 +3,8 @@ import { auth } from '@/auth'
 import { loadDirectory } from '@/lib/sets/directory'
 import { readableSetWhere } from '@/lib/sets/visibility'
 import { DirectoryCard } from '@/components/sets/DirectoryCard'
+import { SubjectFilterBar } from '@/components/sets/SubjectFilterBar'
+import { getSubject, getSubjectGroup } from '@/lib/subjects/taxonomy'
 import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
 import { PageHeader } from '@/components/ui/page-header'
 
@@ -22,7 +24,7 @@ import { PageHeader } from '@/components/ui/page-header'
 export default async function BrowsePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; cursor?: string }>
+  searchParams: Promise<{ q?: string; cursor?: string; subject?: string }>
 }) {
   const session = await auth()
   // Explicitly null, never a bare `session?.user?.id`: `undefined === undefined`
@@ -35,8 +37,9 @@ export default async function BrowsePage({
   // rather than deleting the line.
   void readableSetWhere
 
-  const { q, cursor } = await searchParams
-  const { entries, nextCursor } = await loadDirectory(viewerId, q, cursor)
+  const { q, cursor, subject } = await searchParams
+  const { entries, nextCursor } = await loadDirectory(viewerId, q, cursor, subject)
+  const subjectLabel = getSubject(subject)?.label ?? getSubjectGroup(subject)?.label ?? null
 
   return (
     <div>
@@ -45,7 +48,12 @@ export default async function BrowsePage({
         lede="Sets people have published. Study any of them — your progress stays your own — or open one and make your own copy to edit."
       />
 
+      <div className="mb-6">
+        <SubjectFilterBar current={subject} basePath="/browse" otherParams={{ q }} />
+      </div>
+
       <form action="/browse" className="flex gap-2 max-w-md">
+        {subject && <input type="hidden" name="subject" value={subject} />}
         <input
           type="search"
           name="q"
@@ -65,7 +73,7 @@ export default async function BrowsePage({
 
       <Section className="mt-8">
         <SectionHeader
-          title={q ? `Results for \u201C${q}\u201D` : 'Published sets'}
+          title={q ? `Results for \u201C${q}\u201D${subjectLabel ? ` in ${subjectLabel}` : ''}` : subjectLabel ? `${subjectLabel} sets` : 'Published sets'}
           hint={entries.length === 0 ? undefined : `${entries.length}${nextCursor ? '+' : ''}`}
         />
         <SectionBody>
@@ -77,12 +85,12 @@ export default async function BrowsePage({
               codebase has already hit twice.
             */
             <div className="py-8 text-sm text-muted-foreground">
-              {q ? (
+              {q || subject ? (
                 <>
-                  <p>Nothing published matches &ldquo;{q}&rdquo;.</p>
+                  <p>Nothing published matches {q ? <>&ldquo;{q}&rdquo;</> : 'that subject'}{q && subjectLabel ? ` in ${subjectLabel}` : ''}.</p>
                   <p className="mt-2">
                     <Link href="/browse" className="underline underline-offset-4">
-                      Clear the search
+                      Clear the {q ? 'search' : 'filter'}
                     </Link>{' '}
                     to see everything.
                   </p>
@@ -110,7 +118,7 @@ export default async function BrowsePage({
       {nextCursor && (
         <div className="mt-8">
           <Link
-            href={`/browse?${new URLSearchParams({ ...(q ? { q } : {}), cursor: nextCursor })}`}
+            href={`/browse?${new URLSearchParams({ ...(q ? { q } : {}), ...(subject ? { subject } : {}), cursor: nextCursor })}`}
             className="text-sm underline underline-offset-4"
           >
             More

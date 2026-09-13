@@ -5,6 +5,9 @@ import { Prisma } from '@prisma/client'
 import { BookOpen, ClipboardCheck, FileText, Folder, Layers, Plus } from 'lucide-react'
 import { LibraryRow } from '@/components/library/LibraryRow'
 import { LibraryToolbar, type LibrarySort } from '@/components/library/LibraryToolbar'
+import { SubjectFilterBar } from '@/components/sets/SubjectFilterBar'
+import { expandSubjectFilter, subjectPath } from '@/lib/subjects/taxonomy'
+import { countSubjects } from '@/lib/subjects/counts'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { SignInButton } from '@/components/auth/SignInButton'
@@ -42,13 +45,14 @@ function emptyMessage(type: LibraryType, query: string) {
 export default async function SetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string; sort?: string }>
+  searchParams: Promise<{ q?: string; type?: string; sort?: string; subject?: string }>
 }) {
   const session = await auth()
   const params = await searchParams
   const q = params.q?.trim() ?? ''
   const type = readType(params.type)
   const sort = readSort(params.sort)
+  const subject = params.subject?.trim() || undefined
 
   if (!session?.user?.id) {
     return (
@@ -62,6 +66,12 @@ export default async function SetsPage({
 
   const setWhere: Prisma.SetWhereInput = {
     userId: session.user.id,
+  }
+
+  // A leaf narrows to itself, a group to its leaves, an unknown value to
+  // nothing — never to everything.
+  if (subject) {
+    setWhere.subject = { in: [...expandSubjectFilter(subject)] }
   }
 
   if (q) {
@@ -81,13 +91,18 @@ export default async function SetsPage({
     ]
   }
 
-  const [user, sets, folders, practiceTests, studyGuides] = await Promise.all([
+  const [user, sets, folders, practiceTests, studyGuides, subjectRows] = await Promise.all([
     prisma.user.findUnique({ where: { id: session.user.id }, select: { id: true, name: true, handle: true, image: true, avatarUrl: true } }),
-    prisma.set.findMany({ where: setWhere, orderBy: [{ updatedAt: 'desc' }, { title: 'asc' }], take: 200, select: { id: true, title: true, description: true, createdAt: true, updatedAt: true, _count: { select: { cards: true } } } }),
+    prisma.set.findMany({ where: setWhere, orderBy: [{ updatedAt: 'desc' }, { title: 'asc' }], take: 200, select: { id: true, title: true, description: true, subject: true, createdAt: true, updatedAt: true, _count: { select: { cards: true } } } }),
     prisma.folder.findMany({ where: { userId: session.user.id, ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { description: { contains: q, mode: 'insensitive' } }] } : {}) }, orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }], take: 200, select: { id: true, name: true, description: true, createdAt: true, updatedAt: true, _count: { select: { sets: true, notes: true, postmortems: true, children: true } } } }),
     prisma.quizAttempt.findMany({ where: { userId: session.user.id, ...QUIZ_HISTORY_WHERE, ...(q ? { OR: [{ mode: { contains: q, mode: 'insensitive' } }, { set: { title: { contains: q, mode: 'insensitive' } } }] } : {}) }, orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, setId: true, mode: true, score: true, questionCount: true, sessionId: true, createdAt: true, set: { select: { title: true } } } }),
     prisma.studyNote.findMany({ where: { userId: session.user.id, ...(q ? { OR: [{ title: { contains: q, mode: 'insensitive' } }, { body: { contains: q, mode: 'insensitive' } }] } : {}) }, orderBy: [{ updatedAt: 'desc' }, { title: 'asc' }], take: 200, select: { id: true, title: true, body: true, createdAt: true, updatedAt: true } }),
+    // Counts under the FULL scope (owner's sets, no subject filter), so the
+    // chips still show the other subjects once one is chosen — a facet count
+    // that drops to zero the moment you pick it is no facet at all.
+    prisma.set.groupBy({ by: ['subject'], where: { userId: session.user.id, subject: { not: null } }, _count: { _all: true } }),
   ])
+  const subjectCounts = countSubjects(subjectRows.map((r) => ({ subject: r.subject, count: r._count._all })))
 
   // One query for every set on the page rather than one per card. The list
   // could not previously answer "what should I open?" — it showed a title, a
@@ -114,7 +129,7 @@ export default async function SetsPage({
   })
 
   const activeRows = {
-    sets: sortedSets.map((set) => ({ href: `/sets/${set.id}`, title: set.title, typeLabel: 'Flashcard set', meta: `${set._count.cards} ${set._count.cards === 1 ? 'term' : 'terms'}`, byline: byline(userForRow), icon: Layers, iconClass: 'text-sky-600 dark:text-sky-300', tileClass: 'bg-sky-50 dark:bg-sky-950/35', user: userForRow })),
+    sets: sortedSets.map((set) => ({ href: `/sets/${set.id}`, title: set.title, typeLabel: 'Flashcard set', meta: `${set._count.cards} ${set._count.cards === 1 ? 'term' : 'terms'}${subjectPath(set.subject) ? ` · ${subjectPath(set.subject)}` : ''}`, byline: byline(userForRow), icon: Layers, iconClass: 'text-sky-600 dark:text-sky-300', tileClass: 'bg-sky-50 dark:bg-sky-950/35', user: userForRow })),
     folders: sortedFolders.map((folder) => ({ href: `/folders/${folder.id}`, title: folder.name, typeLabel: 'Folder', meta: `${folder._count.sets + folder._count.notes + folder._count.postmortems + folder._count.children} items`, byline: byline(userForRow), icon: Folder, iconClass: 'text-slate-600 dark:text-slate-300', tileClass: 'bg-slate-100 dark:bg-slate-900/70', user: userForRow })),
     tests: sortedTests.map((test) => ({ href: test.sessionId ? `/profile/activity/${test.sessionId}` : `/sets/${test.setId}`, title: test.set.title, typeLabel: 'Practice test', meta: `${test.mode.replaceAll('-', ' ')} · ${test.score === null ? 'Not scored' : `${test.score}%`}${test.questionCount ? ` · ${test.questionCount} questions` : ''}`, byline: byline(userForRow), icon: ClipboardCheck, iconClass: 'text-emerald-600 dark:text-emerald-300', tileClass: 'bg-emerald-50 dark:bg-emerald-950/35', user: userForRow })),
     guides: sortedGuides.map((guide) => ({ href: `/notes/${guide.id}`, title: guide.title, typeLabel: 'Study guide', meta: `${guide.body.trim().split(/\s+/).filter(Boolean).length} words`, byline: byline(userForRow), icon: FileText, iconClass: 'text-fuchsia-600 dark:text-fuchsia-300', tileClass: 'bg-fuchsia-50 dark:bg-fuchsia-950/35', user: userForRow })),
@@ -134,7 +149,11 @@ export default async function SetsPage({
         {LIBRARY_TYPES.map((value) => <Link key={value} href={`/sets?type=${value}${sort !== 'recent' ? `&sort=${sort}` : ''}${q ? `&q=${encodeURIComponent(q)}` : ''}`} aria-current={type === value ? 'page' : undefined} className={cn('shrink-0 border-b-2 px-3 py-3 text-sm font-semibold transition-colors', type === value ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground')}>{TYPE_LABELS[value]}</Link>)}
       </nav>
 
-      <LibraryToolbar query={q} sort={sort} type={type} />
+      <LibraryToolbar query={q} sort={sort} type={type} subject={subject} />
+
+      {type === 'sets' && Object.keys(subjectCounts).length > 0 && (
+        <SubjectFilterBar current={subject} basePath="/sets" otherParams={{ type, sort: sort !== 'recent' ? sort : undefined, q: q || undefined }} counts={subjectCounts} />
+      )}
 
       {activeRows.length === 0 ? <div className="flex min-h-[32vh] flex-col items-center justify-center rounded-2xl border border-dashed border-border px-6 py-16 text-center"><div className="rounded-full bg-muted p-3 text-muted-foreground"><Plus className="h-6 w-6" aria-hidden="true" /></div><h2 className="mt-4 text-xl font-semibold">{emptyMessage(type, q)}</h2><p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">{type === 'sets' ? 'Start building your knowledge with a focused flashcard set.' : 'When you add something here, it will appear in this quiet library view.'}</p>{type === 'sets' && <Link href="/sets/new" className={cn(buttonVariants(), 'mt-6')}>Create a set</Link>}</div> : <ul className="border-t border-border/70">{activeRows.map((row) => <LibraryRow key={row.href} {...row} />)}</ul>}
 

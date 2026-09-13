@@ -1,4 +1,5 @@
 import { composeSetWhere, listableSetWhere } from '@/lib/sets/visibility'
+import { expandSubjectFilter } from '@/lib/subjects/taxonomy'
 
 /** One page of the directory. Cursor-paginated, so it is a page and not an offset. */
 export const DIRECTORY_PAGE_SIZE = 24
@@ -7,6 +8,7 @@ export interface DirectoryEntry {
   id: string
   title: string
   description: string | null
+  subject: string | null
   cardCount: number
   handle: string | null
   categories: { name: string; color: string | null }[]
@@ -33,9 +35,17 @@ export interface DirectoryEntry {
 export function buildDirectoryWhere(
   viewerId: string | null,
   q?: string,
+  subject?: string,
 ): Record<string, unknown> {
   const trimmed = q?.trim()
   const clauses: Record<string, unknown>[] = [listableSetWhere()]
+
+  // A leaf narrows to itself, a group to its leaves, and an UNKNOWN value to
+  // nothing — `{ in: [] }` — so a mistyped `?subject=` shows an empty page
+  // rather than quietly showing everything.
+  if (subject) {
+    clauses.push({ subject: { in: [...expandSubjectFilter(subject)] } })
+  }
 
   // Omitted entirely for a blank query. `{ contains: '' }` matches every row,
   // which is not the same thing as "no filter" once it sits inside an OR
@@ -73,11 +83,12 @@ export async function loadDirectory(
   viewerId: string | null,
   q: string | undefined,
   cursor?: string,
+  subject?: string,
 ): Promise<{ entries: DirectoryEntry[]; nextCursor: string | null }> {
   const { prisma } = await import('@/lib/db')
 
   const rows = await prisma.set.findMany({
-    where: buildDirectoryWhere(viewerId, q),
+    where: buildDirectoryWhere(viewerId, q, subject),
     orderBy: [{ forks: { _count: 'desc' } }, { publishedAt: 'desc' }, { id: 'desc' }],
     take: DIRECTORY_PAGE_SIZE + 1,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
@@ -85,6 +96,7 @@ export async function loadDirectory(
       id: true,
       title: true,
       description: true,
+      subject: true,
       publishedAt: true,
       forkedFromId: true,
       forkedFromTitle: true,
@@ -101,6 +113,7 @@ export async function loadDirectory(
       id: r.id,
       title: r.title,
       description: r.description,
+      subject: r.subject,
       cardCount: r._count.cards,
       forkCount: r._count.forks,
       publishedAt: r.publishedAt,

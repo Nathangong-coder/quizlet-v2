@@ -145,7 +145,7 @@ Detailed plan: `docs/superpowers/plans/2026-07-04-multimodal-content-and-testing
 
 ### Stage 6 — Persistent learner memory & prompting overhaul
 Detailed plan: `docs/superpowers/plans/2026-07-04-persistent-memory-and-prompting.md`. Companion: `docs/ai/prompting-strategy.md`. **Foundational — build before Stage 7.**
-- **Single memory write path** so every mode (Review, Quiz MC/SA/TF, matching, lessons) updates per-card confidence + an append-only `StudyEvent` history. Closes the gap where quizzes don't touch confidence today.
+- **Single memory write path** so every mode (Review, Quiz MC/SA/TF, lessons) updates per-card confidence + an append-only `StudyEvent` history. Closes the gap where quizzes don't touch confidence today. **Matching no longer writes (2026-09-13):** Match is a *game*, and games — Match, Gauntlet, Hot Seat, Blitz, Crossword (`docs/superpowers/specs/2026-09-13-learning-games-design.md`) — write nothing to memory or history; `tests/games/match-writes-nothing.test.ts` and `tests/games/actions.test.ts` guard it. Older `StudySession` rows of kind `matching` remain as history.
 - Pure, tested scoring: confidence deltas, mastery, and spaced-repetition due dates. AI never *computes* mastery, only reads it.
 - Compact, **ID-free, token-capped `LearnerProfile`** injected into every judgment prompt.
 - Prompts are consolidated into a **versioned registry** (`src/lib/ai/prompts/registry.ts`). There is no automatic per-task model routing — the old `modelFor`/`MODEL_FALLBACKS` helper is deleted; model choice is entirely user-configured via `AiCredential.defaultModel` plus an optional `AiTaskRouting` pin. Structured output goes through the AI SDK's native `Output.object({ schema })`, not regex JSON cleanup — see "AI integration" above.

@@ -251,7 +251,7 @@ describe('updateSet card transaction (interactive-form conversion guard)', () =>
     })
     expect(h.setUpdate).toHaveBeenCalledWith({
       where: { id: SET_ID },
-      data: { title: 'Valuation', description: 'desc' },
+      data: { title: 'Valuation', description: 'desc', subject: null },
     })
   })
 })
