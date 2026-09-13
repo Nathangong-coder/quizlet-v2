@@ -15,6 +15,7 @@ import { WRITE_PANEL_PROMPT } from '../src/lib/ai/prompts/write-panel'
 import { WRITE_ADVERSARIES_PROMPT } from '../src/lib/ai/prompts/write-adversaries'
 import { WRITE_REBUILD_PROMPT, GRADE_COVERAGE_PROMPT, GRADE_PARITY_PROMPT } from '../src/lib/ai/prompts/rebuild'
 import { REBUILD_COVERAGE_BAR } from '../src/lib/klp/rebuild'
+import { TokenMeter } from '../src/lib/klp/token-meter'
 import { parseRotationSpec, pickRoles, markRoles, familyOf, familiesAvailable, type RotationCombo, type RoleAssignment } from '../src/lib/klp/rotation'
 import { DIRECT_PROVIDER_SOURCES, buildDirectPool, parseList } from '../src/lib/klp/direct-pool'
 import { findExistingPanel } from '../src/lib/klp/panel-reuse'
@@ -190,6 +191,9 @@ const REVISE_WITH_GRADER = (process.env.KLP_REVISE_WITH ?? '').toLowerCase() ===
 const ADVERSARIES_WITH_GRADER = (process.env.KLP_ADVERSARIES_WITH ?? '').toLowerCase() === 'grader'
 const GRADE_STRICT = (process.env.KLP_GRADE_STRICT ?? '').toLowerCase() === 'true'
 
+/** One meter for the whole run; printed at the end and written to --json. */
+const METER = new TokenMeter()
+
 function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectCombo, adversaryCombo?: DirectCombo, rebuildTest = false): AuthoringGenerator {
   // KLP_ADVERSARIES_WITH=grader: in the two-pool split, the grader combo also
   // writes the traps with the independent prompt (question + reference only),
@@ -212,7 +216,8 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
 
   // generateObject does not exist in AI SDK v7; structured output is
   // generateText + Output.object.
-  async function call<T>(prompt: string, schema: z.ZodSchema<T>, who: 'writer' | 'grader' | 'adversary' = 'grader'): Promise<T> {
+  async function call<T>(prompt: string, schema: z.ZodSchema<T>, who: 'writer' | 'grader' | 'adversary' = 'grader', step = 'other'): Promise<T> {
+    const target = who === 'writer' ? authorCombo ?? combo : who === 'adversary' && adversaryCombo ? adversaryCombo : combo
     // A quota halt must retire the combo that HIT the quota. Before this tag,
     // a Gemini writer's daily cap retired the DeepSeek grader combo (the only
     // one in that pool) and stopped a whole run at card 10 of 82 with the
@@ -233,6 +238,14 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
           prompt,
           output: Output.object({ schema }),
           maxRetries: 0,
+        })
+        // Metered on success only; a failed attempt's usage is not reported
+        // by the SDK, so the meter understates retries — say so when reading it.
+        METER.add(step, target.model, {
+          inputTokens: res.usage?.inputTokens,
+          outputTokens: res.usage?.outputTokens,
+          reasoningTokens: res.usage?.outputTokenDetails?.reasoningTokens,
+          cachedTokens: res.usage?.inputTokenDetails?.cacheReadTokens,
         })
         return res.output
       },
@@ -263,17 +276,18 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
         }),
         AUTHOR_KLPS_PROMPT.schema,
         'writer',
+        'author',
       ),
-    grade: (input) => call(GRADE_CANDIDATE_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_CANDIDATE_PROMPT.schema),
+    grade: (input) => call(GRADE_CANDIDATE_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_CANDIDATE_PROMPT.schema, 'grader', 'grade'),
     // KLP_REVISE_WITH=grader: the bar's revise calls go to the grader combo
     // instead of the writer (the owner's "GLM writes, DeepSeek revises").
-    revise: (input) => call(REVISE_KLPS_PROMPT.build(input), REVISE_KLPS_PROMPT.schema, REVISE_WITH_GRADER ? 'grader' : 'writer'),
-    relate: (input) => call(RELATE_KLPS_PROMPT.build(input), RELATE_KLPS_PROMPT.schema),
+    revise: (input) => call(REVISE_KLPS_PROMPT.build(input), REVISE_KLPS_PROMPT.schema, REVISE_WITH_GRADER ? 'grader' : 'writer', 'revise'),
+    relate: (input) => call(RELATE_KLPS_PROMPT.build(input), RELATE_KLPS_PROMPT.schema, 'grader', 'relate'),
     classifyAbstraction: (input) =>
-      call(CLASSIFY_ABSTRACTION_PROMPT.build(input), CLASSIFY_ABSTRACTION_PROMPT.schema),
-    writePanel: (input) => call(WRITE_PANEL_PROMPT.build(input), WRITE_PANEL_PROMPT.schema),
+      call(CLASSIFY_ABSTRACTION_PROMPT.build(input), CLASSIFY_ABSTRACTION_PROMPT.schema, 'grader', 'classify'),
+    writePanel: (input) => call(WRITE_PANEL_PROMPT.build(input), WRITE_PANEL_PROMPT.schema, 'grader', 'panel'),
     ...(adversaryCombo
-      ? { writeAdversaries: (input) => call(WRITE_ADVERSARIES_PROMPT.build(input), WRITE_ADVERSARIES_PROMPT.schema, 'adversary') }
+      ? { writeAdversaries: (input) => call(WRITE_ADVERSARIES_PROMPT.build(input), WRITE_ADVERSARIES_PROMPT.schema, 'adversary', 'adversaries') }
       : {}),
     // The rebuild test. The REBUILDER is the adversary combo when one exists
     // (a different family than the writer, by construction) and otherwise
@@ -282,9 +296,9 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
     // by the grader.
     ...(rebuildTest
       ? {
-          rebuild: (input) => call(WRITE_REBUILD_PROMPT.build(input), WRITE_REBUILD_PROMPT.schema, adversaryCombo ? 'adversary' : 'grader'),
-          gradeCoverage: (input) => call(GRADE_COVERAGE_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_COVERAGE_PROMPT.schema),
-          gradeParity: (input) => call(GRADE_PARITY_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_PARITY_PROMPT.schema),
+          rebuild: (input) => call(WRITE_REBUILD_PROMPT.build(input), WRITE_REBUILD_PROMPT.schema, adversaryCombo ? 'adversary' : 'grader', 'rebuild'),
+          gradeCoverage: (input) => call(GRADE_COVERAGE_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_COVERAGE_PROMPT.schema, 'grader', 'coverage'),
+          gradeParity: (input) => call(GRADE_PARITY_PROMPT.build({ ...input, strict: GRADE_STRICT }), GRADE_PARITY_PROMPT.schema, 'grader', 'parity'),
         }
       : {}),
   }
@@ -536,7 +550,7 @@ async function main() {
   const total = cards.length
   const jsonOutcomes: { cardId: string; term: string; model: string | undefined; outcome: unknown }[] = []
   const flushJson = () => {
-    if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ setId: set.id, skip, outcomes: jsonOutcomes }, null, 2))
+    if (jsonOut) writeFileSync(jsonOut, JSON.stringify({ setId: set.id, skip, outcomes: jsonOutcomes, tokens: METER.toJSON() }, null, 2))
   }
 
   // ONE pacer for the whole run — a card's 6-16 calls are where the burst is,
@@ -841,6 +855,7 @@ async function main() {
     }
   }
 
+  console.log(`[author-klps] tokens by step (successful calls only; list prices, see src/lib/klp/token-meter.ts):\n${METER.format(stats.authored)}`)
   const meanSeparation = stats.authored > 0 ? stats.separationSum / stats.authored : 0
   const meanSubstance = stats.authored > 0 ? stats.substanceSum / stats.authored : 0
   console.log(

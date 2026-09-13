@@ -1,0 +1,762 @@
+{
+  "setId": "cmtfewhjv000004jr901uq6eo",
+  "skip": 0,
+  "outcomes": [
+    {
+      "cardId": "cmtffeya8000g04i9mgzafc6r",
+      "term": "What are 2 ways an acquisition can create value (not accretion necessarily) for acquirers’ shareholders?\n",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict]",
+      "outcome": {
+        "referenceAnswer": "Value creation in an acquisition means the acquirer's shareholders are actually worth more after the deal than before it — and that is a different question from whether the deal is accretive to EPS, because an accretive deal can still destroy economic value. There are two main ways an acquisition creates value. The first is value arbitrage: you buy the target for less than the true standalone value of its assets — less than its net asset value or intrinsic value. The gap between what you pay and what the assets are actually worth is value captured immediately, before any integration work is done. This works when the market is mispricing the target — for example, a conglomerate trading below the sum of its parts, or a forced or distressed sale. The second way is synergies: combining the two companies produces benefits that neither could achieve alone. The classic split is cost synergies — eliminating duplicate overhead, headcount, facilities, and getting better pricing from combined purchasing — and revenue synergies like cross-selling each company's products to the other's customers or combining distribution. The critical caveat that makes this a real answer rather than a buzzword: the acquirer's shareholders only capture the value if the purchase price leaves some of it for them. If you pay a control premium equal to the full present value of the synergies, the target's shareholders walk away with all the value and yours get nothing. So the two ways are value arbitrage — paying below the assets' true worth — and synergies, and in both cases the discipline is the same: pay a price that leaves some of the created value on the acquirer's side of the table.",
+        "klps": [
+          {
+            "text": "Value creation means the acquirer's shareholders are worth more after the deal than before — which is a different test from EPS accretion, since an accretive deal can still destroy economic value",
+            "kind": "definition",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "The first way is value arbitrage: acquiring the target for less than the true standalone value of its assets",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "The value created by arbitrage is the gap between the price paid and the value received, captured immediately at closing",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Value arbitrage depends on market mispricing — a conglomerate trading below the sum of its parts, or a distressed or forced sale — rather than on anything the acquirer does post-close",
+            "kind": "condition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The second way is synergies: combining the companies produces benefits neither could achieve alone — cost synergies like eliminating duplicate overhead, headcount, and facilities, and revenue synergies like cross-selling to each other's customers",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "The acquirer's shareholders only capture synergy value if the control premium paid is less than the present value of the synergies — pay the full synergy value away and the target's sellers keep everything",
+            "kind": "condition",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "So the two ways an acquisition creates value are value arbitrage and synergies",
+            "kind": "causal",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "In both cases the acquirer captures value only by paying a price that leaves some of it on its side of the table",
+            "kind": "condition",
+            "weight": 2,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "confident_wrong",
+            "text": "There are two ways an acquisition creates value for the acquirer's shareholders: EPS accretion and multiple expansion. First, EPS accretion happens when the target's earnings yield exceeds the acquirer's cost of financing the deal, so the combined entity's earnings per share go up, and since the stock market values earnings per share, that higher EPS automatically translates into a higher share price. Second, multiple expansion occurs because larger companies are more stable and diversified, so the market assigns a higher P/E multiple to the combined company's earnings, meaning that even if the absolute earnings don't change, the stock price rises. This is why serial acquirers almost always outperform — they keep buying smaller companies at lower multiples and re-rating their own multiple upward. The key is to find deals where the target is cheap on earnings and the combined entity can command a premium multiple.",
+            "score": 0,
+            "verdicts": {
+              "0": "contradicted",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission",
+              "6": "contradicted",
+              "7": "omission"
+            }
+          },
+          {
+            "kind": "vague",
+            "text": "An acquisition can create value in a couple of general ways. For one, you can get better together than you would apart — there's often some kind of strategic logic where the whole is worth more than the sum of the parts. That could come from a lot of different sources, like improving operations or making better use of assets. Another way is if you're able to buy something for a good price relative to what it's really worth, so you capture some upside right away. It's really about finding situations where you can add value through the combination, whether that's from doing things more efficiently or from accessing new opportunities. The details depend on the specific deal, but the overall idea is that the acquirer should be better off than if they hadn't done the deal.",
+            "score": 0.25,
+            "verdicts": {
+              "0": "omission",
+              "1": "partial",
+              "2": "partial",
+              "3": "omission",
+              "4": "partial",
+              "5": "omission",
+              "6": "incomplete",
+              "7": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "Acquisitions create value for acquirer shareholders through two primary mechanisms: synergies and value arbitrage. Synergies can be further subdivided into cost synergies, such as eliminating duplicate overhead and achieving economies of scale, and revenue synergies, such as cross-selling and expanded distribution. Value arbitrage involves acquiring a target for less than its intrinsic or standalone value, capturing the difference between the purchase price and the true worth of the assets. While these are the two main ways, it is important to note that the acquirer must be disciplined about the price paid so that some of the value created accrues to the acquirer's shareholders rather than being entirely transferred to the target's shareholders via the control premium. Ultimately, the key is to ensure that the deal is accretive to intrinsic value, not just EPS.",
+            "score": 0.6875,
+            "verdicts": {
+              "0": "partial",
+              "1": "correct",
+              "2": "partial",
+              "3": "omission",
+              "4": "correct",
+              "5": "partial",
+              "6": "correct",
+              "7": "correct"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 4,
+            "to": 5,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "KLP 5 (the acquirer's shareholders capture synergy value only if the control premium is less than the PV of synergies) cannot hold without KLP 4's identification of synergies as a source of value. The premium-versus-synergy split is defined over the synergy pool KLP 4 introduces; absent that pool there is nothing to divide between acquirer and target.",
+            "probe": "A learner who can state both that synergies are combined-company benefits neither could achieve alone and that the acquirer captures synergy value only if the premium is less than the PV of synergies, yet believes the division of gains depends on relative bargaining power rather than on whether the premium exceeds the synergy value. The endpoints are recalled but the conditional link is broken."
+          },
+          {
+            "from": 1,
+            "to": 2,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "KLP 2 (the value created by arbitrage is the gap between price paid and value received, captured at closing) consumes KLP 1's output. You cannot identify the gap without first having the arbitrage premise that the target is acquired for less than the true standalone value of its assets — the 'value received' side of the gap IS KLP 1's true standalone value.",
+            "probe": "A learner who correctly says value arbitrage is buying the target below the true standalone value of its assets and correctly says arbitrage value is the price-value gap captured at closing, but treats the gap as something the acquirer manufactures after closing through integration. Both claims are present, but the derivation of the gap from the standalone-value baseline is missing."
+          },
+          {
+            "from": 0,
+            "to": 6,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "A learner will plausibly state the definitional test of value creation (acquirer shareholders worth more after than before, distinct from EPS accretion) when asked to name the two ways value is created, or vice versa. KLP 0 is the criterion; KLP 6 is the enumeration (arbitrage and synergies). They are routinely conflated as 'the answer to the question.'",
+            "probe": "A learner who can state the post-deal-versus-pre-deal shareholder value test AND name value arbitrage and synergies as the two ways, but then uses the value test itself as the first of the two ways, or uses arbitrage-and-synergies as the definition of value creation rather than as the mechanism list. The endpoints are both held; the distinction between criterion and mechanism is lost."
+          },
+          {
+            "from": 1,
+            "to": 4,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Value arbitrage (KLP 1, buying below true standalone asset value via market mispricing) and synergies (KLP 4, combined-company benefits neither could achieve alone) are the two mechanisms learners collapse into one another — typically by calling a cheap purchase a 'synergy' or by calling cost elimination an 'arbitrage.' The counterfactual that separates them is whether the value comes from what the acquirer pays versus what the combination produces.",
+            "probe": "A learner who can define both value arbitrage and synergies correctly, but on a deal like a conglomerate trading below sum-of-parts whose acquisition also cuts duplicate overhead, attributes the entire value to one mechanism — e.g. calls the discount 'synergy' or calls the overhead cut 'arbitrage.' Both endpoints are present; the mechanism boundary is wrong."
+          }
+        ],
+        "relationStats": {
+          "candidates": 4,
+          "accepted": 4,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.3125,
+        "substanceSeparation": 0.3125,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "low_discrimination",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [],
+        "targetKlpCount": 6,
+        "concerns": [
+          "The card's parenthetical reads 'purchase price > NAV', which appears to have the inequality reversed: paying MORE than the net asset value/intrinsic value would destroy value, not create it. Value arbitrage means the purchase price is BELOW the true value of the target's assets. The reference answer teaches the correct direction — the owner should verify and fix the card."
+        ],
+        "revisionReasons": [
+          "separation 0.25 is below the 0.40 floor; [1] accepted by the memorized_template answer; [3] accepted by the memorized_template answer; [4] accepted by the memorized_template answer; [5] accepted by the memorized_template answer; [1] compound",
+          "separation 0.33 is below the 0.40 floor; [1] accepted by the memorized_template answer; [4] accepted by the memorized_template answer; [7] accepted by the memorized_template answer; [6] reference answer scored partial on this point"
+        ],
+        "questionType": "enumerate",
+        "rebuild": {
+          "rebuiltAnswer": "Value creation means the acquirer's shareholders are worth more after the deal than before — which is a different test from EPS accretion, since an accretive deal can still destroy economic value. The first way is value arbitrage: acquiring the target for less than the true standalone value of its assets. The value created by arbitrage is the gap between the price paid and the value received, captured immediately at closing. Value arbitrage depends on market mispricing — a conglomerate trading below the sum of its parts, or a distressed or forced sale — rather than on anything the acquirer does post-close. The second way is synergies: combining the companies produces benefits neither could achieve alone — cost synergies like eliminating duplicate overhead, headcount, and facilities, and revenue synergies like cross-selling to each other's customers. The acquirer's shareholders only capture synergy value if the control premium paid is less than the present value of the synergies — pay the full synergy value away and the target's sellers keep everything. So the two ways an acquisition creates value are value arbitrage and synergies. In both cases the acquirer captures value only by paying a price that leaves some of it on its side of the table.",
+          "cardCoverage": 1,
+          "referenceParity": 0.8695652173913043,
+          "extractionLoss": 0.13043478260869568,
+          "clearsBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": "The answer states: 'The first way is value arbitrage: acquiring the target for less than the true standalone value of its assets. The value created by arbitrage is the gap between the price paid and the value received,' which frames value arbitrage as the relationship between purchase price and NAV/asset value."
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": "The answer states: 'The second way is synergies: combining the companies produces benefits neither could achieve alone — cost synergies like eliminating duplicate overhead, headcount, and facilities, and revenue synergies like cross-selling to each other's customers.'"
+            },
+            {
+              "index": 2,
+              "verdict": "correct",
+              "evidence": "The answer distinguishes value creation from EPS accretion ('a different test from EPS accretion, since an accretive deal can still destroy economic value') and states the condition that the acquirer must not pay away full synergy value ('The acquirer's shareholders only capture synergy value if the control premium paid is less than the present value of the synergies — pay the full synergy value away and the target's sellers keep everything'; 'In both cases the acquirer captures value only by paying a price that leaves some of it on its side of the table')."
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "Value creation in an acquisition means the acquirer's shareholders are actually worth more after the deal than before it",
+              "verdict": "present"
+            },
+            {
+              "claim": "Value creation is a different question from whether the deal is accretive to EPS",
+              "verdict": "present"
+            },
+            {
+              "claim": "An accretive deal can still destroy economic value",
+              "verdict": "present"
+            },
+            {
+              "claim": "The first way an acquisition creates value is value arbitrage",
+              "verdict": "present"
+            },
+            {
+              "claim": "Value arbitrage means buying the target for less than the true standalone value of its assets",
+              "verdict": "present"
+            },
+            {
+              "claim": "Buying below net asset value or intrinsic value (the specific valuation benchmarks)",
+              "verdict": "partial"
+            },
+            {
+              "claim": "The gap between what you pay and what the assets are actually worth is value captured immediately",
+              "verdict": "present"
+            },
+            {
+              "claim": "Value capture from arbitrage occurs before any integration work is done",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Value arbitrage works when the market is mispricing the target",
+              "verdict": "present"
+            },
+            {
+              "claim": "Example of mispricing: a conglomerate trading below the sum of its parts",
+              "verdict": "present"
+            },
+            {
+              "claim": "Example of mispricing: a forced or distressed sale",
+              "verdict": "present"
+            },
+            {
+              "claim": "The second way is synergies",
+              "verdict": "present"
+            },
+            {
+              "claim": "Synergies mean combining the two companies produces benefits that neither could achieve alone",
+              "verdict": "present"
+            },
+            {
+              "claim": "The classic split of synergies is cost synergies versus revenue synergies",
+              "verdict": "present"
+            },
+            {
+              "claim": "Cost synergies include eliminating duplicate overhead",
+              "verdict": "present"
+            },
+            {
+              "claim": "Cost synergies include eliminating duplicate headcount",
+              "verdict": "present"
+            },
+            {
+              "claim": "Cost synergies include eliminating duplicate facilities",
+              "verdict": "present"
+            },
+            {
+              "claim": "Cost synergies include getting better pricing from combined purchasing",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Revenue synergies include cross-selling each company's products to the other's customers",
+              "verdict": "present"
+            },
+            {
+              "claim": "Revenue synergies include combining distribution",
+              "verdict": "absent"
+            },
+            {
+              "claim": "The acquirer's shareholders only capture the value if the purchase price leaves some of it for them",
+              "verdict": "present"
+            },
+            {
+              "claim": "If you pay a control premium equal to the full present value of the synergies, the target's shareholders walk away with all the value and the acquirer's shareholders get nothing",
+              "verdict": "present"
+            },
+            {
+              "claim": "In both cases the discipline is the same: pay a price that leaves some of the created value on the acquirer's side of the table",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Value Arbitrage (the card's parenthetical frames it as a relationship between purchase price and NAV)",
+            "Synergies",
+            "Omitted but needed: the distinction between value creation and EPS accretion, and the condition that the acquirer must not pay away the full synergy value in the purchase price"
+          ]
+        }
+      }
+    },
+    {
+      "cardId": "cmtgesf36005004jvh65aos7r",
+      "term": "Walk me through the sell-side M&A process, including key documents (8 steps)\n",
+      "model": "glm-5.3-flash+deepseek-v4-flash [revise=grader,adversaries=grader,strict]",
+      "outcome": {
+        "referenceAnswer": "The sell-side M&A process is the structured, competitive process an investment banker runs to sell a company, designed to maximize price by creating tension among multiple prospective buyers. It runs through eight steps.\n\nFirst, planning and preparation. The banker and the company get the business ready for sale: legal due diligence is prepared so problems are found by the seller first, not the buyer, and two marketing documents are created — the teaser, a one-to-two page anonymous summary sent out to gauge interest, and the CIM, the confidential information memorandum, which is the full detailed picture of the business. In both documents the emphasis is on competitive positioning — why this company wins: its brand, its customer reputation, its moat.\n\nSecond, marketing. The teaser goes out to a list of prospective buyers — strategics and financial sponsors. Interested parties sign an NDA first, and only after signing do they receive the CIM. Buyers then dig into the numbers to form a view of the business: the CapEx the company actually requires to run and grow, historical and projected cash flows, and working capital trends, because those three drive what the company is worth to them.\n\nThird, initial bids. Buyers submit non-binding letters of intent. Critically, the seller evaluates these on two axes, not one: the price offered AND the certainty of closing — a slightly lower bid from a buyer with committed financing and a clean approval path can beat a higher bid that might fall apart.\n\nFourth, management presentations. The shortlisted buyers meet the management team and get access to the data room, where they do deeper confirmatory diligence on the business.\n\nFifth, final bids. Buyers submit final, more binding LOIs and often drafts of the purchase agreement. At this stage their analysis gets more rigorous: they normalize the cash flows — quality of earnings review to strip out one-time items, sustainable CapEx rather than reported CapEx, normalized working capital — to get to a defensible sustainable free cash flow figure they're willing to pay against.\n\nSixth, negotiations. The seller picks a buyer and negotiates the definitive purchase agreement — most importantly the reps and warranties, which allocate risk between the parties about the state of the business.\n\nSeventh, signing. Both parties execute the definitive purchase agreement — at this point the deal is legally agreed, though not yet closed.\n\nEighth, closing. The conditions are satisfied: regulatory approvals are obtained, the buyer funds the transaction, and money changes hands. That's the endpoint — the company is sold, the seller is paid, and the process that started with a two-page teaser ends with a funded, closed transaction.",
+        "klps": [
+          {
+            "text": "The sell-side M&A process is the banker-run competitive sale of a company, structured to maximize price by creating tension among multiple bidders",
+            "kind": "definition",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "In planning, the seller preps legal due diligence and creates the teaser — a 1-2 page anonymous summary — and the CIM, the full detailed memorandum, both emphasizing competitive positioning like brand and customer reputation",
+            "kind": "definition",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "In marketing, teasers go to prospective buyers, and buyers receive the CIM only after signing an NDA",
+            "kind": "condition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "During marketing, buyers analyze the CapEx the business actually requires, historical and projected cash flows, and working capital trends to form a valuation view",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Initial bids come in as LOIs, and the seller evaluates them on both price and certainty of closing — a slightly lower bid from a more certain buyer can win",
+            "kind": "contrast",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "In management presentations, shortlisted buyers meet management and get data room access for deeper diligence",
+            "kind": "definition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Final bids are more binding LOIs and purchase agreement drafts, backed by normalized financials: quality of earnings to strip one-time items, sustainable rather than reported CapEx, and normalized working capital to arrive at sustainable free cash flow",
+            "kind": "quantitative",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "In negotiations the definitive purchase agreement is finalized, with reps and warranties as the key risk-allocation item between buyer and seller",
+            "kind": "causal",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Signing means the definitive agreement is executed, but the deal is not yet closed at that point",
+            "kind": "definition",
+            "weight": 2,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "confident_wrong",
+            "text": "The sell-side M&A process is an auction where the banker's primary job is to get the highest possible price, so you always go to the broadest possible market first. The key documents are the teaser, which is a detailed anonymous summary with financials, and the CIM, which is a short two-page pitch. The process starts with a broad auction, then you collect non-binding bids, but you don't need to worry about certainty of close because price is all that matters. After that, you pick the highest bidder and sign the purchase agreement, then you do due diligence before closing. The whole thing usually takes about six months and the main risk is not getting enough bidders.",
+            "score": 0.16666666666666666,
+            "verdicts": {
+              "0": "partial",
+              "1": "contradicted",
+              "2": "contradicted",
+              "3": "omission",
+              "4": "contradicted",
+              "5": "omission",
+              "6": "omission",
+              "7": "incomplete",
+              "8": "partial"
+            }
+          },
+          {
+            "kind": "vague",
+            "text": "So the sell-side process is basically a series of steps that bankers run when a company wants to sell itself. There are documents involved, like the teaser and the CIM, and you reach out to potential buyers. Then there's some back-and-forth with bids and negotiations. Management meets with buyers at some point, and eventually you sign something and it closes. The key is to create competition and get a good outcome for the seller. I'd say it's important to manage the process carefully and keep things moving.",
+            "score": 0.16666666666666666,
+            "verdicts": {
+              "0": "partial",
+              "1": "incomplete",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "incomplete",
+              "6": "omission",
+              "7": "omission",
+              "8": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "The sell-side M&A process consists of eight key steps. First is planning and preparation, where you prepare marketing materials like the teaser and CIM. Second is marketing to potential buyers. Third is initial bids, where you evaluate price and certainty. Fourth is management presentations. Fifth is final bids. Sixth is negotiations. Seventh is signing. Eighth is closing. Each step is important for a successful transaction.",
+            "score": 0.2777777777777778,
+            "verdicts": {
+              "0": "omission",
+              "1": "partial",
+              "2": "omission",
+              "3": "omission",
+              "4": "partial",
+              "5": "incomplete",
+              "6": "omission",
+              "7": "partial",
+              "8": "incomplete"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 4,
+            "to": 5,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Management presentations are only staged for the shortlist, and the shortlist is the output of evaluating initial LOIs. Without the bid-evaluation result (price + certainty of closing) you have no basis for who attends management presentations, so the later KLP consumes the earlier one's output.",
+            "probe": "A learner says: 'After the CIM is out, all interested buyers come to management presentations, and the seller picks the best bid afterward.' This gets [4] right (LOIs are evaluated on price and certainty) and [5] right (shortlisted buyers meet management and get data room access), but breaks the link by making management presentations precede rather than consume the shortlist decision."
+          },
+          {
+            "from": 5,
+            "to": 6,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Final bids are backed by normalized financials produced during the deeper diligence that data room access in management presentations enables. You cannot state that final bids rest on quality of earnings / sustainable CapEx / normalized working capital without the shortlisted buyers having already had the deeper-diligence access that generates those figures.",
+            "probe": "A learner says: 'Once initial LOIs are in, buyers immediately submit final binding bids with normalized financials, and the shortlist only meets management afterward to confirm the numbers.' This gets [5] right (shortlisted buyers meet management, get data room access) and [6] right (final bids are backed by normalized financials), but inverts the dependency: the normalization work presupposes the diligence access, not vice versa."
+          },
+          {
+            "from": 0,
+            "to": 4,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "Counterfactual premise: the sale is a privately negotiated one-on-one deal rather than a banker-run competitive sale. In that world, evaluating bids on both price and certainty of closing loses its point, since there is only one bidder and no tension to trade off. So [4]'s bid-comparison logic only holds under the competitive-sale condition [0] sets.",
+            "probe": "A learner says: 'The process is a one-on-one negotiated sale to a single buyer, and the seller still evaluates the initial LOI on both price and certainty of closing to decide whether to proceed.' This gets [0] right (banker-run sale) and [4] right (LOIs scored on price and certainty) as standalone statements, but misses that price-versus-certainty trade-off only has bite within a competitive multi-bidder structure."
+          },
+          {
+            "from": 6,
+            "to": 7,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Counterfactual premise: final bids are submitted on reported, un-normalized financials with no quality-of-earnings work. Then the negotiation over reps and warranties has no agreed sustainable-earnings baseline to allocate risk against, and the definitive agreement cannot be finalized on that basis. So [7]'s risk-allocation step requires [6]'s normalized financials.",
+            "probe": "A learner says: 'Buyers submit final bids on reported EBITDA and reported CapEx, and then buyer and seller negotiate reps and warranties as the key risk-allocation item.' This gets [6] right (final bids are backed by normalized financials) and [7] right (reps and warranties are the key risk item) as separate facts, but misses that risk allocation in the definitive agreement has nothing to anchor to without the normalized sustainable-earnings figures."
+          },
+          {
+            "from": 1,
+            "to": 2,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both KLPs are about the teaser and the marketing documents, so a learner can easily state the marketing-distribution rule when asked about the planning-stage document set, or vice versa — conflating what the teaser/CIM are (and that they emphasize competitive positioning) with when and to whom they are released.",
+            "probe": "A learner says: 'In planning, the banker prepares a 1–2 page anonymous teaser and the full CIM, and both go out to all prospective buyers so the process looks competitive.' This states [1] correctly (teaser and CIM as planning deliverables emphasizing competitive positioning) and [2] correctly (teasers go to prospective buyers, CIM after NDA), but swaps the release rule: the CIM is not sent to all buyers alongside the teaser."
+          }
+        ],
+        "relationStats": {
+          "candidates": 5,
+          "accepted": 5,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.7222222222222222,
+        "substanceSeparation": 0.7222222222222222,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 1,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [],
+        "targetKlpCount": 9,
+        "concerns": [],
+        "revisionReasons": [
+          "[7] compound; [8] compound"
+        ],
+        "questionType": "walkthrough",
+        "rebuild": {
+          "rebuiltAnswer": "The sell-side M&A process is the banker-run competitive sale of a company, structured to maximize price by creating tension among multiple bidders. It moves through eight steps. In planning, the seller preps legal due diligence and creates the teaser — a 1-2 page anonymous summary — and the CIM, the full detailed memorandum, both emphasizing competitive positioning like brand and customer reputation. In marketing, teasers go to prospective buyers, and buyers receive the CIM only after signing an NDA. Also during marketing, buyers analyze the CapEx the business actually requires, historical and projected cash flows, and working capital trends to form a valuation view. Initial bids then come in as LOIs, and the seller evaluates them on both price and certainty of closing — a slightly lower bid from a more certain buyer can win. In management presentations, shortlisted buyers meet management and get data room access for deeper diligence. Final bids are more binding LOIs and purchase agreement drafts, backed by normalized financials: quality of earnings to strip one-time items, sustainable rather than reported CapEx, and normalized working capital to arrive at sustainable free cash flow. In negotiations the definitive purchase agreement is finalized, with reps and warranties as the key risk-allocation item between buyer and seller. Finally, signing means the definitive agreement is executed, but the deal is not yet closed at that point.",
+          "cardCoverage": 0.9375,
+          "referenceParity": 0.75,
+          "extractionLoss": 0.25,
+          "clearsBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": "In planning, the seller preps legal due diligence and creates the teaser — a 1-2 page anonymous summary — and the CIM, the full detailed memorandum, both emphasizing competitive positioning like brand and customer reputation."
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": "In marketing, teasers go to prospective buyers, and buyers receive the CIM only after signing an NDA. Also during marketing, buyers analyze the CapEx the business actually requires, historical and projected cash flows, and working capital trends to form a valuation view."
+            },
+            {
+              "index": 2,
+              "verdict": "correct",
+              "evidence": "Initial bids then come in as LOIs, and the seller evaluates them on both price and certainty of closing."
+            },
+            {
+              "index": 3,
+              "verdict": "correct",
+              "evidence": "In management presentations, shortlisted buyers meet management and get data room access for deeper diligence."
+            },
+            {
+              "index": 4,
+              "verdict": "correct",
+              "evidence": "Final bids are more binding LOIs and purchase agreement drafts, backed by normalized financials: quality of earnings to strip one-time items, sustainable rather than reported CapEx, and normalized working capital to arrive at sustainable free cash flow."
+            },
+            {
+              "index": 5,
+              "verdict": "correct",
+              "evidence": "In negotiations the definitive purchase agreement is finalized, with reps and warranties as the key risk-allocation item between buyer and seller."
+            },
+            {
+              "index": 6,
+              "verdict": "correct",
+              "evidence": "Finally, signing means the definitive agreement is executed..."
+            },
+            {
+              "index": 7,
+              "verdict": "partial",
+              "evidence": "Answer mentions 'the deal is not yet closed at that point' but does not state that closing involves obtaining regulatory approval or funding the transaction."
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "The sell-side M&A process is a structured, competitive process run by an investment banker to sell a company",
+              "verdict": "present"
+            },
+            {
+              "claim": "The process is designed to maximize price by creating tension among multiple prospective buyers",
+              "verdict": "present"
+            },
+            {
+              "claim": "The process runs through eight steps",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step 1 is planning and preparation: the banker and company get the business ready for sale",
+              "verdict": "present"
+            },
+            {
+              "claim": "Legal due diligence is prepared so that problems are found by the seller first, not the buyer",
+              "verdict": "absent"
+            },
+            {
+              "claim": "In planning/preparation, two marketing documents are created: the teaser and the CIM",
+              "verdict": "present"
+            },
+            {
+              "claim": "The teaser is a one-to-two page anonymous summary sent out to gauge interest",
+              "verdict": "partial"
+            },
+            {
+              "claim": "The CIM (confidential information memorandum) is the full detailed picture of the business",
+              "verdict": "present"
+            },
+            {
+              "claim": "In both documents the emphasis is on competitive positioning — why this company wins: its brand, its customer reputation, its moat",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Step 2 is marketing: the teaser goes out to a list of prospective buyers — strategics and financial sponsors",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Interested parties sign an NDA first, and only after signing do they receive the CIM",
+              "verdict": "present"
+            },
+            {
+              "claim": "Buyers dig into the numbers to form a view of the business",
+              "verdict": "present"
+            },
+            {
+              "claim": "The three key valuation drivers buyers examine are the CapEx the company actually requires to run and grow, historical and projected cash flows, and working capital trends",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step 3 is initial bids: buyers submit non-binding letters of intent",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Critically, the seller evaluates these bids on two axes, not one: the price offered AND the certainty of closing",
+              "verdict": "present"
+            },
+            {
+              "claim": "A slightly lower bid from a buyer with committed financing and a clean approval path can beat a higher bid that might fall apart",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Step 4 is management presentations: shortlisted buyers meet the management team",
+              "verdict": "present"
+            },
+            {
+              "claim": "Shortlisted buyers get access to the data room, where they do deeper confirmatory diligence on the business",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step 5 is final bids: buyers submit final, more binding LOIs and often drafts of the purchase agreement",
+              "verdict": "present"
+            },
+            {
+              "claim": "At the final bid stage their analysis gets more rigorous: they normalize the cash flows",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Normalization includes a quality of earnings review to strip out one-time items",
+              "verdict": "present"
+            },
+            {
+              "claim": "Normalization includes using sustainable CapEx rather than reported CapEx",
+              "verdict": "present"
+            },
+            {
+              "claim": "Normalization includes normalized working capital",
+              "verdict": "present"
+            },
+            {
+              "claim": "The goal of normalization is to get to a defensible sustainable free cash flow figure they're willing to pay against",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step 6 is negotiations: the seller picks a buyer and negotiates the definitive purchase agreement",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Most importantly, the reps and warranties allocate risk between the parties about the state of the business",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step 7 is signing: both parties execute the definitive purchase agreement",
+              "verdict": "present"
+            },
+            {
+              "claim": "At signing, the deal is legally agreed, though not yet closed",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step 8 is closing: the conditions are satisfied",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Regulatory approvals are obtained",
+              "verdict": "absent"
+            },
+            {
+              "claim": "The buyer funds the transaction and money changes hands",
+              "verdict": "absent"
+            },
+            {
+              "claim": "The endpoint is that the company is sold, the seller is paid, and the process that started with a two-page teaser ends with a funded, closed transaction",
+              "verdict": "absent"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Plan process - preparing legal due diligence, creating a 1-2 page teaser and a CIM, emphasizing competitive positioning, brand, and customer reputation",
+            "Marketing - send teasers to prospective buyers, distribute the CIM after an NDA is signed; buyers analyze CapEx requirements, historical/projected cash flows, and working capital trends",
+            "Initial bids - LOIs submitted, evaluated on price plus certainty of closing",
+            "Management presentations - buyers meet management and see the data room",
+            "Final bids - submit LOIs / purchase agreement drafts informed by normalized cash flows, QoE, sustainable CapEx, working capital, and FCF normalization",
+            "Negotiations - finalize the purchase agreement, negotiating reps and warranties",
+            "Signing - execute a definitive purchase agreement",
+            "Closing - obtain regulatory approval and fund the transaction"
+          ]
+        }
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "step": "adversaries",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 1730,
+      "output": 947,
+      "reasoning": 0,
+      "cached": 256
+    },
+    {
+      "step": "author",
+      "model": "glm-5.3-flash",
+      "calls": 2,
+      "input": 3747,
+      "output": 4736,
+      "reasoning": 1827,
+      "cached": 0
+    },
+    {
+      "step": "classify",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 1653,
+      "output": 214,
+      "reasoning": 0,
+      "cached": 512
+    },
+    {
+      "step": "coverage",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 2042,
+      "output": 764,
+      "reasoning": 0,
+      "cached": 256
+    },
+    {
+      "step": "grade",
+      "model": "deepseek-v4-flash",
+      "calls": 20,
+      "input": 30327,
+      "output": 9860,
+      "reasoning": 0,
+      "cached": 12288
+    },
+    {
+      "step": "parity",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 2107,
+      "output": 1540,
+      "reasoning": 0,
+      "cached": 0
+    },
+    {
+      "step": "rebuild",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 1035,
+      "output": 541,
+      "reasoning": 0,
+      "cached": 0
+    },
+    {
+      "step": "relate",
+      "model": "deepseek-v4-flash",
+      "calls": 2,
+      "input": 2199,
+      "output": 1829,
+      "reasoning": 0,
+      "cached": 256
+    },
+    {
+      "step": "revise",
+      "model": "deepseek-v4-flash",
+      "calls": 3,
+      "input": 3594,
+      "output": 1197,
+      "reasoning": 0,
+      "cached": 128
+    }
+  ]
+}

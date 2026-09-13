@@ -636,3 +636,44 @@ coverage grader must receive the raw definition beside the points. Until then a 
 **Cost.** Unchanged: 17 calls per card with the rebuild, no new call. Two DeepSeek structured-
 output failures on the sell-side card (schema mismatch, then unparseable) were retried on the
 same combo and passed; 25 KLPs, breadth histogram 0 / 3 / 12 / 10 by adversaries failed.
+
+### What a card costs — first metered run (2026-09-13, 06:28 UTC, DeepSeek off-peak)
+
+`scripts/author-klps.ts` now meters every successful direct call by step and model
+(`src/lib/klp/token-meter.ts`; printed at the end of a run and written to `--json` as
+`tokens`). List prices copied 2026-09-12: DeepSeek v4-flash $0.30 in / $0.006 cache hit /
+$1.20 out per 1M at peak (half off-peak; peak = Mon-Fri 01-04 and 06-10 UTC); GLM 5.3 flash
+$0.15 / $0.03 / $0.50 flat. Two M&A cards, the owner's bent configuration (GLM `high`
+writes; DeepSeek revises, writes traps, rebuilds, grades strictly), `--rebuild`:
+
+```
+step         model              calls     input   cached   output reasoning      USD
+adversaries  deepseek-v4-flash      2      1730      256      947         0   0.0008
+author       glm-5.3-flash          2      3747        0     4736      1827   0.0029
+classify     deepseek-v4-flash      2      1653      512      214         0   0.0003
+coverage     deepseek-v4-flash      2      2042      256      764         0   0.0007
+grade        deepseek-v4-flash     20     30327    12288     9860         0   0.0087
+parity       deepseek-v4-flash      2      2107        0     1540         0   0.0012
+rebuild      deepseek-v4-flash      2      1035      0       541         0   0.0005
+relate       deepseek-v4-flash      2      2199      256     1829         0   0.0014
+revise       deepseek-v4-flash      3      3594      128     1197         0   0.0012
+TOTAL                              37     48434    13696    21628      1827   0.0178
+per card: 19 calls, 35,031 tokens (24,217 in / 10,814 out, 914 reasoning) ≈ $0.009 off-peak
+```
+
+Read it as: **under a cent a card off-peak, under two cents at peak.** Grading is half the
+spend (20 of 37 calls — four candidates per round, two rounds on a revised card) and 40% of
+its input was a cache hit, because the reference and the key points repeat across the four
+candidates. The writer, with `high` reasoning on, is a third of the bill. The rebuild test
+(rebuild + coverage + parity) is ~$0.0012 a card — an eighth of the total. Failed attempts are
+not metered (the SDK reports no usage on a failure), so a card that hit two schema retries
+cost a little more than shown.
+
+**Scaled:** the ~200-card corpus is $2-4 at these rates; every dry run in this file so far
+totals well under $5. The stronger models the owner asked about: DeepSeek v4-pro as the grader
+is 4.4x the grading line (≈ +$0.02/card); bare GLM 5.3 as the writer is ~9x the author line
+(≈ +$0.025/card). Either is still cents. **Cost is not what decides between "more checks" and
+"a better model" at this scale — variance is.** The acquisition-value card scored 0.29, 0.38
+(0.60 substance) and 0.31 on three runs of the same configuration in one evening; that spread
+is larger than most effects measured here, so any new check has to be judged over repeated
+runs, not one.
