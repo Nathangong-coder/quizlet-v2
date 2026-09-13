@@ -1,5 +1,26 @@
 # Build queue & carried-over findings
 
+**BRANCH `study-platform` (2026-09-13, worktree `.claude/worktrees/study-platform`, off
+`da19728` on `spec2-klp-authoring`, NOT merged, NOT pushed).** Six sub-projects in one session,
+each its own commit and spec; four migrations applied to the dev database
+(`20260913120000_set_subject`, `20260913130000_user_bio`, `20260913140000_study_groups`,
+`20260913150000_game_pieces` — all additive, nullable or new tables). Suite 3483 → 3644.
+
+| # | commit | what | spec |
+|---|---|---|---|
+| 1 | `976aee6` | games design | `specs/2026-09-13-learning-games-design.md` |
+| 2 | `3af08a0` | seven-tab showcase + `/features/<slug>` pages (26 CSS mocks; Learn & Study guides badged Coming) | `specs/2026-09-13-feature-pages-design.md` |
+| 3 | `9637fb3` | fixed two-level subject taxonomy on `Set.subject`; Browse + Library filters | `specs/2026-09-13-subject-taxonomy-design.md` |
+| 4 | `4682091` | `/u/<handle>` public profiles, bio, Share button on the set page | `specs/2026-09-13-public-profiles-and-sharing-design.md` |
+| 5 | `979c39d` | invite-only study groups, consent-gated join, per-set leaderboard, card coverage | `specs/2026-09-13-study-groups-design.md` |
+| 6 | `6f0f494` | Gauntlet / Hot Seat / Blitz / Crossword on a KLP-derived piece layer; games write no history | games spec §8 (as built) |
+
+**Live gates owed (need a signed-in browser; the agent cannot sign in):** groups end to end
+(create → invite → join on a second account → attach → leaderboard → leave); games with a
+real **Prepare games** run on an authored set, then one round of each game; setting a subject
+on the set edit form and seeing it in the Library facet. Deferred on purpose: Match-on-pieces
+(Match records a `StudySession`; see games spec §8), study stats on profiles, public groups.
+
 **HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress. Read this before
 anything else in this file.** Two long runs were started this day and both are RESUMABLE;
 the topic WRITE needs the owner's shell (the agent's auto-mode denied it as a shared-resource
