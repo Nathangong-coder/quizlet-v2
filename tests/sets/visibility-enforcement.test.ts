@@ -64,6 +64,11 @@ const ENFORCED_PATHS = [
   'src/lib/sets/directory.ts',
   'src/lib/sets/recommend.ts',
   'src/actions/set-reports.ts',
+  // --- Added with public profiles, 2026-09-13 ---
+  // /u/<handle> lists a stranger's sets to anyone; the loader composes the
+  // predicate with listable + userId, and the page references it.
+  'src/lib/users/public-profile.ts',
+  'src/app/(app)/u/[handle]/page.tsx',
 ]
 
 describe('every set read path applies readableSetWhere', () => {

@@ -11,7 +11,7 @@ import { subjectPath } from '@/lib/subjects/taxonomy'
  * row would start an expensive blob-duplicating operation from a list the
  * reader is skimming, before they have seen a single card.
  */
-export function DirectoryCard({ entry }: { entry: DirectoryEntry }) {
+export function DirectoryCard({ entry, showAuthor = true }: { entry: DirectoryEntry; showAuthor?: boolean }) {
   return (
     <li className="group flex min-w-0 items-center gap-3 border-b border-border/70 py-3 sm:gap-4 sm:py-4">
       <Link
@@ -22,7 +22,8 @@ export function DirectoryCard({ entry }: { entry: DirectoryEntry }) {
         <SetGlyph setId={entry.id} categoryCount={0} className="h-7 w-7 sm:h-8 sm:w-8" />
       </Link>
 
-      <Link href={`/sets/${entry.id}`} className="min-w-0 flex-1 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <div className="min-w-0 flex-1">
+        <Link href={`/sets/${entry.id}`} className="block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <h3 className="truncate text-base font-semibold leading-snug tracking-tight transition-colors group-hover:text-primary sm:text-lg">{entry.title}</h3>
 
         {entry.description && (
@@ -43,7 +44,11 @@ export function DirectoryCard({ entry }: { entry: DirectoryEntry }) {
             {entry.forkedFromHandle && ` by @${entry.forkedFromHandle}`}
           </p>
         )}
+        </Link>
 
+        {/* OUTSIDE the title link, so the author can be a link of its own —
+            a link inside a link is invalid HTML and the inner one is dropped
+            by the parser. */}
         <p className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
           {/* Plain text, not a SubjectChip: this whole block is already a link,
               and a link inside a link is invalid HTML. The filter lives in the
@@ -65,10 +70,12 @@ export function DirectoryCard({ entry }: { entry: DirectoryEntry }) {
             query: that would hide a published set for a reason its owner can
             neither see nor fix.
           */}
-          {entry.handle && (
+          {showAuthor && entry.handle && (
             <>
               <span aria-hidden="true">·</span>
-              <span>@{entry.handle}</span>
+              <Link href={`/u/${entry.handle}`} className="hover:text-foreground hover:underline underline-offset-4">
+                @{entry.handle}
+              </Link>
             </>
           )}
           {entry.forkCount > 0 && (
@@ -81,7 +88,7 @@ export function DirectoryCard({ entry }: { entry: DirectoryEntry }) {
             </>
           )}
         </p>
-      </Link>
+      </div>
     </li>
   )
 }

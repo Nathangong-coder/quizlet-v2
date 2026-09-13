@@ -40,6 +40,7 @@ const SHELLED_ROUTES = [
   'browse/page.tsx',
   'features/page.tsx',
   'features/[slug]/page.tsx',
+  'u/[handle]/page.tsx',
   'sets/page.tsx',
   'sets/new/page.tsx',
   'sets/[id]/(views)/page.tsx',

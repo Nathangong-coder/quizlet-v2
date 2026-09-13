@@ -53,6 +53,11 @@ model User {
   /// `handle`; `checkHandle` returns both so a caller cannot persist one alone.
   normalizedHandle String? @unique
 
+  /// Public profile bio (2026-09-13). Shown on /u/<handle> only, so it is
+  /// meaningless without a handle; the account page hides the field until one
+  /// is set. Single line, capped by BIO_MAX_LENGTH in src/lib/users/bio.ts.
+  bio              String?
+
   /// Install-wide capability. Vocabulary: USER_ROLES in src/lib/auth/roles.ts
   /// (learner|staff|admin). Import that const rather than writing a literal —
   /// this is a String column, so a typo compiles and never matches.

@@ -11,6 +11,7 @@ import { recordSetView } from '@/lib/sets/recents'
 import { ForkButton } from '@/components/sets/ForkButton'
 import { ForkAttribution } from '@/components/sets/ForkAttribution'
 import { SubjectChip } from '@/components/sets/SubjectChip'
+import { ShareButton } from '@/components/sets/ShareButton'
 import ReportSetDialog from '@/components/sets/ReportSetDialog'
 import { SetViewTabs } from '@/components/sets/SetViewTabs'
 
@@ -51,6 +52,7 @@ export default async function SetViewsLayout({
       description: true,
       subject: true,
       userId: true,
+      user: { select: { handle: true } },
       visibility: true,
       listingBlocked: true,
       forkedFromId: true,
@@ -100,6 +102,7 @@ export default async function SetViewsLayout({
             is authored; Knowledge embeds the canvas rather than replacing the
             editor.
           */}
+          <ShareButton setId={id} visibility={toSetVisibility(set.visibility)} isOwner={isOwner} />
           {!isOwner && viewerId && <ForkButton setId={id} />}
           {isOwner && (
             <>
@@ -117,6 +120,18 @@ export default async function SetViewsLayout({
 
       <p className="text-sm text-muted-foreground mb-6">
         {set._count.cards} {set._count.cards === 1 ? 'card' : 'cards'}
+        {/* Credit by HANDLE only, never `name` (the OAuth real-name field),
+            and only when one exists — a handle-less owner has no public page
+            to link to and no public name to show. */}
+        {set.user.handle && (
+          <>
+            <span aria-hidden="true"> · </span>
+            by{' '}
+            <Link href={`/u/${set.user.handle}`} className="hover:text-foreground hover:underline underline-offset-4">
+              @{set.user.handle}
+            </Link>
+          </>
+        )}
       </p>
 
       {/*
