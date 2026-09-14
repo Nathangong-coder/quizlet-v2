@@ -6,7 +6,7 @@ import { ChevronDown, Menu, Plus, Search, X } from 'lucide-react'
 import { SynapseLogo } from '@/components/shell/SynapseLogo'
 import ThemeToggle from '@/components/theme/ThemeToggle'
 import { buttonVariants } from '@/components/ui/button'
-import { STUDY_TOOLS, SUBJECT_LINKS, type NavLink } from '@/lib/marketing/nav'
+import type { NavLink } from '@/lib/marketing/nav'
 import { cn } from '@/lib/utils'
 
 /**
@@ -17,8 +17,13 @@ import { cn } from '@/lib/utils'
  * The two menus are disclosure buttons (aria-expanded + a list), closed on
  * outside click and Escape. On small screens the menus collapse into one
  * drawer under a Menu button.
+ *
+ * `tools` and `subjects` arrive as PROPS from the server layout rather than
+ * being imported here: `nav.ts` derives them from the full feature registry
+ * (every page's copy) and importing it from a client module shipped all of
+ * that to the browser to draw eight links. Props carry only the links.
  */
-export function MarketingHeader({ signupOpen }: { signupOpen: boolean }) {
+export function MarketingHeader({ signupOpen, signedIn = false, tools, subjects }: { signupOpen: boolean; signedIn?: boolean; tools: NavLink[]; subjects: NavLink[] }) {
   const [open, setOpen] = useState<'tools' | 'subjects' | null>(null)
   const [drawer, setDrawer] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -67,8 +72,8 @@ export function MarketingHeader({ signupOpen }: { signupOpen: boolean }) {
         </Link>
 
         <nav aria-label="Primary" className="hidden items-center gap-0.5 md:flex">
-          {menu('tools', 'Study tools', STUDY_TOOLS)}
-          {menu('subjects', 'Subjects', SUBJECT_LINKS)}
+          {menu('tools', 'Study tools', tools)}
+          {menu('subjects', 'Subjects', subjects)}
         </nav>
 
         <form action="/browse" role="search" className="relative mx-2 hidden min-w-0 flex-1 sm:block">
@@ -84,11 +89,17 @@ export function MarketingHeader({ signupOpen }: { signupOpen: boolean }) {
 
         <div className="ml-auto flex items-center gap-1.5">
           <ThemeToggle />
-          <Link href={signupOpen ? '/signup' : '/login'} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'hidden gap-1 sm:inline-flex')}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Create
-          </Link>
-          <Link href="/login" className={cn(buttonVariants({ size: 'sm' }))}>Log in</Link>
+          {signedIn ? (
+            <Link href="/sets" className={cn(buttonVariants({ size: 'sm' }))}>Your library</Link>
+          ) : (
+            <>
+              <Link href={signupOpen ? '/signup' : '/login'} className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'hidden gap-1 sm:inline-flex')}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Create
+              </Link>
+              <Link href="/login" className={cn(buttonVariants({ size: 'sm' }))}>Log in</Link>
+            </>
+          )}
           <button
             type="button"
             className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-muted md:hidden"
@@ -111,11 +122,11 @@ export function MarketingHeader({ signupOpen }: { signupOpen: boolean }) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <div className="label mb-1">Study tools</div>
-              <ul>{STUDY_TOOLS.map((l) => <li key={l.href}><Link href={l.href} onClick={() => setDrawer(false)} className="block py-1 text-sm">{l.label}</Link></li>)}</ul>
+              <ul>{tools.map((l) => <li key={l.href}><Link href={l.href} onClick={() => setDrawer(false)} className="block py-1 text-sm">{l.label}</Link></li>)}</ul>
             </div>
             <div>
               <div className="label mb-1">Subjects</div>
-              <ul>{SUBJECT_LINKS.map((l) => <li key={l.href}><Link href={l.href} onClick={() => setDrawer(false)} className="block py-1 text-sm">{l.label}</Link></li>)}</ul>
+              <ul>{subjects.map((l) => <li key={l.href}><Link href={l.href} onClick={() => setDrawer(false)} className="block py-1 text-sm">{l.label}</Link></li>)}</ul>
             </div>
           </div>
         </nav>

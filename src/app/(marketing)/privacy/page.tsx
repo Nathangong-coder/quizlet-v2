@@ -9,9 +9,8 @@ export const metadata: Metadata = {
 
 /**
  * Written against what the app ACTUALLY does — read the schema and the AI
- * layer before editing this. Two placeholders only the owner can fill are
- * marked in square brackets: the legal entity / contact address, and the
- * governing law. Everything else is a statement of fact about the code.
+ * layer before editing this. Every sentence is a statement of fact about the
+ * code; the operator, contact address and governing law are the owner's.
  */
 export default function PrivacyPage() {
   return (
@@ -23,8 +22,8 @@ export default function PrivacyPage() {
 
       <h2>Who is responsible</h2>
       <p>
-        The service is operated by <strong>[legal entity name]</strong>. Questions about this policy go to{' '}
-        <strong>[privacy contact email]</strong>.
+        The service is operated by <strong>synapseHQ</strong>. Questions about this policy go to{' '}
+        <a href="mailto:ngong7053@gmail.com">ngong7053@gmail.com</a>.
       </p>
 
       <h2>What we collect</h2>
@@ -86,7 +85,7 @@ export default function PrivacyPage() {
         <li>Change a set&rsquo;s visibility from its Share menu at any time.</li>
         <li>Leave any study group at any time.</li>
         <li>Turn analytics off from the footer&rsquo;s cookie choices.</li>
-        <li>Ask us for a copy of your data, or for its deletion, at <strong>[privacy contact email]</strong>. If you are in the UK or EU you also have the rights to rectification, restriction, portability and to complain to your supervisory authority.</li>
+        <li>Ask us for a copy of your data, or for its deletion, at <a href="mailto:ngong7053@gmail.com">ngong7053@gmail.com</a>. If you are in the UK or EU you also have the rights to rectification, restriction, portability and to complain to your supervisory authority.</li>
       </ul>
 
       <h2>Children</h2>

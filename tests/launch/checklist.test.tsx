@@ -12,6 +12,7 @@ import { SECURITY_HEADERS } from '../../next.config'
 import robots from '@/app/robots'
 import NotFound from '@/app/not-found'
 import { MarketingHeader } from '@/components/marketing/MarketingHeader'
+import { STUDY_TOOLS, SUBJECT_LINKS } from '@/lib/marketing/nav'
 
 /**
  * The launch checklist, as tests: spam protection, consent, security
@@ -113,7 +114,7 @@ describe('404 page', () => {
 
 describe('marketing header', () => {
   it('opens Study tools and Subjects as disclosure menus and searches into Browse', () => {
-    render(<MarketingHeader signupOpen={false} />)
+    render(<MarketingHeader signupOpen={false} tools={STUDY_TOOLS} subjects={SUBJECT_LINKS} />)
     const tools = screen.getByRole('button', { name: /study tools/i })
     expect(tools).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(tools)
@@ -129,21 +130,21 @@ describe('marketing header', () => {
     expect(screen.getByRole('link', { name: /create/i })).toHaveAttribute('href', '/login')
   })
   it('sends Create to sign-up when it is open', () => {
-    render(<MarketingHeader signupOpen />)
+    render(<MarketingHeader signupOpen tools={STUDY_TOOLS} subjects={SUBJECT_LINKS} />)
     expect(screen.getByRole('link', { name: /create/i })).toHaveAttribute('href', '/signup')
   })
 })
 
 describe('legal pages', () => {
-  it('exist, are linked from the footer, and carry the two owner placeholders', () => {
-    for (const f of ['src/app/(app)/privacy/page.tsx', 'src/app/(app)/terms/page.tsx', 'src/app/(app)/cookies/page.tsx']) {
+  it('exist, name the operator, a contact address and a governing law — no placeholders left', () => {
+    for (const f of ['src/app/(marketing)/privacy/page.tsx', 'src/app/(marketing)/terms/page.tsx', 'src/app/(marketing)/cookies/page.tsx']) {
       expect(existsSync(join(process.cwd(), f)), f).toBe(true)
     }
-    const privacy = readFileSync(join(process.cwd(), 'src/app/(app)/privacy/page.tsx'), 'utf8')
-    expect(privacy).toMatch(/\[legal entity name\]/)
-    expect(privacy).toMatch(/\[privacy contact email\]/)
-    const terms = readFileSync(join(process.cwd(), 'src/app/(app)/terms/page.tsx'), 'utf8')
-    expect(terms).toMatch(/\[jurisdiction\]/)
+    const privacy = readFileSync(join(process.cwd(), 'src/app/(marketing)/privacy/page.tsx'), 'utf8')
+    const terms = readFileSync(join(process.cwd(), 'src/app/(marketing)/terms/page.tsx'), 'utf8')
+    for (const src of [privacy, terms]) expect(src).not.toMatch(/\[[a-z ]+\]/)
+    expect(privacy).toMatch(/mailto:ngong7053@gmail.com/)
+    expect(terms).toMatch(/governed by the law of <strong>the United States/)
   })
 })
 

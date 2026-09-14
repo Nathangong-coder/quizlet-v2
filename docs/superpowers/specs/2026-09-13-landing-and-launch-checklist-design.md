@@ -41,7 +41,7 @@ Simple and powerful, in Quizlet's shape and our substance:
 | 11 | Sitemap + robots | `sitemap.ts` (static pages, listable public sets, profiles; capped; hourly revalidate) and `robots.ts` (disallows account, settings, study and API routes). |
 | 12 | Alt text | Every `<img>` had `alt`; the two generic ones ("card content", "uploaded asset preview") now describe the file or the block text. |
 | 13 | Compress images | No raster assets are shipped: the logo is inline SVG, the OG image and touch icon are generated, user uploads stream from Blob. Nothing to compress. |
-| 14 | Page load speed | Lighthouse on the **production build**, landing, mobile throttling: Performance **68**, Accessibility **100**, Best practices **100**, SEO **100**. CLS 0, server 60 ms, 333 KiB transferred. LCP 4.1 s / TBT 570 ms are client-JS cost under 4× CPU slowdown. Done now: analytics chunk lazy-loaded behind consent. **Follow-up:** `@next/bundle-analyzer` pass on the shell (base-ui, sonner, lucide) — the build has no source maps to attribute the 222 KiB chunk. |
+| 14 | Page load speed | Lighthouse on the **production build**, landing, mobile throttling — **before** the bundle pass: perf 68, TBT 570 ms, 782 KiB first-load JS; **after**: perf **86**, a11y **100**, BP **100**, SEO **100**, TBT 210 ms, CLS 0, 608 KiB first-load JS (185 KiB transferred). The bundle pass (`next experimental-analyze` + `scripts/route-bytes.ts` + `scripts/trace-imports.ts`) found the landing shipping the signed-in rail, profile menu and avatar dialog (Base UI + floating-ui, ~185 KB) it never rendered, and the full feature-copy registry inside the client header. Fixes: the landing and static pages moved to a `(marketing)` route group whose layout never imports the shell; `MarketingHeader` takes its link lists as props; the `(app)` layout imports only the rail; middleware rewrites a visitor's `/` to `/welcome` (address bar unchanged). A server-side `import()` does NOT split client chunks — the group split is what worked. Remaining LCP (3.4 s simulated) is the HTML+CSS critical path under 1.6 Mbps; no web fonts are loaded. |
 | 15 | Colour contrast | `scripts/contrast-audit.ts` computes WCAG ratios for 17 token pairs in both themes; **fixed** `--success` (3.7:1 → 4.9:1) and `--input` border (1.4:1 → 3.3:1); gated by `tests/design/contrast.test.ts`. Lighthouse a11y 100 after the tool-card fix. |
 | 16 | Mobile friendly | Header folds into a drawer under `md`; landing grids stack; footer 1→2→5 columns; cookie banner is inset on phones. (Verified by breakpoint; the browser window could not be resized in this session.) |
 | 17 | Custom 404 | `src/app/not-found.tsx` — explains, offers Home / Browse / Library, reads no data. |
@@ -49,8 +49,18 @@ Simple and powerful, in Quizlet's shape and our substance:
 | 19 | One clear CTA | Landing hero has one button; Browse is a text link; the closing block repeats the same CTA. Tested. |
 | 20 | Analytics | `@vercel/analytics` (cookieless), mounted only after "Allow analytics"; lazy-loaded. |
 
-## §3 Owner to-do
+## §3 Found on the way
 
-- Fill the three placeholders (entity name, contact email, jurisdiction) in `/privacy` and `/terms`.
-- After deploy: run PageSpeed Insights on the real domain; bundle-analyzer pass if the score matters.
-- Optional: a CSP with nonces.
+**The middleware gate failed open when Auth.js errored.** Running `next start` locally without
+`AUTH_TRUST_HOST`, Auth.js raised `UntrustedHost` and handed the middleware callback its error
+object as `req.auth` — truthy — so `!req.auth` let every anonymous request through every
+"protected" route. Pages check the session themselves, so nothing was exposed, but the
+middleware now tests `req.auth?.user` and never `req.auth`. `.env.example` documents
+`AUTH_TRUST_HOST` for local production runs (Vercel sets the equivalent itself).
+
+## §4 Owner to-do
+
+- Legal placeholders filled 2026-09-13 (synapseHQ · ngong7053@gmail.com · United States); a test
+  asserts none remain.
+- After deploy: run PageSpeed Insights on the real domain.
+- Optional: a CSP with nonces; a real state for the governing-law clause.

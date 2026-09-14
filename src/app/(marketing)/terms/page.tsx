@@ -11,7 +11,7 @@ export default function TermsPage() {
   return (
     <LegalPage title="Terms of use" updated="13 September 2026">
       <p>
-        These terms are the agreement between you and <strong>[legal entity name]</strong> (&ldquo;synapseHQ&rdquo;, &ldquo;we&rdquo;) for using the service at this site. By creating an account or using the service you accept them.
+        These terms are the agreement between you and <strong>synapseHQ</strong> (&ldquo;synapseHQ&rdquo;, &ldquo;we&rdquo;) for using the service at this site. By creating an account or using the service you accept them.
       </p>
 
       <h2>1. The service</h2>
@@ -22,7 +22,7 @@ export default function TermsPage() {
       <h2>2. Your account</h2>
       <ul>
         <li>You need an account for most features. Sign-up may require an invite code and a verified email address.</li>
-        <li>You are responsible for what happens under your account and for keeping your password private. Tell us at <strong>[contact email]</strong> if you think it has been compromised.</li>
+        <li>You are responsible for what happens under your account and for keeping your password private. Tell us at <a href="mailto:ngong7053@gmail.com">ngong7053@gmail.com</a> if you think it has been compromised.</li>
         <li>One person, one account. Handles must not impersonate someone else.</li>
         <li>You must be at least 13.</li>
       </ul>
@@ -64,7 +64,7 @@ export default function TermsPage() {
       </p>
 
       <h2>9. Governing law</h2>
-      <p>These terms are governed by the law of <strong>[jurisdiction]</strong>, and its courts have exclusive jurisdiction, subject to any mandatory consumer protections where you live.</p>
+      <p>These terms are governed by the law of <strong>the United States</strong>, and its courts have exclusive jurisdiction, subject to any mandatory consumer protections where you live.</p>
 
       <h2>10. Changes</h2>
       <p>We may update these terms. Material changes are dated above and announced in the app for signed-in users; continuing to use the service after that is acceptance.</p>
