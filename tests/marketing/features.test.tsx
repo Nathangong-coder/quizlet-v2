@@ -35,7 +35,7 @@ describe('feature registry', () => {
 
   it('marks exactly the unbuilt features as coming', () => {
     const coming = FEATURES.filter((f) => f.status === 'coming').map((f) => f.slug)
-    expect(coming).toEqual(['learn', 'study-guides'])
+    expect(coming).toEqual(['learn'])
   })
 
   it('resolves a slug and rejects an unknown one', () => {

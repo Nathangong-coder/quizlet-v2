@@ -1,12 +1,14 @@
 /**
- * The three views of a set, and which one is current.
+ * The four views of a set, and which one is current.
  *
- * Study is what you do with the set, Knowledge is what you know about it, and
- * Analysis is why you get things wrong. They are peers, which is why this is a
- * tab strip rather than the outline "Concepts" button it replaces.
+ * Study is what you do with the set, Mastery is every card's key points with
+ * what you have shown on each (2026-09-14), Knowledge is what you know about
+ * it by concept, and Analysis is why you get things wrong. They are peers,
+ * which is why this is a tab strip rather than the outline "Concepts" button
+ * it replaces.
  */
 
-export type SetViewKey = 'study' | 'knowledge' | 'analysis'
+export type SetViewKey = 'study' | 'mastery' | 'knowledge' | 'analysis'
 
 export interface SetViewTab {
   key: SetViewKey
@@ -23,6 +25,12 @@ export function setViewTabs(setId: string): SetViewTab[] {
       href: `/sets/${setId}`,
       label: 'Study',
       hint: 'Flashcards, activities and the full term list',
+    },
+    {
+      key: 'mastery',
+      href: `/sets/${setId}/mastery`,
+      label: 'Mastery',
+      hint: 'Every card’s key points and how well you know each',
     },
     {
       key: 'knowledge',

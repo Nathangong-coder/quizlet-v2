@@ -10,7 +10,7 @@ const SET = 'abc123'
 
 describe('setViewTabs', () => {
   it('offers exactly Study, Knowledge and Analysis', () => {
-    expect(setViewTabs(SET).map((t) => t.key)).toEqual(['study', 'knowledge', 'analysis'])
+    expect(setViewTabs(SET).map((t) => t.key)).toEqual(['study', 'mastery', 'knowledge', 'analysis'])
   })
 
   it('points Study at the set root, not at a sub-route', () => {
