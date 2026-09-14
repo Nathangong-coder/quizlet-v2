@@ -1,7 +1,21 @@
 # Build queue & carried-over findings
 
-**HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress. Read this before
-anything else in this file.** Two long runs were started this day and both are RESUMABLE;
+**HANDOFF 2026-09-14 — THE CORPUS IS AUTHORED. 278 cards across five sets, every one at its
+current version on the full pipeline (see `docs/ai/model-performance.md`, "The corpus,
+re-authored end to end"); the dashboard artifact
+https://claude.ai/code/artifact/f2ff2ea8-1fc1-4858-bd82-aabb0f6f1fee has the whole thing.
+Item 2 below is DONE; item 1's three `mint-topics --write` files are SUPERSEDED (their KLPs
+were re-authored — `mint-topics` will refuse them); item 3 (mint + write topics for every set)
+is NEXT, and the owner wants the minting strategy revisited before spending on 278 cards
+("the KLPs the Chinese models generate are steps, not key learning points"; the KLP→topic
+check/revision idea; the `definitionPoints` laundering hole). Framing is now JUDGED by the
+grader (`classify-roles`, overrides the rule) and cards ≥60% framing are `memorizable` — the
+first three sets were authored on the rule, the last two on the judge; the owner said not to
+re-make the earlier ones. `write-adversaries` v3 (the template trap must be wrong) likewise
+applies only to the last two sets. Both are the owner's open judgement calls: read the
+memorizable list on the dashboard before changing either.**
+
+**HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress.** Two long runs were started this day and both are RESUMABLE;
 the topic WRITE needs the owner's shell (the agent's auto-mode denied it as a shared-resource
 write). Everything below is one command each.
 

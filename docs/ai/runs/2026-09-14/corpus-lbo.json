@@ -1,0 +1,2902 @@
+{
+  "setId": "cmtj7pxfc000005l4rv4krxxy",
+  "skip": 0,
+  "outcomes": [
+    {
+      "cardId": "cmtj7pxht000105l4xxtnhlbk",
+      "term": "Why do LBOs use leverage? How do they use leverage to increase returns?",
+      "model": "glm-5.3-flash+deepseek-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "Leverage in an LBO means funding the purchase price largely with debt rather than equity. Returns are measured as equity value at exit versus equity invested at entry, so for a given purchase price, the more debt you use, the less equity you write a check for — and any dollar of value created becomes a larger percentage return on that smaller base. On top of that, each dollar of debt paid down converts into equity value, so the sponsor's ownership grows over the hold. Combine a smaller initial equity check with debt paydown and value growth, and that is exactly how leverage amplifies returns.",
+        "klps": [
+          {
+            "text": "Leverage in an LBO means funding the purchase price largely with borrowed debt instead of equity",
+            "kind": "definition",
+            "weight": 2,
+            "role": "framing"
+          },
+          {
+            "text": "Debt reduces the upfront equity the sponsor must commit for a given purchase price",
+            "kind": "mechanism",
+            "weight": 5,
+            "role": "substance"
+          },
+          {
+            "text": "Sponsor returns are measured as equity value at exit versus equity invested at entry, so a smaller equity base makes the same dollar gain a larger percentage return",
+            "kind": "mechanism",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Each dollar of debt principal paid down converts creditor claims into equity value, so the sponsor's ownership of the business grows over the hold",
+            "kind": "causal",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Combining a smaller initial equity check with debt paydown and value growth is how leverage amplifies the sponsor's return — the answer to why LBOs use it",
+            "kind": "causal",
+            "weight": 3,
+            "role": "framing"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "LBOs use leverage because it's a core part of the private equity toolkit and generally helps sponsors achieve better outcomes than they otherwise would. When you're buying a company, using debt changes the risk and return profile in ways that are usually favorable to the equity holders. The mechanics involve things like the capital structure and how returns are calculated, which together make the deal more attractive. It's not just about the interest tax shield, it's about how the whole thing is engineered to create value. At a high level, leverage is what separates an LBO from a plain acquisition, and that's why it matters so much.",
+            "score": 0,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "In an LBO, leverage is used to fund the purchase price with a mix of debt and equity, and returns are typically measured as exit enterprise value divided by entry enterprise value. Because the sponsor contributes a larger equity check when more debt is used, the equity base is bigger at entry, which means a given amount of enterprise value growth translates into a smaller percentage return on that equity. Additionally, as the company generates free cash flow and pays down debt, the equity value decreases, further concentrating the sponsor's ownership. Therefore, the key driver of returns in an LBO is the absolute size of the equity check: the larger the equity investment, the more the sponsor benefits from leverage. In summary, LBOs use leverage to increase the equity base and amplify returns through debt paydown, though the exact conclusion depends on the deal.",
+            "score": 0.2,
+            "verdicts": {
+              "0": "correct",
+              "1": "contradicted",
+              "2": "contradicted",
+              "3": "contradicted",
+              "4": "contradicted"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 1,
+            "to": 2,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "A smaller committed equity check is what makes the same exit gain a larger percentage return.",
+            "probe": "A learner says a smaller equity check raises total dollar gain rather than the percentage return on a fixed gain."
+          },
+          {
+            "from": 2,
+            "to": 4,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "The amplification claim only holds because return is measured as exit equity over entry equity.",
+            "probe": "A learner says leverage amplifies returns because the business simply grows faster, ignoring the equity-base denominator."
+          },
+          {
+            "from": 3,
+            "to": 4,
+            "type": "requires",
+            "provenance": "order_violation",
+            "rationale": "Debt paydown converting creditor claims to equity value is the mechanism the amplification conclusion consumes.",
+            "probe": "A learner says debt paydown just removes risk and the return boost comes only from the smaller entry check."
+          },
+          {
+            "from": 1,
+            "to": 3,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "You cannot describe the sponsor's ownership growing via paydown without first having the debt-funded equity structure.",
+            "probe": "A learner explains growing sponsor ownership from debt paydown while treating the purchase as all-equity funded."
+          }
+        ],
+        "relationStats": {
+          "candidates": 4,
+          "accepted": 4,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.8,
+        "substanceSeparation": 1,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": null,
+            "rule": "count",
+            "detail": "5 KLPs; expected 6-9"
+          },
+          {
+            "index": 0,
+            "rule": "abstraction_spread",
+            "detail": "one point is concrete while the other 4 are not — on a card this size that usually means it was written to a different brief. Judged WITHIN this card only; cards legitimately differ from each other."
+          }
+        ],
+        "targetKlpCount": 6,
+        "concerns": [],
+        "revisionReasons": [
+          "count",
+          "count"
+        ],
+        "questionType": "why",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "bloated",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The core point is restated three times: 'shrinking the invested equity base means any dollar of value created is a larger percentage return,' then 'every dollar of principal paid down converts debt into equity value,' and again 'the gain is measured against a much smaller initial equity check, which is exactly how leverage amplifies returns.'"
+            },
+            {
+              "kind": "conciseness",
+              "text": "The debt-service and downside-risk sentences ('The debt is then serviced and repaid using the target company's own cash flows' and 'The same mechanics cut the other way...') go beyond the question and pad an answer that could be roughly half the length."
+            }
+          ],
+          "rewritten": true
+        },
+        "roleReasons": {
+          "0": "Definition of the term the question names, restated from any template",
+          "1": "Core mechanism linking debt to the required equity check",
+          "2": "Explains why a smaller equity denominator magnifies percentage returns",
+          "3": "Debt-paydown-to-equity-value conversion is a non-obvious mechanism",
+          "4": "Ties paydown to exit equity value without new investment",
+          "5": "Explains disproportionate accrual of EV growth to the small equity base",
+          "6": "Tax shield mechanism and its cash-flow consequence",
+          "7": "Standard risk/return contrast every template closes with",
+          "8": "Synthesizes the amplification logic rather than restating the question"
+        },
+        "keptRound": 0,
+        "keptRoundReason": "kept round 0 over the last (2): substance 1.00 vs 0.86, parity 1.00 vs 1.00, bars missed 0 vs 0",
+        "rebuild": {
+          "rebuiltAnswer": "In an LBO, you fund the purchase price largely with borrowed debt instead of equity. That debt reduces the upfront equity the sponsor has to commit for a given purchase price. Sponsor returns are measured as equity value at exit versus equity invested at entry, so a smaller equity base makes the same dollar gain a larger percentage return. And each dollar of debt principal paid down converts creditor claims into equity value, so the sponsor's ownership of the business grows over the hold. Combining a smaller initial equity check with debt paydown and value growth is how leverage amplifies the sponsor's return.",
+          "cardCoverage": 1,
+          "referenceParity": 1,
+          "extractionLoss": 0,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct"
+            },
+            {
+              "index": 1,
+              "verdict": "correct"
+            },
+            {
+              "index": 2,
+              "verdict": "correct"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "Leverage in an LBO means funding the purchase price largely with debt rather than equity.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Returns are measured as equity value at exit versus equity invested at entry.",
+              "verdict": "present"
+            },
+            {
+              "claim": "For a given purchase price, the more debt you use, the less equity you write a check for.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Any dollar of value created becomes a larger percentage return on that smaller equity base.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Each dollar of debt paid down converts into equity value.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The sponsor's ownership grows over the hold (as debt is paid down).",
+              "verdict": "present"
+            },
+            {
+              "claim": "Combining a smaller initial equity check with debt paydown and value growth is how leverage amplifies returns.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Taking on debt decreases the upfront equity capital the sponsor must commit",
+            "A smaller equity outlay can boost returns if the company's value grows",
+            "Debt being paid down successfully is part of how returns are generated"
+          ],
+          "wordRatio": 0.9809523809523809,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": []
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtjcmjbi000404k4fpqphmjw",
+      "term": "What is an LBO, in simple terms?",
+      "model": "glm-5.3-flash+deepseek-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "A leveraged buyout is the acquisition of a company in which a large portion of the purchase price — often 50 to 70 percent or more — is funded with debt rather than equity, typically by a private equity firm. The defining feature is that the debt is raised at the level of the target company itself, so it is the company's own cash flows that service and repay the borrowings after closing. As the debt is paid down over the holding period, the sponsor's equity stake effectively grows. The sponsor's return comes at exit — through a sale, IPO, or recapitalization — combining operational improvement or growth, the deleveraging, and the multiple the business commands at sale.",
+        "klps": [
+          {
+            "text": "An LBO is the acquisition of a company funded with a high percentage of debt, often 50-70% or more of the purchase price",
+            "kind": "definition",
+            "weight": 3,
+            "role": "framing"
+          },
+          {
+            "text": "LBOs are typically executed by private equity firms using the target as the borrower",
+            "kind": "definition",
+            "weight": 1,
+            "role": "framing"
+          },
+          {
+            "text": "The debt is raised at the target company level, so the target's own cash flows service and repay it after closing",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "As debt is paid down over the holding period, the sponsor's effective equity stake in the business grows",
+            "kind": "mechanism",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "The sponsor realizes its return at exit — a sale, IPO, or recapitalization — combining operational improvement, deleveraging, and the exit multiple",
+            "kind": "causal",
+            "weight": 4,
+            "role": "framing"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "An LBO is basically when a company gets bought out using a lot of leverage, you know, borrowed money. It's a big thing in private equity, and there's usually a fund involved that puts up some equity and then uses debt to make the deal happen. The idea is that over time the company can pay down the debt and everyone makes money. It's a common strategy in finance, and the details depend on the deal.",
+            "score": 0.4,
+            "verdicts": {
+              "0": "partial",
+              "1": "correct",
+              "2": "incomplete",
+              "3": "omission",
+              "4": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "A leveraged buyout is the acquisition of a company where the purchase price is funded primarily with equity rather than debt, typically by a private equity firm. The key feature is that the debt is raised at the level of the sponsor, so the sponsor's own cash flows service the borrowings after closing. As the equity is paid down over the holding period, the debt stake effectively grows. The sponsor's return comes at exit through a sale, IPO, or recapitalization, driven mainly by the initial equity contribution.",
+            "score": 0.2,
+            "verdicts": {
+              "0": "contradicted",
+              "1": "partial",
+              "2": "inversion",
+              "3": "inversion",
+              "4": "incomplete"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 2,
+            "to": 1,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "Using the target as borrower only works because debt sits at target level and its cash flows repay it.",
+            "probe": "A learner says PE firms borrow against their own funds to buy targets, which is what 'using the target as borrower' means."
+          },
+          {
+            "from": 3,
+            "to": 2,
+            "type": "requires",
+            "provenance": "order_violation",
+            "rationale": "The sponsor's stake can only grow via deleveraging if the target's cash flows actually repay the target-level debt.",
+            "probe": "A learner says the sponsor's equity grows because the sponsor injects fresh equity each year, while debt stays flat."
+          },
+          {
+            "from": 4,
+            "to": 3,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Return at exit only captures deleveraging if the equity stake grew from debt paydown during the hold.",
+            "probe": "A learner says exit return comes purely from the entry multiple expanding, ignoring any debt paydown."
+          },
+          {
+            "from": 0,
+            "to": 2,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "High debt share forces the structure where the target's own cash flows must service and repay that debt.",
+            "probe": "A learner says high debt is used but the sponsor's existing portfolio cash flows service it, not the target's."
+          },
+          {
+            "from": 1,
+            "to": 4,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Learners conflate who runs the deal with how the deal pays off, stating sponsor mechanics as exit return.",
+            "probe": "A learner explains that the PE firm's role is to realize the return at exit, mixing the actor with the outcome."
+          }
+        ],
+        "relationStats": {
+          "candidates": 5,
+          "accepted": 5,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.6,
+        "substanceSeparation": 0.75,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 0,
+        "status": "memorizable",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [],
+        "targetKlpCount": 5,
+        "concerns": [],
+        "revisionReasons": [],
+        "questionType": "define",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The final 'In one sentence:' recap restates the whole answer already given, and could be cut to hit a two-thirds length strong spoken answer."
+            }
+          ],
+          "rewritten": true
+        },
+        "roleReasons": {
+          "0": "Textbook definition of the acronym any prepared candidate recites, including the debt-percentage range.",
+          "1": "Standard stock line that PE firms buy with target as borrower; memorized, not derived.",
+          "2": "States the mechanism of why the target's cash flows service debt raised at its level, which requires understanding.",
+          "3": "Non-obvious implication that deleveraging mechanically grows the sponsor's equity share.",
+          "4": "Template closing listing the three return drivers and exit routes every LBO answer ends with."
+        },
+        "keptRound": 0,
+        "rebuild": {
+          "rebuiltAnswer": "An LBO is the acquisition of a company funded with a high percentage of debt — often 50–70% or more of the purchase price. Private equity firms typically execute them, using the target as the borrower. That debt is raised at the target company level, so the target's own cash flows service and repay it after closing. As the debt is paid down over the holding period, the sponsor's effective equity stake grows. The sponsor realizes its return at exit — a sale, IPO, or recapitalization — combining operational improvement, deleveraging, and the exit multiple.",
+          "cardCoverage": 1,
+          "referenceParity": 0.9545454545454546,
+          "extractionLoss": 0.045454545454545414,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 2,
+              "verdict": "correct",
+              "evidence": ""
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "A leveraged buyout is the acquisition of a company.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A large portion of the purchase price — often 50 to 70 percent or more — is funded with debt rather than equity.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The acquisition is typically done by a private equity firm.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The debt is raised at the level of the target company itself.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The target company's own cash flows service and repay the borrowings after closing.",
+              "verdict": "present"
+            },
+            {
+              "claim": "As the debt is paid down over the holding period, the sponsor's equity stake effectively grows.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The sponsor's return comes at exit.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Exit can be through a sale, IPO, or recapitalization.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The sponsor's return combines operational improvement or growth.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "The sponsor's return combines the deleveraging.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The sponsor's return combines the multiple the business commands at sale.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "A P/E firm acquires a company using a high percentage of borrowed funds",
+            "The acquired company's cash flows are used to pay down the debt over time",
+            "The structure ideally generates a strong return upon exit"
+          ],
+          "wordRatio": 0.8050847457627118,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": []
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtjcmjc0000704k4ufvhr7y1",
+      "term": "Can you walk me through an LBO (high level)?",
+      "model": "glm-5.3-flash+deepseek-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "An LBO model is a projection of a buyout transaction from entry to exit, used to estimate the sponsor's return. Step one is assumptions: you set the purchase price — usually an entry multiple applied to EBITDA — and build the sources and uses, deciding how much debt and how much sponsor equity fund the deal. Step two is the balance sheet adjustment: on day one you wipe out the target's existing equity, retire or refinance its existing debt, and layer in the new capital structure. Step three is the projection: you forecast the company's cash flows over a roughly five-year hold, assuming free cash flow is swept to pay down debt each year, so the debt balance declines. Step four is exit: you assume the company is sold at a given multiple applied to exit-year EBITDA, and after paying off remaining debt, whatever is left is the sponsor's exit equity. Step five is returns: you compare exit equity to entry equity and calculate the IRR to judge whether the deal clears the sponsor's return hurdle.",
+        "klps": [
+          {
+            "text": "An LBO model projects a buyout from entry to exit to estimate the sponsor's return",
+            "kind": "definition",
+            "weight": 1,
+            "role": "framing"
+          },
+          {
+            "text": "Step one sets the deal's assumptions: the purchase price, usually an entry multiple applied to EBITDA",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The sources and uses of funds are laid out, splitting the total funding between new debt and the sponsor's equity contribution",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Step two adjusts the balance sheet: wipe out the existing equity, retire or refinance existing debt, and layer in the new capital structure",
+            "kind": "mechanism",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Step three projects the company's cash flows over roughly a five-year hold",
+            "kind": "mechanism",
+            "weight": 1,
+            "role": "substance"
+          },
+          {
+            "text": "Free cash flow is assumed to be swept to pay down debt each year, so the debt balance declines through the projection",
+            "kind": "causal",
+            "weight": 2,
+            "role": "framing"
+          },
+          {
+            "text": "Step four assumes an exit at a given multiple applied to the exit-year EBITDA",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "After repaying the remaining debt at exit, the residual amount is the sponsor's exit equity proceeds",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Step five compares exit equity to entry equity to calculate the IRR against the sponsor's return hurdle",
+            "kind": "causal",
+            "weight": 1,
+            "role": "framing"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "An LBO is basically when a private equity firm buys a company using a lot of borrowed money, and the model is how you figure out if that deal makes sense. You have to think about the purchase price and how much debt you can raise, and then the company pays down that debt over time using its cash flow. The model projects everything out for a few years and then assumes you sell the company at some point. The main thing you look at is whether the return is good enough compared to what the sponsor could get elsewhere. There are a lot of moving parts, but at a high level it's about using leverage to boost returns.",
+            "score": 0.3888888888888889,
+            "verdicts": {
+              "0": "partial",
+              "1": "incomplete",
+              "2": "partial",
+              "3": "omission",
+              "4": "partial",
+              "5": "partial",
+              "6": "incomplete",
+              "7": "omission",
+              "8": "partial"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "Sure, an LBO is when a private equity firm buys a company using a lot of debt, and the model basically shows the transaction. First you do the sources and uses, then you adjust the balance sheet, then you project the financials and pay down debt, and eventually you exit. You calculate the IRR at the end to see the return, and if the IRR is above the hurdle rate, the deal works. So it's really about the debt paydown and the exit multiple, and the model kind of ties all those pieces together.",
+            "score": 0.3888888888888889,
+            "verdicts": {
+              "0": "incomplete",
+              "1": "omission",
+              "2": "incomplete",
+              "3": "incomplete",
+              "4": "incomplete",
+              "5": "incomplete",
+              "6": "incomplete",
+              "7": "omission",
+              "8": "partial"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 5,
+            "to": 7,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "Exit equity proceeds are only residual because the sweep shrinks the debt repaid at exit.",
+            "probe": "Says exit equity equals exit EV minus entry debt, ignoring that the cash sweep already reduced the balance."
+          },
+          {
+            "from": 5,
+            "to": 8,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "IRR is driven by debt paydown during the hold, not merely entry-exit multiple arbitrage.",
+            "probe": "Computes IRR purely from multiple expansion, claiming the cash sweep has no bearing on returns."
+          },
+          {
+            "from": 2,
+            "to": 5,
+            "type": "requires",
+            "provenance": "order_violation",
+            "rationale": "You cannot sweep cash to pay debt without the new debt quantum from sources and uses.",
+            "probe": "States free cash flow sweeps down debt but cannot say how much new debt was layered in."
+          },
+          {
+            "from": 6,
+            "to": 8,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "IRR against the hurdle cannot be derived until exit equity proceeds from the exit assumption exist.",
+            "probe": "Computes IRR and compares to hurdle without ever assuming an exit multiple or exit proceeds."
+          },
+          {
+            "from": 3,
+            "to": 5,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "The declining debt balance presupposes the new capital structure installed in the balance sheet step.",
+            "probe": "Describes debt paydown through the hold while claiming the entry capital structure is unchanged."
+          },
+          {
+            "from": 6,
+            "to": 7,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "Exit equity proceeds are calculated from the exit multiple applied to exit-year EBITDA.",
+            "probe": "Says residual proceeds are sponsor equity but never applies an exit multiple to terminal EBITDA."
+          },
+          {
+            "from": 1,
+            "to": 8,
+            "type": "requires",
+            "provenance": "order_violation",
+            "rationale": "Entry equity in the IRR denominator comes from the purchase price set in assumptions.",
+            "probe": "Computes IRR dividing by entry equity without deriving entry equity from the purchase price."
+          },
+          {
+            "from": 6,
+            "to": 7,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Learners conflate assuming the exit multiple with computing the resulting equity proceeds.",
+            "probe": "States the exit multiple as though it directly is the sponsor's exit equity proceeds."
+          }
+        ],
+        "relationStats": {
+          "candidates": 8,
+          "accepted": 8,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.6111111111111112,
+        "substanceSeparation": 0.6666666666666667,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 1,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [],
+        "targetKlpCount": 8,
+        "concerns": [],
+        "revisionReasons": [
+          "separation 0.25 is below the 0.40 floor; count; [1] accepted by the memorized_template answer; [2] accepted by the memorized_template answer; [5] accepted by the memorized_template answer"
+        ],
+        "questionType": "walkthrough",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "Step two restates the day-one balance sheet adjustment ('wipe out the target's existing equity, retire or refinance its existing debt, and layer in the new capital structure, so the pro forma balance sheet reflects the post-buyout reality') in two overlapping clauses, which could be said once."
+            },
+            {
+              "kind": "conciseness",
+              "text": "Step five's 'along with the money multiple' adds a secondary metric beyond the question and beyond the card's IRR focus, padding the answer."
+            }
+          ],
+          "rewritten": true
+        },
+        "roleReasons": {
+          "0": "Generic definition restating the question's term; any prepared candidate opens with this.",
+          "1": "Requires knowing the entry multiple is applied to EBITDA to derive the purchase price.",
+          "2": "Requires knowing the sources-and-uses structure splits funding into new debt and sponsor equity.",
+          "3": "Requires knowing the balance-sheet mechanics: wipe equity, retire/refinance debt, layer new structure.",
+          "4": "Requires knowing the hold period convention and that cash flows are projected across it.",
+          "5": "Cash sweep is a stated template assumption, asserted not derived.",
+          "6": "Requires knowing exit value pairs the multiple with exit-year EBITDA.",
+          "7": "Requires the causal step that debt payoff leaves residual equity proceeds to the sponsor.",
+          "8": "IRR-vs-hurdle is the standard closing comparison every template recites."
+        },
+        "keptRound": 1,
+        "rebuild": {
+          "rebuiltAnswer": "An LBO model projects a buyout from entry to exit to estimate the sponsor's return. Step one sets the deal's assumptions: the purchase price, usually an entry multiple applied to EBITDA. The sources and uses of funds are laid out, splitting the total funding between new debt and the sponsor's equity contribution. Step two adjusts the balance sheet: wipe out the existing equity, retire or refinance existing debt, and layer in the new capital structure. Step three projects the company's cash flows over roughly a five-year hold. Free cash flow is assumed to be swept to pay down debt each year, so the debt balance declines through the projection. Step four assumes an exit at a given multiple applied to the exit-year EBITDA. After repaying the remaining debt at exit, the residual amount is the sponsor's exit equity proceeds. Step five compares exit equity to entry equity to calculate the IRR against the sponsor's return hurdle.",
+          "cardCoverage": 1,
+          "referenceParity": 1,
+          "extractionLoss": 0,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct"
+            },
+            {
+              "index": 1,
+              "verdict": "correct"
+            },
+            {
+              "index": 2,
+              "verdict": "correct"
+            },
+            {
+              "index": 3,
+              "verdict": "correct"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "An LBO model is a projection of a buyout transaction from entry to exit.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The LBO model is used to estimate the sponsor's return.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step one is assumptions: set the purchase price, usually an entry multiple applied to EBITDA.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Build the sources and uses, deciding how much debt and how much sponsor equity fund the deal.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step two is the balance sheet adjustment.",
+              "verdict": "present"
+            },
+            {
+              "claim": "On day one, wipe out the target's existing equity.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Retire or refinance the target's existing debt.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Layer in the new capital structure.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step three is the projection: forecast the company's cash flows over a roughly five-year hold.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Assume free cash flow is swept to pay down debt each year, so the debt balance declines.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step four is exit: assume the company is sold at a given multiple applied to exit-year EBITDA.",
+              "verdict": "present"
+            },
+            {
+              "claim": "After paying off remaining debt, whatever is left is the sponsor's exit equity.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Step five is returns: compare exit equity to entry equity and calculate the IRR.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Calculate IRR to judge whether the deal clears the sponsor's return hurdle.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "First, assume a purchase price and sources of funding",
+            "Second, adjust the company's balance sheet for the new capital structure, wiping out existing debt and equity",
+            "Third, project the company's cash flows, assuming they pay down debt over time",
+            "Finally, exit at a given multiple and use entry and exit equity amounts to calculate the PE firm's IRR"
+          ],
+          "wordRatio": 0.8863636363636364,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": []
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtjcmjcc000a04k4pftq7hsd",
+      "term": "What are the main sources of value creation in an LBO (5)?",
+      "model": "glm-5.3-flash+deepseek-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "Value creation in an LBO means the sources of the gain between what the sponsor pays at entry and what it realizes at exit. The first driver is EBITDA growth — growing revenue and improving margins enlarges the core earnings base, and since exit equity is driven off exit EBITDA, a bigger EBITDA directly increases the sale value. The second is debt paydown — the company's free cash flow is used to repay principal over the hold, converting debt into sponsor equity so the sponsor's share of the business grows even if the total value is flat. The third is multiple expansion — if the sponsor can sell at a higher EBITDA multiple than it paid, through improved business quality, a better growth story, or a favorable market, that re-rating alone creates value. The fourth is expense reductions — cutting overhead, renegotiating supplier contracts, and streamlining the cost structure improve margins and flow straight into EBITDA. The fifth is operational improvements and add-on acquisitions — putting in better management, systems, and processes, and bolt-on acquisitions that build scale and synergies, grow the platform beyond what organic growth alone would deliver. In practice, expense reductions and operational improvements are largely how the EBITDA growth is achieved.",
+        "klps": [
+          {
+            "text": "Value creation in an LBO means the sources of the gain between entry price and exit proceeds",
+            "kind": "definition",
+            "weight": 3,
+            "role": "framing"
+          },
+          {
+            "text": "EBITDA growth is a driver: growing revenue and improving margins enlarges the core earnings base",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "framing"
+          },
+          {
+            "text": "Since exit equity is driven off exit EBITDA, a bigger EBITDA directly increases the sale value",
+            "kind": "causal",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Debt paydown is a driver: the company's free cash flow is used to repay principal over the hold",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "framing"
+          },
+          {
+            "text": "Debt paydown converts debt into sponsor equity so the sponsor's share of the business grows even if the total value is flat",
+            "kind": "causal",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Multiple expansion is a driver: selling at a higher EBITDA multiple than paid creates value on its own",
+            "kind": "mechanism",
+            "weight": 1,
+            "role": "framing"
+          },
+          {
+            "text": "Expense reductions are a driver: cutting overhead, renegotiating supplier contracts, and streamlining the cost structure improve margins and flow straight into EBITDA",
+            "kind": "mechanism",
+            "weight": 1,
+            "role": "framing"
+          },
+          {
+            "text": "Operational improvements and add-on acquisitions are a driver: better management, systems, and processes plus bolt-on deals build scale and synergies beyond organic growth",
+            "kind": "mechanism",
+            "weight": 1,
+            "role": "framing"
+          },
+          {
+            "text": "In practice, expense reductions and operational improvements are largely how EBITDA growth is achieved",
+            "kind": "causal",
+            "weight": 4,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "In an LBO, value creation really comes from a mix of things that depend on the situation. There are operational levers, financial levers, and market factors that all play a role. Often it's about making the business better and using leverage wisely, though the exact split varies by deal. Some people emphasize growth, others focus on cost discipline or multiple expansion. At the end of the day, it's about buying well and selling well, with a bit of luck and timing.",
+            "score": 0.16666666666666666,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "incomplete",
+              "6": "incomplete",
+              "7": "incomplete",
+              "8": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "The five main sources of value creation in an LBO are EBITDA growth, debt paydown, multiple expansion, expense reductions, and operational improvements with add-on acquisitions. EBITDA growth increases the exit value, but since the sponsor owns only a portion of the equity, the benefit is diluted. Debt paydown reduces the debt but also reduces the cash available for reinvestment, which can hurt growth. Multiple expansion is the most reliable driver because it depends on market conditions rather than company performance. Expense reductions and operational improvements are essentially the same thing and often offset each other. In practice, multiple expansion is the primary source of value in most LBOs, while the others are secondary.",
+            "score": 0.3333333333333333,
+            "verdicts": {
+              "0": "omission",
+              "1": "incomplete",
+              "2": "incomplete",
+              "3": "incomplete",
+              "4": "failed",
+              "5": "incomplete",
+              "6": "incomplete",
+              "7": "incomplete",
+              "8": "contradicted"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 8,
+            "to": 6,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "If expense cuts did not flow into EBITDA, point 8's claim that they achieve EBITDA growth collapses.",
+            "probe": "Learner lists expense reduction and operational improvement as separate drivers from EBITDA growth, never connecting them as its mechanism."
+          },
+          {
+            "from": 2,
+            "to": 1,
+            "type": "requires",
+            "provenance": "order_violation",
+            "rationale": "Point 2 consumes point 1's output: exit EBITDA must already be defined as the enlarged earnings base.",
+            "probe": "Learner says a bigger EBITDA raises sale value but treats EBITDA growth as unrelated to revenue or margin improvement."
+          },
+          {
+            "from": 4,
+            "to": 3,
+            "type": "requires",
+            "provenance": "order_violation",
+            "rationale": "You cannot claim debt converts into sponsor equity without first having debt paydown as the mechanism.",
+            "probe": "Learner describes growing sponsor equity share but attributes it to multiple expansion rather than principal repayment."
+          },
+          {
+            "from": 4,
+            "to": 7,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both describe the sponsor's ownership stake growing, but one is debt paydown and one is operational value building.",
+            "probe": "Learner says operational improvements grow sponsor equity share, conflating the debt-paydown effect with operating value creation."
+          }
+        ],
+        "relationStats": {
+          "candidates": 4,
+          "accepted": 4,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.6666666666666667,
+        "substanceSeparation": 0.8333333333333334,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [],
+        "targetKlpCount": 6,
+        "concerns": [],
+        "revisionReasons": [
+          "[1] compound; [1] restatement with [6]: Point 6 restates point 1 by saying expense reductions and operational improvements are largely how EBITDA growth is achieved.; [6] restatement with [1]: Point 6 restates point 1 by saying expense reductions and operational improvements are largely how EBITDA growth is achieved.; [1] clause bloat: Point 1's clause that EBITDA growth enlarges the earnings base on which exit value is calculated adds explanatory words without a separately testable claim.; [2] clause bloat: Point 2's clause that debt paydown converts debt into sponsor equity even if total value is flat adds length without a separate driver.; [3] clause bloat: Point 3's clause about better quality or market conditions adds qualifiers but no distinct value-creation source.; [4] clause bloat: Point 4's clause that cutting overhead and renegotiating contracts is an example of expense reduction, not a separate claim.; [5] clause bloat: Point 5's clause listing better management and systems plus bolt-on deals expands the example without adding a new driver.",
+          "[2] clause bloat: Point [2] adds a because-clause explaining that exit equity is driven off exit EBITDA, which adds words without a separately testable claim.; [4] clause bloat: Point [4] carries an extra clause about the sponsor's share growing even if total value is flat, padding the debt paydown point without a new testable claim."
+        ],
+        "questionType": "enumerate",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The closing line 'the classic answer is that EBITDA growth, debt paydown, and multiple expansion are the three headline drivers' restates the five drivers already given and could be cut."
+            }
+          ],
+          "rewritten": true
+        },
+        "roleReasons": {
+          "0": "Textbook definition of the term the question names, restated by any prepared candidate.",
+          "1": "Names the mechanism (revenue growth plus margin expansion feeding the earnings base).",
+          "2": "Explains the causal link from exit EBITDA to exit equity value, not just an assertion.",
+          "3": "Standard LBO template line: cash flow pays down debt.",
+          "4": "Spells out the non-obvious implication that debt paydown shifts value to sponsor equity even at flat enterprise value.",
+          "5": "Explains that multiple expansion creates value independently and names the plausible drivers.",
+          "6": "Gives the causal chain from cost cuts to EBITDA rather than just listing a driver.",
+          "7": "Distinguishes bolt-on/operational levers and how they extend beyond organic growth.",
+          "8": "Non-obvious linkage: expense and operational levers are the means by which EBITDA growth is realized."
+        },
+        "keptRound": 1,
+        "keptRoundReason": "kept round 1 over the last (2): substance 0.83 vs 0.57, parity 0.92 vs 1.00, bars missed 0 vs 0",
+        "rebuild": {
+          "rebuiltAnswer": "Value creation in an LBO is the gain between entry price and exit proceeds. The five sources are: EBITDA growth—growing revenue and improving margins enlarges the core earnings base, and because exit equity is driven off exit EBITDA, a bigger EBITDA directly increases the sale value. Debt paydown—free cash flow repays principal over the hold, converting debt into sponsor equity so the sponsor's share of the business grows even if total value is flat. Multiple expansion—selling at a higher EBITDA multiple than paid creates value on its own. Expense reductions—cutting overhead, renegotiating supplier contracts, and streamlining the cost structure improve margins and flow straight into EBITDA. Operational improvements and add-on acquisitions—better management, systems, and processes plus bolt-on deals build scale and synergies beyond organic growth. In practice, expense reductions and operational improvements are largely how EBITDA growth is achieved.",
+          "cardCoverage": 1,
+          "referenceParity": 0.9166666666666666,
+          "extractionLoss": 0.08333333333333337,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct"
+            },
+            {
+              "index": 1,
+              "verdict": "correct"
+            },
+            {
+              "index": 2,
+              "verdict": "correct"
+            },
+            {
+              "index": 3,
+              "verdict": "correct"
+            },
+            {
+              "index": 4,
+              "verdict": "correct"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "Value creation in an LBO is the gain between what the sponsor pays at entry and what it realizes at exit.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The first driver is EBITDA growth — growing revenue and improving margins enlarges the core earnings base.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Since exit equity is driven off exit EBITDA, a bigger EBITDA directly increases the sale value.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The second driver is debt paydown — the company's free cash flow is used to repay principal over the hold.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Debt paydown converts debt into sponsor equity so the sponsor's share of the business grows even if the total value is flat.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The third driver is multiple expansion — if the sponsor can sell at a higher EBITDA multiple than it paid, that re-rating alone creates value.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Multiple expansion can come through improved business quality, a better growth story, or a favorable market.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "The fourth driver is expense reductions — cutting overhead, renegotiating supplier contracts, and streamlining the cost structure improve margins.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Expense reductions flow straight into EBITDA.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The fifth driver is operational improvements and add-on acquisitions — putting in better management, systems, and processes, and bolt-on acquisitions that build scale and synergies.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Operational improvements and add-on acquisitions grow the platform beyond what organic growth alone would deliver.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In practice, expense reductions and operational improvements are largely how the EBITDA growth is achieved.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "EBITDA growth",
+            "Debt paydown using cash flows",
+            "Multiples expansion at exit",
+            "Expense reductions",
+            "Operational improvements and add-on acquisitions"
+          ],
+          "wordRatio": 0.6780487804878049,
+          "review": {
+            "conciseness": "wordy",
+            "clarity": "clear",
+            "issues": [
+              {
+                "kind": "clause_bloat",
+                "points": [
+                  2
+                ],
+                "text": "Point [2] adds a because-clause explaining that exit equity is driven off exit EBITDA, which adds words without a separately testable claim."
+              },
+              {
+                "kind": "clause_bloat",
+                "points": [
+                  4
+                ],
+                "text": "Point [4] carries an extra clause about the sponsor's share growing even if total value is flat, padding the debt paydown point without a new testable claim."
+              },
+              {
+                "kind": "not_on_card",
+                "points": [
+                  8
+                ],
+                "text": "Point [8] claims expense reductions and operational improvements are how EBITDA growth is achieved, a linkage the owner's definition does not carry and the conclusion does not need."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtjcmjco000d04k4by5nbcdu",
+      "term": "What makes a good LBO candidate (5)?",
+      "model": "glm-5.3-flash+deepseek-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "A good LBO candidate is a company that can safely carry a large debt load and give the sponsor levers to improve it. The first quality is stable and predictable cash flows — the debt has to be serviced in every year of the hold regardless of conditions, so recurring revenue, loyal customers, and contractual income matter enormously. The second is low CapEx needs — a business that doesn't require heavy reinvestment throws off more free cash flow for debt paydown. The third is limited cyclical risk — a non-cyclical or defensive business keeps generating cash through a downturn, which protects the equity from being wiped out at the worst possible time; it is closely tied to the cash flow stability point. The fourth is potential to cut costs and increase efficiency — a company with obvious overhead, procurement, or operational slack gives the sponsor a concrete path to margin improvement. The fifth is a strong asset base for collateral — tangible assets support the debt financing, letting lenders advance more and at better terms, which is effectively the company's capacity to take on leverage.",
+        "klps": [
+          {
+            "text": "(definition) A good LBO candidate is a company that can safely carry a large debt load and offers the sponsor levers to improve it",
+            "kind": "definition",
+            "weight": 2,
+            "role": "framing"
+          },
+          {
+            "text": "(condition) Stable, predictable cash flows matter first because the debt must be serviced in every year of the hold regardless of conditions",
+            "kind": "condition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "(causal) Low CapEx needs matter because less reinvestment means more free cash flow for debt paydown",
+            "kind": "causal",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "(condition) Limited cyclical risk matters because a defensive business keeps generating cash through a downturn, protecting the equity",
+            "kind": "condition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "(contrast) Cyclical risk is closely tied to cash flow stability — they are two views of the same underwriting concern",
+            "kind": "contrast",
+            "weight": 3,
+            "role": "framing"
+          },
+          {
+            "text": "(condition) Potential to cut costs and increase efficiency gives the sponsor a concrete path to margin improvement",
+            "kind": "condition",
+            "weight": 1,
+            "role": "substance"
+          },
+          {
+            "text": "(mechanism) A strong asset base provides collateral that supports more debt at better terms — effectively the company's debt capacity",
+            "kind": "mechanism",
+            "weight": 4,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "A good LBO candidate is really about the overall quality of the business and whether it has the right characteristics for a leveraged deal. You want to look at things like how stable the company is, how strong its market position is, and whether there are any obvious red flags. The management team matters a lot too, because they're the ones executing the plan. At the end of the day it's about finding a company that can handle the debt and where the sponsor sees a path to creating value. There are a lot of factors to weigh and it depends on the situation.",
+            "score": 0.14285714285714285,
+            "verdicts": {
+              "0": "partial",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "incomplete",
+              "6": "failed"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "A good LBO candidate is fundamentally about the five pillars: strong cash flow, high CapEx, cyclicality, cost-cutting potential, and asset collateral. The most important is stable cash flow, but in an LBO you actually want a business with high CapEx because that means the company is reinvesting in itself, which is a positive signal for growth. Cyclicality is also a plus, because cyclical businesses can time their exits at the top of the cycle for maximum returns. Cost-cutting potential is about being able to shrink the business, and asset collateral means having a lot of tangible assets so lenders can advance less, which reduces risk. So a good LBO candidate is one that scores well on all these dimensions, and the stronger each is, the better the deal.",
+            "score": 0.14285714285714285,
+            "verdicts": {
+              "0": "contradicted",
+              "1": "partial",
+              "2": "contradicted",
+              "3": "contradicted",
+              "4": "contradicted",
+              "5": "partial",
+              "6": "contradicted"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 1,
+            "to": 4,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Claiming cyclical risk is a separate underwriting issue cannot hold once stable cash flows are already required every year.",
+            "probe": "A learner says a cyclical company can be a safe LBO candidate as long as cash flow stability is separately underwritten, missing that cyclical risk is the same concern."
+          },
+          {
+            "from": 1,
+            "to": 3,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "The demand for stable, annually serviceable cash flows drives the requirement that the business be defensive through downturns.",
+            "probe": "A learner requires stable annual cash flows for debt service but then treats limited cyclical risk as unimportant for the equity."
+          },
+          {
+            "from": 6,
+            "to": 0,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "Collateral only becomes debt capacity inside the definition that a good candidate can safely carry a large debt load.",
+            "probe": "A learner says a strong asset base always creates debt capacity without connecting it to the definition that a good LBO candidate can safely carry large debt."
+          },
+          {
+            "from": 2,
+            "to": 5,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both are sponsor levers, so a learner may state low CapEx when asked for a margin-improvement path.",
+            "probe": "A learner says the sponsor improves the company by cutting CapEx, confusing low CapEx with cost-cutting and efficiency gains."
+          }
+        ],
+        "relationStats": {
+          "candidates": 4,
+          "accepted": 4,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.8571428571428572,
+        "substanceSeparation": 0.8,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 0,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 0,
+            "rule": "abstraction_spread",
+            "detail": "one point is concrete while the other 6 are not — on a card this size that usually means it was written to a different brief. Judged WITHIN this card only; cards legitimately differ from each other."
+          }
+        ],
+        "targetKlpCount": 7,
+        "concerns": [],
+        "revisionReasons": [],
+        "questionType": "enumerate",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The closing 'common thread' sentence restates the five qualities already explained and adds length without new content."
+            },
+            {
+              "kind": "conciseness",
+              "text": "The CapEx point piles on 'which is what actually pays down the debt,' a redundant justification on top of the already-made free cash flow argument."
+            }
+          ],
+          "rewritten": true
+        },
+        "roleReasons": {
+          "0": "Generic restatement of what an LBO is, produced by any prepared candidate",
+          "1": "Links cash flow stability to the obligation to service debt every year of the hold",
+          "2": "States the mechanism: less reinvestment frees cash for debt paydown",
+          "3": "Explains why defensiveness protects equity through a downturn",
+          "4": "Standard template aside noting cyclicality and cash flow stability overlap",
+          "5": "Names the sponsor's concrete value-creation lever in margin improvement",
+          "6": "Explains collateral supporting more debt at better terms, i.e. debt capacity"
+        },
+        "keptRound": 0,
+        "rebuild": {
+          "rebuiltAnswer": "A good LBO candidate is a company that can safely carry a large debt load and offers the sponsor levers to improve it. Stable, predictable cash flows matter first because the debt must be serviced in every year of the hold regardless of conditions. Low CapEx needs matter because less reinvestment means more free cash flow for debt paydown. Limited cyclical risk matters because a defensive business keeps generating cash through a downturn, protecting the equity — and cyclical risk is closely tied to cash flow stability, two views of the same underwriting concern. Potential to cut costs and increase efficiency gives the sponsor a concrete path to margin improvement. And a strong asset base provides collateral that supports more debt at better terms — effectively the company's debt capacity.",
+          "cardCoverage": 1,
+          "referenceParity": 0.8333333333333334,
+          "extractionLoss": 0.16666666666666663,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct"
+            },
+            {
+              "index": 1,
+              "verdict": "correct"
+            },
+            {
+              "index": 2,
+              "verdict": "correct"
+            },
+            {
+              "index": 3,
+              "verdict": "correct"
+            },
+            {
+              "index": 4,
+              "verdict": "correct"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "The candidate must be able to safely carry a large debt load.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The sponsor must have levers/opportunities to improve the company.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Stable and predictable cash flows matter because the debt must be serviced in every year of the hold regardless of conditions.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Recurring revenue, loyal customers, and contractual income are important indicators of cash flow stability.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "Low CapEx needs matter because a business requiring less reinvestment throws off more free cash flow for debt paydown.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Limited cyclical risk matters because a non-cyclical or defensive business keeps generating cash through a downturn.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Limited cyclical risk protects the equity from being wiped out at the worst possible time.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Limited cyclical risk is closely tied to the cash flow stability point.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Potential to cut costs and increase efficiency matters because a company with obvious overhead, procurement, or operational slack gives the sponsor a concrete path to margin improvement.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "A strong asset base for collateral matters because tangible assets support debt financing.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Strong assets let lenders advance more debt at better terms.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The asset base is effectively the company's capacity to take on leverage.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Stable and predictable cash flows",
+            "Low CapEx needs",
+            "Limited cyclical risk",
+            "Potential to cut costs and increase efficiency",
+            "Strong asset base for collateral"
+          ],
+          "wordRatio": 0.7027027027027027,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": []
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtjcmjcz000g04k4eqiixxzz",
+      "term": "Debt is really important for an LBO. How do you determine how much a company can raise in debt?",
+      "model": "glm-5.3-flash+deepseek-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "You size debt capacity with a blend of hard benchmarks and judgment. Start with comparable LBO transactions: look at what leverage levels similar companies in the sector actually carried at buyout. The key credit statistics are leverage ratios like debt-to-EBITDA — often 4x to 6x EBITDA — and coverage ratios like EBITDA-to-interest expense, since debt is only real capacity if the cash flow can service the interest. Beyond the benchmarks, assess deal-specific factors. Market appetite matters: in an aggressive lending environment banks and credit funds stretch to higher multiples, while in a credit crunch they pull back. Company stability matters because predictable, steady cash flows support more leverage, while cyclical or volatile earnings force lenders to be conservative. Finally, collateral and asset support matter: hard, saleable assets give lenders recoverable value in a downside, so asset-heavy businesses can typically borrow more.",
+        "klps": [
+          {
+            "text": "You size debt capacity with a blend of hard benchmarks and judgment.",
+            "kind": "definition",
+            "weight": 1,
+            "role": "framing"
+          },
+          {
+            "text": "The primary benchmark is comparable LBO transactions — what leverage similar companies actually carried at buyout.",
+            "kind": "example",
+            "weight": 1,
+            "role": "substance"
+          },
+          {
+            "text": "Key credit statistics include leverage ratios like debt-to-EBITDA and coverage ratios like EBITDA-to-interest expense.",
+            "kind": "quantitative",
+            "weight": 3,
+            "role": "framing"
+          },
+          {
+            "text": "Debt is only real capacity if the cash flow can service the interest.",
+            "kind": "causal",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Market appetite sets where in the range you land: easy credit environments support higher multiples, tight ones force conservatism.",
+            "kind": "condition",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Company stability matters because predictable cash flows support more leverage, while volatile or cyclical earnings do not.",
+            "kind": "causal",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Collateral and asset support increase capacity because saleable assets give lenders recoverable value in a downside.",
+            "kind": "causal",
+            "weight": 3,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "Debt capacity really depends on a lot of things, and there’s no one-size-fits-all answer. You have to look at the company’s overall financial health, its industry, and what the market is willing to offer at the time. Generally, you’d want to see what similar deals have done and get a sense of what lenders are comfortable with. It’s more of an art than a science, so you’d work with advisors to figure out a reasonable number. The goal is to find a level that supports the deal without overburdening the company, but the specifics can vary widely.",
+            "score": 0.2857142857142857,
+            "verdicts": {
+              "0": "partial",
+              "1": "incomplete",
+              "2": "omission",
+              "3": "incomplete",
+              "4": "incomplete",
+              "5": "omission",
+              "6": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "To determine debt capacity in an LBO, you start with comparable transactions and look at leverage ratios like debt-to-EBITDA, which typically range from 2x to 3x. You also examine coverage ratios such as EBITDA-to-interest, because if the company can’t cover interest, it can’t support debt. Market conditions matter: in a strong credit environment, lenders might be more conservative, while in a downturn they tend to stretch for higher multiples. Company stability is also key—cyclical businesses can often handle more leverage because their cash flows fluctuate. Finally, collateral matters: asset-light businesses with few hard assets can usually borrow more because lenders don’t rely on recovery value.",
+            "score": 0.5,
+            "verdicts": {
+              "0": "correct",
+              "1": "correct",
+              "2": "partial",
+              "3": "correct",
+              "4": "inversion",
+              "5": "inversion",
+              "6": "inversion"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 2,
+            "to": 3,
+            "type": "requires",
+            "provenance": "order_violation",
+            "rationale": "Knowing debt capacity needs a coverage statistic, since a leverage multiple means nothing without knowing whether cash flow can pay interest.",
+            "probe": "The learner cites debt-to-EBITDA of 5x comparable deals and concludes the company can raise 5x EBITDA, never converting EBITDA into an interest-coverage check."
+          },
+          {
+            "from": 3,
+            "to": 0,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "If debt capacity is real only when cash flow services interest, capacity sizing must blend hard benchmarks with judgment about servicing.",
+            "probe": "The learner says capacity is determined purely by comparable deal multiples and reports 5x, yet also agrees capacity only exists if interest is serviceable."
+          },
+          {
+            "from": 5,
+            "to": 3,
+            "type": "applies_within",
+            "provenance": "perturbation",
+            "rationale": "The coverage logic assumes stable, predictable cash flows; volatile or cyclical earnings undermine the serviceability that makes leverage capacity real.",
+            "probe": "The learner says capacity depends on interest coverage, then assigns a cyclical company the same multiple as a stable one because leverage ratios match."
+          },
+          {
+            "from": 2,
+            "to": 6,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Collateral-based capacity and credit-statistic capacity are both lender tests but answer different questions, asset recovery versus cash-flow coverage.",
+            "probe": "The learner answers 'how much debt can you raise' with asset coverage alone, asserting saleable collateral sets capacity without any coverage-ratio analysis."
+          },
+          {
+            "from": 1,
+            "to": 4,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Market appetite and comparable-transaction leverage both set the multiple, but one is a credit-cycle condition and the other deal evidence.",
+            "probe": "The learner says capacity equals comparable LBO leverage, then raises it in a hot market, treating market appetite as the comparable-deal benchmark itself."
+          }
+        ],
+        "relationStats": {
+          "candidates": 5,
+          "accepted": 5,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.5,
+        "substanceSeparation": 0.6,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 5,
+            "rule": "verbose",
+            "detail": "2 subordinate clauses; keep the claim and at most one \"because\""
+          },
+          {
+            "index": 0,
+            "rule": "disposition",
+            "detail": "a disposition (\"understands X\") is a claim about a person, not a proposition about the world — it cannot be true or false of an answer. Belongs on the concept graph, not in a card's key points."
+          }
+        ],
+        "targetKlpCount": 6,
+        "concerns": [],
+        "revisionReasons": [
+          "separation 0.60 does not clear the 0.60 bar; [1] accepted by the memorized_template answer; [3] accepted by the memorized_template answer; [5] verbose",
+          "separation 0.33 is below the 0.40 floor; [2] accepted by the memorized_template answer; [4] accepted by the memorized_template answer; [3] reference answer scored partial on this point; [5] verbose"
+        ],
+        "questionType": "enumerate",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The framing is over-explained: 'Debt capacity is the maximum amount of debt lenders will realistically fund for a given deal, and you size it with a blend of hard benchmarks and judgment' plus the closing 'Put together, the comps give you the range and these qualitative factors tell you where in that range the specific deal sits' restate the same point twice."
+            },
+            {
+              "kind": "conciseness",
+              "text": "The coverage-ratio point is padded with a redundant justification: 'The coverage side matters because a company can only carry debt if its cash flow can actually service the interest, so a high multiple with thin coverage is not really available capacity' says one thing in two ways."
+            }
+          ],
+          "rewritten": true
+        },
+        "roleReasons": {
+          "0": "Generic open-ended framing statement that any prepared candidate opens with, adds no mechanism.",
+          "1": "Names the specific benchmark (comparable LBO leverage multiples) and why it applies.",
+          "2": "States the concrete lender constraints — leverage ceiling and interest coverage floor — as binding limits.",
+          "3": "Specifies the cash-flow coverage mechanism including amortization and cushion.",
+          "4": "Conditions capacity on credit market conditions with the consequence that multiples rise or fall.",
+          "5": "Causal link between cash flow predictability and sustainable leverage, volatility reducing it.",
+          "6": "Explains the downside recovery mechanism that makes collateral value add debt capacity."
+        },
+        "keptRound": 0,
+        "keptRoundReason": "kept round 0 over the last (2): substance 0.60 vs 0.58, parity 0.85 vs 0.86, bars missed 0 vs 0",
+        "rebuild": {
+          "rebuiltAnswer": "You size debt capacity with a blend of hard benchmarks and judgment. The primary benchmark is comparable LBO transactions — what leverage similar companies actually carried at buyout. Key credit statistics include leverage ratios like debt-to-EBITDA and coverage ratios like EBITDA-to-interest expense. Debt is only real capacity if the cash flow can service the interest. Company stability matters because predictable cash flows support more leverage, while volatile or cyclical earnings do not. Collateral and asset support increase capacity because saleable assets give lenders recoverable value in a downside. Market appetite sets where in the range you land: easy credit environments support higher multiples, tight ones force conservatism.",
+          "cardCoverage": 1,
+          "referenceParity": 0.85,
+          "extractionLoss": 0.15000000000000002,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": ""
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "Debt capacity is sized with a blend of hard benchmarks and judgment.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Start with comparable LBO transactions: look at what leverage levels similar companies in the sector actually carried at buyout.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The key credit statistics are leverage ratios like debt-to-EBITDA, often 4x to 6x EBITDA.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "The key credit statistics include coverage ratios like EBITDA-to-interest expense.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Debt is only real capacity if the cash flow can service the interest.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Market appetite matters: in an aggressive lending environment banks and credit funds stretch to higher multiples, while in a credit crunch they pull back.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Company stability matters because predictable, steady cash flows support more leverage.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Cyclical or volatile earnings force lenders to be conservative.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Collateral and asset support matter: hard, saleable assets give lenders recoverable value in a downside.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Asset-heavy businesses can typically borrow more.",
+              "verdict": "absent"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Benchmark against comparable LBO deals and credit statistics such as debt-to-EBITDA and coverage ratios",
+            "Assess market appetite, company stability, and collateral/asset support"
+          ],
+          "wordRatio": 0.7588652482269503,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": []
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtjcmjdb000j04k42m4m2u0k",
+      "term": "How long will a P/E firm generally hold on to a company? What is the typical exit strategy?",
+      "model": "glm-5.3-flash+deepseek-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "A private equity firm generally holds a company for about three to seven years before exiting to realize its gain. That window is long enough to execute the operational improvements and debt paydown that drive returns, but short enough to fit the fund's life — funds are typically ten-year vehicles and have to return capital to their limited partners. When it comes to exiting, there are three typical routes. The first is a sale to another private equity firm, sometimes called a secondary or sponsor-to-sponsor sale, where the next firm sees its own value-creation plan in the business. The second is a sale to a strategic buyer — a corporation in the industry that will often pay a premium over the LBO-implied value because it can capture synergies the PE firm cannot. The third is an IPO, where the company lists on public markets and the firm sells shares to public investors, often exiting gradually rather than all at once.",
+        "klps": [
+          {
+            "text": "PE firms generally hold a company for about 3 to 7 years before exiting to realize their gain.",
+            "kind": "definition",
+            "weight": 4,
+            "role": "framing"
+          },
+          {
+            "text": "The 3-to-7-year window is long enough to execute operational improvements and pay down debt.",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "It is short enough to return capital to LPs within a roughly ten-year fund life.",
+            "kind": "condition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The first exit route is a sale to another PE firm — a secondary or sponsor-to-sponsor deal.",
+            "kind": "example",
+            "weight": 2,
+            "role": "framing"
+          },
+          {
+            "text": "The second route is a sale to a strategic buyer, who may pay a premium because it can capture synergies the PE firm cannot.",
+            "kind": "example",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The third route is an IPO, in which the PE firm sells shares to public investors rather than to a single buyer.",
+            "kind": "example",
+            "weight": 1,
+            "role": "framing"
+          },
+          {
+            "text": "An IPO exit is typically a gradual sell-down of the PE firm's stake over time, not a clean one-shot sale of the whole company.",
+            "kind": "example",
+            "weight": 3,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "It really depends on the fund and the deal. Some firms hold for a while, others for less time, so there's no single answer. The exit strategy also varies—it could be a sale, an IPO, or something else, depending on market conditions. Generally, the goal is to create value and then find a good opportunity to exit. The timeline is usually set when the investment is made, but it can change.",
+            "score": 0.07142857142857142,
+            "verdicts": {
+              "0": "failed",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "incomplete",
+              "6": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "Private equity firms typically hold investments for a period of time that aligns with their fund structure and value creation thesis. The holding period is often discussed in terms of the fund's life and the need to generate returns for limited partners. When considering exit strategies, firms evaluate options such as selling to another sponsor, selling to a strategic acquirer, or pursuing an IPO. The key is to maximize value at exit while managing the timing relative to the fund's lifecycle. Ultimately, the holding period and exit strategy depend on market conditions and the specific circumstances of the investment.",
+            "score": 0.21428571428571427,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "omission",
+              "3": "partial",
+              "4": "incomplete",
+              "5": "incomplete",
+              "6": "omission"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 0,
+            "to": 1,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "The 3-7 year hold period only makes sense if it gives time for operational improvements and debt paydown.",
+            "probe": "Learner says PE holds 3-7 years because fund life is 10 years, but cannot explain what happens during those years."
+          },
+          {
+            "from": 0,
+            "to": 2,
+            "type": "requires",
+            "provenance": "order_violation",
+            "rationale": "You cannot state the 3-7 year window without already knowing the 10-year fund life constraint it must fit within.",
+            "probe": "Learner states PE holds 3-7 years but when asked why not 15 years says 'that's just the rule,' missing fund-life pressure."
+          },
+          {
+            "from": 4,
+            "to": 3,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Identifying a strategic buyer's synergy premium presupposes the baseline secondary sale where no such premium exists.",
+            "probe": "Learner lists strategic buyer as first exit route without knowing secondary sale is the default PE-to-PE transaction."
+          },
+          {
+            "from": 5,
+            "to": 6,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Learners often treat IPO exit as a single event rather than a gradual sell-down over time.",
+            "probe": "Learner says PE exits via IPO and describes it as selling the whole company at once to public investors."
+          }
+        ],
+        "relationStats": {
+          "candidates": 4,
+          "accepted": 4,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.7857142857142857,
+        "substanceSeparation": 0.875,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 2,
+            "rule": "not_self_contained",
+            "detail": "opens with \"It\", which has no antecedent inside this point — name the subject"
+          },
+          {
+            "index": 4,
+            "rule": "ordering",
+            "detail": "KLP 4 must precede KLP 3, but is stored after it"
+          }
+        ],
+        "targetKlpCount": 5,
+        "concerns": [],
+        "revisionReasons": [
+          "separation 0.33 is below the 0.40 floor; [1] accepted by the memorized_template answer; [1] not self contained",
+          "[1] verbose"
+        ],
+        "questionType": "enumerate",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The final sentence 'Which route they take comes down to which buyer pool is paying the best price and what market conditions look like at the time' adds a general aside that isn't part of the asked-for exit strategies and could be cut."
+            }
+          ],
+          "rewritten": true
+        },
+        "roleReasons": {
+          "0": "Canonical hold-period number every PE prep card recites.",
+          "1": "Explains the mechanism—time needed for operational improvement and deleveraging.",
+          "2": "Links the upper bound to the ten-year fund life condition and LP capital return.",
+          "3": "Naming the standard exit route rehearsed verbatim.",
+          "4": "Gives the synergy rationale for why a strategic pays a premium.",
+          "5": "IPO defined against a single buyer—textbook paraphrase.",
+          "6": "Corrects the misconception that IPO exit is a clean one-shot sale."
+        },
+        "keptRound": 2,
+        "rebuild": {
+          "rebuiltAnswer": "PE firms generally hold a company for about 3 to 7 years before exiting to realize their gain. That window is long enough to execute operational improvements and pay down debt, but short enough to return capital to LPs within a roughly ten-year fund life. The first exit route is a sale to another PE firm — a secondary or sponsor-to-sponsor deal. The second route is a sale to a strategic buyer, who may pay a premium because it can capture synergies the PE firm cannot. The third route is an IPO, in which the PE firm sells shares to public investors rather than to a single buyer. An IPO exit is typically a gradual sell-down of the PE firm's stake over time, not a clean one-shot sale of the whole company.",
+          "cardCoverage": 1,
+          "referenceParity": 0.7647058823529411,
+          "extractionLoss": 0.23529411764705888,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct"
+            },
+            {
+              "index": 1,
+              "verdict": "correct"
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "A private equity firm generally holds a company for about three to seven years before exiting.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The holding period is long enough to execute the operational improvements and debt paydown that drive returns.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The holding period is short enough to fit the fund's life.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Funds are typically ten-year vehicles.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Funds have to return capital to their limited partners.",
+              "verdict": "present"
+            },
+            {
+              "claim": "There are three typical exit routes.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "The first exit route is a sale to another private equity firm.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A sale to another private equity firm is sometimes called a secondary or sponsor-to-sponsor sale.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In a sale to another private equity firm, the next firm sees its own value-creation plan in the business.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "The second exit route is a sale to a strategic buyer.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A strategic buyer is a corporation in the industry.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "A strategic buyer will often pay a premium over the LBO-implied value.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "The strategic buyer can capture synergies the PE firm cannot.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The third exit route is an IPO.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In an IPO, the company lists on public markets.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "In an IPO, the firm sells shares to public investors.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In an IPO, the firm often exits gradually rather than all at once.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Firms generally hold for 3-7 years to realize a gain",
+            "Exit is either a sale to another PE firm, a strategic buyer, or an IPO"
+          ],
+          "wordRatio": 0.825,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": []
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtjcmjdo000m04k4oik4zmi2",
+      "term": "How do you project debt paydown in an LBO?",
+      "model": "glm-5.3-flash+deepseek-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "You project debt paydown by building a debt schedule that runs off the company's free cash flow, year by year. Start with each projected year's free cash flow — cash from operations after operating costs, capex, taxes, and, importantly, after interest expense, since interest is a real cash cost in an LBO. Allocate that cash first to mandatory repayments: the scheduled amortization each tranche is contractually required to make, in the priority order the credit agreement specifies. If the structure allows optional repayments, use whatever cash remains to prepay debt beyond that minimum — the cash sweep. Each repayment reduces the outstanding balance, which lowers next year's interest expense, which frees up more cash flow, which lets you repay even more — the paydown builds on itself.",
+        "klps": [
+          {
+            "text": "Debt paydown is projected in a debt schedule that runs off the company's free cash flow year by year.",
+            "kind": "definition",
+            "weight": 1,
+            "role": "framing"
+          },
+          {
+            "text": "Free cash flow available for debt paydown is cash flow after operating costs, capex, and taxes are deducted.",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Scheduled interest expense is deducted before arriving at the cash flow that can be used to pay down debt.",
+            "kind": "mechanism",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Debt service in the schedule begins with each tranche's mandatory amortization owed under the credit agreement, and only after that does any optional prepayment get applied.",
+            "kind": "mechanism",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "A cash sweep, where the credit agreement permits it, directs remaining free cash flow to optional prepayments that reduce the debt balance below the contractual amortization minimum.",
+            "kind": "condition",
+            "weight": 2,
+            "role": "substance"
+          },
+          {
+            "text": "Repaying debt lowers next year's interest expense, which frees more cash flow and accelerates the paydown each period.",
+            "kind": "causal",
+            "weight": 3,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "In an LBO, debt paydown is mostly about how much cash the business generates and how the debt is structured. You look at the cash flows, the different tranches, and how they amortize, and then you model out the paydown over the holding period. There are a lot of moving parts, so you have to be careful about which cash flows are available and what the credit agreement says. It really depends on the deal and the assumptions you're using. As long as the model is directionally right, that's usually what matters.",
+            "score": 0.16666666666666666,
+            "verdicts": {
+              "0": "partial",
+              "1": "omission",
+              "2": "omission",
+              "3": "incomplete",
+              "4": "omission",
+              "5": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "To project debt paydown in an LBO, you build a debt schedule that flows off free cash flow. For each projection year you calculate FCF, then apply the mandatory amortization to each tranche in the order the credit agreement lays out. Whatever cash is left over goes to the cash sweep, which prepays the highest-cost debt first. Each repayment reduces the balance, which reduces interest expense the following year, creating a compounding paydown effect. At the end of the hold period, you total up the remaining balances across the tranches to get the exit debt figure. Since the sweep accelerates as interest falls, the model typically shows total debt declining by the exit year.",
+            "score": 0.6666666666666666,
+            "verdicts": {
+              "0": "correct",
+              "1": "omission",
+              "2": "omission",
+              "3": "correct",
+              "4": "correct",
+              "5": "correct"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 5,
+            "to": 1,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "In the counterfactual where lower interest never frees more FCF, the projected cash available for paydown decouples from prior repayment.",
+            "probe": "Says debt schedule runs off FCF and repays tranches in order, but treats annual FCF available for paydown as a fixed input independent of debt balance."
+          },
+          {
+            "from": 3,
+            "to": 4,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "Cash sweep only receives leftover cash once mandatory amortization has been satisfied and its output consumed.",
+            "probe": "Explains cash sweep directs all FCF to prepayments but never first applies the tranches' mandatory amortization owed under the credit agreement."
+          },
+          {
+            "from": 2,
+            "to": 1,
+            "type": "applies_within",
+            "provenance": "substitution",
+            "rationale": "The cash-flow definition used for debt paydown only holds after scheduled interest is subtracted.",
+            "probe": "Gives correct FCF definition after opex, capex, and taxes but also treats that same pre-interest figure as the cash available for debt paydown."
+          },
+          {
+            "from": 3,
+            "to": 4,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Mandatory amortization and optional cash sweep prepayment are both debt paydown applications but sit in opposite order.",
+            "probe": "Defines cash sweep as the required amortization under the credit agreement and defines mandatory amortization as the discretionary prepayment above it."
+          }
+        ],
+        "relationStats": {
+          "candidates": 5,
+          "accepted": 4,
+          "droppedForCycles": 1,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.33333333333333337,
+        "substanceSeparation": 0.4,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 1,
+            "rule": "compound",
+            "detail": "two claims joined by \"and\" — split it"
+          }
+        ],
+        "targetKlpCount": 5,
+        "concerns": [],
+        "revisionReasons": [
+          "separation 0.33 is below the 0.40 floor; [1] accepted by the memorized_template answer; [3] accepted by the memorized_template answer; [2] not self contained",
+          "separation 0.30 is below the 0.40 floor; [2] accepted by the memorized_template answer; [3] accepted by the memorized_template answer; [4] reference answer scored omission on this point; [1] compound"
+        ],
+        "questionType": "walkthrough",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The closing sentence ('Rolling this forward, you track the beginning and ending balance... walks away with') restates the forward-roll point already made and adds exit-value color beyond the question."
+            }
+          ],
+          "rewritten": true
+        },
+        "roleReasons": {
+          "0": "Restates the question's term ('debt schedule runs off FCF') as an opening definition.",
+          "1": "Requires knowing which line items to deduct to reach the cash available for paydown.",
+          "2": "Non-obvious ordering: interest is paid before debt principal, not after.",
+          "3": "Requires understanding mandatory amortization precedes optional prepayment in the waterfall.",
+          "4": "Conditions the cash sweep on the credit agreement and states its consequence.",
+          "5": "Circular mechanism linking lower interest to accelerated paydown that templates rarely explain."
+        },
+        "keptRound": 2,
+        "rebuild": {
+          "rebuiltAnswer": "Debt paydown is projected in a debt schedule that runs off the company's free cash flow year by year. Free cash flow available for debt paydown is cash flow after operating costs, capex, and taxes are deducted, and scheduled interest expense is deducted before arriving at the cash flow that can be used to pay down debt. Debt service begins with each tranche's mandatory amortization owed under the credit agreement, and only after that does any optional prepayment get applied. Where the credit agreement permits, a cash sweep directs remaining free cash flow to optional prepayments that reduce the debt balance below the contractual amortization minimum. Repaying debt lowers next year's interest expense, which frees more cash flow and accelerates the paydown each period.",
+          "cardCoverage": 1,
+          "referenceParity": 0.8333333333333334,
+          "extractionLoss": 0.16666666666666663,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": ""
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "Debt paydown is projected by building a debt schedule that runs off the company's free cash flow, year by year.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Start with each projected year's free cash flow.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Free cash flow is cash from operations after operating costs.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Free cash flow is after capex.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Free cash flow is after taxes.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Free cash flow is after interest expense, since interest is a real cash cost in an LBO.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "Allocate that cash first to mandatory repayments.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Mandatory repayments are the scheduled amortization each tranche is contractually required to make.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Mandatory repayments follow the priority order the credit agreement specifies.",
+              "verdict": "absent"
+            },
+            {
+              "claim": "If the structure allows optional repayments, use whatever cash remains to prepay debt beyond the minimum.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "The cash sweep refers to using remaining cash for optional prepayments.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Each repayment reduces the outstanding balance.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A lower outstanding balance lowers next year's interest expense.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Lower interest expense frees up more cash flow.",
+              "verdict": "present"
+            },
+            {
+              "claim": "This lets the company repay even more, so the paydown builds on itself.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "Start with projected free cash flow each year (after interest) and allocate as much as possible toward mandatory debt repayments",
+            "If the structure allows optional repayments, use remaining cash to reduce the outstanding balance beyond the minimum"
+          ],
+          "wordRatio": 0.9763779527559056,
+          "review": {
+            "conciseness": "tight",
+            "clarity": "clear",
+            "issues": []
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtjcmje0000p04k4m78q0yzm",
+      "term": "Why is an LBO valuation generally considered a \"floor valuation\"?",
+      "model": "glm-5.3-flash+deepseek-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "An LBO valuation is considered a floor valuation because it answers a narrower question than the other methods: what is the maximum price a financial sponsor can pay and still hit its required return? A PE firm must target a minimum IRR — commonly in the low-to-mid twenties — and its returns come only from leverage, debt paydown, and operational improvement, not from synergies. Given the leverage it can raise and a reasonable exit assumption, you solve backwards from the exit to find the entry price that clears that return — and that price is usually below what other buyers could justify. A strategic buyer, by contrast, can pay more because it will own the target permanently and can layer on synergies — cost savings, revenue overlap, distribution — that a PE firm structurally cannot capture. So in a valuation summary like a football field, the LBO-implied value sits at or near the bottom of the range: above it, a buyer needs either synergies or a richer multiple — which is exactly why it is called the floor.",
+        "klps": [
+          {
+            "text": "An LBO valuation answers a narrower question than other valuation methods: the maximum price a financial sponsor can pay and still hit its required return.",
+            "kind": "definition",
+            "weight": 1,
+            "role": "substance"
+          },
+          {
+            "text": "PE firms must clear a minimum IRR, commonly in the low-to-mid twenties percent.",
+            "kind": "quantitative",
+            "weight": 3,
+            "role": "framing"
+          },
+          {
+            "text": "Given the debt capacity available and a reasonable exit assumption, you solve backwards from the exit value to find the entry price that clears the required IRR.",
+            "kind": "mechanism",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Sponsor returns come only from leverage, debt paydown, and operational improvement.",
+            "kind": "contrast",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Sponsor returns exclude synergies.",
+            "kind": "contrast",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "A strategic buyer can pay more because it will own the target permanently and can layer on synergies, such as cost savings, revenue overlap, and distribution, that a PE firm structurally cannot capture.",
+            "kind": "contrast",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The LBO-implied entry price is usually below what other buyers could justify.",
+            "kind": "causal",
+            "weight": 2,
+            "role": "framing"
+          },
+          {
+            "text": "In a valuation summary like a football field, the LBO-implied value sits at or near the bottom of the range.",
+            "kind": "example",
+            "weight": 2,
+            "role": "framing"
+          },
+          {
+            "text": "Above the LBO-implied value, a buyer must rely on synergies or a richer multiple, which is why that price is called the floor.",
+            "kind": "causal",
+            "weight": 3,
+            "role": "substance"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "An LBO valuation is often talked about as a floor valuation because it kind of provides a baseline for what a business might be worth. It has to do with the fact that private equity firms have certain return expectations, and that generally puts some kind of limit on what they can pay. So when you look at the different valuation methods, the LBO analysis tends to come in on the lower side compared to others. It's not always the absolute lowest, but it's usually in that area because of how the math works with debt and returns. People call it a floor because it represents a minimum threshold that other buyers might need to beat.",
+            "score": 0.16666666666666666,
+            "verdicts": {
+              "0": "partial",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission",
+              "6": "partial",
+              "7": "omission",
+              "8": "partial"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "An LBO valuation is generally considered a floor valuation because it represents the lowest price a financial sponsor would be willing to pay for the target. In an LBO, the sponsor uses a significant amount of debt to fund the acquisition, and the returns are driven by the ability to pay down that debt over the holding period. The maximum price a sponsor can pay is determined by the required IRR, which is typically in the low-to-mid twenties, since sponsors need to hit a hurdle rate for their limited partners. Because the sponsor needs to achieve this return, the LBO valuation sets a minimum value for the company that other buyers would not go below. This is why the LBO value is often shown at the bottom of a football field as the floor valuation.",
+            "score": 0.3888888888888889,
+            "verdicts": {
+              "0": "partial",
+              "1": "correct",
+              "2": "incomplete",
+              "3": "incomplete",
+              "4": "omission",
+              "5": "omission",
+              "6": "failed",
+              "7": "correct",
+              "8": "failed"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 3,
+            "to": 5,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "If sponsor returns did include synergies, a PE firm could match a strategic buyer and no structural gap would exist.",
+            "probe": "A learner says returns exclude synergies yet also says PE firms can pay strategic-level prices, missing that the exclusion is what creates the gap."
+          },
+          {
+            "from": 4,
+            "to": 5,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "The synergy exclusion is the specific mechanism producing the strategic buyer's higher ceiling.",
+            "probe": "A learner states synergies are excluded from sponsor returns and separately that strategics pay more, but cannot say the exclusion is why."
+          },
+          {
+            "from": 2,
+            "to": 6,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "You cannot claim the LBO-implied price sits below other buyers without first solving backward to that entry price.",
+            "probe": "A learner asserts the LBO price is below other bids but never links it to the solved-back entry price clearing the IRR."
+          },
+          {
+            "from": 1,
+            "to": 2,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "Solving backward for an entry price needs a target IRR to solve against; without the threshold the equation is undefined.",
+            "probe": "A learner describes solving backward to an entry price but never specifies the required IRR it must clear."
+          },
+          {
+            "from": 8,
+            "to": 7,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "The floor label follows from buyers above the LBO value needing synergies or a richer multiple.",
+            "probe": "A learner places LBO at the football-field bottom but explains it by precedent transactions rather than the synergy/multiple requirement."
+          },
+          {
+            "from": 5,
+            "to": 8,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both justify why the LBO value is low, so learners swap the strategic-buyer gap for the floor label.",
+            "probe": "A learner says strategics can layer on synergies when asked why the LBO value is called the floor, conflating mechanism with label."
+          }
+        ],
+        "relationStats": {
+          "candidates": 6,
+          "accepted": 6,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.6111111111111112,
+        "substanceSeparation": 0.75,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 5,
+            "rule": "verbose",
+            "detail": "33 words; a point states one claim in at most 30"
+          }
+        ],
+        "targetKlpCount": 4,
+        "concerns": [],
+        "revisionReasons": [
+          "separation 0.33 is below the 0.40 floor; [2] accepted by the memorized_template answer; [3] accepted by the memorized_template answer",
+          "separation 0.60 does not clear the 0.60 bar; [2] accepted by the memorized_template answer; [0] clause bloat: Point 0's colon clause restates the same definitional claim without adding a separately testable claim.; [4] clause bloat: Point 4's because-clause repeats the no-synergies idea instead of adding a new testable claim.; [4] restatement with [5]: Points 4 and 5 both make the same claim that a strategic buyer can pay more because a PE firm cannot credit synergies.; [5] restatement with [4]: Points 4 and 5 both make the same claim that a strategic buyer can pay more because a PE firm cannot credit synergies.; [0] restatement with [6]: Point 6 restates point 0's opening definition that the LBO valuation is the floor price.; [6] restatement with [0]: Point 6 restates point 0's opening definition that the LBO valuation is the floor price."
+        ],
+        "questionType": "why",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "wordy",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The closing sentence 'That is exactly why it is called the floor' restates the conclusion already delivered by 'the LBO-implied value sits at or near the bottom of the range,' so one of the two should be cut."
+            }
+          ],
+          "rewritten": true
+        },
+        "roleReasons": {
+          "0": "Reframes the question into the max-price-for-required-return logic, a stance a template rarely states outright.",
+          "1": "Standard memorized figure for sponsor IRR hurdles.",
+          "2": "Reverse-solving entry price from exit given debt capacity is a mechanism, not a plug-in.",
+          "3": "Identifying that sponsor returns come only from leverage, paydown, and operations requires knowing the model.",
+          "4": "Knowing synergies are structurally unavailable to a sponsor is a genuine understanding point.",
+          "5": "Explains why a strategic can outbid—permanence and synergy layering—a causal comparison most memorizers only assert.",
+          "6": "Restates the question's conclusion (LBO price is below others) without the mechanism.",
+          "7": "Football-field placement is the textbook visual every prepared answer recites.",
+          "8": "Links the floor label to the synergy/multiple requirement, an implication not handed over by the question."
+        },
+        "keptRound": 2,
+        "rebuild": {
+          "rebuiltAnswer": "An LBO valuation answers a narrower question than other methods: the maximum price a financial sponsor can pay and still hit its required return. PE firms must clear a minimum IRR, commonly in the low-to-mid twenties percent. Given the debt capacity available and a reasonable exit assumption, you solve backwards from the exit value to find the entry price that clears that IRR. Sponsor returns come only from leverage, debt paydown, and operational improvement, and exclude synergies, so a strategic buyer can pay more because it will own the target permanently and can layer on synergies like cost savings, revenue overlap, and distribution that a PE firm structurally cannot capture. So the LBO-implied entry price is usually below what other buyers could justify, and in a football field it sits at or near the bottom of the range. Above the LBO-implied value a buyer must rely on synergies or a richer multiple, which is why that price is called the floor.",
+          "cardCoverage": 1,
+          "referenceParity": 0.9545454545454546,
+          "extractionLoss": 0.045454545454545414,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            },
+            {
+              "index": 1,
+              "verdict": "correct",
+              "evidence": ""
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "An LBO valuation is a floor valuation because it answers a narrower question than other methods.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The narrower question is: what is the maximum price a financial sponsor can pay and still hit its required return?",
+              "verdict": "present"
+            },
+            {
+              "claim": "A PE firm must target a minimum IRR, commonly in the low-to-mid twenties.",
+              "verdict": "partial"
+            },
+            {
+              "claim": "PE returns come only from leverage, debt paydown, and operational improvement, not synergies.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Given the leverage it can raise and a reasonable exit assumption, you solve backwards from the exit to find the entry price that clears the return.",
+              "verdict": "present"
+            },
+            {
+              "claim": "The LBO-implied entry price is usually below what other buyers could justify.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A strategic buyer can pay more because it will own the target permanently.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A strategic buyer can layer on synergies that a PE firm structurally cannot capture.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Synergies include cost savings, revenue overlap, and distribution.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In a valuation summary like a football field, the LBO-implied value sits at or near the bottom of the range.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Above the LBO-implied value, a buyer needs either synergies or a richer multiple, which is why it is called the floor.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "LBOs must hit a certain target return, which caps the price a PE buyer can pay",
+            "That price is usually lower than what a strategic buyer might pay, so LBO valuation serves as a conservative floor"
+          ],
+          "wordRatio": 0.9044943820224719,
+          "review": {
+            "conciseness": "wordy",
+            "clarity": "clear",
+            "issues": [
+              {
+                "kind": "restatement",
+                "points": [
+                  6,
+                  7
+                ],
+                "text": "Points 6 and 7 both assert that the LBO-implied price falls below other buyers' justifiable value, once as a claim and again as football-field placement."
+              },
+              {
+                "kind": "clause_bloat",
+                "points": [
+                  5
+                ],
+                "text": "Point 5's because-clause about permanent ownership and synergy layering restates that a strategic buyer can pay more without adding a separately testable claim."
+              },
+              {
+                "kind": "not_on_card",
+                "points": [
+                  3,
+                  4,
+                  7
+                ],
+                "text": "The return-source list, the synergy exclusion, and the football-field placement are not needed to reach the conclusion that the sponsor's required-return price is a conservative floor."
+              },
+              {
+                "kind": "transition",
+                "points": [],
+                "text": "The answer adds a closing connective, \"which is why that price is called the floor,\" that appears in no point and merely re-labels the conclusion."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "cardId": "cmtjcmjep000u04k41n614t20",
+      "term": "Why might increasing leverage sometimes reduce the IRR?",
+      "model": "glm-5.3-flash+deepseek-flash [revise=grader,adversaries=grader,strict,batch=5,comms]",
+      "outcome": {
+        "referenceAnswer": "Leverage amplifies returns only while the business earns more on the borrowed money than that money costs — and pushing debt beyond that point can lower the IRR. When the debt burden is too high, excess interest expense eats into free cash flow. Since debt paydown is one of the main engines of LBO returns, cash going to interest is cash that no longer reduces the balance, so less equity value gets built by exit. A heavy interest burden also raises fragility: in a downturn, those high fixed costs can trigger covenant breaches or a distressed refinancing, putting the exit at risk. So past a certain point, the interest cost and lost flexibility outweigh the smaller equity check, and incremental leverage pushes the return down instead of up.",
+        "klps": [
+          {
+            "text": "Leverage amplifies returns only while the business earns more on the debt than the debt costs — beyond that, more borrowing hurts.",
+            "kind": "definition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "When debt is too high, excess interest expense consumes free cash flow that would otherwise pay down the balance.",
+            "kind": "mechanism",
+            "weight": 5,
+            "role": "substance"
+          },
+          {
+            "text": "Because debt paydown is a core LBO return driver, cash lost to interest means less equity value built by exit.",
+            "kind": "causal",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "The gross IRR is computed on a shrinking equity base, but the incremental interest drag on cash flow is not offset by that smaller denominator, so the IRR falls.",
+            "kind": "quantitative",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "Additional leverage is only accretive to IRR while the marginal return on the incremental debt-funded investment exceeds the after-tax cost of that debt; past that threshold each extra turn of leverage lowers IRR.",
+            "kind": "condition",
+            "weight": 4,
+            "role": "substance"
+          },
+          {
+            "text": "A heavy interest burden raises fragility: in a downturn, high fixed costs can trigger covenant breaches or a distressed refinancing, putting the exit at risk.",
+            "kind": "condition",
+            "weight": 3,
+            "role": "substance"
+          },
+          {
+            "text": "Past a certain point the interest cost and lost flexibility outweigh the smaller equity check, so incremental leverage lowers IRR.",
+            "kind": "contrast",
+            "weight": 3,
+            "role": "framing"
+          }
+        ],
+        "probes": [
+          {
+            "kind": "vague",
+            "text": "Leverage is generally thought to have a complex relationship with IRR in LBOs, and there are many factors that could cause it to move in different directions. It depends on the deal, the industry, the cost of debt, and how the cash flows are used. Sometimes more debt can be a good thing, but sometimes it can create issues that hurt returns. In some cases, the IRR might end up lower, but it's hard to pinpoint exactly why without looking at the specific model. It's really a case-by-case situation, and there are a lot of nuances involved.",
+            "score": 0,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission",
+              "6": "omission"
+            }
+          },
+          {
+            "kind": "memorized_template",
+            "text": "Leverage is a fundamental driver of returns in an LBO, and its relationship to IRR is nuanced. On the one hand, more leverage can magnify equity returns when things go well, but on the other hand, it can also introduce additional risk and cost that may impact the IRR. In general, the optimal capital structure balances these trade-offs, and the impact on IRR depends on a variety of factors such as the cost of debt, the company's cash flow profile, and the exit environment. Therefore, increasing leverage might sometimes reduce the IRR, but it really depends on the specific circumstances of the deal.",
+            "score": 0,
+            "verdicts": {
+              "0": "omission",
+              "1": "omission",
+              "2": "omission",
+              "3": "omission",
+              "4": "omission",
+              "5": "omission",
+              "6": "omission"
+            }
+          }
+        ],
+        "relations": [
+          {
+            "from": 4,
+            "to": 0,
+            "type": "requires",
+            "provenance": "perturbation",
+            "rationale": "The marginal-return threshold in [4] is the formal condition under which [0]'s general leverage warning holds.",
+            "probe": "A learner says leverage hurts IRR once the company earns less than the debt costs, but cannot define the marginal return on incremental debt-funded investment, so she cannot tell when the threshold is crossed."
+          },
+          {
+            "from": 1,
+            "to": 3,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "The cash-flow interest drag in [1] is the mechanism that lets the smaller equity base in [3] reduce IRR.",
+            "probe": "A learner explains that IRR falls because the equity denominator shrinks, but never mentions excess interest consuming free cash flow, so the numerator story is missing."
+          },
+          {
+            "from": 3,
+            "to": 6,
+            "type": "precedes",
+            "provenance": "order_violation",
+            "rationale": "The denominator/numerator asymmetry in [3] is the derivation that justifies the interest-cost-outweighs-smaller-check conclusion in [6].",
+            "probe": "A learner states that interest cost and lost flexibility outweigh the smaller equity check, but cannot derive why the smaller denominator fails to offset the interest drag."
+          },
+          {
+            "from": 1,
+            "to": 5,
+            "type": "causes",
+            "provenance": "perturbation",
+            "rationale": "A heavy interest burden raised by excess debt in [1] is what increases the fragility and covenant risk described in [5].",
+            "probe": "A learner says high leverage raises fragility, but cannot explain that excess interest expense consuming cash flow is what makes covenants harder to meet."
+          },
+          {
+            "from": 4,
+            "to": 6,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both say extra leverage eventually lowers IRR, but [4] gives the marginal-return condition while [6] gives the cost-versus-equity-check tradeoff.",
+            "probe": "A learner says 'past a point leverage lowers IRR because interest and lost flexibility outweigh the smaller check,' but when asked for the threshold invokes flexibility rather than marginal return on debt-funded investment."
+          },
+          {
+            "from": 0,
+            "to": 6,
+            "type": "confused_with",
+            "provenance": "substitution",
+            "rationale": "Both state that leverage eventually hurts, but [0] compares business return to debt cost while [6] compares interest and flexibility to the smaller equity check.",
+            "probe": "A learner says 'leverage hurts when the business earns less than the debt costs,' but when explaining why IRR specifically falls cites the shrinking equity check as the whole story."
+          }
+        ],
+        "relationStats": {
+          "candidates": 6,
+          "accepted": 6,
+          "droppedForCycles": 0,
+          "droppedOutOfRange": 0
+        },
+        "separationScore": 0.9285714285714286,
+        "substanceSeparation": 0.9166666666666666,
+        "referenceVerdicts": [
+          "correct",
+          "correct",
+          "correct",
+          "partial",
+          "correct",
+          "correct",
+          "correct"
+        ],
+        "revisions": 2,
+        "status": "separated",
+        "klpShapes": [],
+        "unseparatedBoundaries": [],
+        "defects": [
+          {
+            "index": 4,
+            "rule": "verbose",
+            "detail": "33 words; a point states one claim in at most 30"
+          }
+        ],
+        "targetKlpCount": 4,
+        "concerns": [],
+        "revisionReasons": [
+          "separation 0.25 is below the 0.40 floor; [1] accepted by the memorized_template answer; [2] accepted by the memorized_template answer",
+          "the key points rebuild to 1.31x the reference's length (bar 1.2); [3] reference answer scored partial on this point; [4] verbose; [0] restatement with [4], [6]: Points 0, 4, and 6 all state the same threshold claim that leverage only amplifies IRR until the debt's cost exceeds the return on it, so the conclusion is repeated three times.; [4] restatement with [0], [6]: Points 0, 4, and 6 all state the same threshold claim that leverage only amplifies IRR until the debt's cost exceeds the return on it, so the conclusion is repeated three times.; [6] restatement with [0], [4]: Points 0, 4, and 6 all state the same threshold claim that leverage only amplifies IRR until the debt's cost exceeds the return on it, so the conclusion is repeated three times.; [1] restatement with [2]: Points 1 and 2 both make the cash-flow-drag argument, with point 2 restating that lost cash means less debt paydown and equity value.; [2] restatement with [1]: Points 1 and 2 both make the cash-flow-drag argument, with point 2 restating that lost cash means less debt paydown and equity value.; [2] clause bloat: Point 2's because-clause adds the equity-value-built-by-exit framing without a separately testable claim."
+        ],
+        "questionType": "why",
+        "referenceReview": {
+          "accuracy": "sound",
+          "conciseness": "bloated",
+          "clarity": "clear",
+          "issues": [
+            {
+              "kind": "conciseness",
+              "text": "The answer packs in four separate mechanisms (interest drag on paydown, capex/growth starvation, covenant breach, distress), each a variation on the same 'interest costs crowd out returns' point, making it roughly twice the length a strong spoken answer needs."
+            },
+            {
+              "kind": "conciseness",
+              "text": "The conclusion is restated twice — once in the opening ('pushing debt beyond that point can actually lower the IRR') and again in the closing sentence ('incremental leverage pushes the return down instead of up')."
+            }
+          ],
+          "rewritten": true
+        },
+        "roleReasons": {
+          "0": "States the return-on-borrowed-capital condition that explains why leverage eventually hurts, a real mechanism.",
+          "1": "Names the interest drag on free cash flow, the mechanism driving the IRR decline.",
+          "2": "Links interest expense to forgone debt paydown and thus lower equity build, a non-obvious LBO mechanism.",
+          "3": "Explains the denominator/numerator asymmetry in gross IRR, requiring real understanding.",
+          "4": "Connects heavy interest load to covenants/distress and exit risk, a condition-and-consequence chain.",
+          "5": "Standard template closing contrast that incremental leverage eventually lowers returns."
+        },
+        "keptRound": 1,
+        "keptRoundReason": "kept round 1 over the last (2): substance 0.92 vs 0.80, parity 1.00 vs 1.00, bars missed 0 vs 0",
+        "rebuild": {
+          "rebuiltAnswer": "Leverage amplifies returns only while the business earns more on the debt than the debt costs — beyond that, more borrowing hurts. Additional leverage is only accretive to IRR while the marginal return on the incremental debt-funded investment exceeds the after-tax cost of that debt; past that threshold each extra turn of leverage lowers IRR. When debt is too high, excess interest expense consumes free cash flow that would otherwise pay down the balance. Because debt paydown is a core LBO return driver, cash lost to interest means less equity value built by exit. The gross IRR is computed on a shrinking equity base, but the incremental interest drag on cash flow is not offset by that smaller denominator, so the IRR falls. A heavy interest burden raises fragility: in a downturn, high fixed costs can trigger covenant breaches or a distressed refinancing, putting the exit at risk. Past a certain point the interest cost and lost flexibility outweigh the smaller equity check, so incremental leverage lowers IRR.",
+          "cardCoverage": 1,
+          "referenceParity": 1,
+          "extractionLoss": 0,
+          "clearsBar": true,
+          "clearsParityBar": true,
+          "missingPoints": [],
+          "coverageVerdicts": [
+            {
+              "index": 0,
+              "verdict": "correct",
+              "evidence": ""
+            }
+          ],
+          "parityVerdicts": [
+            {
+              "claim": "Leverage amplifies returns only while the business earns more on the borrowed money than that money costs.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Pushing debt beyond the point where returns exceed costs can lower the IRR.",
+              "verdict": "present"
+            },
+            {
+              "claim": "When the debt burden is too high, excess interest expense eats into free cash flow.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Debt paydown is one of the main engines of LBO returns.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Cash going to interest is cash that no longer reduces the debt balance.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Less debt paydown means less equity value gets built by exit.",
+              "verdict": "present"
+            },
+            {
+              "claim": "A heavy interest burden raises fragility.",
+              "verdict": "present"
+            },
+            {
+              "claim": "In a downturn, high fixed costs can trigger covenant breaches or a distressed refinancing, putting the exit at risk.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Past a certain point, the interest cost and lost flexibility outweigh the smaller equity check.",
+              "verdict": "present"
+            },
+            {
+              "claim": "Past that point, incremental leverage pushes the return down instead of up.",
+              "verdict": "present"
+            }
+          ],
+          "cardDisputes": [],
+          "definitionPoints": [
+            "If the debt burden is too high, excess interest costs can overshadow the operational improvements"
+          ],
+          "wordRatio": 1.3125,
+          "review": {
+            "conciseness": "bloated",
+            "clarity": "clear",
+            "issues": [
+              {
+                "kind": "restatement",
+                "points": [
+                  0,
+                  4,
+                  6
+                ],
+                "text": "Points 0, 4, and 6 all state the same threshold claim that leverage only amplifies IRR until the debt's cost exceeds the return on it, so the conclusion is repeated three times."
+              },
+              {
+                "kind": "restatement",
+                "points": [
+                  1,
+                  2
+                ],
+                "text": "Points 1 and 2 both make the cash-flow-drag argument, with point 2 restating that lost cash means less debt paydown and equity value."
+              },
+              {
+                "kind": "not_on_card",
+                "points": [
+                  5
+                ],
+                "text": "Point 5's fragility, covenant-breach, and distressed-refinancing argument goes beyond the owner's definition of excess interest costs overshadowing operational improvements."
+              },
+              {
+                "kind": "clause_bloat",
+                "points": [
+                  2
+                ],
+                "text": "Point 2's because-clause adds the equity-value-built-by-exit framing without a separately testable claim."
+              },
+              {
+                "kind": "transition",
+                "points": [],
+                "text": "No roadmap or connective filler was added by the answer itself."
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "step": "adversaries",
+      "model": "deepseek-flash",
+      "calls": 19,
+      "input": 11231,
+      "output": 4327,
+      "reasoning": 0,
+      "cached": 2688
+    },
+    {
+      "step": "author-batch",
+      "model": "glm-5.3-flash",
+      "calls": 2,
+      "input": 4736,
+      "output": 10506,
+      "reasoning": 1985,
+      "cached": 0
+    },
+    {
+      "step": "classify",
+      "model": "deepseek-flash",
+      "calls": 10,
+      "input": 7239,
+      "output": 1032,
+      "reasoning": 0,
+      "cached": 2560
+    },
+    {
+      "step": "coverage",
+      "model": "deepseek-flash",
+      "calls": 25,
+      "input": 21277,
+      "output": 1801,
+      "reasoning": 0,
+      "cached": 4992
+    },
+    {
+      "step": "grade",
+      "model": "deepseek-flash",
+      "calls": 72,
+      "input": 81017,
+      "output": 10245,
+      "reasoning": 0,
+      "cached": 31104
+    },
+    {
+      "step": "parity",
+      "model": "deepseek-flash",
+      "calls": 25,
+      "input": 17169,
+      "output": 9924,
+      "reasoning": 0,
+      "cached": 3072
+    },
+    {
+      "step": "rebuild",
+      "model": "deepseek-flash",
+      "calls": 25,
+      "input": 11680,
+      "output": 4049,
+      "reasoning": 0,
+      "cached": 384
+    },
+    {
+      "step": "relate",
+      "model": "deepseek-flash",
+      "calls": 10,
+      "input": 10169,
+      "output": 4802,
+      "reasoning": 0,
+      "cached": 1280
+    },
+    {
+      "step": "review",
+      "model": "deepseek-flash",
+      "calls": 10,
+      "input": 8812,
+      "output": 1229,
+      "reasoning": 0,
+      "cached": 1280
+    },
+    {
+      "step": "review-rebuilt",
+      "model": "deepseek-flash",
+      "calls": 25,
+      "input": 25409,
+      "output": 2442,
+      "reasoning": 0,
+      "cached": 4992
+    },
+    {
+      "step": "revise",
+      "model": "deepseek-flash",
+      "calls": 15,
+      "input": 20241,
+      "output": 4309,
+      "reasoning": 0,
+      "cached": 768
+    },
+    {
+      "step": "revise-ref",
+      "model": "glm-5.3-flash",
+      "calls": 10,
+      "input": 10747,
+      "output": 6412,
+      "reasoning": 2492,
+      "cached": 192
+    },
+    {
+      "step": "roles",
+      "model": "deepseek-flash",
+      "calls": 25,
+      "input": 17990,
+      "output": 5568,
+      "reasoning": 0,
+      "cached": 2816
+    }
+  ]
+}

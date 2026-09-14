@@ -826,3 +826,46 @@ the cost pass reached; grading is no longer the largest line.
 **Confirmation, the two accounting cards with `not_on_card` off:** intangibles 0.67 / parity
 0.80 / ratio 0.58 / tight; CapEx 0.83 / parity 0.83 / ratio 0.82 / tight. Both clear every bar.
 This is the configuration the corpus is authored with.
+
+### The corpus, re-authored end to end (2026-09-13 → 14)
+
+Every authored set through the current pipeline — GLM 5.3 flash `high` writes (batched 5) and
+rewrites; `deepseek-flash` reviews the reference, writes the two traps, grades strictly with
+kind-aware relaxation, rebuilds every round, reviews the rebuilt answer for compression,
+labels framing (last two sets), and the best round is kept. 278 cards, 0 failed, every card
+authored at its current version. Off-peak, about $2.40 in total at list.
+
+```
+set                       cards  sep   substance  parity  coverage  separated  low_disc  memorizable  live KLPs  framing share  framing by
+M&A                          82  0.65    0.70      0.91    0.98        79         3          0          637        7%         rule
+Accounting - Knowledge       50  0.69    0.75      0.93    0.96        49         1          0          402        8%         rule
+Talking (copy/test)          68  0.67    0.75      0.92    0.98        68         0          0          475       11%         rule
+Accounting - "Talking"       68  0.68    0.82      0.89    0.99        53         1         14          460       42%         judged
+LBO                          10  0.67    0.76      0.91    1.00         9         0          1           71       37%         judged
+```
+
+**What the run itself found.**
+- The M&A pair (old role-split run vs new): separation flat (0.67 → 0.65 under strict grading),
+  parity up where measurable, `low_discrimination` 1 → 3. The decomposition put the whole
+  separation change on the `memorized_template` trap scoring higher — on the numeric scenarios
+  it was a correct answer wearing the trap's label (WACC card: 0.81 against the points). Fixed
+  in `write-adversaries` v3 (the template must be wrong) for the sets after M&A; the M&A,
+  Accounting-Knowledge and Talking-copy cards keep the v2 traps per the owner ("let's not
+  re-make them").
+- Three processes authored Accounting-Knowledge at once for ~25 minutes (a killed run's
+  wrapper survived and moved on; a second watcher started the same set): 52 extra
+  `CardAuthoring` rows on 28 cards, superseded, no learner evidence, left in place.
+- The internet dropped mid-run at 00:23; Talking copy stopped at 66/68 with `ENOTFOUND`
+  on both providers, Accounting-"Talking" and LBO could not open the database. Resumed from
+  03:12; the resumable skip and the failed-card retry did the rest.
+
+**Framing, rule vs judged.** Under the rule (definition/contrast the template recited) 7–11%
+of points are framing. Under the judged classifier (`classify-roles`, a grader-family model
+labelling by judgement — a restated given, a plug-in comparison, the mechanical conclusion
+label, the stock contrast) it is 37–42%, and 15 cards are `memorizable` (≥ 60% framing).
+Substance separation on those sets reads 0.82 / 0.76 against 0.70–0.75 on the rule sets — some
+of that is the classifier taking more points out of the denominator, not sharper points. The
+memorizable list, each framing point with the judge's one-clause reason, is on the dashboard
+for the owner to read; the classifier's leniency is a judgement to make there, not here.
+
+**Cost per card, all-in:** M&A $0.0085 (30 calls); the judged sets add one call per round.
