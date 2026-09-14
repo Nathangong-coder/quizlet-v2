@@ -136,6 +136,7 @@ model User {
   groupsOwned      StudyGroup[]
   groupMemberships StudyGroupMember[]
   groupSetsAdded   StudyGroupSet[]
+  gameScores       GameScore[]
   feedback         Feedback[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -251,6 +252,7 @@ model Set {
   folderLinks   FolderSet[]
   groupLinks    StudyGroupSet[]
   gamePieces    GamePiece[]
+  gameScores    GameScore[]
   /// Learning games (2026-09-13, docs/superpowers/specs/2026-09-13-learning-games-design.md).
   /// The last "Prepare games" run: when, and its per-card summary
   /// ({ made, copied, generated, skipped: [{cardId, reason}], failed: [...] })
@@ -1249,6 +1251,37 @@ model GamePiece {
   @@index([setId, klpVersion])
   @@index([cardId])
   @@index([sourceHash])
+}
+
+/// A finished game run, for the per-set public leaderboards (2026-09-13).
+///
+/// THE ONE THING A GAME WRITES. Games still write no study memory — no
+/// StudyEvent, CardProgress, KlpState, QuizAnswer — and
+/// tests/games/actions.test.ts keeps asserting that. A score is a number a
+/// player chose to put their handle next to; it feeds nothing.
+///
+/// One row per run; the board shows each player's best. Only a signed-in
+/// player WITH a handle is written (the board ranks by handle, and a row
+/// nobody can be credited for is noise). Anonymous runs are never saved.
+model GameScore {
+  id        String   @id @default(cuid())
+  /// gauntlet | hot-seat | blitz | crossword | match — GAME_IDS
+  game      String
+  /// Per-game mode (gauntlet: mc | sa; hot-seat: easy | normal | hard; others: default)
+  mode      String
+  setId     String
+  set       Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Higher is better for every game; time-based games store negative ms
+  /// (see src/lib/games/scores.ts) so one ORDER BY serves all boards.
+  score     Int
+  /// Small, game-specific detail for the row: { hp, kills, mood, ms, ... }.
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([setId, game, mode, score])
+  @@index([userId])
 }
 
 model QuizOptionCache {

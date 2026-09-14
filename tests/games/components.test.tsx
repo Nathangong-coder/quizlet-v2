@@ -41,7 +41,7 @@ describe('BlitzGame', () => {
 
 describe('CrosswordGame', () => {
   it('lays out a grid, accepts typing, and checks', () => {
-    render(<CrosswordGame setId="s1" pieces={pieces} />)
+    render(<CrosswordGame setId="s1" pieces={pieces} initialSeed={1} />)
     fireEvent.click(screen.getByRole('button', { name: /^start$/i }))
     const grid = screen.getByRole('grid', { name: /crossword grid/i })
     expect(screen.getAllByRole('gridcell').length).toBeGreaterThan(20)
@@ -52,7 +52,7 @@ describe('CrosswordGame', () => {
   })
 
   it('says so when the pool is too thin', () => {
-    render(<CrosswordGame setId="s1" pieces={pieces.slice(0, 4)} />)
+    render(<CrosswordGame setId="s1" pieces={pieces.slice(0, 4)} initialSeed={1} />)
     expect(screen.getByText(/not enough short answers/i)).toBeTruthy()
   })
 })

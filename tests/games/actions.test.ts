@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  */
 const h = vi.hoisted(() => {
   const writes = ['create', 'createMany', 'update', 'updateMany', 'upsert', 'delete', 'deleteMany'] as const
+  // Every STUDY model. `gameScore` is deliberately absent: a leaderboard row is the one thing a game writes, and it is not study memory.
   const models = ['quizAnswer', 'studyEvent', 'confidenceEvent', 'klpState', 'cardProgress', 'studySession', 'quizAttempt', 'answerKlpResult', 'answerErrorTag']
   const guarded: Record<string, Record<string, ReturnType<typeof vi.fn>>> = {}
   for (const m of models) {
@@ -32,6 +33,8 @@ const h = vi.hoisted(() => {
     pieceUpdate: vi.fn(),
     generateJson: vi.fn(),
     generateJsonWithMeta: vi.fn(),
+    scoreCreate: vi.fn(),
+    userFindUnique: vi.fn(),
   }
 })
 
@@ -40,6 +43,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/lib/ai/generate', () => ({
   generateJson: h.generateJson,
   generateJsonWithMeta: h.generateJsonWithMeta,
+  resolveTaskModel: vi.fn(async () => null),
   AiGenerationError: class AiGenerationError extends Error { constructor(public detail: { title: string }) { super(detail.title) } },
 }))
 vi.mock('@/lib/db', () => ({
@@ -49,10 +53,12 @@ vi.mock('@/lib/db', () => ({
     card: { findFirst: h.cardFindFirst, findMany: h.cardFindMany, count: vi.fn(async () => 0) },
     cardKlp: { findMany: h.klpFindMany, findFirst: h.klpFindFirst },
     gamePiece: { findMany: h.pieceFindMany, findFirst: h.pieceFindFirst, create: h.pieceCreate, createMany: h.pieceCreateMany, update: h.pieceUpdate },
+    gameScore: { create: h.scoreCreate },
+    user: { findUnique: h.userFindUnique },
   },
 }))
 
-import { gradeGameAnswer, probeHotSeat, buildGauntletRun, prepareGamePieces, setGamePieceEnabled } from '@/actions/games'
+import { gradeGameAnswer, probeHotSeat, buildGauntletRun, prepareGamePieces, setGamePieceEnabled, submitGameScore } from '@/actions/games'
 
 const ME = 'u1'
 const CARD = { id: 'c1', term: 'Walk me through a DCF', definition: 'Project…', setId: 's1', position: 0, createdAt: new Date(), updatedAt: new Date() }
@@ -82,6 +88,8 @@ describe('gradeGameAnswer', () => {
     if (!r.success) return
     // Framing point (k3) and a light point (k4) failed, but every heavy SUBSTANCE point passed → hit.
     expect(r.data.hit).toBe(true)
+    // passed 5 + 4 of 16 total weight = 0.5625 → 0.56
+    expect(r.data.accuracy).toBe(0.56)
     expect(r.data.verdicts.map((v) => [v.klpId, v.status])).toEqual([['k1', 'passed'], ['k2', 'passed'], ['k3', 'failed'], ['k4', 'failed']])
     // The guarantee: not one write on any history model.
     for (const [model, fns] of Object.entries(h.guarded)) {
@@ -142,19 +150,20 @@ describe('buildGauntletRun — the one memory read', () => {
   it('reads CardProgress for the viewer only and never sends typed-room answers', async () => {
     h.setFindFirst.mockResolvedValue({ id: 's1', cards: Array.from({ length: 6 }, (_, i) => ({ id: `c${i}`, term: `t${i}`, definition: `d${i}` })) })
     h.guarded.cardProgress.findMany.mockResolvedValue([{ cardId: 'c2', confidence: 2, dueAt: null }, { cardId: 'c0', confidence: 9, dueAt: new Date(Date.now() + 86400000) }])
-    const r = await buildGauntletRun('s1', { mcOnly: false })
+    const r = await buildGauntletRun('s1', { mode: 'sa' })
     expect(r.success).toBe(true)
     if (!r.success) return
     const where = h.guarded.cardProgress.findMany.mock.calls[0][0].where
     expect(where.userId).toBe(ME)
-    // Typed rooms carry no options — the client never holds the answer.
-    expect(r.data.rooms.filter((x) => x.format === 'typed').every((x) => x.options === undefined)).toBe(true)
-    expect(r.data.rooms.some((x) => x.kind === 'boss')).toBe(true)
+    // The plan carries encounters only — no options, no answers.
+    expect(r.data.encounters).toHaveLength(12)
+    expect(r.data.encounters[11].kind).toBe('boss')
+    expect(r.data.encounters[11].cardId).toBe('c2')
   })
 
   it('requires sign-in', async () => {
     h.auth.mockResolvedValue(null)
-    expect((await buildGauntletRun('s1', { mcOnly: true })).success).toBe(false)
+    expect((await buildGauntletRun('s1', { mode: 'mc' })).success).toBe(false)
   })
 })
 
@@ -241,5 +250,41 @@ describe('setGamePieceEnabled', () => {
     h.pieceUpdate.mockResolvedValue({})
     expect((await setGamePieceEnabled('p1', false)).success).toBe(true)
     expect(h.pieceFindFirst.mock.calls[1][0].where).toEqual({ id: 'p1', set: { userId: ME } })
+  })
+})
+
+describe('submitGameScore — the one write a game makes', () => {
+  beforeEach(() => {
+    h.setFindFirst.mockResolvedValue({ id: 's1' })
+    h.scoreCreate.mockResolvedValue({})
+  })
+
+  it('saves a signed-in player WITH a handle and reports it', async () => {
+    h.userFindUnique.mockResolvedValue({ handle: 'alice' })
+    const r = await submitGameScore({ game: 'blitz', mode: 'default', setId: 's1', score: 340, meta: { clears: 12 } })
+    expect(r).toEqual({ success: true, data: { saved: true } })
+    expect(h.scoreCreate.mock.calls[0][0].data).toMatchObject({ game: 'blitz', mode: 'default', setId: 's1', userId: ME, score: 340 })
+  })
+
+  it('does not save an anonymous run, and says so without an error', async () => {
+    h.auth.mockResolvedValue(null)
+    expect(await submitGameScore({ game: 'blitz', mode: 'default', setId: 's1', score: 10 })).toEqual({ success: true, data: { saved: false, reason: 'anonymous' } })
+    expect(h.scoreCreate).not.toHaveBeenCalled()
+  })
+
+  it('does not save a player without a handle — the board ranks by handle', async () => {
+    h.userFindUnique.mockResolvedValue({ handle: null })
+    expect(await submitGameScore({ game: 'match', mode: 'default', setId: 's1', score: -42000 })).toEqual({ success: true, data: { saved: false, reason: 'no_handle' } })
+    expect(h.scoreCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unknown game/mode, an implausible score, and an unreadable set', async () => {
+    h.userFindUnique.mockResolvedValue({ handle: 'alice' })
+    expect((await submitGameScore({ game: 'blitz', mode: 'hard', setId: 's1', score: 1 })).success).toBe(false)
+    expect((await submitGameScore({ game: 'hot-seat', mode: 'hard', setId: 's1', score: 101 })).success).toBe(false)
+    expect((await submitGameScore({ game: 'crossword', mode: 'default', setId: 's1', score: 5 })).success).toBe(false)
+    h.setFindFirst.mockResolvedValue(null)
+    expect((await submitGameScore({ game: 'blitz', mode: 'default', setId: 's1', score: 1 })).success).toBe(false)
+    expect(h.scoreCreate).not.toHaveBeenCalled()
   })
 })

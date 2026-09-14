@@ -37,3 +37,14 @@ export function shuffle<T>(items: readonly T[], rng: Rng): T[] {
 export function pick<T>(items: readonly T[], rng: Rng): T {
   return items[Math.floor(rng() * items.length)]
 }
+
+/**
+ * A fresh 31-bit seed for a new deal. Lives here, not inline, so a server
+ * component can take one per request without calling `Math.random` in its
+ * render body (the react-compiler purity rule reads that as re-render drift;
+ * a request-scoped server render runs exactly once, so a random deal per
+ * request IS the intent).
+ */
+export function freshSeed(): number {
+  return Math.floor(Math.random() * 2 ** 31)
+}

@@ -26,19 +26,25 @@ export interface MatchGameState {
  * Initializes a new matching game state.
  * Each card is split into two tiles: one for the term and one for the definition.
  * Tiles are shuffled.
+ *
+ * Pass `rng` to make the deal DETERMINISTIC: tile ids derive from the card
+ * and side, and the shuffle draws from `rng`. The board is server-rendered
+ * from a seed and hydrated on the client, so the two must agree — with
+ * `Math.random` they never did (a hydration mismatch on every load).
  */
-export function initMatchGame(cards: GameCard[], sessionId?: string): MatchGameState {
+export function initMatchGame(cards: GameCard[], sessionId?: string, rng: () => number = Math.random): MatchGameState {
   const tiles: MatchTile[] = [];
+  const seeded = rng !== Math.random;
 
   cards.forEach((card) => {
     tiles.push({
-      id: crypto.randomUUID(),
+      id: seeded ? `${card.id}:term` : crypto.randomUUID(),
       cardId: card.id,
       content: card.term,
       side: 'term',
     });
     tiles.push({
-      id: crypto.randomUUID(),
+      id: seeded ? `${card.id}:definition` : crypto.randomUUID(),
       cardId: card.id,
       content: card.definition,
       side: 'definition',
@@ -47,7 +53,7 @@ export function initMatchGame(cards: GameCard[], sessionId?: string): MatchGameS
 
   // Fisher-Yates Shuffle
   for (let i = tiles.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [tiles[i], tiles[j]] = [tiles[j], tiles[i]];
   }
 

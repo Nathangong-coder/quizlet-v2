@@ -2,186 +2,262 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { DoorOpen, Footprints, Heart, Lock, Shield, Skull } from 'lucide-react'
+import { Sparkles, Sword, Heart, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { buildGauntletRun, gradeGameAnswer } from '@/actions/games'
-import { createGauntlet, reduceGauntlet, currentRoom, currentAsk, summarize, type GauntletState, type RunPlan, type Room } from '@/lib/games/gauntlet'
+import { buildGauntletRun, gauntletOptions, gradeGameAnswer, submitGameScore } from '@/actions/games'
+import {
+  createGauntlet,
+  reduceGauntlet,
+  currentEncounter,
+  summarize,
+  rollHit,
+  ENEMIES,
+  MAX_HP,
+  MAGICIAN_HEAL,
+  type GauntletState,
+  type RunPlan,
+  type GauntletMode,
+  type EnemyKind,
+} from '@/lib/games/gauntlet'
+import { KNIGHT, KNIGHT_SHIELD, SLIME, IMP, DARK_KNIGHT, BOSS, MAGICIAN, type Sprite } from '@/lib/games/sprites'
+import { PixelSprite } from '@/components/games/PixelSprite'
 import { useBest } from '@/lib/games/use-best'
 import { CredentialNote } from '@/components/games/GameFrame'
 import { cn } from '@/lib/utils'
 
 type Card = { id: string; term: string; definition: string }
+interface Best { score: number }
 
-interface Best { roomsCleared: number; bossesBeaten: number }
+const ENEMY_SPRITE: Record<EnemyKind, Sprite> = { slime: SLIME, imp: IMP, 'dark-knight': DARK_KNIGHT, miniboss: DARK_KNIGHT, boss: BOSS }
 
 /**
- * Gauntlet. The reducer owns the run; this component owns fetching the plan,
- * the current answer box, and the one server round-trip a typed room makes.
- * On a credential failure mid-run the rest of the run degrades to MC — the
- * corridor/door/boss structure is kept, only the format changes.
+ * Gauntlet. The reducer owns the fight; this component owns the scene, the
+ * question for the current enemy, and the server round-trips (options for
+ * MC, grading for SA). Random rolls and clocks are read at the event
+ * boundary and passed in, so the reducer stays pure.
  */
-export function GauntletGame({ setId }: { setId: string }) {
+export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boolean }) {
+  const [mode, setMode] = useState<GauntletMode>('mc')
   const [plan, setPlan] = useState<(RunPlan & { cards: Card[] }) | null>(null)
-  const [mcOnly, setMcOnly] = useState(false)
   const [state, setState] = useState<GauntletState | null>(null)
+  const [options, setOptions] = useState<{ cardId: string; options: string[]; correct: string; source: 'ai' | 'fallback' } | null>(null)
   const [typed, setTyped] = useState('')
-  const [last, setLast] = useState<{ ok: boolean; note: string } | null>(null)
-  const [forcedMc, setForcedMc] = useState(false)
-  const [best, writeBest] = useBest<Best>('gauntlet', setId)
+  const [note, setNote] = useState<string | null>(null)
+  const [saved, setSaved] = useState<string | null>(null)
+  const [best, writeBest] = useBest<Best>(`gauntlet-${mode}`, setId)
   const [isPending, startTransition] = useTransition()
+
+  const cardById = new Map((plan?.cards ?? []).map((c) => [c.id, c]))
+  const enc = state ? currentEncounter(state) : null
+  const card = enc ? cardById.get(enc.cardId) : null
+
+  function loadOptions(cardId: string, ask: 'term' | 'definition') {
+    setOptions(null)
+    startTransition(async () => {
+      const res = await gauntletOptions(cardId, ask)
+      if (!res.success) return void toast.error(res.error)
+      setOptions({ cardId, ...res.data })
+    })
+  }
 
   function start() {
     startTransition(async () => {
-      const res = await buildGauntletRun(setId, { mcOnly })
+      const res = await buildGauntletRun(setId, { mode })
       if (!res.success) return void toast.error(res.error)
+      const s = createGauntlet(res.data, Date.now())
       setPlan(res.data)
-      setState(createGauntlet(res.data, Date.now()))
-      setLast(null)
+      setState(s)
+      setNote(null)
+      setSaved(null)
+      const first = res.data.encounters[0]
+      if (mode === 'mc' && first) loadOptions(first.cardId, first.ask)
     })
   }
 
-  const cardById = new Map((plan?.cards ?? []).map((c) => [c.id, c]))
-  const room = state ? currentRoom(state) : null
-  const card = room ? cardById.get(room.cardId) : null
-  const ask = state ? currentAsk(state) : 'term'
-  const format: Room['format'] = room ? (forcedMc ? 'mc' : room.format) : 'mc'
-
-  // `now` is taken at the event boundary by the caller — the compiler treats a
-  // function reached through another function as possibly-render, so the
-  // impure clock read lives in the JSX handlers, not here.
-  function apply(ok: boolean, note: string, now: number) {
-    if (!state) return
-    const next = reduceGauntlet(state, { type: ok ? 'hit' : 'miss', now })
-    setState(next)
-    setLast({ ok, note })
-    setTyped('')
+  function finish(next: GauntletState) {
     const done = summarize(next)
-    if (done) {
-      if (!best || done.roomsCleared > best.roomsCleared || (done.roomsCleared === best.roomsCleared && done.bossesBeaten > best.bossesBeaten)) {
-        writeBest({ roomsCleared: done.roomsCleared, bossesBeaten: done.bossesBeaten })
-      }
-    }
+    if (!done) return
+    if (!best || done.score > best.score) writeBest({ score: done.score })
+    if (!signedIn) return
+    startTransition(async () => {
+      const res = await submitGameScore({ game: 'gauntlet', mode, setId, score: done.score, meta: { kills: done.kills, hp: done.hp, status: done.status } })
+      if (res.success) setSaved(res.data.saved ? 'Saved to the leaderboard.' : res.data.reason === 'no_handle' ? 'Choose a handle in Account to appear on the leaderboard.' : null)
+    })
   }
 
-  function pickOption(option: string, now: number) {
-    if (!card || !room) return
-    const correct = ask === 'term' ? card.definition : card.term
-    apply(option === correct, option === correct ? 'Through.' : `It was: ${correct}`, now)
+  function attack(hit: boolean, accuracy: number | undefined, now: number, said: string) {
+    if (!state || !enc) return
+    const next = reduceGauntlet(state, { type: 'attack', hit, accuracy, now })
+    setState(next)
+    setTyped('')
+    setNote(said)
+    if (next.phase === 'won' || next.phase === 'dead') return finish(next)
+    // MC: a new enemy needs its options; the same enemy still standing keeps them.
+    const nextEnc = currentEncounter(next)
+    if (mode === 'mc' && nextEnc && next.index !== state.index) loadOptions(nextEnc.cardId, nextEnc.ask)
   }
 
-  function submitTyped(now: number) {
+  function pick(option: string, now: number) {
+    if (!options || !enc) return
+    const hit = option === options.correct
+    attack(hit, undefined, now, hit ? 'A clean strike.' : `Miss — it was: ${options.correct}`)
+  }
+
+  function submitTyped(now: number, roll: number) {
     if (!card || typed.trim().length === 0) return
     startTransition(async () => {
       const res = await gradeGameAnswer(card.id, typed)
-      if (!res.success) {
-        toast.error(res.error)
-        // Degrade the rest of the run to MC rather than stalling.
-        setForcedMc(true)
-        return
-      }
-      const missed = res.data.verdicts.filter((v) => v.status !== 'passed').map((v) => v.text)
-      apply(res.data.hit, res.data.hit ? 'The door opens.' : `Missing: ${missed.slice(0, 2).join(' · ')}`, now)
+      if (!res.success) return void toast.error(res.error)
+      const hit = rollHit(res.data.accuracy, roll)
+      const pct = Math.round(res.data.accuracy * 100)
+      attack(hit, res.data.accuracy, now, hit ? `${pct}% to hit — it lands.` : `${pct}% to hit — the swing goes wide.`)
     })
+  }
+
+  function magician(choice: 'heal' | 'weaken', now: number) {
+    if (!state) return
+    const next = reduceGauntlet(state, { type: 'magician', choice, now })
+    setState(next)
+    setNote(choice === 'heal' ? `The magician mends you for ${MAGICIAN_HEAL}.` : 'The magician curses the next foe — it hits for half and falls faster.')
+    const nextEnc = currentEncounter(next)
+    if (mode === 'mc' && nextEnc) loadOptions(nextEnc.cardId, nextEnc.ask)
   }
 
   // ------------------------------------------------------------ launch screen
   if (!plan || !state) {
     return (
       <div className="space-y-5">
-        <p className="text-sm text-muted-foreground">
-          A run through the set. Cards you know are corridors, cards you half know are locked doors, and your three weakest cards are the bosses at the end. Three lives; a shield every five in a row.
-        </p>
-        <div className="rounded-lg border border-border bg-card p-3 text-sm">
-          <p><span className="font-semibold">Built from what you are weakest on.</span> The run reads your confidence on this set to decide which cards are doors and bosses. It only reads — nothing you do here changes it.</p>
+        <div className="flex items-end gap-4 rounded-2xl bg-accent p-5">
+          <PixelSprite sprite={KNIGHT} overlays={[KNIGHT_SHIELD]} size={72} label="The knight" />
+          <p className="text-sm text-accent-foreground">
+            Twelve enemies stand between you and the Examiner. A right answer is a strike; a wrong one is a miss, and they hit back — harder the further you get. Every third kill the magician offers a choice.
+          </p>
         </div>
-        <CredentialNote calls="one call per locked door and two per boss" extra="Turn on Multiple choice only to make zero calls." />
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={mcOnly} onChange={(e) => setMcOnly(e.target.checked)} className="h-4 w-4 rounded border-input" />
-          Multiple choice only
-        </label>
-        {best && <p className="text-xs text-muted-foreground">Your best on this device: {best.roomsCleared} rooms, {best.bossesBeaten} bosses.</p>}
-        <Button onClick={start} disabled={isPending}>{isPending ? 'Building the run…' : 'Start the run'}</Button>
+        <div className="rounded-lg border border-border bg-card p-3 text-sm">
+          <p><span className="font-semibold">Built from what you are weakest on.</span> Your least-confident cards become the champions and the boss. It only reads your memory; nothing here changes it.</p>
+        </div>
+        <fieldset className="grid gap-2 sm:grid-cols-2">
+          <legend className="label mb-1">Mode</legend>
+          {(['mc', 'sa'] as const).map((m) => (
+            <label key={m} className={cn('cursor-pointer rounded-lg border p-3 text-sm', mode === m ? 'border-primary bg-accent' : 'border-border')}>
+              <input type="radio" name="mode" value={m} checked={mode === m} onChange={() => setMode(m)} className="sr-only" />
+              <span className="font-semibold">{m === 'mc' ? 'Multiple choice' : 'Short answer'}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                {m === 'mc' ? 'Four options per enemy; the wrong ones are written to sound right.' : 'Type the answer; your accuracy on the key points is your chance to hit, rolled in the open.'}
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        <CredentialNote calls={mode === 'mc' ? 'one call per card the first time anyone meets it (then cached)' : 'one call per swing'} extra="Falls back to plain options from the set when no credential is usable." />
+        {best && <p className="text-xs text-muted-foreground">Your best on this device ({mode === 'mc' ? 'multiple choice' : 'short answer'}): {best.score}.</p>}
+        <Button onClick={start} disabled={isPending}>{isPending ? 'Sharpening…' : 'Enter the gauntlet'}</Button>
       </div>
     )
   }
 
-  // ------------------------------------------------------------- end screen
+  // --------------------------------------------------------------- end screen
   const done = summarize(state)
   if (done) {
     return (
       <div className="space-y-4 text-center">
-        <div className={cn('mx-auto flex h-16 w-16 items-center justify-center rounded-full', done.status === 'won' ? 'bg-success text-white' : 'bg-muted text-muted-foreground')}>
-          {done.status === 'won' ? <Shield className="h-8 w-8" aria-hidden="true" /> : <Skull className="h-8 w-8" aria-hidden="true" />}
+        <div className="mx-auto w-fit rounded-2xl bg-accent p-5">
+          {done.status === 'won' ? <PixelSprite sprite={KNIGHT} overlays={[KNIGHT_SHIELD]} size={96} label="The knight, victorious" /> : <PixelSprite sprite={BOSS} size={96} label="The Examiner" />}
         </div>
-        <h2 className="font-heading text-2xl font-bold">{done.status === 'won' ? 'You cleared the gauntlet' : 'The gauntlet got you'}</h2>
+        <h2 className="font-heading text-2xl font-bold">{done.status === 'won' ? 'The Examiner falls.' : 'The gauntlet got you.'}</h2>
         <p className="text-sm text-muted-foreground">
-          <span className="metric">{done.roomsCleared}</span> rooms · <span className="metric">{done.bossesBeaten}</span> bosses · best streak <span className="metric">{done.bestStreak}</span> · <span className="metric">{Math.round(done.elapsedMs / 1000)}s</span>
+          <span className="metric text-lg font-semibold text-foreground">{done.score}</span> points · <span className="metric">{done.kills}</span> kills · <span className="metric">{done.hp}</span> HP left · best streak <span className="metric">{done.bestStreak}</span> · <span className="metric">{Math.round(done.elapsedMs / 1000)}s</span>
         </p>
+        {saved && <p className="text-xs text-primary">{saved}</p>}
         <p className="text-xs text-muted-foreground">Nothing here was saved to your memory.</p>
-        <Button onClick={() => { setPlan(null); setState(null); setForcedMc(false) }}>Run it again</Button>
+        <Button onClick={() => { setPlan(null); setState(null); setOptions(null) }}>Run it again</Button>
       </div>
     )
   }
 
-  if (!room || !card) return null
-  const prompt = ask === 'term' ? card.term : card.definition
-  const RoomIcon = room.kind === 'boss' ? Skull : room.kind === 'door' ? Lock : Footprints
+  if (!enc || !card) return null
+  const enemy = ENEMIES[enc.kind]
+  const hitsTotal = Math.max(enemy.hits, state.enemyHitsLeft)
+  const prompt = enc.ask === 'term' ? card.term : card.definition
+  const isBoss = enc.kind === 'boss' || enc.kind === 'miniboss'
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-        <div className="flex items-center gap-1" aria-label={`${state.lives} lives`}>
-          {Array.from({ length: 3 }, (_, i) => <Heart key={i} className={cn('h-4 w-4', i < state.lives ? 'fill-rose-500 text-rose-500' : 'text-muted-foreground/40')} aria-hidden="true" />)}
-          {state.shields > 0 && <span className="ml-2 inline-flex items-center gap-1 text-xs"><Shield className="h-3.5 w-3.5" aria-hidden="true" />{state.shields}</span>}
+    <div className="space-y-4">
+      {/* HUD */}
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+        <div>
+          <div className="mb-1 flex items-center justify-between text-xs"><span className="inline-flex items-center gap-1 font-semibold"><Heart className="h-3.5 w-3.5 text-rose-500" aria-hidden="true" />You</span><span className="metric">{state.hp} / {MAX_HP}</span></div>
+          <div className="h-3 w-full overflow-hidden rounded-full bg-muted" role="img" aria-label={`${state.hp} of ${MAX_HP} HP`}>
+            <div className={cn('h-full rounded-full transition-all', state.hp > 50 ? 'bg-success' : state.hp > 25 ? 'bg-warning' : 'bg-rose-500')} style={{ width: `${(state.hp / MAX_HP) * 100}%` }} />
+          </div>
         </div>
-        <div className="text-muted-foreground">room {state.index + 1} of {state.queue.length} · streak {state.streak}</div>
+        <div className="text-center text-xs text-muted-foreground">
+          <span className="metric font-semibold text-foreground">{state.score}</span> pts · streak {state.streak}{state.weakened && <> · <Sparkles className="inline h-3 w-3" aria-hidden="true" /> cursed</>}
+        </div>
+        <div>
+          <div className="mb-1 flex items-center justify-between text-xs"><span className="inline-flex items-center gap-1 font-semibold"><Sword className="h-3.5 w-3.5" aria-hidden="true" />{enemy.name}</span><span className="metric">{state.enemyHitsLeft} / {hitsTotal}</span></div>
+          <div className="h-3 w-full overflow-hidden rounded-full bg-muted" role="img" aria-label={`${enemy.name}: ${state.enemyHitsLeft} of ${hitsTotal} hits left`}>
+            <div className="h-full rounded-full bg-rose-500 transition-all" style={{ width: `${(state.enemyHitsLeft / hitsTotal) * 100}%` }} />
+          </div>
+        </div>
       </div>
 
-      <ol className="flex gap-1" aria-hidden="true">
-        {state.queue.map((r, i) => {
-          const I = r.kind === 'boss' ? Skull : r.kind === 'door' ? DoorOpen : Footprints
-          return (
-            <li key={i} className={cn('flex h-6 flex-1 items-center justify-center rounded', i < state.index ? 'bg-success/20 text-success' : i === state.index ? 'bg-primary text-primary-foreground' : r.kind === 'boss' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200' : 'bg-muted text-muted-foreground')}>
-              <I className="h-3 w-3" />
-            </li>
-          )
-        })}
-      </ol>
-
-      <div className={cn('rounded-xl border p-5', room.kind === 'boss' ? 'border-rose-300 dark:border-rose-800' : room.kind === 'door' ? 'border-primary/50' : 'border-border')}>
-        <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <RoomIcon className="h-3.5 w-3.5" aria-hidden="true" />
-          {room.kind === 'boss' ? `Boss · hit ${state.hits + 1} of 2` : room.kind === 'door' ? 'Locked door' : 'Corridor'}
-          <span className="ml-auto font-normal normal-case">{ask === 'term' ? 'give the definition' : 'name the term'}</span>
-        </div>
-        <p className="text-lg font-medium">{prompt}</p>
+      {/* Run progress */}
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted" role="img" aria-label={`enemy ${state.index + 1} of ${state.plan.encounters.length}`}>
+        <div className="h-full bg-primary transition-all" style={{ width: `${(state.index / state.plan.encounters.length) * 100}%` }} />
       </div>
 
-      {last && (
-        <p className={cn('text-sm', last.ok ? 'text-success' : 'text-warning')} role="status">{last.note}</p>
-      )}
-
-      {format === 'mc' && room.options ? (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {room.options.map((o) => (
-            <button key={o} type="button" onClick={() => pickOption(o, Date.now())} className="rounded-lg border border-border bg-card px-4 py-3 text-left text-sm hover:border-primary/60">
-              {o}
-            </button>
-          ))}
+      {/* Scene */}
+      <div className={cn('relative flex items-end justify-between rounded-2xl px-6 pb-2 pt-6', isBoss ? 'bg-violet-100 dark:bg-violet-950/40' : 'bg-accent')}>
+        <PixelSprite sprite={KNIGHT} overlays={[KNIGHT_SHIELD]} size={88} label="You, the knight" className={cn(state.last && !state.last.hit && 'animate-pulse')} />
+        <div className="pb-4 text-center text-xs text-muted-foreground">
+          {note ?? (isBoss ? `${enemy.name} steps forward.` : `A ${enemy.name.toLowerCase()} blocks the way.`)}
         </div>
-      ) : format === 'mc' ? (
-        // Forced-MC fallback for a room planned as typed: use the other side's
-        // card text as the only option we have — a degraded but playable room.
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">Grading is unavailable — this room is a free pass.</p>
-          <Button variant="outline" onClick={() => apply(true, 'Waved through.', Date.now())}>Continue</Button>
+        {state.phase === 'magician' ? (
+          <PixelSprite sprite={MAGICIAN} size={88} label="The magician" />
+        ) : (
+          <PixelSprite sprite={ENEMY_SPRITE[enc.kind]} size={enc.kind === 'boss' ? 104 : 88} flip label={enemy.name} className={cn(state.last?.hit && 'animate-pulse')} />
+        )}
+      </div>
+
+      {state.phase === 'magician' ? (
+        <div className="rounded-xl border border-violet-300 p-4 dark:border-violet-800">
+          <p className="text-sm"><span className="font-semibold">The magician:</span> &ldquo;Three down. I can mend you, or I can weaken the next one. Choose.&rdquo;</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button onClick={() => magician('heal', Date.now())}><Heart className="h-4 w-4" aria-hidden="true" />Heal {MAGICIAN_HEAL} HP</Button>
+            <Button variant="outline" onClick={() => magician('weaken', Date.now())}><Shield className="h-4 w-4" aria-hidden="true" />Weaken the next enemy</Button>
+          </div>
         </div>
       ) : (
-        <form onSubmit={(e) => { e.preventDefault(); submitTyped(Date.now()) }} className="space-y-2">
-          <Textarea value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Type your answer" rows={3} className="resize-none" autoFocus />
-          <Button type="submit" disabled={isPending || typed.trim().length === 0}>{isPending ? 'Grading…' : 'Answer'}</Button>
-        </form>
+        <>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="label mb-1">{enc.ask === 'term' ? 'Give the definition' : 'Name the term'}{isBoss && ` · hit ${hitsTotal - state.enemyHitsLeft + 1} of ${hitsTotal}`}</div>
+            <p className="text-lg font-medium">{prompt}</p>
+          </div>
+
+          {mode === 'mc' ? (
+            options && options.cardId === enc.cardId ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                {options.options.map((o) => (
+                  <button key={o} type="button" onClick={() => pick(o, Date.now())} className="rounded-lg border border-border bg-card px-4 py-3 text-left text-sm hover:border-primary/60">
+                    {o}
+                  </button>
+                ))}
+                {options.source === 'fallback' && <p className="text-xs text-muted-foreground sm:col-span-2">Plain options from the set — no usable credential for written distractors.</p>}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground" role="status">The enemy readies its answers…</p>
+            )
+          ) : (
+            <form onSubmit={(e) => { e.preventDefault(); submitTyped(Date.now(), Math.random()) }} className="space-y-2">
+              <Textarea value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Type your answer — your accuracy is your chance to hit" rows={3} className="resize-none" autoFocus />
+              <div className="flex items-center gap-3">
+                <Button type="submit" disabled={isPending || typed.trim().length === 0}>{isPending ? 'Swinging…' : 'Strike'}</Button>
+                {state.last?.accuracy !== undefined && <span className="text-xs text-muted-foreground">last swing: {Math.round((state.last.accuracy ?? 0) * 100)}% to hit</span>}
+              </div>
+            </form>
+          )}
+        </>
       )}
     </div>
   )

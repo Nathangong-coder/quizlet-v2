@@ -1,10 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useState, useTransition, type KeyboardEvent } from 'react'
 import { Button } from '@/components/ui/button'
+import { submitGameScore } from '@/actions/games'
+import { timeToScore } from '@/lib/games/scores'
 import { layoutCrossword, createCrossword, reduceCrossword, wordAt, isWordSolved, type CrosswordState } from '@/lib/games/crossword'
 import type { GamePieceLike } from '@/lib/games/pieces'
 import { betterOf } from '@/lib/games/best'
+import { freshSeed } from '@/lib/games/rng'
 import { useBest } from '@/lib/games/use-best'
 import { cn } from '@/lib/utils'
 
@@ -13,8 +16,9 @@ import { cn } from '@/lib/utils'
  * keyboard so mobile keyboards open. The reducer owns the cursor, entries,
  * check/reveal and the solved stamp.
  */
-export function CrosswordGame({ setId, pieces }: { setId: string; pieces: GamePieceLike[] }) {
-  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 2 ** 31))
+export function CrosswordGame({ setId, pieces, signedIn = false, initialSeed }: { setId: string; pieces: GamePieceLike[]; signedIn?: boolean; initialSeed: number }) {
+  // Seeded by the server per request so the SSR grid and the hydrated grid agree.
+  const [seed, setSeed] = useState(initialSeed)
   const puzzle = useMemo(() => layoutCrossword(pieces, seed), [pieces, seed])
   const [state, setState] = useState<CrosswordState | null>(null)
   const [now, setNow] = useState(0)
@@ -28,9 +32,18 @@ export function CrosswordGame({ setId, pieces }: { setId: string; pieces: GamePi
   }, [running])
 
   /** Every reducer dispatch goes through here so the solved moment records the best once. */
+  const [saved, setSaved] = useState<string | null>(null)
+  const [, startTransition] = useTransition()
   function dispatch(next: CrosswordState) {
     if (next.solvedAt !== null && state?.solvedAt === null) {
-      writeBest(betterOf(best, next.solvedAt - next.startedAt + next.penaltyMs, false))
+      const ms = next.solvedAt - next.startedAt + next.penaltyMs
+      writeBest(betterOf(best, ms, false))
+      if (signedIn) {
+        startTransition(async () => {
+          const res = await submitGameScore({ game: 'crossword', mode: 'default', setId, score: timeToScore(ms), meta: { words: next.puzzle.words.length, penaltyMs: next.penaltyMs } })
+          if (res.success) setSaved(res.data.saved ? 'Saved to the leaderboard.' : res.data.reason === 'no_handle' ? 'Choose a handle in Account to appear on the leaderboard.' : null)
+        })
+      }
     }
     setState(next)
   }
@@ -65,7 +78,7 @@ export function CrosswordGame({ setId, pieces }: { setId: string; pieces: GamePi
         {best !== null && <p className="text-xs text-muted-foreground">Best on this device: {Math.round(best / 1000)}s.</p>}
         <div className="flex gap-2">
           <Button onClick={start}>Start</Button>
-          <Button variant="ghost" onClick={() => setSeed(Math.floor(Math.random() * 2 ** 31))}>Shuffle the grid</Button>
+          <Button variant="ghost" onClick={() => setSeed(freshSeed())}>Shuffle the grid</Button>
         </div>
       </div>
     )
@@ -132,8 +145,8 @@ export function CrosswordGame({ setId, pieces }: { setId: string; pieces: GamePi
         </div>
         {state.solvedAt !== null && (
           <div className="mt-4 flex items-center gap-3">
-            <p className="text-sm text-muted-foreground">Nothing here was saved to your memory.</p>
-            <Button size="sm" onClick={() => { setSeed(Math.floor(Math.random() * 2 ** 31)); setState(null) }}>New grid</Button>
+            <p className="text-sm text-muted-foreground">{saved ? <span className="text-primary">{saved} </span> : null}Nothing here was saved to your memory.</p>
+            <Button size="sm" onClick={() => { setSeed(freshSeed()); setState(null); setSaved(null) }}>New grid</Button>
           </div>
         )}
       </div>
