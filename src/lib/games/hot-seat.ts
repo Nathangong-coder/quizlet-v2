@@ -8,12 +8,26 @@ import { mulberry32, shuffle } from './rng'
  * Design: docs/superpowers/specs/2026-09-13-learning-games-design.md §2.2.
  */
 
-export const HOT_SEAT_QUESTIONS = 5
 export const HOT_SEAT_SECONDS = 90
 export const MOOD_START = 50
 export const TIMEOUT_MOOD_PENALTY = 5
 export const CALLBACK_AT = 65
 export const MAYBE_AT = 40
+
+/**
+ * Three difficulties (2026-09-13). MORE ROUNDS ON HARDER MODES — the owner's
+ * call: an easy interview is short and forgiving, a hard one is long and the
+ * interviewer's patience drops faster and comes back less.
+ *   decay     — multiplier on mood lost per miss
+ *   recovery  — fraction of that loss a good probe reply restores
+ */
+export const HOT_SEAT_MODES = {
+  easy: { rounds: 4, decay: 0.7, recovery: 0.5, label: 'Easy' },
+  normal: { rounds: 5, decay: 1, recovery: 0.5, label: 'Normal' },
+  hard: { rounds: 7, decay: 1.5, recovery: 0.25, label: 'Hard' },
+} as const
+export type HotSeatMode = keyof typeof HOT_SEAT_MODES
+export const HOT_SEAT_QUESTIONS: number = HOT_SEAT_MODES.normal.rounds
 
 export type Verdict = 'callback' | 'maybe' | 'no_callback'
 
@@ -45,6 +59,7 @@ export interface HotSeatTurn {
 }
 
 export interface HotSeatState {
+  mode: HotSeatMode
   cards: HotSeatCard[]
   index: number
   mood: number
@@ -52,12 +67,28 @@ export interface HotSeatState {
   phase: 'asking' | 'grading' | 'probing' | 'probe-grading' | 'reviewing' | 'done'
 }
 
-export function pickHotSeatCards(cards: readonly HotSeatCard[], seed: number, n = HOT_SEAT_QUESTIONS): HotSeatCard[] {
+/** The interviewer's face after a graded answer, from what the answer did to the mood. */
+export type Face = 'neutral' | 'pleased' | 'skeptical' | 'annoyed' | 'impressed'
+
+export function faceFor(verdicts: readonly KlpVerdict[]): Face {
+  if (verdicts.length === 0) return 'neutral'
+  const { gained, lost } = moodDelta(verdicts)
+  const total = gained + lost
+  if (total === 0) return 'neutral'
+  const share = gained / total
+  if (share >= 0.99) return 'impressed'
+  if (share >= 0.7) return 'pleased'
+  if (share >= 0.4) return 'skeptical'
+  return 'annoyed'
+}
+
+export function pickHotSeatCards(cards: readonly HotSeatCard[], seed: number, n: number = HOT_SEAT_QUESTIONS): HotSeatCard[] {
   return shuffle(cards, mulberry32(seed)).slice(0, n)
 }
 
-export function createHotSeat(cards: HotSeatCard[]): HotSeatState {
+export function createHotSeat(cards: HotSeatCard[], mode: HotSeatMode = 'normal'): HotSeatState {
   return {
+    mode,
     cards,
     index: 0,
     mood: MOOD_START,
@@ -124,7 +155,9 @@ export function reduceHotSeat(s: HotSeatState, a: HotSeatAction): HotSeatState {
     }
     case 'graded': {
       if (s.phase !== 'grading') return s
-      const { gained, lost } = moodDelta(a.verdicts)
+      const { gained, lost: rawLost } = moodDelta(a.verdicts)
+      // Harder modes lose patience faster.
+      const lost = rawLost * HOT_SEAT_MODES[s.mode].decay
       const mood = clamp(s.mood + gained - lost)
       const target = probeTarget(a.verdicts)
       return {
@@ -146,7 +179,8 @@ export function reduceHotSeat(s: HotSeatState, a: HotSeatAction): HotSeatState {
     }
     case 'probe-graded': {
       if (s.phase !== 'probe-grading') return s
-      const mood = a.recovered ? clamp(s.mood + turn.moodLost / 2) : s.mood
+      // A recovered probe restores a MODE-SIZED fraction of the loss, not always half.
+      const mood = a.recovered ? clamp(s.mood + turn.moodLost * HOT_SEAT_MODES[s.mode].recovery) : s.mood
       return { ...s, mood, phase: 'reviewing', turns: setTurn({ probeRecovered: a.recovered }) }
     }
     case 'skip-probe': {

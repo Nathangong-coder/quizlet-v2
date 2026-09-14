@@ -1,24 +1,42 @@
 import { mulberry32, shuffle, type Rng } from './rng'
 
 /**
- * Gauntlet — the one game that reads memory. Pure: `planRun` turns cards +
- * the viewer's memory into an ordered list of rooms, and `reduce` runs the
- * lives/streak/shield machine. Nothing here touches a database; the server
- * action calls `planRun` and hands the rooms to the client.
+ * Gauntlet — a run of twelve encounters, a knight with 100 HP, and the one
+ * game that reads memory (to decide which cards become which enemies). Pure:
+ * `planRun` builds the encounters, `reduceGauntlet` runs the fight. Nothing
+ * here touches a database; the server action calls `planRun` and hands the
+ * plan to the client.
  *
- * Design: docs/superpowers/specs/2026-09-13-learning-games-design.md §2.1.
+ * Design (2026-09-13 revamp): enemies, not doors. A correct answer is a
+ * strike; a wrong one is a miss and the enemy hits back for damage that
+ * ramps with the enemy. Bosses take several strikes and show a progress
+ * bar. After every three kills the magician appears and offers a choice:
+ * heal, or weaken the next enemy. Two modes — multiple choice (AI-written
+ * distractors) and short answer (your accuracy on the key points is your
+ * chance to hit, rolled in the open).
  */
 
-export const GAUNTLET_LIVES = 3
-export const SHIELD_EVERY = 5
-export const BOSS_COUNT = 3
-/** Confidence at or above which a card is a corridor (when not due). */
-export const CORRIDOR_CONFIDENCE = 7
-/** Below this a card is a door candidate; the lowest BOSS_COUNT become bosses. */
-export const DOOR_CONFIDENCE_MIN = 4
+export const MAX_HP = 100
+export const MAGICIAN_EVERY = 3
+export const MAGICIAN_HEAL = 15
+export const RUN_LENGTH = 12
 
-export type RoomKind = 'corridor' | 'door' | 'boss'
-export type RoomFormat = 'mc' | 'typed'
+export type EnemyKind = 'slime' | 'imp' | 'dark-knight' | 'miniboss' | 'boss'
+export type GauntletMode = 'mc' | 'sa'
+
+export const ENEMIES: Record<EnemyKind, { name: string; hits: number; damage: number; points: number }> = {
+  slime: { name: 'Slime', hits: 1, damage: 8, points: 50 },
+  imp: { name: 'Imp', hits: 1, damage: 12, points: 75 },
+  'dark-knight': { name: 'Dark knight', hits: 2, damage: 16, points: 120 },
+  miniboss: { name: 'Champion', hits: 2, damage: 20, points: 200 },
+  boss: { name: 'The Examiner', hits: 3, damage: 25, points: 400 },
+}
+
+/** The run's shape: a ramp with two champions and the boss last. */
+export const RUN_SHAPE: readonly EnemyKind[] = [
+  'slime', 'slime', 'imp', 'imp', 'dark-knight', 'miniboss',
+  'imp', 'dark-knight', 'dark-knight', 'miniboss', 'dark-knight', 'boss',
+]
 
 export interface GauntletCard {
   id: string
@@ -32,215 +50,205 @@ export interface CardMemory {
   due: boolean
 }
 
-export interface Room {
+export interface Encounter {
   cardId: string
-  kind: RoomKind
-  format: RoomFormat
-  /** Bosses need two hits: def→term then term→def. */
-  hitsNeeded: 1 | 2
-  /** Which side is shown first. */
+  kind: EnemyKind
+  /** Which side is shown as the question. */
   ask: 'term' | 'definition'
-  /** MC options (the correct one included), only when format = mc. */
-  options?: string[]
 }
 
 export interface RunPlan {
-  rooms: Room[]
-  /** True when the viewer had no memory on the set: corridors only. */
+  mode: GauntletMode
+  encounters: Encounter[]
+  /** True when the viewer had no memory on the set: enemies are then a plain shuffle. */
   noMemory: boolean
-  /** Number of typed prompts the run will make at most (AI calls). */
-  typedPrompts: number
-}
-
-function mcOptions(card: GauntletCard, others: readonly GauntletCard[], ask: 'term' | 'definition', rng: Rng): string[] {
-  const correct = ask === 'term' ? card.definition : card.term
-  const pool = shuffle(
-    others.filter((o) => o.id !== card.id).map((o) => (ask === 'term' ? o.definition : o.term)).filter((t) => t !== correct),
-    rng,
-  )
-  return shuffle([correct, ...pool.slice(0, 3)], rng)
 }
 
 /**
- * Corridors and doors shuffled by seed, bosses last, worst boss final. A
- * viewer with no memory gets corridors only (and the launch screen says so).
- * `mcOnly` turns every room into MC — zero AI calls.
+ * Twelve cards for twelve enemies. With memory: the cards you know LEAST
+ * become the boss and champions, the rest fill the ramp from best-known to
+ * worst so difficulty rises with the enemies. A card never studied counts as
+ * middling (5) — unstudied is not the same as weak. Without any memory, a
+ * seeded shuffle. A set smaller than twelve cards repeats cards.
  */
 export function planRun(input: {
   cards: readonly GauntletCard[]
   memory: readonly CardMemory[]
   seed: number
-  mcOnly?: boolean
+  mode: GauntletMode
 }): RunPlan {
   const rng = mulberry32(input.seed)
+  if (input.cards.length === 0) return { mode: input.mode, encounters: [], noMemory: true }
   const mem = new Map(input.memory.map((m) => [m.cardId, m]))
   const noMemory = input.cards.every((c) => !mem.has(c.id))
-  const fmt = (f: RoomFormat): RoomFormat => (input.mcOnly ? 'mc' : f)
 
-  if (noMemory) {
-    const rooms = shuffle(input.cards, rng).map<Room>((c) => ({
-      cardId: c.id,
-      kind: 'corridor',
-      format: 'mc',
-      hitsNeeded: 1,
-      ask: 'term',
-      options: mcOptions(c, input.cards, 'term', rng),
-    }))
-    return { rooms, noMemory: true, typedPrompts: 0 }
+  const conf = (c: GauntletCard) => {
+    const m = mem.get(c.id)
+    if (!m) return 5
+    return m.due ? Math.min(m.confidence, 4) : m.confidence
   }
 
-  // Bosses: the BOSS_COUNT lowest-confidence cards WITH memory (an unstudied
-  // card is not a known weakness). Worst last.
-  const withMem = input.cards.filter((c) => mem.has(c.id))
-  const bosses = [...withMem]
-    .sort((a, b) => mem.get(a.id)!.confidence - mem.get(b.id)!.confidence || a.id.localeCompare(b.id))
-    .slice(0, BOSS_COUNT)
-    .reverse()
-  const bossIds = new Set(bosses.map((b) => b.id))
+  // Pick twelve distinct cards where possible, repeating only when the set is short.
+  const pool = shuffle(input.cards, rng)
+  const picked: GauntletCard[] = []
+  while (picked.length < RUN_LENGTH) picked.push(pool[picked.length % pool.length])
 
-  const rest = input.cards.filter((c) => !bossIds.has(c.id))
-  const body = shuffle(rest, rng).map<Room>((c) => {
-    const m = mem.get(c.id)
-    const corridor = m !== undefined && m.confidence >= CORRIDOR_CONFIDENCE && !m.due
-    // Unstudied cards are corridors too: nothing says they are weak.
-    const kind: RoomKind = m === undefined || corridor ? 'corridor' : 'door'
-    const ask = rng() < 0.5 ? 'term' : 'definition'
-    const format = fmt(kind === 'door' ? 'typed' : 'mc')
-    return {
-      cardId: c.id,
-      kind,
-      format,
-      hitsNeeded: 1,
-      ask,
-      ...(format === 'mc' ? { options: mcOptions(c, input.cards, ask, rng) } : {}),
-    }
-  })
+  let ordered: GauntletCard[]
+  if (noMemory) {
+    ordered = picked
+  } else {
+    // Hardest (lowest confidence) last, so the boss slot gets the weakest card.
+    ordered = [...picked].sort((a, b) => conf(b) - conf(a) || a.id.localeCompare(b.id))
+  }
 
-  const bossRooms = bosses.map<Room>((c) => {
-    const format = fmt('typed')
-    return {
-      cardId: c.id,
-      kind: 'boss',
-      format,
-      hitsNeeded: 2,
-      ask: 'definition',
-      ...(format === 'mc' ? { options: mcOptions(c, input.cards, 'definition', rng) } : {}),
-    }
-  })
+  const encounters = RUN_SHAPE.map<Encounter>((kind, i) => ({
+    cardId: ordered[i].id,
+    kind,
+    ask: rng() < 0.5 ? 'term' : 'definition',
+  }))
+  return { mode: input.mode, encounters, noMemory }
+}
 
-  const rooms = [...body, ...bossRooms]
-  const typedPrompts = rooms.reduce((n, r) => n + (r.format === 'typed' ? r.hitsNeeded : 0), 0)
-  return { rooms, noMemory: false, typedPrompts }
+/** MC options for an encounter from other cards' text — the no-AI fallback. */
+export function fallbackOptions(card: GauntletCard, others: readonly GauntletCard[], ask: 'term' | 'definition', rng: Rng): string[] {
+  const correct = ask === 'term' ? card.definition : card.term
+  const pool = shuffle(others.filter((o) => o.id !== card.id).map((o) => (ask === 'term' ? o.definition : o.term)).filter((t) => t !== correct), rng)
+  return shuffle([correct, ...pool.slice(0, 3)], rng)
 }
 
 // ------------------------------------------------------------------ reducer
 
+export type Phase = 'fight' | 'magician' | 'won' | 'dead'
+
 export interface GauntletState {
-  queue: Room[]
-  /** Index into `queue` of the current room. */
+  plan: RunPlan
   index: number
-  /** Hits landed on the current room so far (bosses need 2). */
-  hits: number
-  lives: number
+  /** Strikes still needed on the current enemy. */
+  enemyHitsLeft: number
+  /** Set by the magician's "weaken": the next enemy hits for half. */
+  weakened: boolean
+  hp: number
+  score: number
+  kills: number
   streak: number
   bestStreak: number
-  shields: number
-  roomsCleared: number
-  bossesBeaten: number
-  /** Cards re-queued once already, so a second miss does not loop forever. */
-  requeued: Set<string>
-  status: 'playing' | 'won' | 'dead'
+  phase: Phase
+  /** Last exchange, for the UI to narrate. */
+  last: { hit: boolean; damage: number; accuracy?: number } | null
   startedAt: number
   endedAt: number | null
 }
 
-export type GauntletAction = { type: 'hit'; now: number } | { type: 'miss'; now: number }
+export type GauntletAction =
+  | { type: 'attack'; hit: boolean; accuracy?: number; now: number }
+  | { type: 'magician'; choice: 'heal' | 'weaken'; now: number }
 
 export function createGauntlet(plan: RunPlan, now: number): GauntletState {
+  const first = plan.encounters[0]
   return {
-    queue: [...plan.rooms],
+    plan,
     index: 0,
-    hits: 0,
-    lives: GAUNTLET_LIVES,
+    enemyHitsLeft: first ? ENEMIES[first.kind].hits : 0,
+    weakened: false,
+    hp: MAX_HP,
+    score: 0,
+    kills: 0,
     streak: 0,
     bestStreak: 0,
-    shields: 0,
-    roomsCleared: 0,
-    bossesBeaten: 0,
-    requeued: new Set(),
-    status: plan.rooms.length === 0 ? 'won' : 'playing',
+    phase: first ? 'fight' : 'won',
+    last: null,
     startedAt: now,
-    endedAt: plan.rooms.length === 0 ? now : null,
+    endedAt: first ? null : now,
   }
 }
 
-export function currentRoom(s: GauntletState): Room | null {
-  return s.status === 'playing' ? (s.queue[s.index] ?? null) : null
+export function currentEncounter(s: GauntletState): Encounter | null {
+  return s.phase === 'fight' || s.phase === 'magician' ? (s.plan.encounters[s.index] ?? null) : null
 }
 
-/** A boss's second hit asks the other side. */
-export function currentAsk(s: GauntletState): 'term' | 'definition' {
-  const r = currentRoom(s)
-  if (!r) return 'term'
-  if (r.hitsNeeded === 2 && s.hits === 1) return r.ask === 'term' ? 'definition' : 'term'
-  return r.ask
+/** Streak bonus: +10 % per consecutive kill, capped at double. */
+export function killPoints(kind: EnemyKind, streak: number): number {
+  return Math.round(ENEMIES[kind].points * Math.min(2, 1 + streak * 0.1))
+}
+
+/** The end-of-run score: kills' points, HP left, and a speed bonus (under five minutes). */
+export function finalScore(s: GauntletState, endedAt: number): number {
+  if (s.phase === 'dead' || s.hp <= 0) return s.score
+  const seconds = Math.max(0, (endedAt - s.startedAt) / 1000)
+  return s.score + s.hp + Math.max(0, Math.round(300 - seconds))
 }
 
 function advance(s: GauntletState, now: number): GauntletState {
-  const next = s.index + 1
-  if (next >= s.queue.length) return { ...s, index: next, hits: 0, status: 'won', endedAt: now }
-  return { ...s, index: next, hits: 0 }
+  const index = s.index + 1
+  const next = s.plan.encounters[index]
+  if (!next) {
+    const won = { ...s, index, phase: 'won' as const, endedAt: now }
+    return { ...won, score: finalScore(won, now) }
+  }
+  const base = ENEMIES[next.kind].hits
+  return { ...s, index, enemyHitsLeft: s.weakened ? Math.max(1, base - 1) : base }
 }
 
 export function reduceGauntlet(s: GauntletState, a: GauntletAction): GauntletState {
-  if (s.status !== 'playing') return s
-  const room = s.queue[s.index]
-  if (!room) return s
+  if (a.type === 'magician') {
+    if (s.phase !== 'magician') return s
+    const healed = a.choice === 'heal' ? { ...s, hp: Math.min(MAX_HP, s.hp + MAGICIAN_HEAL) } : { ...s, weakened: true }
+    return advance({ ...healed, phase: 'fight' }, a.now)
+  }
+  if (s.phase !== 'fight') return s
+  const enc = s.plan.encounters[s.index]
+  if (!enc) return s
+  const enemy = ENEMIES[enc.kind]
 
-  if (a.type === 'hit') {
-    const hits = s.hits + 1
-    if (hits < room.hitsNeeded) return { ...s, hits }
+  if (a.hit) {
+    const hitsLeft = s.enemyHitsLeft - 1
+    if (hitsLeft > 0) return { ...s, enemyHitsLeft: hitsLeft, last: { hit: true, damage: 0, accuracy: a.accuracy } }
     const streak = s.streak + 1
-    const shields = streak % SHIELD_EVERY === 0 ? s.shields + 1 : s.shields
-    return advance(
-      {
-        ...s,
-        streak,
-        bestStreak: Math.max(s.bestStreak, streak),
-        shields,
-        roomsCleared: s.roomsCleared + 1,
-        bossesBeaten: s.bossesBeaten + (room.kind === 'boss' ? 1 : 0),
-      },
-      a.now,
-    )
+    const kills = s.kills + 1
+    const killed: GauntletState = {
+      ...s,
+      score: s.score + killPoints(enc.kind, s.streak),
+      kills,
+      streak,
+      bestStreak: Math.max(s.bestStreak, streak),
+      weakened: false,
+      last: { hit: true, damage: 0, accuracy: a.accuracy },
+    }
+    const isLast = s.index + 1 >= s.plan.encounters.length
+    if (!isLast && kills % MAGICIAN_EVERY === 0) return { ...killed, phase: 'magician' }
+    return advance(killed, a.now)
   }
 
-  // miss
-  let next: GauntletState = { ...s, streak: 0, hits: 0 }
-  if (s.shields > 0) {
-    next = { ...next, shields: s.shields - 1 }
-  } else {
-    next = { ...next, lives: s.lives - 1 }
-    if (next.lives <= 0) return { ...next, status: 'dead', endedAt: a.now }
-  }
-  // Re-queue once, at the end; a second miss on the same card moves on.
-  if (!s.requeued.has(room.cardId)) {
-    const requeued = new Set(s.requeued)
-    requeued.add(room.cardId)
-    next = { ...next, requeued, queue: [...s.queue, room] }
-  }
-  return advance(next, a.now)
+  // Miss: the enemy hits back. Weakened enemies hit for half.
+  const damage = s.weakened ? Math.ceil(enemy.damage / 2) : enemy.damage
+  const hp = Math.max(0, s.hp - damage)
+  const hurt: GauntletState = { ...s, hp, streak: 0, last: { hit: false, damage, accuracy: a.accuracy } }
+  if (hp <= 0) return { ...hurt, phase: 'dead', endedAt: a.now }
+  return hurt
+}
+
+/** 0..1 through the run, for the progress bar. */
+export function runProgress(s: GauntletState): number {
+  const n = s.plan.encounters.length
+  if (n === 0) return 1
+  return Math.min(1, (s.kills + (s.phase === 'won' ? 0 : 0)) / n)
 }
 
 export interface GauntletSummary {
-  roomsCleared: number
-  bossesBeaten: number
-  elapsedMs: number
-  bestStreak: number
   status: 'won' | 'dead'
+  score: number
+  kills: number
+  hp: number
+  bestStreak: number
+  elapsedMs: number
 }
 
 export function summarize(s: GauntletState): GauntletSummary | null {
-  if (s.status === 'playing' || s.endedAt === null) return null
-  return { roomsCleared: s.roomsCleared, bossesBeaten: s.bossesBeaten, elapsedMs: s.endedAt - s.startedAt, bestStreak: s.bestStreak, status: s.status }
+  if ((s.phase !== 'won' && s.phase !== 'dead') || s.endedAt === null) return null
+  return { status: s.phase, score: s.score, kills: s.kills, hp: s.hp, bestStreak: s.bestStreak, elapsedMs: s.endedAt - s.startedAt }
+}
+
+/** Short-answer mode: the roll. `accuracy` 0..1 is the chance to hit; `roll` is uniform 0..1. */
+export function rollHit(accuracy: number, roll: number): boolean {
+  return roll < Math.max(0, Math.min(1, accuracy))
 }

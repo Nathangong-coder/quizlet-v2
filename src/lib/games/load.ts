@@ -1,5 +1,6 @@
 import { composeSetWhere } from '@/lib/sets/visibility'
 import { gameAvailability, playablePieces, type GameAvailability, type GameId, type GamePieceLike } from '@/lib/games/pieces'
+import { rankScores, GAME_MODES, LEADERBOARD_SIZE, type RankedRow } from '@/lib/games/scores'
 
 /**
  * Game reads. Every set read composes `readableSetWhere`; nothing here
@@ -101,4 +102,44 @@ export async function loadPiecesView(viewerId: string | null, setId: string): Pr
     set: { id: set.id, title: set.title, isOwner: viewerId !== null && viewerId === set.userId },
     cards: set.cards.map((c) => ({ id: c.id, term: c.term, klpStatus: c.klpStatus, pieces: byCard.get(c.id) ?? [] })),
   }
+}
+
+// ------------------------------------------------------------ leaderboards
+
+export interface Board {
+  game: GameId
+  mode: string
+  rows: RankedRow[]
+}
+
+/**
+ * One board: the set's best run per player for (game, mode), readable by
+ * anyone who can read the set. Reads a bounded window of the best rows and
+ * lets `rankScores` collapse them to one per player.
+ */
+export async function loadLeaderboard(viewerId: string | null, setId: string, game: GameId, mode: string): Promise<Board | null> {
+  const { prisma } = await import('@/lib/db')
+  if (!GAME_MODES[game]?.includes(mode)) return null
+  const set = await prisma.set.findFirst({ where: composeSetWhere(viewerId, { id: setId }), select: { id: true } })
+  if (!set) return null
+  const rows = await prisma.gameScore.findMany({
+    where: { setId, game, mode },
+    orderBy: [{ score: 'desc' }, { createdAt: 'asc' }],
+    take: LEADERBOARD_SIZE * 5,
+    select: { userId: true, score: true, createdAt: true, meta: true, user: { select: { handle: true } } },
+  })
+  return { game, mode, rows: rankScores(rows.map((r) => ({ userId: r.userId, handle: r.user.handle, score: r.score, createdAt: r.createdAt, meta: r.meta }))) }
+}
+
+/** Every board for a set, for the hub. Unreadable set → null. */
+export async function loadAllLeaderboards(viewerId: string | null, setId: string): Promise<Board[] | null> {
+  const out: Board[] = []
+  for (const [game, modes] of Object.entries(GAME_MODES) as [GameId, readonly string[]][]) {
+    for (const mode of modes) {
+      const b = await loadLeaderboard(viewerId, setId, game, mode)
+      if (!b) return null
+      out.push(b)
+    }
+  }
+  return out
 }

@@ -1,118 +1,50 @@
-import { auth } from '@/auth'
-import { prisma } from '@/lib/db'
-import { readableSetWhere } from '@/lib/sets/visibility'
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import { buttonVariants } from '@/components/ui/button'
-import { ArrowLeft } from 'lucide-react'
-import { MatchGame } from '@/components/game/MatchGame'
-import { initMatchGame } from '@/lib/game/match'
-import { filterCardsByCategories } from '@/lib/cards/categories'
-import { CategoryUrlFilter } from '@/components/sets/CategoryUrlFilter'
-import { cn } from '@/lib/utils'
-import { loadLivePieces } from '@/lib/games/load'
-import { playablePieces, MIN_PIECES } from '@/lib/games/pieces'
+import { auth } from '@/auth'
+import { readableSetWhere } from '@/lib/sets/visibility'
+import { loadPlayablePieces, loadLeaderboard } from '@/lib/games/load'
+import { MIN_PIECES } from '@/lib/games/pieces'
+import { freshSeed } from '@/lib/games/rng'
+import { GameFrame } from '@/components/games/GameFrame'
+import { MatchBoard } from '@/components/game/MatchBoard'
+import { ScoreBoard } from '@/components/games/ScoreBoard'
 
-export default async function MatchGamePage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>
-  searchParams: Promise<{ cat?: string; source?: string }>
-}) {
+/**
+ * `/sets/[id]/match` — Match on game PIECES: eight short prompt/answer pairs
+ * per deal, sixteen tiles on one screen, a timer, and the fastest times on
+ * the set's leaderboard. Whole cards are never dealt (a paragraph on a tile
+ * is unplayable); a set with fewer than eight pieces says so and points at
+ * the hub, where the owner prepares them.
+ *
+ * Anonymous-playable on a link/public set (2026-09-13): Match writes no
+ * study memory, so there is nothing to gate behind sign-in — an anonymous
+ * time simply is not saved. `readableSetWhere` (through the loaders) decides
+ * which sets a visitor can see.
+ */
+export default async function MatchGamePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { cat, source } = await searchParams
-  // Anonymous-playable on a link/public set (2026-09-13): Match writes
-  // nothing, so there is nothing to gate behind sign-in. `readableSetWhere`
-  // is what decides which sets an anonymous visitor can see.
   const session = await auth()
   const viewerId = session?.user?.id ?? null
-
-  const set = await prisma.set.findFirst({
-    where: { id, ...readableSetWhere(viewerId) },
-    include: {
-      categories: true,
-      cards: {
-        orderBy: { position: 'asc' },
-        include: { categoryAssignments: true },
-      },
-    },
-  })
-
-  if (!set) notFound()
-
-  const selected = cat?.split(',').filter(Boolean) ?? []
-  const cardsWithCats = set.cards.map((c) => ({
-    id: c.id,
-    term: c.term,
-    definition: c.definition,
-    categoryIds: c.categoryAssignments.map((a) => a.categoryId),
-  }))
-
-  // `?source=pieces`: tiles from the set's game pieces (short prompt/answer
-  // pairs made from key points) instead of whole cards — the only way a set
-  // of paragraph-length definitions can be a tile game. Design: learning
-  // games spec §3. The category filter does not apply to pieces.
-  if (source === 'pieces') {
-    const pieces = playablePieces(await loadLivePieces(id))
-    if (pieces.length < MIN_PIECES.match) {
-      return (
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <BackLink id={id} />
-          <p className="py-16 text-center text-muted-foreground">Needs {MIN_PIECES.match - pieces.length} more pieces. The set owner can prepare them from the games hub.</p>
-        </div>
-      )
-    }
-    const asCards = pieces.map((pc) => ({ id: pc.id, term: pc.prompt, definition: pc.answer }))
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <BackLink id={id} />
-        <p className="mb-4 text-xs text-muted-foreground">Matching key points, not whole cards. <Link href={`/sets/${id}/match`} className="underline underline-offset-4">Play on cards instead</Link></p>
-        <MatchGame key="pieces" setId={id} source="pieces" initialTiles={initMatchGame(asCards, crypto.randomUUID()).tiles} />
-      </div>
-    )
-  }
-
-  const filtered = filterCardsByCategories(cardsWithCats, selected)
-
-  const categories = set.categories.map((c) => ({ id: c.id, name: c.name, color: c.color }))
+  // The predicate is applied inside `loadPlayablePieces`; this reference keeps the
+  // visibility source-scan (`tests/sets/visibility-enforcement.test.ts`) honest
+  // about this page, the same way the Blitz and Crossword pages do.
+  void readableSetWhere
+  const data = await loadPlayablePieces(viewerId, id)
+  if (!data) notFound()
+  const board = await loadLeaderboard(viewerId, id, 'match', 'default')
+  const short = MIN_PIECES.match - data.pieces.length
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <BackLink id={id} />
-
-      <CategoryUrlFilter categories={categories} />
-
-      {filtered.length < 2 ? (
-        <div className="text-center py-16">
-          <p className="text-muted-foreground mb-2">
-            {set.cards.length < 2
-              ? 'You need at least 2 cards to play the matching game.'
-              : 'Fewer than 2 cards match the selected categories.'}
-          </p>
-          {selected.length > 0 && (
-            <Link href={`/sets/${id}/match`} className="text-primary underline text-sm">
-              Clear filter
-            </Link>
-          )}
-        </div>
+    <GameFrame setId={id} setTitle={data.title} game="Match" wide>
+      {short > 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Match needs {MIN_PIECES.match} pieces and this set has {data.pieces.length}. The set owner can prepare pieces from the games hub.
+        </p>
       ) : (
-        <MatchGame key={cat ?? 'all'} setId={id} initialTiles={initMatchGame(filtered, crypto.randomUUID()).tiles} />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <MatchBoard setId={id} pieces={data.pieces} signedIn={viewerId !== null} initialSeed={freshSeed()} />
+          {board && <ScoreBoard game="match" title="Fastest times" rows={board.rows} viewerId={viewerId} />}
+        </div>
       )}
-    </div>
-  )
-}
-
-function BackLink({ id }: { id: string }) {
-  return (
-    <div className="mb-6">
-      <Link
-        href={`/sets/${id}/games`}
-        className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'flex items-center gap-2 -ml-2')}
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Games
-      </Link>
-    </div>
+    </GameFrame>
   )
 }

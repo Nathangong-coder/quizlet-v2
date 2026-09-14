@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft, Skull, MessageSquareText, Zap, Grid3x3, Gamepad2, ListChecks } from 'lucide-react'
 import { auth } from '@/auth'
 import { readableSetWhere } from '@/lib/sets/visibility'
-import { loadGamesHub } from '@/lib/games/load'
+import { loadGamesHub, loadAllLeaderboards } from '@/lib/games/load'
+import { ScoreBoard } from '@/components/games/ScoreBoard'
 import type { GameAvailability, GameId } from '@/lib/games/pieces'
 import { buttonVariants } from '@/components/ui/button'
 import { PrepareButton } from '@/components/games/HubControls'
@@ -15,11 +16,11 @@ import { cn } from '@/lib/utils'
  * Prepare button with the last summary. Bare (no shell), like the games.
  */
 const GAMES: { id: GameId; name: string; pitch: string; icon: typeof Skull; ai: boolean; href: (setId: string) => string }[] = [
-  { id: 'gauntlet', name: 'Gauntlet', pitch: 'A run through the cards you are weakest on. Corridors, locked doors, three bosses, three lives.', icon: Skull, ai: true, href: (s) => `/sets/${s}/games/gauntlet` },
-  { id: 'hot-seat', name: 'Hot Seat', pitch: 'Five questions from an interviewer whose mood you can see. Miss a point and they probe it.', icon: MessageSquareText, ai: true, href: (s) => `/sets/${s}/games/hot-seat` },
+  { id: 'gauntlet', name: 'Gauntlet', pitch: 'Your knight against the cards you are weakest on. 100 HP, a magician, a boss. Answer to strike.', icon: Skull, ai: true, href: (s) => `/sets/${s}/games/gauntlet` },
+  { id: 'hot-seat', name: 'Hot Seat', pitch: 'An interviewer whose face you can read. Miss a point and they probe it. Three difficulties.', icon: MessageSquareText, ai: true, href: (s) => `/sets/${s}/games/hot-seat` },
   { id: 'blitz', name: 'Blitz', pitch: 'Prompts fall in lanes; tap the answer before they land. Combos freeze the board.', icon: Zap, ai: false, href: (s) => `/sets/${s}/games/blitz` },
   { id: 'crossword', name: 'Crossword', pitch: 'The set’s short answers as a grid. Check, reveal, beat your time.', icon: Grid3x3, ai: false, href: (s) => `/sets/${s}/games/crossword` },
-  { id: 'match', name: 'Match', pitch: 'Tiles for terms and definitions against the clock. The original.', icon: Gamepad2, ai: false, href: (s) => `/sets/${s}/match` },
+  { id: 'match', name: 'Match', pitch: 'Eight pairs of key points against the clock. Fastest time wins.', icon: Gamepad2, ai: false, href: (s) => `/sets/${s}/match` },
 ]
 
 function describe(a: GameAvailability): string | null {
@@ -38,6 +39,8 @@ export default async function GamesHubPage({ params }: { params: Promise<{ id: s
   void readableSetWhere
   const hub = await loadGamesHub(viewerId, id)
   if (!hub) notFound()
+  const boards = (await loadAllLeaderboards(viewerId, id)) ?? []
+  const boardTitle: Record<string, string> = { 'gauntlet:mc': 'Gauntlet · multiple choice', 'gauntlet:sa': 'Gauntlet · short answer', 'hot-seat:easy': 'Hot Seat · easy', 'hot-seat:normal': 'Hot Seat · normal', 'hot-seat:hard': 'Hot Seat · hard', 'blitz:default': 'Blitz', 'crossword:default': 'Crossword · fastest', 'match:default': 'Match · fastest' }
 
   const prepared = hub.set.gamesPreparedAt !== null
   const s = hub.set.summary
@@ -79,10 +82,7 @@ export default async function GamesHubPage({ params }: { params: Promise<{ id: s
 
       <ul className="mt-8 grid gap-3 sm:grid-cols-2">
         {GAMES.map((g) => {
-          // Match on cards needs two cards, nothing else; `hub.availability.match`
-          // is the PIECES variant, offered as a second link below when ready.
-          const a: GameAvailability = g.id === 'match' ? (hub.cardCount >= 2 ? { state: 'playable' } : { state: 'needs_pieces', short: 2 - hub.cardCount }) : hub.availability[g.id]
-          const piecesMatch = g.id === 'match' && hub.availability.match.state === 'playable'
+          const a: GameAvailability = hub.availability[g.id]
           const blocked = describe(a)
           const Icon = g.icon
           const body = (
@@ -103,15 +103,20 @@ export default async function GamesHubPage({ params }: { params: Promise<{ id: s
               ) : (
                 <Link href={g.href(id)} className="block h-full rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-sm)] transition-colors hover:border-primary/60">{body}</Link>
               )}
-              {piecesMatch && (
-                <Link href={`/sets/${id}/match?source=pieces`} className="self-end text-xs text-primary underline-offset-4 hover:underline">
-                  or match key points instead of cards →
-                </Link>
-              )}
             </li>
           )
         })}
       </ul>
+
+      <section className="mt-10" aria-labelledby="boards">
+        <h2 id="boards" className="label">Leaderboards</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Best run per player on this set. Sign in with a handle to appear; anonymous runs are not saved.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {boards.map((b) => (
+            <ScoreBoard key={`${b.game}:${b.mode}`} game={b.game} title={boardTitle[`${b.game}:${b.mode}`] ?? `${b.game} · ${b.mode}`} rows={b.rows} viewerId={viewerId} compact />
+          ))}
+        </div>
+      </section>
     </div>
   )
 }

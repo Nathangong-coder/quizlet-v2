@@ -1,10 +1,11 @@
 # Build queue & carried-over findings
 
 **BRANCH `study-platform` (2026-09-13, worktree `.claude/worktrees/study-platform`, off
-`da19728` on `spec2-klp-authoring`, NOT merged, NOT pushed).** Six sub-projects in one session,
-each its own commit and spec; four migrations applied to the dev database
-(`20260913120000_set_subject`, `20260913130000_user_bio`, `20260913140000_study_groups`,
-`20260913150000_game_pieces` — all additive, nullable or new tables). Suite 3483 → 3644.
+`da19728` on `spec2-klp-authoring`, NOT merged, PUSHED at the owner's request for a PR).** Six
+sub-projects in one session, each its own commit and spec; five migrations applied to the dev
+database (`20260913120000_set_subject`, `20260913130000_user_bio`,
+`20260913140000_study_groups`, `20260913150000_game_pieces`, `20260913160000_game_scores` —
+all additive, nullable or new tables). Suite 3483 → 3836.
 
 | # | commit | what | spec |
 |---|---|---|---|
@@ -19,6 +20,19 @@ each its own commit and spec; four migrations applied to the dev database
 (create → invite → join on a second account → attach → leaderboard → leave); games with a
 real **Prepare games** run on an authored set, then one round of each game; setting a subject
 on the set edit form and seeing it in the Library facet. Follow-up commits: Match writes nothing (`27619cd`); landing redesign + 20-item launch checklist (`d2dc4ef`); `(marketing)` route group + middleware rewrite for the visitor's `/`, bundle pass 782→608 KiB, Lighthouse perf 68→86, and the middleware fail-open fix (`req.auth?.user`) — see `specs/2026-09-13-landing-and-launch-checklist-design.md` §3.
+**Games revamp (2026-09-13, evening, games spec §9):** characters as on-brand pixel sprites
+(`src/lib/games/sprites.ts`, `PixelSprite`); Gauntlet is a knight with **100 HP and no lives**
+against twelve enemies with a boss and a magician (heal / weaken), in **MC** (AI distractors,
+cached per card) or **short-answer** (accuracy on the key points = chance to hit) mode; Hot
+Seat has a host with a face and a subject costume, **easy 4 / normal 5 / hard 7** rounds, 90 s
+per question, and **never lists the missed points** during the interview; Match deals **eight
+pairs from pieces** (deactivated below eight) on one screen with a timer; every game has a
+per-set, per-mode **leaderboard** on `GameScore` — the one row a game writes (§0.1 narrowed;
+not memory), and only for a signed-in player with a handle. Two hydration mismatches (Match,
+Crossword) were found only in the browser and fixed by seeding from the server (`freshSeed`,
+`initMatchGame(cards, id, rng)`). **Live gate owed (signed in):** a Gauntlet run in each mode,
+a Hot Seat interview in each difficulty with a probe, and one score of each kind landing on a
+board. `MatchTimer` was rewritten to derive elapsed time (react-compiler rule).
 Deferred on purpose: study stats on profiles, public groups.
 
 **HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress. Read this before

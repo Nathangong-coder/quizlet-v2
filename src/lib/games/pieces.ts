@@ -118,7 +118,7 @@ export function playablePieces<T extends GamePieceLike>(pieces: readonly T[]): T
 export const GAME_IDS = ['gauntlet', 'hot-seat', 'blitz', 'crossword', 'match'] as const
 export type GameId = (typeof GAME_IDS)[number]
 
-export const MIN_PIECES = { blitz: 8, crossword: 10, match: 6 } as const
+export const MIN_PIECES = { blitz: 8, crossword: 10, match: 8 } as const
 export const MIN_READY_CARDS = 5
 
 export type GameAvailability =

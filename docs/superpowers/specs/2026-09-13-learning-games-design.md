@@ -9,9 +9,12 @@ sub-project 6 builds them.
 
 ## §0 Decisions taken with the owner
 
-1. **Games are for fun. They write nothing.** No `QuizAnswer`, `StudyEvent`, `ConfidenceEvent`,
-   `KlpState` or any other history row is written by any game, ever. A test asserts this
-   against the Prisma mock (§6) so the guarantee is a build failure, not a comment.
+1. **Games are for fun. They write no study memory.** No `QuizAnswer`, `StudyEvent`,
+   `ConfidenceEvent`, `KlpState` or any other history row is written by any game, ever. A test
+   asserts this against the Prisma mock (§6) so the guarantee is a build failure, not a comment.
+   *Narrowed 2026-09-13 (§9):* the one thing a game writes is a **`GameScore`** leaderboard row,
+   which is not memory — nothing reads it back into confidence, mastery or a plan — and only for
+   a signed-in player with a handle. An anonymous run is simply not saved.
 2. **One game reads memory, the rest are blind.** Gauntlet reads the viewer's confidence and
    KLP state to order its run (read only). Hot Seat, Blitz and Crossword see the set's content
    and subject and nothing about the learner.
@@ -305,3 +308,110 @@ the page access rules are tested; the hub, pieces page and the signed-out game p
 rendered in a browser. Not yet walked with a signed-in owner: **Prepare games** on a real set
 (a real `make-game-pieces` call), a Blitz and Crossword round on real pieces, a Gauntlet run
 with typed rooms, and a full Hot Seat interview with a probe. Walk those once.
+
+## §9 Revamp, 2026-09-13 (same day, owner's brief after playing the first cut)
+
+The owner's verdict on the first build: Gauntlet was "82 obstacles", the games had no
+characters and no shared leaderboards, Hot Seat listed the missed points (spoiling the
+interview), and Match dealt whole cards. This section is what shipped in reply; where it
+contradicts §2, §9 wins.
+
+### §9.1 Leaderboards — `GameScore`, the one write
+
+`GameScore { game, mode, setId, userId, score Int, meta Json?, createdAt }`, indexed on
+`(setId, game, mode, score)`. One convention: **higher is better**, so time-based boards store
+milliseconds **negated** (`timeToScore`) and one `ORDER BY score DESC` serves every board;
+`formatScore` reads it back as `m:ss.t`. `rankScores` (`src/lib/games/scores.ts`, pure) keeps
+the best row per player, shares ranks on ties (earlier run wins the tiebreak), drops rows with
+no handle, caps at 20. `submitGameScore` (server action) is the only writer: anonymous →
+`{ saved: false, reason: 'anonymous' }`, no handle → `reason: 'no_handle'` (both **successes**,
+the UI just says so), unknown game/mode or an implausible score (`SCORE_BOUNDS`) → error, set
+must be readable by the viewer. Boards are per set and per mode: Gauntlet `mc | sa`, Hot Seat
+`easy | normal | hard`, Blitz / Crossword / Match `default`. Every game page renders its
+board(s) beside the game; the hub renders all eight compact.
+
+### §9.2 Sprites — on-brand pixel art, no raster assets
+
+`src/lib/games/sprites.ts` holds every character as a text grid (one char per pixel, `.`
+transparent, colours from `PALETTE` — the app's indigo and cream); `PixelSprite` renders it as
+SVG rects with `crispEdges`. `compose(base, ...overlays)` layers costumes and faces. The cast:
+knight (+ shield with the synapse mark), slime, imp, dark knight, boss, magician, and the Hot
+Seat host with five **faces** (neutral / pleased / skeptical / annoyed / impressed) and a
+**costume per subject group** (business-finance "The panel", science "The scientist",
+arts-humanities "The author", maths "The professor", medicine-health "The attending",
+technology "The interviewer", default "The examiner"). `scripts/sprite-sheet.ts` prints the
+cast as one HTML page for eyeballing. A test pins every sprite rectangular and on-palette.
+
+### §9.3 Gauntlet — a knight, 100 HP, twelve enemies, a magician
+
+Replaces §2.1's rooms. `planRun({ cards, memory, seed, mode })` builds **twelve encounters**
+in a fixed shape (`RUN_SHAPE`: slimes and imps first, dark knights, a miniboss, champions, the
+**boss last**); the viewer's least-confident cards take the boss and champion slots (a due card
+counts as weak; an unstudied card sits at 5), a set with fewer than twelve cards repeats. Reading
+`CardProgress` here is still the only memory read any game makes.
+
+The reducer: **`MAX_HP = 100`, no lives.** A hit strikes the enemy (slime/imp 1 hit, dark
+knight/miniboss 2, **boss 3** — a progress bar shows hits left); a miss costs the enemy's damage
+(8 → 12 → 16 → 20 → 25, ramping by enemy) and resets the streak. Zero HP is `dead`. Kill points
+(50 → 400) carry a streak bonus (+10 % per streak, capped at 2×); the final score adds the HP
+left and a speed bonus (`max(0, 300 − seconds)`). **Every third kill the magician appears** with
+a choice: **heal 15 HP** or **weaken the next enemy** (it hits for half, and a 2- or 3-hit enemy
+falls one hit sooner).
+
+Two modes, chosen on the launch screen. **Multiple choice** (`mc`): `gauntletOptions(cardId, ask)`
+returns four options; on the definition side the wrong three are **AI-written distractors**
+(the `MULTIPLE_CHOICE_PROMPT`, cached in `QuizOptionCache` per `(card, model)` so a card is
+paid for once for everyone), on the term side and whenever no credential is usable it falls back
+to sibling cards' text and says so. **Short answer** (`sa`): the player types, `gradeGameAnswer`
+grades against the key points, and the **weighted share of points earned is the chance to hit**
+(`accuracy` — passed = 1, partial = ½), rolled in the open and shown as a small "N % to hit" tag.
+The roll is taken at the event boundary and passed into the reducer, so the reducer stays pure
+under fake time.
+
+### §9.4 Hot Seat — a face, three difficulties, and no spoilers
+
+Three modes (`HOT_SEAT_MODES`): **easy 4 rounds** (patience decay ×0.7, recovery ×0.5),
+**normal 5** (×1, ×0.5), **hard 7** (×1.5, ×0.25) — more rounds are reserved for the harder
+modes, and hard both loses mood faster and recovers less. The clock stays **90 s per question**.
+The host is the sprite host in the set's subject costume; `faceFor(verdicts)` picks the face
+from the share of points earned (≥ 0.99 impressed, ≥ 0.7 pleased, ≥ 0.4 skeptical, else
+annoyed) and the face is the **only** per-answer feedback during the interview: **the missed
+key points are never listed** — the player sees the host's reaction and the follow-up question.
+Points appear only in the end-screen transcript. The verdict submits the final mood (0–100) to
+the mode's board.
+
+### §9.5 Blitz and Crossword
+
+Unchanged as games; both submit to their board at the end (Blitz the score, Crossword the
+solve time negated) and show "Saved to the leaderboard." or the handle hint.
+
+### §9.6 Match — pieces only, sixteen tiles, a timer, fastest time
+
+`/sets/[id]/match` is **deactivated until the set has eight pieces** (`MIN_PIECES.match = 8`;
+the page says so and points at the hub, where the owner prepares them). It deals **eight pairs
+from pieces** (`dealMatch`, seeded) — never whole cards, which is what made the finance boards
+unplayable — onto a 4 × 4 grid sized to fit one screen (`MatchTileCard`: fixed 4 : 3 aspect,
+text clamped to four lines). The seed comes from the server per request and the shuffle and
+tile ids derive from it (`initMatchGame(cards, id, rng)`), so the SSR board and the hydrated
+board are the same board; "Play again" re-deals from a fresh seed without a reload. Finishing
+submits the time to the "Fastest times" board. The old cards-based Match and the
+`?source=pieces` variant are gone; the source-scan guard now allows exactly one server-action
+import in the Match files, `submitGameScore`.
+
+### §9.7 Verified
+
+`tests/games/` (76 tests): plan shape and weakest-last ordering, HP damage ramp, death, streak
+points, the magician's two choices, boss hits, `rollHit`, the SA accuracy, Hot Seat modes and
+`faceFor`, leaderboard ranking and time encoding (including that `timeToScore(0)` is `0`, not
+`-0`), score bounds, `submitGameScore`'s anonymous / no-handle / bounds / unreadable paths, the
+sprite grids, `dealMatch`, the deterministic Match deal, and component tests that pin the knight
+and enemy on screen, the HP bar with no lives, the magician's buttons, the SA "% to hit" tag,
+the host's face reacting, the follow-up appearing, and the missed point **absent** from the
+DOM. Browser (anonymous): Match on the M&A set — sixteen tiles, no scroll, timer, finish
+modal, re-deal; Blitz and Crossword start; hub with eight empty boards. Two hydration
+mismatches were found and fixed in the browser (Match's unseeded shuffle and Crossword's
+client-side seed) — the kind of defect jsdom cannot see.
+
+**Live gate owed (signed in):** a Gauntlet run in each mode on a real set (AI distractors
+generated and cached; a short-answer roll), a Hot Seat interview in each difficulty with a
+probe, and one score of each kind landing on a board with the player's handle.

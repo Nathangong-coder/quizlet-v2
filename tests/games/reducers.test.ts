@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { planRun, createGauntlet, reduceGauntlet, currentRoom, currentAsk, summarize, GAUNTLET_LIVES, SHIELD_EVERY, BOSS_COUNT } from '@/lib/games/gauntlet'
-import { createHotSeat, reduceHotSeat, moodDelta, probeTarget, verdictFor, pickHotSeatCards, MOOD_START, TIMEOUT_MOOD_PENALTY, transcript } from '@/lib/games/hot-seat'
+import { planRun, createGauntlet, reduceGauntlet, summarize, rollHit, killPoints, ENEMIES, RUN_SHAPE, RUN_LENGTH, MAX_HP, MAGICIAN_HEAL } from '@/lib/games/gauntlet'
+import { createHotSeat, reduceHotSeat, moodDelta, probeTarget, verdictFor, pickHotSeatCards, faceFor, HOT_SEAT_MODES, MOOD_START, TIMEOUT_MOOD_PENALTY, transcript, type HotSeatAction } from '@/lib/games/hot-seat'
 import { createBlitz, reduceBlitz, FALL_START_MS, FALL_FLOOR_MS, STRIKES, COMBO_AT, FREEZE_MS, SPAWN_GAP_MS, POINTS, tilesFor } from '@/lib/games/blitz'
 import { layoutCrossword, createCrossword, reduceCrossword, isSolved, wordAt, MIN_WORDS, REVEAL_PENALTY_MS } from '@/lib/games/crossword'
 import { mulberry32 } from '@/lib/games/rng'
@@ -12,95 +12,111 @@ const cards = Array.from({ length: 8 }, (_, i) => ({ id: `c${i}`, term: `Term ${
 // ------------------------------------------------------------------ Gauntlet
 
 describe('Gauntlet · planRun', () => {
-  it('assigns corridors, doors and bosses from memory; worst boss last', () => {
-    const memory = [
-      { cardId: 'c0', confidence: 9, due: false },
-      { cardId: 'c1', confidence: 5, due: false },
-      { cardId: 'c2', confidence: 2, due: false },
-      { cardId: 'c3', confidence: 3, due: false },
-      { cardId: 'c4', confidence: 4, due: false },
-      { cardId: 'c5', confidence: 8, due: true },
-    ]
-    const plan = planRun({ cards, memory, seed: 1 })
+  it('builds twelve encounters in the run shape, weakest cards last (boss and champions)', () => {
+    const memory = cards.map((c, i) => ({ cardId: c.id, confidence: 9 - i, due: false }))
+    const plan = planRun({ cards, memory, seed: 1, mode: 'mc' })
+    expect(plan.encounters).toHaveLength(RUN_LENGTH)
+    expect(plan.encounters.map((e) => e.kind)).toEqual(RUN_SHAPE)
     expect(plan.noMemory).toBe(false)
-    const bosses = plan.rooms.slice(-BOSS_COUNT)
-    expect(bosses.every((r) => r.kind === 'boss' && r.format === 'typed' && r.hitsNeeded === 2)).toBe(true)
-    expect(bosses.map((r) => r.cardId)).toEqual(['c4', 'c3', 'c2'])
-    const byId = new Map(plan.rooms.map((r) => [r.cardId, r]))
-    expect(byId.get('c0')!.kind).toBe('corridor')
-    expect(byId.get('c1')!.kind).toBe('door')
-    // Due overrides high confidence.
-    expect(byId.get('c5')!.kind).toBe('door')
-    // Unstudied cards are corridors, not weaknesses.
-    expect(byId.get('c6')!.kind).toBe('corridor')
-    expect(plan.rooms.filter((r) => r.format === 'mc').every((r) => r.options!.length === 4 && r.options!.includes(cards.find((c) => c.id === r.cardId)![r.ask === 'term' ? 'definition' : 'term']))).toBe(true)
-    expect(plan.typedPrompts).toBe(2 + 3 * 2)
+    // The boss gets the least-confident card; the first slime the most confident.
+    expect(plan.encounters[RUN_LENGTH - 1].cardId).toBe('c7')
+    expect(plan.encounters[0].cardId).toBe('c0')
   })
 
-  it('a viewer with no memory gets corridors only, and mcOnly never yields a typed room', () => {
-    const empty = planRun({ cards, memory: [], seed: 1 })
-    expect(empty.noMemory).toBe(true)
-    expect(empty.rooms.every((r) => r.kind === 'corridor' && r.format === 'mc')).toBe(true)
-    const mc = planRun({ cards, memory: [{ cardId: 'c2', confidence: 2, due: false }], seed: 1, mcOnly: true })
-    expect(mc.rooms.every((r) => r.format === 'mc')).toBe(true)
-    expect(mc.typedPrompts).toBe(0)
+  it('treats due cards as weak and unstudied cards as middling', () => {
+    const memory = [{ cardId: 'c0', confidence: 9, due: true }, { cardId: 'c1', confidence: 8, due: false }]
+    const plan = planRun({ cards, memory, seed: 2, mode: 'sa' })
+    expect(plan.encounters[RUN_LENGTH - 1].cardId).toBe('c0')
   })
 
-  it('is deterministic for a seed', () => {
-    const a = planRun({ cards, memory: [{ cardId: 'c2', confidence: 2, due: false }], seed: 42 })
-    const b = planRun({ cards, memory: [{ cardId: 'c2', confidence: 2, due: false }], seed: 42 })
-    expect(a).toEqual(b)
+  it('with no memory shuffles by seed, and a short set repeats cards', () => {
+    const plan = planRun({ cards: cards.slice(0, 3), memory: [], seed: 3, mode: 'mc' })
+    expect(plan.noMemory).toBe(true)
+    expect(plan.encounters).toHaveLength(RUN_LENGTH)
+    expect(new Set(plan.encounters.map((e) => e.cardId)).size).toBe(3)
+    expect(planRun({ cards, memory: [], seed: 3, mode: 'mc' })).toEqual(planRun({ cards, memory: [], seed: 3, mode: 'mc' }))
+  })
+
+  it('an empty set yields an empty, already-won run', () => {
+    const s = createGauntlet(planRun({ cards: [], memory: [], seed: 1, mode: 'mc' }), 0)
+    expect(s.phase).toBe('won')
   })
 })
 
 describe('Gauntlet · reducer', () => {
-  const plan = planRun({ cards, memory: [{ cardId: 'c2', confidence: 2, due: false }, { cardId: 'c3', confidence: 3, due: false }], seed: 7 })
+  const plan = planRun({ cards, memory: [{ cardId: 'c2', confidence: 2, due: false }], seed: 7, mode: 'mc' })
+  const hit = (s: ReturnType<typeof createGauntlet>, now = 1) => reduceGauntlet(s, { type: 'attack', hit: true, now })
+  const miss = (s: ReturnType<typeof createGauntlet>, now = 1) => reduceGauntlet(s, { type: 'attack', hit: false, now })
 
-  it('loses lives on misses, re-queues once, dies at zero', () => {
+  it('a miss costs the enemy\u2019s damage and resets the streak; damage ramps by enemy', () => {
     let s = createGauntlet(plan, 0)
-    const first = currentRoom(s)!
-    s = reduceGauntlet(s, { type: 'miss', now: 1 })
-    expect(s.lives).toBe(GAUNTLET_LIVES - 1)
-    expect(s.queue[s.queue.length - 1].cardId).toBe(first.cardId)
-    s = reduceGauntlet(s, { type: 'miss', now: 2 })
-    s = reduceGauntlet(s, { type: 'miss', now: 3 })
-    expect(s.status).toBe('dead')
-    expect(summarize(s)).toMatchObject({ status: 'dead', roomsCleared: 0, elapsedMs: 3 })
+    s = miss(s)
+    expect(s.hp).toBe(MAX_HP - ENEMIES.slime.damage)
+    expect(s.streak).toBe(0)
+    expect(s.last).toEqual({ hit: false, damage: ENEMIES.slime.damage, accuracy: undefined })
+    expect(ENEMIES.boss.damage).toBeGreaterThan(ENEMIES['dark-knight'].damage)
+    expect(ENEMIES['dark-knight'].damage).toBeGreaterThan(ENEMIES.slime.damage)
   })
 
-  it('earns a shield every 5-streak and spends it before a life', () => {
+  it('dies at zero HP', () => {
     let s = createGauntlet(plan, 0)
-    for (let i = 0; i < SHIELD_EVERY; i++) {
-      const room = currentRoom(s)!
-      for (let h = 0; h < room.hitsNeeded; h++) s = reduceGauntlet(s, { type: 'hit', now: i })
-    }
-    expect(s.shields).toBe(1)
-    expect(s.bestStreak).toBe(SHIELD_EVERY)
-    s = reduceGauntlet(s, { type: 'miss', now: 9 })
-    expect(s.shields).toBe(0)
-    expect(s.lives).toBe(GAUNTLET_LIVES)
+    for (let i = 0; i < 20 && s.phase === 'fight'; i++) s = miss(s, i)
+    expect(s.phase).toBe('dead')
+    expect(s.hp).toBe(0)
+    expect(summarize(s)?.status).toBe('dead')
   })
 
-  it('a boss needs two hits and asks the other side on the second', () => {
+  it('a kill scores with a streak bonus, and every third kill brings the magician', () => {
     let s = createGauntlet(plan, 0)
-    // Clear everything up to the first boss.
-    while (currentRoom(s) && currentRoom(s)!.kind !== 'boss') s = reduceGauntlet(s, { type: 'hit', now: 1 })
-    const boss = currentRoom(s)!
-    expect(boss.hitsNeeded).toBe(2)
-    expect(currentAsk(s)).toBe('definition')
-    s = reduceGauntlet(s, { type: 'hit', now: 2 })
-    expect(currentRoom(s)!.cardId).toBe(boss.cardId)
-    expect(currentAsk(s)).toBe('term')
-    s = reduceGauntlet(s, { type: 'hit', now: 3 })
-    expect(s.bossesBeaten).toBe(1)
+    s = hit(s) // slime 1
+    expect(s.kills).toBe(1)
+    expect(s.score).toBe(killPoints('slime', 0))
+    s = hit(s) // slime 2
+    expect(s.score).toBe(killPoints('slime', 0) + killPoints('slime', 1))
+    s = hit(s) // imp — third kill
+    expect(s.kills).toBe(3)
+    expect(s.phase).toBe('magician')
+    // Attacks are ignored while the magician is out.
+    expect(hit(s)).toBe(s)
   })
 
-  it('wins after the final boss', () => {
+  it('the magician heals or weakens the next enemy', () => {
+    let s = createGauntlet(plan, 0)
+    s = miss(s)
+    for (let i = 0; i < 3; i++) s = hit(s)
+    expect(s.phase).toBe('magician')
+    const healed = reduceGauntlet(s, { type: 'magician', choice: 'heal', now: 1 })
+    expect(healed.hp).toBe(Math.min(MAX_HP, s.hp + MAGICIAN_HEAL))
+    expect(healed.phase).toBe('fight')
+    const cursed = reduceGauntlet(s, { type: 'magician', choice: 'weaken', now: 1 })
+    expect(cursed.weakened).toBe(true)
+    // The next enemy (an imp, 1 hit) still needs a hit, but hits for half.
+    const c = miss(cursed)
+    expect(c.hp).toBe(cursed.hp - Math.ceil(ENEMIES.imp.damage / 2))
+  })
+
+  it('a boss needs three strikes and shows progress; winning adds HP and a speed bonus', () => {
     let s = createGauntlet(plan, 0)
     let guard = 0
-    while (s.status === 'playing' && guard++ < 100) s = reduceGauntlet(s, { type: 'hit', now: guard })
-    expect(s.status).toBe('won')
-    expect(summarize(s)!.bossesBeaten).toBe(2)
+    while (s.phase !== 'won' && guard++ < 60) {
+      if (s.phase === 'magician') s = reduceGauntlet(s, { type: 'magician', choice: 'heal', now: guard })
+      else s = hit(s, guard)
+    }
+    expect(s.phase).toBe('won')
+    const done = summarize(s)!
+    expect(done.kills).toBe(RUN_LENGTH)
+    expect(done.hp).toBe(MAX_HP)
+    // Every kill's points + HP + up to 300 speed bonus.
+    expect(done.score).toBeGreaterThan(MAX_HP)
+    // The boss took three hits: the run needed more attacks than enemies.
+    expect(guard).toBeGreaterThan(RUN_LENGTH)
+  })
+
+  it('short-answer rolls: accuracy is the chance to hit', () => {
+    expect(rollHit(0.7, 0.69)).toBe(true)
+    expect(rollHit(0.7, 0.7)).toBe(false)
+    expect(rollHit(1, 0.999)).toBe(true)
+    expect(rollHit(0, 0)).toBe(false)
   })
 })
 
@@ -150,6 +166,33 @@ describe('Hot Seat', () => {
     expect(verdictFor(39)).toBe('no_callback')
     expect(pickHotSeatCards(cards, 3)).toHaveLength(5)
     expect(pickHotSeatCards(cards, 3)).toEqual(pickHotSeatCards(cards, 3))
+  })
+
+  it('harder modes lose more and recover less, over more rounds', () => {
+    expect(HOT_SEAT_MODES.easy.rounds).toBeLessThan(HOT_SEAT_MODES.normal.rounds)
+    expect(HOT_SEAT_MODES.normal.rounds).toBeLessThan(HOT_SEAT_MODES.hard.rounds)
+    let hard = createHotSeat(cards.slice(0, 1), 'hard')
+    let easy = createHotSeat(cards.slice(0, 1), 'easy')
+    for (const step of [{ type: 'submit', answer: 'x', timedOut: false }, { type: 'graded', verdicts: [v('b', 10, 'failed')] }] as HotSeatAction[]) {
+      hard = reduceHotSeat(hard, step)
+      easy = reduceHotSeat(easy, step)
+    }
+    expect(MOOD_START - hard.mood).toBeCloseTo(10 * HOT_SEAT_MODES.hard.decay)
+    expect(MOOD_START - easy.mood).toBeCloseTo(10 * HOT_SEAT_MODES.easy.decay)
+    for (const step of [{ type: 'probe', klpId: 'b', question: 'q' }, { type: 'probe-submit', answer: 'a' }, { type: 'probe-graded', recovered: true }] as HotSeatAction[]) {
+      hard = reduceHotSeat(hard, step)
+      easy = reduceHotSeat(easy, step)
+    }
+    expect(hard.mood).toBeCloseTo(MOOD_START - 15 + 15 * HOT_SEAT_MODES.hard.recovery)
+    expect(easy.mood).toBeCloseTo(MOOD_START - 7 + 7 * HOT_SEAT_MODES.easy.recovery)
+  })
+
+  it('the face follows the share of points earned', () => {
+    expect(faceFor([])).toBe('neutral')
+    expect(faceFor([v('a', 5, 'passed')])).toBe('impressed')
+    expect(faceFor([v('a', 5, 'passed'), v('b', 1, 'failed')])).toBe('pleased')
+    expect(faceFor([v('a', 5, 'passed'), v('b', 5, 'failed')])).toBe('skeptical')
+    expect(faceFor([v('a', 1, 'passed'), v('b', 5, 'failed')])).toBe('annoyed')
   })
 
   it('personas follow the subject group with a default', () => {
