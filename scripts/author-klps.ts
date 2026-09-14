@@ -16,6 +16,7 @@ import { WRITE_PANEL_PROMPT } from '../src/lib/ai/prompts/write-panel'
 import { WRITE_ADVERSARIES_PROMPT } from '../src/lib/ai/prompts/write-adversaries'
 import { WRITE_REBUILD_PROMPT, GRADE_COVERAGE_PROMPT, GRADE_PARITY_PROMPT } from '../src/lib/ai/prompts/rebuild'
 import { REVIEW_REFERENCE_PROMPT, REVISE_REFERENCE_PROMPT, REVIEW_REBUILT_PROMPT } from '../src/lib/ai/prompts/review-reference'
+import { CLASSIFY_ROLES_PROMPT } from '../src/lib/ai/prompts/classify-roles'
 import { REBUILD_COVERAGE_BAR, REBUILD_PARITY_BAR } from '../src/lib/klp/rebuild'
 import { TokenMeter } from '../src/lib/klp/token-meter'
 import { parseRotationSpec, pickRoles, markRoles, familyOf, familiesAvailable, type RotationCombo, type RoleAssignment } from '../src/lib/klp/rotation'
@@ -330,6 +331,8 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
     ...(adversaryCombo
       ? { writeAdversaries: (input) => call(WRITE_ADVERSARIES_PROMPT.build(input), WRITE_ADVERSARIES_PROMPT.schema, 'adversary', 'adversaries') }
       : {}),
+    // Framing, judged: the grader labels each point; overrides the rule.
+    classifyRoles: (input) => call(CLASSIFY_ROLES_PROMPT.build(input), CLASSIFY_ROLES_PROMPT.schema, 'grader', 'roles'),
     // The communication check: the GRADER reviews, the WRITER rewrites.
     ...(COMMS_CHECK
       ? {
@@ -378,6 +381,8 @@ interface RunStats {
   revised: number
   authored: number
   lowDiscrimination: number
+  /** Cards whose points are mostly framing — a template answers them (2026-09-13). */
+  memorizable: number
   totalKlps: number
   totalRelations: number
   separationSum: number
@@ -645,6 +650,7 @@ async function main() {
     revised: 0,
     authored: 0,
     lowDiscrimination: 0,
+    memorizable: 0,
     totalKlps: 0,
     totalRelations: 0,
     separationSum: 0,
@@ -914,7 +920,7 @@ async function main() {
       continue
     }
 
-    const flagSuffix = outcome.status === 'low_discrimination' ? ' [low_discrimination]' : ''
+    const flagSuffix = outcome.status === 'low_discrimination' ? ' [low_discrimination]' : outcome.status === 'memorizable' ? ' [MEMORIZABLE — mostly framing; separation not its verdict]' : ''
     // Relation candidates/accepted/dropped breakdown (Fix 3, review round):
     // printed for every card, not just --dry-run — only the final accepted
     // edge set survived anywhere before this, and telling "genuinely sparse"
@@ -963,6 +969,7 @@ async function main() {
     stats.totalKlps += outcome.klps.length
     stats.totalRelations += outcome.relations.length
     if (outcome.status === 'low_discrimination') stats.lowDiscrimination += 1
+    if (outcome.status === 'memorizable') stats.memorizable += 1
 
     stats.weights.push(...outcome.klps.map((k) => k.weight))
     const { failCounts, wrongAnswerCount } = failCountsFromVerdicts(outcome.probes, outcome.klps.length)
@@ -987,7 +994,7 @@ async function main() {
       (stats.framingPoints > 0 ? ` (substance ${meanSubstance.toFixed(2)}; ${stats.framingPoints} framing points excluded)` : '') +
       `, ${stats.referenceRewritten} reference(s) rewritten by the communication check, ${stats.parityBelowBar} still below the ${REBUILD_PARITY_BAR} parity bar` +
       (stats.wordRatios.length ? `, rebuilt/ref words mean ${(stats.wordRatios.reduce((a, b) => a + b, 0) / stats.wordRatios.length).toFixed(2)}, rebuilt tight ${stats.rebuiltTight}/${stats.rebuiltReviewed}` : '') +
-      `, ${stats.lowDiscrimination} low_discrimination, ${stats.totalKlps} total KLPs, ` +
+      `, ${stats.lowDiscrimination} low_discrimination, ${stats.memorizable} memorizable, ${stats.totalKlps} total KLPs, ` +
       `${stats.totalRelations} total relations`,
   )
 

@@ -22,7 +22,8 @@ import {
   type CandidateGrade,
   type SeparationResult,
 } from '@/lib/klp/separation'
-import { FRAMING_PROBE, classifyPointRoles, substanceSeparation, type PointRole } from '@/lib/klp/framing'
+import { FRAMING_PROBE, classifyPointRoles, substanceSeparation, applyRoleOverride, isMemorizable, type PointRole } from '@/lib/klp/framing'
+import type { RoleClassification } from '@/lib/ai/prompts/classify-roles'
 import { carryVerdicts, mergePartial, trapsToReplace } from '@/lib/klp/regrade-plan'
 import { referenceNeedsRewrite, type ReferenceReview } from '@/lib/ai/prompts/review-reference'
 import { compressionFindings, ratioFinding, wordRatio, type RebuiltReview } from '@/lib/klp/compression'
@@ -192,6 +193,12 @@ export interface AuthoringGenerator {
    */
   reviewReference?(input: { question: string; answer: string; definition: string }): Promise<ReferenceReview>
   /**
+   * FRAMING, JUDGED (2026-09-13): a grader-family model labels each point
+   * framing or substance; its labels override the rule in
+   * src/lib/klp/framing.ts. Optional; without it the rule stands.
+   */
+  classifyRoles?(input: { question: string; definition: string; klps: { text: string; kind: string }[] }): Promise<RoleClassification>
+  /**
    * Step A of the compression plan (2026-09-13): the grader reviews the
    * REBUILT answer against the numbered points every round and names the
    * points behind each issue; `compressionFindings` turns them into per-point
@@ -294,8 +301,13 @@ export interface AuthoringOutcome {
    */
   substanceSeparation: number
   revisions: number
-  /** `failed` only when the author call produced no KLPs at all. */
-  status: 'separated' | 'low_discrimination' | 'failed'
+  /**
+   * `failed` only when the author call produced no KLPs at all.
+   * `memorizable` (2026-09-13): at least MEMORIZABLE_FRAMING_SHARE of the
+   * points are framing — a template answers this question, so separation is
+   * recorded but is not the card's verdict.
+   */
+  status: 'separated' | 'low_discrimination' | 'failed' | 'memorizable'
   /**
    * The competence curve, when the panel ran. Undefined means it did not —
    * never that the curve was flat.
@@ -331,6 +343,8 @@ export interface AuthoringOutcome {
    */
   keptRound?: number
   keptRoundReason?: string
+  /** The judged classifier's one-clause reason per point index, when it ran. Never computed on. */
+  roleReasons?: Record<number, string>
   /**
    * The communication check on the reference (2026-09-13): the reviewer's
    * labels on the FIRST draft, and whether the writer was sent back for a
@@ -557,6 +571,8 @@ export async function authorCard(
   let separation: SeparationResult
   let substance: SeparationResult
   let roles: PointRole[] = []
+  let roleReasons: Record<number, string> = {}
+  let memorizable = false
   let wrong: GradedCandidate[]
   // Incremental regrading state: last round's grades and points, and the
   // traps the last round decided to rewrite before this one.
@@ -673,6 +689,18 @@ export async function authorCard(
     // turn a framing point into a substance one and back. The panel has no
     // template member, so with a panel every point is substance.
     roles = panel ? klps.map((): PointRole => 'substance') : classifyPointRoles(klps, wrongGrades)
+    // The judged classification overrides the rule. Best-effort: a failed
+    // call leaves the rule's roles in place.
+    if (!panel && gen.classifyRoles) {
+      try {
+        const judged = await gen.classifyRoles({ question: input.question, definition: input.definition, klps: klps.map((k) => ({ text: k.text, kind: k.kind })) })
+        roles = applyRoleOverride(roles, judged.points)
+        roleReasons = Object.fromEntries(judged.points.filter((p) => p.reason).map((p) => [p.index, p.reason as string]))
+      } catch {
+        // rule stands
+      }
+    }
+    memorizable = !panel && isMemorizable(roles)
     substance = substanceSeparation(referenceGrade, wrongGrades, roles)
 
     if (panel) {
@@ -718,6 +746,7 @@ export async function authorCard(
     const findings = revisionFindings({
       separation: substance,
       roles,
+      memorizable,
       panelSeparated: panel ? panelCurve?.separated : undefined,
       referenceVerdicts,
       wrong,
@@ -748,7 +777,7 @@ export async function authorCard(
       summary: {
         round: revisions,
         substanceSeparation: substance.separation,
-        separated: panelCurve ? panelCurve.separated : substance.separated,
+        separated: memorizable ? true : panelCurve ? panelCurve.separated : substance.separated,
         referenceParity: rebuild?.referenceParity ?? null,
         clearsParityBar: rebuild?.clearsParityBar ?? null,
         clearsCoverageBar: rebuild?.clearsBar ?? null,
@@ -758,11 +787,13 @@ export async function authorCard(
     })
     if (findings.length === 0 || revisions >= MAX_REVISIONS) break
     // Decide now, on THIS round's verdicts, which traps the next round rewrites.
-    replaceKinds = trapsToReplace(
-      wrong.map((w) => ({ kind: w.kind as ProbeKind, verdicts: w.verdicts })),
-      roles,
-      substance.separation > REVISION_BAR,
-    )
+    replaceKinds = memorizable
+      ? []
+      : trapsToReplace(
+          wrong.map((w) => ({ kind: w.kind as ProbeKind, verdicts: w.verdicts })),
+          roles,
+          substance.separation > REVISION_BAR,
+        )
     const reason = findings
       .filter((f) => f.index === null)
       .map((f) => f.issue)
@@ -891,9 +922,11 @@ export async function authorCard(
     // The PANEL's verdict wins when a panel ran, because that is the quantity
     // the run was testing. Otherwise the SUBSTANCE separation decides: a card
     // whose only unseparated points are framing is not low-discrimination.
-    status: (panelCurve ? panelCurve.separated : substance.separated)
-      ? 'separated'
-      : 'low_discrimination',
+    status: memorizable
+      ? 'memorizable'
+      : (panelCurve ? panelCurve.separated : substance.separated)
+        ? 'separated'
+        : 'low_discrimination',
     panelCurve,
     klpShapes,
     unseparatedBoundaries,
@@ -912,6 +945,7 @@ export async function authorCard(
     revisionReasons,
     questionType: (draft as { questionType?: string }).questionType,
     ...(referenceReview ? { referenceReview } : {}),
+    ...(Object.keys(roleReasons).length ? { roleReasons } : {}),
     ...(keptRound >= 0 ? { keptRound } : {}),
     ...(keptRoundReason ? { keptRoundReason } : {}),
     ...(rebuild ? { rebuild } : {}),
@@ -964,6 +998,13 @@ export function revisionFindings(input: {
    * still is. Absent means every point is substance.
    */
   roles?: PointRole[]
+  /**
+   * A memorizable card (framing share at or above MEMORIZABLE_FRAMING_SHARE):
+   * no separation finding and no per-point trap finding — the traps passing
+   * is the card's nature, not a defect. Hygiene, reference misses, parity
+   * and compression still apply.
+   */
+  memorizable?: boolean
   /** When the competence panel ran, its own verdict on separation. */
   panelSeparated?: boolean
   referenceVerdicts: KlpVerdict[]
@@ -974,8 +1015,11 @@ export function revisionFindings(input: {
   const sep = input.separation
   const separated = input.panelSeparated ?? sep.separated
 
-  // Separation: the floor decides the flag, the bar decides revision.
-  if (!separated) {
+  // Separation: the floor decides the flag, the bar decides revision — unless
+  // the card is memorizable, in which case separation is not its verdict.
+  if (input.memorizable) {
+    // fall through to reference misses and hygiene only
+  } else if (!separated) {
     out.push({
       index: null,
       issue: `separation ${sep.separation.toFixed(2)} is below the ${SEPARATION_FLOOR.toFixed(2)} floor`,
@@ -998,6 +1042,7 @@ export function revisionFindings(input: {
   }
   // Points a weak answer passed outright — named per point so the fix is local.
   input.wrong.forEach((w) => {
+    if (input.memorizable) return
     w.verdicts.forEach((v, i) => {
       if (v === 'correct' && !(w.kind === FRAMING_PROBE && input.roles?.[i] === 'framing')) {
         out.push({
