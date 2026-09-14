@@ -37,13 +37,18 @@ export const WriteAdversariesSchema = z.object({
 
 const ARCHETYPE: Record<ProbeKind, string> = {
   vague: 'vague: refuses to commit to specifics; gestures at the right area without stating the actual claims a strong answer makes.',
-  memorized_template: 'memorized_template: the shape and vocabulary of a strong answer — the structure a template gives you — with no real substance underneath.',
+  memorized_template: 'memorized_template: the shape and vocabulary of a strong answer — the structure a template gives you — with no real substance underneath. IT MUST BE WRONG: it reaches the wrong conclusion or no conclusion; where the question gives numbers, it gets the key comparison backwards, compares the wrong pair, or names the numbers without concluding. A template answer that happens to be right is not a wrong answer and is useless here.',
   confident_wrong: 'confident_wrong: articulate and structured, but wrong on the substance — a candidate who is sure of themselves and has a real misconception (state the misconception, do not merely omit things).',
 };
 
 export const WRITE_ADVERSARIES_PROMPT = {
   id: 'write-adversaries',
-  version: 2,
+  // v3 (2026-09-13): the template trap must be WRONG. On the re-authored M&A
+  // set the whole separation drop was this trap scoring higher, and on the
+  // numeric scenarios it was a correct answer wearing a template's label —
+  // "8% is greater than 6%, so the deal creates value; 8% is less than 10%,
+  // so the deal is dilutive" scored 0.81 against the points, as it should.
+  version: 3,
   schema: WriteAdversariesSchema,
 
   build(input: WriteAdversariesBuildInput): string {

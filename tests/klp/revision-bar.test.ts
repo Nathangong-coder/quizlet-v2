@@ -21,7 +21,7 @@ describe('revisionFindings — the quality bar', () => {
     // best wrong scores 0.5 -> separation 0.5: above the floor, below the bar
     const wrong = [wrongOf('memorized_template', 'partial', 'partial', 'partial', 'partial')]
     const f = revisionFindings({ separation: computeSeparation({ kind: 'reference', verdicts: ref }, wrong.map((w) => ({ kind: w.kind, verdicts: w.verdicts }))), referenceVerdicts: ref, wrong, defects: [] })
-    expect(f.some((x) => x.index === null && x.issue.includes('does not clear the 0.60 bar') && x.fix.includes('memorized_template'))).toBe(true)
+    expect(f.some((x) => x.index === null && x.issue.includes('does not clear the 0.70 bar') && x.fix.includes('memorized_template'))).toBe(true)
   })
 
   it('names the point a weak answer passed outright, the point the reference failed, and each hygiene defect with its fix', () => {
