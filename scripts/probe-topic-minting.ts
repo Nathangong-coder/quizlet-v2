@@ -506,7 +506,14 @@ const DUAL_B = {
   provider: process.env.MINT_B_PROVIDER?.trim() || 'google',
   model: process.env.MINT_B_MODEL?.trim() || 'gemini-3.6-flash',
 }
-const JUDGE = { provider: 'qwen', model: 'qwen3.7-flash' }
+// The judge was Qwen 3.7 flash; from 2026-09-14 the owner runs the pair as
+// GLM + DeepSeek with DeepSeek as the supervising judge (no Qwen). A judge
+// from the same family as side A cannot see A's blind spots — recorded as a
+// known limit of the correlated-error estimate, not a reason to keep Qwen.
+const JUDGE = {
+  provider: process.env.MINT_JUDGE_PROVIDER?.trim() || 'deepseek',
+  model: process.env.MINT_JUDGE_MODEL?.trim() || 'deepseek-flash',
+}
 /** Recorded in the JSON so the A/B slot assignment can be reproduced. */
 const JUDGE_SEED = 20260911
 

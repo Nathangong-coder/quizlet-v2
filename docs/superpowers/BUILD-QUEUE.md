@@ -15,6 +15,31 @@ re-make the earlier ones. `write-adversaries` v3 (the template trap must be wron
 applies only to the last two sets. Both are the owner's open judgement calls: read the
 memorizable list on the dashboard before changing either.**
 
+**MINTING PLAN, agreed with the owner 2026-09-14 (after an outside review).** The two layers:
+the **tree** (`Klt` global vocabulary + `SetKltNode` per-set placement — containment, for
+browsing and mastery rollup) and the **dependency layer** (`KltRelation`: causes / requires /
+precedes / applies_within between topics, inherited from KLP relations and minted from KLP
+kinds — a DAG, for root-cause propagation and study order). The KLP→topic mapping
+(`KlpTopic`) is what turns per-KLP verdicts into evidence on both. Identity is ALREADY global
+(`Klt.normalizedName` is unique corpus-wide); what is missing is matching across sets beyond
+exact names. Order: (1) mint stability, 10 cards ×2, GLM + DeepSeek with DeepSeek judging —
+no Qwen; (2) `Klt.status` (candidate | active | merged | retired) + a merge record + a judge
+"neither" that routes to the candidate pool; (3) the distinctness matcher, pure TS first,
+model only for ambiguous pairs; (4) the cross-card reconcile pass — promote at ≥4 KLPs across
+≥3 cards, merges, degree/roles, oversized flags; DAG rules: `confused_with` is not a DAG
+edge, only rank-1→rank-1 edges inherit, an edge needs two cards' evidence to enter the DAG
+view, connectivity (components) is the matcher's report card; (5) mint the 278 cards into
+`candidate` and run the pass; (6) sampled round-trip recovery, kind_conflict aggregated per
+batch, the edge-beats-leaf audit; then stratified gold labels. Dropped: split-half stability,
+the remediation test (size bounds + "a node with tagged children is never itself tagged"
+instead), round-trip as a per-leaf gate.
+**Two owner asks added to the queue:** (a) **rebuild the tree** — there is no pass that
+re-derives a set's `SetKltNode` hierarchy from the global vocabulary after minting;
+`placeUnparentedConcepts` only places strays. Needed once topics are global and merges move
+nodes. (b) **a visible DAG view** — the dependency layer rendered as its own layered,
+tree-like view (topological layers, hubs at the top), distinct from the concept tree the
+canvas draws today (which only overlays relations as dashed lines).
+
 **HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress.** Two long runs were started this day and both are RESUMABLE;
 the topic WRITE needs the owner's shell (the agent's auto-mode denied it as a shared-resource
 write). Everything below is one command each.
