@@ -49,20 +49,13 @@ export interface ClassifyRolesBuildInput {
 
 export const CLASSIFY_ROLES_PROMPT = {
   id: 'classify-roles',
-  version: 1,
+  // v2 (2026-09-14): instructions first, card last (prefix cache).
+  version: 2,
   schema: RoleClassificationSchema,
 
   build(input: ClassifyRolesBuildInput): string {
     const points = input.klps.map((k, i) => `[${i}] (${k.kind}) ${k.text}`).join('\n');
     return `You are judging, for each key point of a finance interview answer, whether a candidate who had merely MEMORIZED a template for this kind of question would state it correctly anyway. Use judgement, not a rule.
-
-Question: ${input.question}
-
-The card owner's definition:
-${input.definition}
-
-Key points:
-${points}
 
 Label each point:
 - "framing": any prepared candidate says this regardless of understanding. Definitions of the term the question names; a given from the question restated ("the acquirer's WACC is 10%"); a direct comparison of two numbers the question supplies ("8% is below 10%") — plugging in numbers is not understanding; the label of the conclusion ("the deal is dilutive") when the numbers make it mechanical; the standard contrast every template opens or closes with ("accretion is not value creation").
@@ -71,6 +64,14 @@ Label each point:
 Be judgemental: if you can picture a rehearsed candidate producing the sentence without knowing why it is true, it is framing. A card whose points are mostly framing is a memorizable question, and that is a fair thing to find.
 
 Output JSON: { "points": [ { "index": number, "role": "framing" | "substance", "reason": string } ] }
-One entry per point, "reason" one short clause.`;
+One entry per point, "reason" one short clause.
+
+Question: ${input.question}
+
+The card owner's definition:
+${input.definition}
+
+Key points:
+${points}`;
   },
 };

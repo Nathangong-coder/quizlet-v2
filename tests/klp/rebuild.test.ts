@@ -30,7 +30,7 @@ describe('rebuildScores', () => {
 describe('rebuild prompts — isolation', () => {
   it('the rebuild prompt carries the question and points and NOTHING that could leak the reference or definition', () => {
     const p = WRITE_REBUILD_PROMPT.build({ question: 'What is a spin-off?', klps: [{ text: 'A spin-off distributes a subsidiary to shareholders.' }] })
-    expect(p).toContain('ONLY the key points below')
+    expect(p).toContain('ONLY the key points given')
     expect(p).toContain('[0] A spin-off distributes')
     expect(p).not.toMatch(/reference|definition/i)
     expect((WRITE_REBUILD_PROMPT.build as (i: unknown) => string).length).toBe(1)

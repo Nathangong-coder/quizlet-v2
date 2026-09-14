@@ -40,21 +40,22 @@ export const WRITE_REBUILD_PROMPT = {
   // v2 (2026-09-13): say each point once, no transitions or restated
   // conclusion — otherwise the rebuild adds words the points never carried,
   // and the compression review would be editing the wrong thing.
-  version: 2,
+  // v3 (2026-09-14): instructions first, card last (prefix cache).
+  version: 3,
   schema: RebuildSchema,
 
   build(input: RebuildBuildInput): string {
     const points = input.klps.map((k, i) => `[${i}] ${k.text}`).join('\n');
-    return `Answer a finance interview question using ONLY the key points below. They are the complete list of claims you may make.
+    return `Answer a finance interview question using ONLY the key points given. They are the complete list of claims you may make.
+
+Write the answer a strong candidate would give if these points were everything they knew: order them as the answer should flow and phrase them as spoken prose. Say each point ONCE, in the fewest words that keep its claim. No roadmap sentences, no transitions that carry no claim, no restated conclusion — if a point already lands the conclusion, do not land it again. The answer should be about the length of the points combined, not longer. You may reorder and reword. You may NOT add a claim, a number, a mechanism or an example that is not in the points, and you may not leave a point out. If the points do not answer the question fully, the answer should read as incomplete — do not fill the gap.
+
+Output JSON: { "rebuiltAnswer": string }
 
 Question: ${input.question}
 
 Key points:
-${points}
-
-Write the answer a strong candidate would give if these points were everything they knew: order them as the answer should flow and phrase them as spoken prose. Say each point ONCE, in the fewest words that keep its claim. No roadmap sentences, no transitions that carry no claim, no restated conclusion — if a point already lands the conclusion, do not land it again. The answer should be about the length of the points combined, not longer. You may reorder and reword. You may NOT add a claim, a number, a mechanism or an example that is not in the points, and you may not leave a point out. If the points do not answer the question fully, the answer should read as incomplete — do not fill the gap.
-
-Output JSON: { "rebuiltAnswer": string }`;
+${points}`;
   },
 };
 
@@ -99,20 +100,13 @@ export interface CoverageBuildInput {
 
 export const GRADE_COVERAGE_PROMPT = {
   id: 'grade-coverage',
-  version: 1,
+  // v2 (2026-09-14): instructions first, card last (prefix cache).
+  version: 2,
   schema: CoverageSchema,
 
   build(input: CoverageBuildInput): string {
     const points = input.definitionPoints.map((p, i) => `[${i}] ${p.point}`).join('\n');
-    return `A flashcard's owner wrote a definition for this question. It was split into the points below. A candidate's answer follows. Judge, point by point, whether the ANSWER establishes each point the card makes.
-
-Question: ${input.question}
-
-The card's points (the owner's own content — treat as the rubric):
-${points}
-
-The answer:
-${input.rebuiltAnswer}
+    return `A flashcard's owner wrote a definition for a question. It was split into points. A candidate's answer follows them. Judge, point by point, whether the ANSWER establishes each point the card makes.
 
 For each card point: "correct" if the answer states it or clearly entails it; "partial" if the answer gestures at it without the substance; "missing" if the answer does not cover it. Judge substance, not wording. An answer may say MORE than the card — extra content is not penalised here. "evidence" is ONE short clause (at most 15 words); omit it when the verdict is "correct".
 
@@ -122,7 +116,15 @@ Output JSON:
 {
   "points": [ { "index": number, "verdict": "correct" | "partial" | "missing", "evidence": string } ],
   "disputes": [ { "index": number, "cardSays": string, "answerSays": string, "reason": string } ]
-}${input.strict ? `\n\n${STRICT_GRADING_CLAUSE.replace('key point', 'card point')}` : ''}`;
+}${input.strict ? `\n\n${STRICT_GRADING_CLAUSE.replace('key point', 'card point')}` : ''}
+
+Question: ${input.question}
+
+The card's points (the owner's own content — treat as the rubric):
+${points}
+
+The answer:
+${input.rebuiltAnswer}`;
   },
 };
 
@@ -151,11 +153,16 @@ export interface ParityBuildInput {
 
 export const GRADE_PARITY_PROMPT = {
   id: 'grade-parity',
-  version: 1,
+  // v2 (2026-09-14): instructions first, card last (prefix cache).
+  version: 2,
   schema: ParitySchema,
 
   build(input: ParityBuildInput): string {
-    return `Two answers to the same finance interview question. The FIRST is a full reference answer. The SECOND was rebuilt from a list of key points extracted from the first. Find what the rebuild lost.
+    return `Two answers to the same finance interview question follow. The FIRST is a full reference answer. The SECOND was rebuilt from a list of key points extracted from the first. Find what the rebuild lost.
+
+First list every distinct substantive claim the reference makes — each fact, mechanism, number or distinction a grader could mark right or wrong, one per entry, in the reference's own order. Then for each claim say whether the rebuild makes it: "present" (stated or clearly entailed), "partial" (mentioned without the substance), or "absent". Judge substance, not wording.
+
+Output JSON: { "claims": [ { "claim": string, "verdict": "present" | "partial" | "absent" } ] }${input.strict ? `\n\n${STRICT_GRADING_CLAUSE.replace('key point', 'claim')}` : ''}
 
 Question: ${input.question}
 
@@ -163,10 +170,6 @@ Reference answer:
 ${input.referenceAnswer}
 
 Rebuilt answer:
-${input.rebuiltAnswer}
-
-First list every distinct substantive claim the reference makes — each fact, mechanism, number or distinction a grader could mark right or wrong, one per entry, in the reference's own order. Then for each claim say whether the rebuild makes it: "present" (stated or clearly entailed), "partial" (mentioned without the substance), or "absent". Judge substance, not wording.
-
-Output JSON: { "claims": [ { "claim": string, "verdict": "present" | "partial" | "absent" } ] }${input.strict ? `\n\n${STRICT_GRADING_CLAUSE.replace('key point', 'claim')}` : ''}`;
+${input.rebuiltAnswer}`;
   },
 };

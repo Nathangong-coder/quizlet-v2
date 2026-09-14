@@ -43,7 +43,8 @@ export interface ClassifyAbstractionBuildInput {
  */
 export const CLASSIFY_ABSTRACTION_PROMPT = {
   id: 'classify-abstraction',
-  version: 1,
+  // v2 (2026-09-14): instructions first, card last (prefix cache).
+  version: 2,
   schema: AbstractionClassificationSchema,
 
   build(input: ClassifyAbstractionBuildInput): string {
@@ -61,12 +62,12 @@ THE TEST FOR dispositional: could this statement be true or false of an ANSWER, 
 
 Judge each statement ALONE, against the question it belongs to. Do not compare the statements to each other, and do not try to make them come out at the same level — a set legitimately mixes levels.
 
+Output JSON with exactly one entry per statement, in the order given:
+{ "levels": [ { "klpIndex": number, "level": "${ABSTRACTION_LEVELS.join('" | "')}" } ] }
+
 Question: ${input.question}
 
 Statements:
-${klps}
-
-Output JSON with exactly one entry per statement, in the order given:
-{ "levels": [ { "klpIndex": number, "level": "${ABSTRACTION_LEVELS.join('" | "')}" } ] }`;
+${klps}`;
   },
 };

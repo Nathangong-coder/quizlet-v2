@@ -869,3 +869,28 @@ memorizable list, each framing point with the judge's one-clause reason, is on t
 for the owner to read; the classifier's leniency is a judgement to make there, not here.
 
 **Cost per card, all-in:** M&A $0.0085 (30 calls); the judged sets add one call per round.
+
+### Prefix order for the cache (2026-09-14)
+
+The corpus meters summed to 8.25M input tokens with 2.1M cache hits — 25% — and the owner's
+DeepSeek dashboard showed ~7M misses (the meter plus unmetered failures and the stray
+duplicate runs). DeepSeek's cache is a prefix cache in 64-token blocks, and every prompt
+reached its card-specific content (`Question: …`) within ~40 tokens, so nothing was shared
+across cards; the only hits were repeats within a card (grade 43%, revise 5%, rebuild 2%).
+
+Every DeepSeek-facing prompt now opens with its static instructions — role, rules,
+vocabulary, output format, strictness — and puts the card, then the per-call content, last
+(grade-candidate v3, write-rebuild v3, grade-coverage v2, grade-parity v2, review-reference
+v2, review-rebuilt v2, revise-reference v2, revise-klps v5, relate-klps, classify-roles v2,
+classify-abstraction, write-adversaries v4). `tests/ai/prompt-prefix.test.ts` pins that no
+card text appears in the first 400 characters of any of them and that two cards share the
+same prefix.
+
+Two-card dry run after the change (the smallest possible test — the first card of a run
+always misses the shared prefix): overall hit 25% → 34%; grade 43% → 54%, coverage 24% →
+42%, parity 20% → 30%, review-rebuilt 21% → 33%, relate 13% → 35%, rebuild 2% → 18%, roles
+14% → 32%. Across a set the shared prefix hits on every call after the first, so the corpus
+figure should land higher than the two-card one; the meter on the next set-sized run is the
+number to read. The prize is bounded: ~250 shared tokens × ~8,000 calls ≈ 2M tokens moved
+from miss ($0.15/M off-peak) to hit ($0.003/M) — about $0.30 on a $2.40 corpus — because
+output tokens, not input, are most of the bill.

@@ -48,24 +48,25 @@ export const WRITE_ADVERSARIES_PROMPT = {
   // numeric scenarios it was a correct answer wearing a template's label —
   // "8% is greater than 6%, so the deal creates value; 8% is less than 10%,
   // so the deal is dilutive" scored 0.81 against the points, as it should.
-  version: 3,
+  // v4 (2026-09-14): instructions first, card last (prefix cache).
+  version: 4,
   schema: WriteAdversariesSchema,
 
   build(input: WriteAdversariesBuildInput): string {
     const kinds = input.kinds && input.kinds.length > 0 ? input.kinds : PROBE_KINDS;
     const count = kinds.length === 1 ? 'ONE wrong answer' : `${['', 'ONE', 'TWO', 'THREE'][kinds.length] ?? kinds.length} wrong answers, one per archetype`;
-    return `You are writing WRONG answers to a finance interview question, to test whether a grading rubric can tell a strong answer from a plausible weak one. You are not shown the rubric. Write the answers a real candidate would give.
-
-Question: ${input.question}
-
-A strong answer, for context on what complete looks like (your wrong answers must NOT restate it — they must fall short of it in the specific ways below):
-${input.referenceAnswer}
+    return `You are writing WRONG answers to a finance interview question, to test whether a grading rubric can tell a strong answer from a plausible weak one. You are not shown the rubric. Write the answers a real candidate would give. A strong answer is given for context on what complete looks like — your wrong answers must NOT restate it; they must fall short of it in the specific ways below.
 
 Write EXACTLY ${count}, each 3-6 sentences, each sounding like a genuine attempt:
 ${kinds.map((k) => `- ${ARCHETYPE[k]}`).join('\n')}
 
 Output JSON:
 { "wrongAnswers": [ { "kind": ${kinds.map((k) => `"${k}"`).join(' | ')}, "text": string } ] }
-The entries must cover exactly ${kinds.join(', ')}, one each.`;
+The entries must cover exactly ${kinds.join(', ')}, one each.
+
+Question: ${input.question}
+
+The strong answer:
+${input.referenceAnswer}`;
   },
 };
