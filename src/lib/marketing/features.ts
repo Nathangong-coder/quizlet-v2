@@ -7,12 +7,13 @@ import {
   GraduationCap,
   RotateCcw,
   Gamepad2,
+  Users,
 } from 'lucide-react'
 import type { MockId } from '@/components/marketing/mock-ids'
 
 /**
- * The seven features the signed-out surfaces advertise, in the order the owner
- * gave. One registry feeds the landing showcase tabs, `/features`, and every
+ * The eight features the signed-out surfaces advertise, in the order the owner
+ * gave (study groups joined the list 2026-09-14). One registry feeds the landing showcase tabs, `/features`, and every
  * `/features/<slug>` page, so the three can never disagree about what exists.
  *
  * PUBLIC-FACING COPY, and the rules the landing page already follows apply to
@@ -250,24 +251,23 @@ export const FEATURES: readonly Feature[] = [
     label: 'Learning games',
     icon: Gamepad2,
     status: 'live',
-    badge: 'Match today · four more coming',
-    claim: 'Games built from your set, not from a word list.',
-    body: 'Match is here today. Coming next: Gauntlet, a run through the cards you are weakest on; Hot Seat, a simulated interview that probes what you miss; and Blitz and Crossword, built from the short key points inside long cards.',
+    claim: 'Five games built from your set, not from a word list.',
+    body: 'A knight who strikes when you answer right. An interviewer whose face tells you how it is going. Prompts that fall, a crossword, and sixteen tiles against the clock. Every game is open to anyone on a public set; the two that grade your writing use your own AI keys.',
     benefits: [
-      { title: 'Just for fun', body: 'Nothing a game sees goes into your record. Play as badly as you like; your memory is untouched.' },
+      { title: 'Just for fun', body: 'Nothing a game sees goes into your record. Play as badly as you like; your memory is untouched. The only thing saved is your place on the set’s leaderboard.' },
       { title: 'Made from key points', body: 'A long definition becomes a short prompt — "WACC stands for ___" — so arcade formats work on cards that are paragraphs.' },
-      { title: 'Tuned to the subject', body: 'Hot Seat’s interviewer for a finance set is a superday panel; for a history set, an oral examiner; for a language set, someone to talk to.' },
+      { title: 'Leaderboards per set', body: 'Every game keeps a board for every set: best score, best mood, fastest time. Sign in with a handle to appear on it.' },
     ],
     heroMock: 'games-hub',
     sections: [
       {
-        title: 'Gauntlet — a run through what you are weakest on',
-        body: 'Corridors for the cards you know, locked doors for the ones you half know, and your three worst cards as bosses at the end. Three lives. The one game that reads your memory — and it only reads.',
+        title: 'Gauntlet — a knight, 100 HP, twelve enemies',
+        body: 'Each right answer is a strike; each wrong one is a hit you take, harder the deeper you go. Miss a card and you see it in full before the enemy asks a different one. Every third kill a magician offers a heal or a curse for the next foe. Multiple choice, or type the answer and let your accuracy be your chance to hit.',
         mock: 'gauntlet',
       },
       {
         title: 'Hot Seat — the interview, before the interview',
-        body: 'Five questions, a soft clock, an interviewer whose mood you can see. Miss a point and they probe it; recover and the mood comes back. Callback or no callback at the end.',
+        body: 'An interviewer dressed for the subject, a soft clock, and a face that reacts to every answer. Miss a point and they probe it — you never see the point itself, only the follow-up. Three difficulties; the hard one has more questions and less patience.',
         mock: 'hot-seat',
       },
       {
@@ -276,9 +276,42 @@ export const FEATURES: readonly Feature[] = [
         mock: 'blitz',
       },
       {
-        title: 'Match — playable now',
-        body: 'Tiles for terms and definitions, a timer, and a best time to beat. On sets with long definitions it can use the short key points instead.',
+        title: 'Match — eight pairs, one screen',
+        body: 'Sixteen tiles of short key points, a timer, and the fastest time on the set’s board. Never a paragraph on a tile.',
         mock: 'match',
+        link: { href: '/browse', label: 'Find a public set and play' },
+      },
+    ],
+  },
+  {
+    slug: 'groups',
+    label: 'Study groups',
+    icon: Users,
+    status: 'live',
+    claim: 'Study with people who can see which cards you have down.',
+    body: 'Make a group, share the link, add the sets you are all working on. The group sees, per set, who has mastered what — so the cards nobody has down are where you study next. Everyone who joins is told exactly what the group will see, and says yes first.',
+    benefits: [
+      { title: 'An invite link, nothing else', body: 'No requests, no approvals. Whoever has the link can join; the owner can turn the link over at any time.' },
+      { title: 'Consent before visibility', body: 'Joining shows you what members will see — mastery and confidence on the group’s sets, nothing outside them — and asks. Leave, and it stops.' },
+      { title: 'A leaderboard that means something', body: 'Cards mastered, not points. Card by card, who knows what, so the group can split the work.' },
+    ],
+    heroMock: 'group-board',
+    sections: [
+      {
+        title: 'What a member sees, said before they join',
+        body: 'The join page is the privacy contract: the group’s sets, the three things members will see about you on them, and the promise that nothing outside those sets is shared.',
+        mock: 'group-consent',
+      },
+      {
+        title: 'Card by card',
+        body: 'For every set in the group, a grid of cards against members. The column with the gaps is the person who needs help; the row with the gaps is the card the group should do next.',
+        mock: 'group-cards',
+      },
+      {
+        title: 'Your progress stays yours',
+        body: 'A group reads your memory; it never writes it. Studying a group’s set is the same as studying any set — the group only watches the result.',
+        mock: 'memory',
+        link: { href: '/groups', label: 'Your groups' },
       },
     ],
   },

@@ -11,11 +11,11 @@ import { MOCK_IDS } from '@/components/marketing/mocks'
 import { FeaturePage } from '@/components/marketing/FeaturePage'
 
 describe('feature registry', () => {
-  it('lists the seven features in the order the owner gave', () => {
+  it('lists the eight features in the order the owner gave', () => {
     expect(FEATURE_SLUGS).toEqual([
-      'flashcards', 'learn', 'study-guides', 'postmortems', 'test', 'review', 'games',
+      'flashcards', 'learn', 'study-guides', 'postmortems', 'test', 'review', 'games', 'groups',
     ])
-    expect(new Set(FEATURE_SLUGS).size).toBe(7)
+    expect(new Set(FEATURE_SLUGS).size).toBe(8)
   })
 
   it.each(FEATURES.map((f) => [f.slug, f] as const))('%s has three benefits and 2-4 sections', (_slug, f) => {

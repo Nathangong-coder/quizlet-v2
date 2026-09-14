@@ -120,7 +120,7 @@ describe('marketing header', () => {
     fireEvent.click(tools)
     expect(tools).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('link', { name: /flashcards/i })).toHaveAttribute('href', '/features/flashcards')
-    expect(screen.getByRole('link', { name: /study groups/i })).toHaveAttribute('href', '/groups')
+    expect(screen.getByRole('link', { name: /study groups/i })).toHaveAttribute('href', '/features/groups')
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(tools).toHaveAttribute('aria-expanded', 'false')
     const search = screen.getAllByRole('searchbox')[0]

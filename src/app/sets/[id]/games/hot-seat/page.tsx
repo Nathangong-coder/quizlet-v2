@@ -9,6 +9,8 @@ import { ScoreBoard } from '@/components/games/ScoreBoard'
 import { loadLeaderboard } from '@/lib/games/load'
 import { GAME_MODES } from '@/lib/games/scores'
 import { HotSeatGame } from '@/components/games/HotSeatGame'
+import { PixelSprite } from '@/components/games/PixelSprite'
+import { HOST_BASE, FACES } from '@/lib/games/sprites'
 import { cn } from '@/lib/utils'
 
 /** `/sets/[id]/games/hot-seat` — signed-in only: it grades with the viewer's credentials. */
@@ -30,7 +32,10 @@ export default async function HotSeatPage({ params }: { params: Promise<{ id: st
         </div>
       ) : (
         <div className="space-y-3 text-sm">
-          <p className="text-muted-foreground">Hot Seat grades your answers with your own AI credentials, so it needs an account.</p>
+          <div className="flex items-end gap-4 rounded-2xl bg-accent p-5">
+            <PixelSprite sprite={HOST_BASE} overlays={[FACES.neutral]} size={72} label="The interviewer" />
+            <p className="text-accent-foreground">An interviewer whose face you can read, dressed for the subject. Miss a point and they probe it. Every other game here is open to anyone; this one reads your written answers with your own AI keys, so it needs an account.</p>
+          </div>
           <Link href={`/login?callbackUrl=${encodeURIComponent(`/sets/${id}/games/hot-seat`)}`} className={cn(buttonVariants())}>Sign in</Link>
         </div>
       )}

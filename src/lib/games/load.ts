@@ -59,7 +59,7 @@ export async function loadGamesHub(viewerId: string | null, setId: string): Prom
     cardCount: set._count.cards,
     readyCards,
     pieceCount: playablePieces(pieces).length,
-    availability: gameAvailability({ pieces, readyCards, signedIn: viewerId !== null }),
+    availability: gameAvailability({ pieces, readyCards, cardCount: set._count.cards, signedIn: viewerId !== null }),
   }
 }
 

@@ -125,11 +125,19 @@ export type GameAvailability =
   | { state: 'playable' }
   | { state: 'needs_pieces'; short: number }
   | { state: 'no_klps'; short: number }
+  | { state: 'few_cards'; short: number }
   | { state: 'sign_in' }
 
+/**
+ * Gauntlet needs CARDS (five, for four options and a fight); multiple choice
+ * grades nothing, so a visitor can play it (owner, 2026-09-14). Hot Seat
+ * grades written answers against key points on the player's own keys, so it
+ * needs both sign-in and cards with key points.
+ */
 export function gameAvailability(input: {
   pieces: readonly GamePieceLike[]
   readyCards: number
+  cardCount?: number
   signedIn: boolean
 }): Record<GameId, GameAvailability> {
   const playable = playablePieces(input.pieces)
@@ -140,8 +148,10 @@ export function gameAvailability(input: {
     : input.readyCards >= MIN_READY_CARDS
       ? { state: 'playable' }
       : { state: 'no_klps', short: MIN_READY_CARDS - input.readyCards }
+  const cardCount = input.cardCount ?? input.readyCards
+  const gauntlet: GameAvailability = cardCount >= MIN_READY_CARDS ? { state: 'playable' } : { state: 'few_cards', short: MIN_READY_CARDS - cardCount }
   return {
-    gauntlet: cards,
+    gauntlet,
     'hot-seat': cards,
     blitz: need(playable.length, MIN_PIECES.blitz),
     crossword: need(crosswordSafe, MIN_PIECES.crossword),

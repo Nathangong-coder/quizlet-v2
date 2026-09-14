@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: 'Features · synapseHQ' }
 export default function FeaturesIndex() {
   return (
     <div className="py-8 sm:py-12">
-      <h1 className="display">Seven ways to study one set</h1>
+      <h1 className="display">Eight ways to study one set</h1>
       <p className="lede mt-4">Every one of them feeds the same memory of what you know.</p>
       <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {FEATURES.map((f) => {

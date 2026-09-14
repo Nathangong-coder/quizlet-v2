@@ -53,13 +53,15 @@ describe('Landing', () => {
     expect(screen.getByRole('link', { name: /browse published sets/i })).toHaveAttribute('href', '/browse')
   })
 
-  it('shows four tool cards, each linking to its feature page, with Coming on the unbuilt one', () => {
+  it('shows every study tool as a gallery, each linking to its feature page, with Coming on the unbuilt one', () => {
     render(<Landing />)
     const tools = screen.getByRole('region', { name: /study tools/i })
     const links = tools.querySelectorAll('a')
-    expect(links).toHaveLength(4)
-    expect([...links].map((a) => a.getAttribute('href'))).toEqual(['/features/flashcards', '/features/test', '/features/study-guides', '/features/games'])
+    expect(links).toHaveLength(FEATURES.length)
+    expect([...links].map((a) => a.getAttribute('href'))).toEqual(FEATURES.map((f) => `/features/${f.slug}`))
     expect(tools.textContent).toMatch(/Coming/)
+    // A horizontal strip, not a grid: it scrolls sideways so every tool fits.
+    expect(tools.querySelector('ul')?.className).toMatch(/overflow-x-auto/)
   })
 
   it('does not advertise voice — it is not built', () => {
@@ -69,8 +71,9 @@ describe('Landing', () => {
 })
 
 describe('navigation data', () => {
-  it('Study tools lists every feature plus study groups; Subjects lists every group', () => {
-    expect(STUDY_TOOLS.map((l) => l.href)).toEqual([...FEATURES.map((f) => `/features/${f.slug}`), '/groups'])
+  it('Study tools lists every feature (study groups is one of them now); Subjects lists every group', () => {
+    expect(STUDY_TOOLS.map((l) => l.href)).toEqual(FEATURES.map((f) => `/features/${f.slug}`))
+    expect(STUDY_TOOLS.some((l) => l.href === '/features/groups')).toBe(true)
     expect(SUBJECT_LINKS.every((l) => l.href.startsWith('/browse?subject='))).toBe(true)
     expect(SUBJECT_LINKS.length).toBe(9)
   })

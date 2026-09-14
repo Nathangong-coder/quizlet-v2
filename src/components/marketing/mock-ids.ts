@@ -38,6 +38,12 @@ export const MOCK_IDS = [
   'hot-seat',
   'blitz',
   'match',
+  // study groups
+  'group-board',
+  'group-consent',
+  'group-cards',
+  // mastery (study guides)
+  'mastery',
 ] as const
 
 export type MockId = (typeof MOCK_IDS)[number]

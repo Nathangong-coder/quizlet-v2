@@ -13,10 +13,7 @@ export interface NavLink {
 }
 
 /** Study tools ▾ — every feature page plus the two live surfaces that are not features. */
-export const STUDY_TOOLS: NavLink[] = [
-  ...FEATURES.map((f) => ({ href: `/features/${f.slug}`, label: f.label, hint: f.status === 'coming' ? 'coming' : undefined })),
-  { href: '/groups', label: 'Study groups' },
-]
+export const STUDY_TOOLS: NavLink[] = FEATURES.map((f) => ({ href: `/features/${f.slug}`, label: f.label, hint: f.status === 'coming' ? 'coming' : undefined }))
 
 /** Subjects ▾ — the nine groups, each to a filtered Browse. */
 export const SUBJECT_LINKS: NavLink[] = SUBJECTS.map((g) => ({ href: `/browse?subject=${g.slug}`, label: g.label }))

@@ -1,5 +1,7 @@
-import type { ReactNode } from 'react'
-import { Star, ChevronLeft, ChevronRight, Lock, Skull, DoorOpen, Footprints } from 'lucide-react'
+import { Fragment, type ReactNode } from 'react'
+import { Star, Heart, Sword, Check, Users } from 'lucide-react'
+import { PixelSprite } from '@/components/games/PixelSprite'
+import { KNIGHT, KNIGHT_SHIELD, DARK_KNIGHT, SLIME, MAGICIAN, HOST_BASE, FACES, COSTUMES } from '@/lib/games/sprites'
 import { cn } from '@/lib/utils'
 import { MOCK_IDS, type MockId } from './mock-ids'
 
@@ -231,19 +233,13 @@ const diagnostic = (
 
 const carousel = (
   <Panel title="Flashcards · Accounting · 3 of 48">
-    <div className="flex items-center gap-3">
-      <span className="rounded-full border border-border p-1.5 text-muted-foreground" aria-hidden="true"><ChevronLeft className="h-4 w-4" /></span>
-      <div className="relative flex-1" style={{ perspective: '800px' }}>
-        <div className="rounded-lg border border-border bg-background px-5 py-8 text-center shadow-[var(--shadow-sm)]" style={{ transform: 'rotateY(-8deg)' }}>
-          <div className="label mb-2">Term</div>
-          <div className="font-heading text-lg font-bold">Deferred tax liability</div>
-          <div className="mt-3 flex justify-center gap-1.5"><Chip tone="violet">accounting</Chip><Chip tone="teal">talking</Chip></div>
-        </div>
-        <div className="absolute -right-2 -top-2 rounded-full bg-warning p-1 text-white" aria-label="starred"><Star className="h-3 w-3 fill-current" /></div>
-      </div>
-      <span className="rounded-full border border-border p-1.5 text-muted-foreground" aria-hidden="true"><ChevronRight className="h-4 w-4" /></span>
+    <div className="relative rounded-lg border border-border bg-background px-5 py-7 text-center shadow-[var(--shadow-sm)]">
+      <div className="label mb-2">Term</div>
+      <div className="font-heading text-lg font-bold">Deferred tax liability</div>
+      <div className="mt-3 flex justify-center gap-1.5"><Chip tone="violet">accounting</Chip><Chip tone="teal">talking</Chip></div>
+      <div className="absolute -right-2 -top-2 rounded-full bg-warning p-1 text-white" aria-label="starred"><Star className="h-3 w-3 fill-current" /></div>
     </div>
-    <p className="mt-3 text-center text-xs text-muted-foreground">click to flip</p>
+    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground"><span>Previous</span><span>tap to flip</span><span>Next</span></div>
   </Panel>
 )
 
@@ -502,47 +498,60 @@ const memoryHistory = (
 
 const gamesHub = (
   <Panel title="Games · Accounting">
-    <div className="grid grid-cols-2 gap-2 text-sm">
+    <ul className="space-y-1.5 text-sm">
       {[
-        ['Match', 'best 0:42', 'playable'],
-        ['Gauntlet', 'reads your memory', 'coming'],
-        ['Hot Seat', '5 questions · interviewer', 'coming'],
-        ['Blitz', '41 short prompts ready', 'coming'],
-      ].map(([n, s, st]) => (
-        <div key={n} className={cn('rounded-md border p-3', st === 'playable' ? 'border-primary/50' : 'border-border')}>
-          <div className="flex items-center justify-between font-heading font-bold">{n}<span className={cn('text-[10px] font-medium', st === 'playable' ? 'text-primary' : 'text-muted-foreground')}>{st}</span></div>
-          <div className="text-xs text-muted-foreground">{s}</div>
-        </div>
+        ['Gauntlet', <PixelSprite key="k" sprite={KNIGHT} overlays={[KNIGHT_SHIELD]} size={22} />, 'best 1,240'],
+        ['Hot Seat', <PixelSprite key="h" sprite={HOST_BASE} overlays={[COSTUMES["business-finance"].overlay, FACES.pleased]} size={22} />, 'mood 78'],
+        ['Blitz', <PixelSprite key="s" sprite={SLIME} size={22} />, '340 pts'],
+        ['Match', <PixelSprite key="m" sprite={MAGICIAN} size={22} />, '0:42'],
+      ].map(([n, icon, best]) => (
+        <li key={n as string} className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5">
+          <span className="shrink-0">{icon}</span>
+          <span className="flex-1 truncate font-heading font-bold">{n}</span>
+          <span className="shrink-0 text-[11px] text-muted-foreground">{best}</span>
+        </li>
       ))}
-    </div>
+    </ul>
+    <p className="mt-2 truncate text-[11px] text-muted-foreground">Anyone can play · leaderboard per set</p>
   </Panel>
 )
 
 const gauntlet = (
-  <Panel title="Gauntlet · room 7 of 12 · ♥♥♡">
-    <div className="flex items-center gap-1.5" role="img" aria-label="A row of rooms: corridors, locked doors, and three bosses at the end.">
-      {[Footprints, Footprints, DoorOpen, Footprints, DoorOpen, DoorOpen, Lock, Footprints, DoorOpen, Skull, Skull, Skull].map((Icon, i) => (
-        <span key={i} className={cn('flex h-8 flex-1 items-center justify-center rounded-md', i < 6 ? 'bg-success/20 text-success' : i === 6 ? 'bg-primary text-primary-foreground' : i >= 9 ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200' : 'bg-muted text-muted-foreground')}>
-          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-        </span>
+  <Panel title="Gauntlet · enemy 7 of 12">
+    <div className="grid grid-cols-2 gap-3 text-[11px]">
+      <div>
+        <div className="mb-1 flex justify-between"><span className="inline-flex items-center gap-1 font-semibold"><Heart className="h-3 w-3 text-rose-500" aria-hidden="true" />You</span><span>72 / 100</span></div>
+        <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-[72%] rounded-full bg-success" /></div>
+      </div>
+      <div>
+        <div className="mb-1 flex justify-between"><span className="inline-flex items-center gap-1 font-semibold"><Sword className="h-3 w-3" aria-hidden="true" />Dark knight</span><span>1 / 2</span></div>
+        <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full w-1/2 rounded-full bg-rose-500" /></div>
+      </div>
+    </div>
+    <div className="mt-3 flex items-end justify-between rounded-xl bg-accent px-4 pt-3 pb-1">
+      <PixelSprite sprite={KNIGHT} overlays={[KNIGHT_SHIELD]} size={56} label="The knight" />
+      <span className="pb-3 text-[11px] text-muted-foreground">A clean strike.</span>
+      <PixelSprite sprite={DARK_KNIGHT} size={56} flip label="A dark knight" />
+    </div>
+    <p className="mt-3 text-sm font-medium">Why does a deferred tax liability reverse?</p>
+    <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px]">
+      {['Timing differences unwind', 'The tax rate falls', 'Depreciation is added back', 'Cash tax exceeds book tax'].map((o, i) => (
+        <span key={o} className={cn('truncate rounded-md border px-2 py-1.5', i === 0 ? 'border-primary bg-primary/10' : 'border-border bg-card')}>{o}</span>
       ))}
     </div>
-    <div className="mt-3 rounded-md border border-primary/40 p-3 text-sm">
-      <div className="label mb-1">Locked door · type the answer</div>
-      <p className="text-foreground/90">Why does a deferred tax liability reverse?</p>
-      <Line w="w-1/2" className="mt-2" />
-    </div>
-    <p className="mt-2 text-xs text-muted-foreground">streak 4 · shield at 5</p>
   </Panel>
 )
 
 const hotSeat = (
   <Panel title="Hot Seat · question 3 of 5 · 0:41">
-    <Meter value={62} label="interviewer mood" />
+    <div className="flex items-start gap-3">
+      <PixelSprite sprite={HOST_BASE} overlays={[COSTUMES['business-finance'].overlay, FACES.skeptical]} size={56} label="The panel, skeptical" />
+      <div className="min-w-0 flex-1"><Meter value={62} label="The panel · mood" /></div>
+    </div>
     <div className="mt-3 space-y-2 text-sm">
-      <p className="rounded-md bg-muted/60 p-2.5"><span className="font-semibold">Interviewer:</span> Walk me through what happens to the three statements when depreciation goes up by 10.</p>
+      <p className="rounded-md bg-muted/60 p-2.5"><span className="font-semibold">The panel:</span> Walk me through what happens to the three statements when depreciation goes up by 10.</p>
       <p className="rounded-md border border-border p-2.5 italic text-muted-foreground">Net income falls by 6 after tax, cash goes up by 4 because you add back the 10…</p>
-      <p className="rounded-md bg-warning-subtle p-2.5"><span className="font-semibold">Interviewer:</span> And on the balance sheet — what balances the drop in PP&amp;E?</p>
+      <p className="rounded-md bg-warning-subtle p-2.5"><span className="font-semibold">The panel:</span> And on the balance sheet — what balances the drop in PP&amp;E?</p>
     </div>
   </Panel>
 )
@@ -565,10 +574,82 @@ const blitz = (
 )
 
 const match = (
-  <Panel title="Match · 0:19">
-    <div className="grid grid-cols-3 gap-1.5 text-[11px]">
-      {['WACC', 'use of cash', 'Net debt', 'weighted average cost of capital', 'debt − cash', 'rise in working capital'].map((t, i) => (
-        <span key={t} className={cn('flex min-h-12 items-center justify-center rounded-md border p-1.5 text-center leading-tight', i === 0 || i === 3 ? 'border-primary bg-primary/10' : 'border-border bg-card')}>{t}</span>
+  <Panel title="Match · 8 pairs · 0:19">
+    <div className="grid grid-cols-4 gap-1.5 text-[10px] leading-tight">
+      {['WACC', 'use of cash', 'Net debt', 'weighted average cost of capital', 'debt − cash', 'rise in working capital', 'EBITDA', 'non-cash', 'Depreciation', 'earnings before…', 'Goodwill', 'price − net assets', 'Accretion', 'EPS rises', 'Synergy', 'combined > sum'].map((t, i) => (
+        <span key={t} className={cn('flex aspect-[4/3] items-center justify-center rounded-md border p-1 text-center', i === 0 || i === 3 ? 'border-primary bg-primary/10' : i === 6 || i === 9 ? 'border-muted-foreground/30 bg-muted text-muted-foreground' : 'border-border bg-card')}>{t}</span>
+      ))}
+    </div>
+  </Panel>
+)
+
+// ---------------------------------------------------------------- study groups
+
+const groupBoard = (
+  <Panel title="Study group · Superday crew · Accounting">
+    <ul className="space-y-1.5 text-sm">
+      {[['@maya', 41, 48, 'strong'], ['you', 36, 48, 'solid'], ['@dev', 22, 48, 'developing'], ['@sam', 9, 48, 'weak']].map(([h, n, of, tone]) => (
+        <li key={h as string} className="flex items-center gap-2">
+          <span className="w-12 truncate font-medium">{h}</span>
+          <span className="h-2 flex-1 overflow-hidden rounded-full bg-muted"><span className={cn('block h-full rounded-full', tone === 'strong' ? 'bg-chart-1' : tone === 'solid' ? 'bg-chart-2' : tone === 'developing' ? 'bg-chart-4' : 'bg-chart-5')} style={{ width: `${((n as number) / (of as number)) * 100}%` }} /></span>
+          <span className="w-14 text-right text-[11px] text-muted-foreground">{n} of {of}</span>
+        </li>
+      ))}
+    </ul>
+    <p className="mt-2 text-[11px] text-muted-foreground">cards mastered · everyone in the group sees this</p>
+  </Panel>
+)
+
+const groupConsent = (
+  <Panel title="Join · Superday crew">
+    <p className="text-sm">You are joining a study group. Members of <span className="font-semibold">Superday crew</span> will see, for the group&rsquo;s sets:</p>
+    <ul className="mt-2 space-y-1 text-sm">
+      {['which cards you have mastered', 'your confidence on each card', 'when you last studied'].map((t) => (
+        <li key={t} className="flex items-center gap-2"><Check className="h-3.5 w-3.5 text-success" aria-hidden="true" />{t}</li>
+      ))}
+    </ul>
+    <p className="mt-2 text-xs text-muted-foreground">Nothing outside the group&rsquo;s sets. Leave any time and it stops.</p>
+    <div className="mt-3 flex gap-2 text-xs"><span className="rounded-md bg-primary px-3 py-1.5 font-semibold text-primary-foreground">I understand — join</span><span className="rounded-md border border-border px-3 py-1.5">Not now</span></div>
+  </Panel>
+)
+
+const groupCards = (
+  <Panel title="Who knows what · Accounting">
+    <div className="grid grid-cols-[minmax(0,1fr)_repeat(4,1.5rem)] items-center gap-x-1 gap-y-1 text-[11px]">
+      <span />
+      {['M', 'Y', 'D', 'S'].map((m) => <span key={m} className="text-center font-semibold text-muted-foreground">{m}</span>)}
+      {[['Deferred tax liability', [2, 2, 1, 0]], ['Working capital', [2, 1, 1, 0]], ['Goodwill impairment', [1, 2, 0, 0]], ['EBITDA vs cash flow', [2, 2, 2, 1]], ['Accretion / dilution', [0, 1, 0, 0]]].map(([t, row]) => (
+        <Fragment key={t as string}>
+          <span className="truncate">{t as string}</span>
+          {(row as number[]).map((v, i) => <span key={i} className={cn('mx-auto h-4 w-4 rounded', v === 2 ? 'bg-chart-1/70' : v === 1 ? 'bg-chart-4/60' : 'border border-dashed border-muted-foreground/40')} />)}
+        </Fragment>
+      ))}
+    </div>
+    <p className="mt-2 inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Users className="h-3 w-3" aria-hidden="true" />the cards nobody has down are where the group studies next</p>
+  </Panel>
+)
+
+// ---------------------------------------------------------------- mastery
+
+const mastery = (
+  <Panel title="Mastery · Accounting · 31 of 48 cards measured">
+    <div className="space-y-2.5 text-sm">
+      {[
+        ['Deferred tax liability', [['Arises when book tax < cash tax', 'strong'], ['Reverses as timing differences unwind', 'solid'], ['Sits as a liability, not equity', 'weak']]],
+        ['Working capital', [['Current assets less current liabilities', 'strong'], ['A rise is a use of cash', 'unknown']]],
+      ].map(([card, pts]) => (
+        <div key={card as string} className="rounded-md border border-border p-2.5">
+          <div className="font-heading font-bold">{card as string}</div>
+          <ul className="mt-1.5 space-y-1">
+            {(pts as [string, string][]).map(([t, sh]) => (
+              <li key={t} className="flex items-center gap-2 text-xs">
+                <span className={cn('h-2.5 w-2.5 shrink-0 rounded-sm', sh === 'strong' ? 'bg-chart-1' : sh === 'solid' ? 'bg-chart-2' : sh === 'weak' ? 'bg-chart-5' : 'border border-dashed border-muted-foreground/50')} />
+                <span className="flex-1 truncate">{t}</span>
+                <span className="text-[10px] text-muted-foreground">{sh === 'unknown' ? 'not measured' : sh}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       ))}
     </div>
   </Panel>
@@ -603,6 +684,10 @@ const MOCKS: Record<MockId, ReactNode> = {
   'hot-seat': hotSeat,
   blitz,
   match,
+  'group-board': groupBoard,
+  'group-consent': groupConsent,
+  'group-cards': groupCards,
+  mastery,
 }
 
 export function Mock({ id }: { id: MockId }) {
