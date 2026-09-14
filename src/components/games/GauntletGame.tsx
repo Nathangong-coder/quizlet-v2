@@ -93,9 +93,20 @@ export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boo
     setTyped('')
     setNote(said)
     if (next.phase === 'won' || next.phase === 'dead') return finish(next)
-    // MC: a new enemy needs its options; the same enemy still standing keeps them.
+    // MC: a new enemy needs its options; the same enemy still standing keeps
+    // them. A miss goes through the review first — `proceed` fetches then.
     const nextEnc = currentEncounter(next)
     if (mode === 'mc' && nextEnc && next.index !== state.index) loadOptions(nextEnc.cardId, nextEnc.ask)
+  }
+
+  /** Leave the review: the enemy asks a different card. */
+  function proceed(now: number) {
+    if (!state || state.phase !== 'review') return
+    const next = reduceGauntlet(state, { type: 'continue', now })
+    setState(next)
+    setNote('A new question.')
+    const nextEnc = currentEncounter(next)
+    if (mode === 'mc' && nextEnc) loadOptions(nextEnc.cardId, nextEnc.ask)
   }
 
   function pick(option: string, now: number) {
@@ -220,7 +231,9 @@ export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boo
         )}
       </div>
 
-      {state.phase === 'magician' ? (
+      {state.phase === 'review' && state.review ? (
+        <ReviewCard card={cardById.get(state.review.cardId) ?? card} ask={state.review.ask} onContinue={() => proceed(Date.now())} />
+      ) : state.phase === 'magician' ? (
         <div className="rounded-xl border border-violet-300 p-4 dark:border-violet-800">
           <p className="text-sm"><span className="font-semibold">The magician:</span> &ldquo;Three down. I can mend you, or I can weaken the next one. Choose.&rdquo;</p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -259,6 +272,33 @@ export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boo
           )}
         </>
       )}
+    </div>
+  )
+}
+
+/**
+ * Shown after every survivable miss: the whole card, the side that was asked
+ * marked, before the enemy moves to a different question. Not a lecture — one
+ * card, one button.
+ */
+function ReviewCard({ card, ask, onContinue }: { card: Card; ask: 'term' | 'definition'; onContinue: () => void }) {
+  return (
+    <div className="rounded-xl border border-warning/60 bg-warning-subtle p-4" role="region" aria-label="Review the card you missed">
+      <div className="label mb-2">Review before the next question</div>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        <div className={cn('rounded-lg bg-card p-3', ask === 'term' && 'ring-1 ring-warning')}>
+          <dt className="label mb-1">Term</dt>
+          <dd className="text-sm font-medium">{card.term}</dd>
+        </div>
+        <div className={cn('rounded-lg bg-card p-3', ask === 'definition' && 'ring-1 ring-warning')}>
+          <dt className="label mb-1">Definition</dt>
+          <dd className="text-sm">{card.definition}</dd>
+        </div>
+      </dl>
+      <div className="mt-3 flex items-center gap-3">
+        <Button onClick={onContinue}>Continue — a different question</Button>
+        <span className="text-xs text-muted-foreground">This card comes back later in the run.</span>
+      </div>
     </div>
   )
 }
