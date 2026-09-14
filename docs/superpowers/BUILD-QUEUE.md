@@ -33,6 +33,22 @@ Crossword) were found only in the browser and fixed by seeding from the server (
 `initMatchGame(cards, id, rng)`). **Live gate owed (signed in):** a Gauntlet run in each mode,
 a Hot Seat interview in each difficulty with a probe, and one score of each kind landing on a
 board. `MatchTimer` was rewritten to derive elapsed time (react-compiler rule).
+**Second brief (2026-09-14, evening) — six commits on the branch after the games revamp:**
+Gauntlet reviews a missed card then asks a different one (`db2fae3`); the landing is a
+scrolling gallery of all eight tools, games are open to visitors (Gauntlet MC; SA and Hot Seat
+stay signed-in — they grade on the player's keys), study groups is a feature page, flashcards
+are flat with no arrows, and a stale-session `/` ↔ `/welcome` redirect loop now goes to
+`/login` (`f22d3e7`); a **Mastery** set view and a printable **Study guide**
+(`/sets/[id]/guide`) built from key points, shaded by the viewer's `KlpState` above their own
+floor — `src/lib/sets/mastery.ts`, study guides feature marked live (`3066343`); **Review
+mode** built out with a setup screen (starred / due / weak / categories / side / order), a
+flat keyboard-driven deck and a summary with "review the ones you missed" (`660b559`); the
+**group page** is four tabs with a pulse overview, "study next", a member roster, and a
+card × member coverage grid on each set (`src/lib/groups/pulse.ts`). **Live gates owed
+(signed in):** a Review session end to end (setup → deck → summary → missed-only rerun), the
+Mastery tab and guide shading on a set with `KlpState` rows, and the group page tabs with two
+members. **Not done:** anonymous Hot Seat — impossible without a key to grade with; a
+site-shared key for visitors is the owner's call (cost and abuse).
 Deferred on purpose: study stats on profiles, public groups.
 
 **HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress. Read this before

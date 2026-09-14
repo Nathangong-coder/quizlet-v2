@@ -252,6 +252,7 @@ export async function gauntletOptions(cardId: string, ask: 'term' | 'definition'
       texts = [g.correctAnswer, ...g.distractors.map((d) => d.text)]
       optionsJson = { v: 2, correctAnswer: g.correctAnswer, options: [{ text: g.correctAnswer, correct: true }, ...g.distractors.map((d) => ({ text: d.text, correct: false, sourceKlpId: klps[d.klpRef]?.id, corruption: d.corruption }))] }
     } else {
+      // ATTRIBUTION: same cache row, keyed by the same `model` as above.
       const g = await generateJson({ userId: viewerId, task: 'distractors', schema: MultipleChoiceOptionsSchema, prompt: MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: siblings }) })
       correct = g.correctAnswer
       texts = g.options

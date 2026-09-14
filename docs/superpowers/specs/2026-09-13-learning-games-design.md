@@ -415,3 +415,18 @@ client-side seed) — the kind of defect jsdom cannot see.
 **Live gate owed (signed in):** a Gauntlet run in each mode on a real set (AI distractors
 generated and cached; a short-answer roll), a Hot Seat interview in each difficulty with a
 probe, and one score of each kind landing on a board with the player's handle.
+
+### §9.8 Second brief, 2026-09-14
+
+- **A miss reviews the card, then the enemy asks a different one.** The reducer gains a
+  `review` phase after every survivable miss (the missed card in full, the asked side marked)
+  and a `continue` action that swaps in the next card from `RunPlan.pool` — every card not on
+  the run, seeded — and queues the missed card at the back. The enemy still stands; only the
+  question changes. An empty pool (a twelve-card set) returns the same card, just reviewed.
+- **Anyone can play.** Every game page renders for a visitor on a readable set. Gauntlet
+  multiple choice plays anonymously (a plain shuffle, plain options, nothing saved;
+  `gameAvailability` gives Gauntlet a `few_cards` rule instead of `sign_in`). Short answer and
+  Hot Seat grade written answers on the player's own keys, so those two still need an account
+  — the page says so beside the host rather than behind a wall.
+- The landing shows all eight tools as a scrolling gallery and the games feature page is drawn
+  from the real sprite layer.

@@ -198,13 +198,13 @@ export async function loadGroupSetProgress(
   }
 }
 
-/** Every attached set's standings, for the group page's overview. Unreadable sets are skipped. */
-export async function loadGroupOverview(viewerId: string, group: GroupDetail): Promise<Record<string, SetLeaderboard>> {
-  const out: Record<string, SetLeaderboard> = {}
+/** Every attached set's standings and cards, for the group page. Unreadable sets are skipped. */
+export async function loadGroupOverview(viewerId: string, group: GroupDetail): Promise<Record<string, { leaderboard: SetLeaderboard; cards: { id: string; term: string }[] }>> {
+  const out: Record<string, { leaderboard: SetLeaderboard; cards: { id: string; term: string }[] }> = {}
   for (const s of group.sets) {
     if (!s.readable) continue
     const p = await loadGroupSetProgress(viewerId, group.id, s.setId)
-    if (p) out[s.setId] = p.leaderboard
+    if (p) out[s.setId] = { leaderboard: p.leaderboard, cards: p.set.cards.map((c) => ({ id: c.id, term: c.term })) }
   }
   return out
 }
