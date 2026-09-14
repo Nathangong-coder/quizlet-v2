@@ -6,7 +6,7 @@ import { loadHomeRecentItems } from '@/lib/home/recent-items'
 import { RecommendedStrip } from '@/components/home/RecommendedStrip'
 import { JumpBackStrip } from '@/components/home/JumpBackStrip'
 import { RecentItems } from '@/components/home/RecentItems'
-import { Landing } from '@/components/home/Landing'
+import { redirect } from 'next/navigation'
 import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
 
 /**
@@ -19,7 +19,9 @@ import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
  */
 export default async function Home() {
   const session = await auth()
-  if (!session?.user?.id) return <Landing />
+  // The middleware rewrites a signed-out `/` to /welcome before this runs; the
+  // redirect is the fallback if it ever does not (a matcher edit, a new route).
+  if (!session?.user?.id) redirect('/welcome')
 
   const [recentItems, recommended] = await Promise.all([
     loadHomeRecentItems(session.user.id, 8, readableSetWhere(session.user.id)),

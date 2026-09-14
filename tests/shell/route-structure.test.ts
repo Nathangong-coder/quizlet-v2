@@ -44,8 +44,6 @@ const BARE_ROUTES = [
 const SHELLED_ROUTES = [
   'page.tsx',
   'browse/page.tsx',
-  'features/page.tsx',
-  'features/[slug]/page.tsx',
   'u/[handle]/page.tsx',
   'groups/page.tsx',
   'groups/new/page.tsx',
@@ -92,7 +90,45 @@ const SHELLED_ROUTES = [
   'concepts/page.tsx',
 ]
 
+/**
+ * Routes in the MARKETING group: the landing (served at `/` for a visitor by
+ * a middleware rewrite), the feature pages and the legal pages. Their layout
+ * carries the top bar and footer and NEVER imports the app shell — a
+ * layout's client bundle is built from everything reachable from it, so a
+ * marketing page inside `(app)` would ship the rail, the profile menu and
+ * the avatar dialog to every anonymous visitor. See
+ * src/app/(marketing)/layout.tsx.
+ */
+const MARKETING_ROUTES = [
+  'welcome/page.tsx',
+  'features/page.tsx',
+  'features/[slug]/page.tsx',
+  'privacy/page.tsx',
+  'terms/page.tsx',
+  'cookies/page.tsx',
+]
+
 describe('the shell covers exactly the routes it should', () => {
+  for (const route of MARKETING_ROUTES) {
+    it(`${route} is in the marketing group`, () => {
+      expect(existsSync(join(APP, '(marketing)', route)), `${route} must live inside (marketing)`).toBe(true)
+      expect(existsSync(join(APP, '(app)', route)), `${route} must NOT also be in (app)`).toBe(false)
+    })
+  }
+
+  it('the marketing layout never imports the app shell, and the app layout never imports the marketing header', () => {
+    // One importer per chrome. Turbopack merges a module into the chunk of
+    // its importers; a header shared by both layouts ends up in the (app)
+    // chunk with dialog/popover/floating-ui, and every marketing page
+    // over-fetches ~185 KB it never renders. Measured 2026-09-13.
+    const marketing = readFileSync(join(APP, '(marketing)', 'layout.tsx'), 'utf8')
+    for (const forbidden of ['AppShell', 'CollapsibleShell', 'ProfileMenu', 'AvatarDialog', 'RailNav']) {
+      expect(marketing, `marketing layout imports ${forbidden}`).not.toContain(forbidden)
+    }
+    const app = readFileSync(join(APP, '(app)', 'layout.tsx'), 'utf8')
+    expect(app).not.toMatch(/from ['"]@\/components\/marketing\/MarketingHeader/)
+  })
+
   for (const route of BARE_ROUTES) {
     it(`${route} renders bare`, () => {
       expect(existsSync(join(APP, route)), `${route} must exist outside (app)`).toBe(true)
@@ -138,9 +174,10 @@ describe('no route escapes classification', () => {
     const classified = new Set([
       ...BARE_ROUTES,
       ...SHELLED_ROUTES.map((r) => `(app)/${r}`),
+      ...MARKETING_ROUTES.map((r) => `(marketing)/${r}`),
     ])
     const unclassified = allPages(APP).filter((p) => !classified.has(p))
-    expect(unclassified, `add these to BARE_ROUTES or SHELLED_ROUTES: ${unclassified.join(', ')}`).toEqual([])
+    expect(unclassified, `add these to BARE_ROUTES, SHELLED_ROUTES or MARKETING_ROUTES: ${unclassified.join(', ')}`).toEqual([])
   })
 })
 
@@ -208,8 +245,13 @@ describe('the root layout supplies no chrome and no measure', () => {
     expect(root).not.toContain('mx-auto')
   })
 
-  it('leaves the shell layout to own the measure', () => {
-    const shell = readFileSync(join(APP, '(app)', 'layout.tsx'), 'utf8')
+  it('leaves the shell to own the measure', () => {
+    // The (app) layout delegates to CollapsibleShell (both branches render
+    // it), so the measure lives THERE — one place, as before, just one file
+    // deeper. The marketing layout owns its own measure for its own group.
+    const shell = readFileSync(join(ROOT, 'src', 'components', 'shell', 'CollapsibleShell.tsx'), 'utf8')
     expect(shell).toMatch(/max-w-/)
+    const marketing = readFileSync(join(APP, '(marketing)', 'layout.tsx'), 'utf8')
+    expect(marketing).toMatch(/max-w-/)
   })
 })

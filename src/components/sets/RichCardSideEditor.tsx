@@ -380,7 +380,7 @@ export function RichCardSideEditor({
                       {block.type === "image" ? (
                         <img
                           src={`/api/assets/${block.assetId}`}
-                          alt="uploaded asset preview"
+                          alt={block.text?.trim() || 'Preview of the uploaded image'}
                           className="max-h-40 w-auto max-w-full rounded border border-border object-contain"
                         />
                       ) : block.type === "video" ? (

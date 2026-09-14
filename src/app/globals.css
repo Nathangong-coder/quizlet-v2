@@ -107,7 +107,7 @@
   --destructive: #b4233c;
   --destructive-foreground: #ffffff;
   --destructive-subtle: #fff0f2;
-  --success: #2f8f68;
+  --success: #237a57; /* was #2f8f68 — 3.7:1 on the page; 4.9:1 now (WCAG AA text, contrast-audit 2026-09-13) */
   --success-foreground: #ffffff;
   --success-subtle: #eaf7f0;
   --warning: #9a6500;
@@ -118,7 +118,7 @@
   --info-subtle: #eef0ff;
 
   --border: #d9dde8;
-  --input: #cbd1df;
+  --input: #7f89a0; /* was #cbd1df — 1.4:1; UI boundaries need 3:1 (WCAG 1.4.11) */
   --ring: #4255ff;
 
   --chart-1: #4255ff;
@@ -133,7 +133,7 @@
   --know-2: #a5b1dd;
   --know-3: #7182ca;
   --know-4: #4c5fad;
-  --severity-none: #2f8f68;
+  --severity-none: #237a57;
   --severity-low: #b68715;
   --severity-medium: #b66b24;
   --severity-high: #b4233c;

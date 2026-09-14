@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
@@ -14,6 +15,8 @@ import { SignInButton } from '@/components/auth/SignInButton'
 import { loadSetStudySummaries } from '@/lib/sets/study-summary'
 import { QUIZ_HISTORY_WHERE } from '@/lib/quiz/history'
 import { AvatarMark } from '@/components/shell/AvatarMark'
+
+export const metadata: Metadata = { title: 'Your library', description: 'Your sets, folders, practice and study guides.' }
 
 const LIBRARY_TYPES = ['sets', 'folders', 'tests', 'guides'] as const
 type LibraryType = (typeof LIBRARY_TYPES)[number]

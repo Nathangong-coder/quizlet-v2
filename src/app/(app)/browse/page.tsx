@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { auth } from '@/auth'
 import { loadDirectory } from '@/lib/sets/directory'
@@ -7,6 +8,8 @@ import { SubjectFilterBar } from '@/components/sets/SubjectFilterBar'
 import { getSubject, getSubjectGroup } from '@/lib/subjects/taxonomy'
 import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
 import { PageHeader } from '@/components/ui/page-header'
+
+export const metadata: Metadata = { title: 'Browse published sets', description: 'Sets people have published on synapseHQ. Study any of them or make your own copy.' }
 
 /**
  * The public directory.

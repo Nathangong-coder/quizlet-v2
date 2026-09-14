@@ -55,6 +55,8 @@ export default function ResetPasswordForm({ token }: { token: string }) {
         <Input
           id="reset-password"
           type="password"
+          required
+          minLength={PASSWORD_MIN_LENGTH}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="new-password"
@@ -71,6 +73,8 @@ export default function ResetPasswordForm({ token }: { token: string }) {
         <Input
           id="reset-confirm"
           type="password"
+          required
+          minLength={PASSWORD_MIN_LENGTH}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           autoComplete="new-password"

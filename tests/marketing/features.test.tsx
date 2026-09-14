@@ -9,7 +9,6 @@ afterEach(cleanup)
 import { FEATURES, FEATURE_SLUGS, getFeature } from '@/lib/marketing/features'
 import { MOCK_IDS } from '@/components/marketing/mocks'
 import { FeaturePage } from '@/components/marketing/FeaturePage'
-import { FeatureShowcase, SHOWCASE_TABS } from '@/components/home/FeatureShowcase'
 
 describe('feature registry', () => {
   it('lists the seven features in the order the owner gave', () => {
@@ -55,8 +54,8 @@ describe('marketing files make no database read', () => {
     'src/lib/marketing/features.ts',
     'src/components/marketing/mocks.tsx',
     'src/components/marketing/FeaturePage.tsx',
-    'src/app/(app)/features/page.tsx',
-    'src/app/(app)/features/[slug]/page.tsx',
+    'src/app/(marketing)/features/page.tsx',
+    'src/app/(marketing)/features/[slug]/page.tsx',
   ]
   it.each(files)('%s imports neither the Prisma client nor a server action', (file) => {
     const source = readFileSync(join(process.cwd(), file), 'utf8')
@@ -105,19 +104,9 @@ describe('feature route', () => {
   it('404s an unknown slug and statically lists the seven', async () => {
     const notFound = vi.fn(() => { throw new Error('NEXT_NOT_FOUND') })
     vi.doMock('next/navigation', () => ({ notFound }))
-    const mod = await import('@/app/(app)/features/[slug]/page')
+    const mod = await import('@/app/(marketing)/features/[slug]/page')
     expect(await mod.generateStaticParams()).toEqual(FEATURE_SLUGS.map((slug) => ({ slug })))
     await expect(mod.default({ params: Promise.resolve({ slug: 'nope' }) })).rejects.toThrow('NEXT_NOT_FOUND')
     vi.doUnmock('next/navigation')
-  })
-})
-
-describe('FeatureShowcase', () => {
-  it('has one tab per feature, each linking to its page', () => {
-    expect(SHOWCASE_TABS.map((t) => t.id)).toEqual(FEATURE_SLUGS)
-    render(<FeatureShowcase />)
-    expect(screen.getAllByRole('tab')).toHaveLength(7)
-    const link = screen.getByRole('link', { name: /learn more/i })
-    expect(link).toHaveAttribute('href', '/features/flashcards')
   })
 })

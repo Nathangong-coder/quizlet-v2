@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Users, Plus } from 'lucide-react'
@@ -6,6 +7,8 @@ import { loadMyGroups } from '@/lib/groups/load'
 import { buttonVariants } from '@/components/ui/button'
 import { PageHeader } from '@/components/ui/page-header'
 import { cn } from '@/lib/utils'
+
+export const metadata: Metadata = { title: 'Study groups', description: 'Study the same sets with people you choose.' }
 
 /**
  * `/groups` — the groups you belong to. Private only: there is no directory
