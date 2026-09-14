@@ -7,12 +7,14 @@ import { readableSetWhere } from '@/lib/sets/visibility'
 import { Button } from '@/components/ui/button'
 import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
 import { Leaderboard, LeaderboardLegend } from '@/components/groups/Leaderboard'
+import { CoverageGrid } from '@/components/groups/CoverageGrid'
 import { cn } from '@/lib/utils'
 
 /**
  * `/groups/[id]/sets/[setId]` — the full leaderboard for one set and, card by
- * card, who has it down and who is still on it. The point of the card grid:
- * find the person to ask. Membership + attachment + readability are all
+ * card, who has it down and who is still on it: a card × member grid, sorted
+ * hardest first, with a member pick to see only what they are missing. The
+ * point of the grid: find the person to ask, and the card to do next. Membership + attachment + readability are all
  * checked in the loader (null → 404).
  */
 export default async function GroupSetPage({ params }: { params: Promise<{ id: string; setId: string }> }) {
@@ -25,7 +27,6 @@ export default async function GroupSetPage({ params }: { params: Promise<{ id: s
   const data = await loadGroupSetProgress(viewerId, id, setId)
   if (!data) notFound()
   const { set, leaderboard } = data
-  const cardById = new Map(set.cards.map((c) => [c.id, c]))
 
   return (
     <div className="max-w-5xl">
@@ -53,45 +54,9 @@ export default async function GroupSetPage({ params }: { params: Promise<{ id: s
       </Section>
 
       <Section>
-        <SectionHeader title="Card by card" hint="who to ask" />
+        <SectionHeader title="Card by card" hint="who has which card down" />
         <SectionBody>
-          <ul className="divide-y divide-border/70">
-            {leaderboard.cards.map((c) => {
-              const card = cardById.get(c.cardId)
-              if (!card) return null
-              const nobody = c.masteredBy.length === 0
-              return (
-                <li key={c.cardId} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-6">
-                  <div className="min-w-0">
-                    <div className="font-medium">{card.term}</div>
-                    <div className="line-clamp-2 text-sm text-muted-foreground">{card.definition}</div>
-                  </div>
-                  <div className="text-sm">
-                    {nobody ? (
-                      <span className="text-muted-foreground">Nobody has this one down yet{c.learningBy.length > 0 ? ` — ${c.learningBy.length} learning` : ''}.</span>
-                    ) : (
-                      <>
-                        <span className="text-muted-foreground">Ask </span>
-                        {c.masteredBy.map((m, i) => (
-                          <span key={m.userId}>
-                            {i > 0 && <span className="text-muted-foreground">, </span>}
-                            {m.userId === viewerId ? (
-                              <span className="font-medium">you</span>
-                            ) : m.handle ? (
-                              <Link href={`/u/${m.handle}`} className="font-medium hover:underline underline-offset-4">@{m.handle}</Link>
-                            ) : (
-                              <span className="font-medium">a member</span>
-                            )}
-                          </span>
-                        ))}
-                        {c.learningBy.length > 0 && <span className="text-muted-foreground"> · {c.learningBy.length} learning</span>}
-                      </>
-                    )}
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+          <CoverageGrid board={leaderboard} cards={set.cards.map((c) => ({ id: c.id, term: c.term }))} viewerId={viewerId} />
         </SectionBody>
       </Section>
     </div>

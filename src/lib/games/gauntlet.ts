@@ -60,6 +60,12 @@ export interface Encounter {
 export interface RunPlan {
   mode: GauntletMode
   encounters: Encounter[]
+  /**
+   * Cards NOT on the run, seeded. After a miss the enemy asks a different
+   * question: the next card here replaces the missed one, and the missed card
+   * goes to the back of this queue so it comes round again later in the run.
+   */
+  pool: string[]
   /** True when the viewer had no memory on the set: enemies are then a plain shuffle. */
   noMemory: boolean
 }
@@ -78,7 +84,7 @@ export function planRun(input: {
   mode: GauntletMode
 }): RunPlan {
   const rng = mulberry32(input.seed)
-  if (input.cards.length === 0) return { mode: input.mode, encounters: [], noMemory: true }
+  if (input.cards.length === 0) return { mode: input.mode, encounters: [], pool: [], noMemory: true }
   const mem = new Map(input.memory.map((m) => [m.cardId, m]))
   const noMemory = input.cards.every((c) => !mem.has(c.id))
 
@@ -106,7 +112,8 @@ export function planRun(input: {
     kind,
     ask: rng() < 0.5 ? 'term' : 'definition',
   }))
-  return { mode: input.mode, encounters, noMemory }
+  const onRun = new Set(encounters.map((e) => e.cardId))
+  return { mode: input.mode, encounters, pool: pool.filter((c) => !onRun.has(c.id)).map((c) => c.id), noMemory }
 }
 
 /** MC options for an encounter from other cards' text — the no-AI fallback. */
@@ -118,7 +125,13 @@ export function fallbackOptions(card: GauntletCard, others: readonly GauntletCar
 
 // ------------------------------------------------------------------ reducer
 
-export type Phase = 'fight' | 'magician' | 'won' | 'dead'
+/**
+ * `review` follows every survivable miss: the card you missed is shown in
+ * full before the enemy asks its next question (owner's brief, 2026-09-14 —
+ * "always review it before moving on"). The enemy is still standing; only
+ * the question changes.
+ */
+export type Phase = 'fight' | 'review' | 'magician' | 'won' | 'dead'
 
 export interface GauntletState {
   plan: RunPlan
@@ -133,6 +146,8 @@ export interface GauntletState {
   streak: number
   bestStreak: number
   phase: Phase
+  /** The card being reviewed after a miss (phase `review`), with the side that was asked. */
+  review: { cardId: string; ask: 'term' | 'definition' } | null
   /** Last exchange, for the UI to narrate. */
   last: { hit: boolean; damage: number; accuracy?: number } | null
   startedAt: number
@@ -142,6 +157,8 @@ export interface GauntletState {
 export type GauntletAction =
   | { type: 'attack'; hit: boolean; accuracy?: number; now: number }
   | { type: 'magician'; choice: 'heal' | 'weaken'; now: number }
+  /** Leave the review: the enemy asks a different card. */
+  | { type: 'continue'; now: number }
 
 export function createGauntlet(plan: RunPlan, now: number): GauntletState {
   const first = plan.encounters[0]
@@ -156,6 +173,7 @@ export function createGauntlet(plan: RunPlan, now: number): GauntletState {
     streak: 0,
     bestStreak: 0,
     phase: first ? 'fight' : 'won',
+    review: null,
     last: null,
     startedAt: now,
     endedAt: first ? null : now,
@@ -163,7 +181,7 @@ export function createGauntlet(plan: RunPlan, now: number): GauntletState {
 }
 
 export function currentEncounter(s: GauntletState): Encounter | null {
-  return s.phase === 'fight' || s.phase === 'magician' ? (s.plan.encounters[s.index] ?? null) : null
+  return s.phase === 'fight' || s.phase === 'magician' || s.phase === 'review' ? (s.plan.encounters[s.index] ?? null) : null
 }
 
 /** Streak bonus: +10 % per consecutive kill, capped at double. */
@@ -195,6 +213,17 @@ export function reduceGauntlet(s: GauntletState, a: GauntletAction): GauntletSta
     const healed = a.choice === 'heal' ? { ...s, hp: Math.min(MAX_HP, s.hp + MAGICIAN_HEAL) } : { ...s, weakened: true }
     return advance({ ...healed, phase: 'fight' }, a.now)
   }
+  if (a.type === 'continue') {
+    if (s.phase !== 'review' || !s.review) return s
+    // Swap the enemy's card for the next one in the pool; the missed card
+    // rejoins the pool at the back. An empty pool (a twelve-card set) means
+    // the same card returns — you have just reviewed it.
+    const missed = s.review.cardId
+    const [replacement, ...rest] = s.plan.pool
+    const encounters = s.plan.encounters.map((e, i) => (i === s.index && replacement ? { ...e, cardId: replacement } : e))
+    const pool = replacement ? [...rest, missed] : s.plan.pool
+    return { ...s, plan: { ...s.plan, encounters, pool }, phase: 'fight', review: null }
+  }
   if (s.phase !== 'fight') return s
   const enc = s.plan.encounters[s.index]
   if (!enc) return s
@@ -224,7 +253,7 @@ export function reduceGauntlet(s: GauntletState, a: GauntletAction): GauntletSta
   const hp = Math.max(0, s.hp - damage)
   const hurt: GauntletState = { ...s, hp, streak: 0, last: { hit: false, damage, accuracy: a.accuracy } }
   if (hp <= 0) return { ...hurt, phase: 'dead', endedAt: a.now }
-  return hurt
+  return { ...hurt, phase: 'review', review: { cardId: enc.cardId, ask: enc.ask } }
 }
 
 /** 0..1 through the run, for the progress bar. */

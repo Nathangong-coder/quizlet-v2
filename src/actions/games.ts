@@ -187,19 +187,25 @@ export async function setGamePieceEnabled(pieceId: string, enabled: boolean): Pr
  */
 export async function buildGauntletRun(setId: string, opts: { mode: GauntletMode }): Promise<ActionResult<RunPlan & { cards: { id: string; term: string; definition: string }[] }>> {
   const session = await auth()
-  if (!session?.user?.id) return { success: false, error: 'Sign in to play Gauntlet' }
+  const viewerId = session?.user?.id ?? null
+  // Anyone can play (owner, 2026-09-14): a visitor gets a plain shuffle on a
+  // set they can read. Short answer grades with the player's own keys, so
+  // that mode alone stays signed-in.
+  if (!viewerId && opts.mode === 'sa') return { success: false, error: 'Sign in to play short answer — it grades with your own AI keys' }
   const set = await prisma.set.findFirst({
-    where: { id: setId, ...readableSetWhere(session.user.id) },
+    where: { id: setId, ...readableSetWhere(viewerId) },
     select: { id: true, cards: { orderBy: { position: 'asc' }, select: { id: true, term: true, definition: true } } },
   })
   if (!set) return { success: false, error: 'Set not found' }
   const now = new Date()
-  const progress = await prisma.cardProgress.findMany({
-    where: { userId: session.user.id, cardId: { in: set.cards.map((c) => c.id) } },
-    select: { cardId: true, confidence: true, dueAt: true },
-  })
+  const progress = viewerId
+    ? await prisma.cardProgress.findMany({
+        where: { userId: viewerId, cardId: { in: set.cards.map((c) => c.id) } },
+        select: { cardId: true, confidence: true, dueAt: true },
+      })
+    : []
   const memory = progress.map((p) => ({ cardId: p.cardId, confidence: p.confidence, due: p.dueAt === null || p.dueAt <= now }))
-  const plan = planRun({ cards: set.cards, memory, seed: seedFromString(`${session.user.id}:${setId}:${Date.now()}`), mode: opts.mode })
+  const plan = planRun({ cards: set.cards, memory, seed: seedFromString(`${viewerId ?? 'anon'}:${setId}:${Date.now()}`), mode: opts.mode })
   return { success: true, data: { ...plan, cards: set.cards } }
 }
 
@@ -213,8 +219,8 @@ export async function buildGauntletRun(setId: string, opts: { mode: GauntletMode
  */
 export async function gauntletOptions(cardId: string, ask: 'term' | 'definition'): Promise<ActionResult<{ options: string[]; correct: string; source: 'ai' | 'fallback' }>> {
   const session = await auth()
-  if (!session?.user?.id) return { success: false, error: 'Unauthorized' }
-  const card = await prisma.card.findFirst({ where: { id: cardId, set: readableSetWhere(session.user.id) }, include: { set: { select: { id: true, cards: true } } } })
+  const viewerId = session?.user?.id ?? null
+  const card = await prisma.card.findFirst({ where: { id: cardId, set: readableSetWhere(viewerId) }, include: { set: { select: { id: true, cards: true } } } })
   if (!card) return { success: false, error: 'Card not found' }
   const siblings = card.set.cards
   const rng = mulberry32(seedFromString(`${cardId}:${ask}:${Date.now()}`))
@@ -224,9 +230,10 @@ export async function gauntletOptions(cardId: string, ask: 'term' | 'definition'
   }
   // AI distractors are written for the DEFINITION side (the card's answer);
   // a term-side question uses sibling terms, which are short and comparable.
-  if (ask === 'definition') return fallback()
+  // A visitor has no credentials: plain options, always.
+  if (ask === 'definition' || !viewerId) return fallback()
 
-  const model = await resolveTaskModel(session.user.id, 'distractors')
+  const model = await resolveTaskModel(viewerId, 'distractors')
   if (!model) return fallback()
   try {
     const cached = await prisma.quizOptionCache.findUnique({ where: { cardId_model: { cardId, model } } })
@@ -240,12 +247,13 @@ export async function gauntletOptions(cardId: string, ask: 'term' | 'definition'
     let correct: string
     let texts: string[]
     if (klps.length > 0) {
-      const g = await generateJson({ userId: session.user.id, task: 'distractors', schema: MultipleChoiceKlpSchema, prompt: MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: siblings, klps: klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind })) }) })
+      const g = await generateJson({ userId: viewerId, task: 'distractors', schema: MultipleChoiceKlpSchema, prompt: MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: siblings, klps: klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind })) }) })
       correct = g.correctAnswer
       texts = [g.correctAnswer, ...g.distractors.map((d) => d.text)]
       optionsJson = { v: 2, correctAnswer: g.correctAnswer, options: [{ text: g.correctAnswer, correct: true }, ...g.distractors.map((d) => ({ text: d.text, correct: false, sourceKlpId: klps[d.klpRef]?.id, corruption: d.corruption }))] }
     } else {
-      const g = await generateJson({ userId: session.user.id, task: 'distractors', schema: MultipleChoiceOptionsSchema, prompt: MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: siblings }) })
+      // ATTRIBUTION: same cache row, keyed by the same `model` as above.
+      const g = await generateJson({ userId: viewerId, task: 'distractors', schema: MultipleChoiceOptionsSchema, prompt: MULTIPLE_CHOICE_PROMPT.build({ card, siblingCards: siblings }) })
       correct = g.correctAnswer
       texts = g.options
       optionsJson = g

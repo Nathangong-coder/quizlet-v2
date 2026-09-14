@@ -3,7 +3,7 @@ import { ArrowRight } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { isSignupOpen } from '@/lib/auth/signup-flag'
-import { getFeature } from '@/lib/marketing/features'
+import { FEATURES, getFeature } from '@/lib/marketing/features'
 import { Mock } from '@/components/marketing/mocks'
 import { StatusBadge } from '@/components/marketing/StatusBadge'
 
@@ -14,9 +14,10 @@ import { StatusBadge } from '@/components/marketing/StatusBadge'
  * tool cards, and the footer.
  *
  * Shape borrowed from Quizlet's home: a question as the headline, one line,
- * ONE button, then four big tool cards, then two zig-zag stories. What is
- * not borrowed: nothing here is advertised that is not built (Learn and
- * Study guides carry their Coming badge) and there is no voice.
+ * ONE button, then EVERY study tool as a horizontally scrolling gallery
+ * (owner, 2026-09-14 — it used to show four), then two zig-zag stories. What
+ * is not borrowed: nothing here is advertised that is not built (Learn
+ * carries its Coming badge) and there is no voice.
  *
  * NO DATA FETCHING. This renders for every anonymous hit including
  * crawlers. `isSignupOpen()` is an env lookup; `tests/components/landing.test.tsx`
@@ -30,12 +31,18 @@ import { StatusBadge } from '@/components/marketing/StatusBadge'
 // Light slabs with DARK text in both themes. The base stylesheet paints every
 // h2 in --foreground (light on dark), so the title and line carry an explicit
 // colour rather than inheriting — Lighthouse caught the dark-mode failure.
-const TOOL_CARDS = [
-  { slug: 'flashcards', slab: 'bg-indigo-200' },
-  { slug: 'test', slab: 'bg-teal-200' },
-  { slug: 'study-guides', slab: 'bg-lime-300' },
-  { slug: 'games', slab: 'bg-violet-300' },
-] as const
+// One slab per feature, in the registry's order; a feature without an entry
+// falls back to indigo, so adding a ninth feature cannot break the gallery.
+const SLABS: Record<string, string> = {
+  flashcards: 'bg-indigo-200',
+  learn: 'bg-sky-200',
+  'study-guides': 'bg-lime-300',
+  postmortems: 'bg-amber-200',
+  test: 'bg-teal-200',
+  review: 'bg-rose-200',
+  games: 'bg-violet-300',
+  groups: 'bg-orange-200',
+}
 const SLAB_TEXT = 'text-slate-950'
 const SLAB_MUTED = 'text-slate-800'
 
@@ -43,7 +50,8 @@ export function Landing() {
   const signupOpen = isSignupOpen()
   const cta = signupOpen ? { href: '/signup', label: 'Sign up for free' } : { href: '/login', label: 'Sign in' }
   const test = getFeature('test')!
-  const groups = getFeature('games')!
+  const games = getFeature('games')!
+  const groups = getFeature('groups')!
 
   return (
     <div className="py-10 sm:py-16">
@@ -67,31 +75,36 @@ export function Landing() {
         </p>
       </section>
 
-      {/* ---------- Four tool cards ---------- */}
+      {/* ---------- Every study tool, as a gallery ---------- */}
       <section className="mt-14" aria-label="Study tools">
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {TOOL_CARDS.map(({ slug, slab }) => {
-            const f = getFeature(slug)!
-            return (
-              <li key={slug}>
-                <Link
-                  href={`/features/${slug}`}
-                  className={cn('group flex h-full flex-col overflow-hidden rounded-2xl transition-transform hover:-translate-y-0.5', slab)}
-                >
-                  <div className="flex items-center justify-between px-5 pt-5">
-                    <h2 className={cn('font-heading text-xl font-bold', SLAB_TEXT)}>{f.label}</h2>
-                    {f.status === 'coming' && <span className={cn('rounded-full bg-black/15 px-2 py-0.5 text-[11px] font-semibold', SLAB_TEXT)}>Coming</span>}
+        <div className="flex items-baseline justify-between">
+          <h2 className="label">Every way to study</h2>
+          <span className="text-xs text-muted-foreground" aria-hidden="true">scroll →</span>
+        </div>
+        {/* -mx-4 + px-4: the strip bleeds to the page edge so the last card
+            peeks in from the right, which is what says "this scrolls". */}
+        <ul className="-mx-4 mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:thin]">
+          {FEATURES.map((f) => (
+            <li key={f.slug} className="w-[min(78vw,280px)] shrink-0 snap-start">
+              <Link
+                href={`/features/${f.slug}`}
+                className={cn('group flex h-full flex-col overflow-hidden rounded-2xl transition-transform hover:-translate-y-0.5', SLABS[f.slug] ?? 'bg-indigo-200')}
+              >
+                <div className="flex items-center justify-between gap-2 px-5 pt-5">
+                  <h3 className={cn('truncate font-heading text-xl font-bold', SLAB_TEXT)}>{f.label}</h3>
+                  {f.status === 'coming' && <span className={cn('shrink-0 rounded-full bg-black/15 px-2 py-0.5 text-[11px] font-semibold', SLAB_TEXT)}>Coming</span>}
+                </div>
+                <p className={cn('line-clamp-2 px-5 pt-1 text-sm', SLAB_MUTED)}>{f.benefits[0].title}</p>
+                {/* A fixed window onto the mock, clipped: every card is the
+                    same height whatever its panel draws. */}
+                <div className="mt-4 h-48 overflow-hidden px-4 text-foreground">
+                  <div className="origin-top scale-[0.9] transition-transform group-hover:scale-[0.94]">
+                    <Mock id={f.heroMock} />
                   </div>
-                  <p className={cn('px-5 pt-1 text-sm', SLAB_MUTED)}>{f.benefits[0].title}</p>
-                  <div className="mt-4 flex-1 px-4 pb-0 text-foreground">
-                    <div className="h-full origin-top scale-[0.96] rounded-t-xl transition-transform group-hover:scale-100">
-                      <Mock id={f.heroMock} />
-                    </div>
-                  </div>
-                </Link>
-              </li>
-            )
-          })}
+                </div>
+              </Link>
+            </li>
+          ))}
         </ul>
       </section>
 
@@ -129,8 +142,11 @@ export function Landing() {
             Games built from your set, study groups that show who has which card down, and a memory that says &ldquo;not enough evidence&rdquo; rather than inventing a number. It fits into a day and tells you the truth about it.
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+            <Link href={`/features/${games.slug}`} className="inline-flex items-center gap-1.5 font-semibold text-primary underline-offset-4 hover:underline">
+              Learning games <StatusBadge feature={games} />
+            </Link>
             <Link href={`/features/${groups.slug}`} className="inline-flex items-center gap-1.5 font-semibold text-primary underline-offset-4 hover:underline">
-              Learning games <StatusBadge feature={groups} />
+              Study groups
             </Link>
             <Link href="/features/review" className="inline-flex items-center gap-1.5 font-semibold text-primary underline-offset-4 hover:underline">
               Review &amp; memory

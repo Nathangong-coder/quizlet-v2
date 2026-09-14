@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
  * Prepare button with the last summary. Bare (no shell), like the games.
  */
 const GAMES: { id: GameId; name: string; pitch: string; icon: typeof Skull; ai: boolean; href: (setId: string) => string }[] = [
-  { id: 'gauntlet', name: 'Gauntlet', pitch: 'Your knight against the cards you are weakest on. 100 HP, a magician, a boss. Answer to strike.', icon: Skull, ai: true, href: (s) => `/sets/${s}/games/gauntlet` },
+  { id: 'gauntlet', name: 'Gauntlet', pitch: 'Your knight against the cards you are weakest on. 100 HP, a magician, a boss. Answer to strike.', icon: Skull, ai: false, href: (s) => `/sets/${s}/games/gauntlet` },
   { id: 'hot-seat', name: 'Hot Seat', pitch: 'An interviewer whose face you can read. Miss a point and they probe it. Three difficulties.', icon: MessageSquareText, ai: true, href: (s) => `/sets/${s}/games/hot-seat` },
   { id: 'blitz', name: 'Blitz', pitch: 'Prompts fall in lanes; tap the answer before they land. Combos freeze the board.', icon: Zap, ai: false, href: (s) => `/sets/${s}/games/blitz` },
   { id: 'crossword', name: 'Crossword', pitch: 'The set’s short answers as a grid. Check, reveal, beat your time.', icon: Grid3x3, ai: false, href: (s) => `/sets/${s}/games/crossword` },
@@ -28,6 +28,7 @@ function describe(a: GameAvailability): string | null {
     case 'playable': return null
     case 'needs_pieces': return `Needs ${a.short} more ${a.short === 1 ? 'piece' : 'pieces'}`
     case 'no_klps': return `Needs ${a.short} more ${a.short === 1 ? 'card' : 'cards'} with key points`
+    case 'few_cards': return `Needs ${a.short} more ${a.short === 1 ? 'card' : 'cards'}`
     case 'sign_in': return 'Sign in to play'
   }
 }

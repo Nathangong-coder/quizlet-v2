@@ -93,15 +93,26 @@ export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boo
     setTyped('')
     setNote(said)
     if (next.phase === 'won' || next.phase === 'dead') return finish(next)
-    // MC: a new enemy needs its options; the same enemy still standing keeps them.
+    // MC: a new enemy needs its options; the same enemy still standing keeps
+    // them. A miss goes through the review first — `proceed` fetches then.
     const nextEnc = currentEncounter(next)
     if (mode === 'mc' && nextEnc && next.index !== state.index) loadOptions(nextEnc.cardId, nextEnc.ask)
+  }
+
+  /** Leave the review: the enemy asks a different card. */
+  function proceed(now: number) {
+    if (!state || state.phase !== 'review') return
+    const next = reduceGauntlet(state, { type: 'continue', now })
+    setState(next)
+    setNote('A new question.')
+    const nextEnc = currentEncounter(next)
+    if (mode === 'mc' && nextEnc) loadOptions(nextEnc.cardId, nextEnc.ask)
   }
 
   function pick(option: string, now: number) {
     if (!options || !enc) return
     const hit = option === options.correct
-    attack(hit, undefined, now, hit ? 'A clean strike.' : `Miss — it was: ${options.correct}`)
+    attack(hit, undefined, now, hit ? 'A clean strike.' : 'Miss — the slime hits back. Read the card, then a new question.'.replace('the slime', `the ${ENEMIES[enc.kind].name.toLowerCase()}`))
   }
 
   function submitTyped(now: number, roll: number) {
@@ -135,21 +146,28 @@ export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boo
           </p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3 text-sm">
-          <p><span className="font-semibold">Built from what you are weakest on.</span> Your least-confident cards become the champions and the boss. It only reads your memory; nothing here changes it.</p>
+          {signedIn ? (
+            <p><span className="font-semibold">Built from what you are weakest on.</span> Your least-confident cards become the champions and the boss. It only reads your memory; nothing here changes it.</p>
+          ) : (
+            <p><span className="font-semibold">Playing as a visitor.</span> The enemies are a shuffle of the set and the wrong options are plain ones. Sign in and the run is built from what you are weakest on, the distractors are written to sound right, and your score goes on the board.</p>
+          )}
         </div>
         <fieldset className="grid gap-2 sm:grid-cols-2">
           <legend className="label mb-1">Mode</legend>
-          {(['mc', 'sa'] as const).map((m) => (
-            <label key={m} className={cn('cursor-pointer rounded-lg border p-3 text-sm', mode === m ? 'border-primary bg-accent' : 'border-border')}>
-              <input type="radio" name="mode" value={m} checked={mode === m} onChange={() => setMode(m)} className="sr-only" />
-              <span className="font-semibold">{m === 'mc' ? 'Multiple choice' : 'Short answer'}</span>
-              <span className="mt-1 block text-xs text-muted-foreground">
-                {m === 'mc' ? 'Four options per enemy; the wrong ones are written to sound right.' : 'Type the answer; your accuracy on the key points is your chance to hit, rolled in the open.'}
-              </span>
-            </label>
-          ))}
+          {(['mc', 'sa'] as const).map((m) => {
+            const locked = m === 'sa' && !signedIn
+            return (
+              <label key={m} className={cn('rounded-lg border p-3 text-sm', locked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer', mode === m ? 'border-primary bg-accent' : 'border-border')}>
+                <input type="radio" name="mode" value={m} checked={mode === m} disabled={locked} onChange={() => setMode(m)} className="sr-only" />
+                <span className="font-semibold">{m === 'mc' ? 'Multiple choice' : 'Short answer'}</span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {locked ? 'Sign in to play — it grades your writing with your own AI keys.' : m === 'mc' ? 'Four options per enemy; the wrong ones are written to sound right.' : 'Type the answer; your accuracy on the key points is your chance to hit, rolled in the open.'}
+                </span>
+              </label>
+            )
+          })}
         </fieldset>
-        <CredentialNote calls={mode === 'mc' ? 'one call per card the first time anyone meets it (then cached)' : 'one call per swing'} extra="Falls back to plain options from the set when no credential is usable." />
+        {signedIn && <CredentialNote calls={mode === 'mc' ? 'one call per card the first time anyone meets it (then cached)' : 'one call per swing'} extra="Falls back to plain options from the set when no credential is usable." />}
         {best && <p className="text-xs text-muted-foreground">Your best on this device ({mode === 'mc' ? 'multiple choice' : 'short answer'}): {best.score}.</p>}
         <Button onClick={start} disabled={isPending}>{isPending ? 'Sharpening…' : 'Enter the gauntlet'}</Button>
       </div>
@@ -220,7 +238,9 @@ export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boo
         )}
       </div>
 
-      {state.phase === 'magician' ? (
+      {state.phase === 'review' && state.review ? (
+        <ReviewCard card={cardById.get(state.review.cardId) ?? card} ask={state.review.ask} onContinue={() => proceed(Date.now())} />
+      ) : state.phase === 'magician' ? (
         <div className="rounded-xl border border-violet-300 p-4 dark:border-violet-800">
           <p className="text-sm"><span className="font-semibold">The magician:</span> &ldquo;Three down. I can mend you, or I can weaken the next one. Choose.&rdquo;</p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -259,6 +279,33 @@ export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boo
           )}
         </>
       )}
+    </div>
+  )
+}
+
+/**
+ * Shown after every survivable miss: the whole card, the side that was asked
+ * marked, before the enemy moves to a different question. Not a lecture — one
+ * card, one button.
+ */
+function ReviewCard({ card, ask, onContinue }: { card: Card; ask: 'term' | 'definition'; onContinue: () => void }) {
+  return (
+    <div className="rounded-xl border border-warning/60 bg-warning-subtle p-4" role="region" aria-label="Review the card you missed">
+      <div className="label mb-2">Review before the next question</div>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        <div className={cn('rounded-lg bg-card p-3', ask === 'term' && 'ring-1 ring-warning')}>
+          <dt className="label mb-1">Term</dt>
+          <dd className="text-sm font-medium">{card.term}</dd>
+        </div>
+        <div className={cn('rounded-lg bg-card p-3', ask === 'definition' && 'ring-1 ring-warning')}>
+          <dt className="label mb-1">Definition</dt>
+          <dd className="text-sm">{card.definition}</dd>
+        </div>
+      </dl>
+      <div className="mt-3 flex items-center gap-3">
+        <Button onClick={onContinue}>Continue — a different question</Button>
+        <span className="text-xs text-muted-foreground">This card comes back later in the run.</span>
+      </div>
     </div>
   )
 }

@@ -19,7 +19,7 @@ import { HotSeatGame } from '@/components/games/HotSeatGame'
 import { planRun, MAX_HP, ENEMIES } from '@/lib/games/gauntlet'
 import { DEFAULT_PERSONA } from '@/lib/games/personas'
 
-const cards = Array.from({ length: 12 }, (_, i) => ({ id: `c${i}`, term: `Term ${i}`, definition: `Definition ${i}` }))
+const cards = Array.from({ length: 16 }, (_, i) => ({ id: `c${i}`, term: `Term ${i}`, definition: `Definition ${i}` }))
 const tick = () => act(async () => { await new Promise((r) => setTimeout(r, 20)) })
 
 beforeEach(() => {
@@ -58,20 +58,33 @@ describe('GauntletGame', () => {
     expect(screen.getByRole('img', { name: /you, the knight/i })).toBeTruthy()
     expect(screen.getAllByRole('img', { name: new RegExp(ENEMIES[plan.encounters[0].kind].name, 'i') }).length).toBeGreaterThan(0)
 
-    // Wrong answer: the enemy's damage comes off the bar.
+    // Wrong answer: the enemy's damage comes off the bar, and the missed card
+    // is reviewed in full before a DIFFERENT question is asked.
+    const first = cards.find((c) => c.id === plan.encounters[0].cardId)!
     fireEvent.click(screen.getByRole('button', { name: 'wrong A' }))
     await tick()
     const dmg = ENEMIES[plan.encounters[0].kind].damage
     expect(screen.getByRole('img', { name: `${MAX_HP - dmg} of ${MAX_HP} HP` })).toBeTruthy()
-    expect(screen.getByText(/miss — it was/i)).toBeTruthy()
+    const review = screen.getByRole('region', { name: /review the card you missed/i })
+    expect(within(review).getByText(first.term)).toBeTruthy()
+    expect(within(review).getByText(first.definition)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'wrong A' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    await tick()
+    // The enemy still stands, asking a card from the pool.
+    expect(h.gauntletOptions).toHaveBeenCalledTimes(2)
+    const swapped = h.gauntletOptions.mock.calls[1][0] as string
+    expect(swapped).not.toBe(first.id)
+    expect(swapped).toBe(plan.pool[0])
 
     // Right answer: a strike, and the next enemy's options are fetched.
-    const first = cards.find((c) => c.id === plan.encounters[0].cardId)!
-    const correct = plan.encounters[0].ask === 'definition' ? first.definition : first.term
+    const now = cards.find((c) => c.id === swapped)!
+    const ask = h.gauntletOptions.mock.calls[1][1] as 'term' | 'definition'
+    const correct = ask === 'definition' ? now.definition : now.term
     fireEvent.click(screen.getByRole('button', { name: correct }))
     await tick()
     expect(screen.getByText(/a clean strike/i)).toBeTruthy()
-    expect(h.gauntletOptions).toHaveBeenCalledTimes(2)
+    expect(h.gauntletOptions).toHaveBeenCalledTimes(3)
   })
 
   it('after three kills the magician offers heal or weaken', async () => {

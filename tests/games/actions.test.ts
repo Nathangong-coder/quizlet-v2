@@ -161,9 +161,14 @@ describe('buildGauntletRun — the one memory read', () => {
     expect(r.data.encounters[11].cardId).toBe('c2')
   })
 
-  it('requires sign-in', async () => {
+  it('a visitor plays multiple choice with no memory read; short answer needs sign-in', async () => {
     h.auth.mockResolvedValue(null)
-    expect((await buildGauntletRun('s1', { mode: 'mc' })).success).toBe(false)
+    h.setFindFirst.mockResolvedValue({ id: 's1', cards: Array.from({ length: 6 }, (_, i) => ({ id: `c${i}`, term: `t${i}`, definition: `d${i}` })) })
+    const r = await buildGauntletRun('s1', { mode: 'mc' })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.noMemory).toBe(true)
+    expect(h.guarded.cardProgress.findMany).not.toHaveBeenCalled()
+    expect((await buildGauntletRun('s1', { mode: 'sa' })).success).toBe(false)
   })
 })
 

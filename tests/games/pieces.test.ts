@@ -81,7 +81,10 @@ describe('gameAvailability', () => {
   })
 
   it('card games need sign-in first, then enough ready cards', () => {
-    expect(gameAvailability({ pieces: [], readyCards: 10, signedIn: false }).gauntlet).toEqual({ state: 'sign_in' })
+    // Gauntlet is open to visitors (multiple choice grades nothing); Hot Seat is not.
+    expect(gameAvailability({ pieces: [], readyCards: 0, cardCount: 10, signedIn: false }).gauntlet).toEqual({ state: 'playable' })
+    expect(gameAvailability({ pieces: [], readyCards: 0, cardCount: 3, signedIn: false }).gauntlet).toEqual({ state: 'few_cards', short: 2 })
+    expect(gameAvailability({ pieces: [], readyCards: 10, signedIn: false })['hot-seat']).toEqual({ state: 'sign_in' })
     expect(gameAvailability({ pieces: [], readyCards: 2, signedIn: true })['hot-seat']).toEqual({ state: 'no_klps', short: MIN_READY_CARDS - 2 })
     expect(gameAvailability({ pieces: [], readyCards: 5, signedIn: true }).gauntlet).toEqual({ state: 'playable' })
   })

@@ -34,7 +34,16 @@ describe('Gauntlet · planRun', () => {
     expect(plan.noMemory).toBe(true)
     expect(plan.encounters).toHaveLength(RUN_LENGTH)
     expect(new Set(plan.encounters.map((e) => e.cardId)).size).toBe(3)
+    expect(plan.pool).toEqual([])
     expect(planRun({ cards, memory: [], seed: 3, mode: 'mc' })).toEqual(planRun({ cards, memory: [], seed: 3, mode: 'mc' }))
+  })
+
+  it('the pool holds every card not on the run, for the swap after a miss', () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({ id: `m${i}`, term: `T${i}`, definition: `D${i}` }))
+    const plan = planRun({ cards: many, memory: [], seed: 4, mode: 'mc' })
+    const onRun = new Set(plan.encounters.map((e) => e.cardId))
+    expect(plan.pool).toHaveLength(20 - RUN_LENGTH)
+    expect(plan.pool.every((id) => !onRun.has(id))).toBe(true)
   })
 
   it('an empty set yields an empty, already-won run', () => {
@@ -47,22 +56,49 @@ describe('Gauntlet · reducer', () => {
   const plan = planRun({ cards, memory: [{ cardId: 'c2', confidence: 2, due: false }], seed: 7, mode: 'mc' })
   const hit = (s: ReturnType<typeof createGauntlet>, now = 1) => reduceGauntlet(s, { type: 'attack', hit: true, now })
   const miss = (s: ReturnType<typeof createGauntlet>, now = 1) => reduceGauntlet(s, { type: 'attack', hit: false, now })
+  const cont = (s: ReturnType<typeof createGauntlet>, now = 1) => reduceGauntlet(s, { type: 'continue', now })
 
-  it('a miss costs the enemy\u2019s damage and resets the streak; damage ramps by enemy', () => {
+  it('a miss costs the enemy\u2019s damage, resets the streak, and opens a review of the missed card', () => {
     let s = createGauntlet(plan, 0)
+    const asked = s.plan.encounters[0]
     s = miss(s)
     expect(s.hp).toBe(MAX_HP - ENEMIES.slime.damage)
     expect(s.streak).toBe(0)
     expect(s.last).toEqual({ hit: false, damage: ENEMIES.slime.damage, accuracy: undefined })
+    expect(s.phase).toBe('review')
+    expect(s.review).toEqual({ cardId: asked.cardId, ask: asked.ask })
+    // Attacks are ignored until the review is left.
+    expect(hit(s)).toBe(s)
     expect(ENEMIES.boss.damage).toBeGreaterThan(ENEMIES['dark-knight'].damage)
     expect(ENEMIES['dark-knight'].damage).toBeGreaterThan(ENEMIES.slime.damage)
   })
 
-  it('dies at zero HP', () => {
+  it('leaving the review swaps in a different card and queues the missed one for later', () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({ id: `m${i}`, term: `T${i}`, definition: `D${i}` }))
+    let s = createGauntlet(planRun({ cards: many, memory: [], seed: 4, mode: 'mc' }), 0)
+    const missed = s.plan.encounters[0].cardId
+    const next = s.plan.pool[0]
+    s = cont(miss(s))
+    expect(s.phase).toBe('fight')
+    expect(s.review).toBeNull()
+    // Same enemy, different card; the enemy's hits are untouched.
+    expect(s.index).toBe(0)
+    expect(s.plan.encounters[0].cardId).toBe(next)
+    expect(s.plan.encounters[0].cardId).not.toBe(missed)
+    expect(s.plan.pool[s.plan.pool.length - 1]).toBe(missed)
+    // With nothing in the pool the same card simply returns.
+    let small = createGauntlet(plan, 0)
+    const askedAgain = small.plan.encounters[0].cardId
+    small = cont(miss(small))
+    expect(small.plan.encounters[0].cardId).toBe(askedAgain)
+  })
+
+  it('dies at zero HP — no review on the killing blow', () => {
     let s = createGauntlet(plan, 0)
-    for (let i = 0; i < 20 && s.phase === 'fight'; i++) s = miss(s, i)
+    for (let i = 0; i < 60 && s.phase !== 'dead'; i++) s = s.phase === 'review' ? cont(s, i) : miss(s, i)
     expect(s.phase).toBe('dead')
     expect(s.hp).toBe(0)
+    expect(s.review).toBeNull()
     expect(summarize(s)?.status).toBe('dead')
   })
 
@@ -82,7 +118,7 @@ describe('Gauntlet · reducer', () => {
 
   it('the magician heals or weakens the next enemy', () => {
     let s = createGauntlet(plan, 0)
-    s = miss(s)
+    s = cont(miss(s))
     for (let i = 0; i < 3; i++) s = hit(s)
     expect(s.phase).toBe('magician')
     const healed = reduceGauntlet(s, { type: 'magician', choice: 'heal', now: 1 })
