@@ -75,6 +75,8 @@ describe('SignUpForm', () => {
         email: 'alice@example.com',
         password: 'a'.repeat(12),
         inviteCode: 'ABCDE-FG234',
+        // The honeypot stays empty for a person; the clock is whatever mount stamped.
+        spam: { honeypot: '', renderedAt: expect.any(Number) },
       }),
     )
   })

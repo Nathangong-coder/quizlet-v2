@@ -106,7 +106,9 @@ export function ContentBlockView({
                 if (node?.complete) setImageLoading(false);
               }}
               src={assetUrl}
-              alt="card content"
+              // The uploaded file name is the only description the card has;
+              // "card content" told a screen reader nothing.
+              alt={block.text?.trim() || (assetOriginalName ? `Image: ${assetOriginalName}` : 'Image attached to this card')}
               className={
                 compact
                   ? 'rounded border border-border max-h-40 w-auto max-w-full object-contain mx-auto'

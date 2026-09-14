@@ -1,9 +1,12 @@
+import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { FeedbackForm } from '@/components/help/FeedbackForm'
 import { PageHeader } from '@/components/ui/page-header'
+
+export const metadata: Metadata = { title: 'Help & feedback', description: 'How synapseHQ works, and how to reach us.' }
 
 /**
  * Help & feedback.

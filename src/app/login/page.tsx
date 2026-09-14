@@ -1,9 +1,12 @@
+import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import LoginForm from '@/components/auth/LoginForm'
 import { isSignupOpen } from '@/lib/auth/signup-flag'
 import { safeCallbackUrl } from '@/lib/auth/callback-url'
+
+export const metadata: Metadata = { title: 'Sign in', description: 'Sign in to synapseHQ.' }
 
 /**
  * The real sign-in page, replacing Auth.js's built-in one.

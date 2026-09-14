@@ -28,7 +28,7 @@ describe('ForgotForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /send a reset link/i }))
 
     await waitFor(() =>
-      expect(h.requestPasswordReset).toHaveBeenCalledWith({ identifier: 'me@example.com' }),
+      expect(h.requestPasswordReset).toHaveBeenCalledWith({ identifier: 'me@example.com', spam: { honeypot: '', renderedAt: expect.any(Number) } }),
     )
     expect(await screen.findByRole('status')).toHaveTextContent(/if that account exists/i)
   })

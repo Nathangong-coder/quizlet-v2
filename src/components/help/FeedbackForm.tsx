@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { submitFeedback } from '@/actions/feedback'
+import { useSpamSignals } from '@/components/forms/SpamGuard'
 import { FEEDBACK_LIMITS } from '@/lib/feedback/schema'
 
 /**
@@ -27,6 +28,7 @@ export function FeedbackForm({
   const [pending, start] = useTransition()
   const [sent, setSent] = useState(false)
   const [message, setMessage] = useState('')
+  const spam = useSpamSignals()
 
   if (sent) {
     return (
@@ -45,7 +47,7 @@ export function FeedbackForm({
 
   return (
     <form
-      className="space-y-5"
+      className="relative space-y-5"
       action={(formData) => {
         start(async () => {
           const result = await submitFeedback({
@@ -53,6 +55,7 @@ export function FeedbackForm({
             email: String(formData.get('email') ?? ''),
             subject: String(formData.get('subject') ?? ''),
             message: String(formData.get('message') ?? ''),
+            spam: spam.signals(),
           })
           if (result.success) {
             setSent(true)
@@ -63,6 +66,7 @@ export function FeedbackForm({
         })
       }}
     >
+      {spam.field}
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="fb-name">Your name</Label>

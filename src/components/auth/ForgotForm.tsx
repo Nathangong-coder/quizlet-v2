@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useSpamSignals } from '@/components/forms/SpamGuard'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { requestPasswordReset, FORGOT_FIXED_MESSAGE } from '@/actions/auth-reset'
@@ -13,6 +14,7 @@ export default function ForgotForm() {
   const [identifier, setIdentifier] = useState('')
   const [sent, setSent] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const spam = useSpamSignals()
 
   if (sent) {
     return (
@@ -36,7 +38,7 @@ export default function ForgotForm() {
           // — it re-throws after finally, which crashes this transition and
           // unmounts the tree. The catch below is required and must stay empty.
           try {
-            await requestPasswordReset({ identifier })
+            await requestPasswordReset({ identifier, spam: spam.signals() })
           } catch (error) {
             // deliberately empty — see note above. Logged locally only,
             // never surfaced in the UI: a browser console.error leaks
@@ -50,6 +52,7 @@ export default function ForgotForm() {
       }}
       className="space-y-4"
     >
+      {spam.field}
       <div className="space-y-1">
         <label htmlFor="forgot-identifier" className="text-sm font-medium">
           Email or handle

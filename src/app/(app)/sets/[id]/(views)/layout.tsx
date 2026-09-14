@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
@@ -14,6 +15,29 @@ import { SubjectChip } from '@/components/sets/SubjectChip'
 import { ShareButton } from '@/components/sets/ShareButton'
 import ReportSetDialog from '@/components/sets/ReportSetDialog'
 import { SetViewTabs } from '@/components/sets/SetViewTabs'
+
+/**
+ * Title and description from the set itself, for link previews and search —
+ * read through `readableSetWhere` like every other set read, so a private
+ * set's title never appears in a preview generated for a stranger.
+ */
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const session = await auth()
+  const set = await prisma.set.findFirst({
+    where: { id, ...readableSetWhere(session?.user?.id ?? null) },
+    select: { title: true, description: true, visibility: true, _count: { select: { cards: true } } },
+  })
+  if (!set) return { title: 'Set not found' }
+  const description = set.description?.trim() || `${set._count.cards} cards to study on synapseHQ.`
+  return {
+    title: set.title,
+    description,
+    // Only a PUBLIC set is worth indexing; link-shared sets are reachable but not advertised.
+    robots: set.visibility === 'public' ? undefined : { index: false, follow: false },
+    openGraph: { title: set.title, description },
+  }
+}
 
 /**
  * The shared frame for the three views of a set.

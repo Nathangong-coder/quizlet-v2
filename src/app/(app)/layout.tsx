@@ -10,6 +10,9 @@ import { AvatarDialog } from '@/components/shell/AvatarDialog'
 import { loadRecentSets } from '@/lib/sets/recents'
 import { RAIL_RECENTS_LIMIT } from '@/lib/shell/nav'
 import { loadRecentFolders, RAIL_FOLDERS_LIMIT } from '@/lib/folders/recents'
+import { isSignupOpen } from '@/lib/auth/signup-flag'
+import { MarketingHeader } from '@/components/marketing/MarketingHeader'
+import { SiteFooter } from '@/components/marketing/SiteFooter'
 
 /**
  * The application shell: rail on the left, topbar above, content between.
@@ -46,6 +49,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const railRecents = recents.map((r) => ({ id: r.id, title: r.title, isOwn: r.isOwn }))
   const railFolders = folders.map((folder) => ({ id: folder.id, name: folder.name }))
+
+  // A VISITOR gets the marketing chrome — top bar with Study tools / Subjects /
+  // search, and the footer — not an app rail full of things they cannot use.
+  // A signed-in learner keeps the rail. Same route group, same pages; only the
+  // frame differs. (2026-09-13, landing redesign.)
+  if (!signedIn) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <MarketingHeader signupOpen={isSignupOpen()} />
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4">{children}</main>
+        <SiteFooter />
+      </div>
+    )
+  }
 
   return (
     <CollapsibleShell
@@ -88,6 +105,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       }
     >
       {children}
+      <SiteFooter />
     </CollapsibleShell>
   )
 }
