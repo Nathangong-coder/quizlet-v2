@@ -125,9 +125,12 @@ describe('tuning writes revalidate the page that shows them', () => {
  */
 describe('middleware protects the whole settings tree', () => {
   const src = code('src/middleware.ts')
+  // The predicate moved into the pure gate module (2026-09-13); the matcher
+  // stays in the middleware. Both are checked.
+  const gate = code('src/lib/auth/gate.ts')
 
   it('tests a /settings prefix rather than a single page', () => {
-    expect(src).toContain('startsWith("/settings")')
+    expect(gate).toMatch(/startsWith\(['"]\/settings['"]\)/)
   })
 
   it('matches every settings path', () => {
