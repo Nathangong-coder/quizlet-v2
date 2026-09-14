@@ -47,11 +47,13 @@ export const MAX_REVISIONS = 2
  * after the loop — so they are reported on the card, not revised for.
  *
  * Since 2026-09-12 the separation this bar reads is the SUBSTANCE
- * separation (framing points excluded, src/lib/klp/framing.ts); raised
- * 0.6 → 0.7 on 2026-09-13 at the owner's ask ("a card has to be 0.7
- * substance or higher"). The floor that FLAGS a card stays 0.4.
+ * separation (framing points excluded, src/lib/klp/framing.ts). Raised to
+ * 0.7 for an hour on 2026-09-13 and put back: on the re-authored M&A set
+ * half the cards sit under 0.7 substance, and the owner judged that bar too
+ * high before it had authored more than one partial set. The floor that
+ * FLAGS a card stays 0.4.
  */
-export const REVISION_BAR = 0.7
+export const REVISION_BAR = 0.6
 
 /**
  * The smallest number of KLPs the sizing layer will ever target — the owner's
