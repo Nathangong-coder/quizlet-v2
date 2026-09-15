@@ -926,3 +926,56 @@ judge to see near misses to big concepts, to become context links), 222 new; voc
 118 → 554.
 
 Trace artifact: https://claude.ai/code/artifact/6771699e-1d94-4627-bcc5-6d91267e2bcd
+
+### The whole-card minting loop over the corpus (2026-09-15)
+
+Built in one pass on the owner's go: round-trip recovery and distinctness (the two missing
+settings), the loop (`src/lib/klp/topic-loop.ts`: anchored mint → settings + enforcement +
+round-trip → named findings → one combined revise → re-measure, two rounds, best round kept),
+the operator script (`scripts/mint-loop.ts`, dry, resumable, metered), the offline rescorer
+(`scripts/score-loop.ts`), and the set-level tree rebuild planner (`src/lib/klt/rebuild.ts`,
+`scripts/rebuild-tree.ts`, plan only).
+
+**Run: 155 of 278 cards** (M&A 78, Accounting-Knowledge 50, Talking copy 27) before the
+DeepSeek balance ran out ("Insufficient Balance" on the remaining 119; the loop resumes from its
+JSON once it is reloaded). 4 M&A cards failed the schema after a retry. Cost: **5 calls and
+$0.0014 a card** off-peak (mint 1, round-trip 1 per round, revise ≤2).
+
+```
+setting        mean   p10   p25   p50   p90    bar (provisional)
+overall        0.92   0.85  0.87  0.93  0.99
+coverage       1.00   1.00  1.00  1.00  1.00   1.00
+anchored       1.00   1.00  1.00  1.00  1.00   0.90
+causalEdges    0.93   0.67  1.00  1.00  1.00   0.90
+causalTargets  0.67   0.00  0.33  1.00  1.00   —
+brevity        0.98   0.90  1.00  1.00  1.00   0.80
+vocabulary     0.83   0.65  0.74  0.83  1.00   —
+noContainers   0.99   1.00  1.00  1.00  1.00   —
+distinctness   0.99   1.00  1.00  1.00  1.00   0.90
+roundTrip      0.90   0.75  0.86  1.00  1.00   0.75
+enforcement    0.98   0.88  1.00  1.00  1.00   1.00
+clear 111 / 155 (72%); flags: causalEdges 21, enforcement 18, roundTrip 12, brevity 4, distinctness 3, coverage 1
+```
+
+**What the distribution says.** The anchored prompt plus the loop hold coverage, anchoring,
+containers and distinctness at 1.00 across the corpus. Cards fail on two things: a causal
+point minted without a directed edge (the measure originally counted only causes / precedes /
+applies_within — `requires` is a fifth of how the minter renders causal points and is right
+to, so it now counts; `confused_with` on a causal point is the real miss, 9 of 130 on M&A), and
+round-trip recovery — a grader shown only the labels files 10% of points elsewhere.
+`causalTargets` (the edge names the point that supplied its cause) is the weakest number at
+0.67 and deliberately not a bar: the model gets the edge right more often than it says where
+the cause came from. Bars stay as set; the p10 column is what they were set against.
+
+**The rebuilt M&A tree** (78 cards → 568 nodes: 67 anchors, 365 leaves, 128 endpoints, 7
+contexts; anchors matched 23 exact / 10 placed / 1 initials / 44 new; 11 anchor clusters, 7
+wanting a parent). The anchors are right and recur — accretion/dilution, synergies, purchase
+price, earnings yield each gather several cards — and the clusters read as a person would group
+them (accretion family; synergies; acquisition; value creation). Below the anchors the tree is
+wide and one card deep: 16 nodes active by recurrence, and **0 of 499 edges shared by two
+cards**. That is the endpoint-naming problem ("deal financing cost" / "financing cost" /
+"acquirer wacc funding cost" are one thing) and it is the next fix: roll an edge up to the
+general node its endpoint was placed under, so specific endpoints count for the concept they
+sit beneath. Until then the DAG view's ≥2-card rule would show nothing.
+
+Artifact: https://claude.ai/code/artifact/668011a7-089e-43f1-83e0-cba953633660

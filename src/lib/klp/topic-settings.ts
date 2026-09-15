@@ -9,7 +9,7 @@
  *
  *   coverage         every point carries a leaf or a relation
  *   anchored         every leaf branches from the anchor (directly or via `under`)
- *   causalEdges      causal / "because" points are relations, typed causes|precedes
+ *   causalEdges      causal / "because" points are relations of a directed type (never confused_with)
  *   causalTargets    those relations name the point that supplies their cause (causeKlpRef)
  *   brevity          leaf names within MAX_NAME_WORDS
  *   vocabulary       leaf names take their words from their own point's text
@@ -95,7 +95,11 @@ export function kltSettings(input: SettingsInput): KltSettingsReport {
   const unanchored = p.leaves.filter((l) => !reachesAnchor(l)).map((l) => l.name)
   // causal
   const causalRefs = klps.map((k, i) => (isCausalPoint(k) ? i : -1)).filter((i) => i >= 0)
-  const causalWithEdge = causalRefs.filter((i) => p.relations.some((r) => r.klpRef === i && (r.type === 'causes' || r.type === 'precedes' || r.type === 'applies_within')))
+  // Any DIRECTED type is a causal edge — `requires` ("B cannot be stated
+  // without A") is how the minter renders a fifth of causal points, and it
+  // is right to; only `confused_with` is not a cause (measured on M&A,
+  // 2026-09-15: 20 of 130 causal points as requires, 9 as confused_with).
+  const causalWithEdge = causalRefs.filter((i) => p.relations.some((r) => r.klpRef === i && r.type !== 'confused_with'))
   const causalAsLeaf = causalRefs.filter((i) => !p.relations.some((r) => r.klpRef === i))
   const causalTargets = causalWithEdge.filter((i) => p.relations.some((r) => r.klpRef === i && typeof r.causeKlpRef === 'number' && r.causeKlpRef !== i))
   // names

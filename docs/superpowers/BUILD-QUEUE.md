@@ -1,5 +1,33 @@
 # Build queue & carried-over findings
 
+**HANDOFF 2026-09-15 — MINTING IS A MEASURED LOOP; THE CORPUS RUN IS HALF DONE.** The
+minting order agreed on 09-14 is built through step 4 (all plan-only, nothing written):
+mint stability measured (temperature 0 fixed the `--direct` scripts), `Klt.status` + `KltAlias`
+migrated, the distinctness matcher (`src/lib/klt/match.ts`; containment across cards is
+placement, not identity), KLP/KLT enforcement with the card's own link graph in the prompt and a
+one-call repair, the anchored prompt v2 (`topic-minting-v2.ts`), the KLT settings
+(`topic-settings.ts`: coverage / anchored / causalEdges / causalTargets / brevity / vocabulary /
+noContainers / distinctness / roundTrip), the whole-card loop (`topic-loop.ts`, `scripts/mint-loop.ts`),
+and the set-level tree rebuild planner (`src/lib/klt/rebuild.ts`, `scripts/rebuild-tree.ts`).
+**Run state:** 155 of 278 cards through the loop (M&A, Accounting-Knowledge, 27 of Talking copy);
+the DeepSeek balance ran out. To finish, reload and rerun — the JSON is resumable:
+```
+npx tsx --conditions=react-server --env-file=.env scripts/mint-loop.ts --set cmtcecz4j000304l1q1suq9rf --rpm 40 --json %TEMP%\claude-quizlet\loop-talk.json
+npx tsx --conditions=react-server --env-file=.env scripts/mint-loop.ts --set cmsfkfumz000004jov11adgbu --rpm 40 --json %TEMP%\claude-quizlet\loop-acct.json
+npx tsx --conditions=react-server --env-file=.env scripts/mint-loop.ts --set cmtj7pxfc000005l4rv4krxxy --rpm 40 --json %TEMP%\claude-quizlet\loop-lbo.json
+npx tsx scripts/score-loop.ts --from <all five loop jsons>        # the distribution; bars in topic-loop.ts TOPIC_BARS
+npx tsx --conditions=react-server --env-file=.env scripts/rebuild-tree.ts --from <loop json>   # one set's tree plan
+```
+(the loop JSONs from this session are copied to `docs/ai/runs/2026-09-15/`). Results so far:
+72% of cards clear the provisional bars; anchored / coverage / distinctness 1.00; fails are
+causalEdges and roundTrip; artifact https://claude.ai/code/artifact/668011a7-089e-43f1-83e0-cba953633660.
+**Next, in order:** (a) edge roll-up — an edge whose endpoint was placed under a general node
+counts for that node, so cross-card edges exist (0 of 499 M&A edges are shared today); (b) the
+write step for v2 proposals (`mint-plan` reads v1: anchor → parent, `under` → placement votes,
+`status` candidate until the rebuild pass promotes); (c) cluster-parent naming (one call per ★
+cluster); (d) the DAG view. The owner's open feedback on the anchored prompt is on
+https://claude.ai/code/artifact/419d544d-eaf3-4d31-835f-303920760396.
+
 **HANDOFF 2026-09-14 — THE CORPUS IS AUTHORED. 278 cards across five sets, every one at its
 current version on the full pipeline (see `docs/ai/model-performance.md`, "The corpus,
 re-authored end to end"); the dashboard artifact

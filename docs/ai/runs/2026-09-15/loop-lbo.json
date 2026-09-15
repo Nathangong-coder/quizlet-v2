@@ -1,0 +1,68 @@
+{
+  "setId": "cmtj7pxfc000005l4rv4krxxy",
+  "setTitle": "LBO",
+  "model": "deepseek-flash",
+  "bars": {
+    "coverage": 1,
+    "enforcement": 1,
+    "anchored": 0.9,
+    "causalEdges": 0.9,
+    "brevity": 0.8,
+    "roundTrip": 0.75,
+    "distinctness": 0.9
+  },
+  "outcomes": [],
+  "failures": [
+    {
+      "cardId": "cmtj7pxht000105l4xxtnhlbk",
+      "term": "Why do LBOs use leverage? How do they use leverage to increase returns?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmtjcmjbi000404k4fpqphmjw",
+      "term": "What is an LBO, in simple terms?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmtjcmjc0000704k4ufvhr7y1",
+      "term": "Can you walk me through an LBO (high level)?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmtjcmjcc000a04k4pftq7hsd",
+      "term": "What are the main sources of value creation in an LBO (5)?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmtjcmjco000d04k4by5nbcdu",
+      "term": "What makes a good LBO candidate (5)?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmtjcmjcz000g04k4eqiixxzz",
+      "term": "Debt is really important for an LBO. How do you determine how much a company can raise in debt?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmtjcmjdb000j04k42m4m2u0k",
+      "term": "How long will a P/E firm generally hold on to a company? What is the typical exit strategy?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmtjcmjdo000m04k4oik4zmi2",
+      "term": "How do you project debt paydown in an LBO?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmtjcmje0000p04k4m78q0yzm",
+      "term": "Why is an LBO valuation generally considered a \"floor valuation\"?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmtjcmjep000u04k41n614t20",
+      "term": "Why might increasing leverage sometimes reduce the IRR?",
+      "error": "Insufficient Balance"
+    }
+  ],
+  "tokens": []
+}

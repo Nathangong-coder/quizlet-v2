@@ -1,0 +1,358 @@
+{
+  "setId": "cmsfkfumz000004jov11adgbu",
+  "setTitle": "Accounting - \"Talking\"",
+  "model": "deepseek-flash",
+  "bars": {
+    "coverage": 1,
+    "enforcement": 1,
+    "anchored": 0.9,
+    "causalEdges": 0.9,
+    "brevity": 0.8,
+    "roundTrip": 0.75,
+    "distinctness": 0.9
+  },
+  "outcomes": [],
+  "failures": [
+    {
+      "cardId": "cmsfkfuy5000104jozt2jbmvc",
+      "term": "Walk me through the 3 financial statements & how they generally work",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfuzb000404josox97czt",
+      "term": "How do the three statements link together?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfuzv000704jowvit6udw",
+      "term": "Walk me through the income statement",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv0d000a04jocufgwpdx",
+      "term": "Give me more details on assets, liabilities, and equity",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv0w000d04jo3u3mgwm5",
+      "term": "Walk me through the cash flow statement",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv1d000g04jorsiavn39",
+      "term": "Which statement is most important?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv1v000j04jom3gyr6un",
+      "term": "Why GAAP is important?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv2d000m04jo3rfjes58",
+      "term": "Explain the conservatism principle in accrual accounting",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv2x000p04joyt5c1804",
+      "term": "Why is fair value accounting used?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv3h000s04jo2px7v0m2",
+      "term": "Why know difference between IFRS & US GAAP?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv3q000v04jokun0lxsh",
+      "term": "Above vs Below the Line",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv49000y04jow43hwu0g",
+      "term": "How can a profitable firm go bankrupt?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv4s001104joi0d8h95u",
+      "term": "What is the difference between EBIT and operating profit?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv5q001404jo28nmvo7i",
+      "term": "What is a DTL?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv6b001704joq2p2vxeo",
+      "term": "What are some ratios used to perform credit analyses?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv6t001a04jonebh9ntb",
+      "term": "How would share issuance affect EPS?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv72001d04jo77adm1q1",
+      "term": "If a company continuously incurs goodwill impairment, what can you take away?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv7m001g04jo8xqak6px",
+      "term": "**How do finance and operating leases work? \n****How does it affect equity value/EV?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv82001j04joqqo3ydo7",
+      "term": "What is restricted cash?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv8c001m04jomkcllwt5",
+      "term": "Why are some assets exempt from the historical cost principle?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv8q001p04jofizww8u5",
+      "term": "Why are intangible assets not in the balance sheet?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv94001s04jor18xt09l",
+      "term": "Why do we use the historical cost principle?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv9c001v04jooywp1ptm",
+      "term": "What are non-recurring items? What do we generally do with them?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfv9r001y04jopzwa7tvl",
+      "term": "What is the difference between organic vs inorganic growth?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfva7002104jolfvau4r4",
+      "term": "How does CapEx & depreciation shift for mature vs new companies?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvai002404jo63je428r",
+      "term": "What is working capital?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvay002704jour5jy238",
+      "term": "Why are effective & marginal tax rates often different? Can you give specific examples on why they might differ?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvba002a04joe3vfa2lo",
+      "term": "What are some ways/metrics to compare companies?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvbk002d04joxgymj7op",
+      "term": "Walk me through a DCF",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvc1002g04jocos6ff7b",
+      "term": "Conceptually, what does the discount rate represent?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvcc002j04jotn1n2qwx",
+      "term": "What is the difference between Unlevered & Levered DCF? What are the discount rates used for?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvcm002m04joqak4kmch",
+      "term": "How do you determine the risk-free rate?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvd0002p04joive6sqmx",
+      "term": "What effect does a low interest-rate environment have on DCF valuations?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvdd002s04joy2ipra29",
+      "term": "Define the equity risk premium used in the CAPM formula.",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvdo002v04joo0kkb3x4",
+      "term": "Explain the concept of beta.",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvdz002y04johgyiff7e",
+      "term": "What is the difference between systematic risk and unsystematic risk?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfveb003104jotd1wfrd6",
+      "term": "** (THINK) Does a higher beta lead to a lower or higher valuation?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvel003404joltcoqj76",
+      "term": "** (THINK ON SPOT) What types of sectors have higher/lower beta?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvew003704joyhlywo3s",
+      "term": "** (CONCEPT) What is industry beta? What is the benefit of using an industry beta?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvf6003a04jo3m6mfwmu",
+      "term": "** (HARD) What are the flaws of regression beta?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvfi003d04job95n90tt",
+      "term": "** (SEMI HARD THINK ON SPOT) What is the impact of leverage on the beta of a company?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvfu003g04jou2wnb1a7",
+      "term": "** (HARD - THINK OF DIFFERENT COMPANIES) What is the relationship between beta & the amount of leverage used?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvg6003j04jo1i38v4ux",
+      "term": "** (HARD - CONCEPT) Which is typically higher, cost of debt or cost of equity? Why?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvgh003m04josie4v6oa",
+      "term": "** If Cost of Equity is higher than Debt, why not only use debt?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvgr003p04jocjuzwwgo",
+      "term": "** (WEIRD) What is the difference between IRR and WACC?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvha003s04jo8dubv3bd",
+      "term": "** (THINK ON FEET) Which would have more of an impact on a DCF, discount rate or sales growth rate? Why?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvhk003v04joqzs9dw1m",
+      "term": "** What is the argument against using the exit multiples approach in a DCF?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvhv003y04jod7azv6ps",
+      "term": "** What is the purpose of the mid-year convention? When would mid-year be inappropriate?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvi5004104jotmce6nkc",
+      "term": "How would raising additional debt impact a DCF analysis?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvif004404joug0cr304",
+      "term": "** (THINK) Imagine that 2 companies had the same leverage ratio (with the same FCF & profit margins). Are their default risks the same?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvio004704jofbg6ulx3",
+      "term": "**When is a DCF inappropriate?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfviy004a04joa79guhtc",
+      "term": "If 80% of a DCF valuation comes from the terminal value, what should be done?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvj8004d04jo28w66zza",
+      "term": "**(CONCEPT) For forecasting purposes, do you use effective or marginal tax rate?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvji004g04joi6rt12f6",
+      "term": "How does a DDM differ from a DCF? Why don't we use the DDM model/ what are the disadvantages of using the DDM?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvjs004j04joa2o2o0vd",
+      "term": "**How does a lower tax rate impact DCF valuations?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvk3004m04jo3krpjyct",
+      "term": "**Is it better to have $100M more in revenue or have a $100M lower in OpEx? Why?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvke004p04jo4xydkkfm",
+      "term": "A company holds Trading securities that rise from $50 to $100 (40% tax rate). What is the immediate effect on pre-tax income and the 3 balance sheet more broadly?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvko004s04jovxebv3vm",
+      "term": "Company A owns 80% of Company B and consolidates it. B earns $200M of net income. On A's income statement, the 20% A does not own is",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvkx004v04jos4do4lz2",
+      "term": "Versus an operating lease with the same economics, a finance (capital) lease will generally make a company's EBITDA",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvl7004y04jo0oh6qpd7",
+      "term": "How does a gain in trading securities affect the 3 statements? What about AFS? What about HTM? How do they differ?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvlg005104jotx9tji9s",
+      "term": "A company grants an executive $10M of RSUs at a 40% tax rate. Please describes the immediate accounting that follows",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvlq005404jos4i0uzby",
+      "term": "A parent company owns 30% of an \"Associate\" company, and the stake shows up as an Equity Investment on the parent's Balance Sheet. When moving from the parent's Equity Value to its Enterprise Value to build a clean EV / EBITDA multiple, why do you subtract the value of the Equity Investment?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvm0005704jo4d84yrsu",
+      "term": "How are equity method investments recorded on the parent company on the 3 statements?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvma005a04jozinodldr",
+      "term": "Suppose a CEO literally finds $100 of cash on the street and deposits it into the company's bank account. Ignoring the strangeness of the scenario, what is the immediate impact on Equity Value, Enterprise Value, and the P / E multiple?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvmk005d04jovub0h5dv",
+      "term": "Why does issuing dividends lower the P/E multiple and gaining cash increase the P/E multiple?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvmy005g04jot15fgl4l",
+      "term": "How does the consolidation method work? Say you had 80% of the company, how would you record that?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvn9005j04joevtt0qbu",
+      "term": "Why do you add back non-controlling interests when moving from equity to enterprise value?",
+      "error": "Insufficient Balance"
+    },
+    {
+      "cardId": "cmsfkfvni005m04joikylcdr8",
+      "term": "A company grants an executive $10M of stock options (valued with the Black-Scholes method) at a 40% tax rate. Please describes the immediate accounting that follows & what might happen after",
+      "error": "Insufficient Balance"
+    }
+  ],
+  "tokens": []
+}
