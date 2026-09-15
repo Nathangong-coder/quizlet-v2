@@ -198,6 +198,7 @@ const COMMS_CHECK = (process.env.KLP_COMMS_CHECK ?? 'true').toLowerCase() !== 'f
 
 /** One meter for the whole run; printed at the end and written to --json. */
 const METER = new TokenMeter()
+const DIRECT_TEMPERATURE = process.env.KLP_TEMPERATURE !== undefined && process.env.KLP_TEMPERATURE !== '' ? Number(process.env.KLP_TEMPERATURE) : 0
 
 /**
  * KLP_AUTHOR_BATCH (2026-09-13, cost item 4): author up to N cards per writer
@@ -249,7 +250,12 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
         // delayed classification: the daily-quota halt cannot fire until the
         // error surfaces, and the SDK swallowed the first two.
         const model = who === 'writer' ? writerModel : who === 'adversary' && adversaryModel ? adversaryModel : languageModel
-        const attempt = () => generateText({ model, prompt, output: Output.object({ schema }), maxRetries: 0 })
+        // TEMPERATURE (2026-09-14). Production `generateJson` runs every
+        // authoring task at 0 (src/lib/ai/temperature.ts); this direct path
+        // never set one, so the whole corpus was authored at the provider
+        // default (DeepSeek 1.0) — a likely part of the run-to-run variance
+        // recorded in docs/ai/model-performance.md. Now 0 unless KLP_TEMPERATURE says otherwise.
+        const attempt = () => generateText({ model, prompt, output: Output.object({ schema }), maxRetries: 0, temperature: DIRECT_TEMPERATURE })
         let res: Awaited<ReturnType<typeof attempt>>
         try {
           res = await attempt()

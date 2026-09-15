@@ -177,6 +177,10 @@ async function mintCard(
             prompt: buildTopicMintingPrompt(card.term, klps),
             output: Output.object({ schema: CardTopicProposalSchema }),
             maxRetries: 0,
+            // MINT_TEMPERATURE (2026-09-14): the stability probe found
+            // run-to-run leaf agreement of ~0.45 exact / ~0.65 loose at the
+            // provider default; this knob is how that is re-measured at 0.
+            temperature: process.env.MINT_TEMPERATURE !== undefined && process.env.MINT_TEMPERATURE !== '' ? Number(process.env.MINT_TEMPERATURE) : 0,
           })
           METER.add('mint', modelId, {
             inputTokens: res.usage?.inputTokens,
@@ -633,6 +637,7 @@ async function runDual(
                 prompt: buildJudgePrompt(items),
                 output: Output.object({ schema: JudgeVerdictSchema }),
                 maxRetries: 0,
+                temperature: process.env.MINT_TEMPERATURE !== undefined && process.env.MINT_TEMPERATURE !== '' ? Number(process.env.MINT_TEMPERATURE) : 0,
               })
               METER.add('judge', combo.model, {
                 inputTokens: res.usage?.inputTokens,
