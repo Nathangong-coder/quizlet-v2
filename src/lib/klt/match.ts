@@ -142,7 +142,7 @@ export function sweep(proposals: string[], vocab: VocabEntry[]): { decisions: Sw
       decisions.push({ proposal, normalized: norm, result, resolvedTo: result.entry, outcome: 'existing' })
       continue
     }
-    const entry: VocabEntry = { kltId: `new:${norm}`, name: proposal, normalizedName: norm, status: 'candidate', aliases: [] }
+    const entry: VocabEntry & { aliases: string[] } = { kltId: `new:${norm}`, name: proposal, normalizedName: norm, status: 'candidate', aliases: [] }
     v.push(entry)
     decisions.push({ proposal, normalized: norm, result, resolvedTo: entry, outcome: result.kind === 'ambiguous' ? 'ambiguous-new' : 'new' })
   }
