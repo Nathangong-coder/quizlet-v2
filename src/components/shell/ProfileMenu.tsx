@@ -2,12 +2,12 @@
 
 import Link from 'next/link'
 import { useState, type ReactNode } from 'react'
-import { Settings, GraduationCap, Bot, SlidersHorizontal, LifeBuoy, LogOut } from 'lucide-react'
+import { Settings, GraduationCap, Bot, BarChart3, SlidersHorizontal, LifeBuoy, LogOut } from 'lucide-react'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { handleSignOut } from '@/lib/actions/auth'
 
 /**
- * The five destinations behind the avatar.
+ * The six destinations behind the avatar.
  *
  * Exported so a test can assert every one is reachable — a menu is the one
  * place where a route that exists but is linked from nowhere looks exactly like
@@ -17,6 +17,7 @@ export const PROFILE_MENU_ITEMS = [
   { href: '/account', label: 'Settings', icon: Settings, hint: 'Handle, email, password, theme' },
   { href: '/profile', label: 'Learning', icon: GraduationCap, hint: 'What you know and what to study' },
   { href: '/settings/ai', label: 'AI settings', icon: Bot, hint: 'Provider keys and task routing' },
+  { href: '/usage', label: 'AI usage', icon: BarChart3, hint: 'Cost, requests and tokens, call by call' },
   { href: '/settings/study', label: 'Other settings', icon: SlidersHorizontal, hint: 'Grading and targeting' },
   { href: '/help', label: 'Help & feedback', icon: LifeBuoy, hint: 'Send us a message' },
 ] as const

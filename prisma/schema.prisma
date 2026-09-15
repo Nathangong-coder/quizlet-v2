@@ -137,6 +137,10 @@ model User {
   groupMemberships StudyGroupMember[]
   groupSetsAdded   StudyGroupSet[]
   gameScores       GameScore[]
+  groupJoinRequests StudyGroupJoinRequest[]
+  groupInvites      StudyGroupInvite[]       @relation("GroupInviteInvitee")
+  groupInvitesSent  StudyGroupInvite[]       @relation("GroupInviteInviter")
+  notifications     Notification[]
   feedback         Feedback[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -734,12 +738,80 @@ model StudyGroup {
   /// Bearer code in the join link. Rotated by the owner; the old link then
   /// 404s. Rules in src/lib/groups/invite.ts.
   inviteCode  String   @unique
+  /// private | public (2026-09-14). A PUBLIC group is listed in the groups
+  /// directory and anyone signed in may REQUEST to join; the owner accepts or
+  /// declines. Private groups are reachable only by invite link or an owner's
+  /// invitation. Vocabulary: GROUP_VISIBILITIES in src/lib/groups/roles.ts.
+  visibility  String   @default("private")
   members     StudyGroupMember[]
   sets        StudyGroupSet[]
+  joinRequests StudyGroupJoinRequest[]
+  invites      StudyGroupInvite[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([ownerId])
+  @@index([visibility, createdAt])
+}
+
+/// A signed-in user asking to join a PUBLIC group. The requester accepts the
+/// privacy contract at request time (`acknowledged`), so an accepted request
+/// creates a member row with the same consent an invite-link join carries.
+/// status: pending | accepted | declined.
+model StudyGroupJoinRequest {
+  id        String     @id @default(cuid())
+  groupId   String
+  group     StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String?
+  status    String     @default("pending")
+  createdAt DateTime   @default(now())
+  decidedAt DateTime?
+
+  @@unique([groupId, userId])
+  @@index([userId, status])
+  @@index([groupId, status])
+}
+
+/// An owner inviting a user (found through the public-user directory) into
+/// a group. The invitee accepts — consenting to the privacy contract at that
+/// moment — or declines. status: pending | accepted | declined.
+model StudyGroupInvite {
+  id          String     @id @default(cuid())
+  groupId     String
+  group       StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User       @relation("GroupInviteInvitee", fields: [userId], references: [id], onDelete: Cascade)
+  invitedById String
+  invitedBy   User       @relation("GroupInviteInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+  status      String     @default("pending")
+  createdAt   DateTime   @default(now())
+  decidedAt   DateTime?
+
+  @@unique([groupId, userId])
+  @@index([userId, status])
+  @@index([groupId, status])
+}
+
+/// In-app notifications (2026-09-14). One row per event a user should see:
+/// a group invite, a join request on a group they own, a decision on their
+/// own request or invite. `href` is where the notification takes them;
+/// `kind` is the closed vocabulary in src/lib/notifications/kinds.ts. Read
+/// state is per row; nothing is ever pushed anywhere else.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  title     String
+  body      String?
+  href      String?
+  meta      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
 }
 
 model StudyGroupMember {

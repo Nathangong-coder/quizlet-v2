@@ -13,6 +13,8 @@ import { Metric } from '@/components/ui/metric'
 import { Leaderboard, LeaderboardLegend } from '@/components/groups/Leaderboard'
 import { GroupForm } from '@/components/groups/GroupForm'
 import { GroupTabs } from '@/components/groups/GroupTabs'
+import { InvitePeopleDialog, PendingRequests, VisibilityToggle } from '@/components/groups/Membership'
+import { loadPendingRequests, loadPendingInvites } from '@/lib/groups/discover'
 import {
   InviteLink,
   RemoveMemberButton,
@@ -45,6 +47,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
   if (!group) notFound()
   const overview = await loadGroupOverview(viewerId, group)
   const isOwner = group.viewerRole === 'owner'
+  const [requests, invites] = isOwner ? await Promise.all([loadPendingRequests(group.id), loadPendingInvites(group.id)]) : [[], []]
   const readableSets = group.sets.filter((s) => s.readable && overview[s.setId])
   const cardsInPlay = readableSets.reduce((n, s) => n + s.cardCount, 0)
   const next = studyNext(group.sets.map((s) => ({ setId: s.setId, title: s.title ?? '', readable: s.readable })), overview, group.members.length, 6)
@@ -53,7 +56,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
   const tabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'sets', label: 'Sets', count: group.sets.length },
-    { key: 'members', label: 'Members', count: group.members.length },
+    { key: 'members', label: requests.length > 0 ? `Members · ${requests.length} waiting` : 'Members', count: group.members.length },
     ...(isOwner ? [{ key: 'settings', label: 'Settings' }] : []),
   ]
 
@@ -203,8 +206,12 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
                 <p className="mb-4 text-sm text-muted-foreground">
                   Everyone here agreed, on joining, that members see their progress on this group&rsquo;s sets — and nothing outside them.
                 </p>
+                {isOwner && <PendingRequests requests={requests} invites={invites} />}
                 <div className="mb-4 rounded-lg border border-border bg-card p-3">
-                  <div className="label mb-1">Invite someone</div>
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <div className="label">Invite someone</div>
+                    {isOwner && <InvitePeopleDialog groupId={group.id} />}
+                  </div>
                   <InviteLink groupId={group.id} inviteCode={group.inviteCode} isOwner={isOwner} />
                 </div>
                 <ul className="divide-y divide-border/70 rounded-xl border border-border bg-card">
@@ -240,6 +247,7 @@ export default async function GroupPage({ params, searchParams }: { params: Prom
             settings: isOwner ? (
               <div className="max-w-xl space-y-6">
                 <GroupForm groupId={group.id} initialName={group.name} initialDescription={group.description ?? ''} />
+                <VisibilityToggle groupId={group.id} visibility={group.visibility} />
                 <div className="rounded-lg border border-border bg-card p-4 text-sm">
                   <div className="label mb-1">Invite link</div>
                   <p className="text-muted-foreground">Anyone with the link can join after accepting what members see. Turn it over and the old link stops working.</p>

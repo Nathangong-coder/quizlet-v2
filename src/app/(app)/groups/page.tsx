@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { Users, Plus } from 'lucide-react'
+import { Users, Plus, Globe } from 'lucide-react'
 import { auth } from '@/auth'
 import { loadMyGroups } from '@/lib/groups/load'
 import { buttonVariants } from '@/components/ui/button'
@@ -11,8 +11,9 @@ import { cn } from '@/lib/utils'
 export const metadata: Metadata = { title: 'Study groups', description: 'Study the same sets with people you choose.' }
 
 /**
- * `/groups` — the groups you belong to. Private only: there is no directory
- * of groups, so this page and an invite link are the only ways in.
+ * `/groups` — the groups you belong to. Public groups are listed at
+ * `/groups/browse` (2026-09-14); private ones are reached by invite link or
+ * an owner's invitation.
  */
 export default async function GroupsPage() {
   const session = await auth()
@@ -25,10 +26,16 @@ export default async function GroupsPage() {
         title="Study groups"
         lede="Study the same sets with people you choose, and see who has which cards down."
         action={
-          <Link href="/groups/new" className={cn(buttonVariants({ size: 'sm' }), 'gap-1.5')}>
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            New group
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/groups/browse" className={cn(buttonVariants({ size: 'sm', variant: 'outline' }), 'gap-1.5')}>
+              <Globe className="h-4 w-4" aria-hidden="true" />
+              Find a group
+            </Link>
+            <Link href="/groups/new" className={cn(buttonVariants({ size: 'sm' }), 'gap-1.5')}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New group
+            </Link>
+          </div>
         }
       />
 
@@ -37,7 +44,7 @@ export default async function GroupsPage() {
           <div className="rounded-full bg-muted p-3 text-muted-foreground"><Users className="h-6 w-6" aria-hidden="true" /></div>
           <h2 className="mt-4 text-xl font-semibold">No groups yet</h2>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
-            Make one and send the invite link, or ask a friend for theirs. A group only ever sees your progress on the sets it studies.
+            Make one and send the invite link, ask a friend for theirs, or find a public group and ask to join. A group only ever sees your progress on the sets it studies.
           </p>
           <Link href="/groups/new" className={cn(buttonVariants(), 'mt-6')}>Create a group</Link>
         </div>
