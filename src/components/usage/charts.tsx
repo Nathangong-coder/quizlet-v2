@@ -11,27 +11,9 @@ import type { DayPoint, Bucket } from '@/lib/ai/usage-dashboard'
  * bars and the pie agree.
  */
 
-export const SERIES_COLOURS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)', 'var(--chart-5)', '#7c3aed', '#0f766e', '#e0b25a', '#c8323f']
+import { SERIES_COLOURS, colourFor, fmtInt, fmtUsd, fmtCompact } from './format'
 
-export function colourFor(index: number): string {
-  return SERIES_COLOURS[index % SERIES_COLOURS.length]
-}
-
-export function fmtInt(n: number): string {
-  return n.toLocaleString()
-}
-
-export function fmtUsd(n: number): string {
-  if (n === 0) return '$0.00'
-  if (n < 0.01) return '<$0.01'
-  return `$${n.toFixed(2)}`
-}
-
-export function fmtCompact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`
-  return String(n)
-}
+export { SERIES_COLOURS, colourFor, fmtInt, fmtUsd, fmtCompact }
 
 type Metric = 'cost' | 'calls' | 'tokens'
 type Split = 'model' | 'task'
@@ -174,13 +156,17 @@ export function TaskPie({ tasks }: { tasks: Bucket[] }) {
   )
 }
 
-/** A small filled line for one model's requests or tokens per day. */
-export function Sparkline({ days, pick, label, colour }: { days: DayPoint[]; pick: (d: DayPoint) => number; label: string; colour: string }) {
+/**
+ * A small filled line for one model's requests or tokens per day. Takes the
+ * NUMBERS, not a picker: the page is a server component and a function
+ * cannot cross into a client component as a prop.
+ */
+export function Sparkline({ values, label, colour }: { values: number[]; label: string; colour: string }) {
   const W = 300
   const H = 80
-  const max = Math.max(1, ...days.map(pick))
-  const step = days.length > 1 ? W / (days.length - 1) : W
-  const pts = days.map((d, i) => `${(i * step).toFixed(1)},${(H - (pick(d) / max) * (H - 6) - 3).toFixed(1)}`)
+  const max = Math.max(1, ...values)
+  const step = values.length > 1 ? W / (values.length - 1) : W
+  const pts = values.map((v, i) => `${(i * step).toFixed(1)},${(H - (v / max) * (H - 6) - 3).toFixed(1)}`)
   const path = `M ${pts.join(' L ')}`
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-20 w-full" role="img" aria-label={label}>

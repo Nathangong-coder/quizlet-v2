@@ -5,7 +5,7 @@ import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { historyCsv, type HistoryRow } from '@/lib/ai/usage-dashboard'
-import { fmtInt } from './charts'
+import { fmtInt } from './format'
 
 const PAGE = 25
 
