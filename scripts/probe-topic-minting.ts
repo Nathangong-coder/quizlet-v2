@@ -60,6 +60,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { generateText, Output } from 'ai'
 import { TokenMeter } from '../src/lib/klp/token-meter'
+import { enforcementReport, renderLinks, buildMintRepairPrompt, applyRepair, MintRepairSchema, type KlpLink, type EnforcementReport } from '../src/lib/klp/topic-enforcement'
 
 /** Tokens per step (mint / judge) x model for the run — A and B are told apart by model; printed at the end and written to --json. */
 const METER = new TokenMeter()
@@ -138,6 +139,8 @@ type ProbeCard = {
   term: string
   setTitle: string
   klps: { text: string; kind: string }[]
+  /** The card's own KLP graph by index (`KlpRelation`), for the minting prompt and the enforcement check. */
+  links?: KlpLink[]
 }
 
 const cardSelect = {
@@ -147,7 +150,7 @@ const cardSelect = {
   klps: {
     where: { supersededAt: null as null },
     orderBy: { index: 'asc' as const },
-    select: { text: true, kind: true },
+    select: { id: true, text: true, kind: true, relationsFrom: { select: { toKlpId: true, type: true } } },
   },
 }
 
@@ -156,12 +159,34 @@ const cardSelect = {
  * uses. Returns undefined (and the last error) when the pool could not produce
  * a proposal within `MAX_COMBO_ATTEMPTS_PER_CARD`.
  */
+/** The card's own KLP graph by index, from the live rows' `relationsFrom`. */
+function linksFromRows(rows: { id: string; relationsFrom: { toKlpId: string; type: string }[] }[]): KlpLink[] {
+  const index = new Map(rows.map((k, i) => [k.id, i]))
+  const out: KlpLink[] = []
+  rows.forEach((k, i) => {
+    for (const r of k.relationsFrom) {
+      const to = index.get(r.toKlpId)
+      if (to !== undefined) out.push({ from: i, to, type: r.type })
+    }
+  })
+  return out
+}
+
+function meanDefined(xs: (number | undefined)[]): number {
+  const v = xs.filter((x): x is number => typeof x === 'number')
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 1
+}
+
+/** MINT_REPAIR=false turns the enforcement repair call off (on by default, 2026-09-15). */
+const MINT_REPAIR = (process.env.MINT_REPAIR ?? 'true').toLowerCase() !== 'false'
+
 async function mintCard(
   pool: DirectCombo[],
   card: ProbeCard,
   pacer: Pacer,
-): Promise<{ proposal?: CardTopicProposal; model?: string; error: string }> {
+): Promise<{ proposal?: CardTopicProposal; model?: string; error: string; enforcement?: { before: number; after: number; repaired: boolean; rows: EnforcementReport['rows'] } }> {
   const klps = card.klps.map((k, i) => ({ ref: i, text: k.text, kind: k.kind }))
+  const links = card.links ?? []
   let attemptsLeft = MAX_COMBO_ATTEMPTS_PER_CARD
   let combo: DirectCombo | undefined
   let lastError = ''
@@ -174,7 +199,7 @@ async function mintCard(
         async () => {
           const res = await generateText({
             model,
-            prompt: buildTopicMintingPrompt(card.term, klps),
+            prompt: buildTopicMintingPrompt(card.term, klps, renderLinks(links)),
             output: Output.object({ schema: CardTopicProposalSchema }),
             maxRetries: 0,
             // MINT_TEMPERATURE (2026-09-14): the stability probe found
@@ -192,7 +217,42 @@ async function mintCard(
         },
         { pacer, clock: realClock },
       )
-      return { proposal, model: combo.model, error: '' }
+      // KLP -> KLT ENFORCEMENT: compare the minted shapes with the intention,
+      // and repair the violating points with one small call rather than
+      // re-minting the card.
+      const before = enforcementReport(card.klps, links, proposal)
+      let final = proposal
+      let after = before
+      let repaired = false
+      if (MINT_REPAIR && before.violations > 0) {
+        try {
+          const repair = await callWithPacingAndRetry(
+            async () => {
+              const res = await generateText({
+                model,
+                prompt: buildMintRepairPrompt(card.term, klps, links, proposal, before),
+                output: Output.object({ schema: MintRepairSchema }),
+                maxRetries: 0,
+                temperature: process.env.MINT_TEMPERATURE !== undefined && process.env.MINT_TEMPERATURE !== '' ? Number(process.env.MINT_TEMPERATURE) : 0,
+              })
+              METER.add('repair', modelId, {
+                inputTokens: res.usage?.inputTokens,
+                outputTokens: res.usage?.outputTokens,
+                reasoningTokens: res.usage?.outputTokenDetails?.reasoningTokens,
+                cachedTokens: res.usage?.inputTokenDetails?.cacheReadTokens,
+              })
+              return res.output
+            },
+            { pacer, clock: realClock },
+          )
+          final = applyRepair(proposal, repair, before)
+          after = enforcementReport(card.klps, links, final)
+          repaired = true
+        } catch (err) {
+          progress(`     repair failed: ${err instanceof Error ? err.message.slice(0, 80) : String(err)}`)
+        }
+      }
+      return { proposal: final, model: combo.model, error: '', enforcement: { before: before.klpKltEnforcement, after: after.klpKltEnforcement, repaired, rows: after.rows } }
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err)
       if (err instanceof RunHaltedError && err.haltReason === 'daily_quota') {
@@ -246,7 +306,7 @@ async function main() {
       })
   // Preserve the caller's order for --cards.
   const ordered = cardIds.length ? cardIds.map((id) => rows.find((r) => r.id === id)).filter((r): r is NonNullable<typeof r> => !!r) : rows
-  const cards: ProbeCard[] = ordered.map((r) => ({ id: r.id, term: r.term, setTitle: r.set.title, klps: r.klps }))
+  const cards: ProbeCard[] = ordered.map((r) => ({ id: r.id, term: r.term, setTitle: r.set.title, klps: r.klps.map((k) => ({ text: k.text, kind: k.kind })), links: linksFromRows(r.klps) }))
   if (cards.length === 0) {
     console.error(`[probe-topic-minting] no cards with live KLPs matched`)
     process.exit(1)
@@ -269,7 +329,7 @@ async function main() {
   )
 
   const pacer = new Pacer(rpmToIntervalMs(DEFAULT_RPM), realClock)
-  const results: { term: string; model: string; proposal: CardTopicProposal }[] = []
+  const results: { term: string; model: string; proposal: CardTopicProposal; klps: { text: string; kind: string }[]; links: KlpLink[]; enforcement?: { before: number; after: number; repaired: boolean; rows: EnforcementReport['rows'] } }[] = []
   const failures: { term: string; error: string }[] = []
 
   const jsonOut = opt(args, '--json')
@@ -300,11 +360,12 @@ async function main() {
       continue
     }
 
-    results.push({ term: card.term, model: combo.model, proposal })
+    results.push({ term: card.term, model: combo.model, proposal, klps: card.klps, links: card.links ?? [], enforcement: minted.enforcement })
     flush()
     progress(
       `     ok — ${proposal.parent}: ${proposal.leaves.map((l) => l.name).join(', ') || '(no leaves)'}` +
-        (proposal.relations.length ? ` [+${proposal.relations.length} rel]` : ''),
+        (proposal.relations.length ? ` [+${proposal.relations.length} rel]` : '') +
+        (minted.enforcement ? ` | enforcement ${minted.enforcement.before.toFixed(2)}${minted.enforcement.repaired ? ` → ${minted.enforcement.after.toFixed(2)} after repair` : ''}` : ''),
     )
     const covered = new Set([
       ...proposal.leaves.flatMap((l) => l.klpRefs),
@@ -482,6 +543,9 @@ async function main() {
   )
   const novel = [...new Set(leafNames)].filter((n) => !existing.has(n))
   console.log(
+    `\nKLP/KLT enforcement — share of points whose minted shape matches the intention (kind prior, or the card's own link graph): ` +
+      `before repair ${meanDefined(results.map((r) => r.enforcement?.before)).toFixed(2)}, after ${meanDefined(results.map((r) => r.enforcement?.after)).toFixed(2)} ` +
+      `(${results.filter((r) => r.enforcement?.repaired).length} of ${results.length} cards repaired, ${results.reduce((a, r) => a + (r.links?.length ?? 0), 0)} known links supplied)` +
     `\nnovel leaf names (not in the ${existing.size} existing concepts): ` +
       `${novel.length}/${new Set(leafNames).size}`,
   )

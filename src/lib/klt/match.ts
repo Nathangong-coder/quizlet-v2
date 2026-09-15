@@ -17,7 +17,13 @@
  *                of money"), for names of three or more content words
  *   containment  one name's content tokens are a subset of the other's, with
  *                at least two shared ("accounting equation" ⊂ "fundamental
- *                accounting equation") — `sameConceptByRule`
+ *                accounting equation") — `sameConceptByRule`. ACROSS CARDS
+ *                THIS IS NOT IDENTITY (2026-09-15, owner): "acquired deferred
+ *                revenue write-down" is related to "deferred revenue", not
+ *                the same topic, and merging them is how a vocabulary flattens
+ *                into a few buckets. The result is `related` — the specific
+ *                name is minted as its own node and PLACED under the general
+ *                one. Only exact / alias / initials say "same".
  *   token        content-token overlap (Jaccard) at or above TOKEN_MATCH
  *
  * Between TOKEN_AMBIGUOUS and TOKEN_MATCH the matcher returns `ambiguous`
@@ -58,6 +64,8 @@ export interface MatchCandidate {
 
 export type MatchResult =
   | { kind: 'match'; entry: VocabEntry; rule: MatchRule; score: number }
+  /** A distinct topic that belongs under `entry` (containment across cards). */
+  | { kind: 'related'; entry: VocabEntry; rule: 'containment'; score: number }
   | { kind: 'ambiguous'; candidates: MatchCandidate[] }
   | { kind: 'none' }
 
@@ -80,8 +88,17 @@ export function tokenJaccard(a: string, b: string): number {
   return inter / (A.size + B.size - inter)
 }
 
+function sameTokenSet(a: string, b: string): boolean {
+  const A = new Set(contentTokens(a))
+  const B = new Set(contentTokens(b))
+  if (A.size === 0 || A.size !== B.size) return false
+  for (const t of A) if (!B.has(t)) return false
+  return true
+}
+
 function ruleFor(proposalNorm: string, entry: VocabEntry): MatchCandidate | null {
-  if (entry.normalizedName === proposalNorm) return { entry, rule: 'exact', score: 1 }
+  // Word order is not identity-breaking: "impairment of goodwill" IS "goodwill impairment".
+  if (entry.normalizedName === proposalNorm || sameTokenSet(proposalNorm, entry.normalizedName)) return { entry, rule: 'exact', score: 1 }
   if (entry.aliases?.includes(proposalNorm)) return { entry, rule: 'alias', score: 1 }
   const pi = initialsOf(proposalNorm)
   const ei = initialsOf(entry.normalizedName)
@@ -111,7 +128,17 @@ export function matchConcept(proposal: string, vocab: VocabEntry[]): MatchResult
   // Containment can hold in both directions against different entries
   // ("working capital" ⊂ "net working capital" and ⊃ "capital"); two equal
   // containment hits are a real ambiguity, not a tie to break by length.
-  if (decisive && tied.length === 0) return { kind: 'match', entry: best.entry, rule: best.rule, score: best.score }
+  if (decisive && tied.length === 0) {
+    if (best.rule === 'containment') {
+      // Place under the MORE GENERAL of the two: the shorter name. When the
+      // proposal is the general one and an existing specific name contains
+      // it, the proposal is new and the existing node would sit under it —
+      // that re-parenting is the cross-card pass's job, so report it as
+      // related to the existing node and let the pass decide.
+      return { kind: 'related', entry: best.entry, rule: 'containment', score: best.score }
+    }
+    return { kind: 'match', entry: best.entry, rule: best.rule, score: best.score }
+  }
   return { kind: 'ambiguous', candidates: candidates.slice(0, 4) }
 }
 
@@ -121,8 +148,14 @@ export interface SweepDecision {
   result: MatchResult
   /** The vocabulary entry the proposal resolved to (matched, or newly added). */
   resolvedTo: VocabEntry
-  /** 'existing' | 'new' | 'ambiguous-new' — the last when an ambiguity was left unresolved and the name minted. */
-  outcome: 'existing' | 'new' | 'ambiguous-new'
+  /**
+   * 'existing' | 'new' | 'ambiguous-new' | 'new-under' — the last two are new
+   * nodes: an ambiguity left unresolved, and a containment match minted as
+   * its own node placed under `placeUnder`.
+   */
+  outcome: 'existing' | 'new' | 'ambiguous-new' | 'new-under'
+  /** For 'new-under': the general topic the new node is placed beneath. */
+  placeUnder?: VocabEntry
 }
 
 /**
@@ -144,6 +177,10 @@ export function sweep(proposals: string[], vocab: VocabEntry[]): { decisions: Sw
     }
     const entry: VocabEntry & { aliases: string[] } = { kltId: `new:${norm}`, name: proposal, normalizedName: norm, status: 'candidate', aliases: [] }
     v.push(entry)
+    if (result.kind === 'related') {
+      decisions.push({ proposal, normalized: norm, result, resolvedTo: entry, outcome: 'new-under', placeUnder: result.entry })
+      continue
+    }
     decisions.push({ proposal, normalized: norm, result, resolvedTo: entry, outcome: result.kind === 'ambiguous' ? 'ambiguous-new' : 'new' })
   }
   return { decisions, vocab: v }

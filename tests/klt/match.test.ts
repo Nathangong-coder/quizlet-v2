@@ -22,11 +22,11 @@ describe('matchConcept — the distinctness matcher', () => {
     expect(matchConcept('discounted cash flow', V('dcf'))).toMatchObject({ kind: 'match', rule: 'initials' })
   })
 
-  it('containment: two shared tokens and a subset — the reconciler rule, pointed at the corpus', () => {
-    expect(matchConcept('fundamental accounting equation', V('accounting equation'))).toMatchObject({ kind: 'match', rule: 'containment' })
-    expect(matchConcept('deferred revenue', V('deferred revenue fair value write-down'))).toMatchObject({ kind: 'match', rule: 'containment' })
+  it('containment across cards is RELATED, not identity: the specific name is its own node placed under the general one', () => {
+    expect(matchConcept('acquired deferred revenue write-down', V('deferred revenue'))).toMatchObject({ kind: 'related', rule: 'containment', entry: { name: 'deferred revenue' } })
+    expect(matchConcept('deferred revenue', V('deferred revenue fair value write-down'))).toMatchObject({ kind: 'related' })
     // one shared token is not containment
-    expect(matchConcept('deferred revenue', V('revenue recognition'))).not.toMatchObject({ kind: 'match', rule: 'containment' })
+    expect(matchConcept('deferred revenue', V('revenue recognition')).kind).not.toBe('related')
   })
 
   it('token overlap: at or above TOKEN_MATCH is a match, between the thresholds is ambiguous, below is none', () => {
@@ -53,9 +53,17 @@ describe('sweep — cross-card accumulation', () => {
     const { decisions, vocab } = sweep(['Time value of money', 'TVM', 'goodwill impairment', 'impairment of goodwill', 'synergies'], [])
     expect(decisions.map((d) => d.outcome)).toEqual(['new', 'existing', 'new', 'existing', 'new'])
     expect(decisions[1].resolvedTo.name).toBe('Time value of money')
-    expect(decisions[3].result).toMatchObject({ kind: 'match', rule: 'containment' })
+    // same tokens both ways is exact after normalization, not containment
+    expect(decisions[3].result).toMatchObject({ kind: 'match', rule: 'exact' })
     expect(vocab.find((e) => e.name === 'Time value of money')?.aliases).toContain('tvm')
     expect(vocab).toHaveLength(3)
+  })
+
+  it('a containment hit mints the specific name as a new node placed under the general one', () => {
+    const { decisions, vocab } = sweep(['deferred revenue', 'acquired deferred revenue write-down'], [])
+    expect(decisions[1].outcome).toBe('new-under')
+    expect(decisions[1].placeUnder?.name).toBe('deferred revenue')
+    expect(vocab.map((v) => v.name)).toEqual(['deferred revenue', 'acquired deferred revenue write-down'])
   })
 
   it('an unresolved ambiguity is minted as new and marked so a judge can revisit it', () => {
