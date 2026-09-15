@@ -28,6 +28,7 @@ import { toSdkContent, type GeminiPart } from '@/lib/ai/media-adapter';
 // AiTask is declared once, in model-routing.ts (it already exports it today).
 // Do not re-declare it here — two definitions would drift.
 import type { AiTask } from '@/lib/ai/model-routing';
+import { providerRank, zaiEffortForTask } from '@/lib/ai/task-defaults';
 import { temperatureForTask } from '@/lib/ai/temperature';
 import { enforceModelPolicy, approvedAlternates } from '@/lib/ai/model-policy';
 
@@ -362,6 +363,9 @@ async function resolveCandidates(
     extraModels: (provider) =>
       routing?.credentialId ? [] : approvedAlternates(provider, task),
     exhausted,
+    // The measured default order for this task (see task-defaults.ts). A pin
+    // has already narrowed the pool to one credential, so it is unaffected.
+    providerRank: (provider) => providerRank(task, provider),
   }).map((attempt) => ({
     id: attempt.credentialId,
     label: attempt.label,
@@ -488,6 +492,8 @@ export async function generateJsonWithMeta<T>({
         apiKey: decryptApiKey(cred.encryptedApiKey),
         baseUrl: cred.baseUrl,
         model: candidate.model,
+        // GLM: low effort for anything a learner waits on, high for authoring.
+        reasoningEffort: cred.provider === 'zai' ? zaiEffortForTask(task) : undefined,
       });
 
       // TWO RETRY AUTHORITIES MULTIPLY RATHER THAN COMPOSE. The SDK's default
