@@ -1,0 +1,1928 @@
+{
+  "setId": "cmtj7pxfc000005l4rv4krxxy",
+  "skip": 0,
+  "results": [
+    {
+      "term": "Why do LBOs use leverage? How do they use leverage to increase returns?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "leveraged buyout returns",
+        "leaves": [
+          {
+            "name": "leverage in an lbo",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "equity contribution reduction",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "equity return measurement",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "debt paydown equity accrual",
+            "klpRefs": [
+              3
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "lbo financing structure"
+          },
+          {
+            "klpRef": 1,
+            "concept": "sources and uses of funds"
+          },
+          {
+            "klpRef": 2,
+            "concept": "sponsor return attribution"
+          },
+          {
+            "klpRef": 3,
+            "concept": "debt paydown"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "equity contribution reduction",
+            "to": "equity return measurement",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "equity contribution reduction",
+            "to": "debt paydown equity accrual",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 2,
+            "from": "equity return measurement",
+            "to": "leverage return amplification",
+            "type": "requires"
+          },
+          {
+            "klpRef": 3,
+            "from": "debt paydown equity accrual",
+            "to": "leverage return amplification",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "equity contribution reduction",
+            "to": "leverage return amplification",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "debt paydown equity accrual",
+            "to": "leverage return amplification",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Leverage in an LBO means funding the purchase price largely with borrowed debt instead of equity",
+          "kind": "definition"
+        },
+        {
+          "text": "Debt reduces the upfront equity the sponsor must commit for a given purchase price",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Sponsor returns are measured as equity value at exit versus equity invested at entry, so a smaller equity base makes the same dollar gain a larger percentage return",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Each dollar of debt principal paid down converts creditor claims into equity value, so the sponsor's ownership of the business grows over the hold",
+          "kind": "causal"
+        },
+        {
+          "text": "Combining a smaller initial equity check with debt paydown and value growth is how leverage amplifies the sponsor's return — the answer to why LBOs use it",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "type": "precedes"
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "type": "requires"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "requires"
+        }
+      ],
+      "enforcement": {
+        "before": 1,
+        "after": 1,
+        "repaired": false,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "What is an LBO, in simple terms?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "leveraged buyouts",
+        "leaves": [
+          {
+            "name": "leveraged buyout",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "private equity sponsor",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "target company debt service",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "sponsor equity stake growth",
+            "klpRefs": [
+              3
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "acquisition financing"
+          },
+          {
+            "klpRef": 1,
+            "concept": "acquisition financing"
+          },
+          {
+            "klpRef": 2,
+            "concept": "debt repayment"
+          },
+          {
+            "klpRef": 3,
+            "concept": "deleveraging"
+          },
+          {
+            "klpRef": 4,
+            "concept": "exit returns"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "leveraged buyout",
+            "to": "target company debt service",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "private equity sponsor",
+            "to": "exit returns",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 2,
+            "from": "target company debt service",
+            "to": "private equity sponsor",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 3,
+            "from": "sponsor equity stake growth",
+            "to": "target company debt service",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "exit returns",
+            "to": "sponsor equity stake growth",
+            "type": "requires"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "An LBO is the acquisition of a company funded with a high percentage of debt, often 50-70% or more of the purchase price",
+          "kind": "definition"
+        },
+        {
+          "text": "LBOs are typically executed by private equity firms using the target as the borrower",
+          "kind": "definition"
+        },
+        {
+          "text": "The debt is raised at the target company level, so the target's own cash flows service and repay it after closing",
+          "kind": "mechanism"
+        },
+        {
+          "text": "As debt is paid down over the holding period, the sponsor's effective equity stake in the business grows",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The sponsor realizes its return at exit — a sale, IPO, or recapitalization — combining operational improvement, deleveraging, and the exit multiple",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "type": "confused_with"
+        },
+        {
+          "from": 2,
+          "to": 1,
+          "type": "applies_within"
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "type": "requires"
+        },
+        {
+          "from": 4,
+          "to": 3,
+          "type": "requires"
+        }
+      ],
+      "enforcement": {
+        "before": 1,
+        "after": 1,
+        "repaired": false,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "What are the main sources of value creation in an LBO (5)?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "leveraged buyout value creation",
+        "leaves": [
+          {
+            "name": "ebitda growth",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "debt paydown",
+            "klpRefs": [
+              3
+            ]
+          },
+          {
+            "name": "multiple expansion",
+            "klpRefs": [
+              5
+            ]
+          },
+          {
+            "name": "expense reductions",
+            "klpRefs": [
+              6
+            ]
+          },
+          {
+            "name": "operational improvements and add-on acquisitions",
+            "klpRefs": [
+              7
+            ]
+          },
+          {
+            "name": "value creation in an lbo",
+            "klpRefs": [
+              0
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "entry-to-exit gain measurement"
+          },
+          {
+            "klpRef": 1,
+            "concept": "revenue growth"
+          },
+          {
+            "klpRef": 1,
+            "concept": "margin improvement"
+          },
+          {
+            "klpRef": 3,
+            "concept": "free cash flow sweep"
+          },
+          {
+            "klpRef": 5,
+            "concept": "exit multiple"
+          },
+          {
+            "klpRef": 6,
+            "concept": "cost structure streamlining"
+          },
+          {
+            "klpRef": 7,
+            "concept": "bolt-on acquisitions"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 2,
+            "from": "ebitda growth",
+            "to": "exit equity value",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "debt paydown",
+            "to": "sponsor equity ownership",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "debt paydown",
+            "to": "operational improvements and add-on acquisitions",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 8,
+            "from": "expense reductions",
+            "to": "ebitda growth",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Value creation in an LBO means the sources of the gain between entry price and exit proceeds",
+          "kind": "definition"
+        },
+        {
+          "text": "EBITDA growth is a driver: growing revenue and improving margins enlarges the core earnings base",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Since exit equity is driven off exit EBITDA, a bigger EBITDA directly increases the sale value",
+          "kind": "causal"
+        },
+        {
+          "text": "Debt paydown is a driver: the company's free cash flow is used to repay principal over the hold",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Debt paydown converts debt into sponsor equity so the sponsor's share of the business grows even if the total value is flat",
+          "kind": "causal"
+        },
+        {
+          "text": "Multiple expansion is a driver: selling at a higher EBITDA multiple than paid creates value on its own",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Expense reductions are a driver: cutting overhead, renegotiating supplier contracts, and streamlining the cost structure improve margins and flow straight into EBITDA",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Operational improvements and add-on acquisitions are a driver: better management, systems, and processes plus bolt-on deals build scale and synergies beyond organic growth",
+          "kind": "mechanism"
+        },
+        {
+          "text": "In practice, expense reductions and operational improvements are largely how EBITDA growth is achieved",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 2,
+          "to": 1,
+          "type": "requires"
+        },
+        {
+          "from": 4,
+          "to": 3,
+          "type": "requires"
+        },
+        {
+          "from": 4,
+          "to": 7,
+          "type": "confused_with"
+        },
+        {
+          "from": 8,
+          "to": 6,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.75,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "What makes a good LBO candidate (5)?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "lbo candidate criteria",
+        "leaves": [
+          {
+            "name": "lbo candidate",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "stable cash flows",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "low capital expenditure needs",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "strong asset base",
+            "klpRefs": [
+              6
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "debt capacity underwriting"
+          },
+          {
+            "klpRef": 1,
+            "concept": "debt service"
+          },
+          {
+            "klpRef": 2,
+            "concept": "free cash flow generation"
+          },
+          {
+            "klpRef": 3,
+            "concept": "downturn performance"
+          },
+          {
+            "klpRef": 5,
+            "concept": "margin improvement"
+          },
+          {
+            "klpRef": 6,
+            "concept": "collateralized lending"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "stable cash flows",
+            "to": "cyclical risk",
+            "type": "requires"
+          },
+          {
+            "klpRef": 1,
+            "from": "stable cash flows",
+            "to": "limited cyclical risk",
+            "type": "causes"
+          },
+          {
+            "klpRef": 2,
+            "from": "low capital expenditure needs",
+            "to": "cost reduction potential",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 6,
+            "from": "strong asset base",
+            "to": "lbo candidate",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 4,
+            "from": "cyclical risk",
+            "to": "cash flow stability",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "limited cyclical risk",
+            "to": "downturn performance",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 5,
+            "from": "cost reduction potential",
+            "to": "margin improvement",
+            "type": "applies_within"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "(definition) A good LBO candidate is a company that can safely carry a large debt load and offers the sponsor levers to improve it",
+          "kind": "definition"
+        },
+        {
+          "text": "(condition) Stable, predictable cash flows matter first because the debt must be serviced in every year of the hold regardless of conditions",
+          "kind": "condition"
+        },
+        {
+          "text": "(causal) Low CapEx needs matter because less reinvestment means more free cash flow for debt paydown",
+          "kind": "causal"
+        },
+        {
+          "text": "(condition) Limited cyclical risk matters because a defensive business keeps generating cash through a downturn, protecting the equity",
+          "kind": "condition"
+        },
+        {
+          "text": "(contrast) Cyclical risk is closely tied to cash flow stability — they are two views of the same underwriting concern",
+          "kind": "contrast"
+        },
+        {
+          "text": "(condition) Potential to cut costs and increase efficiency gives the sponsor a concrete path to margin improvement",
+          "kind": "condition"
+        },
+        {
+          "text": "(mechanism) A strong asset base provides collateral that supports more debt at better terms — effectively the company's debt capacity",
+          "kind": "mechanism"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 4,
+          "type": "requires"
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "type": "causes"
+        },
+        {
+          "from": 2,
+          "to": 5,
+          "type": "confused_with"
+        },
+        {
+          "from": 6,
+          "to": 0,
+          "type": "applies_within"
+        }
+      ],
+      "enforcement": {
+        "before": 0.7142857142857143,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Debt is really important for an LBO. How do you determine how much a company can raise in debt?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "debt capacity sizing",
+        "leaves": [
+          {
+            "name": "comparable lbo transactions",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "credit statistics",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "cash flow stability",
+            "klpRefs": [
+              5
+            ]
+          },
+          {
+            "name": "debt capacity sizing",
+            "klpRefs": [
+              0
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 2,
+            "concept": "leverage ratio analysis"
+          },
+          {
+            "klpRef": 2,
+            "concept": "interest coverage analysis"
+          },
+          {
+            "klpRef": 5,
+            "concept": "cash flow predictability"
+          },
+          {
+            "klpRef": 6,
+            "concept": "downside recovery analysis"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 3,
+            "from": "cash flow interest servicing",
+            "to": "debt capacity sizing",
+            "type": "causes"
+          },
+          {
+            "klpRef": 0,
+            "from": "comparable lbo transactions",
+            "to": "market appetite for credit",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 2,
+            "from": "credit statistics",
+            "to": "cash flow interest servicing",
+            "type": "requires"
+          },
+          {
+            "klpRef": 2,
+            "from": "credit statistics",
+            "to": "collateral and asset support",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 5,
+            "from": "cash flow stability",
+            "to": "cash flow interest servicing",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 4,
+            "from": "market appetite for credit",
+            "to": "debt capacity sizing",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 6,
+            "from": "collateral and asset support",
+            "to": "debt capacity sizing",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "You size debt capacity with a blend of hard benchmarks and judgment.",
+          "kind": "definition"
+        },
+        {
+          "text": "The primary benchmark is comparable LBO transactions — what leverage similar companies actually carried at buyout.",
+          "kind": "example"
+        },
+        {
+          "text": "Key credit statistics include leverage ratios like debt-to-EBITDA and coverage ratios like EBITDA-to-interest expense.",
+          "kind": "quantitative"
+        },
+        {
+          "text": "Debt is only real capacity if the cash flow can service the interest.",
+          "kind": "causal"
+        },
+        {
+          "text": "Market appetite sets where in the range you land: easy credit environments support higher multiples, tight ones force conservatism.",
+          "kind": "condition"
+        },
+        {
+          "text": "Company stability matters because predictable cash flows support more leverage, while volatile or cyclical earnings do not.",
+          "kind": "causal"
+        },
+        {
+          "text": "Collateral and asset support increase capacity because saleable assets give lenders recoverable value in a downside.",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 4,
+          "type": "confused_with"
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "type": "requires"
+        },
+        {
+          "from": 2,
+          "to": 6,
+          "type": "confused_with"
+        },
+        {
+          "from": 3,
+          "to": 0,
+          "type": "causes"
+        },
+        {
+          "from": 5,
+          "to": 3,
+          "type": "applies_within"
+        }
+      ],
+      "enforcement": {
+        "before": 0.5714285714285714,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "How long will a P/E firm generally hold on to a company? What is the typical exit strategy?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "private equity exits",
+        "leaves": [
+          {
+            "name": "private equity holding period",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "operational improvement runway",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "secondary buyout",
+            "klpRefs": [
+              3
+            ]
+          },
+          {
+            "name": "strategic buyer sale",
+            "klpRefs": [
+              4
+            ]
+          },
+          {
+            "name": "initial public offering exit",
+            "klpRefs": [
+              5
+            ]
+          },
+          {
+            "name": "gradual sell-down",
+            "klpRefs": [
+              6
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "operational value creation"
+          },
+          {
+            "klpRef": 2,
+            "concept": "fund life and LP capital return"
+          },
+          {
+            "klpRef": 4,
+            "concept": "synergy capture"
+          },
+          {
+            "klpRef": 6,
+            "concept": "public share distribution"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "private equity holding period",
+            "to": "operational improvement runway",
+            "type": "causes"
+          },
+          {
+            "klpRef": 0,
+            "from": "private equity holding period",
+            "to": "fund life and LP capital return",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "strategic buyer sale",
+            "to": "secondary buyout",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 5,
+            "from": "initial public offering exit",
+            "to": "gradual sell-down",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 2,
+            "from": "private equity holding period",
+            "to": "fund life and LP capital return",
+            "type": "applies_within"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "PE firms generally hold a company for about 3 to 7 years before exiting to realize their gain.",
+          "kind": "definition"
+        },
+        {
+          "text": "The 3-to-7-year window is long enough to execute operational improvements and pay down debt.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "It is short enough to return capital to LPs within a roughly ten-year fund life.",
+          "kind": "condition"
+        },
+        {
+          "text": "The first exit route is a sale to another PE firm — a secondary or sponsor-to-sponsor deal.",
+          "kind": "example"
+        },
+        {
+          "text": "The second route is a sale to a strategic buyer, who may pay a premium because it can capture synergies the PE firm cannot.",
+          "kind": "example"
+        },
+        {
+          "text": "The third route is an IPO, in which the PE firm sells shares to public investors rather than to a single buyer.",
+          "kind": "example"
+        },
+        {
+          "text": "An IPO exit is typically a gradual sell-down of the PE firm's stake over time, not a clean one-shot sale of the whole company.",
+          "kind": "example"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 1,
+          "type": "causes"
+        },
+        {
+          "from": 0,
+          "to": 2,
+          "type": "requires"
+        },
+        {
+          "from": 4,
+          "to": 3,
+          "type": "precedes"
+        },
+        {
+          "from": 5,
+          "to": 6,
+          "type": "confused_with"
+        }
+      ],
+      "enforcement": {
+        "before": 0.8333333333333334,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "example",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "How do you project debt paydown in an LBO?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "lbo debt paydown",
+        "leaves": [
+          {
+            "name": "debt schedule",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "free cash flow available for debt paydown",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "mandatory amortization",
+            "klpRefs": [
+              3
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "debt paydown projection"
+          },
+          {
+            "klpRef": 1,
+            "concept": "operating cash flow"
+          },
+          {
+            "klpRef": 2,
+            "concept": "interest expense deduction"
+          },
+          {
+            "klpRef": 3,
+            "concept": "credit agreement terms"
+          },
+          {
+            "klpRef": 4,
+            "concept": "optional prepayment"
+          },
+          {
+            "klpRef": 5,
+            "concept": "interest expense reduction"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 2,
+            "from": "interest expense",
+            "to": "free cash flow available for debt paydown",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 3,
+            "from": "mandatory amortization",
+            "to": "cash sweep",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 3,
+            "from": "mandatory amortization",
+            "to": "cash sweep",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 5,
+            "from": "debt repayment",
+            "to": "free cash flow available for debt paydown",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "cash sweep",
+            "to": "credit agreement terms",
+            "type": "applies_within"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Debt paydown is projected in a debt schedule that runs off the company's free cash flow year by year.",
+          "kind": "definition"
+        },
+        {
+          "text": "Free cash flow available for debt paydown is cash flow after operating costs, capex, and taxes are deducted.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Scheduled interest expense is deducted before arriving at the cash flow that can be used to pay down debt.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Debt service in the schedule begins with each tranche's mandatory amortization owed under the credit agreement, and only after that does any optional prepayment get applied.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "A cash sweep, where the credit agreement permits it, directs remaining free cash flow to optional prepayments that reduce the debt balance below the contractual amortization minimum.",
+          "kind": "condition"
+        },
+        {
+          "text": "Repaying debt lowers next year's interest expense, which frees more cash flow and accelerates the paydown each period.",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 2,
+          "to": 1,
+          "type": "applies_within"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "precedes"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "confused_with"
+        },
+        {
+          "from": 5,
+          "to": 1,
+          "type": "requires"
+        }
+      ],
+      "enforcement": {
+        "before": 0.8,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Why is an LBO valuation generally considered a \"floor valuation\"?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "lbo valuation",
+        "leaves": [
+          {
+            "name": "lbo-implied maximum entry price",
+            "klpRefs": [
+              0,
+              2
+            ]
+          },
+          {
+            "name": "minimum required irr",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "sponsor return sources",
+            "klpRefs": [
+              3
+            ]
+          },
+          {
+            "name": "synergy exclusion for sponsors",
+            "klpRefs": [
+              4
+            ]
+          },
+          {
+            "name": "strategic buyer premium",
+            "klpRefs": [
+              5
+            ]
+          },
+          {
+            "name": "football field valuation range",
+            "klpRefs": [
+              7
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 2,
+            "concept": "exit value assumption"
+          },
+          {
+            "klpRef": 2,
+            "concept": "debt capacity sizing"
+          },
+          {
+            "klpRef": 7,
+            "concept": "valuation summary presentation"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "minimum required irr",
+            "to": "lbo-implied maximum entry price",
+            "type": "requires"
+          },
+          {
+            "klpRef": 2,
+            "from": "lbo-implied maximum entry price",
+            "to": "lbo-implied entry price below other buyers",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 3,
+            "from": "sponsor return sources",
+            "to": "strategic buyer premium",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "synergy exclusion for sponsors",
+            "to": "strategic buyer premium",
+            "type": "causes"
+          },
+          {
+            "klpRef": 5,
+            "from": "strategic buyer premium",
+            "to": "lbo floor valuation",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 6,
+            "from": "lbo-implied maximum entry price",
+            "to": "lbo-implied entry price below other buyers",
+            "type": "causes"
+          },
+          {
+            "klpRef": 8,
+            "from": "lbo floor valuation",
+            "to": "football field valuation range",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "An LBO valuation answers a narrower question than other valuation methods: the maximum price a financial sponsor can pay and still hit its required return.",
+          "kind": "definition"
+        },
+        {
+          "text": "PE firms must clear a minimum IRR, commonly in the low-to-mid twenties percent.",
+          "kind": "quantitative"
+        },
+        {
+          "text": "Given the debt capacity available and a reasonable exit assumption, you solve backwards from the exit value to find the entry price that clears the required IRR.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Sponsor returns come only from leverage, debt paydown, and operational improvement.",
+          "kind": "contrast"
+        },
+        {
+          "text": "Sponsor returns exclude synergies.",
+          "kind": "contrast"
+        },
+        {
+          "text": "A strategic buyer can pay more because it will own the target permanently and can layer on synergies, such as cost savings, revenue overlap, and distribution, that a PE firm structurally cannot capture.",
+          "kind": "contrast"
+        },
+        {
+          "text": "The LBO-implied entry price is usually below what other buyers could justify.",
+          "kind": "causal"
+        },
+        {
+          "text": "In a valuation summary like a football field, the LBO-implied value sits at or near the bottom of the range.",
+          "kind": "example"
+        },
+        {
+          "text": "Above the LBO-implied value, a buyer must rely on synergies or a richer multiple, which is why that price is called the floor.",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 2,
+          "type": "requires"
+        },
+        {
+          "from": 2,
+          "to": 6,
+          "type": "precedes"
+        },
+        {
+          "from": 3,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 5,
+          "to": 8,
+          "type": "confused_with"
+        },
+        {
+          "from": 8,
+          "to": 7,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 1,
+        "after": 1,
+        "repaired": false,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Why might increasing leverage sometimes reduce the IRR?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "leverage and IRR",
+        "leaves": [
+          {
+            "name": "leverage accretion threshold",
+            "klpRefs": [
+              0,
+              4
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "free cash flow generation"
+          },
+          {
+            "klpRef": 3,
+            "concept": "equity base reduction"
+          },
+          {
+            "klpRef": 5,
+            "concept": "covenant compliance"
+          },
+          {
+            "klpRef": 5,
+            "concept": "distressed refinancing"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 2,
+            "from": "debt paydown",
+            "to": "equity value at exit",
+            "type": "causes"
+          },
+          {
+            "klpRef": 6,
+            "from": "incremental leverage",
+            "to": "internal rate of return",
+            "type": "causes"
+          },
+          {
+            "klpRef": 0,
+            "from": "leverage accretion threshold",
+            "to": "incremental leverage",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 4,
+            "from": "leverage accretion threshold",
+            "to": "incremental leverage",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 1,
+            "from": "interest expense drag on free cash flow",
+            "to": "gross IRR on shrinking equity base",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "interest expense drag on free cash flow",
+            "to": "interest burden fragility",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "gross IRR on shrinking equity base",
+            "to": "leverage accretion threshold",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 5,
+            "from": "interest burden fragility",
+            "to": "distressed refinancing",
+            "type": "applies_within"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Leverage amplifies returns only while the business earns more on the debt than the debt costs — beyond that, more borrowing hurts.",
+          "kind": "definition"
+        },
+        {
+          "text": "When debt is too high, excess interest expense consumes free cash flow that would otherwise pay down the balance.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Because debt paydown is a core LBO return driver, cash lost to interest means less equity value built by exit.",
+          "kind": "causal"
+        },
+        {
+          "text": "The gross IRR is computed on a shrinking equity base, but the incremental interest drag on cash flow is not offset by that smaller denominator, so the IRR falls.",
+          "kind": "quantitative"
+        },
+        {
+          "text": "Additional leverage is only accretive to IRR while the marginal return on the incremental debt-funded investment exceeds the after-tax cost of that debt; past that threshold each extra turn of leverage lowers IRR.",
+          "kind": "condition"
+        },
+        {
+          "text": "A heavy interest burden raises fragility: in a downturn, high fixed costs can trigger covenant breaches or a distressed refinancing, putting the exit at risk.",
+          "kind": "condition"
+        },
+        {
+          "text": "Past a certain point the interest cost and lost flexibility outweigh the smaller equity check, so incremental leverage lowers IRR.",
+          "kind": "contrast"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 6,
+          "type": "confused_with"
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 3,
+          "to": 6,
+          "type": "precedes"
+        },
+        {
+          "from": 4,
+          "to": 0,
+          "type": "requires"
+        },
+        {
+          "from": 4,
+          "to": 6,
+          "type": "confused_with"
+        }
+      ],
+      "enforcement": {
+        "before": 0.5714285714285714,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    }
+  ],
+  "failures": [
+    {
+      "term": "Can you walk me through an LBO (high level)?",
+      "error": "No object generated: response did not match schema."
+    }
+  ],
+  "tokens": [
+    {
+      "step": "mint",
+      "model": "deepseek-flash",
+      "calls": 9,
+      "input": 22285,
+      "output": 3432,
+      "reasoning": 0,
+      "cached": 5632
+    },
+    {
+      "step": "repair",
+      "model": "deepseek-flash",
+      "calls": 6,
+      "input": 4096,
+      "output": 569,
+      "reasoning": 0,
+      "cached": 768
+    }
+  ]
+}

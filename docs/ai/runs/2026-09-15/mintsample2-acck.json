@@ -1,0 +1,2508 @@
+{
+  "setId": "cmtfexkmd001k04jr6t2wtl70",
+  "skip": 0,
+  "results": [
+    {
+      "term": "Why don't you depreciate land?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "depreciation",
+        "leaves": [
+          {
+            "name": "depreciable improvements to land",
+            "klpRefs": [
+              4
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "cost allocation over useful life"
+          },
+          {
+            "klpRef": 3,
+            "concept": "historical cost measurement"
+          },
+          {
+            "klpRef": 4,
+            "concept": "useful life estimation"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "land",
+            "to": "depreciation",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 2,
+            "from": "indefinite useful life",
+            "to": "depreciation",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "land",
+            "to": "depreciable improvements to land",
+            "type": "requires"
+          },
+          {
+            "klpRef": 0,
+            "from": "depreciation",
+            "to": "land",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 3,
+            "from": "land",
+            "to": "historical cost measurement",
+            "type": "confused_with"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Depreciation is the systematic allocation of an asset's cost over its finite useful life, and it applies only to assets that wear out or are used up over a bounded period",
+          "kind": "definition"
+        },
+        {
+          "text": "Land is an exception to the depreciation principle: it does not wear out, get consumed, or lose its ability to generate economic benefit, so its useful life is indefinite",
+          "kind": "causal"
+        },
+        {
+          "text": "Because land has no finite useful life, there is no period over which to allocate its cost, so land is not depreciated",
+          "kind": "causal"
+        },
+        {
+          "text": "Land stays on the balance sheet at historical cost indefinitely",
+          "kind": "contrast"
+        },
+        {
+          "text": "Anything built on land, such as buildings or parking lots, has a finite life and is depreciated, even though the land underneath is not",
+          "kind": "example"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 1,
+          "type": "applies_within"
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "type": "requires"
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "type": "confused_with"
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.6,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Can companies amortize goodwill?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "goodwill accounting",
+        "leaves": [
+          {
+            "name": "goodwill",
+            "klpRefs": [
+              0,
+              1
+            ]
+          },
+          {
+            "name": "goodwill impairment test",
+            "klpRefs": [
+              5,
+              6
+            ]
+          },
+          {
+            "name": "section 197 intangible amortization",
+            "klpRefs": [
+              8
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "business combinations"
+          },
+          {
+            "klpRef": 1,
+            "concept": "purchase price allocation"
+          },
+          {
+            "klpRef": 5,
+            "concept": "annual impairment testing"
+          },
+          {
+            "klpRef": 6,
+            "concept": "impairment write-down"
+          },
+          {
+            "klpRef": 8,
+            "concept": "tax amortization"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 2,
+            "from": "goodwill",
+            "to": "goodwill impairment test",
+            "type": "causes"
+          },
+          {
+            "klpRef": 2,
+            "from": "goodwill amortization",
+            "to": "private company goodwill amortization election",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "indefinite life intangible",
+            "to": "goodwill amortization",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "goodwill impairment test",
+            "to": "goodwill amortization",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 7,
+            "from": "private company goodwill amortization election",
+            "to": "goodwill amortization",
+            "type": "applies_within"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Goodwill is the excess of the purchase price over the fair value of an acquisition's identifiable net assets",
+          "kind": "definition"
+        },
+        {
+          "text": "Goodwill represents the value of things like brand, workforce, and synergies that cannot be separately identified",
+          "kind": "definition"
+        },
+        {
+          "text": "Under US GAAP, public companies do not amortize goodwill",
+          "kind": "contrast"
+        },
+        {
+          "text": "Goodwill is treated as having an indefinite life, the same logic that makes land non-depreciable",
+          "kind": "causal"
+        },
+        {
+          "text": "Instead of amortizing, public companies must test goodwill for impairment, at least annually, with no option to amortize instead",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The impairment test checks whether the fair value of the reporting unit exceeds its carrying value",
+          "kind": "mechanism"
+        },
+        {
+          "text": "A shortfall in the impairment test triggers a write-down through an impairment charge",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Privately held companies may elect to amortize goodwill rather than impair it",
+          "kind": "condition"
+        },
+        {
+          "text": "For tax purposes, goodwill acquired in an asset purchase is amortized straight-line over 15 years under Section 197",
+          "kind": "example"
+        }
+      ],
+      "links": [
+        {
+          "from": 2,
+          "to": 4,
+          "type": "causes"
+        },
+        {
+          "from": 2,
+          "to": 7,
+          "type": "confused_with"
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "type": "requires"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "precedes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.8571428571428572,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Walk me through the 3 financial statements & how they generally work",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "financial statements",
+        "leaves": [
+          {
+            "name": "balance sheet",
+            "klpRefs": [
+              2,
+              0
+            ]
+          },
+          {
+            "name": "investing and financing cash flow",
+            "klpRefs": [
+              5
+            ]
+          },
+          {
+            "name": "income statement",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "cash flow statement",
+            "klpRefs": [
+              0
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "profitability measurement"
+          },
+          {
+            "klpRef": 2,
+            "concept": "resource position reporting"
+          },
+          {
+            "klpRef": 4,
+            "concept": "non-cash adjustments"
+          },
+          {
+            "klpRef": 4,
+            "concept": "working capital changes"
+          },
+          {
+            "klpRef": 5,
+            "concept": "capital expenditures"
+          },
+          {
+            "klpRef": 5,
+            "concept": "share repurchases"
+          },
+          {
+            "klpRef": 5,
+            "concept": "dividend payments"
+          },
+          {
+            "klpRef": 7,
+            "concept": "valuation metrics"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "income statement",
+            "to": "balance sheet",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 0,
+            "from": "balance sheet",
+            "to": "cash flow statement",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 3,
+            "from": "assets",
+            "to": "liabilities",
+            "type": "requires"
+          },
+          {
+            "klpRef": 3,
+            "from": "assets",
+            "to": "shareholder equity",
+            "type": "requires"
+          },
+          {
+            "klpRef": 6,
+            "from": "net change in cash",
+            "to": "cash",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 6,
+            "from": "cash",
+            "to": "balance sheet",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 8,
+            "from": "net income",
+            "to": "retained earnings",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 1,
+            "from": "income statement",
+            "to": "cash flow statement",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 4,
+            "from": "cash flow statement",
+            "to": "investing and financing cash flow",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 7,
+            "from": "free cash flow",
+            "to": "cash flow statement",
+            "type": "confused_with"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "The three statements are the income statement, the balance sheet, and the cash flow statement, collectively capturing profitability, resources, and liquidity",
+          "kind": "definition"
+        },
+        {
+          "text": "The income statement covers a period such as a quarter or a year, flowing revenue down through costs and expenses to net income",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The balance sheet is a point-in-time snapshot showing assets like cash, inventory, and PP&E, funded by liabilities and shareholder equity",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Assets = Liabilities + Equity must always tie",
+          "kind": "causal"
+        },
+        {
+          "text": "The cash flow statement covers the same period as the income statement and starts with net income, adding back non-cash charges like depreciation and adjusting for working capital changes to get cash from operations",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The investing section subtracts capital expenditures and asset purchases; the financing section shows debt raises or repayments, buybacks, and dividends",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The cash flow statement ends with the net change in cash, which added to beginning cash gives ending cash — the balance sheet's cash line",
+          "kind": "causal"
+        },
+        {
+          "text": "Free cash flow — roughly operating cash flow minus capex — is a derived valuation metric, not the cash flow statement's ending line",
+          "kind": "contrast"
+        },
+        {
+          "text": "Net income flows into retained earnings on the balance sheet",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 4,
+          "type": "precedes"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "precedes"
+        },
+        {
+          "from": 6,
+          "to": 3,
+          "type": "requires"
+        },
+        {
+          "from": 6,
+          "to": 7,
+          "type": "confused_with"
+        },
+        {
+          "from": 8,
+          "to": 3,
+          "type": "requires"
+        }
+      ],
+      "enforcement": {
+        "before": 0.4285714285714286,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "How do the three statements link together?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "three-statement linkage",
+        "leaves": [
+          {
+            "name": "net income",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "working capital adjustments",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "capital expenditures",
+            "klpRefs": [
+              3
+            ]
+          },
+          {
+            "name": "financing cash flows",
+            "klpRefs": [
+              4
+            ]
+          },
+          {
+            "name": "ending cash balance",
+            "klpRefs": [
+              5
+            ]
+          },
+          {
+            "name": "balance sheet balancing",
+            "klpRefs": [
+              7
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "equity rollforward"
+          },
+          {
+            "klpRef": 1,
+            "concept": "operating cash flow"
+          },
+          {
+            "klpRef": 2,
+            "concept": "working capital changes"
+          },
+          {
+            "klpRef": 3,
+            "concept": "investing cash flow"
+          },
+          {
+            "klpRef": 4,
+            "concept": "financing cash flow"
+          },
+          {
+            "klpRef": 5,
+            "concept": "cash rollforward"
+          },
+          {
+            "klpRef": 6,
+            "concept": "cash reconciliation"
+          },
+          {
+            "klpRef": 7,
+            "concept": "model integrity checks"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "net income",
+            "to": "retained earnings",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "net income",
+            "to": "operating cash flow",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 2,
+            "from": "working capital adjustments",
+            "to": "operating cash flow",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 3,
+            "from": "capital expenditures",
+            "to": "property plant and equipment",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "financing cash flows",
+            "to": "debt and equity balances",
+            "type": "causes"
+          },
+          {
+            "klpRef": 5,
+            "from": "beginning cash balance",
+            "to": "ending cash balance",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 6,
+            "from": "ending cash balance",
+            "to": "cash and cash equivalents",
+            "type": "causes"
+          },
+          {
+            "klpRef": 7,
+            "from": "balance sheet balancing",
+            "to": "three-statement linkage",
+            "type": "requires"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Net income from the income statement flows into retained earnings within shareholder equity on the balance sheet, so income statement profit raises balance sheet equity",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Net income is the first line item of the cash flow statement's operating section, so it drives the cash flow statement's starting figure",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Changes in short-term balance sheet items like receivables, inventory, and payables appear as working capital adjustments in the operating section of the cash flow statement",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Investing section flows change asset balances like PP&E — capex builds it up while depreciation wears it down",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Financing section flows change debt and equity balances through issuance, repayment, dividends, and buybacks",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The change in cash plus beginning cash equals ending cash on the cash flow statement",
+          "kind": "causal"
+        },
+        {
+          "text": "The cash flow statement's ending cash is the cash line reported on the balance sheet",
+          "kind": "causal"
+        },
+        {
+          "text": "A model whose links are correct ties out — the balance sheet balances — so a non-balancing balance sheet signals a broken link",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 1,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "type": "precedes"
+        },
+        {
+          "from": 2,
+          "to": 6,
+          "type": "causes"
+        },
+        {
+          "from": 6,
+          "to": 7,
+          "type": "requires"
+        }
+      ],
+      "enforcement": {
+        "before": 1,
+        "after": 1,
+        "repaired": false,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "How does a $10 increase in Stock-Based Compensation (SBC) affect the 3 financial statements (assume 40% tax rate)?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "stock-based compensation accounting",
+        "leaves": [
+          {
+            "name": "stock-based compensation expense",
+            "klpRefs": [
+              0,
+              2,
+              3
+            ]
+          },
+          {
+            "name": "additional paid-in capital",
+            "klpRefs": [
+              1,
+              7
+            ]
+          },
+          {
+            "name": "non-cash add-back",
+            "klpRefs": [
+              4
+            ]
+          },
+          {
+            "name": "cash",
+            "klpRefs": [
+              5
+            ]
+          },
+          {
+            "name": "retained earnings",
+            "klpRefs": [
+              6
+            ]
+          },
+          {
+            "name": "accounting equation",
+            "klpRefs": [
+              8
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "non-cash adjustments"
+          },
+          {
+            "klpRef": 2,
+            "concept": "operating expenses"
+          },
+          {
+            "klpRef": 3,
+            "concept": "income tax provision"
+          },
+          {
+            "klpRef": 4,
+            "concept": "operating cash flow"
+          },
+          {
+            "klpRef": 6,
+            "concept": "equity rollforward"
+          },
+          {
+            "klpRef": 7,
+            "concept": "equity rollforward"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "stock-based compensation expense",
+            "to": "additional paid-in capital",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "additional paid-in capital",
+            "to": "equity rollforward",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "non-cash add-back",
+            "to": "cash",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 7,
+            "from": "additional paid-in capital",
+            "to": "accounting equation",
+            "type": "precedes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "SBC is a non-cash expense: it is paid in shares rather than cash, so it hits the income statement without any cash outflow",
+          "kind": "definition"
+        },
+        {
+          "text": "The offset to the SBC expense is an increase in additional paid-in capital",
+          "kind": "definition"
+        },
+        {
+          "text": "On the income statement, operating expenses rise $10 and pre-tax income falls $10",
+          "kind": "quantitative"
+        },
+        {
+          "text": "At a 40% tax rate, the $10 drop in pre-tax income cuts taxes by $4 and net income by $6",
+          "kind": "quantitative"
+        },
+        {
+          "text": "On the cash flow statement, the $6 lower net income is combined with a $10 non-cash add-back for the full SBC expense, so cash rises a net $4",
+          "kind": "quantitative"
+        },
+        {
+          "text": "On the balance sheet asset side, cash is up $4",
+          "kind": "quantitative"
+        },
+        {
+          "text": "On the liabilities and equity side, retained earnings falls $6",
+          "kind": "quantitative"
+        },
+        {
+          "text": "On the liabilities and equity side, the $10 SBC grant adds $10 to paid-in capital, so equity rises a net $4",
+          "kind": "quantitative"
+        },
+        {
+          "text": "Assets up $4 equals equity up $4, so the balance sheet balances",
+          "kind": "quantitative"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 1,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 7,
+          "type": "requires"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "precedes"
+        },
+        {
+          "from": 7,
+          "to": 8,
+          "type": "precedes"
+        }
+      ],
+      "enforcement": {
+        "before": 1,
+        "after": 1,
+        "repaired": false,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "quantitative",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "quantitative",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "quantitative",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "quantitative",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "quantitative",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "How does principal repayment affect the 3 statements?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "principal repayment",
+        "leaves": [
+          {
+            "name": "principal repayment",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "financing cash flow",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "cash balance",
+            "klpRefs": [
+              3
+            ]
+          },
+          {
+            "name": "net effect on financial statements",
+            "klpRefs": [
+              6
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 2,
+            "concept": "financing cash flow"
+          },
+          {
+            "klpRef": 3,
+            "concept": "net change in cash"
+          },
+          {
+            "klpRef": 4,
+            "concept": "debt reduction"
+          },
+          {
+            "klpRef": 5,
+            "concept": "balance sheet balancing"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "principal repayment",
+            "to": "interest expense",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 1,
+            "from": "principal repayment",
+            "to": "income statement",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 1,
+            "from": "principal repayment",
+            "to": "net effect on financial statements",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 3,
+            "from": "financing cash flow",
+            "to": "cash balance",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "cash balance",
+            "to": "balance sheet equation",
+            "type": "requires"
+          },
+          {
+            "klpRef": 5,
+            "from": "principal repayment",
+            "to": "balance sheet equation",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Principal repayment is paying back the borrowed amount of a loan, distinct from interest, which is the cost of borrowing.",
+          "kind": "definition"
+        },
+        {
+          "text": "The income statement is unaffected because repaying principal is not an expense — only interest hits the P&L.",
+          "kind": "contrast"
+        },
+        {
+          "text": "On the cash flow statement, the repayment is a cash outflow in financing activities.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "That financing outflow reduces the net change in cash and lowers the ending cash balance.",
+          "kind": "causal"
+        },
+        {
+          "text": "On the balance sheet, cash — an asset — falls by the amount repaid, and the debt liability falls by that same amount.",
+          "kind": "quantitative"
+        },
+        {
+          "text": "The balance sheet still balances and equity is untouched.",
+          "kind": "causal"
+        },
+        {
+          "text": "Net effect: only the CFS and BS are affected, with the cash decrease exactly equaling the liability decrease.",
+          "kind": "quantitative"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 1,
+          "type": "applies_within"
+        },
+        {
+          "from": 1,
+          "to": 6,
+          "type": "precedes"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "requires"
+        }
+      ],
+      "enforcement": {
+        "before": 0.8333333333333334,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "quantitative",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "What is trapped cash?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "international cash management",
+        "leaves": [
+          {
+            "name": "trapped cash",
+            "klpRefs": [
+              0,
+              1
+            ]
+          },
+          {
+            "name": "repatriation tax",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "territorial tax system",
+            "klpRefs": [
+              5
+            ]
+          },
+          {
+            "name": "net debt",
+            "klpRefs": [
+              4
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "deferred taxes"
+          },
+          {
+            "klpRef": 3,
+            "concept": "capital allocation"
+          },
+          {
+            "klpRef": 4,
+            "concept": "net debt calculation"
+          },
+          {
+            "klpRef": 5,
+            "concept": "tax system reform"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "trapped cash",
+            "to": "repatriation tax",
+            "type": "causes"
+          },
+          {
+            "klpRef": 0,
+            "from": "trapped cash",
+            "to": "foreign subsidiary distress",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 2,
+            "from": "repatriation tax",
+            "to": "net debt",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "net debt",
+            "to": "trapped cash",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 5,
+            "from": "territorial tax system",
+            "to": "trapped cash",
+            "type": "causes"
+          },
+          {
+            "klpRef": 6,
+            "from": "trapped cash",
+            "to": "capital allocation",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 7,
+            "from": "trapped cash",
+            "to": "foreign subsidiary distress",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "trapped cash",
+            "to": "capital allocation",
+            "type": "confused_with"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Trapped cash is foreign earnings an international company keeps offshore to avoid repatriation taxes",
+          "kind": "definition"
+        },
+        {
+          "text": "Under a worldwide tax system, home-country tax is deferred until the cash is brought back",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Repatriating trapped cash would trigger the US corporate tax rate on those earnings",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The cash sits on the balance sheet but cannot fund domestic operations, dividends, or buybacks",
+          "kind": "contrast"
+        },
+        {
+          "text": "In valuation, reported cash overstates usable cash, so analysts exclude or discount trapped cash when computing net debt",
+          "kind": "causal"
+        },
+        {
+          "text": "The 2017 US shift to a territorial tax system largely eliminated this problem, though the term persists for cash locked offshore elsewhere",
+          "kind": "condition"
+        },
+        {
+          "text": "Trapped cash is a valuation and capital-allocation problem for the parent",
+          "kind": "contrast"
+        },
+        {
+          "text": "Trapped cash does not mean the foreign subsidiary itself is distressed",
+          "kind": "contrast"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 0,
+          "to": 7,
+          "type": "confused_with"
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 3,
+          "type": "applies_within"
+        },
+        {
+          "from": 5,
+          "to": 0,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.8571428571428572,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "What are intercompany investments and investment securities? How do they show up on the 3 statements?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "intercompany investments",
+        "leaves": [
+          {
+            "name": "intercompany investment",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "investment securities",
+            "klpRefs": [
+              7
+            ]
+          },
+          {
+            "name": "passive investment in securities",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "equity method",
+            "klpRefs": [
+              4
+            ]
+          },
+          {
+            "name": "consolidation",
+            "klpRefs": [
+              6
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 4,
+            "concept": "equity method income recognition"
+          },
+          {
+            "klpRef": 6,
+            "concept": "noncontrolling interest presentation"
+          },
+          {
+            "klpRef": 7,
+            "concept": "investment classification by intent"
+          },
+          {
+            "klpRef": 8,
+            "concept": "unrealized gain and loss recognition"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "ownership level",
+            "to": "accounting treatment of intercompany investment",
+            "type": "causes"
+          },
+          {
+            "klpRef": 2,
+            "from": "passive investment in securities",
+            "to": "investment securities",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 2,
+            "from": "passive investment in securities",
+            "to": "consolidation",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 3,
+            "from": "significant influence",
+            "to": "equity method",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "equity method",
+            "to": "investor net income",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 5,
+            "from": "equity method dividends",
+            "to": "equity method income recognition",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 7,
+            "from": "investment securities",
+            "to": "unrealized gain and loss recognition",
+            "type": "causes"
+          },
+          {
+            "klpRef": 8,
+            "from": "trading securities",
+            "to": "available-for-sale securities",
+            "type": "confused_with"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Intercompany investments are stakes one company holds in another, either as equity ownership or as debt securities.",
+          "kind": "definition"
+        },
+        {
+          "text": "The accounting treatment for an intercompany investment depends on the ownership level and the intent behind holding it.",
+          "kind": "condition"
+        },
+        {
+          "text": "Below 20% ownership the stake is passive and sits on the balance sheet as an investment in securities, with no consolidation and no equity-method income.",
+          "kind": "definition"
+        },
+        {
+          "text": "Between 20% and 50% ownership the parent has significant influence over the investee, so the equity method applies rather than fair-value accounting.",
+          "kind": "condition"
+        },
+        {
+          "text": "Under the equity method, the investor's share of the target's net income flows into the investor's own net income and increases the investment balance.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Under the equity method, dividends received reduce the investment balance rather than adding to income.",
+          "kind": "causal"
+        },
+        {
+          "text": "Above 50% ownership the parent controls the target and consolidates it line by line, with the unowned portion presented as noncontrolling interest within stockholders' equity.",
+          "kind": "definition"
+        },
+        {
+          "text": "Investment securities are typically the under-20% passive holdings, classified by intent: trading securities for short-term price moves, available-for-sale securities for possible future sale, and held-to-maturity securities intended to be held to the end and carried at historical cost.",
+          "kind": "definition"
+        },
+        {
+          "text": "Unrealized gains and losses on trading securities flow through the income statement, while unrealized gains and losses on available-for-sale securities bypass the income statement and sit in equity via OCI until realized; for held-to-maturity securities the coupon or dividend is recognized as revenue on the income statement.",
+          "kind": "contrast"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 2,
+          "to": 7,
+          "type": "applies_within"
+        },
+        {
+          "from": 2,
+          "to": 6,
+          "type": "precedes"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "requires"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "confused_with"
+        },
+        {
+          "from": 7,
+          "to": 8,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 1,
+        "after": 1,
+        "repaired": false,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "What is OID (original issue discount) in debt?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "debt issuance",
+        "leaves": [
+          {
+            "name": "original issue discount",
+            "klpRefs": [
+              0,
+              1,
+              2,
+              4,
+              5,
+              6,
+              8
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 4,
+            "concept": "debt initial recognition"
+          },
+          {
+            "klpRef": 5,
+            "concept": "discount accretion"
+          },
+          {
+            "klpRef": 6,
+            "concept": "non-cash interest expense"
+          },
+          {
+            "klpRef": 8,
+            "concept": "high-yield debt issuance"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 3,
+            "from": "original issue discount",
+            "to": "credit risk",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 4,
+            "from": "debt initial recognition",
+            "to": "discount accretion",
+            "type": "causes"
+          },
+          {
+            "klpRef": 5,
+            "from": "discount accretion",
+            "to": "non-cash interest expense",
+            "type": "requires"
+          },
+          {
+            "klpRef": 6,
+            "from": "non-cash interest expense",
+            "to": "non-cash adjustments",
+            "type": "causes"
+          },
+          {
+            "klpRef": 7,
+            "from": "discount accretion",
+            "to": "non-cash adjustments",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Original issue discount means the debt is issued below its face value, with the discount being the gap between the issue price and par.",
+          "kind": "definition"
+        },
+        {
+          "text": "Original investors pay less up front than the par amount they are repaid at maturity.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Investors might pay $90 for a bond and receive the full $100 at maturity.",
+          "kind": "quantitative"
+        },
+        {
+          "text": "The $10 gap is the original investors' compensation for taking on credit risk early.",
+          "kind": "causal"
+        },
+        {
+          "text": "The issuer initially records the debt on the balance sheet at the discounted issue price, not par.",
+          "kind": "definition"
+        },
+        {
+          "text": "Over the life of the loan the discount is accreted back up toward par.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "That accretion is recognized as additional interest expense even though no cash is paid on that piece.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "On the cash flow statement the accretion is added back as a non-cash adjustment.",
+          "kind": "causal"
+        },
+        {
+          "text": "OID is common in high-yield and convertible debt, letting the issuer attract early investors without committing to a high cash coupon up front.",
+          "kind": "example"
+        }
+      ],
+      "links": [
+        {
+          "from": 3,
+          "to": 0,
+          "type": "applies_within"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 5,
+          "to": 6,
+          "type": "requires"
+        },
+        {
+          "from": 6,
+          "to": 7,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.875,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "quantitative",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "How to estimate share price (given current + projected growht rate) & calculate share count (given basic outstanding, issued and repurchased + share price)",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "share price and share count estimation",
+        "leaves": [
+          {
+            "name": "projected share price",
+            "klpRefs": [
+              0,
+              1
+            ]
+          },
+          {
+            "name": "basic shares outstanding",
+            "klpRefs": [
+              3
+            ]
+          },
+          {
+            "name": "shares issued",
+            "klpRefs": [
+              4
+            ]
+          },
+          {
+            "name": "share repurchases",
+            "klpRefs": [
+              5,
+              6
+            ]
+          },
+          {
+            "name": "adjusted share count",
+            "klpRefs": [
+              7
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "growth rate compounding"
+          },
+          {
+            "klpRef": 4,
+            "concept": "share issuance"
+          },
+          {
+            "klpRef": 5,
+            "concept": "buyback execution"
+          },
+          {
+            "klpRef": 6,
+            "concept": "share retirement"
+          },
+          {
+            "klpRef": 8,
+            "concept": "per-share metrics"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "projected share price",
+            "to": "basic shares outstanding",
+            "type": "requires"
+          },
+          {
+            "klpRef": 0,
+            "from": "projected share price",
+            "to": "shares issued",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 1,
+            "from": "projected share price",
+            "to": "basic shares outstanding",
+            "type": "requires"
+          },
+          {
+            "klpRef": 2,
+            "from": "projected share price",
+            "to": "share repurchases",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 5,
+            "from": "share repurchases",
+            "to": "share retirement",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 7,
+            "from": "adjusted share count",
+            "to": "per-share metrics",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 8,
+            "from": "adjusted share count",
+            "to": "per-share metrics",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "To estimate the projected share price, compound the current market price by the expected growth rate: projected price = current price × (1 + g).",
+          "kind": "quantitative"
+        },
+        {
+          "text": "The growth rate is assumed to apply uniformly, so a $50 stock with 10% expected growth projects to $55.",
+          "kind": "example"
+        },
+        {
+          "text": "The projected share price and the adjusted share count are two separate calculations.",
+          "kind": "contrast"
+        },
+        {
+          "text": "The share count starts from basic shares outstanding — the shares already issued and existing today.",
+          "kind": "definition"
+        },
+        {
+          "text": "Shares issued during the period are added to the count; the number added equals the dollar amount issued divided by the share price.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Repurchased shares are subtracted from the count; the number subtracted equals the dollar amount spent on buybacks divided by the share price.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Repurchased shares are retired at the market price.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The adjusted share count = basic shares outstanding + shares issued − shares repurchased.",
+          "kind": "causal"
+        },
+        {
+          "text": "The adjusted share count is the denominator used downstream for per-share metrics such as EPS or equity value per share.",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 3,
+          "type": "requires"
+        },
+        {
+          "from": 0,
+          "to": 4,
+          "type": "applies_within"
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "type": "requires"
+        },
+        {
+          "from": 2,
+          "to": 6,
+          "type": "confused_with"
+        },
+        {
+          "from": 5,
+          "to": 6,
+          "type": "confused_with"
+        },
+        {
+          "from": 7,
+          "to": 8,
+          "type": "precedes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.8333333333333334,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "example",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "How do you calculate EPS with P/E?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "price-earnings analysis",
+        "leaves": [
+          {
+            "name": "price-earnings ratio",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "earnings per share",
+            "klpRefs": [
+              3
+            ]
+          },
+          {
+            "name": "price-earnings to earnings per share conversion",
+            "klpRefs": [
+              4
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "relative valuation"
+          },
+          {
+            "klpRef": 1,
+            "concept": "relative valuation"
+          },
+          {
+            "klpRef": 3,
+            "concept": "relative valuation"
+          },
+          {
+            "klpRef": 4,
+            "concept": "relative valuation"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 2,
+            "from": "price-earnings ratio",
+            "to": "earnings per share",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 5,
+            "from": "share price",
+            "to": "earnings per share",
+            "type": "requires"
+          },
+          {
+            "klpRef": 1,
+            "from": "price-earnings ratio",
+            "to": "earnings per share",
+            "type": "requires"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "The P/E ratio relates a company's market price per share to its earnings per share.",
+          "kind": "definition"
+        },
+        {
+          "text": "The P/E formula is P/E = share price ÷ EPS.",
+          "kind": "quantitative"
+        },
+        {
+          "text": "P/E and EPS are inverses of each other.",
+          "kind": "quantitative"
+        },
+        {
+          "text": "To get EPS from a P/E, you divide the share price by the P/E multiple.",
+          "kind": "quantitative"
+        },
+        {
+          "text": "For example, a $50 stock trading at 20x P/E implies EPS of $50 ÷ 20 = $2.50.",
+          "kind": "example"
+        },
+        {
+          "text": "Given any two of price, EPS, or the P/E multiple, the third is fixed by the same identity.",
+          "kind": "condition"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 3,
+          "type": "precedes"
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "type": "applies_within"
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "type": "causes"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "confused_with"
+        }
+      ],
+      "enforcement": {
+        "before": 0.8333333333333334,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "quantitative",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    }
+  ],
+  "failures": [
+    {
+      "term": "If a company incurs $100 in PIK interest, how does it affect 3 statements (assuming 40% tax rate)",
+      "error": "No object generated: response did not match schema."
+    }
+  ],
+  "tokens": [
+    {
+      "step": "mint",
+      "model": "deepseek-flash",
+      "calls": 11,
+      "input": 27499,
+      "output": 4174,
+      "reasoning": 0,
+      "cached": 8704
+    },
+    {
+      "step": "repair",
+      "model": "deepseek-flash",
+      "calls": 8,
+      "input": 5244,
+      "output": 576,
+      "reasoning": 0,
+      "cached": 1024
+    }
+  ]
+}

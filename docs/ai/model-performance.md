@@ -894,3 +894,35 @@ figure should land higher than the two-card one; the meter on the next set-sized
 number to read. The prize is bounded: ~250 shared tokens × ~8,000 calls ≈ 2M tokens moved
 from miss ($0.15/M off-peak) to hit ($0.003/M) — about $0.30 on a $2.40 corpus — because
 output tokens, not input, are most of the bill.
+
+### Mint stability, the KLP/KLT enforcement statistic, and containment as placement (2026-09-14/15)
+
+**Stability.** Ten cards minted twice, DeepSeek + GLM with DeepSeek judging. At the provider
+default temperature, run-to-run leaf agreement was 0.42 exact / 0.67 loose for DeepSeek,
+0.51 / 0.64 for GLM, edges 0.15–0.19 exact; the union merge inherited the worse side. The
+`--direct` scripts had never set a temperature (production `generateJson` runs at 0). At
+temperature 0 DeepSeek reads 0.88 / 0.93 on leaves and 0.63 / 0.76 on edges; GLM 0.62 / 0.71
+at `high` reasoning and 0.68 / 0.76 at `low` — its randomness lives in the reasoning mode.
+Decision: DeepSeek at 0 is the minter; GLM is not a merging side.
+
+**KLP/KLT enforcement** (`src/lib/klp/topic-enforcement.ts`): share of points whose minted
+shape agrees with the intention — an edge when the point is the source of a directed link in
+the card's own `KlpRelation` graph (now shown to the minter), else the kind prior. On 53
+cards (12 per set, DeepSeek at 0): **0.81 before repair, 1.00 after** one repair call on 38
+cards (only the violating points, the proposal's names as endpoint vocabulary; ~130 input /
+~15 output tokens per point). "Why GAAP is important?" went 0.60 → 1.00. Kind-prior
+violations in the earlier sample were 18% of points, almost all causal/condition points
+minted as leaves; with the graph supplied and the repair on, zero remain.
+
+**Containment across cards is placement, not identity** (`src/lib/klt/match.ts`). The
+reconciler's containment rule ("accounting equation" ⊂ "fundamental accounting equation")
+is right between two models naming one KLP and wrong between cards: the first trace showed it
+folding "acquired deferred revenue write-down" into "deferred revenue" and "purchase price"
+into "purchase price allocation". Now a containment hit mints the specific name as its own
+node **placed under** the general one; only exact / alias / initials (and a token
+permutation) say "same". On the 53-card sweep: 172 names resolved to existing topics, 89
+placed under an existing one, 125 ambiguous (kept at the 0.4 floor — the owner wants the
+judge to see near misses to big concepts, to become context links), 222 new; vocabulary
+118 → 554.
+
+Trace artifact: https://claude.ai/code/artifact/6771699e-1d94-4627-bcc5-6d91267e2bcd

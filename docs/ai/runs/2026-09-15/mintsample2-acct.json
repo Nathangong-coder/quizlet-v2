@@ -1,0 +1,2291 @@
+{
+  "setId": "cmsfkfumz000004jov11adgbu",
+  "skip": 0,
+  "results": [
+    {
+      "term": "How do the three statements link together?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "three-statement linkage",
+        "leaves": [
+          {
+            "name": "net income",
+            "klpRefs": [
+              0,
+              1
+            ]
+          },
+          {
+            "name": "working capital changes",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "ending cash balance",
+            "klpRefs": [
+              6
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "equity rollforward"
+          },
+          {
+            "klpRef": 1,
+            "concept": "operating cash flow"
+          },
+          {
+            "klpRef": 2,
+            "concept": "operating cash flow"
+          },
+          {
+            "klpRef": 4,
+            "concept": "investing cash flow"
+          },
+          {
+            "klpRef": 5,
+            "concept": "financing cash flow"
+          },
+          {
+            "klpRef": 6,
+            "concept": "cash reconciliation"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "net income",
+            "to": "retained earnings",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 1,
+            "from": "net income",
+            "to": "operating cash flow",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 2,
+            "from": "working capital changes",
+            "to": "ending cash balance",
+            "type": "requires"
+          },
+          {
+            "klpRef": 3,
+            "from": "accounts receivable",
+            "to": "operating cash flow",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "working capital changes",
+            "to": "capital expenditures",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "working capital changes",
+            "to": "financing activities",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 6,
+            "from": "ending cash balance",
+            "to": "retained earnings",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 4,
+            "from": "capital expenditures",
+            "to": "investing cash flow",
+            "type": "causes"
+          },
+          {
+            "klpRef": 5,
+            "from": "financing activities",
+            "to": "financing cash flow",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Net income from the income statement flows into retained earnings within shareholder equity on the balance sheet",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Net income is also the starting line of the cash flow statement",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Changes in short-term assets and liabilities on the balance sheet appear as working capital changes in the operating section of the cash flow statement",
+          "kind": "mechanism"
+        },
+        {
+          "text": "A growing short-term asset like receivables is a use of cash, which is why working capital changes adjust operating cash flow",
+          "kind": "causal"
+        },
+        {
+          "text": "Investing activity like CapEx reduces cash but increases PP&E on the balance sheet",
+          "kind": "causal"
+        },
+        {
+          "text": "Financing activity changes debt and equity balances — issuing or repaying debt, issuing stock, or paying dividends",
+          "kind": "causal"
+        },
+        {
+          "text": "Ending cash on the balance sheet equals beginning cash plus the net change in cash from the cash flow statement, closing the loop and keeping the balance sheet balanced",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 0,
+          "type": "requires"
+        },
+        {
+          "from": 2,
+          "to": 6,
+          "type": "requires"
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "confused_with"
+        },
+        {
+          "from": 3,
+          "to": 5,
+          "type": "confused_with"
+        },
+        {
+          "from": 6,
+          "to": 0,
+          "type": "applies_within"
+        }
+      ],
+      "enforcement": {
+        "before": 0.6666666666666667,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Walk me through the income statement",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "income statement structure",
+        "leaves": [
+          {
+            "name": "income statement",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "gross profit",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "earnings before interest and taxes",
+            "klpRefs": [
+              3
+            ]
+          },
+          {
+            "name": "earnings before interest, taxes, depreciation and amortization",
+            "klpRefs": [
+              5
+            ]
+          },
+          {
+            "name": "net income",
+            "klpRefs": [
+              7
+            ]
+          },
+          {
+            "name": "operating cash generation",
+            "klpRefs": [
+              6
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "profitability measurement"
+          },
+          {
+            "klpRef": 1,
+            "concept": "cost of goods sold"
+          },
+          {
+            "klpRef": 3,
+            "concept": "operating expense recognition"
+          },
+          {
+            "klpRef": 5,
+            "concept": "non-cash adjustments"
+          },
+          {
+            "klpRef": 7,
+            "concept": "capital structure"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "revenue",
+            "to": "gross profit",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 2,
+            "from": "gross profit",
+            "to": "core product profitability",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "gross profit",
+            "to": "earnings before interest and taxes",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 4,
+            "from": "earnings before interest and taxes",
+            "to": "operating performance comparability",
+            "type": "causes"
+          },
+          {
+            "klpRef": 5,
+            "from": "earnings before interest and taxes",
+            "to": "earnings before interest, taxes, depreciation and amortization",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 6,
+            "from": "earnings before interest, taxes, depreciation and amortization",
+            "to": "operating cash generation",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 7,
+            "from": "earnings before interest and taxes",
+            "to": "net income",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 8,
+            "from": "operating performance",
+            "to": "capital structure",
+            "type": "confused_with"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "The income statement shows profitability over a period, flowing top to bottom from revenue to net income",
+          "kind": "definition"
+        },
+        {
+          "text": "Revenue minus COGS — the direct cost of what was sold — gives gross profit",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Gross profit shows how profitable the core product is before any overhead",
+          "kind": "causal"
+        },
+        {
+          "text": "Gross profit minus operating expenses — SG&A and D&A — gives EBIT, or operating profit",
+          "kind": "mechanism"
+        },
+        {
+          "text": "EBIT measures the profitability of the business's operations independent of how it is financed, so it lets you compare operating performance across companies with different debt loads",
+          "kind": "contrast"
+        },
+        {
+          "text": "Adding D&A back to EBIT gives EBITDA, which strips out the non-cash charge",
+          "kind": "mechanism"
+        },
+        {
+          "text": "EBITDA is a rough proxy for operating cash generation",
+          "kind": "definition"
+        },
+        {
+          "text": "Below the operating line, subtract interest expense and then tax the pre-tax income to arrive at net income",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Everything above EBIT is operational, while everything below — interest and taxes — reflects capital structure and the tax regime",
+          "kind": "contrast"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 2,
+          "type": "precedes"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "precedes"
+        },
+        {
+          "from": 4,
+          "to": 8,
+          "type": "causes"
+        },
+        {
+          "from": 5,
+          "to": 6,
+          "type": "confused_with"
+        }
+      ],
+      "enforcement": {
+        "before": 0.8571428571428572,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Give me more details on assets, liabilities, and equity",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "balance sheet categories",
+        "leaves": [
+          {
+            "name": "assets",
+            "klpRefs": [
+              1,
+              2
+            ]
+          },
+          {
+            "name": "liabilities",
+            "klpRefs": [
+              3,
+              4
+            ]
+          },
+          {
+            "name": "equity",
+            "klpRefs": [
+              5
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "external capital funding"
+          },
+          {
+            "klpRef": 3,
+            "concept": "external capital funding"
+          },
+          {
+            "klpRef": 5,
+            "concept": "equity rollforward"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "assets",
+            "to": "liabilities plus equity",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 1,
+            "from": "assets",
+            "to": "external capital funding",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 1,
+            "from": "assets",
+            "to": "liabilities",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "liabilities",
+            "to": "equity",
+            "type": "confused_with"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Assets, liabilities, and equity are the three balance sheet categories, tied by the identity assets equal liabilities plus equity",
+          "kind": "definition"
+        },
+        {
+          "text": "Assets are resources the company controls that are expected to bring positive monetary benefits — future inflows of cash or value",
+          "kind": "definition"
+        },
+        {
+          "text": "Examples of assets include cash, inventory, receivables, and PP&E used to generate revenue",
+          "kind": "example"
+        },
+        {
+          "text": "Liabilities are unsettled obligations to outside parties that represent future outflows of cash, like payables and debt",
+          "kind": "definition"
+        },
+        {
+          "text": "Liabilities are an external source of capital — lenders and suppliers effectively help fund the company's assets",
+          "kind": "definition"
+        },
+        {
+          "text": "Equity is the owners' claim and the internal source of funding: invested capital plus retained earnings kept rather than paid out",
+          "kind": "definition"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 2,
+          "type": "precedes"
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "type": "applies_within"
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "type": "confused_with"
+        },
+        {
+          "from": 3,
+          "to": 5,
+          "type": "confused_with"
+        }
+      ],
+      "enforcement": {
+        "before": 1,
+        "after": 1,
+        "repaired": false,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Walk me through the cash flow statement",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "cash flow statement",
+        "leaves": [
+          {
+            "name": "cash flow statement",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "non-cash charges add-back",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "working capital changes",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "capital expenditures",
+            "klpRefs": [
+              3
+            ]
+          },
+          {
+            "name": "financing cash flows",
+            "klpRefs": [
+              4
+            ]
+          },
+          {
+            "name": "change in cash",
+            "klpRefs": [
+              5
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "cash generation and use"
+          },
+          {
+            "klpRef": 1,
+            "concept": "operating cash flow"
+          },
+          {
+            "klpRef": 2,
+            "concept": "operating cash flow"
+          },
+          {
+            "klpRef": 3,
+            "concept": "investing cash flow"
+          },
+          {
+            "klpRef": 4,
+            "concept": "financing cash flow"
+          },
+          {
+            "klpRef": 5,
+            "concept": "cash reconciliation"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "non-cash charges add-back",
+            "to": "working capital changes",
+            "type": "requires"
+          },
+          {
+            "klpRef": 1,
+            "from": "non-cash charges add-back",
+            "to": "change in cash",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "capital expenditures",
+            "to": "financing cash flows",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 5,
+            "from": "change in cash",
+            "to": "capital expenditures",
+            "type": "precedes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "The cash flow statement shows actual cash generated and used over a period, organized into operating, investing, and financing sections",
+          "kind": "definition"
+        },
+        {
+          "text": "The operating section starts with net income and adds back non-cash charges like D&A because they reduced net income without consuming cash",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Operating cash flow also adjusts for working capital changes — growing receivables mean sales were booked but cash not yet collected, so that's subtracted",
+          "kind": "example"
+        },
+        {
+          "text": "The investing section captures cash spent on or received from long-term assets, mainly CapEx",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The financing section covers cash with capital providers: debt issued or repaid, stock issued or bought back, and dividends paid",
+          "kind": "definition"
+        },
+        {
+          "text": "Summing the net flows of all three sections gives the change in cash — free cash flow — which plus beginning cash equals ending cash on the balance sheet",
+          "kind": "quantitative"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 2,
+          "type": "requires"
+        },
+        {
+          "from": 1,
+          "to": 5,
+          "type": "confused_with"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "confused_with"
+        },
+        {
+          "from": 5,
+          "to": 3,
+          "type": "precedes"
+        }
+      ],
+      "enforcement": {
+        "before": 1,
+        "after": 1,
+        "repaired": false,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Which statement is most important?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "financial statement analysis",
+        "leaves": [
+          {
+            "name": "cash flow statement",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "accrual accounting",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "accounts receivable",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "cash flow statement",
+            "klpRefs": [
+              4
+            ]
+          },
+          {
+            "name": "cash",
+            "klpRefs": [
+              6
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "liquidity assessment"
+          },
+          {
+            "klpRef": 1,
+            "concept": "revenue recognition"
+          },
+          {
+            "klpRef": 2,
+            "concept": "earnings quality"
+          },
+          {
+            "klpRef": 4,
+            "concept": "operating cash flow"
+          },
+          {
+            "klpRef": 6,
+            "concept": "earnings manipulation"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "cash flow statement",
+            "to": "financial health",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 1,
+            "from": "accrual accounting",
+            "to": "accounts receivable",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "accrual accounting",
+            "to": "cash flow statement",
+            "type": "requires"
+          },
+          {
+            "klpRef": 2,
+            "from": "accounts receivable",
+            "to": "profit",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "profit",
+            "to": "cash",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "cash flow statement",
+            "to": "cash flow statement",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 5,
+            "from": "cash",
+            "to": "financial health",
+            "type": "causes"
+          },
+          {
+            "klpRef": 6,
+            "from": "cash",
+            "to": "financial health",
+            "type": "causes"
+          },
+          {
+            "klpRef": 7,
+            "from": "cash",
+            "to": "financial health",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "The cash flow statement tracks the actual cash moving into and out of a company over a period, and is the most important of the three financial statements because it reveals liquidity.",
+          "kind": "definition"
+        },
+        {
+          "text": "Accrual accounting books revenue when it is earned, not when cash arrives.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "A company can look profitable on paper while its earnings sit in accounts receivable that customers have not yet paid.",
+          "kind": "condition"
+        },
+        {
+          "text": "Profit on the income statement does not tell you whether the company can pay its suppliers, its employees, or its debt.",
+          "kind": "causal"
+        },
+        {
+          "text": "The cash flow statement is direct: it cuts through accruals and simply shows whether more cash is flowing into the business than out of it.",
+          "kind": "contrast"
+        },
+        {
+          "text": "A company survives on cash, not paper profit.",
+          "kind": "causal"
+        },
+        {
+          "text": "Cash is much harder to manipulate than accrual-based figures.",
+          "kind": "causal"
+        },
+        {
+          "text": "Cash gives the truest read on financial health.",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 7,
+          "type": "confused_with"
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 4,
+          "type": "requires"
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "type": "confused_with"
+        },
+        {
+          "from": 3,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 0,
+          "type": "applies_within"
+        },
+        {
+          "from": 5,
+          "to": 7,
+          "type": "causes"
+        },
+        {
+          "from": 6,
+          "to": 7,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.875,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Why GAAP is important?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "generally accepted accounting principles",
+        "leaves": [
+          {
+            "name": "generally accepted accounting principles",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "management reporting discretion",
+            "klpRefs": [
+              6
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "financial statement preparation"
+          },
+          {
+            "klpRef": 1,
+            "concept": "transaction recording"
+          },
+          {
+            "klpRef": 6,
+            "concept": "earnings presentation"
+          },
+          {
+            "klpRef": 7,
+            "concept": "management accounting"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 2,
+            "from": "uniform accounting treatment",
+            "to": "cross-company comparability",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "uniform accounting treatment",
+            "to": "cross-period comparability",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "cross-company comparability",
+            "to": "direct financial statement comparison",
+            "type": "requires"
+          },
+          {
+            "klpRef": 5,
+            "from": "cross-company comparability",
+            "to": "no idiosyncratic accounting adjustments",
+            "type": "causes"
+          },
+          {
+            "klpRef": 6,
+            "from": "uniform accounting treatment",
+            "to": "management reporting discretion",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "cross-company comparability",
+            "to": "cross-period comparability",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 1,
+            "from": "uniform accounting treatment",
+            "to": "cross-company comparability",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "uniform accounting treatment",
+            "to": "management reporting discretion",
+            "type": "causes"
+          },
+          {
+            "klpRef": 7,
+            "from": "management accounting",
+            "to": "internal performance insight",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "GAAP stands for Generally Accepted Accounting Principles: the standardized set of accounting rules companies use to prepare their financial statements",
+          "kind": "definition"
+        },
+        {
+          "text": "Under GAAP, all companies record the same kind of transaction the same way, following the same codified rules rather than each inventing its own accounting treatment",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Because every company applies the same codified rules, reported financials are fair and consistent across different companies",
+          "kind": "causal"
+        },
+        {
+          "text": "The same common basis also makes financials fair and consistent across different periods for the same company",
+          "kind": "causal"
+        },
+        {
+          "text": "Investors can compare companies directly just by reviewing their reported financial documents",
+          "kind": "causal"
+        },
+        {
+          "text": "Investors do not need to adjust each company's numbers for its own idiosyncratic accounting choices",
+          "kind": "causal"
+        },
+        {
+          "text": "The GAAP framework constrains how much management can stretch the presentation of the numbers, limiting opportunistic or misleading reporting",
+          "kind": "causal"
+        },
+        {
+          "text": "GAAP also helps management gain insight into its own practices and performance",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 6,
+          "type": "causes"
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "type": "requires"
+        },
+        {
+          "from": 2,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "type": "confused_with"
+        }
+      ],
+      "enforcement": {
+        "before": 0.75,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Explain the conservatism principle in accrual accounting",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "accrual accounting principles",
+        "leaves": [],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "revenue recognition"
+          },
+          {
+            "klpRef": 0,
+            "concept": "expense recognition"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "conservatism principle",
+            "to": "revenue recognition",
+            "type": "causes"
+          },
+          {
+            "klpRef": 2,
+            "from": "conservatism principle",
+            "to": "expense recognition",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "revenue recognition",
+            "to": "understated revenue",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "revenue recognition",
+            "to": "expense recognition",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 4,
+            "from": "expense recognition",
+            "to": "understated liabilities",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "understated revenue",
+            "to": "understated liabilities",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 0,
+            "from": "conservatism principle",
+            "to": "revenue recognition",
+            "type": "causes"
+          },
+          {
+            "klpRef": 0,
+            "from": "conservatism principle",
+            "to": "expense recognition",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "The conservatism principle says that when judgment is involved, choose the treatment least likely to overstate assets and income",
+          "kind": "definition"
+        },
+        {
+          "text": "Revenue is recognized only once there is firm evidence it actually occurred or was realized",
+          "kind": "condition"
+        },
+        {
+          "text": "Expenses and liabilities are recognized as soon as they are probable, not deferred until certain",
+          "kind": "condition"
+        },
+        {
+          "text": "The result is a deliberate downward bias in the financials: revenue may end up understated",
+          "kind": "causal"
+        },
+        {
+          "text": "The risk of understating expenses and liabilities is minimized because they are booked early",
+          "kind": "contrast"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 1,
+          "type": "causes"
+        },
+        {
+          "from": 0,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "type": "precedes"
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "type": "causes"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "confused_with"
+        }
+      ],
+      "enforcement": {
+        "before": 0.8,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Why is fair value accounting used?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "fair value accounting",
+        "leaves": [
+          {
+            "name": "fair value accounting",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "mark to market",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "timely loss recognition",
+            "klpRefs": [
+              3
+            ]
+          },
+          {
+            "name": "2008 financial crisis",
+            "klpRefs": [
+              4
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 2,
+            "concept": "illiquid securities valuation"
+          },
+          {
+            "klpRef": 3,
+            "concept": "asset impairment recognition"
+          },
+          {
+            "klpRef": 4,
+            "concept": "hidden loss accumulation"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "fair value accounting",
+            "to": "historical cost accounting",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 1,
+            "from": "current market price valuation",
+            "to": "mark to market",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 0,
+            "from": "fair value accounting",
+            "to": "timely loss recognition",
+            "type": "requires"
+          },
+          {
+            "klpRef": 3,
+            "from": "timely loss recognition",
+            "to": "2008 financial crisis",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Fair value accounting records assets and liabilities at their current market price rather than their historical cost",
+          "kind": "definition"
+        },
+        {
+          "text": "It is used because current market prices give a more accurate, timely valuation than an old purchase price",
+          "kind": "causal"
+        },
+        {
+          "text": "This applies even to illiquid securities, which must still be marked to market rather than carried at cost",
+          "kind": "mechanism"
+        },
+        {
+          "text": "When market values deteriorate, losses surface on the books as they happen instead of accumulating unseen",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The 2008 crisis showed that carrying deteriorating assets at inflated values let losses build up hidden until they surfaced as sudden write-downs and a market collapse",
+          "kind": "example"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 3,
+          "type": "requires"
+        },
+        {
+          "from": 0,
+          "to": 1,
+          "type": "confused_with"
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "type": "applies_within"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 1,
+        "after": 1,
+        "repaired": false,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Why know difference between IFRS & US GAAP?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "accounting frameworks",
+        "leaves": [
+          {
+            "name": "international financial reporting standards",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "us generally accepted accounting principles",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "cross-border financial statement translation",
+            "klpRefs": [
+              2
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 2,
+            "concept": "cross-border due diligence"
+          },
+          {
+            "klpRef": 3,
+            "concept": "jurisdictional reporting requirements"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "international financial reporting standards",
+            "to": "globalization of investment",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 0,
+            "from": "international financial reporting standards",
+            "to": "cross-framework comparability",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "cross-framework comparability",
+            "to": "company misvaluation",
+            "type": "causes"
+          },
+          {
+            "klpRef": 2,
+            "from": "cross-border financial statement translation",
+            "to": "multinational reporting under multiple frameworks",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "globalization of investment",
+            "to": "cross-border financial statement translation",
+            "type": "causes"
+          },
+          {
+            "klpRef": 5,
+            "from": "framework difference knowledge",
+            "to": "cross-framework comparability",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "multinational reporting under multiple frameworks",
+            "to": "jurisdictional reporting requirements",
+            "type": "applies_within"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "IFRS and US GAAP are the two dominant accounting frameworks, and they treat certain items differently",
+          "kind": "definition"
+        },
+        {
+          "text": "Without reconciling the frameworks, you could compare two companies on a false basis and misvalue one",
+          "kind": "causal"
+        },
+        {
+          "text": "In cross-border M&A, diligence and valuation require translating the target's financials into a framework you understand",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Multinational companies may report under one framework or both, across different jurisdictions",
+          "kind": "condition"
+        },
+        {
+          "text": "Globalization and demand for geographic diversification of investments put more foreign financials in front of investors",
+          "kind": "causal"
+        },
+        {
+          "text": "Knowing the differences is what makes cross-border analysis comparable",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 4,
+          "type": "applies_within"
+        },
+        {
+          "from": 0,
+          "to": 1,
+          "type": "causes"
+        },
+        {
+          "from": 0,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "type": "requires"
+        },
+        {
+          "from": 4,
+          "to": 2,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.8333333333333334,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Above vs Below the Line",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "income statement structure",
+        "leaves": [
+          {
+            "name": "above the line",
+            "klpRefs": [
+              2,
+              3
+            ]
+          },
+          {
+            "name": "the line",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "taxable income",
+            "klpRefs": [
+              1
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "core profitability assessment"
+          },
+          {
+            "klpRef": 2,
+            "concept": "operating earnings"
+          },
+          {
+            "klpRef": 4,
+            "concept": "non-operating income and expense"
+          },
+          {
+            "klpRef": 5,
+            "concept": "core profitability assessment"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "the line",
+            "to": "taxable income",
+            "type": "requires"
+          },
+          {
+            "klpRef": 2,
+            "from": "above the line",
+            "to": "repeatable core earnings",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "repeatable core earnings",
+            "to": "core profitability assessment",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 5,
+            "from": "below the line",
+            "to": "core profitability assessment",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "below the line",
+            "to": "non-operating income and expense",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 6,
+            "from": "above the line",
+            "to": "core profitability assessment",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "The 'line' is a divider on the income statement separating core-operations items from non-operating items",
+          "kind": "definition"
+        },
+        {
+          "text": "The line is drawn on the income statement rather than on the balance sheet or cash flow statement because everything on the income statement ultimately feeds taxable income.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Above the line are operating items — revenue, COGS, SG&A, and D&A — that come from the core business",
+          "kind": "definition"
+        },
+        {
+          "text": "Above-the-line items are the repeatable activities of the core business",
+          "kind": "definition"
+        },
+        {
+          "text": "Below the line are non-operating items — interest income and expense, gains and losses on asset sales, other one-off income",
+          "kind": "contrast"
+        },
+        {
+          "text": "Below-the-line items are volatile or non-recurring and get stripped out when assessing core profitability",
+          "kind": "causal"
+        },
+        {
+          "text": "The distinction matters because above-the-line earnings are the repeatable stream analysts use to judge core profitability",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 0,
+          "type": "requires"
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "type": "causes"
+        },
+        {
+          "from": 3,
+          "to": 6,
+          "type": "confused_with"
+        },
+        {
+          "from": 5,
+          "to": 6,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.7142857142857143,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "How can a profitable firm go bankrupt?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "liquidity and solvency",
+        "leaves": [
+          {
+            "name": "profit",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "credit sales and receivables",
+            "klpRefs": [
+              1
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "accrual accounting"
+          },
+          {
+            "klpRef": 1,
+            "concept": "revenue recognition"
+          },
+          {
+            "klpRef": 2,
+            "concept": "operating cash flow"
+          },
+          {
+            "klpRef": 3,
+            "concept": "working capital changes"
+          },
+          {
+            "klpRef": 4,
+            "concept": "liquidity management"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "profit",
+            "to": "liquidity problem",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "credit sales and receivables",
+            "to": "cash collection timing mismatch",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "cash collection timing mismatch",
+            "to": "liquidity problem",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "liquidity problem",
+            "to": "bankruptcy",
+            "type": "requires"
+          },
+          {
+            "klpRef": 5,
+            "from": "bankruptcy",
+            "to": "insolvency",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 2,
+            "from": "cash payment obligations",
+            "to": "cash collection timing mismatch",
+            "type": "applies_within"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Profit is an accounting measure — revenue greater than expense over a period — and says nothing about when cash moves",
+          "kind": "definition"
+        },
+        {
+          "text": "Revenue is often booked before cash is received: credit sales create receivables that raise profit while the cash hasn't arrived",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Expenses like payroll, suppliers, and debt service must be paid in cash on fixed schedules regardless of collections",
+          "kind": "condition"
+        },
+        {
+          "text": "If the firm is ineffective at collecting from customers, cash inflows lag cash outflows — a timing mismatch",
+          "kind": "causal"
+        },
+        {
+          "text": "That mismatch creates a liquidity problem: the firm can be profitable on paper with no cash in the bank",
+          "kind": "causal"
+        },
+        {
+          "text": "Bankruptcy is triggered by failing to pay obligations as they come due, so a profitable firm can still be forced into insolvency",
+          "kind": "contrast"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 4,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "type": "confused_with"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "requires"
+        }
+      ],
+      "enforcement": {
+        "before": 0.8,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    }
+  ],
+  "failures": [
+    {
+      "term": "Walk me through the 3 financial statements & how they generally work",
+      "error": "No object generated: response did not match schema."
+    }
+  ],
+  "tokens": [
+    {
+      "step": "mint",
+      "model": "deepseek-flash",
+      "calls": 11,
+      "input": 26925,
+      "output": 4188,
+      "reasoning": 0,
+      "cached": 8320
+    },
+    {
+      "step": "repair",
+      "model": "deepseek-flash",
+      "calls": 8,
+      "input": 5019,
+      "output": 580,
+      "reasoning": 0,
+      "cached": 1024
+    }
+  ]
+}
