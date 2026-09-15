@@ -5,7 +5,8 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { loadUsageDashboard, parseWindow, USAGE_WINDOWS } from '@/lib/ai/usage-dashboard'
 import { PageHeader } from '@/components/ui/page-header'
-import { DailyBars, TaskPie, Sparkline, colourFor, fmtInt, fmtUsd } from '@/components/usage/charts'
+import { DailyBars, TaskPie, Sparkline } from '@/components/usage/charts'
+import { colourFor, fmtInt, fmtUsd } from '@/components/usage/format'
 import { HistoryTable } from '@/components/usage/HistoryTable'
 import { cn } from '@/lib/utils'
 
@@ -100,11 +101,11 @@ export default async function UsagePage({ searchParams }: { searchParams: Promis
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <div>
                     <div className="text-[11px] text-muted-foreground">Requests per day</div>
-                    <Sparkline days={dash.days} pick={(d) => d.byModel[m.key]?.calls ?? 0} label={`${m.key} requests per day`} colour={colourFor(i)} />
+                    <Sparkline values={dash.days.map((d) => d.byModel[m.key]?.calls ?? 0)} label={`${m.key} requests per day`} colour={colourFor(i)} />
                   </div>
                   <div>
                     <div className="text-[11px] text-muted-foreground">Tokens per day</div>
-                    <Sparkline days={dash.days} pick={(d) => d.byModel[m.key]?.tokens ?? 0} label={`${m.key} tokens per day`} colour={colourFor(i)} />
+                    <Sparkline values={dash.days.map((d) => d.byModel[m.key]?.tokens ?? 0)} label={`${m.key} tokens per day`} colour={colourFor(i)} />
                   </div>
                 </div>
               </div>
