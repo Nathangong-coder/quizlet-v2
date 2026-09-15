@@ -430,6 +430,19 @@ model Klt {
   id             String       @id @default(cuid())
   name           String
   normalizedName String       @unique
+  /// candidate | active | merged | retired (2026-09-14, the recurrence status
+  /// machine). A MINTED topic starts `candidate`: it carries `KlpTopic` links
+  /// like any node — nothing is lost — but does not roll up mastery or appear
+  /// in remediation until the cross-card pass promotes it (≥4 KLPs across ≥3
+  /// cards). `merged` rows point at their survivor via `mergedIntoId` and
+  /// keep their name as an alias, so history that named them still resolves.
+  /// Every row that existed before this column is `active` — the legacy
+  /// summariser and the hand-built tree never had a candidate stage.
+  status         String       @default("active")
+  mergedIntoId   String?
+  mergedInto     Klt?         @relation("KltMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom     Klt[]        @relation("KltMerge")
+  aliases        KltAlias[]
   /// DEPRECATED (2026-08-26, KLT per-set structure spec): structure is moving
   /// to `SetKltNode`, one row per (set, concept), because 0 concepts in the
   /// live corpus are shared by more than one set — the only thing genuinely
@@ -1604,6 +1617,23 @@ model KlpRelation {
 /// enforced by the writer, not the database — an AI will happily emit X→Y and
 /// Y→X across two cards, and a cycle in a prerequisite graph makes every
 /// "blocked" explanation circular.
+/// A second spelling of a concept — "TVM" for "time value of money" — kept so
+/// a later proposal spelled that way matches without a judge, and so a merged
+/// topic's old name still resolves. Written by the cross-card pass and by a
+/// merge; global like `Klt` itself.
+model KltAlias {
+  id             String   @id @default(cuid())
+  normalizedName String   @unique
+  name           String
+  kltId          String
+  /// exact | containment | token | judge | merge — how the alias was established.
+  source         String
+  createdAt      DateTime @default(now())
+  klt            Klt      @relation(fields: [kltId], references: [id], onDelete: Cascade)
+
+  @@index([kltId])
+}
+
 model KltRelation {
   id         String   @id @default(cuid())
   fromKltId  String
