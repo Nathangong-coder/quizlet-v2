@@ -1,0 +1,1436 @@
+{
+  "model": "deepseek-flash",
+  "results": [
+    {
+      "cardId": "cmtfewhlf000104jrnvpa8qoi",
+      "term": "Can you describe how deferred revenue might be adjusted in a merger model?",
+      "set": "M&A ",
+      "definition": "(OLD)\nOften, the buyer then writes down the deferred revenue to reflect that obligations won't entirely be recognized as revenue under the combined entity. \n\nSo, when it is actually recorded as revenue, it is written down to fair value - only how much it cost to perform the good/service + a small profit margin\n\n(NEW)\nNot written down, carried over from book value (thanks to ASU 2021-08)",
+      "klps": [
+        {
+          "text": "Deferred revenue is a liability representing cash already collected for goods or services not yet delivered.",
+          "kind": "definition",
+          "role": "framing"
+        },
+        {
+          "text": "Historically, the buyer wrote acquired deferred revenue down to fair value — approximately the cost to perform plus a small profit margin.",
+          "kind": "definition",
+          "role": "framing"
+        },
+        {
+          "text": "Under the old fair-value treatment, less revenue was recognized after close because the liability covered only cost plus margin, not the full contract value.",
+          "kind": "causal",
+          "role": "substance"
+        },
+        {
+          "text": "The old write-down reduced the acquired deferred revenue balance on the opening balance sheet, and that reduction increased the amount allocated to goodwill.",
+          "kind": "mechanism",
+          "role": "substance"
+        },
+        {
+          "text": "The old fair-value approach changed under ASU 2021-08 because it frequently contradicted ASC 606.",
+          "kind": "causal",
+          "role": "substance"
+        },
+        {
+          "text": "The old fair-value approach made combined-company revenue hard to predict.",
+          "kind": "causal",
+          "role": "substance"
+        },
+        {
+          "text": "Under ASU 2021-08, contract liabilities are no longer written down — they carry over at the target's book value.",
+          "kind": "contrast",
+          "role": "substance"
+        },
+        {
+          "text": "Revenue is recognized under the same ASC 606 principles the target already applied, flowing exactly as it would have on a standalone basis.",
+          "kind": "mechanism",
+          "role": "substance"
+        },
+        {
+          "text": "Under ASU 2021-08, no purchase accounting adjustment touches goodwill.",
+          "kind": "contrast",
+          "role": "substance"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "type": "causes"
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "type": "confused_with"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 6,
+          "type": "causes"
+        },
+        {
+          "from": 6,
+          "to": 7,
+          "type": "requires"
+        },
+        {
+          "from": 6,
+          "to": 8,
+          "type": "causes"
+        }
+      ],
+      "v1": {
+        "proposal": {
+          "parent": "merger accounting",
+          "leaves": [
+            {
+              "name": "deferred revenue",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "acquired deferred revenue write-down",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "contract liabilities at book value",
+              "klpRefs": [
+                6
+              ]
+            },
+            {
+              "name": "asc 606 revenue recognition",
+              "klpRefs": [
+                7
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "purchase accounting adjustments"
+            },
+            {
+              "klpRef": 3,
+              "concept": "purchase price allocation"
+            },
+            {
+              "klpRef": 6,
+              "concept": "purchase accounting adjustments"
+            },
+            {
+              "klpRef": 8,
+              "concept": "purchase price allocation"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "acquired deferred revenue write-down",
+              "to": "post-close revenue recognition",
+              "type": "causes"
+            },
+            {
+              "klpRef": 3,
+              "from": "acquired deferred revenue write-down",
+              "to": "goodwill",
+              "type": "causes"
+            },
+            {
+              "klpRef": 2,
+              "from": "post-close revenue recognition",
+              "to": "goodwill",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 4,
+              "from": "asc 606 revenue recognition",
+              "to": "combined-company revenue predictability",
+              "type": "causes"
+            },
+            {
+              "klpRef": 4,
+              "from": "asc 606 revenue recognition",
+              "to": "contract liabilities at book value",
+              "type": "causes"
+            },
+            {
+              "klpRef": 5,
+              "from": "acquired deferred revenue write-down",
+              "to": "combined-company revenue predictability",
+              "type": "causes"
+            },
+            {
+              "klpRef": 6,
+              "from": "contract liabilities at book value",
+              "to": "asc 606 revenue recognition",
+              "type": "requires"
+            },
+            {
+              "klpRef": 8,
+              "from": "contract liabilities at book value",
+              "to": "goodwill",
+              "type": "causes"
+            }
+          ]
+        },
+        "settings": {
+          "coverage": 1,
+          "anchored": 0,
+          "causalEdges": 1,
+          "causalTargets": 0,
+          "brevity": 0.75,
+          "vocabulary": 0.875,
+          "noContainers": 1,
+          "overall": 0.6607142857142857,
+          "detail": {
+            "uncovered": [],
+            "unanchored": [
+              "deferred revenue",
+              "acquired deferred revenue write-down",
+              "contract liabilities at book value",
+              "asc 606 revenue recognition"
+            ],
+            "causalAsLeaf": [],
+            "longNames": [
+              "contract liabilities at book value"
+            ],
+            "containers": []
+          }
+        },
+        "enforcement": {
+          "rows": [
+            {
+              "ref": 0,
+              "kind": "definition",
+              "intended": "leaf",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": false
+            },
+            {
+              "ref": 1,
+              "kind": "definition",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "leaf",
+              "violation": true
+            },
+            {
+              "ref": 2,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 3,
+              "kind": "mechanism",
+              "intended": "either",
+              "basis": "kind",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 4,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 5,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 6,
+              "kind": "contrast",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "both",
+              "violation": false
+            },
+            {
+              "ref": 7,
+              "kind": "mechanism",
+              "intended": "either",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": false
+            },
+            {
+              "ref": 8,
+              "kind": "contrast",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "edge",
+              "violation": false
+            }
+          ],
+          "judged": 7,
+          "violations": 1,
+          "klpKltEnforcement": 0.8571428571428572
+        }
+      },
+      "v2": {
+        "proposal": {
+          "anchor": "deferred revenue",
+          "domain": "mergers and acquisitions",
+          "leaves": [
+            {
+              "name": "deferred revenue",
+              "klpRefs": [
+                0
+              ],
+              "under": "deferred revenue"
+            },
+            {
+              "name": "historical deferred revenue treatment",
+              "klpRefs": [
+                1
+              ],
+              "under": "deferred revenue"
+            },
+            {
+              "name": "fair value write-down",
+              "klpRefs": [
+                1
+              ],
+              "under": "historical deferred revenue treatment"
+            },
+            {
+              "name": "asu 2021-08",
+              "klpRefs": [
+                6,
+                7,
+                8
+              ],
+              "under": "deferred revenue"
+            },
+            {
+              "name": "asc 606 carryover",
+              "klpRefs": [
+                7
+              ],
+              "under": "asu 2021-08"
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 3,
+              "concept": "goodwill"
+            },
+            {
+              "klpRef": 8,
+              "concept": "goodwill"
+            },
+            {
+              "klpRef": 1,
+              "concept": "purchase price allocation"
+            },
+            {
+              "klpRef": 3,
+              "concept": "purchase price allocation"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "fair value write-down",
+              "to": "post-close revenue",
+              "type": "causes",
+              "causeKlpRef": 1
+            },
+            {
+              "klpRef": 3,
+              "from": "fair value write-down",
+              "to": "goodwill",
+              "type": "causes",
+              "causeKlpRef": 1
+            },
+            {
+              "klpRef": 2,
+              "from": "post-close revenue",
+              "to": "goodwill",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 4,
+              "from": "asc 606",
+              "to": "asu 2021-08",
+              "type": "causes"
+            },
+            {
+              "klpRef": 5,
+              "from": "fair value write-down",
+              "to": "revenue predictability",
+              "type": "causes",
+              "causeKlpRef": 1
+            },
+            {
+              "klpRef": 6,
+              "from": "asu 2021-08",
+              "to": "book value carryover",
+              "type": "causes"
+            },
+            {
+              "klpRef": 7,
+              "from": "asu 2021-08",
+              "to": "asc 606 carryover",
+              "type": "requires"
+            },
+            {
+              "klpRef": 8,
+              "from": "asu 2021-08",
+              "to": "goodwill",
+              "type": "causes"
+            }
+          ]
+        },
+        "settings": {
+          "coverage": 1,
+          "anchored": 1,
+          "causalEdges": 1,
+          "causalTargets": 0.6666666666666666,
+          "brevity": 1,
+          "vocabulary": 0.7666666666666666,
+          "noContainers": 1,
+          "overall": 0.919047619047619,
+          "detail": {
+            "uncovered": [],
+            "unanchored": [],
+            "causalAsLeaf": [],
+            "longNames": [],
+            "containers": []
+          }
+        },
+        "enforcement": {
+          "rows": [
+            {
+              "ref": 0,
+              "kind": "definition",
+              "intended": "leaf",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": false
+            },
+            {
+              "ref": 1,
+              "kind": "definition",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "leaf",
+              "violation": true
+            },
+            {
+              "ref": 2,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 3,
+              "kind": "mechanism",
+              "intended": "either",
+              "basis": "kind",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 4,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 5,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 6,
+              "kind": "contrast",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "both",
+              "violation": false
+            },
+            {
+              "ref": 7,
+              "kind": "mechanism",
+              "intended": "either",
+              "basis": "kind",
+              "minted": "both",
+              "violation": false
+            },
+            {
+              "ref": 8,
+              "kind": "contrast",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "both",
+              "violation": false
+            }
+          ],
+          "judged": 7,
+          "violations": 1,
+          "klpKltEnforcement": 0.8571428571428572
+        }
+      }
+    },
+    {
+      "cardId": "cmsfkfv1v000j04jom3gyr6un",
+      "term": "Why GAAP is important?",
+      "set": "Accounting - \"Talking\"",
+      "definition": "standardization, ensures financials are fair, consistent basis. allows investors to easily evaluate companies by reviewing their financial documents. helps companies gain insight into practices and performance",
+      "klps": [
+        {
+          "text": "GAAP stands for Generally Accepted Accounting Principles: the standardized set of accounting rules companies use to prepare their financial statements",
+          "kind": "definition",
+          "role": "framing"
+        },
+        {
+          "text": "Under GAAP, all companies record the same kind of transaction the same way, following the same codified rules rather than each inventing its own accounting treatment",
+          "kind": "mechanism",
+          "role": "substance"
+        },
+        {
+          "text": "Because every company applies the same codified rules, reported financials are fair and consistent across different companies",
+          "kind": "causal",
+          "role": "substance"
+        },
+        {
+          "text": "The same common basis also makes financials fair and consistent across different periods for the same company",
+          "kind": "causal",
+          "role": "substance"
+        },
+        {
+          "text": "Investors can compare companies directly just by reviewing their reported financial documents",
+          "kind": "causal",
+          "role": "substance"
+        },
+        {
+          "text": "Investors do not need to adjust each company's numbers for its own idiosyncratic accounting choices",
+          "kind": "causal",
+          "role": "substance"
+        },
+        {
+          "text": "The GAAP framework constrains how much management can stretch the presentation of the numbers, limiting opportunistic or misleading reporting",
+          "kind": "causal",
+          "role": "substance"
+        },
+        {
+          "text": "GAAP also helps management gain insight into its own practices and performance",
+          "kind": "causal",
+          "role": "framing"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 6,
+          "type": "causes"
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "type": "requires"
+        },
+        {
+          "from": 2,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "type": "confused_with"
+        }
+      ],
+      "v1": {
+        "proposal": {
+          "parent": "accounting standards",
+          "leaves": [
+            {
+              "name": "generally accepted accounting principles",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "uniform accounting treatment",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "management reporting discretion",
+              "klpRefs": [
+                6
+              ]
+            },
+            {
+              "name": "internal performance insight",
+              "klpRefs": [
+                7
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 0,
+              "concept": "financial statement preparation"
+            },
+            {
+              "klpRef": 1,
+              "concept": "transaction recording"
+            },
+            {
+              "klpRef": 6,
+              "concept": "earnings management"
+            },
+            {
+              "klpRef": 7,
+              "concept": "management accounting"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "uniform accounting treatment",
+              "to": "cross-company comparability",
+              "type": "causes"
+            },
+            {
+              "klpRef": 3,
+              "from": "uniform accounting treatment",
+              "to": "cross-period comparability",
+              "type": "causes"
+            },
+            {
+              "klpRef": 4,
+              "from": "cross-company comparability",
+              "to": "direct financial statement comparison",
+              "type": "requires"
+            },
+            {
+              "klpRef": 5,
+              "from": "cross-company comparability",
+              "to": "no idiosyncratic accounting adjustments",
+              "type": "causes"
+            },
+            {
+              "klpRef": 6,
+              "from": "uniform accounting treatment",
+              "to": "management reporting discretion",
+              "type": "causes"
+            },
+            {
+              "klpRef": 3,
+              "from": "cross-company comparability",
+              "to": "cross-period comparability",
+              "type": "confused_with"
+            }
+          ]
+        },
+        "settings": {
+          "coverage": 1,
+          "anchored": 0,
+          "causalEdges": 0.6666666666666666,
+          "causalTargets": 0,
+          "brevity": 1,
+          "vocabulary": 0.7499999999999999,
+          "noContainers": 1,
+          "overall": 0.6309523809523808,
+          "detail": {
+            "uncovered": [],
+            "unanchored": [
+              "generally accepted accounting principles",
+              "uniform accounting treatment",
+              "management reporting discretion",
+              "internal performance insight"
+            ],
+            "causalAsLeaf": [
+              7
+            ],
+            "longNames": [],
+            "containers": []
+          }
+        },
+        "enforcement": {
+          "rows": [
+            {
+              "ref": 0,
+              "kind": "definition",
+              "intended": "leaf",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": false
+            },
+            {
+              "ref": 1,
+              "kind": "mechanism",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "leaf",
+              "violation": true
+            },
+            {
+              "ref": 2,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 3,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 4,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 5,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 6,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "both",
+              "violation": false
+            },
+            {
+              "ref": 7,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": true
+            }
+          ],
+          "judged": 8,
+          "violations": 2,
+          "klpKltEnforcement": 0.75
+        }
+      },
+      "v2": {
+        "proposal": {
+          "anchor": "GAAP",
+          "domain": "accounting",
+          "leaves": [
+            {
+              "name": "GAAP",
+              "klpRefs": [
+                0
+              ],
+              "under": "GAAP"
+            },
+            {
+              "name": "uniform transaction recording",
+              "klpRefs": [
+                1
+              ],
+              "under": "GAAP"
+            },
+            {
+              "name": "fair and consistent financials",
+              "klpRefs": [
+                2,
+                3
+              ],
+              "under": "GAAP"
+            },
+            {
+              "name": "direct company comparison",
+              "klpRefs": [
+                4
+              ],
+              "under": "GAAP"
+            },
+            {
+              "name": "no idiosyncratic adjustments",
+              "klpRefs": [
+                5
+              ],
+              "under": "GAAP"
+            },
+            {
+              "name": "constrained management presentation",
+              "klpRefs": [
+                6
+              ],
+              "under": "GAAP"
+            },
+            {
+              "name": "management insight",
+              "klpRefs": [
+                7
+              ],
+              "under": "GAAP"
+            }
+          ],
+          "contexts": [],
+          "relations": [
+            {
+              "klpRef": 1,
+              "from": "uniform transaction recording",
+              "to": "fair and consistent financials",
+              "type": "causes",
+              "causeKlpRef": 1
+            },
+            {
+              "klpRef": 1,
+              "from": "uniform transaction recording",
+              "to": "constrained management presentation",
+              "type": "causes",
+              "causeKlpRef": 1
+            },
+            {
+              "klpRef": 2,
+              "from": "fair and consistent financials",
+              "to": "direct company comparison",
+              "type": "requires",
+              "causeKlpRef": 2
+            },
+            {
+              "klpRef": 2,
+              "from": "fair and consistent financials",
+              "to": "no idiosyncratic adjustments",
+              "type": "causes",
+              "causeKlpRef": 2
+            },
+            {
+              "klpRef": 2,
+              "from": "fair and consistent financials",
+              "to": "fair and consistent financials",
+              "type": "confused_with",
+              "causeKlpRef": 2
+            }
+          ]
+        },
+        "settings": {
+          "coverage": 1,
+          "anchored": 1,
+          "causalEdges": 0.16666666666666666,
+          "causalTargets": 0,
+          "brevity": 1,
+          "vocabulary": 0.619047619047619,
+          "noContainers": 1,
+          "overall": 0.6836734693877551,
+          "detail": {
+            "uncovered": [],
+            "unanchored": [],
+            "causalAsLeaf": [
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "longNames": [],
+            "containers": []
+          }
+        },
+        "enforcement": {
+          "rows": [
+            {
+              "ref": 0,
+              "kind": "definition",
+              "intended": "leaf",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": false
+            },
+            {
+              "ref": 1,
+              "kind": "mechanism",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "both",
+              "violation": false
+            },
+            {
+              "ref": 2,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "both",
+              "violation": false
+            },
+            {
+              "ref": 3,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": true
+            },
+            {
+              "ref": 4,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": true
+            },
+            {
+              "ref": 5,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": true
+            },
+            {
+              "ref": 6,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": true
+            },
+            {
+              "ref": 7,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": true
+            }
+          ],
+          "judged": 8,
+          "violations": 5,
+          "klpKltEnforcement": 0.375
+        }
+      }
+    },
+    {
+      "cardId": "cmtibnhmy008q04ihgcxup05w",
+      "term": "If you have WACC of 6%, acquirer’s WACC is 10% and a yield of 8%. Is it EPS accretive/dilutive (assuming you use the same capital structure blend as current company)? Does it create/destroy value?",
+      "set": "M&A ",
+      "definition": "Creates value (IRR > target’s WACC) but is EPS dilutive",
+      "klps": [
+        {
+          "text": "Value creation is judged by comparing the deal's return to the target's own WACC.",
+          "kind": "definition",
+          "role": "framing"
+        },
+        {
+          "text": "The target's 8% earnings yield exceeds its 6% WACC, so the deal earns two points above its risk-appropriate hurdle and creates value.",
+          "kind": "causal",
+          "role": "substance"
+        },
+        {
+          "text": "The effective cost of funding the deal is the acquirer's 10% WACC.",
+          "kind": "condition",
+          "role": "substance"
+        },
+        {
+          "text": "The 8% earnings yield is below the 10% funding cost.",
+          "kind": "quantitative",
+          "role": "substance"
+        },
+        {
+          "text": "Because the earnings yield is below the funding cost, pro forma EPS falls.",
+          "kind": "causal",
+          "role": "substance"
+        },
+        {
+          "text": "The deal is EPS dilutive.",
+          "kind": "contrast",
+          "role": "framing"
+        },
+        {
+          "text": "The two tests can give different answers because value measures deal economics against the target's risk while EPS measures the accounting result against how the purchase is financed.",
+          "kind": "contrast",
+          "role": "substance"
+        },
+        {
+          "text": "The deal creates value but is EPS dilutive.",
+          "kind": "contrast",
+          "role": "framing"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 0,
+          "type": "applies_within"
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "type": "confused_with"
+        },
+        {
+          "from": 1,
+          "to": 7,
+          "type": "confused_with"
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "type": "causes"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "precedes"
+        },
+        {
+          "from": 6,
+          "to": 7,
+          "type": "requires"
+        }
+      ],
+      "v1": {
+        "proposal": {
+          "parent": "merger analysis",
+          "leaves": [
+            {
+              "name": "value creation test",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "earnings yield",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "eps accretion dilution",
+              "klpRefs": [
+                5
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 0,
+              "concept": "deal return versus risk-appropriate hurdle"
+            },
+            {
+              "klpRef": 3,
+              "concept": "funding cost comparison"
+            },
+            {
+              "klpRef": 5,
+              "concept": "pro forma eps impact"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 1,
+              "from": "earnings yield",
+              "to": "value creation test",
+              "type": "applies_within"
+            },
+            {
+              "klpRef": 1,
+              "from": "earnings yield",
+              "to": "acquirer wacc",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 1,
+              "from": "earnings yield",
+              "to": "eps accretion dilution",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 2,
+              "from": "acquirer wacc",
+              "to": "earnings yield",
+              "type": "causes"
+            },
+            {
+              "klpRef": 3,
+              "from": "earnings yield",
+              "to": "pro forma eps",
+              "type": "causes"
+            },
+            {
+              "klpRef": 4,
+              "from": "pro forma eps",
+              "to": "eps accretion dilution",
+              "type": "precedes"
+            },
+            {
+              "klpRef": 6,
+              "from": "value creation test",
+              "to": "eps accretion dilution",
+              "type": "requires"
+            }
+          ]
+        },
+        "settings": {
+          "coverage": 0.875,
+          "anchored": 0,
+          "causalEdges": 0.6666666666666666,
+          "causalTargets": 0,
+          "brevity": 1,
+          "vocabulary": 0.6666666666666666,
+          "noContainers": 1,
+          "overall": 0.6011904761904762,
+          "detail": {
+            "uncovered": [
+              7
+            ],
+            "unanchored": [
+              "value creation test",
+              "earnings yield",
+              "eps accretion dilution"
+            ],
+            "causalAsLeaf": [],
+            "longNames": [],
+            "containers": []
+          }
+        },
+        "enforcement": {
+          "rows": [
+            {
+              "ref": 0,
+              "kind": "definition",
+              "intended": "leaf",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": false
+            },
+            {
+              "ref": 1,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 2,
+              "kind": "condition",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 3,
+              "kind": "quantitative",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "both",
+              "violation": false
+            },
+            {
+              "ref": 4,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 5,
+              "kind": "contrast",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": true
+            },
+            {
+              "ref": 6,
+              "kind": "contrast",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "edge",
+              "violation": false
+            },
+            {
+              "ref": 7,
+              "kind": "contrast",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "unmapped",
+              "violation": true
+            }
+          ],
+          "judged": 8,
+          "violations": 2,
+          "klpKltEnforcement": 0.75
+        }
+      },
+      "v2": {
+        "proposal": {
+          "anchor": "earnings yield",
+          "domain": "mergers and acquisitions",
+          "leaves": [
+            {
+              "name": "earnings yield",
+              "klpRefs": [
+                0
+              ],
+              "under": "earnings yield"
+            },
+            {
+              "name": "target wacc",
+              "klpRefs": [
+                1
+              ],
+              "under": "earnings yield"
+            },
+            {
+              "name": "acquirer wacc",
+              "klpRefs": [
+                2
+              ],
+              "under": "earnings yield"
+            },
+            {
+              "name": "funding cost",
+              "klpRefs": [
+                3
+              ],
+              "under": "acquirer wacc"
+            },
+            {
+              "name": "pro forma eps",
+              "klpRefs": [
+                4
+              ],
+              "under": "earnings yield"
+            },
+            {
+              "name": "eps dilution",
+              "klpRefs": [
+                5
+              ],
+              "under": "pro forma eps"
+            },
+            {
+              "name": "value versus eps tests",
+              "klpRefs": [
+                6
+              ],
+              "under": "earnings yield"
+            },
+            {
+              "name": "value creation with dilution",
+              "klpRefs": [
+                7
+              ],
+              "under": "value versus eps tests"
+            }
+          ],
+          "contexts": [],
+          "relations": [
+            {
+              "klpRef": 1,
+              "from": "earnings yield",
+              "to": "target wacc",
+              "type": "applies_within",
+              "causeKlpRef": 0
+            },
+            {
+              "klpRef": 1,
+              "from": "earnings yield",
+              "to": "acquirer wacc",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 1,
+              "from": "earnings yield",
+              "to": "value creation with dilution",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 2,
+              "from": "acquirer wacc",
+              "to": "funding cost",
+              "type": "causes"
+            },
+            {
+              "klpRef": 3,
+              "from": "funding cost",
+              "to": "pro forma eps",
+              "type": "causes"
+            },
+            {
+              "klpRef": 4,
+              "from": "pro forma eps",
+              "to": "eps dilution",
+              "type": "precedes"
+            },
+            {
+              "klpRef": 6,
+              "from": "value versus eps tests",
+              "to": "value creation with dilution",
+              "type": "requires"
+            }
+          ]
+        },
+        "settings": {
+          "coverage": 1,
+          "anchored": 1,
+          "causalEdges": 0.6666666666666666,
+          "causalTargets": 0.5,
+          "brevity": 1,
+          "vocabulary": 0.71875,
+          "noContainers": 1,
+          "overall": 0.8407738095238094,
+          "detail": {
+            "uncovered": [],
+            "unanchored": [],
+            "causalAsLeaf": [],
+            "longNames": [],
+            "containers": []
+          }
+        },
+        "enforcement": {
+          "rows": [
+            {
+              "ref": 0,
+              "kind": "definition",
+              "intended": "leaf",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": false
+            },
+            {
+              "ref": 1,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "both",
+              "violation": false
+            },
+            {
+              "ref": 2,
+              "kind": "condition",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "both",
+              "violation": false
+            },
+            {
+              "ref": 3,
+              "kind": "quantitative",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "both",
+              "violation": false
+            },
+            {
+              "ref": 4,
+              "kind": "causal",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "both",
+              "violation": false
+            },
+            {
+              "ref": 5,
+              "kind": "contrast",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": true
+            },
+            {
+              "ref": 6,
+              "kind": "contrast",
+              "intended": "edge",
+              "basis": "link-source",
+              "minted": "both",
+              "violation": false
+            },
+            {
+              "ref": 7,
+              "kind": "contrast",
+              "intended": "edge",
+              "basis": "kind",
+              "minted": "leaf",
+              "violation": true
+            }
+          ],
+          "judged": 8,
+          "violations": 2,
+          "klpKltEnforcement": 0.75
+        }
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "step": "mint-v1",
+      "model": "deepseek-flash",
+      "calls": 3,
+      "input": 7572,
+      "output": 1269,
+      "reasoning": 0,
+      "cached": 6912
+    },
+    {
+      "step": "mint-v2",
+      "model": "deepseek-flash",
+      "calls": 3,
+      "input": 5865,
+      "output": 1570,
+      "reasoning": 0,
+      "cached": 1024
+    }
+  ]
+}
