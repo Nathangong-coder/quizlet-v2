@@ -78,6 +78,7 @@ const SHELLED_ROUTES = [
   'notes/[id]/edit/page.tsx',
   'account/page.tsx',
   'settings/ai/page.tsx',
+  'usage/page.tsx',
   'settings/ai/[provider]/page.tsx',
   'settings/study/page.tsx',
   'staff/page.tsx',
