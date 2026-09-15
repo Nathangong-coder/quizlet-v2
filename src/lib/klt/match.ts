@@ -97,16 +97,23 @@ function sameTokenSet(a: string, b: string): boolean {
 }
 
 function ruleFor(proposalNorm: string, entry: VocabEntry): MatchCandidate | null {
+  // A stored `Klt.normalizedName` is the TREE's form (lower-case, punctuation
+  // stripped — `normalizeKltName`), not this matcher's (singular, abbreviations
+  // expanded). Compare in the matcher's form on both sides, or "earnings per
+  // share" against the stored "earnings per share" fails exact and falls
+  // through to containment — which is what put a set's own anchor under a
+  // parent that was not in its plan (M&A rebuild, 2026-09-15).
+  const entryNorm = normalizeName(entry.normalizedName)
   // Word order is not identity-breaking: "impairment of goodwill" IS "goodwill impairment".
-  if (entry.normalizedName === proposalNorm || sameTokenSet(proposalNorm, entry.normalizedName)) return { entry, rule: 'exact', score: 1 }
-  if (entry.aliases?.includes(proposalNorm)) return { entry, rule: 'alias', score: 1 }
+  if (entryNorm === proposalNorm || sameTokenSet(proposalNorm, entryNorm)) return { entry, rule: 'exact', score: 1 }
+  if (entry.aliases?.some((a) => normalizeName(a) === proposalNorm)) return { entry, rule: 'alias', score: 1 }
   const pi = initialsOf(proposalNorm)
-  const ei = initialsOf(entry.normalizedName)
-  if ((pi && pi === entry.normalizedName.replace(/ /g, '')) || (ei && ei === proposalNorm.replace(/ /g, ''))) {
+  const ei = initialsOf(entryNorm)
+  if ((pi && pi === entryNorm.replace(/ /g, '')) || (ei && ei === proposalNorm.replace(/ /g, ''))) {
     return { entry, rule: 'initials', score: 0.95 }
   }
-  if (sameConceptByRule(proposalNorm, entry.normalizedName)) return { entry, rule: 'containment', score: 0.8 }
-  const j = tokenJaccard(proposalNorm, entry.normalizedName)
+  if (sameConceptByRule(proposalNorm, entryNorm)) return { entry, rule: 'containment', score: 0.8 }
+  const j = tokenJaccard(proposalNorm, entryNorm)
   if (j >= TOKEN_AMBIGUOUS) return { entry, rule: 'token', score: j }
   return null
 }

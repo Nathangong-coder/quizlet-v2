@@ -56837,6 +56837,2031 @@
       "status": "clear",
       "flags": [],
       "cardId": "cmtic7b80008g04kyt7osbium"
+    },
+    {
+      "term": "Walk me through the sell-side M&A process, including key documents (8 steps)\n",
+      "anchor": "sell-side M&A process",
+      "domain": "mergers and acquisitions",
+      "proposal": {
+        "anchor": "sell-side M&A process",
+        "domain": "mergers and acquisitions",
+        "leaves": [
+          {
+            "name": "sell-side M&A process",
+            "klpRefs": [
+              0
+            ],
+            "under": "sell-side M&A process"
+          },
+          {
+            "name": "planning",
+            "klpRefs": [
+              1
+            ],
+            "under": "sell-side M&A process"
+          },
+          {
+            "name": "marketing",
+            "klpRefs": [
+              2
+            ],
+            "under": "sell-side M&A process"
+          },
+          {
+            "name": "initial bids",
+            "klpRefs": [
+              3
+            ],
+            "under": "sell-side M&A process"
+          },
+          {
+            "name": "management presentations",
+            "klpRefs": [
+              4
+            ],
+            "under": "sell-side M&A process"
+          },
+          {
+            "name": "final bids",
+            "klpRefs": [
+              5
+            ],
+            "under": "sell-side M&A process"
+          },
+          {
+            "name": "negotiations",
+            "klpRefs": [
+              6
+            ],
+            "under": "sell-side M&A process"
+          },
+          {
+            "name": "signing",
+            "klpRefs": [
+              7
+            ],
+            "under": "sell-side M&A process"
+          },
+          {
+            "name": "closing",
+            "klpRefs": [
+              8
+            ],
+            "under": "sell-side M&A process"
+          }
+        ],
+        "contexts": [],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "planning",
+            "to": "marketing",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 3,
+            "from": "initial bids",
+            "to": "final bids",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 4,
+            "from": "management presentations",
+            "to": "final bids",
+            "type": "requires"
+          },
+          {
+            "klpRef": 5,
+            "from": "final bids",
+            "to": "negotiations",
+            "type": "causes"
+          },
+          {
+            "klpRef": 6,
+            "from": "negotiations",
+            "to": "sell-side M&A process",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 7,
+            "from": "signing",
+            "to": "closing",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 2,
+            "from": "planning",
+            "to": "teaser distribution",
+            "type": "causes",
+            "causeKlpRef": 1
+          },
+          {
+            "klpRef": 8,
+            "from": "signing",
+            "to": "deal completion",
+            "type": "causes",
+            "causeKlpRef": 7
+          }
+        ]
+      },
+      "settings": {
+        "coverage": 1,
+        "anchored": 1,
+        "causalEdges": 1,
+        "causalTargets": 1,
+        "brevity": 0.8888888888888888,
+        "vocabulary": 0.9629629629629629,
+        "noContainers": 1,
+        "distinctness": 1,
+        "overall": 0.9835390946502057,
+        "detail": {
+          "uncovered": [],
+          "unanchored": [],
+          "causalAsLeaf": [],
+          "longNames": [
+            "sell-side M&A process"
+          ],
+          "containers": [],
+          "indistinct": [],
+          "wandered": []
+        },
+        "roundTrip": 1
+      },
+      "enforcement": {
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          }
+        ],
+        "judged": 9,
+        "violations": 0,
+        "klpKltEnforcement": 1
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "proposal": {
+            "anchor": "sell-side M&A process",
+            "domain": "mergers and acquisitions",
+            "leaves": [
+              {
+                "name": "sell-side M&A process",
+                "klpRefs": [
+                  0
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "planning",
+                "klpRefs": [
+                  1
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "marketing",
+                "klpRefs": [
+                  2
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "initial bids",
+                "klpRefs": [
+                  3
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "management presentations",
+                "klpRefs": [
+                  4
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "final bids",
+                "klpRefs": [
+                  5
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "negotiations",
+                "klpRefs": [
+                  6
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "signing",
+                "klpRefs": [
+                  7
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "closing",
+                "klpRefs": [
+                  8
+                ],
+                "under": "sell-side M&A process"
+              }
+            ],
+            "contexts": [],
+            "relations": [
+              {
+                "klpRef": 1,
+                "from": "planning",
+                "to": "marketing",
+                "type": "precedes"
+              },
+              {
+                "klpRef": 3,
+                "from": "initial bids",
+                "to": "final bids",
+                "type": "precedes"
+              },
+              {
+                "klpRef": 4,
+                "from": "management presentations",
+                "to": "final bids",
+                "type": "requires"
+              },
+              {
+                "klpRef": 5,
+                "from": "final bids",
+                "to": "negotiations",
+                "type": "causes"
+              },
+              {
+                "klpRef": 6,
+                "from": "negotiations",
+                "to": "sell-side M&A process",
+                "type": "applies_within"
+              },
+              {
+                "klpRef": 7,
+                "from": "signing",
+                "to": "closing",
+                "type": "precedes"
+              }
+            ]
+          },
+          "settings": {
+            "coverage": 1,
+            "anchored": 1,
+            "causalEdges": 0,
+            "causalTargets": 1,
+            "brevity": 0.8888888888888888,
+            "vocabulary": 0.9629629629629629,
+            "noContainers": 1,
+            "distinctness": 1,
+            "overall": 0.8724279835390947,
+            "detail": {
+              "uncovered": [],
+              "unanchored": [],
+              "causalAsLeaf": [
+                8
+              ],
+              "longNames": [
+                "sell-side M&A process"
+              ],
+              "containers": [],
+              "indistinct": [],
+              "wandered": []
+            },
+            "roundTrip": 1
+          },
+          "enforcement": {
+            "rows": [
+              {
+                "ref": 0,
+                "kind": "definition",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 1,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 2,
+                "kind": "condition",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": true
+              },
+              {
+                "ref": 3,
+                "kind": "quantitative",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 4,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 5,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 6,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 7,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 8,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": true
+              }
+            ],
+            "judged": 9,
+            "violations": 2,
+            "klpKltEnforcement": 0.7777777777777778
+          },
+          "findings": [
+            {
+              "where": "[2]",
+              "issue": "minted as leaf but intended edge (its kind)",
+              "fix": "make it a relation owned by this point: from = the cause (borrow the earlier point's leaf), to = the effect it states"
+            },
+            {
+              "where": "[8]",
+              "issue": "minted as leaf but intended edge (its kind)",
+              "fix": "make it a relation owned by this point: from = the cause (borrow the earlier point's leaf), to = the effect it states"
+            },
+            {
+              "where": "sell-side M&A process",
+              "issue": "longer than 4 words",
+              "fix": "split into a leaf and a sub-leaf under it, plain nouns"
+            }
+          ],
+          "barsMissed": [
+            "enforcement",
+            "causalEdges"
+          ]
+        },
+        {
+          "round": 1,
+          "proposal": {
+            "anchor": "sell-side M&A process",
+            "domain": "mergers and acquisitions",
+            "leaves": [
+              {
+                "name": "sell-side M&A process",
+                "klpRefs": [
+                  0
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "planning",
+                "klpRefs": [
+                  1
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "marketing",
+                "klpRefs": [
+                  2
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "initial bids",
+                "klpRefs": [
+                  3
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "management presentations",
+                "klpRefs": [
+                  4
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "final bids",
+                "klpRefs": [
+                  5
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "negotiations",
+                "klpRefs": [
+                  6
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "signing",
+                "klpRefs": [
+                  7
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "closing",
+                "klpRefs": [
+                  8
+                ],
+                "under": "sell-side M&A process"
+              }
+            ],
+            "contexts": [],
+            "relations": [
+              {
+                "klpRef": 1,
+                "from": "planning",
+                "to": "marketing",
+                "type": "precedes"
+              },
+              {
+                "klpRef": 3,
+                "from": "initial bids",
+                "to": "final bids",
+                "type": "precedes"
+              },
+              {
+                "klpRef": 4,
+                "from": "management presentations",
+                "to": "final bids",
+                "type": "requires"
+              },
+              {
+                "klpRef": 5,
+                "from": "final bids",
+                "to": "negotiations",
+                "type": "causes"
+              },
+              {
+                "klpRef": 6,
+                "from": "negotiations",
+                "to": "sell-side M&A process",
+                "type": "applies_within"
+              },
+              {
+                "klpRef": 7,
+                "from": "signing",
+                "to": "closing",
+                "type": "precedes"
+              },
+              {
+                "klpRef": 2,
+                "from": "planning",
+                "to": "teaser distribution",
+                "type": "causes",
+                "causeKlpRef": 1
+              },
+              {
+                "klpRef": 8,
+                "from": "signing",
+                "to": "deal completion",
+                "type": "causes",
+                "causeKlpRef": 7
+              }
+            ]
+          },
+          "settings": {
+            "coverage": 1,
+            "anchored": 1,
+            "causalEdges": 1,
+            "causalTargets": 1,
+            "brevity": 0.8888888888888888,
+            "vocabulary": 0.9629629629629629,
+            "noContainers": 1,
+            "distinctness": 1,
+            "overall": 0.9835390946502057,
+            "detail": {
+              "uncovered": [],
+              "unanchored": [],
+              "causalAsLeaf": [],
+              "longNames": [
+                "sell-side M&A process"
+              ],
+              "containers": [],
+              "indistinct": [],
+              "wandered": []
+            },
+            "roundTrip": 1
+          },
+          "enforcement": {
+            "rows": [
+              {
+                "ref": 0,
+                "kind": "definition",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 1,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 2,
+                "kind": "condition",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 3,
+                "kind": "quantitative",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 4,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 5,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 6,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 7,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 8,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "both",
+                "violation": false
+              }
+            ],
+            "judged": 9,
+            "violations": 0,
+            "klpKltEnforcement": 1
+          },
+          "findings": [
+            {
+              "where": "sell-side M&A process",
+              "issue": "longer than 4 words",
+              "fix": "split into a leaf and a sub-leaf under it, plain nouns"
+            }
+          ],
+          "barsMissed": []
+        },
+        {
+          "round": 2,
+          "proposal": {
+            "anchor": "sell-side M&A process",
+            "domain": "mergers and acquisitions",
+            "leaves": [
+              {
+                "name": "sell-side M&A process",
+                "klpRefs": [
+                  0
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "planning",
+                "klpRefs": [
+                  1
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "marketing",
+                "klpRefs": [
+                  2
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "initial bids",
+                "klpRefs": [
+                  3
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "management presentations",
+                "klpRefs": [
+                  4
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "final bids",
+                "klpRefs": [
+                  5
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "negotiations",
+                "klpRefs": [
+                  6
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "signing",
+                "klpRefs": [
+                  7
+                ],
+                "under": "sell-side M&A process"
+              },
+              {
+                "name": "closing",
+                "klpRefs": [
+                  8
+                ],
+                "under": "sell-side M&A process"
+              }
+            ],
+            "contexts": [],
+            "relations": [
+              {
+                "klpRef": 1,
+                "from": "planning",
+                "to": "marketing",
+                "type": "precedes"
+              },
+              {
+                "klpRef": 3,
+                "from": "initial bids",
+                "to": "final bids",
+                "type": "precedes"
+              },
+              {
+                "klpRef": 4,
+                "from": "management presentations",
+                "to": "final bids",
+                "type": "requires"
+              },
+              {
+                "klpRef": 5,
+                "from": "final bids",
+                "to": "negotiations",
+                "type": "causes"
+              },
+              {
+                "klpRef": 6,
+                "from": "negotiations",
+                "to": "sell-side M&A process",
+                "type": "applies_within"
+              },
+              {
+                "klpRef": 7,
+                "from": "signing",
+                "to": "closing",
+                "type": "precedes"
+              },
+              {
+                "klpRef": 2,
+                "from": "planning",
+                "to": "teaser distribution",
+                "type": "causes",
+                "causeKlpRef": 1
+              },
+              {
+                "klpRef": 8,
+                "from": "signing",
+                "to": "deal completion",
+                "type": "causes",
+                "causeKlpRef": 7
+              }
+            ]
+          },
+          "settings": {
+            "coverage": 1,
+            "anchored": 1,
+            "causalEdges": 1,
+            "causalTargets": 1,
+            "brevity": 0.8888888888888888,
+            "vocabulary": 0.9629629629629629,
+            "noContainers": 1,
+            "distinctness": 1,
+            "overall": 0.9835390946502057,
+            "detail": {
+              "uncovered": [],
+              "unanchored": [],
+              "causalAsLeaf": [],
+              "longNames": [
+                "sell-side M&A process"
+              ],
+              "containers": [],
+              "indistinct": [],
+              "wandered": []
+            },
+            "roundTrip": 1
+          },
+          "enforcement": {
+            "rows": [
+              {
+                "ref": 0,
+                "kind": "definition",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 1,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 2,
+                "kind": "condition",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 3,
+                "kind": "quantitative",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 4,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 5,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 6,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 7,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 8,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "both",
+                "violation": false
+              }
+            ],
+            "judged": 9,
+            "violations": 0,
+            "klpKltEnforcement": 1
+          },
+          "findings": [
+            {
+              "where": "sell-side M&A process",
+              "issue": "longer than 4 words",
+              "fix": "split into a leaf and a sub-leaf under it, plain nouns"
+            }
+          ],
+          "barsMissed": []
+        }
+      ],
+      "keptRound": 1,
+      "status": "clear",
+      "flags": [],
+      "cardId": "cmtgesf36005004jvh65aos7r"
+    },
+    {
+      "term": "Please explain how a DTL vs DTA works, please (then how they apply in merger models). ",
+      "anchor": "deferred taxes",
+      "domain": "mergers and acquisitions",
+      "proposal": {
+        "anchor": "deferred taxes",
+        "domain": "mergers and acquisitions",
+        "leaves": [
+          {
+            "name": "deferred taxes",
+            "klpRefs": [
+              0
+            ],
+            "under": "deferred taxes"
+          },
+          {
+            "name": "deferred tax asset",
+            "klpRefs": [
+              1
+            ],
+            "under": "deferred taxes"
+          },
+          {
+            "name": "deferred tax liability",
+            "klpRefs": [
+              3
+            ],
+            "under": "deferred taxes"
+          },
+          {
+            "name": "net operating loss carryforwards",
+            "klpRefs": [
+              2
+            ],
+            "under": "deferred tax asset"
+          },
+          {
+            "name": "asset write-up",
+            "klpRefs": [
+              4
+            ],
+            "under": "deferred tax liability"
+          },
+          {
+            "name": "write-up deferred tax liability",
+            "klpRefs": [
+              5
+            ],
+            "under": "asset write-up"
+          },
+          {
+            "name": "accelerated tax depreciation",
+            "klpRefs": [
+              6
+            ],
+            "under": "deferred tax liability"
+          },
+          {
+            "name": "stock sale",
+            "klpRefs": [
+              7
+            ],
+            "under": "deferred taxes"
+          },
+          {
+            "name": "merger model",
+            "klpRefs": [
+              8
+            ],
+            "under": "deferred taxes"
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 4,
+            "concept": "purchase price allocation"
+          },
+          {
+            "klpRef": 5,
+            "concept": "purchase price allocation"
+          },
+          {
+            "klpRef": 7,
+            "concept": "purchase price allocation"
+          },
+          {
+            "klpRef": 8,
+            "concept": "purchase price allocation"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "deferred tax asset",
+            "to": "deferred taxes",
+            "type": "requires"
+          },
+          {
+            "klpRef": 1,
+            "from": "deferred tax asset",
+            "to": "net operating loss carryforwards",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "deferred tax liability",
+            "to": "deferred taxes",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "asset write-up",
+            "to": "stock sale",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 6,
+            "from": "accelerated tax depreciation",
+            "to": "deferred tax liability",
+            "type": "causes",
+            "causeKlpRef": 6
+          },
+          {
+            "klpRef": 7,
+            "from": "stock sale",
+            "to": "asset write-up",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 8,
+            "from": "merger model",
+            "to": "write-up deferred tax liability",
+            "type": "requires"
+          }
+        ]
+      },
+      "settings": {
+        "coverage": 1,
+        "anchored": 1,
+        "causalEdges": 1,
+        "causalTargets": 0,
+        "brevity": 1,
+        "vocabulary": 0.7037037037037037,
+        "noContainers": 1,
+        "distinctness": 0.7777777777777778,
+        "overall": 0.8189300411522633,
+        "detail": {
+          "uncovered": [],
+          "unanchored": [],
+          "causalAsLeaf": [],
+          "longNames": [],
+          "containers": [],
+          "indistinct": [
+            [
+              "deferred tax liability",
+              "write-up deferred tax liability"
+            ]
+          ],
+          "wandered": [
+            [
+              2,
+              "net operating loss carryforwards",
+              "deferred tax asset → net operating loss carryforwards"
+            ]
+          ]
+        },
+        "roundTrip": 0.8888888888888888
+      },
+      "enforcement": {
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          }
+        ],
+        "judged": 8,
+        "violations": 0,
+        "klpKltEnforcement": 1
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "proposal": {
+            "anchor": "deferred taxes",
+            "domain": "mergers and acquisitions",
+            "leaves": [
+              {
+                "name": "deferred taxes",
+                "klpRefs": [
+                  0
+                ],
+                "under": "deferred taxes"
+              },
+              {
+                "name": "deferred tax asset",
+                "klpRefs": [
+                  1
+                ],
+                "under": "deferred taxes"
+              },
+              {
+                "name": "deferred tax liability",
+                "klpRefs": [
+                  3
+                ],
+                "under": "deferred taxes"
+              },
+              {
+                "name": "net operating loss carryforwards",
+                "klpRefs": [
+                  2
+                ],
+                "under": "deferred tax asset"
+              },
+              {
+                "name": "section 382 limitation",
+                "klpRefs": [
+                  2
+                ],
+                "under": "net operating loss carryforwards"
+              },
+              {
+                "name": "asset write-up",
+                "klpRefs": [
+                  4
+                ],
+                "under": "deferred tax liability"
+              },
+              {
+                "name": "write-up deferred tax liability",
+                "klpRefs": [
+                  5
+                ],
+                "under": "asset write-up"
+              },
+              {
+                "name": "accelerated tax depreciation",
+                "klpRefs": [
+                  6
+                ],
+                "under": "deferred tax liability"
+              },
+              {
+                "name": "stock sale",
+                "klpRefs": [
+                  7
+                ],
+                "under": "deferred taxes"
+              },
+              {
+                "name": "merger model",
+                "klpRefs": [
+                  8
+                ],
+                "under": "deferred taxes"
+              }
+            ],
+            "contexts": [
+              {
+                "klpRef": 4,
+                "concept": "purchase price allocation"
+              },
+              {
+                "klpRef": 5,
+                "concept": "purchase price allocation"
+              },
+              {
+                "klpRef": 7,
+                "concept": "purchase price allocation"
+              },
+              {
+                "klpRef": 8,
+                "concept": "purchase price allocation"
+              }
+            ],
+            "relations": [
+              {
+                "klpRef": 1,
+                "from": "deferred tax asset",
+                "to": "deferred taxes",
+                "type": "requires"
+              },
+              {
+                "klpRef": 1,
+                "from": "deferred tax asset",
+                "to": "net operating loss carryforwards",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 3,
+                "from": "deferred tax liability",
+                "to": "deferred taxes",
+                "type": "requires"
+              },
+              {
+                "klpRef": 4,
+                "from": "asset write-up",
+                "to": "stock sale",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 6,
+                "from": "accelerated tax depreciation",
+                "to": "deferred tax liability",
+                "type": "causes",
+                "causeKlpRef": 6
+              },
+              {
+                "klpRef": 7,
+                "from": "stock sale",
+                "to": "asset write-up",
+                "type": "applies_within"
+              },
+              {
+                "klpRef": 8,
+                "from": "merger model",
+                "to": "write-up deferred tax liability",
+                "type": "requires"
+              }
+            ]
+          },
+          "settings": {
+            "coverage": 1,
+            "anchored": 1,
+            "causalEdges": 1,
+            "causalTargets": 0,
+            "brevity": 1,
+            "vocabulary": 0.7,
+            "noContainers": 1,
+            "distinctness": 0.8,
+            "overall": 0.7962962962962963,
+            "detail": {
+              "uncovered": [],
+              "unanchored": [],
+              "causalAsLeaf": [],
+              "longNames": [],
+              "containers": [],
+              "indistinct": [
+                [
+                  "deferred tax liability",
+                  "write-up deferred tax liability"
+                ]
+              ],
+              "wandered": [
+                [
+                  2,
+                  "net operating loss carryforwards",
+                  "deferred tax asset → net operating loss carryforwards"
+                ],
+                [
+                  4,
+                  "asset write-up",
+                  "stock sale → asset write-up"
+                ],
+                [
+                  7,
+                  "stock sale",
+                  "asset write-up → stock sale"
+                ]
+              ]
+            },
+            "roundTrip": 0.6666666666666666
+          },
+          "enforcement": {
+            "rows": [
+              {
+                "ref": 0,
+                "kind": "definition",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 1,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 2,
+                "kind": "example",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 3,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 4,
+                "kind": "condition",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 5,
+                "kind": "mechanism",
+                "intended": "either",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 6,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 7,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 8,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              }
+            ],
+            "judged": 8,
+            "violations": 0,
+            "klpKltEnforcement": 1
+          },
+          "findings": [
+            {
+              "where": "deferred tax liability",
+              "issue": "near-duplicate of \"write-up deferred tax liability\"",
+              "fix": "merge them, or rename one to the specific thing that makes it a different topic"
+            },
+            {
+              "where": "[2]",
+              "issue": "a grader shown only the labels filed this point under \"deferred tax asset → net operating loss carryforwards\", not \"net operating loss carryforwards\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[4]",
+              "issue": "a grader shown only the labels filed this point under \"stock sale → asset write-up\", not \"asset write-up\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[7]",
+              "issue": "a grader shown only the labels filed this point under \"asset write-up → stock sale\", not \"stock sale\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            }
+          ],
+          "barsMissed": [
+            "distinctness",
+            "roundTrip"
+          ]
+        },
+        {
+          "round": 1,
+          "proposal": {
+            "anchor": "deferred taxes",
+            "domain": "mergers and acquisitions",
+            "leaves": [
+              {
+                "name": "deferred taxes",
+                "klpRefs": [
+                  0
+                ],
+                "under": "deferred taxes"
+              },
+              {
+                "name": "deferred tax asset",
+                "klpRefs": [
+                  1
+                ],
+                "under": "deferred taxes"
+              },
+              {
+                "name": "deferred tax liability",
+                "klpRefs": [
+                  3
+                ],
+                "under": "deferred taxes"
+              },
+              {
+                "name": "net operating loss carryforwards",
+                "klpRefs": [
+                  2
+                ],
+                "under": "deferred tax asset"
+              },
+              {
+                "name": "section 382 limitation",
+                "klpRefs": [
+                  2
+                ],
+                "under": "net operating loss carryforwards"
+              },
+              {
+                "name": "asset write-up",
+                "klpRefs": [
+                  4
+                ],
+                "under": "deferred tax liability"
+              },
+              {
+                "name": "write-up deferred tax liability",
+                "klpRefs": [
+                  5
+                ],
+                "under": "asset write-up"
+              },
+              {
+                "name": "accelerated tax depreciation",
+                "klpRefs": [
+                  6
+                ],
+                "under": "deferred tax liability"
+              },
+              {
+                "name": "stock sale",
+                "klpRefs": [
+                  7
+                ],
+                "under": "deferred taxes"
+              },
+              {
+                "name": "merger model",
+                "klpRefs": [
+                  8
+                ],
+                "under": "deferred taxes"
+              }
+            ],
+            "contexts": [
+              {
+                "klpRef": 4,
+                "concept": "purchase price allocation"
+              },
+              {
+                "klpRef": 5,
+                "concept": "purchase price allocation"
+              },
+              {
+                "klpRef": 7,
+                "concept": "purchase price allocation"
+              },
+              {
+                "klpRef": 8,
+                "concept": "purchase price allocation"
+              }
+            ],
+            "relations": [
+              {
+                "klpRef": 1,
+                "from": "deferred tax asset",
+                "to": "deferred taxes",
+                "type": "requires"
+              },
+              {
+                "klpRef": 1,
+                "from": "deferred tax asset",
+                "to": "net operating loss carryforwards",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 3,
+                "from": "deferred tax liability",
+                "to": "deferred taxes",
+                "type": "requires"
+              },
+              {
+                "klpRef": 4,
+                "from": "asset write-up",
+                "to": "stock sale",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 6,
+                "from": "accelerated tax depreciation",
+                "to": "deferred tax liability",
+                "type": "causes",
+                "causeKlpRef": 6
+              },
+              {
+                "klpRef": 7,
+                "from": "stock sale",
+                "to": "asset write-up",
+                "type": "applies_within"
+              },
+              {
+                "klpRef": 8,
+                "from": "merger model",
+                "to": "write-up deferred tax liability",
+                "type": "requires"
+              }
+            ]
+          },
+          "settings": {
+            "coverage": 1,
+            "anchored": 1,
+            "causalEdges": 1,
+            "causalTargets": 0,
+            "brevity": 1,
+            "vocabulary": 0.7,
+            "noContainers": 1,
+            "distinctness": 0.8,
+            "overall": 0.808641975308642,
+            "detail": {
+              "uncovered": [],
+              "unanchored": [],
+              "causalAsLeaf": [],
+              "longNames": [],
+              "containers": [],
+              "indistinct": [
+                [
+                  "deferred tax liability",
+                  "write-up deferred tax liability"
+                ]
+              ],
+              "wandered": [
+                [
+                  2,
+                  "net operating loss carryforwards",
+                  "deferred tax asset → net operating loss carryforwards"
+                ],
+                [
+                  4,
+                  "asset write-up",
+                  "merger model → write-up deferred tax liability"
+                ]
+              ]
+            },
+            "roundTrip": 0.7777777777777778
+          },
+          "enforcement": {
+            "rows": [
+              {
+                "ref": 0,
+                "kind": "definition",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 1,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 2,
+                "kind": "example",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 3,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 4,
+                "kind": "condition",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 5,
+                "kind": "mechanism",
+                "intended": "either",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 6,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 7,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 8,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              }
+            ],
+            "judged": 8,
+            "violations": 0,
+            "klpKltEnforcement": 1
+          },
+          "findings": [
+            {
+              "where": "deferred tax liability",
+              "issue": "near-duplicate of \"write-up deferred tax liability\"",
+              "fix": "merge them, or rename one to the specific thing that makes it a different topic"
+            },
+            {
+              "where": "[2]",
+              "issue": "a grader shown only the labels filed this point under \"deferred tax asset → net operating loss carryforwards\", not \"net operating loss carryforwards\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[4]",
+              "issue": "a grader shown only the labels filed this point under \"merger model → write-up deferred tax liability\", not \"asset write-up\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            }
+          ],
+          "barsMissed": [
+            "distinctness"
+          ]
+        },
+        {
+          "round": 2,
+          "proposal": {
+            "anchor": "deferred taxes",
+            "domain": "mergers and acquisitions",
+            "leaves": [
+              {
+                "name": "deferred taxes",
+                "klpRefs": [
+                  0
+                ],
+                "under": "deferred taxes"
+              },
+              {
+                "name": "deferred tax asset",
+                "klpRefs": [
+                  1
+                ],
+                "under": "deferred taxes"
+              },
+              {
+                "name": "deferred tax liability",
+                "klpRefs": [
+                  3
+                ],
+                "under": "deferred taxes"
+              },
+              {
+                "name": "net operating loss carryforwards",
+                "klpRefs": [
+                  2
+                ],
+                "under": "deferred tax asset"
+              },
+              {
+                "name": "asset write-up",
+                "klpRefs": [
+                  4
+                ],
+                "under": "deferred tax liability"
+              },
+              {
+                "name": "write-up deferred tax liability",
+                "klpRefs": [
+                  5
+                ],
+                "under": "asset write-up"
+              },
+              {
+                "name": "accelerated tax depreciation",
+                "klpRefs": [
+                  6
+                ],
+                "under": "deferred tax liability"
+              },
+              {
+                "name": "stock sale",
+                "klpRefs": [
+                  7
+                ],
+                "under": "deferred taxes"
+              },
+              {
+                "name": "merger model",
+                "klpRefs": [
+                  8
+                ],
+                "under": "deferred taxes"
+              }
+            ],
+            "contexts": [
+              {
+                "klpRef": 4,
+                "concept": "purchase price allocation"
+              },
+              {
+                "klpRef": 5,
+                "concept": "purchase price allocation"
+              },
+              {
+                "klpRef": 7,
+                "concept": "purchase price allocation"
+              },
+              {
+                "klpRef": 8,
+                "concept": "purchase price allocation"
+              }
+            ],
+            "relations": [
+              {
+                "klpRef": 1,
+                "from": "deferred tax asset",
+                "to": "deferred taxes",
+                "type": "requires"
+              },
+              {
+                "klpRef": 1,
+                "from": "deferred tax asset",
+                "to": "net operating loss carryforwards",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 3,
+                "from": "deferred tax liability",
+                "to": "deferred taxes",
+                "type": "requires"
+              },
+              {
+                "klpRef": 4,
+                "from": "asset write-up",
+                "to": "stock sale",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 6,
+                "from": "accelerated tax depreciation",
+                "to": "deferred tax liability",
+                "type": "causes",
+                "causeKlpRef": 6
+              },
+              {
+                "klpRef": 7,
+                "from": "stock sale",
+                "to": "asset write-up",
+                "type": "applies_within"
+              },
+              {
+                "klpRef": 8,
+                "from": "merger model",
+                "to": "write-up deferred tax liability",
+                "type": "requires"
+              }
+            ]
+          },
+          "settings": {
+            "coverage": 1,
+            "anchored": 1,
+            "causalEdges": 1,
+            "causalTargets": 0,
+            "brevity": 1,
+            "vocabulary": 0.7037037037037037,
+            "noContainers": 1,
+            "distinctness": 0.7777777777777778,
+            "overall": 0.8189300411522633,
+            "detail": {
+              "uncovered": [],
+              "unanchored": [],
+              "causalAsLeaf": [],
+              "longNames": [],
+              "containers": [],
+              "indistinct": [
+                [
+                  "deferred tax liability",
+                  "write-up deferred tax liability"
+                ]
+              ],
+              "wandered": [
+                [
+                  2,
+                  "net operating loss carryforwards",
+                  "deferred tax asset → net operating loss carryforwards"
+                ]
+              ]
+            },
+            "roundTrip": 0.8888888888888888
+          },
+          "enforcement": {
+            "rows": [
+              {
+                "ref": 0,
+                "kind": "definition",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 1,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 2,
+                "kind": "example",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 3,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 4,
+                "kind": "condition",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 5,
+                "kind": "mechanism",
+                "intended": "either",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 6,
+                "kind": "mechanism",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 7,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 8,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              }
+            ],
+            "judged": 8,
+            "violations": 0,
+            "klpKltEnforcement": 1
+          },
+          "findings": [
+            {
+              "where": "deferred tax liability",
+              "issue": "near-duplicate of \"write-up deferred tax liability\"",
+              "fix": "merge them, or rename one to the specific thing that makes it a different topic"
+            },
+            {
+              "where": "[2]",
+              "issue": "a grader shown only the labels filed this point under \"deferred tax asset → net operating loss carryforwards\", not \"net operating loss carryforwards\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            }
+          ],
+          "barsMissed": [
+            "distinctness"
+          ]
+        }
+      ],
+      "keptRound": 2,
+      "status": "flagged",
+      "flags": [
+        "distinctness"
+      ],
+      "cardId": "cmtibnhi6007c04ihvqt6da2s"
     }
   ],
   "failures": [
@@ -56849,45 +58874,35 @@
       "cardId": "cmtgdoqq7003n04jxfukpkuak",
       "term": "Why might governments seek to deter/block inter-company M&A transactions (7)?",
       "error": "No object generated: response did not match schema."
-    },
-    {
-      "cardId": "cmtgesf36005004jvh65aos7r",
-      "term": "Walk me through the sell-side M&A process, including key documents (8 steps)\n",
-      "error": "No object generated: response did not match schema."
-    },
-    {
-      "cardId": "cmtibnhi6007c04ihvqt6da2s",
-      "term": "Please explain how a DTL vs DTA works, please (then how they apply in merger models). ",
-      "error": "No object generated: response did not match schema."
     }
   ],
   "tokens": [
     {
       "step": "mint",
       "model": "deepseek-flash",
-      "calls": 78,
-      "input": 153932,
-      "output": 37192,
+      "calls": 2,
+      "input": 4023,
+      "output": 1181,
       "reasoning": 0,
-      "cached": 35712
+      "cached": 3584
     },
     {
       "step": "revise",
       "model": "deepseek-flash",
-      "calls": 109,
-      "input": 269349,
-      "output": 57084,
+      "calls": 4,
+      "input": 10227,
+      "output": 2453,
       "reasoning": 0,
-      "cached": 210816
+      "cached": 8448
     },
     {
       "step": "roundtrip",
       "model": "deepseek-flash",
-      "calls": 187,
-      "input": 119762,
-      "output": 23970,
+      "calls": 6,
+      "input": 4025,
+      "output": 808,
       "reasoning": 0,
-      "cached": 24192
+      "cached": 768
     }
   ]
 }

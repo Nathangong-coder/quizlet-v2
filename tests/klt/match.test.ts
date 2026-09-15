@@ -3,6 +3,17 @@ import { matchConcept, sweep, tokenJaccard, initialsOf, TOKEN_MATCH, TOKEN_AMBIG
 
 const V = (...names: string[]) => names.map((n, i) => ({ kltId: `k${i}`, name: n, normalizedName: n.toLowerCase(), aliases: [] as string[] }))
 
+describe('matchConcept against stored (tree-form) names', () => {
+  it('exact-matches a stored plural name whose matcher form is singular (M&A rebuild 2026-09-15)', () => {
+    const vocab = [{ kltId: 'k1', name: 'earnings per share', normalizedName: 'earnings per share', status: 'active', aliases: [] }]
+    const r = matchConcept('earnings per share', vocab)
+    expect(r.kind).toBe('match')
+    if (r.kind === 'match') expect(r.rule).toBe('exact')
+    const under = matchConcept('earnings per share dilution', vocab)
+    expect(under.kind).toBe('related')
+  })
+})
+
 describe('matchConcept — the distinctness matcher', () => {
   it('exact after normalization: abbreviations expand, plurals singularize, noise suffixes drop', () => {
     const vocab = V('free cash flow', 'working capital')

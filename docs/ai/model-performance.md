@@ -979,3 +979,84 @@ general node its endpoint was placed under, so specific endpoints count for the 
 sit beneath. Until then the DAG view's ≥2-card rule would show nothing.
 
 Artifact: https://claude.ai/code/artifact/668011a7-089e-43f1-83e0-cba953633660
+
+### The corpus finished, the M&A tree written, the DAG view (2026-09-15, later)
+
+**Loop finished: 276 of 278 cards** (M&A 80 of 82 — two cards fail the schema every time;
+Accounting-Knowledge 50, Talking copy 68, Talking 68, LBO 10), resumed after the owner reloaded
+DeepSeek. Rescored together (`docs/ai/runs/2026-09-15/dist-all.json`):
+
+```
+setting        mean   p10   p25   p50   p90    bar
+overall        0.92   0.85  0.88  0.93  0.99
+coverage       1.00   1.00  1.00  1.00  1.00   1.00
+anchored       1.00   1.00  1.00  1.00  1.00   0.90
+causalEdges    0.94   0.75  1.00  1.00  1.00   0.90
+causalTargets  0.67   0.00  0.33  1.00  1.00   —
+brevity        0.98   0.90  1.00  1.00  1.00   0.80
+vocabulary     0.83   0.67  0.75  0.85  1.00   —
+noContainers   0.99   1.00  1.00  1.00  1.00   —
+distinctness   1.00   1.00  1.00  1.00  1.00   0.90
+roundTrip      0.90   0.75  0.86  1.00  1.00   0.75
+enforcement    0.98   1.00  1.00  1.00  1.00   1.00
+clear 198 / 276 (72%); flags: causalEdges 35, roundTrip 26, enforcement 25, brevity 10, distinctness 5, coverage 1, anchored 1
+per set: M&A 59/80 · Acc-Knowledge 34/50 · Talking copy 50/68 · Talking 49/68 · LBO 6/10 — every set 0.92 overall, 0.90 round trip
+```
+
+The distribution is the same shape on the second half of the corpus as the first: the bars
+hold where they held, and the two fail modes are unchanged. Nothing about the loop is
+set-specific.
+
+**The M&A tree, WRITTEN.** `scripts/rebuild-tree.ts --write --name-clusters --reset-placement`
+over `src/lib/klt/rebuild-write.ts`: 80 cards → 582 plan nodes; 543 placed under one root (the domain): 34 branches, then
+200 / 227 / 71 / 9 / 1 nodes at levels 2–6; 1,080 KLP↔topic links (rank 1 leaf, rank 2 context AND
+the card's anchor on every point); 493 minted + 146 rolled-up relations, 29 directed edges refused
+because they would close a cycle; 6 paths refused by `applyPaths` (a repeated segment). Six ★ clusters named by one DeepSeek call each (all six
+answered, none declined): *purchase price allocation* (deferred revenue, goodwill, revenue
+synergies, bargain purchase gain, section 382, asset write-up, gross NOLs, deferred taxes …),
+*synergies* (a member — break-even synergies, synergy distribution, breakeven cost of debt under
+it), *deal consideration* (offer price, consideration choice, inbound offer), *accretion/dilution
+analysis* twice (the value-creation cluster AND the accretion family both named it, so both
+merged under one branch), *acquisition strategy* (financing currency, merger vs acquisition,
+accretive acquisition, evaluation, candidate, success). The names are the ones a person would
+write. 17 minted names exceeded the tree's own cap (4 words / 40 chars: "discount rate for
+target cash flows", "strategic buyer vs financial buyer") and are reported, not placed — their
+KLPs are still linked to the anchor.
+
+Three defects the write exposed, all fixed with tests:
+1. **Two normal forms.** `Klt.normalizedName` is the tree's form (`normalizeKltName`: lower-case,
+   punctuation stripped); the matcher's `normalizeName` singularises and expands abbreviations.
+   `matchConcept` compared a proposal in the matcher's form against a stored name in the tree's,
+   so "earnings per share" against the stored "earnings per share" FAILED exact and fell through
+   to containment — which placed the set's own anchor under a parent that was not in its plan.
+   The matcher now normalises both sides; the write step stores new rows under the tree's form
+   of the display name and resolves a matched node by its `kltId`.
+2. **Naive singular.** "strip the s" gave `synergie`, `taxe`, `analysi`, so "synergy" and
+   "synergies" were two keys on the first rebuild. `-ies → -y`, `-xes/-sses → -x/-ss`, `-sis`
+   and `-us` kept.
+3. **Votes for a topic outside the plan.** A containment placement ("breakeven cost of debt"
+   under the vocabulary's "cost of debt") voted for a key no card in the set had named; the
+   write had no path for the child. The planner now brings that topic in as a context node under
+   the domain, status from the vocabulary.
+And one already-known trap: `applyPaths` refuses a path that would re-parent a node the set
+already has, so the legacy flat placement (21 depth-0 roots, 10 live links) had to be dropped
+first (`--reset-placement`; concepts, links and relations untouched).
+
+**The DAG view is in the editor.** `/sets/[id]/concepts` has a Tree / Dependencies toggle.
+`src/lib/klt/dag-layout.ts` (pure, 9 tests): filter → DFS back-edges → longest-path layers →
+barycentre ordering (three sweeps) → left-to-right columns; `DagCanvas.tsx` draws it with stroke
+width by card count, an arrow per type, min-cards and rolled-edge filters, and FOCUS: the
+selected concept's k-hop neighbourhood, because the whole M&A graph is 448 concepts × 491
+edges in 10 layers and the first column alone is 200 nodes tall. Selection is shared with the
+tree, so the inspector (rename / move / merge / add child) works from either view. On the live
+set: "338(h)(10) election" → 4 concepts, 4 edges, 2 layers; it causes buyer step-up benefit and
+seller capital-gains treatment, and stock purchase requires it.
+
+**What the tree looks like, honestly.** The top is right — the 34 branches are the M&A
+syllabus, the six named parents gather the recurring anchors, and 16 topics are active by
+recurrence plus the existing ones. Below that it is still wide and one card deep: 200 nodes at
+level 2, 227 at level 3, most of them a single card's leaves. The DAG's cross-card structure is
+5 shared edges, all through the roll-up. The rest is the owner's hand — which is what the
+editor is for.
+
+Artifact (tree + DAG + cluster names + corpus scoreboard): https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374

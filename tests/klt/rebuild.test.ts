@@ -9,6 +9,27 @@ const frag = (cardId: string, anchor: string, leaves: [string, string][], rels: 
 })
 
 describe('rebuildTree', () => {
+  it('brings an existing vocabulary topic into the plan when a node is placed under it (2026-09-15: "breakeven cost of debt" under a "cost of debt" no card named)', () => {
+    const vocab = [{ kltId: 'k-cod', name: 'cost of debt', normalizedName: 'cost of debt', status: 'active', aliases: [] as string[] }]
+    const plan = rebuildTree('s', [frag('c1', 'breakeven cost of debt', [])], vocab)
+    const cod = plan.nodes.find((n) => n.key === 'cost of debt')!
+    expect(cod).toBeDefined()
+    expect(cod.matched?.kltId).toBe('k-cod')
+    expect(cod.status).toBe('active')
+    expect(cod.parent).toBe(plan.nodes.find((n) => n.role === 'domain')!.key)
+    expect(plan.nodes.find((n) => n.key === 'breakeven cost of debt')!.parent).toBe('cost of debt')
+    expect(plan.anchorMatches).toEqual({ placed: 1 })
+  })
+
+  it('a stored plural name is the same key as its singular proposal (matcher normalises both sides)', () => {
+    const vocab = [{ kltId: 'k-eps', name: 'earnings per share', normalizedName: 'earnings per share', status: 'active', aliases: [] as string[] }]
+    const plan = rebuildTree('s', [frag('c1', 'earnings per share', [['EPS dilution', 'earnings per share']])], vocab)
+    const eps = plan.nodes.find((n) => n.matched?.kltId === 'k-eps')!
+    expect(eps.role).toBe('anchor')
+    expect(eps.parent).toBe(plan.nodes.find((n) => n.role === 'domain')!.key)
+    expect(plan.nodes.filter((n) => n.name.toLowerCase().startsWith('earnings per share'))).toHaveLength(1)
+  })
+
   it('shares an anchor across cards by the matcher, votes children under parents, and cross-lists a second parent', () => {
     const plan = rebuildTree('s', [
       frag('c1', 'deferred revenue', [['historical deferred revenue treatment', 'deferred revenue'], ['fair value write-down', 'historical deferred revenue treatment']]),

@@ -79,6 +79,17 @@ export interface TreePlan {
   /** Fragments whose anchor matched an existing vocabulary entry, by rule. */
   anchorMatches: Record<string, number>
   edges: { from: string; to: string; type: string; cards: string[] }[]
+  /**
+   * EDGE ROLL-UP (2026-09-15). Endpoints are named per card ("deal financing
+   * cost" / "financing cost" / "acquirer wacc funding cost"), so on the first
+   * M&A rebuild 0 of 499 edges were shared by two cards and the dependency
+   * layer had no cross-card structure. An edge whose endpoint is a
+   * single-card candidate placed under a general node is ALSO recorded one
+   * level up, from/to that parent — the specific endpoint counts for the
+   * concept it sits beneath. Rolled edges keep the cards that produced them;
+   * an edge that would roll to itself, or to the domain, is left alone.
+   */
+  rolledEdges: { from: string; to: string; type: string; cards: string[]; via: string[] }[]
 }
 
 const FILL = new Set(['the', 'a', 'an', 'of', 'in', 'on', 'for', 'to', 'and', 'or', 'vs', 'versus', 'with', 'by', 'at', 'from', 'as', 'into', 'over', 'under', 'between'])
@@ -152,6 +163,20 @@ export function rebuildTree(setId: string, fragments: CardFragment[], vocab: Voc
     }
   }
 
+  // A vote for an EXISTING topic that no card in this set named on its own
+  // ("breakeven cost of debt" placed under the vocabulary's "cost of debt")
+  // needs that topic in the plan, or the write step has no path for the
+  // child. Bring it in as a context node under the domain; its status is
+  // whatever the vocabulary says, never re-derived from this set's counts.
+  for (const n of [...nodes.values()]) {
+    for (const parentKey of Object.keys(n.votes)) {
+      if (nodes.has(parentKey)) continue
+      const entry = v.find((e) => e.normalizedName === parentKey)
+      if (!entry || entry.kltId.startsWith('plan:')) continue
+      nodes.set(parentKey, { key: parentKey, name: entry.name, parent: domainKey, role: 'context', status: entry.status === 'candidate' ? 'candidate' : 'active', cards: [...n.cards], klps: 0, votes: {}, alsoUnder: [], matched: { kltId: entry.kltId, name: entry.name, rule: 'placed' } })
+    }
+  }
+
   // Resolve parents: the most-voted, ties to the earlier-seen; cross-list the rest.
   for (const n of nodes.values()) {
     if (n.role === 'domain') continue
@@ -159,6 +184,7 @@ export function rebuildTree(setId: string, fragments: CardFragment[], vocab: Voc
     n.parent = ranked[0]?.[0] ?? domainKey
     n.alsoUnder = ranked.slice(1).map((r) => r[0])
     if (n.parent === n.key) n.parent = domainKey
+    if (n.matched?.rule === 'placed') continue // brought in above; status is the vocabulary's
     n.status = n.cards.length >= PROMOTE_CARDS && n.klps >= PROMOTE_KLPS ? 'active' : 'candidate'
   }
   // Break parent cycles by lifting the later node to the domain.
@@ -200,7 +226,29 @@ export function rebuildTree(setId: string, fragments: CardFragment[], vocab: Voc
     }
   }
 
-  return { setId, domain: domainName, nodes: [...nodes.values()], clusters, anchorMatches, edges: [...edges.values()] }
+  // Edge roll-up: lift a candidate endpoint to its parent, one level.
+  const liftable = (k: string): string | null => {
+    const n = nodes.get(k)
+    if (!n || n.role === 'domain' || n.status === 'active' || n.role === 'anchor') return null
+    if (!n.parent || n.parent === domainKey) return null
+    return n.parent
+  }
+  const rolled = new Map<string, { from: string; to: string; type: string; cards: string[]; via: string[] }>()
+  for (const e of edges.values()) {
+    const lf = liftable(e.from), lt = liftable(e.to)
+    if (!lf && !lt) continue
+    const from = lf ?? e.from, to = lt ?? e.to
+    if (from === to || from === domainKey || to === domainKey) continue
+    const key = `${from}|${to}|${e.type}`
+    const ex = rolled.get(key)
+    const via = [lf ? `${e.from}→${from}` : '', lt ? `${e.to}→${to}` : ''].filter(Boolean)
+    if (ex) { for (const c of e.cards) if (!ex.cards.includes(c)) ex.cards.push(c); ex.via.push(...via) }
+    else rolled.set(key, { from, to, type: e.type, cards: [...e.cards], via })
+  }
+  // an edge that already exists unrolled absorbs the rolled cards
+  for (const [key, r] of rolled) { const ex = edges.get(key); if (ex) { for (const c of r.cards) if (!ex.cards.includes(c)) ex.cards.push(c); rolled.delete(key) } }
+
+  return { setId, domain: domainName, nodes: [...nodes.values()], clusters, anchorMatches, edges: [...edges.values()], rolledEdges: [...rolled.values()] }
 }
 
 /** A readable tree, depth-first, for the console and the artifact. */

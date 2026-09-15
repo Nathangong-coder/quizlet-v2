@@ -21,6 +21,8 @@ import { suggestSkeleton, applySkeleton } from '@/actions/klt-seed'
 import { listPresets, applyPreset, savePresetFromSet, type KltPresetSummary } from '@/actions/klt-presets'
 import { evaluateDrop, type DragSource } from '@/lib/klt/drag'
 import { ConceptCanvas } from '@/components/klt/ConceptCanvas'
+import { DagCanvas } from '@/components/klt/DagCanvas'
+import { Network, ListTree } from 'lucide-react'
 import { ConceptSidePanel } from '@/components/klt/ConceptSidePanel'
 import { NodeInspector } from '@/components/klt/NodeInspector'
 
@@ -135,6 +137,13 @@ export function ConceptTree({ setId, setTitle, isAdmin = false, canEdit = false 
   const [relations, setRelations] = useState<ConceptRelation[]>([])
 
   const [filter, setFilter] = useState('')
+  /**
+   * Two drawings of one set: the TREE (what is part of what — placement,
+   * rollup, mastery, editable) and the DEPENDENCIES (what depends on what —
+   * the directed relations the minting loop found, read-only). They share
+   * the selection, so the inspector works from either.
+   */
+  const [view, setView] = useState<'tree' | 'dag'>('tree')
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [selectedKltId, setSelectedKltId] = useState<string | null>(null)
   const [dragging, setDragging] = useState<DragSource | null>(null)
@@ -620,7 +629,22 @@ export function ConceptTree({ setId, setTitle, isAdmin = false, canEdit = false 
               <div className="min-w-0 flex-1 space-y-3">
                 {canEdit && addRootForm}
 
+                <div className="flex items-center gap-1" role="tablist" aria-label="Concept view">
+                  <Button type="button" size="sm" variant={view === 'tree' ? 'secondary' : 'ghost'} role="tab" aria-selected={view === 'tree'} onClick={() => setView('tree')}>
+                    <ListTree className="mr-1 size-4" />
+                    Tree
+                  </Button>
+                  <Button type="button" size="sm" variant={view === 'dag' ? 'secondary' : 'ghost'} role="tab" aria-selected={view === 'dag'} onClick={() => setView('dag')} title="Directed concept relations, laid out so a prerequisite sits left of what needs it">
+                    <Network className="mr-1 size-4" />
+                    Dependencies
+                    {relations.length > 0 && <span className="ml-1 text-[10px] text-muted-foreground">{relations.length}</span>}
+                  </Button>
+                </div>
+
                 <div className="relative">
+                  {view === 'dag' ? (
+                    <DagCanvas allNodes={allNodes} relations={relations} selectedKltId={selectedKltId} onSelect={setSelectedKltId} />
+                  ) : (
                   <ConceptCanvas
                     visible={visible}
                     allNodes={allNodes}
@@ -639,6 +663,7 @@ export function ConceptTree({ setId, setTitle, isAdmin = false, canEdit = false 
                       if (source) requestMove(source, targetKltId)
                     }}
                   />
+                  )}
 
                   {selected && (
                     <NodeInspector

@@ -1,5 +1,29 @@
 # Build queue & carried-over findings
 
+**HANDOFF 2026-09-15 (evening) — THE CORPUS IS THROUGH THE LOOP; THE M&A TREE IS WRITTEN AND
+EDITABLE; THE DAG VIEW IS LIVE.** 276 of 278 cards cleared the loop (two M&A cards fail the schema
+every time), 72% clear the bars, every set reads the same (`docs/ai/model-performance.md`, "The corpus
+finished, the M&A tree written, the DAG view"). The M&A tree was written with
+```
+npx tsx --conditions=react-server --env-file=.env scripts/rebuild-tree.ts --from docs/ai/runs/2026-09-15/loop-mna.json --name-clusters --write --reset-placement
+```
+(`src/lib/klt/rebuild-write.ts`: Klt rows, `applyPaths` placement, KlpTopic rank 1/2 incl. the anchor
+on every point, KltRelation minted + rolled with a cycle check; `--name-clusters` = one DeepSeek call
+per ★ cluster; `--reset-placement` drops the set's old SetKltNode rows first — `applyPaths` refuses to
+re-parent a node the set already has, and every set still carries the orphaned legacy placement).
+`/sets/<id>/concepts` shows it (one root, 34 branches, 6 deep) with a **Tree / Dependencies** toggle;
+Dependencies is `src/lib/klt/dag-layout.ts` + `DagCanvas.tsx` (layers, focus on the selected concept,
+min-cards and rolled-edge filters; selection shared with the inspector). Artifact: https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374.
+**The other four sets are NOT written** — the loop JSONs are in `docs/ai/runs/2026-09-15/`; the same
+command per set writes them (the M&A write took ~35 min against Neon, sequential upserts). Two things
+to decide before that: the tree cap (`MAX_KLT_WORDS` 4 / 40 chars) refused 17 minted M&A names — raise
+it, or make brevity a hard bar in the loop; and whether "M&A" style domains should share one root
+across sets ("Accounting" appears in three). Known limits: 17 names unplaced on M&A (KLPs still linked
+to the anchor); 30 edges refused for cycles; cross-card edges are 5, all via roll-up; `masteryTopicRanks`
+still counts rank-2 links at full weight (owner asked for "slightly milder", ~0.6, not built).
+**Next:** owner edits the M&A tree by hand (that is the point of the editor); write the remaining sets;
+rank-2 weighting; judge on ambiguous pairs; edge-beats-leaf audit; KLP_USE_PANEL later.
+
 **HANDOFF 2026-09-15 — MINTING IS A MEASURED LOOP; THE CORPUS RUN IS HALF DONE.** The
 minting order agreed on 09-14 is built through step 4 (all plan-only, nothing written):
 mint stability measured (temperature 0 fixed the `--direct` scripts), `Klt.status` + `KltAlias`

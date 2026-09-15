@@ -23,6 +23,13 @@ describe('EXPECTED_SHAPE', () => {
 })
 
 describe('normalizeName', () => {
+  it('singularises -ies, -xes/-sses and leaves -sis alone (M&A rebuild 2026-09-15: "synergy" and "synergies" were two keys)', () => {
+    expect(normalizeName('revenue synergies')).toBe(normalizeName('revenue synergy'))
+    expect(normalizeName('deferred taxes')).toBe(normalizeName('deferred tax'))
+    expect(normalizeName('net operating losses')).toBe(normalizeName('net operating loss'))
+    expect(normalizeName('accretion/dilution analysis')).toBe('accretion dilution analysis')
+    expect(normalizeName('basis')).toBe('basis')
+  })
   it('expands abbreviations, strips punctuation and one trailing noise word', () => {
     expect(normalizeName('EBIT')).toBe(normalizeName('earnings before interest and taxes'))
     expect(normalizeName('Gross Profit Calculation')).toBe(normalizeName('gross profit'))
