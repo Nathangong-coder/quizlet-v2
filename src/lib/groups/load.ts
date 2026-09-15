@@ -1,6 +1,6 @@
 import { composeSetWhere } from '@/lib/sets/visibility'
 import { shapeSetLeaderboard, type SetLeaderboard, type GroupMemberRef } from '@/lib/groups/progress'
-import type { GroupRole } from '@/lib/groups/roles'
+import { isGroupVisibility, type GroupRole, type GroupVisibility } from '@/lib/groups/roles'
 
 /**
  * Group reads. Every function here takes the VIEWER and refuses (returns null)
@@ -50,6 +50,7 @@ export interface GroupDetail {
   description: string | null
   ownerId: string
   inviteCode: string
+  visibility: GroupVisibility
   viewerRole: GroupRole
   members: GroupMember[]
   sets: GroupSetRow[]
@@ -93,6 +94,7 @@ export async function loadGroup(viewerId: string, groupId: string): Promise<Grou
       description: true,
       ownerId: true,
       inviteCode: true,
+      visibility: true,
       members: {
         orderBy: { joinedAt: 'asc' },
         select: { role: true, joinedAt: true, user: { select: { id: true, handle: true, avatarUrl: true, image: true } } },
@@ -117,6 +119,7 @@ export async function loadGroup(viewerId: string, groupId: string): Promise<Grou
     description: group.description,
     ownerId: group.ownerId,
     inviteCode: group.inviteCode,
+    visibility: isGroupVisibility(group.visibility) ? group.visibility : 'private',
     viewerRole: membership.role as GroupRole,
     members: group.members.map((m) => ({
       userId: m.user.id,

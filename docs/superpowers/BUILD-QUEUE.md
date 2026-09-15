@@ -49,7 +49,22 @@ card × member coverage grid on each set (`src/lib/groups/pulse.ts`). **Live gat
 Mastery tab and guide shading on a set with `KlpState` rows, and the group page tabs with two
 members. **Not done:** anonymous Hot Seat — impossible without a key to grade with; a
 site-shared key for visitors is the owner's call (cost and abuse).
-Deferred on purpose: study stats on profiles, public groups.
+**Third brief (2026-09-14, night):** `/usage` — the AI spend dashboard on its own page (time and
+key filters, daily bars by model/task, task donut, per-model cards, labelled call history, CSV;
+`src/lib/ai/usage-dashboard.ts`, `c6f9067`). Public study groups: `StudyGroup.visibility`,
+`StudyGroupJoinRequest`, `StudyGroupInvite`, `Notification` (migration
+`20260914120000_group_requests_notifications`, applied); `/groups/browse` with request-to-join
+(consent at request time), owner accept/decline, an invite-people dialog over the public-user
+directory, `/notifications` with accept/decline inline, and an unread badge on the rail
+(`src/actions/group-membership.ts`, tested). The rail is Quizlet-shaped: Home · Notifications ·
+Your library, then Start here (Browse / Flashcards / Study guides / Games / Tests, each with a hub
+page under `(app)/`), then folders and groups by name with a plain "+ folder" / "+ group"; recents
+and the diagnostic rail entry are gone — the diagnostic lives on `/tests` and as a dismissable
+prompt on any set page you have not yet diagnosed (`?set=` preselects). **Live gates owed (signed
+in):** the whole request → accept → member flow between two accounts, an invitation from the
+directory, the notifications badge count, and the new rail on a real session. Public groups shipped
+(was deferred).
+Deferred on purpose: study stats on profiles.
 
 **HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress. Read this before
 anything else in this file.** Two long runs were started this day and both are RESUMABLE;

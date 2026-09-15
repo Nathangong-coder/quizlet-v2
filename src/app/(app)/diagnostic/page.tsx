@@ -19,7 +19,8 @@ import { DiagnosticClient } from '@/components/diagnostic/DiagnosticClient'
  *
  * See docs/superpowers/specs/2026-09-05-diagnostic-key-point-wiring-design.md.
  */
-export default async function DiagnosticPage() {
+export default async function DiagnosticPage({ searchParams }: { searchParams: Promise<{ set?: string }> }) {
+  const { set } = await searchParams
   const session = await auth()
   if (!session?.user?.id) redirect('/login?callbackUrl=%2Fdiagnostic')
 
@@ -31,5 +32,6 @@ export default async function DiagnosticPage() {
 
   // A failed history read must not block starting a new diagnostic — it is a
   // convenience list, not a precondition.
-  return <DiagnosticClient sets={sets.data} history={history.success ? history.data : []} />
+  // `?set=` preselects (a set page's prompt, the Tests hub); an id not in the list is ignored.
+  return <DiagnosticClient sets={sets.data} history={history.success ? history.data : []} initialSetId={set && sets.data.some((s) => s.id === set) ? set : undefined} />
 }

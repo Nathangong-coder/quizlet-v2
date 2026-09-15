@@ -20,9 +20,9 @@ type Phase = 'setup' | 'generating' | 'testing' | 'submitting' | 'results'
 
 const QUESTION_COUNTS = [12, 20, 30]
 
-export function DiagnosticClient({ sets, history }: { sets: DiagnosticSetOption[]; history: DiagnosticHistoryItem[] }) {
+export function DiagnosticClient({ sets, history, initialSetId }: { sets: DiagnosticSetOption[]; history: DiagnosticHistoryItem[]; initialSetId?: string }) {
   const [phase, setPhase] = useState<Phase>('setup')
-  const [setId, setSetId] = useState(sets[0]?.id ?? '')
+  const [setId, setSetId] = useState(initialSetId ?? sets[0]?.id ?? '')
   const [questionCount, setQuestionCount] = useState(12)
   const [setTitle, setSetTitle] = useState('')
   const [attemptId, setAttemptId] = useState('')

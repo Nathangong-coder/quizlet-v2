@@ -37,7 +37,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     return (
       <CollapsibleShell
         signedIn={false}
-        recents={[]}
         folders={[]}
         account={
           <Link href="/login" className={cn(buttonVariants({ size: 'sm' }))}>

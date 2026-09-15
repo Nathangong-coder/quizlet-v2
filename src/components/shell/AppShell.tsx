@@ -6,9 +6,10 @@ import { CollapsibleShell } from '@/components/shell/CollapsibleShell'
 import { ProfileMenu } from '@/components/shell/ProfileMenu'
 import { AvatarMark } from '@/components/shell/AvatarMark'
 import { AvatarDialog } from '@/components/shell/AvatarDialog'
-import { loadRecentSets } from '@/lib/sets/recents'
-import { RAIL_RECENTS_LIMIT } from '@/lib/shell/nav'
-import { loadRecentFolders, RAIL_FOLDERS_LIMIT } from '@/lib/folders/recents'
+import { RAIL_LIST_LIMIT } from '@/lib/shell/nav'
+import { loadRecentFolders } from '@/lib/folders/recents'
+import { loadMyGroups } from '@/lib/groups/load'
+import { unreadCount } from '@/lib/notifications/load'
 import { SiteFooter } from '@/components/marketing/SiteFooter'
 
 /**
@@ -24,24 +25,26 @@ import { SiteFooter } from '@/components/marketing/SiteFooter'
  * dynamic import is what keeps it out.
  */
 export async function AppShell({ userId, children }: { userId: string; children: React.ReactNode }) {
-  const [recents, folders, user] = await Promise.all([
-    loadRecentSets(userId, RAIL_RECENTS_LIMIT),
-    loadRecentFolders(userId, RAIL_FOLDERS_LIMIT),
+  const [folders, groups, unread, user] = await Promise.all([
+    loadRecentFolders(userId, RAIL_LIST_LIMIT),
+    loadMyGroups(userId),
+    unreadCount(userId),
     prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, name: true, handle: true, image: true, avatarUrl: true, role: true },
     }),
   ])
 
-  const railRecents = recents.map((r) => ({ id: r.id, title: r.title, isOwn: r.isOwn }))
   const railFolders = folders.map((folder) => ({ id: folder.id, name: folder.name }))
+  const railGroups = groups.slice(0, RAIL_LIST_LIMIT).map((g) => ({ id: g.id, name: g.name }))
 
   return (
     <CollapsibleShell
       signedIn
       role={user?.role}
-      recents={railRecents}
       folders={railFolders}
+      groups={railGroups}
+      unread={unread}
       account={
         user ? (
           <ProfileMenu

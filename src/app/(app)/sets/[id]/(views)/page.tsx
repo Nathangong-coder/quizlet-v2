@@ -8,6 +8,7 @@ import { KlpCardPanel } from '@/components/klp/KlpCardPanel'
 import { loadCardKlpGraphs } from '@/lib/klp/card-graphs'
 import { isAdmin } from '@/lib/auth/roles'
 import { ActivityTiles } from '@/components/sets/ActivityTiles'
+import { DiagnosticPrompt } from '@/components/diagnostic/DiagnosticPrompt'
 import { readableSetWhere } from '@/lib/sets/visibility'
 import { normalizeTextMarks } from '@/lib/cards/content'
 
@@ -49,13 +50,18 @@ export default async function SetStudyPage({
       where: { id, ...readableSetWhere(viewerId) },
       select: {
         id: true,
+        title: true,
         cards: {
           orderBy: { position: 'asc' },
           include: {
             contentBlocks: { orderBy: { position: 'asc' } },
             categoryAssignments: { include: { category: true } },
+            // For the diagnostic prompt: is there anything to diagnose?
+            _count: { select: { klps: { where: { supersededAt: null } } } },
           },
         },
+        // The prompt is for a set the viewer has NOT diagnosed yet.
+        diagnosticAttempts: viewerId ? { where: { userId: viewerId, status: 'completed' }, take: 1, select: { id: true } } : false,
       },
     }),
     viewerId
@@ -94,9 +100,12 @@ export default async function SetStudyPage({
     })),
   }))
 
+  const offerDiagnostic = viewerId !== null && set.cards.some((c) => c._count.klps > 0) && (!set.diagnosticAttempts || set.diagnosticAttempts.length === 0)
+
   return (
     <>
       <ActivityTiles id={id} userId={viewerId ?? undefined} />
+      {offerDiagnostic && <DiagnosticPrompt setId={id} setTitle={set.title} />}
 
       {cards.length > 0 && <FlashcardSection cards={cards} />}
 
