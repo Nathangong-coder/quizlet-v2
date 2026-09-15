@@ -61,6 +61,24 @@ describe('totalCost', () => {
 })
 
 describe('the rate table', () => {
+  it('prices GLM on the zai provider, and on a custom endpoint carrying a glm model id', () => {
+    const zai = estimateCallCost({ provider: 'zai', model: 'glm-5.3-flash', inputTokens: 1_000_000, outputTokens: 1_000_000, cachedTokens: 0 })
+    expect(zai).toBeCloseTo(0.15 + 0.5)
+    expect(estimateCallCost({ provider: 'custom', model: 'glm-5.3-flash', inputTokens: 1_000_000, outputTokens: 0, cachedTokens: 0 })).toBeCloseTo(0.15)
+    // Any other custom model is still unpriced: the endpoint could be anything.
+    expect(estimateCallCost({ provider: 'custom', model: 'mystery-9b', inputTokens: 10, outputTokens: 10, cachedTokens: 0 })).toBeNull()
+  })
+
+  it('agrees with the operator token meter on every model both tables price', async () => {
+    const meter = await import('@/lib/klp/token-meter')
+    for (const [id, m] of Object.entries(meter.MODEL_RATES)) {
+      if (!id.startsWith('glm-')) continue
+      const r = MODEL_RATES[`zai:${id}`]
+      expect(r, id).toBeDefined()
+      expect([r.inputPerMTok, r.outputPerMTok, r.cachedInputPerMTok]).toEqual([m.input, m.output, m.cachedInput])
+    }
+  })
+
   it('carries a checked date on every entry it does have', () => {
     // A rate with no date cannot be audited, and prices change.
     for (const [key, rate] of Object.entries(MODEL_RATES)) {

@@ -134,7 +134,7 @@ export async function prepareGamePieces(setId: string): Promise<ActionResult<Pre
     try {
       const { value, meta } = await generateJsonWithMeta({
         userId,
-        task: 'distractors',
+        task: 'game-pieces',
         schema: GamePiecesSchema,
         maxOutputTokens: 4096,
         prompt: MAKE_GAME_PIECES_PROMPT.build({
@@ -362,7 +362,7 @@ export async function probeHotSeat(cardId: string, missedKlpId: string, answer: 
     // for one run and is never persisted.
     const out = await generateJson({
       userId: session.user.id,
-      task: 'grade',
+      task: 'hot-seat',
       schema: HotSeatProbeSchema,
       prompt: HOT_SEAT_PROBE_PROMPT.build({ persona, question: card.term, answer, missedPoint: klp.text }),
     })

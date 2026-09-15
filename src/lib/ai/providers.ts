@@ -4,7 +4,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import type { LanguageModel } from 'ai';
 
-export const AI_PROVIDERS = ['google', 'anthropic', 'openai', 'openrouter', 'deepseek', 'custom'] as const;
+export const AI_PROVIDERS = ['google', 'anthropic', 'openai', 'openrouter', 'deepseek', 'zai', 'custom'] as const;
 export type ProviderId = (typeof AI_PROVIDERS)[number];
 
 export interface ProviderMeta {
@@ -55,6 +55,22 @@ export const PROVIDER_META: Record<ProviderId, ProviderMeta> = {
     defaultBaseUrl: 'https://api.deepseek.com/v1',
     keyPlaceholder: 'sk-…',
   },
+  /**
+   * Z.ai (GLM), first-class since 2026-09-15 so a stored key works at
+   * runtime: the endpoint cannot enforce a schema (the schema rides in the
+   * prompt, see `schemaInPrompt`) and its thinking cannot be switched off,
+   * only set low / high / max — both handled in `resolveLanguageModel`, which
+   * a `custom` credential would never get. Measured 2026-09-15
+   * (`npm run bench-models`): at `low` it is the best distractor writer and a
+   * fast, cheap tree summariser; at the default effort a call takes 30-40 s.
+   */
+  zai: {
+    label: 'Z.ai (GLM)',
+    requiresBaseUrl: false,
+    defaultModel: 'glm-5.3-flash',
+    defaultBaseUrl: 'https://api.z.ai/api/paas/v4',
+    keyPlaceholder: 'your Z.ai API key',
+  },
   custom: {
     label: 'Custom (OpenAI-compatible)',
     requiresBaseUrl: true,
@@ -100,7 +116,15 @@ export interface ResolveInput {
    * ```json fence on every call.
    */
   schemaInPrompt?: boolean;
+  /**
+   * Z.ai only: the OpenAI-style `reasoning_effort` (low | high | max). GLM's
+   * thinking cannot be disabled (error 1210); `low` is what every runtime
+   * task wants and `high` is what authoring wants. Ignored by other providers.
+   */
+  reasoningEffort?: 'low' | 'high' | 'max';
 }
+
+export type ReasoningEffort = NonNullable<ResolveInput['reasoningEffort']>;
 
 /**
  * Builds an AI SDK LanguageModel for one credential.
@@ -108,7 +132,7 @@ export interface ResolveInput {
  * NOTE: `createGoogle` is the v7 name — it was `createGoogleGenerativeAI`
  * before the rename. Do not "fix" it back.
  */
-export function resolveLanguageModel({ provider, apiKey, baseUrl, model, requestDefaults, schemaInPrompt }: ResolveInput): LanguageModel {
+export function resolveLanguageModel({ provider, apiKey, baseUrl, model, requestDefaults, schemaInPrompt, reasoningEffort }: ResolveInput): LanguageModel {
   switch (provider) {
     case 'google':
       return createGoogle({ apiKey })(model);
@@ -132,6 +156,19 @@ export function resolveLanguageModel({ provider, apiKey, baseUrl, model, request
         baseURL: baseUrl?.trim() || PROVIDER_META.deepseek.defaultBaseUrl,
         fetch: deepSeekFetch,
       }).responses(model);
+    }
+    case 'zai': {
+      // The same compatible path as `custom`, with the two Z.ai facts applied
+      // here rather than trusted to whoever stored the credential.
+      const defaults = { ...(requestDefaults ?? {}), ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}) };
+      const zaiFetch = withSchemaInPrompt(Object.keys(defaults).length ? withRequestDefaults(defaults) : fetch);
+      return createOpenAICompatible({
+        name: 'zai',
+        apiKey,
+        baseURL: baseUrl?.trim() || PROVIDER_META.zai.defaultBaseUrl!,
+        supportsStructuredOutputs: true,
+        fetch: zaiFetch,
+      })(model);
     }
     case 'openrouter':
     case 'custom': {

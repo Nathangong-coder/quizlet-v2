@@ -3,7 +3,7 @@
 **A running record of which models and configurations can actually do this
 app's work, measured rather than assumed.**
 
-Last run: 2026-09-06.
+Last run: 2026-09-15 (`npm run bench-models`).
 
 ---
 
@@ -826,3 +826,54 @@ the cost pass reached; grading is no longer the largest line.
 **Confirmation, the two accounting cards with `not_on_card` off:** intangibles 0.67 / parity
 0.80 / ratio 0.58 / tight; CapEx 0.83 / parity 0.83 / ratio 0.82 / tight. Both clear every bar.
 This is the configuration the corpus is authored with.
+
+### GLM as a grader, a tree summariser and a distractor writer — `npm run bench-models` (2026-09-15)
+
+The owner wants to offer a Z.ai key to users and asked which model is better at the three
+runtime jobs a key is routed to: grading written answers, the background concept-tree pass,
+and multiple-choice distractors. `scripts/bench-models.ts` runs the PRODUCTION prompts,
+schemas and temperatures over the same authored cards with only the model varying; nothing
+is written and nothing reaches `AiCallLog`. Scores are substantive: grading = the app's
+separation on the stored reference and probes (floor 0.4) plus agreement with the stored
+grader; tree = schema, the 3-6-word label rule, concepts per point; MC = structural validity
+plus a fixed DeepSeek judge grading each distractor AS AN ANSWER on its own point
+("wrongness" = share the judge refuses to mark correct). Six LBO cards, 174 calls, $0.065.
+
+```
+GRADING                        sep   ref-agree  latency   USD/18 calls
+glm-5.3-flash@low              0.53     98%       3.2s      0.0050
+glm-5.3-flash (default)        0.57    100%      30.2s      0.0271   (44.6k reasoning tokens)
+deepseek-flash                 0.65     98%       1.4s      0.0028   (off-peak)
+gemini-3.1-flash-lite          6/6 failed: "high demand" on the free tier all run
+
+CONCEPT TREE                   schema-fail  label-ok  concepts/pt  latency
+glm-5.3-flash@low                  1/6        100%       1.62        3.1s   (one ECONNRESET)
+glm-5.3-flash (default)            0/6        100%       1.86       19.3s
+deepseek-flash                     0/6         88%       1.35        1.5s
+gemini-3.1-flash-lite              3/6        100%       1.10        4.6s
+
+MULTIPLE CHOICE                structural  wrongness  latency   USD/6 calls
+glm-5.3-flash@low                 100%        94%       3.5s      0.0017
+glm-5.3-flash (default)           100%       100%      37.9s      0.0110
+deepseek-flash                    100%        89%       1.6s      0.0019
+gemini-3.1-flash-lite             6/6 failed (high demand)
+```
+
+**Reading.** As a grader GLM is the weakest again (0.53-0.57 against DeepSeek's 0.65 —
+consistent with the 0.44 measured on 2026-09-12), and the default effort buys +0.04 for
+10x the latency and 5x the cost; at `low` it is fast and cheap and still separates every
+card above the floor. As a **distractor writer it is the best measured**: at `low`, 94% of
+its options are judged genuinely wrong on their point against DeepSeek's 89%, at the same
+price and 3.5 s. On the tree pass every GLM label obeyed the length rule (DeepSeek 88%) and
+it names more concepts per point (1.6-1.9 vs 1.35) — whether the extra concept is signal
+or padding is the same question as the extra KLPs in the authoring bench. `reuse` could
+not be measured: none of the six authored cards has a live topic link (the concept layer
+is orphaned on authored cards — see memory 2026-09-09), so run with `--set` on a legacy
+set to get that column. Gemini 3.1-flash-lite failed every grading and MC call with the
+free tier's "high demand" message; not a quality result, and why the free tier cannot be
+a runtime dependency.
+
+**Recommendation for the shared key:** route `distractors` and `game-pieces` (and `hot-seat`)
+to `glm-5.3-flash` at `reasoning_effort: low`; keep `grade` and `diagnostic` on DeepSeek;
+`concept-tree` either. Never run GLM at the default effort for a runtime task — 30-40 s a
+call and most of the tokens are thinking.

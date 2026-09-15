@@ -239,6 +239,7 @@ export async function testCredential(id: string, model?: string): Promise<Action
         apiKey: decryptApiKey(cred.encryptedApiKey),
         baseUrl: cred.baseUrl,
         model: model?.trim() || cred.defaultModel,
+        reasoningEffort: 'low',
       }),
       prompt: 'Reply with the single word: ok',
     });
@@ -291,6 +292,7 @@ export async function testRawCredential(
         apiKey: v.apiKey,
         baseUrl: v.baseUrl || null,
         model: v.model,
+        reasoningEffort: 'low',
       }),
       prompt: 'Reply with the single word: ok',
     });

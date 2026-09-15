@@ -105,6 +105,11 @@ export const POLICED_TASKS: readonly AiTask[] = [
   'distractors',
   'plan',
   'note-analysis',
+  // Game pieces are persisted on the set and reused by every player — content
+  // like any other. The Hot Seat follow-up is thrown away after one screen,
+  // but a model that cannot hold a schema is no better at it, so it stays in.
+  'game-pieces',
+  'hot-seat',
 ]
 
 export function isPolicedTask(task: AiTask): boolean {

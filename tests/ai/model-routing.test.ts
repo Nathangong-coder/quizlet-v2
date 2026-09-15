@@ -21,7 +21,7 @@ import { AI_TASKS } from '@/lib/ai/model-routing'
  * runs constantly, so they get separate routing decisions.
  */
 describe('AI_TASKS', () => {
-  it('contains exactly the nine expected task names', () => {
+  it('contains exactly the eleven expected task names', () => {
     expect(AI_TASKS).toEqual([
       'grade',
       'plan',
@@ -32,6 +32,8 @@ describe('AI_TASKS', () => {
       'note-analysis',
       'diagnostic',
       'author',
+      'game-pieces',
+      'hot-seat',
     ])
   })
 
