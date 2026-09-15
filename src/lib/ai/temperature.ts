@@ -57,6 +57,10 @@ const TASK_TEMPERATURE: Record<AiTask, number> = {
   autocomplete: 0.4,
   /** A plan is prose over a fixed set of facts. Some phrasing latitude, no invention. */
   plan: 0.2,
+  /** Pieces are short restatements of key points; like distractors, a little spread across cards. */
+  'game-pieces': 0.3,
+  /** An interviewer's follow-up should sound like a person, not a template — the ceiling is 0.5. */
+  'hot-seat': 0.5,
 }
 
 /**

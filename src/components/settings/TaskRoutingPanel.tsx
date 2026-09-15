@@ -46,6 +46,10 @@ const TASK_DESCRIPTIONS: Record<Task, string> = {
     'Writes and marks the questions in a diagnostic test. The results feed your learner profile. Stored and reused.',
   author:
     'The full authoring pipeline: drafts a reference answer, extracts key learning points, then tests them against deliberately wrong answers and keeps only the ones that tell a strong answer from a weak one. Slow, run rarely, and the most quality-sensitive task here. Stored and reused.',
+  'game-pieces':
+    'Turns a set’s key learning points into short prompt/answer pieces for Blitz, Crossword and Match, when the set owner presses Prepare games. Stored on the set and reused by every player; identical cards across sets share them.',
+  'hot-seat':
+    'Writes the interviewer’s follow-up question in Hot Seat when you miss a point. Nothing is stored; the grading itself runs under the grade task.',
 };
 
 interface RowState {
