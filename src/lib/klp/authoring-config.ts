@@ -45,6 +45,13 @@ export const MAX_REVISIONS = 2
  * `ordering` and `abstraction_spread` are NOT in the bar — they need the
  * relation edges and the abstraction classification, which are computed
  * after the loop — so they are reported on the card, not revised for.
+ *
+ * Since 2026-09-12 the separation this bar reads is the SUBSTANCE
+ * separation (framing points excluded, src/lib/klp/framing.ts). Raised to
+ * 0.7 for an hour on 2026-09-13 and put back: on the re-authored M&A set
+ * half the cards sit under 0.7 substance, and the owner judged that bar too
+ * high before it had authored more than one partial set. The floor that
+ * FLAGS a card stays 0.4.
  */
 export const REVISION_BAR = 0.6
 

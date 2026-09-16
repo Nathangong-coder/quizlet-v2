@@ -92,7 +92,7 @@ export const KIND_STRICTNESS_CLAUSE = `Strictness by kind. Each key point is tag
  */
 export const GRADE_CANDIDATE_PROMPT = {
   id: 'grade-candidate',
-  version: 2,
+  version: 3,
   schema: CandidateGradeSchema,
 
   build(input: GradeCandidateBuildInput): string {
@@ -109,21 +109,26 @@ ${input.referenceAnswer}
 
 `;
 
+    // PREFIX ORDER (v3, 2026-09-14): everything that is the same for every
+    // card in the corpus comes first — role, vocabulary, rules, output
+    // format, strictness — then the card, then the candidate. DeepSeek's
+    // cache is a prefix cache in 64-token blocks, so this block now hits on
+    // every grading call of every card, not only within one card.
     return `You are grading a candidate's answer to one interview question against a fixed list of Key Learning Points (KLPs). Judge only what this answer itself claims — you have no information about how it was produced.
 
-Question: ${input.question}
-
-Key Learning Points:
-${klps}
-
-For each KLP above, decide whether the candidate's answer supports it. Choose exactly one verdict per KLP from this vocabulary:
+For each KLP, decide whether the candidate's answer supports it. Choose exactly one verdict per KLP from this vocabulary:
 ${KLP_VERDICTS.join(', ')}
 
 Use "correct" when the answer clearly states the point. Use "omission" when the point is never mentioned at all. Use "incomplete" when it is named but not actually explained. Use "contradicted" or one of the other specific labels above when the answer actively gets the point wrong in that particular way. When nothing more specific applies, "partial" or "failed" are honest fallbacks — do not force a specific label that does not fit.
 
 Output JSON:
 { "verdicts": [ { "klpIndex": number, "verdict": string, "evidence": string } ] }
-One entry per KLP, referencing it by its [index] above. "evidence" is ONE short clause (at most 15 words) quoting or naming what in the answer decided the verdict; OMIT it entirely when the verdict is "correct".${input.strict ? `\n\n${STRICT_GRADING_CLAUSE}${showKinds ? `\n\n${KIND_STRICTNESS_CLAUSE}` : ''}` : ''}
+One entry per KLP, referencing it by its [index]. "evidence" is ONE short clause (at most 15 words) quoting or naming what in the answer decided the verdict; OMIT it entirely when the verdict is "correct".${input.strict ? `\n\n${STRICT_GRADING_CLAUSE}${showKinds ? `\n\n${KIND_STRICTNESS_CLAUSE}` : ''}` : ''}
+
+Question: ${input.question}
+
+Key Learning Points:
+${klps}
 
 ${referenceBlock}Candidate's answer:
 ${input.candidateAnswer}`;

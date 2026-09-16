@@ -70,7 +70,7 @@ describe('the prompts', () => {
   })
   it('rebuild v2 says each point once and forbids transitions and a restated conclusion', () => {
     const p = WRITE_REBUILD_PROMPT.build({ question: 'Q', klps: [{ text: 'k' }] })
-    expect(WRITE_REBUILD_PROMPT.version).toBe(2)
+    expect(WRITE_REBUILD_PROMPT.version).toBe(3)
     expect(p).toContain('Say each point ONCE')
     expect(p).toContain('no restated conclusion')
     expect(p).toContain('about the length of the points combined')

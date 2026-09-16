@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { generateJson, generateJsonWithMeta } from '@/lib/ai/generate'
-import { authorCard, type AuthoringGenerator } from '@/lib/klp/authoring'
+import { generateJson } from '@/lib/ai/generate'
+import { authorCard } from '@/lib/klp/authoring'
+import { authoringGenerator } from '@/lib/klp/generators'
+import { buildSetStep } from '@/lib/klp/build-set'
 import { persistAuthoring } from '@/lib/klp/authoring-persist'
 import { AUTHOR_KLPS_PROMPT } from '@/lib/ai/prompts/author-klps'
-import { GRADE_CANDIDATE_PROMPT } from '@/lib/ai/prompts/grade-candidate'
-import { REVISE_KLPS_PROMPT } from '@/lib/ai/prompts/revise-klps'
-import { RELATE_KLPS_PROMPT } from '@/lib/ai/prompts/relate-klps'
-import { CLASSIFY_ABSTRACTION_PROMPT } from '@/lib/ai/prompts/classify-abstraction'
-import { WRITE_PANEL_PROMPT } from '@/lib/ai/prompts/write-panel'
 import { findExistingPanel } from '@/lib/klp/panel-reuse'
 import { classifyProviderError } from '@/lib/errors/classify'
 import {
@@ -76,69 +73,14 @@ function authorized(request: Request): boolean {
 }
 
 /**
- * The generator, wired to the stored credential pool of the operator account
- * named by `CRON_AUTHOR_USER_ID`.
- *
- * Background work belongs to no requesting user, so one has to be named
- * explicitly. An env var rather than "the first admin" because whose key pays
- * for this should be a deliberate, visible decision, not something that moves
- * when a role is granted.
+ * The generator is the SAME one the set page's "Build key points" button
+ * uses (`src/lib/klp/generators.ts`, 2026-09-16): the full pipeline — traps
+ * written by the judge side, the communication check, the rebuild test,
+ * judged framing — over the credential pool of the operator account named by
+ * `CRON_AUTHOR_USER_ID`. Background work belongs to no requesting user, so
+ * one has to be named explicitly; an env var rather than "the first admin"
+ * because whose key pays for this should be a deliberate, visible decision.
  */
-function generator(userId: string, onModel: (model: string) => void): AuthoringGenerator {
-  return {
-    author: async (input) => {
-      const { value, meta } = await generateJsonWithMeta({
-        userId,
-        task: 'author',
-        prompt: AUTHOR_KLPS_PROMPT.build({
-          setTitle: input.setTitle,
-          term: input.question,
-          definition: input.definition,
-          minKlps: input.minKlps,
-        }),
-        schema: AUTHOR_KLPS_PROMPT.schema,
-      })
-      onModel(meta.model)
-      return value
-    },
-    grade: (input) =>
-      generateJson({
-        userId,
-        task: 'author',
-        prompt: GRADE_CANDIDATE_PROMPT.build(input),
-        schema: GRADE_CANDIDATE_PROMPT.schema,
-      }),
-    revise: (input) =>
-      generateJson({
-        userId,
-        task: 'author',
-        prompt: REVISE_KLPS_PROMPT.build(input),
-        schema: REVISE_KLPS_PROMPT.schema,
-      }),
-    relate: (input) =>
-      generateJson({
-        userId,
-        task: 'author',
-        prompt: RELATE_KLPS_PROMPT.build(input),
-        schema: RELATE_KLPS_PROMPT.schema,
-      }),
-    classifyAbstraction: (input) =>
-      generateJson({
-        userId,
-        task: 'author',
-        prompt: CLASSIFY_ABSTRACTION_PROMPT.build(input),
-        schema: CLASSIFY_ABSTRACTION_PROMPT.schema,
-      }),
-    writePanel: (input) =>
-      generateJson({
-        userId,
-        task: 'author',
-        prompt: WRITE_PANEL_PROMPT.build(input),
-        schema: WRITE_PANEL_PROMPT.schema,
-      }),
-  }
-}
-
 /**
  * The re-grade sweep's grader: the SAME prompt the quiz uses, on the cron
  * operator's credentials.
@@ -225,7 +167,7 @@ export async function GET(request: Request) {
           definition: card.definition,
           existingPanel: (await findExistingPanel(card.id))?.members,
         },
-        generator(userId, (m) => {
+        authoringGenerator(userId, (m) => {
           model = m
         }),
       )
@@ -253,6 +195,22 @@ export async function GET(request: Request) {
     }
   }
 
+  // ── PHASE 3: TOPICS FOR THE SETS TOUCHED ──────────────────────────────────
+  //
+  // Authoring leaves a card with points and no topic fragment. The same
+  // bounded step the set page runs (mint, then rebuild the set's tree
+  // without moving what the owner placed) drains each touched set while the
+  // wall clock lasts; anything left is picked up next run or by the owner.
+  const touchedSets = [...new Set(candidates.filter((c) => authored.some((a) => a.cardId === c.id)).map((c) => c.setId))]
+  const topics: { setId: string; did: string; cards: number }[] = []
+  for (const setId of touchedSets) {
+    for (let i = 0; i < 20 && !outOfTime(startedAt, Date.now()); i++) {
+      const step = await buildSetStep(userId, setId, { budgetMs: 60_000 })
+      topics.push({ setId, did: step.did, cards: step.cards.length })
+      if (step.did === 'nothing' || step.did === 'author' || step.status.ready || (step.cards.length === 0 && step.errors.length)) break
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     elapsedMs: Date.now() - startedAt,
@@ -260,5 +218,6 @@ export async function GET(request: Request) {
     reused,
     authored,
     failed,
+    topics,
   })
 }

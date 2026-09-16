@@ -1,0 +1,2082 @@
+{
+  "setId": "cmtfewhjv000004jr901uq6eo",
+  "setTitle": "M&A ",
+  "model": "deepseek-flash",
+  "bars": {
+    "coverage": 1,
+    "enforcement": 1,
+    "anchored": 0.9,
+    "causalEdges": 0.9,
+    "brevity": 0.8,
+    "roundTrip": 0.75,
+    "distinctness": 0.9
+  },
+  "outcomes": [
+    {
+      "term": "Can you describe how deferred revenue might be adjusted in a merger model?",
+      "anchor": "deferred revenue",
+      "domain": "mergers and acquisitions",
+      "proposal": {
+        "anchor": "deferred revenue",
+        "domain": "mergers and acquisitions",
+        "leaves": [
+          {
+            "name": "deferred revenue",
+            "klpRefs": [
+              0
+            ],
+            "under": "deferred revenue"
+          },
+          {
+            "name": "historical deferred revenue treatment",
+            "klpRefs": [
+              1
+            ],
+            "under": "deferred revenue"
+          },
+          {
+            "name": "fair value write-down",
+            "klpRefs": [
+              1
+            ],
+            "under": "historical deferred revenue treatment"
+          },
+          {
+            "name": "asu 2021-08",
+            "klpRefs": [
+              6,
+              7,
+              8
+            ],
+            "under": "deferred revenue"
+          },
+          {
+            "name": "contract liabilities",
+            "klpRefs": [
+              6
+            ],
+            "under": "asu 2021-08"
+          },
+          {
+            "name": "asc 606 recognition",
+            "klpRefs": [
+              7
+            ],
+            "under": "asu 2021-08"
+          },
+          {
+            "name": "goodwill",
+            "klpRefs": [
+              8
+            ],
+            "under": "asu 2021-08"
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 3,
+            "concept": "purchase price allocation"
+          },
+          {
+            "klpRef": 8,
+            "concept": "purchase price allocation"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "deferred revenue",
+            "to": "fair value write-down",
+            "type": "causes",
+            "causeKlpRef": 0
+          },
+          {
+            "klpRef": 2,
+            "from": "fair value write-down",
+            "to": "post-close revenue",
+            "type": "causes",
+            "causeKlpRef": 1
+          },
+          {
+            "klpRef": 3,
+            "from": "fair value write-down",
+            "to": "goodwill",
+            "type": "causes",
+            "causeKlpRef": 1
+          },
+          {
+            "klpRef": 2,
+            "from": "post-close revenue",
+            "to": "goodwill",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 4,
+            "from": "asc 606",
+            "to": "asu 2021-08",
+            "type": "causes"
+          },
+          {
+            "klpRef": 5,
+            "from": "fair value write-down",
+            "to": "revenue predictability",
+            "type": "causes",
+            "causeKlpRef": 1
+          },
+          {
+            "klpRef": 6,
+            "from": "asu 2021-08",
+            "to": "contract liabilities",
+            "type": "causes"
+          },
+          {
+            "klpRef": 6,
+            "from": "contract liabilities",
+            "to": "asc 606 recognition",
+            "type": "requires"
+          },
+          {
+            "klpRef": 8,
+            "from": "asu 2021-08",
+            "to": "goodwill",
+            "type": "causes"
+          }
+        ]
+      },
+      "settings": {
+        "coverage": 1,
+        "anchored": 1,
+        "causalEdges": 1,
+        "causalTargets": 0.6666666666666666,
+        "brevity": 1,
+        "vocabulary": 0.8333333333333333,
+        "noContainers": 1,
+        "distinctness": 1,
+        "overall": 0.9074074074074073,
+        "detail": {
+          "uncovered": [],
+          "unanchored": [],
+          "causalAsLeaf": [],
+          "longNames": [],
+          "containers": [],
+          "indistinct": [],
+          "wandered": [
+            [
+              6,
+              "asu 2021-08",
+              "asu 2021-08 → contract liabilities"
+            ],
+            [
+              7,
+              "asu 2021-08",
+              "asc 606 recognition"
+            ],
+            [
+              8,
+              "asu 2021-08",
+              "asu 2021-08 → goodwill"
+            ]
+          ]
+        },
+        "roundTrip": 0.6666666666666666
+      },
+      "enforcement": {
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          }
+        ],
+        "judged": 7,
+        "violations": 0,
+        "klpKltEnforcement": 1
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "proposal": {
+            "anchor": "deferred revenue",
+            "domain": "mergers and acquisitions",
+            "leaves": [
+              {
+                "name": "deferred revenue",
+                "klpRefs": [
+                  0
+                ],
+                "under": "deferred revenue"
+              },
+              {
+                "name": "historical deferred revenue treatment",
+                "klpRefs": [
+                  1
+                ],
+                "under": "deferred revenue"
+              },
+              {
+                "name": "fair value write-down",
+                "klpRefs": [
+                  1
+                ],
+                "under": "historical deferred revenue treatment"
+              },
+              {
+                "name": "asu 2021-08",
+                "klpRefs": [
+                  6,
+                  7,
+                  8
+                ],
+                "under": "deferred revenue"
+              },
+              {
+                "name": "contract liabilities",
+                "klpRefs": [
+                  6
+                ],
+                "under": "asu 2021-08"
+              },
+              {
+                "name": "asc 606 recognition",
+                "klpRefs": [
+                  7
+                ],
+                "under": "asu 2021-08"
+              },
+              {
+                "name": "goodwill",
+                "klpRefs": [
+                  8
+                ],
+                "under": "asu 2021-08"
+              }
+            ],
+            "contexts": [
+              {
+                "klpRef": 3,
+                "concept": "purchase price allocation"
+              },
+              {
+                "klpRef": 8,
+                "concept": "purchase price allocation"
+              }
+            ],
+            "relations": [
+              {
+                "klpRef": 2,
+                "from": "fair value write-down",
+                "to": "post-close revenue",
+                "type": "causes",
+                "causeKlpRef": 1
+              },
+              {
+                "klpRef": 3,
+                "from": "fair value write-down",
+                "to": "goodwill",
+                "type": "causes",
+                "causeKlpRef": 1
+              },
+              {
+                "klpRef": 2,
+                "from": "post-close revenue",
+                "to": "goodwill",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 4,
+                "from": "asc 606",
+                "to": "asu 2021-08",
+                "type": "causes"
+              },
+              {
+                "klpRef": 5,
+                "from": "fair value write-down",
+                "to": "revenue predictability",
+                "type": "causes",
+                "causeKlpRef": 1
+              },
+              {
+                "klpRef": 6,
+                "from": "asu 2021-08",
+                "to": "contract liabilities",
+                "type": "causes"
+              },
+              {
+                "klpRef": 6,
+                "from": "contract liabilities",
+                "to": "asc 606 recognition",
+                "type": "requires"
+              },
+              {
+                "klpRef": 8,
+                "from": "asu 2021-08",
+                "to": "goodwill",
+                "type": "causes"
+              }
+            ]
+          },
+          "settings": {
+            "coverage": 1,
+            "anchored": 1,
+            "causalEdges": 1,
+            "causalTargets": 0.6666666666666666,
+            "brevity": 1,
+            "vocabulary": 0.8333333333333333,
+            "noContainers": 1,
+            "distinctness": 1,
+            "overall": 0.9074074074074073,
+            "detail": {
+              "uncovered": [],
+              "unanchored": [],
+              "causalAsLeaf": [],
+              "longNames": [],
+              "containers": [],
+              "indistinct": [],
+              "wandered": [
+                [
+                  6,
+                  "asu 2021-08",
+                  "asu 2021-08 → contract liabilities"
+                ],
+                [
+                  7,
+                  "asu 2021-08",
+                  "contract liabilities → asc 606 recognition"
+                ],
+                [
+                  8,
+                  "asu 2021-08",
+                  "asu 2021-08 → goodwill"
+                ]
+              ]
+            },
+            "roundTrip": 0.6666666666666666
+          },
+          "enforcement": {
+            "rows": [
+              {
+                "ref": 0,
+                "kind": "definition",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 1,
+                "kind": "definition",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "leaf",
+                "violation": true
+              },
+              {
+                "ref": 2,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 3,
+                "kind": "mechanism",
+                "intended": "either",
+                "basis": "kind",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 4,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 5,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 6,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 7,
+                "kind": "mechanism",
+                "intended": "either",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 8,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "both",
+                "violation": false
+              }
+            ],
+            "judged": 7,
+            "violations": 1,
+            "klpKltEnforcement": 0.8571428571428572
+          },
+          "findings": [
+            {
+              "where": "[1]",
+              "issue": "minted as leaf but intended edge (it is the source of a known link)",
+              "fix": "make it a relation owned by this point: from = the cause (borrow the earlier point's leaf), to = the effect it states"
+            },
+            {
+              "where": "[6]",
+              "issue": "a grader shown only the labels filed this point under \"asu 2021-08 → contract liabilities\", not \"asu 2021-08\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[7]",
+              "issue": "a grader shown only the labels filed this point under \"contract liabilities → asc 606 recognition\", not \"asu 2021-08\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[8]",
+              "issue": "a grader shown only the labels filed this point under \"asu 2021-08 → goodwill\", not \"asu 2021-08\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            }
+          ],
+          "barsMissed": [
+            "enforcement",
+            "roundTrip"
+          ]
+        },
+        {
+          "round": 1,
+          "proposal": {
+            "anchor": "deferred revenue",
+            "domain": "mergers and acquisitions",
+            "leaves": [
+              {
+                "name": "deferred revenue",
+                "klpRefs": [
+                  0
+                ],
+                "under": "deferred revenue"
+              },
+              {
+                "name": "historical deferred revenue treatment",
+                "klpRefs": [
+                  1
+                ],
+                "under": "deferred revenue"
+              },
+              {
+                "name": "fair value write-down",
+                "klpRefs": [
+                  1
+                ],
+                "under": "historical deferred revenue treatment"
+              },
+              {
+                "name": "asu 2021-08",
+                "klpRefs": [
+                  6,
+                  7,
+                  8
+                ],
+                "under": "deferred revenue"
+              },
+              {
+                "name": "contract liabilities",
+                "klpRefs": [
+                  6
+                ],
+                "under": "asu 2021-08"
+              },
+              {
+                "name": "asc 606 recognition",
+                "klpRefs": [
+                  7
+                ],
+                "under": "asu 2021-08"
+              },
+              {
+                "name": "goodwill",
+                "klpRefs": [
+                  8
+                ],
+                "under": "asu 2021-08"
+              }
+            ],
+            "contexts": [
+              {
+                "klpRef": 3,
+                "concept": "purchase price allocation"
+              },
+              {
+                "klpRef": 8,
+                "concept": "purchase price allocation"
+              }
+            ],
+            "relations": [
+              {
+                "klpRef": 1,
+                "from": "deferred revenue",
+                "to": "fair value write-down",
+                "type": "causes",
+                "causeKlpRef": 0
+              },
+              {
+                "klpRef": 2,
+                "from": "fair value write-down",
+                "to": "post-close revenue",
+                "type": "causes",
+                "causeKlpRef": 1
+              },
+              {
+                "klpRef": 3,
+                "from": "fair value write-down",
+                "to": "goodwill",
+                "type": "causes",
+                "causeKlpRef": 1
+              },
+              {
+                "klpRef": 2,
+                "from": "post-close revenue",
+                "to": "goodwill",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 4,
+                "from": "asc 606",
+                "to": "asu 2021-08",
+                "type": "causes"
+              },
+              {
+                "klpRef": 5,
+                "from": "fair value write-down",
+                "to": "revenue predictability",
+                "type": "causes",
+                "causeKlpRef": 1
+              },
+              {
+                "klpRef": 6,
+                "from": "asu 2021-08",
+                "to": "contract liabilities",
+                "type": "causes"
+              },
+              {
+                "klpRef": 6,
+                "from": "contract liabilities",
+                "to": "asc 606 recognition",
+                "type": "requires"
+              },
+              {
+                "klpRef": 8,
+                "from": "asu 2021-08",
+                "to": "goodwill",
+                "type": "causes"
+              }
+            ]
+          },
+          "settings": {
+            "coverage": 1,
+            "anchored": 1,
+            "causalEdges": 1,
+            "causalTargets": 0.6666666666666666,
+            "brevity": 1,
+            "vocabulary": 0.8333333333333333,
+            "noContainers": 1,
+            "distinctness": 1,
+            "overall": 0.9074074074074073,
+            "detail": {
+              "uncovered": [],
+              "unanchored": [],
+              "causalAsLeaf": [],
+              "longNames": [],
+              "containers": [],
+              "indistinct": [],
+              "wandered": [
+                [
+                  6,
+                  "asu 2021-08",
+                  "asu 2021-08 → contract liabilities"
+                ],
+                [
+                  7,
+                  "asu 2021-08",
+                  "asc 606 recognition"
+                ],
+                [
+                  8,
+                  "asu 2021-08",
+                  "asu 2021-08 → goodwill"
+                ]
+              ]
+            },
+            "roundTrip": 0.6666666666666666
+          },
+          "enforcement": {
+            "rows": [
+              {
+                "ref": 0,
+                "kind": "definition",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 1,
+                "kind": "definition",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 2,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 3,
+                "kind": "mechanism",
+                "intended": "either",
+                "basis": "kind",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 4,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 5,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 6,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 7,
+                "kind": "mechanism",
+                "intended": "either",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 8,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "both",
+                "violation": false
+              }
+            ],
+            "judged": 7,
+            "violations": 0,
+            "klpKltEnforcement": 1
+          },
+          "findings": [
+            {
+              "where": "[6]",
+              "issue": "a grader shown only the labels filed this point under \"asu 2021-08 → contract liabilities\", not \"asu 2021-08\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[7]",
+              "issue": "a grader shown only the labels filed this point under \"asc 606 recognition\", not \"asu 2021-08\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[8]",
+              "issue": "a grader shown only the labels filed this point under \"asu 2021-08 → goodwill\", not \"asu 2021-08\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            }
+          ],
+          "barsMissed": [
+            "roundTrip"
+          ]
+        },
+        {
+          "round": 2,
+          "proposal": {
+            "anchor": "deferred revenue",
+            "domain": "mergers and acquisitions",
+            "leaves": [
+              {
+                "name": "deferred revenue",
+                "klpRefs": [
+                  0
+                ],
+                "under": "deferred revenue"
+              },
+              {
+                "name": "historical deferred revenue treatment",
+                "klpRefs": [
+                  1
+                ],
+                "under": "deferred revenue"
+              },
+              {
+                "name": "fair value write-down",
+                "klpRefs": [
+                  1
+                ],
+                "under": "historical deferred revenue treatment"
+              },
+              {
+                "name": "asu 2021-08",
+                "klpRefs": [
+                  6,
+                  7,
+                  8
+                ],
+                "under": "deferred revenue"
+              },
+              {
+                "name": "contract liabilities",
+                "klpRefs": [
+                  6
+                ],
+                "under": "asu 2021-08"
+              },
+              {
+                "name": "asc 606 recognition",
+                "klpRefs": [
+                  7
+                ],
+                "under": "asu 2021-08"
+              },
+              {
+                "name": "goodwill",
+                "klpRefs": [
+                  8
+                ],
+                "under": "asu 2021-08"
+              }
+            ],
+            "contexts": [
+              {
+                "klpRef": 3,
+                "concept": "purchase price allocation"
+              },
+              {
+                "klpRef": 8,
+                "concept": "purchase price allocation"
+              }
+            ],
+            "relations": [
+              {
+                "klpRef": 1,
+                "from": "deferred revenue",
+                "to": "fair value write-down",
+                "type": "causes",
+                "causeKlpRef": 0
+              },
+              {
+                "klpRef": 2,
+                "from": "fair value write-down",
+                "to": "post-close revenue",
+                "type": "causes",
+                "causeKlpRef": 1
+              },
+              {
+                "klpRef": 3,
+                "from": "fair value write-down",
+                "to": "goodwill",
+                "type": "causes",
+                "causeKlpRef": 1
+              },
+              {
+                "klpRef": 2,
+                "from": "post-close revenue",
+                "to": "goodwill",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 4,
+                "from": "asc 606",
+                "to": "asu 2021-08",
+                "type": "causes"
+              },
+              {
+                "klpRef": 5,
+                "from": "fair value write-down",
+                "to": "revenue predictability",
+                "type": "causes",
+                "causeKlpRef": 1
+              },
+              {
+                "klpRef": 6,
+                "from": "asu 2021-08",
+                "to": "contract liabilities",
+                "type": "causes"
+              },
+              {
+                "klpRef": 6,
+                "from": "contract liabilities",
+                "to": "asc 606 recognition",
+                "type": "requires"
+              },
+              {
+                "klpRef": 8,
+                "from": "asu 2021-08",
+                "to": "goodwill",
+                "type": "causes"
+              }
+            ]
+          },
+          "settings": {
+            "coverage": 1,
+            "anchored": 1,
+            "causalEdges": 1,
+            "causalTargets": 0.6666666666666666,
+            "brevity": 1,
+            "vocabulary": 0.8333333333333333,
+            "noContainers": 1,
+            "distinctness": 1,
+            "overall": 0.9074074074074073,
+            "detail": {
+              "uncovered": [],
+              "unanchored": [],
+              "causalAsLeaf": [],
+              "longNames": [],
+              "containers": [],
+              "indistinct": [],
+              "wandered": [
+                [
+                  6,
+                  "asu 2021-08",
+                  "asu 2021-08 → contract liabilities"
+                ],
+                [
+                  7,
+                  "asu 2021-08",
+                  "contract liabilities → asc 606 recognition"
+                ],
+                [
+                  8,
+                  "asu 2021-08",
+                  "asu 2021-08 → goodwill"
+                ]
+              ]
+            },
+            "roundTrip": 0.6666666666666666
+          },
+          "enforcement": {
+            "rows": [
+              {
+                "ref": 0,
+                "kind": "definition",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 1,
+                "kind": "definition",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 2,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 3,
+                "kind": "mechanism",
+                "intended": "either",
+                "basis": "kind",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 4,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 5,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 6,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 7,
+                "kind": "mechanism",
+                "intended": "either",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 8,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "both",
+                "violation": false
+              }
+            ],
+            "judged": 7,
+            "violations": 0,
+            "klpKltEnforcement": 1
+          },
+          "findings": [
+            {
+              "where": "[6]",
+              "issue": "a grader shown only the labels filed this point under \"asu 2021-08 → contract liabilities\", not \"asu 2021-08\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[7]",
+              "issue": "a grader shown only the labels filed this point under \"contract liabilities → asc 606 recognition\", not \"asu 2021-08\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[8]",
+              "issue": "a grader shown only the labels filed this point under \"asu 2021-08 → goodwill\", not \"asu 2021-08\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            }
+          ],
+          "barsMissed": [
+            "roundTrip"
+          ]
+        }
+      ],
+      "keptRound": 1,
+      "status": "flagged",
+      "flags": [
+        "roundTrip"
+      ],
+      "cardId": "cmtfewhlf000104jrnvpa8qoi"
+    },
+    {
+      "term": "If you have WACC of 6%, acquirer’s WACC is 10% and a yield of 8%. Is it EPS accretive/dilutive (assuming you use the same capital structure blend as current company)? Does it create/destroy value?",
+      "anchor": "earnings yield",
+      "domain": "mergers and acquisitions",
+      "proposal": {
+        "anchor": "earnings yield",
+        "domain": "mergers and acquisitions",
+        "leaves": [
+          {
+            "name": "earnings yield",
+            "klpRefs": [
+              0
+            ],
+            "under": "earnings yield"
+          },
+          {
+            "name": "value creation test",
+            "klpRefs": [
+              1
+            ],
+            "under": "earnings yield"
+          },
+          {
+            "name": "funding cost",
+            "klpRefs": [
+              2
+            ],
+            "under": "earnings yield"
+          },
+          {
+            "name": "yield below funding cost",
+            "klpRefs": [
+              3
+            ],
+            "under": "earnings yield"
+          },
+          {
+            "name": "eps dilution",
+            "klpRefs": [
+              5
+            ],
+            "under": "earnings yield"
+          },
+          {
+            "name": "value versus eps divergence",
+            "klpRefs": [
+              6
+            ],
+            "under": "earnings yield"
+          }
+        ],
+        "contexts": [],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "value creation test",
+            "to": "earnings yield",
+            "type": "applies_within",
+            "causeKlpRef": 0
+          },
+          {
+            "klpRef": 1,
+            "from": "value creation test",
+            "to": "funding cost",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 1,
+            "from": "value creation test",
+            "to": "value versus eps divergence",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 2,
+            "from": "funding cost",
+            "to": "yield below funding cost",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "yield below funding cost",
+            "to": "eps dilution",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "yield below funding cost",
+            "to": "eps dilution",
+            "type": "causes",
+            "causeKlpRef": 3
+          },
+          {
+            "klpRef": 5,
+            "from": "yield below funding cost",
+            "to": "eps dilution",
+            "type": "causes",
+            "causeKlpRef": 4
+          },
+          {
+            "klpRef": 6,
+            "from": "value versus eps divergence",
+            "to": "value creation test",
+            "type": "requires"
+          },
+          {
+            "klpRef": 7,
+            "from": "value creation test",
+            "to": "eps dilution",
+            "type": "causes",
+            "causeKlpRef": 1
+          }
+        ]
+      },
+      "settings": {
+        "coverage": 1,
+        "anchored": 1,
+        "causalEdges": 0.6666666666666666,
+        "causalTargets": 1,
+        "brevity": 1,
+        "vocabulary": 0.5833333333333333,
+        "noContainers": 1,
+        "distinctness": 0.6666666666666666,
+        "overall": 0.8379629629629629,
+        "detail": {
+          "uncovered": [],
+          "unanchored": [],
+          "causalAsLeaf": [],
+          "longNames": [],
+          "containers": [],
+          "indistinct": [
+            [
+              "funding cost",
+              "yield below funding cost"
+            ]
+          ],
+          "wandered": [
+            [
+              0,
+              "earnings yield",
+              "value creation test"
+            ],
+            [
+              1,
+              "value creation test",
+              "value creation test → earnings yield"
+            ],
+            [
+              7,
+              "value creation test → eps dilution",
+              "value versus eps divergence"
+            ]
+          ]
+        },
+        "roundTrip": 0.625
+      },
+      "enforcement": {
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ],
+        "judged": 8,
+        "violations": 0,
+        "klpKltEnforcement": 1
+      },
+      "rounds": [
+        {
+          "round": 0,
+          "proposal": {
+            "anchor": "earnings yield",
+            "domain": "mergers and acquisitions",
+            "leaves": [
+              {
+                "name": "earnings yield",
+                "klpRefs": [
+                  0
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "value creation test",
+                "klpRefs": [
+                  1
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "funding cost",
+                "klpRefs": [
+                  2
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "yield below funding cost",
+                "klpRefs": [
+                  3
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "eps dilution",
+                "klpRefs": [
+                  5
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "value versus eps divergence",
+                "klpRefs": [
+                  6
+                ],
+                "under": "earnings yield"
+              }
+            ],
+            "contexts": [],
+            "relations": [
+              {
+                "klpRef": 1,
+                "from": "value creation test",
+                "to": "earnings yield",
+                "type": "applies_within",
+                "causeKlpRef": 0
+              },
+              {
+                "klpRef": 1,
+                "from": "value creation test",
+                "to": "funding cost",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 1,
+                "from": "value creation test",
+                "to": "value versus eps divergence",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 2,
+                "from": "funding cost",
+                "to": "yield below funding cost",
+                "type": "causes"
+              },
+              {
+                "klpRef": 3,
+                "from": "yield below funding cost",
+                "to": "eps dilution",
+                "type": "causes"
+              },
+              {
+                "klpRef": 4,
+                "from": "yield below funding cost",
+                "to": "eps dilution",
+                "type": "causes",
+                "causeKlpRef": 3
+              },
+              {
+                "klpRef": 6,
+                "from": "value versus eps divergence",
+                "to": "value creation test",
+                "type": "requires"
+              }
+            ]
+          },
+          "settings": {
+            "coverage": 0.875,
+            "anchored": 1,
+            "causalEdges": 0.6666666666666666,
+            "causalTargets": 1,
+            "brevity": 1,
+            "vocabulary": 0.5833333333333333,
+            "noContainers": 1,
+            "distinctness": 0.6666666666666666,
+            "overall": 0.833994708994709,
+            "detail": {
+              "uncovered": [
+                7
+              ],
+              "unanchored": [],
+              "causalAsLeaf": [],
+              "longNames": [],
+              "containers": [],
+              "indistinct": [
+                [
+                  "funding cost",
+                  "yield below funding cost"
+                ]
+              ],
+              "wandered": [
+                [
+                  0,
+                  "earnings yield",
+                  "value creation test"
+                ],
+                [
+                  1,
+                  "value creation test",
+                  "value creation test → earnings yield"
+                ]
+              ]
+            },
+            "roundTrip": 0.7142857142857143
+          },
+          "enforcement": {
+            "rows": [
+              {
+                "ref": 0,
+                "kind": "definition",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 1,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 2,
+                "kind": "condition",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 3,
+                "kind": "quantitative",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 4,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 5,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": true
+              },
+              {
+                "ref": 6,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 7,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "unmapped",
+                "violation": true
+              }
+            ],
+            "judged": 8,
+            "violations": 2,
+            "klpKltEnforcement": 0.75
+          },
+          "findings": [
+            {
+              "where": "[7]",
+              "issue": "not covered by any leaf or relation",
+              "fix": "give this point a leaf, or a relation if it states a link — a context alone does not count"
+            },
+            {
+              "where": "[5]",
+              "issue": "minted as leaf but intended edge (its kind)",
+              "fix": "make it a relation owned by this point: from = the cause (borrow the earlier point's leaf), to = the effect it states"
+            },
+            {
+              "where": "[7]",
+              "issue": "minted as unmapped but intended edge (its kind)",
+              "fix": "make it a relation owned by this point: from = the cause (borrow the earlier point's leaf), to = the effect it states"
+            },
+            {
+              "where": "funding cost",
+              "issue": "near-duplicate of \"yield below funding cost\"",
+              "fix": "merge them, or rename one to the specific thing that makes it a different topic"
+            },
+            {
+              "where": "[0]",
+              "issue": "a grader shown only the labels filed this point under \"value creation test\", not \"earnings yield\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[1]",
+              "issue": "a grader shown only the labels filed this point under \"value creation test → earnings yield\", not \"value creation test\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            }
+          ],
+          "barsMissed": [
+            "coverage",
+            "enforcement",
+            "causalEdges",
+            "distinctness",
+            "roundTrip"
+          ]
+        },
+        {
+          "round": 1,
+          "proposal": {
+            "anchor": "earnings yield",
+            "domain": "mergers and acquisitions",
+            "leaves": [
+              {
+                "name": "earnings yield",
+                "klpRefs": [
+                  0
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "value creation test",
+                "klpRefs": [
+                  1
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "funding cost",
+                "klpRefs": [
+                  2
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "yield below funding cost",
+                "klpRefs": [
+                  3
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "eps dilution",
+                "klpRefs": [
+                  5
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "value versus eps divergence",
+                "klpRefs": [
+                  6
+                ],
+                "under": "earnings yield"
+              }
+            ],
+            "contexts": [],
+            "relations": [
+              {
+                "klpRef": 1,
+                "from": "value creation test",
+                "to": "earnings yield",
+                "type": "applies_within",
+                "causeKlpRef": 0
+              },
+              {
+                "klpRef": 1,
+                "from": "value creation test",
+                "to": "funding cost",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 1,
+                "from": "value creation test",
+                "to": "value versus eps divergence",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 2,
+                "from": "funding cost",
+                "to": "yield below funding cost",
+                "type": "causes"
+              },
+              {
+                "klpRef": 3,
+                "from": "yield below funding cost",
+                "to": "eps dilution",
+                "type": "causes"
+              },
+              {
+                "klpRef": 4,
+                "from": "yield below funding cost",
+                "to": "eps dilution",
+                "type": "causes",
+                "causeKlpRef": 3
+              },
+              {
+                "klpRef": 6,
+                "from": "value versus eps divergence",
+                "to": "value creation test",
+                "type": "requires"
+              }
+            ]
+          },
+          "settings": {
+            "coverage": 0.875,
+            "anchored": 1,
+            "causalEdges": 0.6666666666666666,
+            "causalTargets": 1,
+            "brevity": 1,
+            "vocabulary": 0.5833333333333333,
+            "noContainers": 1,
+            "distinctness": 0.6666666666666666,
+            "overall": 0.833994708994709,
+            "detail": {
+              "uncovered": [
+                7
+              ],
+              "unanchored": [],
+              "causalAsLeaf": [],
+              "longNames": [],
+              "containers": [],
+              "indistinct": [
+                [
+                  "funding cost",
+                  "yield below funding cost"
+                ]
+              ],
+              "wandered": [
+                [
+                  0,
+                  "earnings yield",
+                  "value creation test"
+                ],
+                [
+                  1,
+                  "value creation test",
+                  "value creation test → earnings yield"
+                ]
+              ]
+            },
+            "roundTrip": 0.7142857142857143
+          },
+          "enforcement": {
+            "rows": [
+              {
+                "ref": 0,
+                "kind": "definition",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 1,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 2,
+                "kind": "condition",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 3,
+                "kind": "quantitative",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 4,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 5,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": true
+              },
+              {
+                "ref": 6,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 7,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "unmapped",
+                "violation": true
+              }
+            ],
+            "judged": 8,
+            "violations": 2,
+            "klpKltEnforcement": 0.75
+          },
+          "findings": [
+            {
+              "where": "[7]",
+              "issue": "not covered by any leaf or relation",
+              "fix": "give this point a leaf, or a relation if it states a link — a context alone does not count"
+            },
+            {
+              "where": "[5]",
+              "issue": "minted as leaf but intended edge (its kind)",
+              "fix": "make it a relation owned by this point: from = the cause (borrow the earlier point's leaf), to = the effect it states"
+            },
+            {
+              "where": "[7]",
+              "issue": "minted as unmapped but intended edge (its kind)",
+              "fix": "make it a relation owned by this point: from = the cause (borrow the earlier point's leaf), to = the effect it states"
+            },
+            {
+              "where": "funding cost",
+              "issue": "near-duplicate of \"yield below funding cost\"",
+              "fix": "merge them, or rename one to the specific thing that makes it a different topic"
+            },
+            {
+              "where": "[0]",
+              "issue": "a grader shown only the labels filed this point under \"value creation test\", not \"earnings yield\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[1]",
+              "issue": "a grader shown only the labels filed this point under \"value creation test → earnings yield\", not \"value creation test\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            }
+          ],
+          "barsMissed": [
+            "coverage",
+            "enforcement",
+            "causalEdges",
+            "distinctness",
+            "roundTrip"
+          ]
+        },
+        {
+          "round": 2,
+          "proposal": {
+            "anchor": "earnings yield",
+            "domain": "mergers and acquisitions",
+            "leaves": [
+              {
+                "name": "earnings yield",
+                "klpRefs": [
+                  0
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "value creation test",
+                "klpRefs": [
+                  1
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "funding cost",
+                "klpRefs": [
+                  2
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "yield below funding cost",
+                "klpRefs": [
+                  3
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "eps dilution",
+                "klpRefs": [
+                  5
+                ],
+                "under": "earnings yield"
+              },
+              {
+                "name": "value versus eps divergence",
+                "klpRefs": [
+                  6
+                ],
+                "under": "earnings yield"
+              }
+            ],
+            "contexts": [],
+            "relations": [
+              {
+                "klpRef": 1,
+                "from": "value creation test",
+                "to": "earnings yield",
+                "type": "applies_within",
+                "causeKlpRef": 0
+              },
+              {
+                "klpRef": 1,
+                "from": "value creation test",
+                "to": "funding cost",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 1,
+                "from": "value creation test",
+                "to": "value versus eps divergence",
+                "type": "confused_with"
+              },
+              {
+                "klpRef": 2,
+                "from": "funding cost",
+                "to": "yield below funding cost",
+                "type": "causes"
+              },
+              {
+                "klpRef": 3,
+                "from": "yield below funding cost",
+                "to": "eps dilution",
+                "type": "causes"
+              },
+              {
+                "klpRef": 4,
+                "from": "yield below funding cost",
+                "to": "eps dilution",
+                "type": "causes",
+                "causeKlpRef": 3
+              },
+              {
+                "klpRef": 5,
+                "from": "yield below funding cost",
+                "to": "eps dilution",
+                "type": "causes",
+                "causeKlpRef": 4
+              },
+              {
+                "klpRef": 6,
+                "from": "value versus eps divergence",
+                "to": "value creation test",
+                "type": "requires"
+              },
+              {
+                "klpRef": 7,
+                "from": "value creation test",
+                "to": "eps dilution",
+                "type": "causes",
+                "causeKlpRef": 1
+              }
+            ]
+          },
+          "settings": {
+            "coverage": 1,
+            "anchored": 1,
+            "causalEdges": 0.6666666666666666,
+            "causalTargets": 1,
+            "brevity": 1,
+            "vocabulary": 0.5833333333333333,
+            "noContainers": 1,
+            "distinctness": 0.6666666666666666,
+            "overall": 0.8379629629629629,
+            "detail": {
+              "uncovered": [],
+              "unanchored": [],
+              "causalAsLeaf": [],
+              "longNames": [],
+              "containers": [],
+              "indistinct": [
+                [
+                  "funding cost",
+                  "yield below funding cost"
+                ]
+              ],
+              "wandered": [
+                [
+                  0,
+                  "earnings yield",
+                  "value creation test"
+                ],
+                [
+                  1,
+                  "value creation test",
+                  "value creation test → earnings yield"
+                ],
+                [
+                  7,
+                  "value creation test → eps dilution",
+                  "value versus eps divergence"
+                ]
+              ]
+            },
+            "roundTrip": 0.625
+          },
+          "enforcement": {
+            "rows": [
+              {
+                "ref": 0,
+                "kind": "definition",
+                "intended": "leaf",
+                "basis": "kind",
+                "minted": "leaf",
+                "violation": false
+              },
+              {
+                "ref": 1,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 2,
+                "kind": "condition",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 3,
+                "kind": "quantitative",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 4,
+                "kind": "causal",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "edge",
+                "violation": false
+              },
+              {
+                "ref": 5,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 6,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "link-source",
+                "minted": "both",
+                "violation": false
+              },
+              {
+                "ref": 7,
+                "kind": "contrast",
+                "intended": "edge",
+                "basis": "kind",
+                "minted": "edge",
+                "violation": false
+              }
+            ],
+            "judged": 8,
+            "violations": 0,
+            "klpKltEnforcement": 1
+          },
+          "findings": [
+            {
+              "where": "funding cost",
+              "issue": "near-duplicate of \"yield below funding cost\"",
+              "fix": "merge them, or rename one to the specific thing that makes it a different topic"
+            },
+            {
+              "where": "[0]",
+              "issue": "a grader shown only the labels filed this point under \"value creation test\", not \"earnings yield\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[1]",
+              "issue": "a grader shown only the labels filed this point under \"value creation test → earnings yield\", not \"value creation test\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            },
+            {
+              "where": "[7]",
+              "issue": "a grader shown only the labels filed this point under \"value versus eps divergence\", not \"value creation test → eps dilution\"",
+              "fix": "the two labels are not distinct for this point; sharpen the one it belongs to or merge them"
+            }
+          ],
+          "barsMissed": [
+            "causalEdges",
+            "distinctness",
+            "roundTrip"
+          ]
+        }
+      ],
+      "keptRound": 2,
+      "status": "flagged",
+      "flags": [
+        "causalEdges",
+        "distinctness",
+        "roundTrip"
+      ],
+      "cardId": "cmtibnhmy008q04ihgcxup05w"
+    }
+  ],
+  "failures": [],
+  "tokens": [
+    {
+      "step": "mint",
+      "model": "deepseek-flash",
+      "calls": 2,
+      "input": 3951,
+      "output": 1083,
+      "reasoning": 0,
+      "cached": 3584
+    },
+    {
+      "step": "revise",
+      "model": "deepseek-flash",
+      "calls": 4,
+      "input": 10357,
+      "output": 2399,
+      "reasoning": 0,
+      "cached": 8192
+    },
+    {
+      "step": "roundtrip",
+      "model": "deepseek-flash",
+      "calls": 6,
+      "input": 3818,
+      "output": 872,
+      "reasoning": 0,
+      "cached": 640
+    }
+  ]
+}

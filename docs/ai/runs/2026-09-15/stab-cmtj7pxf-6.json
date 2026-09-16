@@ -1,0 +1,1245 @@
+{
+  "a": {
+    "provider": "deepseek",
+    "model": "deepseek-flash"
+  },
+  "b": {
+    "provider": "zai",
+    "model": "glm-5.3-flash"
+  },
+  "judge": {
+    "provider": "deepseek",
+    "model": "deepseek-flash"
+  },
+  "seed": 20260911,
+  "results": [
+    {
+      "id": "cmtj7pxht000105l4xxtnhlbk",
+      "term": "Why do LBOs use leverage? How do they use leverage to increase returns?",
+      "setTitle": "LBO",
+      "klps": [
+        {
+          "text": "Leverage in an LBO means funding the purchase price largely with borrowed debt instead of equity",
+          "kind": "definition"
+        },
+        {
+          "text": "Debt reduces the upfront equity the sponsor must commit for a given purchase price",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Sponsor returns are measured as equity value at exit versus equity invested at entry, so a smaller equity base makes the same dollar gain a larger percentage return",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Each dollar of debt principal paid down converts creditor claims into equity value, so the sponsor's ownership of the business grows over the hold",
+          "kind": "causal"
+        },
+        {
+          "text": "Combining a smaller initial equity check with debt paydown and value growth is how leverage amplifies the sponsor's return — the answer to why LBOs use it",
+          "kind": "causal"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 1,
+          "kind": "name_conflict",
+          "klpKind": "mechanism",
+          "aName": "equity contribution reduction",
+          "bName": "sponsor equity contribution",
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 2,
+          "kind": "name_conflict",
+          "klpKind": "mechanism",
+          "aName": "equity return multiple",
+          "bName": "sponsor return measurement",
+          "conflictIndex": 1
+        },
+        {
+          "klpRef": 4,
+          "kind": "edge_align",
+          "klpKind": "causal",
+          "aEdges": [
+            {
+              "from": "equity contribution reduction",
+              "to": "equity return multiple",
+              "type": "causes"
+            },
+            {
+              "from": "debt paydown equity accrual",
+              "to": "equity return multiple",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "debt paydown",
+              "to": "levered equity returns",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 2
+        },
+        {
+          "klpRef": 0,
+          "kind": "extra_context",
+          "klpKind": "definition",
+          "concept": "deal financing",
+          "distinctFrom": [
+            "leverage in an lbo"
+          ],
+          "conflictIndex": 3
+        },
+        {
+          "klpRef": 1,
+          "kind": "extra_context",
+          "klpKind": "mechanism",
+          "concept": "sources and uses of funds",
+          "distinctFrom": [],
+          "conflictIndex": 4
+        },
+        {
+          "klpRef": 2,
+          "kind": "extra_context",
+          "klpKind": "mechanism",
+          "concept": "exit return calculation",
+          "distinctFrom": [],
+          "conflictIndex": 5
+        },
+        {
+          "klpRef": 3,
+          "kind": "extra_context",
+          "klpKind": "causal",
+          "concept": "debt amortization",
+          "distinctFrom": [
+            "debt paydown -> sponsor equity ownership"
+          ],
+          "conflictIndex": 6
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 1,
+          "conflictIndex": 0,
+          "sameConcept": false,
+          "prefer": "a",
+          "otherAcceptable": true,
+          "klpFaithful": "a"
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 1,
+          "sameConcept": false,
+          "prefer": "b",
+          "otherAcceptable": true,
+          "klpFaithful": "b"
+        },
+        {
+          "klpRef": 4,
+          "conflictIndex": 2,
+          "sameLinks": [
+            {
+              "a": 1,
+              "b": 0
+            }
+          ]
+        },
+        {
+          "klpRef": 0,
+          "conflictIndex": 3,
+          "distinct": false
+        },
+        {
+          "klpRef": 1,
+          "conflictIndex": 4,
+          "distinct": true
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 5,
+          "distinct": false
+        },
+        {
+          "klpRef": 3,
+          "conflictIndex": 6,
+          "distinct": false
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-flash",
+        "proposal": {
+          "parent": "leveraged buyout returns",
+          "leaves": [
+            {
+              "name": "leverage in an lbo",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "equity contribution reduction",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "equity return multiple",
+              "klpRefs": [
+                2
+              ]
+            },
+            {
+              "name": "debt paydown equity accrual",
+              "klpRefs": [
+                3
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 0,
+              "concept": "deal financing"
+            },
+            {
+              "klpRef": 1,
+              "concept": "sources and uses of funds"
+            },
+            {
+              "klpRef": 2,
+              "concept": "exit return calculation"
+            },
+            {
+              "klpRef": 3,
+              "concept": "debt amortization"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 4,
+              "from": "equity contribution reduction",
+              "to": "equity return multiple",
+              "type": "causes"
+            },
+            {
+              "klpRef": 4,
+              "from": "debt paydown equity accrual",
+              "to": "equity return multiple",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "glm-5.3-flash",
+        "proposal": {
+          "parent": "leverage in leveraged buyouts",
+          "leaves": [
+            {
+              "name": "leverage in leveraged buyouts",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "sponsor equity contribution",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "sponsor return measurement",
+              "klpRefs": [
+                2
+              ]
+            }
+          ],
+          "contexts": [],
+          "relations": [
+            {
+              "klpRef": 3,
+              "from": "debt paydown",
+              "to": "sponsor equity ownership",
+              "type": "causes"
+            },
+            {
+              "klpRef": 4,
+              "from": "debt paydown",
+              "to": "levered equity returns",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "leveraged buyout returns",
+        "parentReason": "rule:shorter",
+        "leaves": [
+          {
+            "name": "leverage in an lbo",
+            "klpRefs": [
+              0
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "equity contribution reduction",
+            "klpRefs": [
+              1
+            ],
+            "reason": "judge:ds-preferred+prior",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "sponsor return measurement",
+            "klpRefs": [
+              2
+            ],
+            "reason": "judge:gemini-weighted",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "debt paydown",
+            "to": "sponsor equity ownership",
+            "type": "causes",
+            "klpRef": 3,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "debt paydown",
+            "to": "levered equity returns",
+            "type": "causes",
+            "klpRef": 4,
+            "reason": "judge:same-link→klp-vocabulary",
+            "source": "b",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "sources and uses of funds",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 3: rule:edge-priority dropped leaf A \"debt paydown equity accrual\"",
+          "klp 4: compress:edge dropped side a equity contribution reduction --causes--> equity return multiple (min-count 1)",
+          "klp 0: judge:extra-dropped \"deal financing\" (restates)",
+          "klp 2: judge:extra-dropped \"exit return calculation\" (restates)",
+          "klp 3: judge:extra-dropped \"debt amortization\" (restates)"
+        ]
+      }
+    },
+    {
+      "id": "cmtjcmjcc000a04k4pftq7hsd",
+      "term": "What are the main sources of value creation in an LBO (5)?",
+      "setTitle": "LBO",
+      "klps": [
+        {
+          "text": "Value creation in an LBO means the sources of the gain between entry price and exit proceeds",
+          "kind": "definition"
+        },
+        {
+          "text": "EBITDA growth is a driver: growing revenue and improving margins enlarges the core earnings base",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Since exit equity is driven off exit EBITDA, a bigger EBITDA directly increases the sale value",
+          "kind": "causal"
+        },
+        {
+          "text": "Debt paydown is a driver: the company's free cash flow is used to repay principal over the hold",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Debt paydown converts debt into sponsor equity so the sponsor's share of the business grows even if the total value is flat",
+          "kind": "causal"
+        },
+        {
+          "text": "Multiple expansion is a driver: selling at a higher EBITDA multiple than paid creates value on its own",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Expense reductions are a driver: cutting overhead, renegotiating supplier contracts, and streamlining the cost structure improve margins and flow straight into EBITDA",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Operational improvements and add-on acquisitions are a driver: better management, systems, and processes plus bolt-on deals build scale and synergies beyond organic growth",
+          "kind": "mechanism"
+        },
+        {
+          "text": "In practice, expense reductions and operational improvements are largely how EBITDA growth is achieved",
+          "kind": "causal"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 4,
+          "kind": "edge_align",
+          "klpKind": "causal",
+          "aEdges": [
+            {
+              "from": "debt paydown",
+              "to": "sponsor equity ownership",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "debt paydown",
+              "to": "sponsor equity stake",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 1,
+          "kind": "extra_context",
+          "klpKind": "mechanism",
+          "concept": "revenue growth",
+          "distinctFrom": [
+            "ebitda growth"
+          ],
+          "conflictIndex": 1
+        },
+        {
+          "klpRef": 1,
+          "kind": "extra_context",
+          "klpKind": "mechanism",
+          "concept": "margin improvement",
+          "distinctFrom": [
+            "ebitda growth"
+          ],
+          "conflictIndex": 2
+        },
+        {
+          "klpRef": 3,
+          "kind": "extra_context",
+          "klpKind": "mechanism",
+          "concept": "free cash flow generation",
+          "distinctFrom": [
+            "debt paydown"
+          ],
+          "conflictIndex": 3
+        },
+        {
+          "klpRef": 6,
+          "kind": "extra_context",
+          "klpKind": "mechanism",
+          "concept": "cost structure optimization",
+          "distinctFrom": [
+            "expense reductions"
+          ],
+          "conflictIndex": 4
+        },
+        {
+          "klpRef": 7,
+          "kind": "extra_context",
+          "klpKind": "mechanism",
+          "concept": "add-on acquisitions",
+          "distinctFrom": [
+            "operational improvements and add-on acquisitions"
+          ],
+          "conflictIndex": 5
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 4,
+          "conflictIndex": 0,
+          "sameLinks": [
+            {
+              "a": 0,
+              "b": 0
+            }
+          ]
+        },
+        {
+          "klpRef": 1,
+          "conflictIndex": 1,
+          "distinct": true
+        },
+        {
+          "klpRef": 1,
+          "conflictIndex": 2,
+          "distinct": true
+        },
+        {
+          "klpRef": 3,
+          "conflictIndex": 3,
+          "distinct": true
+        },
+        {
+          "klpRef": 6,
+          "conflictIndex": 4,
+          "distinct": true
+        },
+        {
+          "klpRef": 7,
+          "conflictIndex": 5,
+          "distinct": true
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-flash",
+        "proposal": {
+          "parent": "leveraged buyout value creation",
+          "leaves": [
+            {
+              "name": "value creation in an lbo",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "ebitda growth",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "debt paydown",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "multiple expansion",
+              "klpRefs": [
+                5
+              ]
+            },
+            {
+              "name": "expense reductions",
+              "klpRefs": [
+                6
+              ]
+            },
+            {
+              "name": "operational improvements and add-on acquisitions",
+              "klpRefs": [
+                7
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "revenue growth"
+            },
+            {
+              "klpRef": 1,
+              "concept": "margin improvement"
+            },
+            {
+              "klpRef": 3,
+              "concept": "free cash flow generation"
+            },
+            {
+              "klpRef": 6,
+              "concept": "cost structure optimization"
+            },
+            {
+              "klpRef": 7,
+              "concept": "add-on acquisitions"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "ebitda growth",
+              "to": "exit equity value",
+              "type": "causes"
+            },
+            {
+              "klpRef": 4,
+              "from": "debt paydown",
+              "to": "sponsor equity ownership",
+              "type": "causes"
+            },
+            {
+              "klpRef": 8,
+              "from": "expense reductions",
+              "to": "ebitda growth",
+              "type": "causes"
+            },
+            {
+              "klpRef": 8,
+              "from": "operational improvements and add-on acquisitions",
+              "to": "ebitda growth",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "glm-5.3-flash",
+        "proposal": {
+          "parent": "leveraged buyout value creation",
+          "leaves": [
+            {
+              "name": "lbo value creation",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "ebitda growth",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "debt paydown",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "multiple expansion",
+              "klpRefs": [
+                5
+              ]
+            },
+            {
+              "name": "expense reductions",
+              "klpRefs": [
+                6
+              ]
+            },
+            {
+              "name": "operational improvements and add-on acquisitions",
+              "klpRefs": [
+                7
+              ]
+            }
+          ],
+          "contexts": [],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "ebitda growth",
+              "to": "exit equity value",
+              "type": "causes"
+            },
+            {
+              "klpRef": 4,
+              "from": "debt paydown",
+              "to": "sponsor equity stake",
+              "type": "causes"
+            },
+            {
+              "klpRef": 8,
+              "from": "expense reductions",
+              "to": "ebitda growth",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "leveraged buyout value creation",
+        "parentReason": "rule:tie-gemini",
+        "leaves": [
+          {
+            "name": "lbo value creation",
+            "klpRefs": [
+              0
+            ],
+            "reason": "rule:shorter",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "ebitda growth",
+            "klpRefs": [
+              1
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "debt paydown",
+            "klpRefs": [
+              3
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "multiple expansion",
+            "klpRefs": [
+              5
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "expense reductions",
+            "klpRefs": [
+              6
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "operational improvements and add-on acquisitions",
+            "klpRefs": [
+              7
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "ebitda growth",
+            "to": "exit equity value",
+            "type": "causes",
+            "klpRef": 2,
+            "reason": "rule:edge-both",
+            "source": "both",
+            "containerEndpoint": false
+          },
+          {
+            "from": "expense reductions",
+            "to": "ebitda growth",
+            "type": "causes",
+            "klpRef": 8,
+            "reason": "rule:edge-both",
+            "source": "both",
+            "containerEndpoint": false
+          },
+          {
+            "from": "debt paydown",
+            "to": "sponsor equity stake",
+            "type": "causes",
+            "klpRef": 4,
+            "reason": "judge:same-link→gemini",
+            "source": "b",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "revenue growth",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 1,
+            "concept": "margin improvement",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 3,
+            "concept": "free cash flow generation",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 6,
+            "concept": "cost structure optimization",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 7,
+            "concept": "add-on acquisitions",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 8: compress:edge dropped operational improvements and add-on acquisitions --causes--> ebitda growth"
+        ]
+      }
+    },
+    {
+      "id": "cmtjcmjdb000j04k42m4m2u0k",
+      "term": "How long will a P/E firm generally hold on to a company? What is the typical exit strategy?",
+      "setTitle": "LBO",
+      "klps": [
+        {
+          "text": "PE firms generally hold a company for about 3 to 7 years before exiting to realize their gain.",
+          "kind": "definition"
+        },
+        {
+          "text": "The 3-to-7-year window is long enough to execute operational improvements and pay down debt.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "It is short enough to return capital to LPs within a roughly ten-year fund life.",
+          "kind": "condition"
+        },
+        {
+          "text": "The first exit route is a sale to another PE firm — a secondary or sponsor-to-sponsor deal.",
+          "kind": "example"
+        },
+        {
+          "text": "The second route is a sale to a strategic buyer, who may pay a premium because it can capture synergies the PE firm cannot.",
+          "kind": "example"
+        },
+        {
+          "text": "The third route is an IPO, in which the PE firm sells shares to public investors rather than to a single buyer.",
+          "kind": "example"
+        },
+        {
+          "text": "An IPO exit is typically a gradual sell-down of the PE firm's stake over time, not a clean one-shot sale of the whole company.",
+          "kind": "example"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 1,
+          "kind": "edge_align",
+          "klpKind": "mechanism",
+          "aEdges": [
+            {
+              "from": "private equity holding period",
+              "to": "operational improvement window",
+              "type": "requires"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "private equity holding period",
+              "to": "operational improvements",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 2,
+          "kind": "edge_align",
+          "klpKind": "condition",
+          "aEdges": [
+            {
+              "from": "private equity holding period",
+              "to": "limited partner capital return",
+              "type": "applies_within"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "private equity holding period",
+              "to": "fund life",
+              "type": "applies_within"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 1
+        },
+        {
+          "klpRef": 4,
+          "kind": "name_conflict",
+          "klpKind": "example",
+          "aName": "strategic buyer acquisition",
+          "bName": "sale to strategic buyer",
+          "conflictIndex": 2
+        },
+        {
+          "klpRef": 5,
+          "kind": "name_conflict",
+          "klpKind": "example",
+          "aName": "initial public offering exit",
+          "bName": "ipo exit",
+          "conflictIndex": 3
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 1,
+          "conflictIndex": 0,
+          "sameLinks": [
+            {
+              "a": 0,
+              "b": 0
+            }
+          ]
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 1,
+          "sameLinks": []
+        },
+        {
+          "klpRef": 4,
+          "conflictIndex": 2,
+          "sameConcept": true,
+          "prefer": "b",
+          "otherAcceptable": true,
+          "klpFaithful": "b"
+        },
+        {
+          "klpRef": 5,
+          "conflictIndex": 3,
+          "sameConcept": true,
+          "prefer": "b",
+          "otherAcceptable": true,
+          "klpFaithful": "b"
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-flash",
+        "proposal": {
+          "parent": "private equity exits",
+          "leaves": [
+            {
+              "name": "private equity holding period",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "operational improvement window",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "limited partner capital return",
+              "klpRefs": [
+                2
+              ]
+            },
+            {
+              "name": "secondary buyout",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "strategic buyer acquisition",
+              "klpRefs": [
+                4
+              ]
+            },
+            {
+              "name": "initial public offering exit",
+              "klpRefs": [
+                5,
+                6
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "operational improvements"
+            },
+            {
+              "klpRef": 1,
+              "concept": "debt paydown"
+            },
+            {
+              "klpRef": 2,
+              "concept": "fund life"
+            },
+            {
+              "klpRef": 4,
+              "concept": "synergies"
+            },
+            {
+              "klpRef": 6,
+              "concept": "sell-down of stake"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 1,
+              "from": "private equity holding period",
+              "to": "operational improvement window",
+              "type": "requires"
+            },
+            {
+              "klpRef": 2,
+              "from": "private equity holding period",
+              "to": "limited partner capital return",
+              "type": "applies_within"
+            },
+            {
+              "klpRef": 4,
+              "from": "synergies",
+              "to": "strategic buyer acquisition",
+              "type": "causes"
+            },
+            {
+              "klpRef": 6,
+              "from": "initial public offering exit",
+              "to": "sell-down of stake",
+              "type": "precedes"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "glm-5.3-flash",
+        "proposal": {
+          "parent": "private equity exits",
+          "leaves": [
+            {
+              "name": "private equity holding period",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "secondary buyout",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "sale to strategic buyer",
+              "klpRefs": [
+                4
+              ]
+            },
+            {
+              "name": "ipo exit",
+              "klpRefs": [
+                5,
+                6
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "operational improvements"
+            },
+            {
+              "klpRef": 1,
+              "concept": "debt paydown"
+            },
+            {
+              "klpRef": 2,
+              "concept": "fund life"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 1,
+              "from": "private equity holding period",
+              "to": "operational improvements",
+              "type": "causes"
+            },
+            {
+              "klpRef": 2,
+              "from": "private equity holding period",
+              "to": "fund life",
+              "type": "applies_within"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "private equity exits",
+        "parentReason": "rule:tie-gemini",
+        "leaves": [
+          {
+            "name": "private equity holding period",
+            "klpRefs": [
+              0
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "operational improvement window",
+            "klpRefs": [
+              1
+            ],
+            "reason": "rule:only-coverage",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "limited partner capital return",
+            "klpRefs": [
+              2
+            ],
+            "reason": "rule:only-coverage",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "secondary buyout",
+            "klpRefs": [
+              3
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "sale to strategic buyer",
+            "klpRefs": [
+              4
+            ],
+            "reason": "judge:same-concept→klp-vocabulary",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "ipo exit",
+            "klpRefs": [
+              5,
+              6
+            ],
+            "reason": "judge:same-concept→klp-vocabulary",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "synergies",
+            "to": "strategic buyer acquisition",
+            "type": "causes",
+            "klpRef": 4,
+            "reason": "rule:ds-extra-edge",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "initial public offering exit",
+            "to": "sell-down of stake",
+            "type": "precedes",
+            "klpRef": 6,
+            "reason": "rule:ds-extra-edge",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "private equity holding period",
+            "to": "operational improvements",
+            "type": "causes",
+            "klpRef": 1,
+            "reason": "judge:same-link→gemini",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "private equity holding period",
+            "to": "fund life",
+            "type": "applies_within",
+            "klpRef": 2,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "b",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "operational improvements",
+            "reason": "rule:ctx-both",
+            "source": "both"
+          },
+          {
+            "klpRef": 1,
+            "concept": "debt paydown",
+            "reason": "rule:ctx-both",
+            "source": "both"
+          },
+          {
+            "klpRef": 2,
+            "concept": "fund life",
+            "reason": "rule:ctx-both",
+            "source": "both"
+          },
+          {
+            "klpRef": 4,
+            "concept": "synergies",
+            "reason": "rule:ctx-in-vocab",
+            "source": "a"
+          },
+          {
+            "klpRef": 6,
+            "concept": "sell-down of stake",
+            "reason": "rule:ctx-in-vocab",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 2: compress:edge dropped side a private equity holding period --applies_within--> limited partner capital return (min-count 1)"
+        ]
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "step": "judge",
+      "model": "deepseek-flash",
+      "calls": 3,
+      "input": 3402,
+      "output": 365,
+      "reasoning": 0,
+      "cached": 1920
+    },
+    {
+      "step": "mint",
+      "model": "deepseek-flash",
+      "calls": 3,
+      "input": 6901,
+      "output": 968,
+      "reasoning": 0,
+      "cached": 6272
+    },
+    {
+      "step": "mint",
+      "model": "glm-5.3-flash",
+      "calls": 3,
+      "input": 6795,
+      "output": 923,
+      "reasoning": 332,
+      "cached": 4480
+    }
+  ]
+}

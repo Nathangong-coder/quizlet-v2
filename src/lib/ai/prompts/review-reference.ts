@@ -54,19 +54,12 @@ export interface ReviewReferenceBuildInput {
 
 export const REVIEW_REFERENCE_PROMPT = {
   id: 'review-reference',
-  version: 1,
+  // v2 (2026-09-14): instructions first, card last (prefix cache).
+  version: 2,
   schema: ReferenceReviewSchema,
 
   build(input: ReviewReferenceBuildInput): string {
-    return `You are reviewing a model answer to a finance interview question on three things: is it right, is it as short as it should be, and is it clear. Be a fair first-pass judge — flag what a good interviewer would actually object to, not every possible nit.
-
-Question: ${input.question}
-
-The card owner's own definition (treat as the accuracy anchor; the answer may say more, but must not contradict it):
-${input.definition}
-
-The answer:
-${input.answer}
+    return `You are reviewing a model answer to a finance interview question on three things: is it right, is it as short as it should be, and is it clear. Be a fair first-pass judge — flag what a good interviewer would actually object to, not every possible nit. The card owner's own definition is the accuracy anchor: the answer may say more, but must not contradict it.
 
 ACCURACY — "sound": the claims are correct and the answer COMMITS to its conclusion. "hedged": it avoids a conclusion the question settles — the numbers or facts given decide the answer, yet it says "if", "depending on", "could" where it should say which. "wrong": a substantive claim is incorrect or contradicts the definition. Quote the sentence in "issues".
 CONCISENESS — "tight": every sentence does work. "wordy": it would be better at two-thirds the length; name the repetition or the restated point. "bloated": it is more than twice as long as a strong spoken answer needs, or restates its conclusion more than once.
@@ -74,7 +67,15 @@ CLARITY — "clear": a listener could follow the structure and knows what was co
 
 Output JSON:
 { "accuracy": "sound" | "hedged" | "wrong", "conciseness": "tight" | "wordy" | "bloated", "clarity": "clear" | "muddled", "issues": [ { "kind": "accuracy" | "conciseness" | "clarity", "text": string } ] }
-"issues" is empty when everything is sound, tight and clear. Each issue is ONE sentence naming the specific passage.`;
+"issues" is empty when everything is sound, tight and clear. Each issue is ONE sentence naming the specific passage.
+
+Question: ${input.question}
+
+The card owner's own definition:
+${input.definition}
+
+The answer:
+${input.answer}`;
   },
 };
 
@@ -108,23 +109,13 @@ export interface ReviewRebuiltBuildInput {
 
 export const REVIEW_REBUILT_PROMPT = {
   id: 'review-rebuilt',
-  version: 1,
+  // v2 (2026-09-14): instructions first, card last (prefix cache).
+  version: 2,
   schema: RebuiltReviewSchema,
 
   build(input: ReviewRebuiltBuildInput): string {
     const points = input.klps.map((k, i) => `[${i}] ${k.text}`).join('\n');
-    return `An answer to a finance interview question was written from a numbered list of key points and nothing else. Review it for length and clarity, and for every problem name the key points that caused it — the points are what will be edited, not the answer.
-
-Question: ${input.question}
-
-The card owner's definition (what the answer is supposed to cover):
-${input.definition}
-
-The key points the answer was built from:
-${points}
-
-The answer:
-${input.rebuiltAnswer}
+    return `An answer to a finance interview question was written from a numbered list of key points and nothing else. Review it for length and clarity, and for every problem name the key points that caused it — the points are what will be edited, not the answer. The card owner's definition is what the answer is supposed to cover.
 
 CONCISENESS — "tight": every sentence does work. "wordy": it would be better at two-thirds the length. "bloated": more than twice what a strong spoken answer needs, or the conclusion restated more than once.
 CLARITY — "clear" or "muddled" (the order or wording obscures the point).
@@ -137,7 +128,18 @@ Issues, each with a kind and the point indices responsible:
 
 Output JSON:
 { "conciseness": "tight" | "wordy" | "bloated", "clarity": "clear" | "muddled", "issues": [ { "kind": "restatement" | "clause_bloat" | "not_on_card" | "transition", "points": [ number ], "text": string } ] }
-"issues" is empty when the answer is tight and clear. Each "text" is ONE sentence.`;
+"issues" is empty when the answer is tight and clear. Each "text" is ONE sentence.
+
+Question: ${input.question}
+
+The card owner's definition:
+${input.definition}
+
+The key points the answer was built from:
+${points}
+
+The answer:
+${input.rebuiltAnswer}`;
   },
 };
 
@@ -165,18 +167,27 @@ export interface ReviseReferenceBuildInput {
 
 export const REVISE_REFERENCE_PROMPT = {
   id: 'revise-reference',
-  version: 1,
+  // v2 (2026-09-14): instructions first, card last (prefix cache).
+  version: 2,
   schema: ReviseReferenceSchema,
 
   build(input: ReviseReferenceBuildInput): string {
     const issues = input.review.issues.map((i) => `- ${i.kind.toUpperCase()}: ${i.text}`).join('\n');
     const verdicts = `accuracy ${input.review.accuracy}, conciseness ${input.review.conciseness}, clarity ${input.review.clarity}`;
     const klps = input.klps.map((k, i) => `[${i}] (${k.kind}) ${k.text}`).join('\n');
-    return `You wrote a model answer and its Key Learning Points for a finance interview question. A reviewer read the answer and found: ${verdicts}.
+    return `You wrote a model answer and its Key Learning Points for a finance interview question, and a reviewer read the answer. Do not contradict the card owner's definition; where you think it is wrong, keep your objection out of the answer.
+
+Rewrite the answer so a reviewer would call it sound, tight and clear:
+- ACCURACY: if a conclusion was hedged and the question's facts settle it, STATE it — say which, and say why in one clause. If a claim was wrong, correct it.
+- CONCISENESS: cut repetition and restated conclusions; keep every claim a strong candidate needs. Aim for the length a strong candidate would actually speak.
+- CLARITY: keep the order a strong answer delivers — define the term, develop, land the conclusion.
+Then re-derive the key points FROM the rewritten answer: keep every point the rewrite still supports, word for word where its claim is unchanged; drop a point the rewrite no longer makes; add one only for a claim the rewrite newly commits to. Same kinds: ${KLP_KINDS.join(', ')}.
+
+Output JSON: { "referenceAnswer": string, "klps": [ { "text": string, "kind": string } ] }
 
 Question: ${input.question}
 
-The card owner's definition (do not contradict it; where you think it is wrong, keep your objection out of the answer):
+The card owner's definition:
 ${input.definition}
 
 Your answer:
@@ -185,15 +196,8 @@ ${input.referenceAnswer}
 Your key points:
 ${klps}
 
+The reviewer found: ${verdicts}.
 Reviewer's issues:
-${issues || '- (none listed)'}
-
-Rewrite the answer so a reviewer would call it sound, tight and clear:
-- ACCURACY: if a conclusion was hedged and the question's facts settle it, STATE it — say which, and say why in one clause. If a claim was wrong, correct it.
-- CONCISENESS: cut repetition and restated conclusions; keep every claim a strong candidate needs. Aim for the length a strong candidate would actually speak.
-- CLARITY: keep the order a strong answer delivers — define the term, develop, land the conclusion.
-Then re-derive the key points FROM the rewritten answer: keep every point the rewrite still supports, word for word where its claim is unchanged; drop a point the rewrite no longer makes; add one only for a claim the rewrite newly commits to. Same kinds: ${KLP_KINDS.join(', ')}.
-
-Output JSON: { "referenceAnswer": string, "klps": [ { "text": string, "kind": string } ] }`;
+${issues || '- (none listed)'}`;
   },
 };

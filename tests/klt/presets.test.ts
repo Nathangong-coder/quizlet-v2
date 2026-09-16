@@ -360,7 +360,7 @@ describe('savePreset validation', () => {
   })
 
   it('rejects a path with a segment parseKltName refuses (too many words)', async () => {
-    const res = await savePreset('Bad', [['one two three four five']])
+    const res = await savePreset('Bad', [['one two three four five six seven']])
     expect(res.success).toBe(false)
     expect(h.presetUpsert).not.toHaveBeenCalled()
   })
@@ -439,7 +439,7 @@ describe('applyPreset', () => {
     // Simulates a preset saved before a naming rule tightened: this path
     // never goes through savePreset's own validation, only applyPreset's.
     h.state.presets = [
-      { id: 'p1', name: 'Legacy preset', paths: [['finance', 'one two three four five']] },
+      { id: 'p1', name: 'Legacy preset', paths: [['finance', 'one two three four five six seven']] },
     ]
 
     const res = await applyPreset('p1', SET_A)

@@ -827,6 +827,350 @@ the cost pass reached; grading is no longer the largest line.
 0.80 / ratio 0.58 / tight; CapEx 0.83 / parity 0.83 / ratio 0.82 / tight. Both clear every bar.
 This is the configuration the corpus is authored with.
 
+### The corpus, re-authored end to end (2026-09-13 → 14)
+
+Every authored set through the current pipeline — GLM 5.3 flash `high` writes (batched 5) and
+rewrites; `deepseek-flash` reviews the reference, writes the two traps, grades strictly with
+kind-aware relaxation, rebuilds every round, reviews the rebuilt answer for compression,
+labels framing (last two sets), and the best round is kept. 278 cards, 0 failed, every card
+authored at its current version. Off-peak, about $2.40 in total at list.
+
+```
+set                       cards  sep   substance  parity  coverage  separated  low_disc  memorizable  live KLPs  framing share  framing by
+M&A                          82  0.65    0.70      0.91    0.98        79         3          0          637        7%         rule
+Accounting - Knowledge       50  0.69    0.75      0.93    0.96        49         1          0          402        8%         rule
+Talking (copy/test)          68  0.67    0.75      0.92    0.98        68         0          0          475       11%         rule
+Accounting - "Talking"       68  0.68    0.82      0.89    0.99        53         1         14          460       42%         judged
+LBO                          10  0.67    0.76      0.91    1.00         9         0          1           71       37%         judged
+```
+
+**What the run itself found.**
+- The M&A pair (old role-split run vs new): separation flat (0.67 → 0.65 under strict grading),
+  parity up where measurable, `low_discrimination` 1 → 3. The decomposition put the whole
+  separation change on the `memorized_template` trap scoring higher — on the numeric scenarios
+  it was a correct answer wearing the trap's label (WACC card: 0.81 against the points). Fixed
+  in `write-adversaries` v3 (the template must be wrong) for the sets after M&A; the M&A,
+  Accounting-Knowledge and Talking-copy cards keep the v2 traps per the owner ("let's not
+  re-make them").
+- Three processes authored Accounting-Knowledge at once for ~25 minutes (a killed run's
+  wrapper survived and moved on; a second watcher started the same set): 52 extra
+  `CardAuthoring` rows on 28 cards, superseded, no learner evidence, left in place.
+- The internet dropped mid-run at 00:23; Talking copy stopped at 66/68 with `ENOTFOUND`
+  on both providers, Accounting-"Talking" and LBO could not open the database. Resumed from
+  03:12; the resumable skip and the failed-card retry did the rest.
+
+**Framing, rule vs judged.** Under the rule (definition/contrast the template recited) 7–11%
+of points are framing. Under the judged classifier (`classify-roles`, a grader-family model
+labelling by judgement — a restated given, a plug-in comparison, the mechanical conclusion
+label, the stock contrast) it is 37–42%, and 15 cards are `memorizable` (≥ 60% framing).
+Substance separation on those sets reads 0.82 / 0.76 against 0.70–0.75 on the rule sets — some
+of that is the classifier taking more points out of the denominator, not sharper points. The
+memorizable list, each framing point with the judge's one-clause reason, is on the dashboard
+for the owner to read; the classifier's leniency is a judgement to make there, not here.
+
+**Cost per card, all-in:** M&A $0.0085 (30 calls); the judged sets add one call per round.
+
+### Prefix order for the cache (2026-09-14)
+
+The corpus meters summed to 8.25M input tokens with 2.1M cache hits — 25% — and the owner's
+DeepSeek dashboard showed ~7M misses (the meter plus unmetered failures and the stray
+duplicate runs). DeepSeek's cache is a prefix cache in 64-token blocks, and every prompt
+reached its card-specific content (`Question: …`) within ~40 tokens, so nothing was shared
+across cards; the only hits were repeats within a card (grade 43%, revise 5%, rebuild 2%).
+
+Every DeepSeek-facing prompt now opens with its static instructions — role, rules,
+vocabulary, output format, strictness — and puts the card, then the per-call content, last
+(grade-candidate v3, write-rebuild v3, grade-coverage v2, grade-parity v2, review-reference
+v2, review-rebuilt v2, revise-reference v2, revise-klps v5, relate-klps, classify-roles v2,
+classify-abstraction, write-adversaries v4). `tests/ai/prompt-prefix.test.ts` pins that no
+card text appears in the first 400 characters of any of them and that two cards share the
+same prefix.
+
+Two-card dry run after the change (the smallest possible test — the first card of a run
+always misses the shared prefix): overall hit 25% → 34%; grade 43% → 54%, coverage 24% →
+42%, parity 20% → 30%, review-rebuilt 21% → 33%, relate 13% → 35%, rebuild 2% → 18%, roles
+14% → 32%. Across a set the shared prefix hits on every call after the first, so the corpus
+figure should land higher than the two-card one; the meter on the next set-sized run is the
+number to read. The prize is bounded: ~250 shared tokens × ~8,000 calls ≈ 2M tokens moved
+from miss ($0.15/M off-peak) to hit ($0.003/M) — about $0.30 on a $2.40 corpus — because
+output tokens, not input, are most of the bill.
+
+### Mint stability, the KLP/KLT enforcement statistic, and containment as placement (2026-09-14/15)
+
+**Stability.** Ten cards minted twice, DeepSeek + GLM with DeepSeek judging. At the provider
+default temperature, run-to-run leaf agreement was 0.42 exact / 0.67 loose for DeepSeek,
+0.51 / 0.64 for GLM, edges 0.15–0.19 exact; the union merge inherited the worse side. The
+`--direct` scripts had never set a temperature (production `generateJson` runs at 0). At
+temperature 0 DeepSeek reads 0.88 / 0.93 on leaves and 0.63 / 0.76 on edges; GLM 0.62 / 0.71
+at `high` reasoning and 0.68 / 0.76 at `low` — its randomness lives in the reasoning mode.
+Decision: DeepSeek at 0 is the minter; GLM is not a merging side.
+
+**KLP/KLT enforcement** (`src/lib/klp/topic-enforcement.ts`): share of points whose minted
+shape agrees with the intention — an edge when the point is the source of a directed link in
+the card's own `KlpRelation` graph (now shown to the minter), else the kind prior. On 53
+cards (12 per set, DeepSeek at 0): **0.81 before repair, 1.00 after** one repair call on 38
+cards (only the violating points, the proposal's names as endpoint vocabulary; ~130 input /
+~15 output tokens per point). "Why GAAP is important?" went 0.60 → 1.00. Kind-prior
+violations in the earlier sample were 18% of points, almost all causal/condition points
+minted as leaves; with the graph supplied and the repair on, zero remain.
+
+**Containment across cards is placement, not identity** (`src/lib/klt/match.ts`). The
+reconciler's containment rule ("accounting equation" ⊂ "fundamental accounting equation")
+is right between two models naming one KLP and wrong between cards: the first trace showed it
+folding "acquired deferred revenue write-down" into "deferred revenue" and "purchase price"
+into "purchase price allocation". Now a containment hit mints the specific name as its own
+node **placed under** the general one; only exact / alias / initials (and a token
+permutation) say "same". On the 53-card sweep: 172 names resolved to existing topics, 89
+placed under an existing one, 125 ambiguous (kept at the 0.4 floor — the owner wants the
+judge to see near misses to big concepts, to become context links), 222 new; vocabulary
+118 → 554.
+
+Trace artifact: https://claude.ai/code/artifact/6771699e-1d94-4627-bcc5-6d91267e2bcd
+
+### The whole-card minting loop over the corpus (2026-09-15)
+
+Built in one pass on the owner's go: round-trip recovery and distinctness (the two missing
+settings), the loop (`src/lib/klp/topic-loop.ts`: anchored mint → settings + enforcement +
+round-trip → named findings → one combined revise → re-measure, two rounds, best round kept),
+the operator script (`scripts/mint-loop.ts`, dry, resumable, metered), the offline rescorer
+(`scripts/score-loop.ts`), and the set-level tree rebuild planner (`src/lib/klt/rebuild.ts`,
+`scripts/rebuild-tree.ts`, plan only).
+
+**Run: 155 of 278 cards** (M&A 78, Accounting-Knowledge 50, Talking copy 27) before the
+DeepSeek balance ran out ("Insufficient Balance" on the remaining 119; the loop resumes from its
+JSON once it is reloaded). 4 M&A cards failed the schema after a retry. Cost: **5 calls and
+$0.0014 a card** off-peak (mint 1, round-trip 1 per round, revise ≤2).
+
+```
+setting        mean   p10   p25   p50   p90    bar (provisional)
+overall        0.92   0.85  0.87  0.93  0.99
+coverage       1.00   1.00  1.00  1.00  1.00   1.00
+anchored       1.00   1.00  1.00  1.00  1.00   0.90
+causalEdges    0.93   0.67  1.00  1.00  1.00   0.90
+causalTargets  0.67   0.00  0.33  1.00  1.00   —
+brevity        0.98   0.90  1.00  1.00  1.00   0.80
+vocabulary     0.83   0.65  0.74  0.83  1.00   —
+noContainers   0.99   1.00  1.00  1.00  1.00   —
+distinctness   0.99   1.00  1.00  1.00  1.00   0.90
+roundTrip      0.90   0.75  0.86  1.00  1.00   0.75
+enforcement    0.98   0.88  1.00  1.00  1.00   1.00
+clear 111 / 155 (72%); flags: causalEdges 21, enforcement 18, roundTrip 12, brevity 4, distinctness 3, coverage 1
+```
+
+**What the distribution says.** The anchored prompt plus the loop hold coverage, anchoring,
+containers and distinctness at 1.00 across the corpus. Cards fail on two things: a causal
+point minted without a directed edge (the measure originally counted only causes / precedes /
+applies_within — `requires` is a fifth of how the minter renders causal points and is right
+to, so it now counts; `confused_with` on a causal point is the real miss, 9 of 130 on M&A), and
+round-trip recovery — a grader shown only the labels files 10% of points elsewhere.
+`causalTargets` (the edge names the point that supplied its cause) is the weakest number at
+0.67 and deliberately not a bar: the model gets the edge right more often than it says where
+the cause came from. Bars stay as set; the p10 column is what they were set against.
+
+**The rebuilt M&A tree** (78 cards → 568 nodes: 67 anchors, 365 leaves, 128 endpoints, 7
+contexts; anchors matched 23 exact / 10 placed / 1 initials / 44 new; 11 anchor clusters, 7
+wanting a parent). The anchors are right and recur — accretion/dilution, synergies, purchase
+price, earnings yield each gather several cards — and the clusters read as a person would group
+them (accretion family; synergies; acquisition; value creation). Below the anchors the tree is
+wide and one card deep: 16 nodes active by recurrence, and **0 of 499 edges shared by two
+cards**. That is the endpoint-naming problem ("deal financing cost" / "financing cost" /
+"acquirer wacc funding cost" are one thing) and it is the next fix: roll an edge up to the
+general node its endpoint was placed under, so specific endpoints count for the concept they
+sit beneath. Until then the DAG view's ≥2-card rule would show nothing.
+
+Artifact: https://claude.ai/code/artifact/668011a7-089e-43f1-83e0-cba953633660
+
+### The corpus finished, the M&A tree written, the DAG view (2026-09-15, later)
+
+**Loop finished: 276 of 278 cards** (M&A 80 of 82 — two cards fail the schema every time;
+Accounting-Knowledge 50, Talking copy 68, Talking 68, LBO 10), resumed after the owner reloaded
+DeepSeek. Rescored together (`docs/ai/runs/2026-09-15/dist-all.json`):
+
+```
+setting        mean   p10   p25   p50   p90    bar
+overall        0.92   0.85  0.88  0.93  0.99
+coverage       1.00   1.00  1.00  1.00  1.00   1.00
+anchored       1.00   1.00  1.00  1.00  1.00   0.90
+causalEdges    0.94   0.75  1.00  1.00  1.00   0.90
+causalTargets  0.67   0.00  0.33  1.00  1.00   —
+brevity        0.98   0.90  1.00  1.00  1.00   0.80
+vocabulary     0.83   0.67  0.75  0.85  1.00   —
+noContainers   0.99   1.00  1.00  1.00  1.00   —
+distinctness   1.00   1.00  1.00  1.00  1.00   0.90
+roundTrip      0.90   0.75  0.86  1.00  1.00   0.75
+enforcement    0.98   1.00  1.00  1.00  1.00   1.00
+clear 198 / 276 (72%); flags: causalEdges 35, roundTrip 26, enforcement 25, brevity 10, distinctness 5, coverage 1, anchored 1
+per set: M&A 59/80 · Acc-Knowledge 34/50 · Talking copy 50/68 · Talking 49/68 · LBO 6/10 — every set 0.92 overall, 0.90 round trip
+```
+
+The distribution is the same shape on the second half of the corpus as the first: the bars
+hold where they held, and the two fail modes are unchanged. Nothing about the loop is
+set-specific.
+
+**The M&A tree, WRITTEN.** `scripts/rebuild-tree.ts --write --name-clusters --reset-placement`
+over `src/lib/klt/rebuild-write.ts`: 80 cards → 582 plan nodes; 543 placed under one root (the domain): 34 branches, then
+200 / 227 / 71 / 9 / 1 nodes at levels 2–6; 1,080 KLP↔topic links (rank 1 leaf, rank 2 context AND
+the card's anchor on every point); 493 minted + 146 rolled-up relations, 29 directed edges refused
+because they would close a cycle; 6 paths refused by `applyPaths` (a repeated segment). Six ★ clusters named by one DeepSeek call each (all six
+answered, none declined): *purchase price allocation* (deferred revenue, goodwill, revenue
+synergies, bargain purchase gain, section 382, asset write-up, gross NOLs, deferred taxes …),
+*synergies* (a member — break-even synergies, synergy distribution, breakeven cost of debt under
+it), *deal consideration* (offer price, consideration choice, inbound offer), *accretion/dilution
+analysis* twice (the value-creation cluster AND the accretion family both named it, so both
+merged under one branch), *acquisition strategy* (financing currency, merger vs acquisition,
+accretive acquisition, evaluation, candidate, success). The names are the ones a person would
+write. 17 minted names exceeded the tree's own cap (4 words / 40 chars: "discount rate for
+target cash flows", "strategic buyer vs financial buyer") and are reported, not placed — their
+KLPs are still linked to the anchor.
+
+Three defects the write exposed, all fixed with tests:
+1. **Two normal forms.** `Klt.normalizedName` is the tree's form (`normalizeKltName`: lower-case,
+   punctuation stripped); the matcher's `normalizeName` singularises and expands abbreviations.
+   `matchConcept` compared a proposal in the matcher's form against a stored name in the tree's,
+   so "earnings per share" against the stored "earnings per share" FAILED exact and fell through
+   to containment — which placed the set's own anchor under a parent that was not in its plan.
+   The matcher now normalises both sides; the write step stores new rows under the tree's form
+   of the display name and resolves a matched node by its `kltId`.
+2. **Naive singular.** "strip the s" gave `synergie`, `taxe`, `analysi`, so "synergy" and
+   "synergies" were two keys on the first rebuild. `-ies → -y`, `-xes/-sses → -x/-ss`, `-sis`
+   and `-us` kept.
+3. **Votes for a topic outside the plan.** A containment placement ("breakeven cost of debt"
+   under the vocabulary's "cost of debt") voted for a key no card in the set had named; the
+   write had no path for the child. The planner now brings that topic in as a context node under
+   the domain, status from the vocabulary.
+And one already-known trap: `applyPaths` refuses a path that would re-parent a node the set
+already has, so the legacy flat placement (21 depth-0 roots, 10 live links) had to be dropped
+first (`--reset-placement`; concepts, links and relations untouched).
+
+**The DAG view is in the editor.** `/sets/[id]/concepts` has a Tree / Dependencies toggle.
+`src/lib/klt/dag-layout.ts` (pure, 9 tests): filter → DFS back-edges → longest-path layers →
+barycentre ordering (three sweeps) → left-to-right columns; `DagCanvas.tsx` draws it with stroke
+width by card count, an arrow per type, min-cards and rolled-edge filters, and FOCUS: the
+selected concept's k-hop neighbourhood, because the whole M&A graph is 448 concepts × 491
+edges in 10 layers and the first column alone is 200 nodes tall. Selection is shared with the
+tree, so the inspector (rename / move / merge / add child) works from either view. On the live
+set: "338(h)(10) election" → 4 concepts, 4 edges, 2 layers; it causes buyer step-up benefit and
+seller capital-gains treatment, and stock purchase requires it.
+
+**What the tree looks like, honestly.** The top is right — the 34 branches are the M&A
+syllabus, the six named parents gather the recurring anchors, and 16 topics are active by
+recurrence plus the existing ones. Below that it is still wide and one card deep: 200 nodes at
+level 2, 227 at level 3, most of them a single card's leaves. The DAG's cross-card structure is
+5 shared edges, all through the roll-up. The rest is the owner's hand — which is what the
+editor is for.
+
+Artifact (tree + DAG + cluster names + corpus scoreboard): https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374
+
+### The vertical tree — rebuild v2, question type persisted, card modes (2026-09-15, night)
+
+The owner read the first written M&A tree and gave two examples and a principle. "pro forma
+EPS" sat under "earnings yield" because four cards each voted a different parent and the tie
+went to the earliest card — where pro forma EPS was only the far end of an arrow. "Sources
+and uses" sat under "divestiture" because a context voted for the card's anchor, i.e. the
+broad concept was filed under the card that mentioned it. The principle: *most of what one
+card has should not be a unique node under the domain*. Measured on that tree: 520 of 581
+nodes were single-card; 20 of 34 branches under the domain were one card. Every card minted
+~7 unique nodes regardless of its question type (define 7.0, scenario 6.6, calculate 4.3,
+walkthrough 7.2) — so the type does not explain the width; it explains what KIND of node a
+card should make.
+
+**Rebuild v2 (`src/lib/klt/rebuild.ts`, 13 tests), the rules in order:** anchors resolved before
+any leaf (so a context can hit an anchor a later card names); weighted `under` votes (3) with ties to
+the parent with more cards; contexts point UP (a context that matches an existing node cross-lists
+the card's anchor under it); edge endpoints never mint nodes (resolve to a real node directly or
+through a label, or the edge is dropped and counted); the NODE BAR — a leaf becomes a node only at
+≥2 cards or ≥3 points or an anchor or an *active* existing topic, else it is a LABEL whose points
+link to the nearest real ancestor; card MODE; facet-suffix merges by rule (test / analysis /
+schedule / process …) and a containment JUDGE (DeepSeek, one batched call per 25 pairs; the survivor
+is the node with more evidence, so "accretion/dilution" judged the same as a one-card "dilution"
+keeps its name); the chapter SKELETON (one call groups the branches under the domain into ≤10
+chapters, names ≤4 words, a chapter needs two members).
+
+**Question type persisted (`CardAuthoring.questionType`, migration `20260915170000`), backfilled
+from the run files for 273 of 278 cards** (why 64, compare 44, enumerate 41, define 37,
+walkthrough 37, scenario 33, calculate 17). **Card mode (`src/lib/klp/card-mode.ts`)**: define /
+why / compare / enumerate → knowledge; calculate → calculation; walkthrough → procedure; scenario →
+applied unless mostly quantitative. M&A: knowledge 45, calculation 13, applied 12, procedure 10.
+An applied card mints one SKILL node (`Klt.nature`, majority of the cards anchoring there) and
+its leaves are labels, with a rank-2 link to any general concept they exercise. The loop now
+passes the mode to the minter (`modeInstruction`, optional; the corpus run predates it and was
+NOT re-run — the planner applies the mode after the fact).
+
+**M&A, v2, written** (`--judge --chapters --write --reset-placement`, four minutes, four calls):
+
+```
+                         v1 (afternoon)     v2 (night)
+real nodes               581                105   (+347 point labels)
+branches under domain    34 (20 one card)   11 (1 one card)
+mean / max depth         2.4 / 6            2.3 / 5
+nodes fed by ≥2 cards    ~11%               42%
+skills / calculations    —                  9 / 7
+KLP links                1,080              759
+relations                493 + 146          41 direct + 74 via a label + 38 cross-listings; 405 dropped
+judge                    —                  24 pairs: 8 same, 15 related, 1 unrelated
+```
+
+The chapters, verbatim from one call: purchase price allocation (goodwill, asset write-up,
+deferred revenue, bargain purchase gain, NOLs, gross NOLs, tax deferral); accretion/dilution
+(EPS, EPS dilution, accretive acquisition, earnings yield, breakeven cost of debt, foregone
+interest, combined equity value); synergy (break-even synergies, synergy distribution, cost
+treatment, post-acquisition adjustments, recasting); deal financing (consideration choice,
+financing currency, stock refusal, stock-for-stock, sources and uses, debt sizing, debt/EBITDA,
+LBO); sell-side process (positioning, buyer universe, inbound offer, fairness opinion, timing);
+purchase structure (ownership split, JV, partial exit, divestiture, consolidation); strategic
+rationale (merger rationale, value creation, candidate, buyer types, success); acquisition
+evaluation (offer price, premium, working capital peg, contribution analysis, sensitivity);
+merger vs acquisition (revenue combination, cash flow statement, EBITDA — the weakest). Both of
+the owner's examples now read the right way: pro forma EPS sits under accretion/dilution, and
+divestiture is cross-listed under sources and uses (which merged with "sources and uses schedule").
+
+**Two defects found by the run.** A cluster or chapter name that matched a member in the OTHER
+normal form ("synergy" vs the stored "synergies") created a duplicate parent above its own
+member — names are now found in either form. And one "explain to a client" scenario turned
+accretion/dilution into a skill — nature is now the majority of the cards anchoring there.
+
+**The tree overlay** draws only cross-listings ("also under", dotted) and edges two or more
+cards share; every edge stays in the Dependencies view. The soap card is now one skill node,
+"company sale positioning", under the sell-side chapter with nine point labels, and "strategic
+buyer" gets its rank-2 link.
+
+**Not done, deliberately:** the corpus was not re-minted with the mode instruction (it would
+cost a run and the planner already applies the mode); the other four sets are not written; the
+"merger vs acquisition" chapter is the owner's to rename or dissolve.
+
+Artifact v2: https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374
+
+### The targeted re-mint and the second chapter pass (2026-09-15, late)
+
+The owner asked why the whole corpus was being re-minted after a prompt change. It should
+not have been: the mode line only changes what the minter writes for applied and calculation
+cards, and the hard brevity bar only for cards whose proposal carried a >4-word name.
+`scripts/remint-subset.ts` lists exactly those — **68 of 278** (M&A 33, Acc-Knowledge 14,
+Talking copy 14, Talking 7, LBO 0) — `mint-loop --cards` re-mints them, `scripts/splice-loop.ts`
+lays the new fragments over the set's loop file, and the rebuild runs on the spliced file.
+~12 minutes and ~$0.10 instead of ~75 minutes.
+
+The soap card failed the schema twice under the first applied instruction: the model did what
+it was told — named general concepts (pricing power, horizontal integration, supply chain
+resilience) — but as 15 leaves, several with no points. The instruction now says every leaf
+still carries its klpRefs and the limit of 10 holds; the card then minted as the skill
+"positioning a company for sale" with ten general leaves (revenue diversification, pricing
+power, supply chain resilience, strategic buyer, horizontal integration …). `MINT_DEBUG=1`
+prints the refused text on the second schema failure, which is how this was found.
+
+The chapter skeleton moved with its input: on the re-minted M&A it grouped 54 branches into 10
+chapters but left six singletons under the root that the first run had grouped. A second call
+(`ASSIGN_BRANCHES_PROMPT`) now files every leftover into an existing chapter or says null —
+"working capital peg" → purchase price allocation, "leveraged buyout" → deal financing.
+
+**Final trees** (real nodes / point labels / chapters / single-card chapters / multi-card share):
+M&A 108 / 355 / 12 / 2 / 44%; Accounting-Knowledge 76 / 250 / 14 / 2 / 28%; Talking copy
+97 / 288 / 10 / 0 / 27%; Talking 94 / 241 / 11 / 1 / 27%; LBO 10 / 45 / 3 / 0 / 30%. No name
+refused by the raised tree cap (6 words / 48 chars) except one on Talking copy. M&A's chapters:
+purchase price allocation, accretion/dilution analysis, deal financing, synergies, strategic
+rationale, buyer and target landscape, sell-side process, deal structure, valuation inputs,
+tax considerations.
+
 ### GLM as a grader, a tree summariser and a distractor writer — `npm run bench-models` (2026-09-15)
 
 The owner wants to offer a Z.ai key to users and asked which model is better at the three
@@ -877,3 +1221,27 @@ a runtime dependency.
 to `glm-5.3-flash` at `reasoning_effort: low`; keep `grade` and `diagnostic` on DeepSeek;
 `concept-tree` either. Never run GLM at the default effort for a runtime task — 30-40 s a
 call and most of the tokens are thinking.
+
+### The owner's build path — key points and topics from the set page (2026-09-16)
+
+The pipeline was operator-only: `author-klps` and `mint-loop` over env keys, a daily cron that
+authors six cards on the operator's account, and the legacy one-pass extractor on every save.
+Now a set owner has the same pipeline behind one button. `src/lib/klp/generators.ts` builds the
+authoring and minting generators over `generateJson` — the owner's credentials, lent keys and the
+shared budget — with the role split expressed as TASKS, not model names: writing goes out as
+`author` (Z.ai-first by `TASK_PROVIDER_PREFERENCE`), every judging call as `klp-extract`
+(DeepSeek-first), minting as `concept-tree`. `src/lib/klp/build-set.ts` runs one bounded step:
+author up to 2 cards → mint up to 3 → rebuild the set's tree from the fragments stored on the
+cards (`Card.topicProposal` / `topicKlpVersion`, migration `20260916010000`, backfilled for the
+276 minted cards) WITHOUT resetting placement. `KeyPointsBuild` on the set page loops the step
+until the set reads ready and auto-starts after a save that changed a card (`?build=1`); the cron
+uses the same generator and drains topics for the sets it touched. The legacy summariser and
+`placeUnparentedConcepts` no longer run on save — they wrote AI-summarised nodes straight into
+the owner's tree.
+
+**Measured on the 3-card "Test Set" over env keys (`scripts/build-set.ts`, the operator twin):**
+author 2 cards 101 s, author 1 card 62 s, mint 3 cards 19 s, rebuild 11 s → ready. About a minute
+and half a cent per card, as the panel says. The stored-credential path could not be exercised
+on this machine — `GOOGLE_KEY_ENCRYPTION_SECRET` is not in the local `.env`, so every stored key
+fails to decrypt locally ("All 5 AI attempts failed": the aggregate error's `detail.attempts`
+says why per credential); it is set in production.

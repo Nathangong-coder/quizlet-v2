@@ -1,5 +1,137 @@
 # Build queue & carried-over findings
 
+**HANDOFF 2026-09-16 — OWNERS CAN BUILD; MAIN IS MERGED IN.** `origin/main` (study-platform PRs
+#56–#62) is merged into this branch (two docs-only conflicts, kept both sides; 3,98x tests green).
+Every set with authored key points is minted and written (the five). The owner's build path exists:
+`src/lib/klp/build-set.ts` (one bounded step: author → mint → rebuild, on the owner's credentials
+via `src/lib/klp/generators.ts`), `src/actions/klp-build.ts`, `KeyPointsBuild` on the set page
+(auto-starts after a save with `?build=1`), the cron drains topics for touched sets, and
+`scripts/build-set.ts` is the env-key twin. `Card.topicProposal` stores each card's minted fragment
+(migration `20260916010000`), so a rebuild never needs the loop files. Live-verified over env keys
+on the 3-card Test Set; the stored-credential path needs `GOOGLE_KEY_ENCRYPTION_SECRET`, absent
+locally. **Owed:** a signed-in browser pass of the panel (auto-start, stop, error text); deciding
+whether a legacy set's first build should also run the chapter skeleton (the in-app rebuild is pure
+TypeScript — no judge, no chapters — so a fresh set gets a flat top level until the operator script
+or a later pass groups it).
+
+**HANDOFF 2026-09-15 (night) — REBUILD v2: THE M&A TREE IS VERTICAL.** After the owner's read of
+the first tree, the planner was rebuilt (`src/lib/klt/rebuild.ts`: anchors first, weighted votes,
+contexts point up, endpoints never mint nodes, the NODE BAR — ≥2 cards or ≥3 points or an anchor,
+else a point label — card mode, facet merges + a DeepSeek consolidation judge, a one-call chapter
+skeleton) and the M&A tree re-written: 105 real nodes + 347 point labels, 11 chapters (1 single-card),
+42% of nodes fed by ≥2 cards, 9 skill and 7 calculation nodes (`Klt.nature`), 759 links. Command:
+```
+npx tsx --conditions=react-server --env-file=.env scripts/rebuild-tree.ts --from docs/ai/runs/2026-09-15/loop-<set>.json --judge --chapters --write --reset-placement
+```
+(four minutes and four DeepSeek calls for M&A). `CardAuthoring.questionType` is persisted
+(migration `20260915170000_question_type_klt_nature`, backfilled 273/278 by
+`scripts/backfill-question-type.ts`) and `card-mode.ts` turns it into knowledge / calculation /
+procedure / applied; the loop passes the mode to the minter but the corpus was NOT re-minted with it
+(the planner applies the mode after the fact — an applied card's leaves become labels + rank-2 links).
+The tree overlay draws only cross-listings and ≥2-card edges; the Dependencies view keeps every edge.
+Record: `docs/ai/model-performance.md`, "The vertical tree — rebuild v2". Artifact v2:
+https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374. **Re-minted (68 cards, the ones the prompt change touches — `scripts/remint-subset.ts` + `splice-loop.ts`) and re-written late 2026-09-15**; the chapter pass has a second call that files leftovers; tree cap is 6 words / 48 chars; brevity is a hard bar. **All five sets are written** with the same command (Accounting-Knowledge 79 nodes / 15 chapters,
+Talking copy 95 / 17, Talking 96 / 9, LBO 12 / 4; plans in `docs/ai/runs/2026-09-15/plan-*-v2.json`).
+The three Accounting sets share the global vocabulary and each places its own copy of the shared
+root. **Owner decisions pending:** the "merger vs acquisition" chapter (weak); whether to re-mint
+the corpus with the mode instruction (~$0.40, ~1.5 h); the tree cap (a few names still refused per
+set); rank-2 weighting for mastery. Sub-agents/future sessions: `reasoning
+effort` on the judge is deliberately batched (25 pairs a call) — do not judge pair by pair.
+
+**HANDOFF 2026-09-15 (evening) — THE CORPUS IS THROUGH THE LOOP; THE M&A TREE IS WRITTEN AND
+EDITABLE; THE DAG VIEW IS LIVE.** 276 of 278 cards cleared the loop (two M&A cards fail the schema
+every time), 72% clear the bars, every set reads the same (`docs/ai/model-performance.md`, "The corpus
+finished, the M&A tree written, the DAG view"). The M&A tree was written with
+```
+npx tsx --conditions=react-server --env-file=.env scripts/rebuild-tree.ts --from docs/ai/runs/2026-09-15/loop-mna.json --name-clusters --write --reset-placement
+```
+(`src/lib/klt/rebuild-write.ts`: Klt rows, `applyPaths` placement, KlpTopic rank 1/2 incl. the anchor
+on every point, KltRelation minted + rolled with a cycle check; `--name-clusters` = one DeepSeek call
+per ★ cluster; `--reset-placement` drops the set's old SetKltNode rows first — `applyPaths` refuses to
+re-parent a node the set already has, and every set still carries the orphaned legacy placement).
+`/sets/<id>/concepts` shows it (one root, 34 branches, 6 deep) with a **Tree / Dependencies** toggle;
+Dependencies is `src/lib/klt/dag-layout.ts` + `DagCanvas.tsx` (layers, focus on the selected concept,
+min-cards and rolled-edge filters; selection shared with the inspector). Artifact: https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374.
+**The other four sets are NOT written** — the loop JSONs are in `docs/ai/runs/2026-09-15/`; the same
+command per set writes them (the M&A write took ~35 min against Neon, sequential upserts). Two things
+to decide before that: the tree cap (`MAX_KLT_WORDS` 4 / 40 chars) refused 17 minted M&A names — raise
+it, or make brevity a hard bar in the loop; and whether "M&A" style domains should share one root
+across sets ("Accounting" appears in three). Known limits: 17 names unplaced on M&A (KLPs still linked
+to the anchor); 30 edges refused for cycles; cross-card edges are 5, all via roll-up; `masteryTopicRanks`
+still counts rank-2 links at full weight (owner asked for "slightly milder", ~0.6, not built).
+**Next:** owner edits the M&A tree by hand (that is the point of the editor); write the remaining sets;
+rank-2 weighting; judge on ambiguous pairs; edge-beats-leaf audit; KLP_USE_PANEL later.
+
+**HANDOFF 2026-09-15 — MINTING IS A MEASURED LOOP; THE CORPUS RUN IS HALF DONE.** The
+minting order agreed on 09-14 is built through step 4 (all plan-only, nothing written):
+mint stability measured (temperature 0 fixed the `--direct` scripts), `Klt.status` + `KltAlias`
+migrated, the distinctness matcher (`src/lib/klt/match.ts`; containment across cards is
+placement, not identity), KLP/KLT enforcement with the card's own link graph in the prompt and a
+one-call repair, the anchored prompt v2 (`topic-minting-v2.ts`), the KLT settings
+(`topic-settings.ts`: coverage / anchored / causalEdges / causalTargets / brevity / vocabulary /
+noContainers / distinctness / roundTrip), the whole-card loop (`topic-loop.ts`, `scripts/mint-loop.ts`),
+and the set-level tree rebuild planner (`src/lib/klt/rebuild.ts`, `scripts/rebuild-tree.ts`).
+**Run state:** 155 of 278 cards through the loop (M&A, Accounting-Knowledge, 27 of Talking copy);
+the DeepSeek balance ran out. To finish, reload and rerun — the JSON is resumable:
+```
+npx tsx --conditions=react-server --env-file=.env scripts/mint-loop.ts --set cmtcecz4j000304l1q1suq9rf --rpm 40 --json %TEMP%\claude-quizlet\loop-talk.json
+npx tsx --conditions=react-server --env-file=.env scripts/mint-loop.ts --set cmsfkfumz000004jov11adgbu --rpm 40 --json %TEMP%\claude-quizlet\loop-acct.json
+npx tsx --conditions=react-server --env-file=.env scripts/mint-loop.ts --set cmtj7pxfc000005l4rv4krxxy --rpm 40 --json %TEMP%\claude-quizlet\loop-lbo.json
+npx tsx scripts/score-loop.ts --from <all five loop jsons>        # the distribution; bars in topic-loop.ts TOPIC_BARS
+npx tsx --conditions=react-server --env-file=.env scripts/rebuild-tree.ts --from <loop json>   # one set's tree plan
+```
+(the loop JSONs from this session are copied to `docs/ai/runs/2026-09-15/`). Results so far:
+72% of cards clear the provisional bars; anchored / coverage / distinctness 1.00; fails are
+causalEdges and roundTrip; artifact https://claude.ai/code/artifact/668011a7-089e-43f1-83e0-cba953633660.
+**Next, in order:** (a) edge roll-up — an edge whose endpoint was placed under a general node
+counts for that node, so cross-card edges exist (0 of 499 M&A edges are shared today); (b) the
+write step for v2 proposals (`mint-plan` reads v1: anchor → parent, `under` → placement votes,
+`status` candidate until the rebuild pass promotes); (c) cluster-parent naming (one call per ★
+cluster); (d) the DAG view. The owner's open feedback on the anchored prompt is on
+https://claude.ai/code/artifact/419d544d-eaf3-4d31-835f-303920760396.
+
+**HANDOFF 2026-09-14 — THE CORPUS IS AUTHORED. 278 cards across five sets, every one at its
+current version on the full pipeline (see `docs/ai/model-performance.md`, "The corpus,
+re-authored end to end"); the dashboard artifact
+https://claude.ai/code/artifact/f2ff2ea8-1fc1-4858-bd82-aabb0f6f1fee has the whole thing.
+Item 2 below is DONE; item 1's three `mint-topics --write` files are SUPERSEDED (their KLPs
+were re-authored — `mint-topics` will refuse them); item 3 (mint + write topics for every set)
+is NEXT, and the owner wants the minting strategy revisited before spending on 278 cards
+("the KLPs the Chinese models generate are steps, not key learning points"; the KLP→topic
+check/revision idea; the `definitionPoints` laundering hole). Framing is now JUDGED by the
+grader (`classify-roles`, overrides the rule) and cards ≥60% framing are `memorizable` — the
+first three sets were authored on the rule, the last two on the judge; the owner said not to
+re-make the earlier ones. `write-adversaries` v3 (the template trap must be wrong) likewise
+applies only to the last two sets. Both are the owner's open judgement calls: read the
+memorizable list on the dashboard before changing either.**
+
+**MINTING PLAN, agreed with the owner 2026-09-14 (after an outside review).** The two layers:
+the **tree** (`Klt` global vocabulary + `SetKltNode` per-set placement — containment, for
+browsing and mastery rollup) and the **dependency layer** (`KltRelation`: causes / requires /
+precedes / applies_within between topics, inherited from KLP relations and minted from KLP
+kinds — a DAG, for root-cause propagation and study order). The KLP→topic mapping
+(`KlpTopic`) is what turns per-KLP verdicts into evidence on both. Identity is ALREADY global
+(`Klt.normalizedName` is unique corpus-wide); what is missing is matching across sets beyond
+exact names. Order: (1) mint stability, 10 cards ×2, GLM + DeepSeek with DeepSeek judging —
+no Qwen; (2) `Klt.status` (candidate | active | merged | retired) + a merge record + a judge
+"neither" that routes to the candidate pool; (3) the distinctness matcher, pure TS first,
+model only for ambiguous pairs; (4) the cross-card reconcile pass — promote at ≥4 KLPs across
+≥3 cards, merges, degree/roles, oversized flags; DAG rules: `confused_with` is not a DAG
+edge, only rank-1→rank-1 edges inherit, an edge needs two cards' evidence to enter the DAG
+view, connectivity (components) is the matcher's report card; (5) mint the 278 cards into
+`candidate` and run the pass; (6) sampled round-trip recovery, kind_conflict aggregated per
+batch, the edge-beats-leaf audit; then stratified gold labels. Dropped: split-half stability,
+the remediation test (size bounds + "a node with tagged children is never itself tagged"
+instead), round-trip as a per-leaf gate.
+**Two owner asks added to the queue:** (a) **rebuild the tree** — there is no pass that
+re-derives a set's `SetKltNode` hierarchy from the global vocabulary after minting;
+`placeUnparentedConcepts` only places strays. Needed once topics are global and merges move
+nodes. (b) **a visible DAG view** — the dependency layer rendered as its own layered,
+tree-like view (topological layers, hubs at the top), distinct from the concept tree the
+canvas draws today (which only overlays relations as dashed lines).
+
+**HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress.** Two long runs were started this day and both are RESUMABLE;
+
 **BRANCH `study-platform` (2026-09-13, worktree `.claude/worktrees/study-platform`, off
 `da19728` on `spec2-klp-authoring`, NOT merged, PUSHED at the owner's request for a PR).** Six
 sub-projects in one session, each its own commit and spec; five migrations applied to the dev

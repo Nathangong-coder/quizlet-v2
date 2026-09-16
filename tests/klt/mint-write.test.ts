@@ -93,11 +93,11 @@ describe('name length', () => {
     const p = planMintWrites({
       cardId: 'c1',
       klpIds: ['k0'],
-      merged: merged({ leaves: [{ name: 'earnings before interest and taxes', klpRefs: [0], reason: 'r', source: 'a', container: false, containerAllowed: false }], contexts: [], relations: [] }),
+      merged: merged({ leaves: [{ name: 'earnings before interest taxes depreciation and amortization', klpRefs: [0], reason: 'r', source: 'a', container: false, containerAllowed: false }], contexts: [], relations: [] }),
       existingSetNames: [],
     })
-    expect(p.concepts.find((c) => c.role === 'leaf')?.name).toBe('EBIT')
-    expect(p.notes.some((n) => n.includes('written as "EBIT"'))).toBe(true)
+    expect(p.concepts.find((c) => c.role === 'leaf')?.name).toBe('EBITDA')
+    expect(p.notes.some((n) => n.includes('written as "EBITDA"'))).toBe(true)
   })
 })
 

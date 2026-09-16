@@ -66,6 +66,7 @@ vi.mock('@/lib/ai/generate', () => ({
 
 import { suggestSkeleton, applySkeleton } from '@/actions/klt-seed'
 import { MAX_SKELETON_DEPTH } from '@/lib/ai/schemas'
+import { MAX_KLT_WORDS } from '@/lib/klt/normalize'
 import { SUGGEST_SKELETON_PROMPT } from '@/lib/ai/prompts/suggest-skeleton'
 import { PROMPT_REGISTRY } from '@/lib/ai/prompts/registry'
 
@@ -300,7 +301,7 @@ describe('SUGGEST_SKELETON_PROMPT', () => {
 
   it('reuses the same wording rules as parseKltName: word cap, no proper nouns', () => {
     const out = SUGGEST_SKELETON_PROMPT.build(input)
-    expect(out).toMatch(/at most 4 words/i)
+    expect(out).toMatch(new RegExp(`at most ${MAX_KLT_WORDS} words`, "i"))
     expect(out).toMatch(/never a proper noun/i)
   })
 

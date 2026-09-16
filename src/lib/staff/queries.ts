@@ -39,7 +39,7 @@ export interface StaffKlpRow {
    * run — never 0, for the same reason meanPKnown is null rather than 0.
    */
   separation: number | null
-  /** CardAuthoring.status ('separated' | 'low_discrimination' | 'failed'). NULL alongside separation. */
+  /** CardAuthoring.status ('separated' | 'low_discrimination' | 'failed' | 'memorizable'). NULL alongside separation. */
   authoringStatus: string | null
 }
 

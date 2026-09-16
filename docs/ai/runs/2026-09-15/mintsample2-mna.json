@@ -1,0 +1,2328 @@
+{
+  "setId": "cmtfewhjv000004jr901uq6eo",
+  "skip": 0,
+  "results": [
+    {
+      "term": "Can you describe how deferred revenue might be adjusted in a merger model?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "merger accounting",
+        "leaves": [
+          {
+            "name": "deferred revenue",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "acquired deferred revenue write-down",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "contract liabilities at book value",
+            "klpRefs": [
+              6
+            ]
+          },
+          {
+            "name": "asc 606 revenue recognition",
+            "klpRefs": [
+              7
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "revenue recognition"
+          },
+          {
+            "klpRef": 1,
+            "concept": "purchase accounting adjustments"
+          },
+          {
+            "klpRef": 6,
+            "concept": "purchase accounting adjustments"
+          },
+          {
+            "klpRef": 7,
+            "concept": "post-acquisition revenue recognition"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "acquired deferred revenue write-down",
+            "to": "post-acquisition revenue recognition",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "acquired deferred revenue write-down",
+            "to": "goodwill",
+            "type": "causes"
+          },
+          {
+            "klpRef": 2,
+            "from": "post-acquisition revenue recognition",
+            "to": "goodwill",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 4,
+            "from": "asu 2021-08",
+            "to": "revenue predictability",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "asu 2021-08",
+            "to": "contract liabilities at book value",
+            "type": "causes"
+          },
+          {
+            "klpRef": 6,
+            "from": "contract liabilities at book value",
+            "to": "asc 606 revenue recognition",
+            "type": "requires"
+          },
+          {
+            "klpRef": 6,
+            "from": "contract liabilities at book value",
+            "to": "goodwill",
+            "type": "causes"
+          },
+          {
+            "klpRef": 5,
+            "from": "acquired deferred revenue write-down",
+            "to": "revenue predictability",
+            "type": "causes"
+          },
+          {
+            "klpRef": 8,
+            "from": "asu 2021-08",
+            "to": "goodwill",
+            "type": "confused_with"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Deferred revenue is a liability representing cash already collected for goods or services not yet delivered.",
+          "kind": "definition"
+        },
+        {
+          "text": "Historically, the buyer wrote acquired deferred revenue down to fair value — approximately the cost to perform plus a small profit margin.",
+          "kind": "definition"
+        },
+        {
+          "text": "Under the old fair-value treatment, less revenue was recognized after close because the liability covered only cost plus margin, not the full contract value.",
+          "kind": "causal"
+        },
+        {
+          "text": "The old write-down reduced the acquired deferred revenue balance on the opening balance sheet, and that reduction increased the amount allocated to goodwill.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The old fair-value approach changed under ASU 2021-08 because it frequently contradicted ASC 606.",
+          "kind": "causal"
+        },
+        {
+          "text": "The old fair-value approach made combined-company revenue hard to predict.",
+          "kind": "causal"
+        },
+        {
+          "text": "Under ASU 2021-08, contract liabilities are no longer written down — they carry over at the target's book value.",
+          "kind": "contrast"
+        },
+        {
+          "text": "Revenue is recognized under the same ASC 606 principles the target already applied, flowing exactly as it would have on a standalone basis.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Under ASU 2021-08, no purchase accounting adjustment touches goodwill.",
+          "kind": "contrast"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "type": "causes"
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "type": "confused_with"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 6,
+          "type": "causes"
+        },
+        {
+          "from": 6,
+          "to": 7,
+          "type": "requires"
+        },
+        {
+          "from": 6,
+          "to": 8,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.7142857142857143,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "unmapped",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Stock vs Asset vs 338h(10) purchase",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "acquisition structures",
+        "leaves": [
+          {
+            "name": "stock purchase vs asset purchase vs section 338(h)(10) election",
+            "klpRefs": [
+              0
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "liability assumption"
+          },
+          {
+            "klpRef": 2,
+            "concept": "liability assumption"
+          },
+          {
+            "klpRef": 6,
+            "concept": "depreciation and amortization tax shield"
+          },
+          {
+            "klpRef": 8,
+            "concept": "depreciation and amortization tax shield"
+          },
+          {
+            "klpRef": 7,
+            "concept": "depreciation recapture"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "stock purchase",
+            "to": "asset purchase",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "asset purchase",
+            "to": "purchase price",
+            "type": "causes"
+          },
+          {
+            "klpRef": 5,
+            "from": "stock purchase",
+            "to": "asset purchase",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 7,
+            "from": "asset purchase",
+            "to": "ordinary income",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "stock purchase",
+            "to": "liability assumption",
+            "type": "causes"
+          },
+          {
+            "klpRef": 2,
+            "from": "asset purchase",
+            "to": "liability assumption",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "section 338(h)(10) election",
+            "to": "buyer asset basis step-up",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "section 338(h)(10) election",
+            "to": "stock purchase",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 6,
+            "from": "asset purchase",
+            "to": "depreciation and amortization tax shield",
+            "type": "causes"
+          },
+          {
+            "klpRef": 8,
+            "from": "buyer asset basis step-up",
+            "to": "depreciation and amortization tax shield",
+            "type": "confused_with"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "The three structures differ on two axes: what the buyer receives, and how each party is taxed.",
+          "kind": "definition"
+        },
+        {
+          "text": "A stock purchase buys the whole company, so every asset and liability transfers to the buyer automatically.",
+          "kind": "definition"
+        },
+        {
+          "text": "An asset purchase lets the buyer choose which assets and liabilities to take.",
+          "kind": "definition"
+        },
+        {
+          "text": "Sellers generally demand a higher price in an asset purchase because the buyer's selective assumption of liabilities leaves the seller retaining the excluded ones.",
+          "kind": "causal"
+        },
+        {
+          "text": "A 338(h)(10) election is technically a stock purchase, but the parties elect to tax it as an asset purchase.",
+          "kind": "definition"
+        },
+        {
+          "text": "Stock deals favor the seller: capital gains are paid once on the shares, and the buyer gets no step-up or depreciation tax savings even on a write-up.",
+          "kind": "contrast"
+        },
+        {
+          "text": "In an asset deal, the buyer re-records the purchased assets at the purchase price, and the resulting incremental depreciation and amortization generate tax savings for the buyer.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "In an asset deal, the seller is taxed on the gain from selling the assets, and to the extent of depreciation recapture that gain is ordinary income.",
+          "kind": "causal"
+        },
+        {
+          "text": "In a 338(h)(10) election, the buyer gets a stepped-up asset basis and the resulting depreciation and amortization tax savings.",
+          "kind": "contrast"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 2,
+          "to": 7,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 8,
+          "type": "requires"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "applies_within"
+        },
+        {
+          "from": 5,
+          "to": 6,
+          "type": "confused_with"
+        },
+        {
+          "from": 6,
+          "to": 3,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.33333333333333337,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "A company announces it will acquire another for $80/share. Why might the company (immediately after the announcement) not trade at $80/share?\n",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "merger arbitrage",
+        "leaves": [
+          {
+            "name": "offer price",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "merger arbitrage spread",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "time value of the offer",
+            "klpRefs": [
+              3
+            ]
+          },
+          {
+            "name": "execution risk",
+            "klpRefs": [
+              4
+            ]
+          },
+          {
+            "name": "business risk",
+            "klpRefs": [
+              6
+            ]
+          },
+          {
+            "name": "material adverse change",
+            "klpRefs": [
+              8
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 3,
+            "concept": "discounting the offer to present value"
+          },
+          {
+            "klpRef": 4,
+            "concept": "deal closing conditions"
+          },
+          {
+            "klpRef": 6,
+            "concept": "interim period operations"
+          },
+          {
+            "klpRef": 7,
+            "concept": "consideration mix"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 2,
+            "from": "merger arbitrage spread",
+            "to": "offer price",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "time value of the offer",
+            "to": "merger arbitrage spread",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "execution risk",
+            "to": "merger arbitrage spread",
+            "type": "causes"
+          },
+          {
+            "klpRef": 5,
+            "from": "execution risk",
+            "to": "merger arbitrage spread",
+            "type": "causes"
+          },
+          {
+            "klpRef": 6,
+            "from": "business risk",
+            "to": "merger arbitrage spread",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 8,
+            "from": "material adverse change",
+            "to": "deal cancellation",
+            "type": "causes"
+          },
+          {
+            "klpRef": 7,
+            "from": "stock consideration",
+            "to": "offer price",
+            "type": "applies_within"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "The $80 is the offer price payable at closing.",
+          "kind": "definition"
+        },
+        {
+          "text": "The gap between the offer price and the trading price is the merger arbitrage spread.",
+          "kind": "definition"
+        },
+        {
+          "text": "Between announcement and close, the target's shares typically trade below the offer price.",
+          "kind": "contrast"
+        },
+        {
+          "text": "Time value: the $80 is only received at a future close, and an arbitrageur buying below $80 earns a return over the waiting period — the market discounts the offer back at the return demanded for that time.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Execution risk: the deal may never close, because regulators can block it on antitrust grounds, shareholders can vote it down, financing can fall through, or a material adverse change can let the buyer walk.",
+          "kind": "causal"
+        },
+        {
+          "text": "The more execution risk the market perceives, the wider the spread and the further the stock trades below the offer.",
+          "kind": "causal"
+        },
+        {
+          "text": "Business risk: the target is still a living company between signing and closing, and market volatility or something impairing its standalone value can prevent the deal from closing.",
+          "kind": "causal"
+        },
+        {
+          "text": "If part of the consideration is acquirer stock, the value the target's holders receive moves with the buyer's share price.",
+          "kind": "condition"
+        },
+        {
+          "text": "Example: a sinkhole that destroyed a company's headquarters led to a deal's cancellation.",
+          "kind": "example"
+        }
+      ],
+      "links": [
+        {
+          "from": 3,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 5,
+          "to": 2,
+          "type": "requires"
+        },
+        {
+          "from": 6,
+          "to": 5,
+          "type": "applies_within"
+        }
+      ],
+      "enforcement": {
+        "before": 0.7777777777777778,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "What are 2 ways an acquisition can create value (not accretion necessarily) for acquirers’ shareholders?\n",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "acquisition value creation",
+        "leaves": [
+          {
+            "name": "value arbitrage",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "synergies",
+            "klpRefs": [
+              4
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "bargain purchase price negotiation"
+          },
+          {
+            "klpRef": 4,
+            "concept": "cost and revenue synergy sources"
+          },
+          {
+            "klpRef": 5,
+            "concept": "incremental cash flow valuation"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 2,
+            "from": "target mispricing or distressed seller",
+            "to": "value arbitrage",
+            "type": "causes"
+          },
+          {
+            "klpRef": 6,
+            "from": "purchase price below standalone value plus synergies",
+            "to": "synergies",
+            "type": "requires"
+          },
+          {
+            "klpRef": 7,
+            "from": "earnings per share accretion",
+            "to": "value creation",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 0,
+            "from": "value arbitrage",
+            "to": "target mispricing or distressed seller",
+            "type": "requires"
+          },
+          {
+            "klpRef": 0,
+            "from": "value arbitrage",
+            "to": "synergies",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "synergies",
+            "to": "purchase price below standalone value plus synergies",
+            "type": "requires"
+          },
+          {
+            "klpRef": 5,
+            "from": "cost and revenue synergy sources",
+            "to": "synergies",
+            "type": "applies_within"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Value arbitrage is buying the target for less than its intrinsic value or net asset value.",
+          "kind": "definition"
+        },
+        {
+          "text": "If the target's assets and going-concern value are worth $100 and the acquirer negotiates a price of $80, that $20 gap accrues to the acquirer's shareholders.",
+          "kind": "example"
+        },
+        {
+          "text": "The gap arises when the market has mispriced the target or a distressed seller must transact.",
+          "kind": "causal"
+        },
+        {
+          "text": "Second way: synergies — the combined entity is worth more than the sum of the two companies separately",
+          "kind": "definition"
+        },
+        {
+          "text": "Synergies come from cost sources such as eliminating duplicated overhead and consolidating procurement, and from revenue sources such as cross-selling to each other's customers or combining distribution",
+          "kind": "example"
+        },
+        {
+          "text": "Synergies are worth the present value of incremental cash flows net of one-time costs to achieve them",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The real test of value creation is whether the purchase price is below the target's standalone value plus synergies, not whether EPS goes up.",
+          "kind": "condition"
+        },
+        {
+          "text": "Accretion is an EPS accounting outcome, while value creation means acquirers' shareholders are genuinely wealthier — the two can diverge.",
+          "kind": "contrast"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 1,
+          "type": "requires"
+        },
+        {
+          "from": 0,
+          "to": 3,
+          "type": "confused_with"
+        },
+        {
+          "from": 2,
+          "to": 0,
+          "type": "causes"
+        },
+        {
+          "from": 3,
+          "to": 6,
+          "type": "requires"
+        },
+        {
+          "from": 5,
+          "to": 3,
+          "type": "applies_within"
+        },
+        {
+          "from": 6,
+          "to": 7,
+          "type": "precedes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.625,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "example",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "Imagine this scenario:\nA company worth $1.8B using 50% debt/equity. Over 5 years 450M cash flow paid, then exited. What does this sound like? What type of buyer? Why?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "leveraged buyouts",
+        "leaves": [
+          {
+            "name": "leveraged buyout",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "financial buyer",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "lbo fingerprints",
+            "klpRefs": [
+              2
+            ]
+          },
+          {
+            "name": "sponsor equity check",
+            "klpRefs": [
+              4
+            ]
+          },
+          {
+            "name": "pe fund life",
+            "klpRefs": [
+              5
+            ]
+          },
+          {
+            "name": "sponsor exit",
+            "klpRefs": [
+              6
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 3,
+            "concept": "deal funding structure"
+          },
+          {
+            "klpRef": 4,
+            "concept": "control with minimal equity"
+          },
+          {
+            "klpRef": 5,
+            "concept": "closed-end fund capital return"
+          },
+          {
+            "klpRef": 6,
+            "concept": "return crystallization"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "leveraged buyout",
+            "to": "financial buyer",
+            "type": "requires"
+          },
+          {
+            "klpRef": 3,
+            "from": "deal funding structure",
+            "to": "lbo fingerprints",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 4,
+            "from": "sponsor equity check",
+            "to": "deal funding structure",
+            "type": "causes"
+          },
+          {
+            "klpRef": 5,
+            "from": "pe fund life",
+            "to": "sponsor exit",
+            "type": "causes"
+          },
+          {
+            "klpRef": 6,
+            "from": "sponsor exit",
+            "to": "financial buyer",
+            "type": "requires"
+          },
+          {
+            "klpRef": 7,
+            "from": "high leverage",
+            "to": "leveraged buyout",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "A company acquired with 50% debt and 50% equity, generating cash flow over five years and then sold, is a leveraged buyout (LBO).",
+          "kind": "definition"
+        },
+        {
+          "text": "The buyer in this scenario is a financial buyer — a private equity sponsor — rather than a strategic acquirer.",
+          "kind": "definition"
+        },
+        {
+          "text": "The scenario carries three classic fingerprints of an LBO: funding, horizon, and exit.",
+          "kind": "definition"
+        },
+        {
+          "text": "The 50% debt/equity funding is a heavily leveraged purchase characteristic of sponsors.",
+          "kind": "quantitative"
+        },
+        {
+          "text": "Sponsors use debt so they can control a large asset with only a small equity check.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The five-year horizon matches the typical PE fund life, because PE funds are closed-end vehicles that must return capital to their limited partners.",
+          "kind": "condition"
+        },
+        {
+          "text": "The planned exit at around five years distinguishes the sponsor from a strategic acquirer: the sponsor crystallizes its return by selling the company or taking it public, whereas strategic acquirers buy to hold indefinitely.",
+          "kind": "contrast"
+        },
+        {
+          "text": "High leverage, a defined holding period, and a planned exit point squarely to an LBO by a financial buyer.",
+          "kind": "mechanism"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 1,
+          "type": "requires"
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "type": "applies_within"
+        },
+        {
+          "from": 4,
+          "to": 3,
+          "type": "causes"
+        },
+        {
+          "from": 5,
+          "to": 6,
+          "type": "causes"
+        },
+        {
+          "from": 6,
+          "to": 1,
+          "type": "requires"
+        }
+      ],
+      "enforcement": {
+        "before": 1,
+        "after": 1,
+        "repaired": false,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "quantitative",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "**In an acquisition involving a low-risk acquirer & a high-risk target, whose WACC should be used to discount the target’s cash flows?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "acquisition discount rates",
+        "leaves": [
+          {
+            "name": "weighted average cost of capital",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "target wacc",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "synergy cash flows",
+            "klpRefs": [
+              3
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "discount rate selection"
+          },
+          {
+            "klpRef": 1,
+            "concept": "discounted cash flow valuation"
+          },
+          {
+            "klpRef": 3,
+            "concept": "post-merger cash flow projection"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "weighted average cost of capital",
+            "to": "target wacc",
+            "type": "requires"
+          },
+          {
+            "klpRef": 1,
+            "from": "target wacc",
+            "to": "acquirer wacc",
+            "type": "requires"
+          },
+          {
+            "klpRef": 2,
+            "from": "acquirer wacc",
+            "to": "target cash flow present value",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "synergy cash flows",
+            "to": "acquirer wacc",
+            "type": "causes"
+          },
+          {
+            "klpRef": 4,
+            "from": "acquirer wacc",
+            "to": "synergy cash flows",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 5,
+            "from": "target wacc",
+            "to": "acquirer wacc",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 5,
+            "from": "acquirer wacc",
+            "to": "synergy cash flows",
+            "type": "precedes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "WACC is the rate compensating capital providers for risk, so the discount rate must match the risk of the specific cash flows being discounted",
+          "kind": "definition"
+        },
+        {
+          "text": "The target's standalone cash flows should be discounted at the target's WACC, regardless of who the acquirer is",
+          "kind": "definition"
+        },
+        {
+          "text": "Applying the acquirer's lower WACC to risky target cash flows overstates their present value, because the acquirer's balance sheet does not make the target's business less risky",
+          "kind": "causal"
+        },
+        {
+          "text": "Synergies are cash flows that exist only because the acquirer owns the target, so they are the acquirer's cash flows",
+          "kind": "mechanism"
+        },
+        {
+          "text": "If the acquirer's lower cost of capital applies after the deal closes, the synergies should be discounted at the acquirer's WACC",
+          "kind": "condition"
+        },
+        {
+          "text": "The discipline is one rate per cash-flow stream: target WACC for target flows, acquirer WACC for synergies",
+          "kind": "contrast"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 1,
+          "type": "requires"
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "type": "requires"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "confused_with"
+        },
+        {
+          "from": 5,
+          "to": 4,
+          "type": "precedes"
+        }
+      ],
+      "enforcement": {
+        "before": 1,
+        "after": 1,
+        "repaired": false,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "definition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "In an M&A transaction, would an all-stock or all-cash deal fetch a higher premium? Why?\n",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "merger consideration",
+        "leaves": [
+          {
+            "name": "merger premium",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "stock consideration risk",
+            "klpRefs": [
+              1
+            ]
+          },
+          {
+            "name": "cash consideration certainty",
+            "klpRefs": [
+              4
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "deal consideration structuring"
+          },
+          {
+            "klpRef": 1,
+            "concept": "post-close equity exposure"
+          },
+          {
+            "klpRef": 4,
+            "concept": "deal consideration structuring"
+          },
+          {
+            "klpRef": 5,
+            "concept": "deal consideration structuring"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 2,
+            "from": "stock consideration risk",
+            "to": "merger premium",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "overvalued equity signaling",
+            "to": "merger premium",
+            "type": "causes"
+          },
+          {
+            "klpRef": 6,
+            "from": "cash consideration certainty",
+            "to": "merger premium",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "stock consideration risk",
+            "to": "post-close share performance",
+            "type": "requires"
+          },
+          {
+            "klpRef": 2,
+            "from": "stock consideration risk",
+            "to": "overvalued equity signaling",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 4,
+            "from": "cash consideration certainty",
+            "to": "buyer risk retention",
+            "type": "causes"
+          },
+          {
+            "klpRef": 5,
+            "from": "cash consideration certainty",
+            "to": "buyer risk retention",
+            "type": "causes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "The premium is the amount paid above the target's unaffected share price, and all-stock deals typically fetch the higher premium",
+          "kind": "definition"
+        },
+        {
+          "text": "In an all-stock deal the seller becomes a shareholder of the combined company and bears the downside if the merger underperforms",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Because the target receives the buyer's shares rather than cash, its ultimate payout depends on the post-close trading performance of those shares, so the target demands a larger premium as compensation for the riskier currency",
+          "kind": "causal"
+        },
+        {
+          "text": "Offering stock can signal the buyer believes its own shares are overvalued, so the target demands more stock — a bigger premium — as compensation",
+          "kind": "causal"
+        },
+        {
+          "text": "Cash has certainty of value",
+          "kind": "contrast"
+        },
+        {
+          "text": "Cash puts all the risk on the buyer",
+          "kind": "contrast"
+        },
+        {
+          "text": "The certainty of cash for both sides is why all-cash deals command lower premiums than all-stock deals",
+          "kind": "contrast"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 2,
+          "type": "requires"
+        },
+        {
+          "from": 2,
+          "to": 0,
+          "type": "causes"
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "type": "confused_with"
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 6,
+          "type": "causes"
+        },
+        {
+          "from": 4,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 5,
+          "to": 6,
+          "type": "causes"
+        }
+      ],
+      "enforcement": {
+        "before": 0.8571428571428572,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "What are considerations for the target in terms of receiving cash or stock in an M&A transaction?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "merger consideration",
+        "leaves": [
+          {
+            "name": "stock consideration",
+            "klpRefs": [
+              1,
+              5
+            ]
+          },
+          {
+            "name": "cash consideration",
+            "klpRefs": [
+              7
+            ]
+          },
+          {
+            "name": "tax-deferred reorganization",
+            "klpRefs": [
+              4
+            ]
+          },
+          {
+            "name": "acquirer post-deal performance",
+            "klpRefs": [
+              3
+            ]
+          },
+          {
+            "name": "consideration structuring",
+            "klpRefs": [
+              0
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "consideration structuring"
+          },
+          {
+            "klpRef": 1,
+            "concept": "exchange ratio mechanics"
+          },
+          {
+            "klpRef": 4,
+            "concept": "capital gains deferral"
+          },
+          {
+            "klpRef": 8,
+            "concept": "after-tax proceeds"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "stock consideration",
+            "to": "cash consideration",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 1,
+            "from": "fixed exchange ratio",
+            "to": "acquirer stock price risk",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 3,
+            "from": "acquirer post-deal performance",
+            "to": "stock consideration",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "tax-deferred reorganization",
+            "to": "consideration structuring",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 7,
+            "from": "cash consideration",
+            "to": "immediate gain realization",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 8,
+            "from": "cash consideration",
+            "to": "immediate gain realization",
+            "type": "causes"
+          },
+          {
+            "klpRef": 2,
+            "from": "acquirer stock price risk",
+            "to": "stock consideration",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 6,
+            "from": "cash consideration",
+            "to": "acquirer post-deal performance",
+            "type": "confused_with"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "The consideration choice determines the value certainty, upside exposure, and tax treatment the target's shareholders face after closing",
+          "kind": "definition"
+        },
+        {
+          "text": "For stock, the deal is signed at a fixed exchange ratio, so swings in the acquirer's share price change the value the seller actually receives",
+          "kind": "mechanism"
+        },
+        {
+          "text": "If the acquirer's stock trades in a frothy or overvalued market, the paper the seller accepts may be worth much less once a correction comes",
+          "kind": "condition"
+        },
+        {
+          "text": "The target should assess the acquirer's expected performance, since the stock's future worth depends on how the buyer performs after the deal closes",
+          "kind": "condition"
+        },
+        {
+          "text": "Stock consideration can often be structured as a tax-deferred reorganization, letting the seller postpone capital gains until the shares are sold",
+          "kind": "condition"
+        },
+        {
+          "text": "Stock gives the target shareholders upside participation — they share in the synergies and future growth of the combined company",
+          "kind": "definition"
+        },
+        {
+          "text": "For cash, the value is certain and not dependent on the buyer's future performance or on market movements before closing",
+          "kind": "contrast"
+        },
+        {
+          "text": "Cash lets the target capture the full upside directly, with the value locked at close and nothing left to share with the buyer",
+          "kind": "contrast"
+        },
+        {
+          "text": "Cash is directly taxed: the seller realizes the gain immediately, so after-tax proceeds are lower than the headline price",
+          "kind": "causal"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 2,
+          "type": "applies_within"
+        },
+        {
+          "from": 3,
+          "to": 5,
+          "type": "requires"
+        },
+        {
+          "from": 4,
+          "to": 0,
+          "type": "applies_within"
+        },
+        {
+          "from": 7,
+          "to": 8,
+          "type": "confused_with"
+        }
+      ],
+      "enforcement": {
+        "before": 0.6666666666666667,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "What are considerations for the buyer to finance using cash, stock, or debt in an M&A transaction? When is it best to use each, respectively?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "acquisition financing",
+        "leaves": [
+          {
+            "name": "stock consideration",
+            "klpRefs": [
+              0,
+              1
+            ]
+          },
+          {
+            "name": "shareholder dilution",
+            "klpRefs": [
+              2
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "balance sheet leverage management"
+          },
+          {
+            "klpRef": 1,
+            "concept": "risk sharing with seller"
+          },
+          {
+            "klpRef": 2,
+            "concept": "ownership dilution"
+          },
+          {
+            "klpRef": 5,
+            "concept": "liquidity management"
+          },
+          {
+            "klpRef": 7,
+            "concept": "asset-backed lending"
+          },
+          {
+            "klpRef": 8,
+            "concept": "credit market conditions"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 0,
+            "from": "stock consideration",
+            "to": "overvalued stock",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 2,
+            "from": "shareholder dilution",
+            "to": "undervalued stock",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "overvalued stock",
+            "to": "undervalued stock",
+            "type": "precedes"
+          },
+          {
+            "klpRef": 6,
+            "from": "debt financing",
+            "to": "debt capacity",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "stock consideration",
+            "to": "undervalued stock",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 5,
+            "from": "cash consideration",
+            "to": "liquidity management",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 7,
+            "from": "debt capacity",
+            "to": "asset-backed lending",
+            "type": "applies_within"
+          },
+          {
+            "klpRef": 8,
+            "from": "debt financing",
+            "to": "credit market conditions",
+            "type": "applies_within"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "Stock financing conserves the buyer's cash and avoids adding leverage to the balance sheet.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Stock shares risk with the seller because target shareholders receive shares in the combined company and keep exposure to its post-deal performance.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The cost of stock financing is dilution — existing shareholders' ownership and claim on earnings shrink.",
+          "kind": "causal"
+        },
+        {
+          "text": "Stock is the best currency when management believes its stock is overvalued, making that paper comparatively cheap financing.",
+          "kind": "condition"
+        },
+        {
+          "text": "Stock is a bad choice when markets are poor or the stock is undervalued.",
+          "kind": "condition"
+        },
+        {
+          "text": "Cash is best when the buyer has excess cash above operating needs earning low returns, and bad when spending it leaves no buffer for normal operations or a downturn.",
+          "kind": "condition"
+        },
+        {
+          "text": "Debt is best when the company has debt capacity and capital markets can lend.",
+          "kind": "condition"
+        },
+        {
+          "text": "Debt capacity isn't only EBITDA-based — asset-backed facilities and convertible debt also qualify.",
+          "kind": "condition"
+        },
+        {
+          "text": "Debt is a bad choice when the company is already overlevered or debt market conditions are poor.",
+          "kind": "condition"
+        }
+      ],
+      "links": [
+        {
+          "from": 0,
+          "to": 3,
+          "type": "applies_within"
+        },
+        {
+          "from": 2,
+          "to": 4,
+          "type": "causes"
+        },
+        {
+          "from": 3,
+          "to": 4,
+          "type": "precedes"
+        },
+        {
+          "from": 6,
+          "to": 7,
+          "type": "requires"
+        }
+      ],
+      "enforcement": {
+        "before": 0.5,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "causal",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 7,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 8,
+            "kind": "condition",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    },
+    {
+      "term": "What is the difference between cost synergies and revenue synergies, and which are easier to achieve?",
+      "model": "deepseek-flash",
+      "proposal": {
+        "parent": "merger synergies",
+        "leaves": [
+          {
+            "name": "synergy",
+            "klpRefs": [
+              0
+            ]
+          },
+          {
+            "name": "cost synergies",
+            "klpRefs": [
+              1,
+              2
+            ]
+          },
+          {
+            "name": "revenue synergies",
+            "klpRefs": [
+              3,
+              5
+            ]
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 2,
+            "concept": "deal underwriting"
+          },
+          {
+            "klpRef": 6,
+            "concept": "post-merger integration"
+          }
+        ],
+        "relations": [
+          {
+            "klpRef": 1,
+            "from": "cost synergies",
+            "to": "cost synergies",
+            "type": "causes"
+          },
+          {
+            "klpRef": 1,
+            "from": "cost synergies",
+            "to": "revenue synergies",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 3,
+            "from": "revenue synergies",
+            "to": "revenue synergies",
+            "type": "causes"
+          },
+          {
+            "klpRef": 3,
+            "from": "revenue synergies",
+            "to": "cost synergies",
+            "type": "requires"
+          },
+          {
+            "klpRef": 4,
+            "from": "cost synergies",
+            "to": "revenue synergies",
+            "type": "confused_with"
+          },
+          {
+            "klpRef": 6,
+            "from": "cost synergies",
+            "to": "revenue synergies",
+            "type": "precedes"
+          }
+        ]
+      },
+      "klps": [
+        {
+          "text": "A synergy is value created by combining two companies that neither could capture alone, and it comes in cost and revenue forms",
+          "kind": "definition"
+        },
+        {
+          "text": "Cost synergies are the elimination of overlapping expense that exists because both companies already incur it — the target's duplicate headcount, facilities, or vendor spend is removed, so the saving is a subtraction from the combined cost base rather than a new source of value",
+          "kind": "mechanism"
+        },
+        {
+          "text": "A cost synergy program can be sized and underwritten as a specific dollar figure before closing, because each line item maps to an identified duplicate that appears in the combined accounts",
+          "kind": "quantitative"
+        },
+        {
+          "text": "Revenue synergies require a third party to change behavior after the deal — a customer must buy a cross-sold product or a sales team must push a new offering — so the lift cannot be counted on merely because the two businesses are combined",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Cost synergies are easier to achieve because they sit under management's direct control and can be executed against a specific line-item plan",
+          "kind": "contrast"
+        },
+        {
+          "text": "Revenue synergies are harder because they depend on unpredictable customer behavior — customers may not buy the bundled offering and sales teams may not push it",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Cost synergies are also faster to realize than revenue lifts, which is why acquirers typically underwrite deals primarily on the cost side",
+          "kind": "contrast"
+        }
+      ],
+      "links": [
+        {
+          "from": 1,
+          "to": 4,
+          "type": "causes"
+        },
+        {
+          "from": 1,
+          "to": 3,
+          "type": "confused_with"
+        },
+        {
+          "from": 3,
+          "to": 5,
+          "type": "causes"
+        },
+        {
+          "from": 3,
+          "to": 2,
+          "type": "requires"
+        }
+      ],
+      "enforcement": {
+        "before": 0.6666666666666667,
+        "after": 1,
+        "repaired": true,
+        "rows": [
+          {
+            "ref": 0,
+            "kind": "definition",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 1,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 2,
+            "kind": "quantitative",
+            "intended": "leaf",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 3,
+            "kind": "mechanism",
+            "intended": "edge",
+            "basis": "link-source",
+            "minted": "both",
+            "violation": false
+          },
+          {
+            "ref": 4,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          },
+          {
+            "ref": 5,
+            "kind": "mechanism",
+            "intended": "either",
+            "basis": "kind",
+            "minted": "leaf",
+            "violation": false
+          },
+          {
+            "ref": 6,
+            "kind": "contrast",
+            "intended": "edge",
+            "basis": "kind",
+            "minted": "edge",
+            "violation": false
+          }
+        ]
+      }
+    }
+  ],
+  "failures": [
+    {
+      "term": "What are break-even synergies? How are they calculated and what are they used for?",
+      "error": "No object generated: response did not match schema."
+    },
+    {
+      "term": "What does a sources & uses schedule look like in an M&A transaction?\n",
+      "error": "No object generated: response did not match schema."
+    }
+  ],
+  "tokens": [
+    {
+      "step": "mint",
+      "model": "deepseek-flash",
+      "calls": 10,
+      "input": 25430,
+      "output": 3867,
+      "reasoning": 0,
+      "cached": 10109
+    },
+    {
+      "step": "repair",
+      "model": "deepseek-flash",
+      "calls": 8,
+      "input": 6147,
+      "output": 1082,
+      "reasoning": 0,
+      "cached": 896
+    }
+  ]
+}

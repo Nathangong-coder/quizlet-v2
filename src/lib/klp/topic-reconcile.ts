@@ -126,11 +126,18 @@ export function splitFacet(name: string): { name: string; facet?: string } {
 
 const FILLERS = new Set(['of', 'the', 'and', 'to', 'in', 'on', 'for', 'a', 'an', 'vs', 'versus'])
 
+const PLURAL_KEEP = new Set(['series', 'species', 'basis', 'analysis', 'thesis', 'hypothesis', 'synthesis', 'crisis', 'ebitdas'])
+/**
+ * Naive English singular. Bare "strip the s" made `synergies` → `synergie`
+ * (so "synergy" and "synergies" were two keys on the first M&A rebuild),
+ * `taxes` → `taxe`, `analysis` → `analysi`. Still a rule, not a dictionary.
+ */
 function singular(token: string): string {
-  if (token.length > 3 && token.endsWith('s') && !token.endsWith('ss') && !token.endsWith('us')) {
-    return token.slice(0, -1)
-  }
-  return token
+  if (token.length <= 3 || !token.endsWith('s') || PLURAL_KEEP.has(token)) return token
+  if (token.endsWith('ss') || token.endsWith('us') || token.endsWith('is')) return token
+  if (token.length > 4 && token.endsWith('ies')) return token.slice(0, -3) + 'y'
+  if (/(xes|shes|ches|sses|zes)$/.test(token)) return token.slice(0, -2)
+  return token.slice(0, -1)
 }
 
 export function normalizeName(raw: string): string {

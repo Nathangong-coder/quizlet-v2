@@ -1,0 +1,1969 @@
+{
+  "a": {
+    "provider": "deepseek",
+    "model": "deepseek-flash"
+  },
+  "b": {
+    "provider": "zai",
+    "model": "glm-5.3-flash"
+  },
+  "judge": {
+    "provider": "deepseek",
+    "model": "deepseek-flash"
+  },
+  "seed": 20260911,
+  "results": [
+    {
+      "id": "cmtfewhlf000104jrnvpa8qoi",
+      "term": "Can you describe how deferred revenue might be adjusted in a merger model?",
+      "setTitle": "M&A ",
+      "klps": [
+        {
+          "text": "Deferred revenue is a liability representing cash already collected for goods or services not yet delivered.",
+          "kind": "definition"
+        },
+        {
+          "text": "Historically, the buyer wrote acquired deferred revenue down to fair value — approximately the cost to perform plus a small profit margin.",
+          "kind": "definition"
+        },
+        {
+          "text": "Under the old fair-value treatment, less revenue was recognized after close because the liability covered only cost plus margin, not the full contract value.",
+          "kind": "causal"
+        },
+        {
+          "text": "The old write-down reduced the acquired deferred revenue balance on the opening balance sheet, and that reduction increased the amount allocated to goodwill.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The old fair-value approach changed under ASU 2021-08 because it frequently contradicted ASC 606.",
+          "kind": "causal"
+        },
+        {
+          "text": "The old fair-value approach made combined-company revenue hard to predict.",
+          "kind": "causal"
+        },
+        {
+          "text": "Under ASU 2021-08, contract liabilities are no longer written down — they carry over at the target's book value.",
+          "kind": "contrast"
+        },
+        {
+          "text": "Revenue is recognized under the same ASC 606 principles the target already applied, flowing exactly as it would have on a standalone basis.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Under ASU 2021-08, no purchase accounting adjustment touches goodwill.",
+          "kind": "contrast"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 3,
+          "kind": "edge_align",
+          "klpKind": "mechanism",
+          "aEdges": [
+            {
+              "from": "acquired deferred revenue fair value write-down",
+              "to": "goodwill purchase accounting adjustment",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "deferred revenue fair value write-down",
+              "to": "goodwill",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 4,
+          "kind": "edge_align",
+          "klpKind": "causal",
+          "aEdges": [
+            {
+              "from": "asc 606",
+              "to": "acquired deferred revenue fair value write-down",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "deferred revenue fair value write-down",
+              "to": "ASU 2021-08",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 1
+        },
+        {
+          "klpRef": 6,
+          "kind": "edge_align",
+          "klpKind": "contrast",
+          "aEdges": [
+            {
+              "from": "asu 2021-08 contract liability carryover",
+              "to": "acquired deferred revenue fair value write-down",
+              "type": "confused_with"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "deferred revenue fair value write-down",
+              "to": "deferred revenue book value carryover",
+              "type": "confused_with"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 2
+        },
+        {
+          "klpRef": 6,
+          "kind": "name_conflict",
+          "klpKind": "contrast",
+          "aName": "asu 2021-08 contract liability carryover",
+          "bName": "deferred revenue book value carryover",
+          "conflictIndex": 3
+        },
+        {
+          "klpRef": 7,
+          "kind": "edge_align",
+          "klpKind": "mechanism",
+          "aEdges": [
+            {
+              "from": "asc 606",
+              "to": "post-close revenue recognition",
+              "type": "applies_within"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "deferred revenue book value carryover",
+              "to": "ASC 606",
+              "type": "applies_within"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 4
+        },
+        {
+          "klpRef": 7,
+          "kind": "name_conflict",
+          "klpKind": "mechanism",
+          "aName": "asu 2021-08 contract liability carryover",
+          "bName": "deferred revenue book value carryover",
+          "conflictIndex": 5
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 3,
+          "conflictIndex": 0,
+          "sameLinks": [
+            {
+              "a": 0,
+              "b": 0
+            }
+          ]
+        },
+        {
+          "klpRef": 4,
+          "conflictIndex": 1,
+          "sameLinks": []
+        },
+        {
+          "klpRef": 6,
+          "conflictIndex": 2,
+          "sameLinks": [
+            {
+              "a": 0,
+              "b": 0
+            }
+          ]
+        },
+        {
+          "klpRef": 6,
+          "conflictIndex": 3,
+          "sameConcept": false,
+          "prefer": "a",
+          "otherAcceptable": true,
+          "klpFaithful": "a"
+        },
+        {
+          "klpRef": 7,
+          "conflictIndex": 4,
+          "sameLinks": []
+        },
+        {
+          "klpRef": 7,
+          "conflictIndex": 5,
+          "sameConcept": false,
+          "prefer": "b",
+          "otherAcceptable": true,
+          "klpFaithful": "b"
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-flash",
+        "proposal": {
+          "parent": "merger model deferred revenue",
+          "leaves": [
+            {
+              "name": "deferred revenue",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "acquired deferred revenue fair value write-down",
+              "klpRefs": [
+                1,
+                3
+              ]
+            },
+            {
+              "name": "asu 2021-08 contract liability carryover",
+              "klpRefs": [
+                6,
+                7
+              ]
+            },
+            {
+              "name": "goodwill purchase accounting adjustment",
+              "klpRefs": [
+                8
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 2,
+              "concept": "post-close revenue recognition"
+            },
+            {
+              "klpRef": 3,
+              "concept": "opening balance sheet allocation"
+            },
+            {
+              "klpRef": 7,
+              "concept": "post-close revenue recognition"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "acquired deferred revenue fair value write-down",
+              "to": "post-close revenue recognition",
+              "type": "causes"
+            },
+            {
+              "klpRef": 3,
+              "from": "acquired deferred revenue fair value write-down",
+              "to": "goodwill purchase accounting adjustment",
+              "type": "causes"
+            },
+            {
+              "klpRef": 4,
+              "from": "asc 606",
+              "to": "acquired deferred revenue fair value write-down",
+              "type": "causes"
+            },
+            {
+              "klpRef": 5,
+              "from": "acquired deferred revenue fair value write-down",
+              "to": "combined-company revenue predictability",
+              "type": "causes"
+            },
+            {
+              "klpRef": 6,
+              "from": "asu 2021-08 contract liability carryover",
+              "to": "acquired deferred revenue fair value write-down",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 7,
+              "from": "asc 606",
+              "to": "post-close revenue recognition",
+              "type": "applies_within"
+            },
+            {
+              "klpRef": 8,
+              "from": "asu 2021-08 contract liability carryover",
+              "to": "goodwill purchase accounting adjustment",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "glm-5.3-flash",
+        "proposal": {
+          "parent": "purchase accounting",
+          "leaves": [
+            {
+              "name": "deferred revenue",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "deferred revenue fair value write-down",
+              "klpRefs": [
+                1,
+                2,
+                5
+              ]
+            },
+            {
+              "name": "ASU 2021-08",
+              "klpRefs": [
+                4
+              ]
+            },
+            {
+              "name": "deferred revenue book value carryover",
+              "klpRefs": [
+                6,
+                7,
+                8
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "purchase accounting"
+            },
+            {
+              "klpRef": 3,
+              "concept": "purchase accounting"
+            },
+            {
+              "klpRef": 6,
+              "concept": "purchase accounting"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 3,
+              "from": "deferred revenue fair value write-down",
+              "to": "goodwill",
+              "type": "causes"
+            },
+            {
+              "klpRef": 4,
+              "from": "deferred revenue fair value write-down",
+              "to": "ASU 2021-08",
+              "type": "causes"
+            },
+            {
+              "klpRef": 6,
+              "from": "deferred revenue fair value write-down",
+              "to": "deferred revenue book value carryover",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 7,
+              "from": "deferred revenue book value carryover",
+              "to": "ASC 606",
+              "type": "applies_within"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "purchase accounting",
+        "parentReason": "rule:klp-vocabulary",
+        "leaves": [
+          {
+            "name": "deferred revenue",
+            "klpRefs": [
+              0
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "acquired deferred revenue fair value write-down",
+            "klpRefs": [
+              1,
+              3
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "ASU 2021-08",
+            "klpRefs": [
+              4
+            ],
+            "reason": "rule:only-coverage",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "asu 2021-08 contract liability carryover",
+            "klpRefs": [
+              6
+            ],
+            "reason": "judge:ds-preferred+prior",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "deferred revenue book value carryover",
+            "klpRefs": [
+              7
+            ],
+            "reason": "judge:gemini-weighted",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "goodwill purchase accounting adjustment",
+            "klpRefs": [
+              8
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "acquired deferred revenue fair value write-down",
+            "to": "post-close revenue recognition",
+            "type": "causes",
+            "klpRef": 2,
+            "reason": "rule:ds-extra-edge",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "acquired deferred revenue fair value write-down",
+            "to": "combined-company revenue predictability",
+            "type": "causes",
+            "klpRef": 5,
+            "reason": "rule:ds-extra-edge",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "asu 2021-08 contract liability carryover",
+            "to": "goodwill purchase accounting adjustment",
+            "type": "causes",
+            "klpRef": 8,
+            "reason": "rule:ds-extra-edge",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "deferred revenue fair value write-down",
+            "to": "goodwill",
+            "type": "causes",
+            "klpRef": 3,
+            "reason": "judge:same-link→klp-vocabulary",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "deferred revenue fair value write-down",
+            "to": "ASU 2021-08",
+            "type": "causes",
+            "klpRef": 4,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "asu 2021-08 contract liability carryover",
+            "to": "acquired deferred revenue fair value write-down",
+            "type": "confused_with",
+            "klpRef": 6,
+            "reason": "judge:same-link→klp-vocabulary",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "asc 606",
+            "to": "post-close revenue recognition",
+            "type": "applies_within",
+            "klpRef": 7,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "a",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "purchase accounting",
+            "reason": "rule:ctx-gemini",
+            "source": "b"
+          },
+          {
+            "klpRef": 2,
+            "concept": "post-close revenue recognition",
+            "reason": "rule:ctx-in-vocab",
+            "source": "a"
+          },
+          {
+            "klpRef": 3,
+            "concept": "opening balance sheet allocation",
+            "reason": "rule:klp-vocabulary",
+            "source": "a"
+          },
+          {
+            "klpRef": 6,
+            "concept": "purchase accounting",
+            "reason": "rule:ctx-gemini",
+            "source": "b"
+          },
+          {
+            "klpRef": 7,
+            "concept": "post-close revenue recognition",
+            "reason": "rule:ctx-in-vocab",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 2: rule:edge-priority dropped leaf B \"deferred revenue fair value write-down\"",
+          "klp 3: compress:context dropped side b \"purchase accounting\" (min-count 1)",
+          "klp 5: rule:edge-priority dropped leaf B \"deferred revenue fair value write-down\"",
+          "klp 4: compress:edge dropped side a asc 606 --causes--> acquired deferred revenue fair value write-down (min-count 1)",
+          "klp 7: compress:edge dropped side b deferred revenue book value carryover --applies_within--> ASC 606 (min-count 1)"
+        ]
+      }
+    },
+    {
+      "id": "cmtg6w8y1002c04i8xk1wrtsr",
+      "term": "How do you determine whether or not a deal destroys/creates value? How can it look/be accretive but destroy value?",
+      "setTitle": "M&A ",
+      "klps": [
+        {
+          "text": "The premium paid is a prepayment of expected synergies — the deal creates value only if the present value of synergies exceeds that premium",
+          "kind": "condition"
+        },
+        {
+          "text": "If the premium exceeds the synergies, the combined entity is worth less than what was paid for it — that is value destruction",
+          "kind": "definition"
+        },
+        {
+          "text": "Accretion is an accounting test — whether combined EPS rises — and is separate from the economic question of whether value was created",
+          "kind": "contrast"
+        },
+        {
+          "text": "The premium can exceed the present value of realized synergies after the deal closes, destroying value even though the deal was underwritten as accretive",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Buying a lower-P/E target with stock mechanically raises EPS even when no real value is created, so accretion alone can signal value creation when there is none",
+          "kind": "mechanism"
+        },
+        {
+          "text": "If the target's value declines after the deal, its P/E stays below the buyer's so EPS still looks accretive, yet combined value is less than the two standalone companies",
+          "kind": "causal"
+        },
+        {
+          "text": "The deal itself can cause deterioration — consolidated revenue can fall below the two companies' separate revenues through customer loss or channel conflict",
+          "kind": "example"
+        },
+        {
+          "text": "Hidden liabilities discovered post-close erode the value the premium was underwritten by, another way an accretive deal destroys value",
+          "kind": "condition"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 2,
+          "kind": "edge_align",
+          "klpKind": "contrast",
+          "aEdges": [
+            {
+              "from": "eps accretion",
+              "to": "value creation",
+              "type": "confused_with"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "earnings per share accretion",
+              "to": "value destruction",
+              "type": "confused_with"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 3,
+          "kind": "name_conflict",
+          "klpKind": "mechanism",
+          "aName": "post-close synergy shortfall",
+          "bName": "synergy realization",
+          "conflictIndex": 1
+        },
+        {
+          "klpRef": 5,
+          "kind": "edge_align",
+          "klpKind": "causal",
+          "aEdges": [
+            {
+              "from": "target value decline after acquisition",
+              "to": "eps accretion",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "target value decline",
+              "to": "value destruction",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 2
+        },
+        {
+          "klpRef": 6,
+          "kind": "edge_align",
+          "klpKind": "example",
+          "aEdges": [
+            {
+              "from": "post-merger integration",
+              "to": "post-merger revenue dis-synergies",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "revenue deterioration",
+              "to": "value destruction",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 3
+        },
+        {
+          "klpRef": 7,
+          "kind": "edge_align",
+          "klpKind": "condition",
+          "aEdges": [
+            {
+              "from": "hidden liabilities discovered post-close",
+              "to": "value destruction",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "hidden liabilities",
+              "to": "value destruction",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 4
+        },
+        {
+          "klpRef": 0,
+          "kind": "extra_context",
+          "klpKind": "condition",
+          "concept": "premium allocation",
+          "distinctFrom": [
+            "synergy premium"
+          ],
+          "conflictIndex": 5
+        },
+        {
+          "klpRef": 1,
+          "kind": "extra_context",
+          "klpKind": "definition",
+          "concept": "purchase price allocation",
+          "distinctFrom": [
+            "value destruction"
+          ],
+          "conflictIndex": 6
+        },
+        {
+          "klpRef": 2,
+          "kind": "extra_context",
+          "klpKind": "contrast",
+          "concept": "pro forma earnings analysis",
+          "distinctFrom": [
+            "eps accretion"
+          ],
+          "conflictIndex": 7
+        },
+        {
+          "klpRef": 3,
+          "kind": "extra_context",
+          "klpKind": "mechanism",
+          "concept": "post-merger integration",
+          "distinctFrom": [],
+          "conflictIndex": 8
+        },
+        {
+          "klpRef": 4,
+          "kind": "extra_context",
+          "klpKind": "mechanism",
+          "concept": "stock-funded acquisitions",
+          "distinctFrom": [
+            "eps accretion",
+            "stock-funded acquisition of lower p/e target -> eps accretion"
+          ],
+          "conflictIndex": 9
+        },
+        {
+          "klpRef": 5,
+          "kind": "extra_context",
+          "klpKind": "causal",
+          "concept": "post-merger performance measurement",
+          "distinctFrom": [
+            "target value decline after acquisition"
+          ],
+          "conflictIndex": 10
+        },
+        {
+          "klpRef": 6,
+          "kind": "extra_context",
+          "klpKind": "example",
+          "concept": "post-merger integration",
+          "distinctFrom": [
+            "revenue deterioration"
+          ],
+          "conflictIndex": 11
+        },
+        {
+          "klpRef": 7,
+          "kind": "extra_context",
+          "klpKind": "condition",
+          "concept": "due diligence",
+          "distinctFrom": [
+            "hidden liabilities"
+          ],
+          "conflictIndex": 12
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 2,
+          "conflictIndex": 0,
+          "sameLinks": [
+            {
+              "a": 0,
+              "b": 0
+            }
+          ]
+        },
+        {
+          "klpRef": 3,
+          "conflictIndex": 1,
+          "sameConcept": false,
+          "prefer": "a",
+          "otherAcceptable": true,
+          "klpFaithful": "a"
+        },
+        {
+          "klpRef": 5,
+          "conflictIndex": 2,
+          "sameLinks": []
+        },
+        {
+          "klpRef": 6,
+          "conflictIndex": 3,
+          "sameLinks": []
+        },
+        {
+          "klpRef": 7,
+          "conflictIndex": 4,
+          "sameLinks": [
+            {
+              "a": 0,
+              "b": 0
+            }
+          ]
+        },
+        {
+          "klpRef": 0,
+          "conflictIndex": 5,
+          "distinct": true
+        },
+        {
+          "klpRef": 1,
+          "conflictIndex": 6,
+          "distinct": true
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 7,
+          "distinct": true
+        },
+        {
+          "klpRef": 3,
+          "conflictIndex": 8,
+          "distinct": true
+        },
+        {
+          "klpRef": 4,
+          "conflictIndex": 9,
+          "distinct": false
+        },
+        {
+          "klpRef": 5,
+          "conflictIndex": 10,
+          "distinct": true
+        },
+        {
+          "klpRef": 6,
+          "conflictIndex": 11,
+          "distinct": true
+        },
+        {
+          "klpRef": 7,
+          "conflictIndex": 12,
+          "distinct": true
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-flash",
+        "proposal": {
+          "parent": "merger value creation",
+          "leaves": [
+            {
+              "name": "synergy premium test",
+              "klpRefs": [
+                0,
+                1
+              ]
+            },
+            {
+              "name": "eps accretion",
+              "klpRefs": [
+                2,
+                4
+              ]
+            },
+            {
+              "name": "post-close synergy shortfall",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "target value decline after acquisition",
+              "klpRefs": [
+                5
+              ]
+            },
+            {
+              "name": "post-merger revenue dis-synergies",
+              "klpRefs": [
+                6
+              ]
+            },
+            {
+              "name": "hidden liabilities discovered post-close",
+              "klpRefs": [
+                7
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 0,
+              "concept": "premium allocation"
+            },
+            {
+              "klpRef": 1,
+              "concept": "purchase price allocation"
+            },
+            {
+              "klpRef": 2,
+              "concept": "pro forma earnings analysis"
+            },
+            {
+              "klpRef": 3,
+              "concept": "post-merger integration"
+            },
+            {
+              "klpRef": 4,
+              "concept": "stock-funded acquisitions"
+            },
+            {
+              "klpRef": 5,
+              "concept": "post-merger performance measurement"
+            },
+            {
+              "klpRef": 6,
+              "concept": "post-merger integration"
+            },
+            {
+              "klpRef": 7,
+              "concept": "due diligence"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "eps accretion",
+              "to": "value creation",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 4,
+              "from": "stock-funded acquisition of lower p/e target",
+              "to": "eps accretion",
+              "type": "causes"
+            },
+            {
+              "klpRef": 5,
+              "from": "target value decline after acquisition",
+              "to": "eps accretion",
+              "type": "causes"
+            },
+            {
+              "klpRef": 6,
+              "from": "post-merger integration",
+              "to": "post-merger revenue dis-synergies",
+              "type": "causes"
+            },
+            {
+              "klpRef": 7,
+              "from": "hidden liabilities discovered post-close",
+              "to": "value destruction",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "glm-5.3-flash",
+        "proposal": {
+          "parent": "merger value creation",
+          "leaves": [
+            {
+              "name": "synergy premium",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "value destruction",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "synergy realization",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "earnings per share accretion",
+              "klpRefs": [
+                4
+              ]
+            },
+            {
+              "name": "revenue deterioration",
+              "klpRefs": [
+                6
+              ]
+            },
+            {
+              "name": "hidden liabilities",
+              "klpRefs": [
+                7
+              ]
+            }
+          ],
+          "contexts": [],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "earnings per share accretion",
+              "to": "value destruction",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 5,
+              "from": "target value decline",
+              "to": "value destruction",
+              "type": "causes"
+            },
+            {
+              "klpRef": 7,
+              "from": "hidden liabilities",
+              "to": "value destruction",
+              "type": "causes"
+            },
+            {
+              "klpRef": 6,
+              "from": "revenue deterioration",
+              "to": "value destruction",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "merger value creation",
+        "parentReason": "rule:tie-gemini",
+        "leaves": [
+          {
+            "name": "synergy premium",
+            "klpRefs": [
+              0
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "value destruction",
+            "klpRefs": [
+              1
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "eps accretion",
+            "klpRefs": [
+              2,
+              4
+            ],
+            "reason": "rule:only-coverage",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "post-close synergy shortfall",
+            "klpRefs": [
+              3
+            ],
+            "reason": "judge:ds-preferred+prior",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "target value decline after acquisition",
+            "klpRefs": [
+              5
+            ],
+            "reason": "rule:only-coverage",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "revenue deterioration",
+            "klpRefs": [
+              6
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "hidden liabilities",
+            "klpRefs": [
+              7
+            ],
+            "reason": "rule:shorter",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "stock-funded acquisition of lower p/e target",
+            "to": "eps accretion",
+            "type": "causes",
+            "klpRef": 4,
+            "reason": "rule:ds-extra-edge",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "eps accretion",
+            "to": "value creation",
+            "type": "confused_with",
+            "klpRef": 2,
+            "reason": "judge:same-link→klp-vocabulary",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "target value decline",
+            "to": "value destruction",
+            "type": "causes",
+            "klpRef": 5,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "revenue deterioration",
+            "to": "value destruction",
+            "type": "causes",
+            "klpRef": 6,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "hidden liabilities",
+            "to": "value destruction",
+            "type": "causes",
+            "klpRef": 7,
+            "reason": "judge:same-link→gemini",
+            "source": "b",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 0,
+            "concept": "premium allocation",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 1,
+            "concept": "purchase price allocation",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 2,
+            "concept": "pro forma earnings analysis",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 3,
+            "concept": "post-merger integration",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 5,
+            "concept": "post-merger performance measurement",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 6,
+            "concept": "post-merger integration",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 7,
+            "concept": "due diligence",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 5: compress:edge dropped side a target value decline after acquisition --causes--> eps accretion (min-count 1)",
+          "klp 6: compress:edge dropped side a post-merger integration --causes--> post-merger revenue dis-synergies (min-count 1)",
+          "klp 4: judge:extra-dropped \"stock-funded acquisitions\" (restates)"
+        ]
+      }
+    },
+    {
+      "id": "cmtgdoqt0004m04jxtfypwnmc",
+      "term": "What is a fairness opinion? What is included in it?\n",
+      "setTitle": "M&A ",
+      "klps": [
+        {
+          "text": "A fairness opinion is a letter from an independent financial advisor to a company's board on whether the transaction is fair from a financial point of view.",
+          "kind": "definition"
+        },
+        {
+          "text": "The board uses the fairness opinion to support its recommendation to shareholders and to satisfy its fiduciary duty not to mislead them.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "It provides the board meaningful protection against shareholder litigation over the price.",
+          "kind": "causal"
+        },
+        {
+          "text": "The word independent matters: the advisor must be free of conflicts so the valuation of the target is genuinely unbiased.",
+          "kind": "condition"
+        },
+        {
+          "text": "A fairness opinion contains a range of valuations of the target based on the analyses performed, typically DCF, trading comparables, and precedent transactions, and presents the valuation as a range rather than a single number.",
+          "kind": "example"
+        },
+        {
+          "text": "A fairness opinion contains the assumptions, limitations, and qualifications of the analyses — what the advisor relied on, what was excluded, and where the analysis could be wrong.",
+          "kind": "definition"
+        },
+        {
+          "text": "A fairness opinion ends with the advisor's explicit conclusion on whether the price or consideration is fair from a financial point of view.",
+          "kind": "definition"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 5,
+          "kind": "name_conflict",
+          "klpKind": "definition",
+          "aName": "assumptions and",
+          "bName": "fairness opinion assumptions and qualifications",
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 4,
+          "kind": "extra_context",
+          "klpKind": "example",
+          "concept": "discounted cash flow analysis",
+          "distinctFrom": [
+            "valuation range"
+          ],
+          "conflictIndex": 1
+        },
+        {
+          "klpRef": 4,
+          "kind": "extra_context",
+          "klpKind": "example",
+          "concept": "trading comparables",
+          "distinctFrom": [
+            "valuation range"
+          ],
+          "conflictIndex": 2
+        },
+        {
+          "klpRef": 4,
+          "kind": "extra_context",
+          "klpKind": "example",
+          "concept": "precedent transactions",
+          "distinctFrom": [
+            "valuation range"
+          ],
+          "conflictIndex": 3
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 5,
+          "conflictIndex": 0,
+          "sameConcept": true,
+          "prefer": "b",
+          "otherAcceptable": true,
+          "klpFaithful": "b"
+        },
+        {
+          "klpRef": 4,
+          "conflictIndex": 1,
+          "distinct": true
+        },
+        {
+          "klpRef": 4,
+          "conflictIndex": 2,
+          "distinct": true
+        },
+        {
+          "klpRef": 4,
+          "conflictIndex": 3,
+          "distinct": true
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-flash",
+        "proposal": {
+          "parent": "fairness opinions",
+          "leaves": [
+            {
+              "name": "fairness opinion",
+              "klpRefs": [
+                0,
+                6
+              ]
+            },
+            {
+              "name": "board fiduciary duty",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "advisor independence",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "valuation range",
+              "klpRefs": [
+                4
+              ]
+            },
+            {
+              "name": "assumptions and limitations",
+              "klpRefs": [
+                5
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 4,
+              "concept": "discounted cash flow analysis"
+            },
+            {
+              "klpRef": 4,
+              "concept": "trading comparables"
+            },
+            {
+              "klpRef": 4,
+              "concept": "precedent transactions"
+            },
+            {
+              "klpRef": 1,
+              "concept": "shareholder recommendation"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "fairness opinion",
+              "to": "shareholder litigation protection",
+              "type": "causes"
+            },
+            {
+              "klpRef": 3,
+              "from": "advisor independence",
+              "to": "fairness opinion",
+              "type": "requires"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "glm-5.3-flash",
+        "proposal": {
+          "parent": "fairness opinion",
+          "leaves": [
+            {
+              "name": "fairness opinion",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "advisor independence",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "fairness opinion valuation range",
+              "klpRefs": [
+                4
+              ]
+            },
+            {
+              "name": "fairness opinion assumptions and qualifications",
+              "klpRefs": [
+                5
+              ]
+            },
+            {
+              "name": "fairness opinion fairness conclusion",
+              "klpRefs": [
+                6
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "fiduciary duty"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 1,
+              "from": "fairness opinion",
+              "to": "board recommendation to shareholders",
+              "type": "precedes"
+            },
+            {
+              "klpRef": 2,
+              "from": "fairness opinion",
+              "to": "shareholder litigation protection",
+              "type": "causes"
+            },
+            {
+              "klpRef": 3,
+              "from": "advisor independence",
+              "to": "fairness opinion",
+              "type": "applies_within"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "fairness opinion",
+        "parentReason": "rule:tie-gemini",
+        "leaves": [
+          {
+            "name": "fairness opinion",
+            "klpRefs": [
+              0,
+              6
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "advisor independence",
+            "klpRefs": [
+              3
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "valuation range",
+            "klpRefs": [
+              4
+            ],
+            "reason": "rule:shorter",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "assumptions and",
+            "klpRefs": [
+              5
+            ],
+            "reason": "judge:same-concept→shorter",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "fairness opinion",
+            "to": "board recommendation to shareholders",
+            "type": "precedes",
+            "klpRef": 1,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "fairness opinion",
+            "to": "shareholder litigation protection",
+            "type": "causes",
+            "klpRef": 2,
+            "reason": "rule:edge-both",
+            "source": "both",
+            "containerEndpoint": false
+          },
+          {
+            "from": "advisor independence",
+            "to": "fairness opinion",
+            "type": "applies_within",
+            "klpRef": 3,
+            "reason": "rule:type-gemini",
+            "source": "b",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "fiduciary duty",
+            "reason": "rule:ctx-gemini",
+            "source": "b"
+          },
+          {
+            "klpRef": 4,
+            "concept": "discounted cash flow analysis",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 4,
+            "concept": "trading comparables",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 4,
+            "concept": "precedent transactions",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 1: compress:context dropped side a \"shareholder recommendation\" (min-count 1)",
+          "klp 1: rule:edge-priority dropped leaf A \"board fiduciary duty\"",
+          "klp 5: facet:stripped side a \"assumptions and limitations\" -> \"assumptions and\" (limitations)"
+        ]
+      }
+    },
+    {
+      "id": "cmtibnhfi006j04ihu2khfei4",
+      "term": "When would $100M of revenue synergies go straight into EBITDA?",
+      "setTitle": "M&A ",
+      "klps": [
+        {
+          "text": "Revenue synergies flow straight into EBITDA only when the incremental revenue carries no incremental cost.",
+          "kind": "condition"
+        },
+        {
+          "text": "A price lift is the clean example: raising prices on existing customers adds revenue with no incremental cost, so every dollar falls through to EBITDA.",
+          "kind": "example"
+        },
+        {
+          "text": "In software, a company that buys another software company can cross-sell to its customer base, riding on R&D, infrastructure, and maintenance that already exist and are paid for, so the extra revenue needs no new spend.",
+          "kind": "example"
+        },
+        {
+          "text": "In the software cross-sell case, no new engineering headcount or hosting cost is needed.",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Most revenue synergies do not qualify — realizing cross-sell revenue usually means hiring salespeople, carrying COGS, or spending on marketing.",
+          "kind": "contrast"
+        },
+        {
+          "text": "Typically only the margin on the synergistic revenue belongs in EBITDA, not the full $100 million.",
+          "kind": "quantitative"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 0,
+          "kind": "name_conflict",
+          "klpKind": "condition",
+          "aName": "costless revenue synergy",
+          "bName": "costless flow-through synergies",
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 1,
+          "kind": "name_conflict",
+          "klpKind": "example",
+          "aName": "costless revenue synergy",
+          "bName": "price increase synergies",
+          "conflictIndex": 1
+        },
+        {
+          "klpRef": 2,
+          "kind": "name_conflict",
+          "klpKind": "example",
+          "aName": "costless revenue synergy",
+          "bName": "software cross-sell synergies",
+          "conflictIndex": 2
+        },
+        {
+          "klpRef": 4,
+          "kind": "edge_align",
+          "klpKind": "contrast",
+          "aEdges": [
+            {
+              "from": "costless revenue synergy",
+              "to": "revenue synergy",
+              "type": "confused_with"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "revenue synergies",
+              "to": "salesforce hiring costs",
+              "type": "confused_with"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 3
+        },
+        {
+          "klpRef": 0,
+          "kind": "extra_context",
+          "klpKind": "condition",
+          "concept": "EBITDA contribution",
+          "distinctFrom": [
+            "revenue synergies -> costless flow-through synergies"
+          ],
+          "conflictIndex": 4
+        },
+        {
+          "klpRef": 1,
+          "kind": "extra_context",
+          "klpKind": "example",
+          "concept": "pricing power",
+          "distinctFrom": [],
+          "conflictIndex": 5
+        },
+        {
+          "klpRef": 2,
+          "kind": "extra_context",
+          "klpKind": "example",
+          "concept": "cross-selling",
+          "distinctFrom": [],
+          "conflictIndex": 6
+        },
+        {
+          "klpRef": 3,
+          "kind": "extra_context",
+          "klpKind": "mechanism",
+          "concept": "cost structure",
+          "distinctFrom": [
+            "software cross-sell synergies"
+          ],
+          "conflictIndex": 7
+        },
+        {
+          "klpRef": 5,
+          "kind": "extra_context",
+          "klpKind": "quantitative",
+          "concept": "EBITDA contribution",
+          "distinctFrom": [
+            "synergy margin in EBITDA"
+          ],
+          "conflictIndex": 8
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 0,
+          "conflictIndex": 0,
+          "sameConcept": true,
+          "prefer": "a",
+          "otherAcceptable": true,
+          "klpFaithful": "a"
+        },
+        {
+          "klpRef": 1,
+          "conflictIndex": 1,
+          "sameConcept": false,
+          "prefer": "b",
+          "otherAcceptable": true,
+          "klpFaithful": "b"
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 2,
+          "sameConcept": false,
+          "prefer": "a",
+          "otherAcceptable": true,
+          "klpFaithful": "a"
+        },
+        {
+          "klpRef": 4,
+          "conflictIndex": 3,
+          "sameLinks": []
+        },
+        {
+          "klpRef": 0,
+          "conflictIndex": 4,
+          "distinct": false
+        },
+        {
+          "klpRef": 1,
+          "conflictIndex": 5,
+          "distinct": true
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 6,
+          "distinct": true
+        },
+        {
+          "klpRef": 3,
+          "conflictIndex": 7,
+          "distinct": true
+        },
+        {
+          "klpRef": 5,
+          "conflictIndex": 8,
+          "distinct": false
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-flash",
+        "proposal": {
+          "parent": "revenue synergies",
+          "leaves": [
+            {
+              "name": "costless revenue synergy",
+              "klpRefs": [
+                0,
+                1,
+                2,
+                3
+              ]
+            },
+            {
+              "name": "synergy margin in EBITDA",
+              "klpRefs": [
+                5
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 0,
+              "concept": "EBITDA contribution"
+            },
+            {
+              "klpRef": 1,
+              "concept": "pricing power"
+            },
+            {
+              "klpRef": 2,
+              "concept": "cross-selling"
+            },
+            {
+              "klpRef": 3,
+              "concept": "cost structure"
+            },
+            {
+              "klpRef": 5,
+              "concept": "EBITDA contribution"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 4,
+              "from": "costless revenue synergy",
+              "to": "revenue synergy",
+              "type": "confused_with"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "glm-5.3-flash",
+        "proposal": {
+          "parent": "revenue synergies",
+          "leaves": [
+            {
+              "name": "costless flow-through synergies",
+              "klpRefs": [
+                0,
+                5
+              ]
+            },
+            {
+              "name": "price increase synergies",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "software cross-sell synergies",
+              "klpRefs": [
+                2,
+                3
+              ]
+            },
+            {
+              "name": "salesforce hiring costs",
+              "klpRefs": [
+                4
+              ]
+            }
+          ],
+          "contexts": [],
+          "relations": [
+            {
+              "klpRef": 0,
+              "from": "revenue synergies",
+              "to": "costless flow-through synergies",
+              "type": "applies_within"
+            },
+            {
+              "klpRef": 4,
+              "from": "revenue synergies",
+              "to": "salesforce hiring costs",
+              "type": "confused_with"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "revenue synergies",
+        "parentReason": "rule:tie-gemini",
+        "leaves": [
+          {
+            "name": "costless flow-through synergies",
+            "klpRefs": [
+              0
+            ],
+            "reason": "judge:same-concept→tie-gemini",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "price increase synergies",
+            "klpRefs": [
+              1
+            ],
+            "reason": "judge:gemini-weighted",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "costless revenue synergy",
+            "klpRefs": [
+              2
+            ],
+            "reason": "judge:ds-preferred+prior",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "software cross-sell synergies",
+            "klpRefs": [
+              3
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "salesforce hiring costs",
+            "klpRefs": [
+              4
+            ],
+            "reason": "rule:only-coverage",
+            "source": "b",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "synergy margin in EBITDA",
+            "klpRefs": [
+              5
+            ],
+            "reason": "rule:klp-vocabulary",
+            "source": "a",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "revenue synergies",
+            "to": "costless flow-through synergies",
+            "type": "applies_within",
+            "klpRef": 0,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "revenue synergies",
+            "to": "salesforce hiring costs",
+            "type": "confused_with",
+            "klpRef": 4,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "b",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "pricing power",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 2,
+            "concept": "cross-selling",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 3,
+            "concept": "cost structure",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 4: compress:edge dropped side a costless revenue synergy --confused_with--> revenue synergy (min-count 1)",
+          "klp 0: judge:extra-dropped \"EBITDA contribution\" (restates)",
+          "klp 5: judge:extra-dropped \"EBITDA contribution\" (restates)"
+        ]
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "step": "judge",
+      "model": "deepseek-flash",
+      "calls": 4,
+      "input": 5345,
+      "output": 746,
+      "reasoning": 0,
+      "cached": 2560
+    },
+    {
+      "step": "mint",
+      "model": "deepseek-flash",
+      "calls": 4,
+      "input": 9341,
+      "output": 1345,
+      "reasoning": 0,
+      "cached": 8576
+    },
+    {
+      "step": "mint",
+      "model": "glm-5.3-flash",
+      "calls": 4,
+      "input": 9190,
+      "output": 2379,
+      "reasoning": 1398,
+      "cached": 9088
+    }
+  ]
+}

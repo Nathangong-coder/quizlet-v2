@@ -32,18 +32,14 @@ export interface RelateKlpsBuildInput {
  */
 export const RELATE_KLPS_PROMPT = {
   id: 'relate-klps',
-  version: 1,
+  // v2 (2026-09-14): instructions first, card last (prefix cache).
+  version: 2,
   schema: RelationDraftSchema,
 
   build(input: RelateKlpsBuildInput): string {
     const klps = input.klps.map((k, i) => `[${i}] ${k.text}`).join('\n');
 
     return `You are finding the load-bearing links among the Key Learning Points (KLPs) of one interview question — not describing every way they relate, only the ones where missing the link is a specific, nameable mistake.
-
-Question: ${input.question}
-
-Key Learning Points:
-${klps}
 
 Look for edges by three techniques:
 
@@ -62,6 +58,11 @@ Offer only these relation types: ${RELATABLE_TYPES.join(', ')}. Do not use any o
 Output JSON:
 { "relations": [ { "from": number, "to": number, "type": string, "provenance": "perturbation" | "order_violation" | "substitution", "rationale": string, "probe": string } ] }
 "rationale" and "probe" are each ONE sentence, at most 25 words.
-"from"/"to" are the [index] numbers above.`;
+"from"/"to" are the [index] numbers of the key points.
+
+Question: ${input.question}
+
+Key Learning Points:
+${klps}`;
   },
 };

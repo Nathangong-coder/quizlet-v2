@@ -134,3 +134,47 @@ describe('GRADE_CANDIDATE_PROMPT kind-aware strictness', () => {
     expect(p).not.toContain(KIND_STRICTNESS_CLAUSE)
   })
 })
+
+describe('framing, judged (2026-09-13)', () => {
+  it('the judged label overrides the rule; unlabelled and out-of-range indices keep the rule', async () => {
+    const { applyRoleOverride, isMemorizable, framingShare, MEMORIZABLE_FRAMING_SHARE } = await import('@/lib/klp/framing')
+    expect(applyRoleOverride(['substance', 'substance', 'framing'], [{ index: 0, role: 'framing' }, { index: 2, role: 'substance' }, { index: 9, role: 'framing' }])).toEqual(['framing', 'substance', 'substance'])
+    expect(applyRoleOverride(['substance'], undefined)).toEqual(['substance'])
+    expect(MEMORIZABLE_FRAMING_SHARE).toBe(0.6)
+    expect(framingShare(['framing', 'framing', 'substance', 'substance', 'substance'])).toBeCloseTo(0.4)
+    expect(isMemorizable(['framing', 'framing', 'framing', 'substance', 'substance'])).toBe(true)
+    expect(isMemorizable(['framing', 'framing', 'substance', 'substance', 'substance'])).toBe(false)
+    expect(isMemorizable([])).toBe(false)
+  })
+
+  it('a memorizable card raises no separation finding and no trap finding, but keeps reference misses and hygiene', async () => {
+    const { revisionFindings } = await import('@/lib/klp/authoring')
+    const { computeSeparation } = await import('@/lib/klp/separation')
+    const ref = V('correct', 'partial', 'correct')
+    const wrong = [W('memorized_template', 'correct', 'correct', 'correct')]
+    const grades = wrong.map((w) => ({ kind: w.kind, verdicts: w.verdicts }))
+    const f = revisionFindings({ separation: computeSeparation({ kind: 'reference', verdicts: ref }, grades), roles: ['framing', 'framing', 'substance'], memorizable: true, referenceVerdicts: ref, wrong, defects: [{ index: 2, rule: 'compound', detail: 'x' }] })
+    expect(f.map((x) => x.issue)).toEqual(['reference answer scored partial on this point', 'compound'])
+  })
+
+  it('in authorCard the classifier overrides the rule, and a mostly-framing card is memorizable with separation left alone', async () => {
+    const { authorCard } = await import('@/lib/klp/authoring')
+    const { vi } = await import('vitest')
+    const klps = [{ text: 'X is defined as Y', kind: 'definition' }, { text: '8% is below 10%', kind: 'quantitative' }, { text: 'the funding cost is 10%', kind: 'condition' }, { text: 'EPS falls because yield < cost', kind: 'causal' }, { text: 'the deal is dilutive', kind: 'contrast' }]
+    const classifyRoles = vi.fn().mockResolvedValue({ points: [{ index: 0, role: 'framing' }, { index: 1, role: 'framing', reason: 'plugs in two givens' }, { index: 2, role: 'framing' }, { index: 3, role: 'substance' }, { index: 4, role: 'framing' }] })
+    const revise = vi.fn()
+    const g = {
+      author: vi.fn().mockResolvedValue({ referenceAnswer: 'ref', klps, wrongAnswers: [{ kind: 'vague', text: 'w2' }, { kind: 'memorized_template', text: 'w3' }] }),
+      // the template passes everything: full separation 0, substance separation 0
+      grade: vi.fn().mockImplementation(({ candidateAnswer, klps: shown }: { candidateAnswer: string; klps: { text: string }[] }) => ({ verdicts: shown.map((_, i) => ({ klpIndex: i, verdict: candidateAnswer === 'ref' || candidateAnswer === 'w3' ? 'correct' : 'omission' })) })),
+      revise, relate: vi.fn().mockResolvedValue({ relations: [] }), classifyRoles,
+    }
+    const out = await authorCard({ question: 'Q', definition: 'D', setTitle: 'S' }, g as never)
+    expect(classifyRoles).toHaveBeenCalledTimes(1)
+    expect(out.klps.map((k) => k.role)).toEqual(['framing', 'framing', 'framing', 'substance', 'framing'])
+    expect(out.status).toBe('memorizable')
+    expect(out.separationScore).toBe(0)
+    expect(revise).not.toHaveBeenCalled()
+    expect(out.roleReasons).toEqual({ 1: 'plugs in two givens' })
+  })
+})

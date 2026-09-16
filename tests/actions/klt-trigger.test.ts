@@ -15,11 +15,18 @@ const klpWrite = read('src/lib/cards/klp-write.ts')
 const editor = read('src/components/sets/KlpEditor.tsx')
 
 describe('KLT trigger wiring', () => {
-  it('schedules summarization at every site that schedules extraction', () => {
+  it('no longer summarises or places at a save site — the topic layer is built by the owner build step (2026-09-16)', () => {
+    // The legacy summariser wrote AI-summarised nodes straight into the
+    // owner's tree; the tree is now the minting loop's and the set-level
+    // rebuild's, run from `src/lib/klp/build-set.ts`. A save still schedules
+    // the legacy extraction so a quiz has key points minutes after an edit,
+    // and sends the owner back with `?build=1` so the real build starts.
     const extractions = (sets.match(/await extractKlpsForCards\(/g) ?? []).length
     const summarizations = (sets.match(/await summarizeKltsForCards\(/g) ?? []).length
     expect(extractions).toBeGreaterThan(0)
-    expect(summarizations).toBe(extractions)
+    expect(summarizations).toBe(0)
+    expect(sets).toContain('build: stale.length > 0')
+    expect(read('src/components/sets/SetForm.tsx')).toContain("?build=1")
   })
 
   it('places new concepts after summarizing them, at every save site', () => {

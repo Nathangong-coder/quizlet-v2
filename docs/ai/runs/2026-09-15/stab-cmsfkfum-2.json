@@ -1,0 +1,1076 @@
+{
+  "a": {
+    "provider": "deepseek",
+    "model": "deepseek-flash"
+  },
+  "b": {
+    "provider": "zai",
+    "model": "glm-5.3-flash"
+  },
+  "judge": {
+    "provider": "deepseek",
+    "model": "deepseek-flash"
+  },
+  "seed": 20260911,
+  "results": [
+    {
+      "id": "cmsfkfuy5000104jozt2jbmvc",
+      "term": "Walk me through the 3 financial statements & how they generally work",
+      "setTitle": "Accounting - \"Talking\"",
+      "klps": [
+        {
+          "text": "The three financial statements are the income statement, balance sheet, and cash flow statement, and each answers a different question about the business",
+          "kind": "definition"
+        },
+        {
+          "text": "The income statement measures profitability over a period, flowing from revenue down through costs to net income",
+          "kind": "definition"
+        },
+        {
+          "text": "Net income tells you whether the company made or lost money",
+          "kind": "definition"
+        },
+        {
+          "text": "The balance sheet is a snapshot at a point in time showing assets — resources like cash, inventory, and PP&E",
+          "kind": "definition"
+        },
+        {
+          "text": "Assets are funded either by liabilities like debt and payables or by shareholder equity, and assets always equal liabilities plus equity",
+          "kind": "mechanism"
+        },
+        {
+          "text": "The cash flow statement measures liquidity — actual cash generated and used over a period",
+          "kind": "definition"
+        },
+        {
+          "text": "The cash flow statement starts with net income, adds back non-cash charges like D&A, and adjusts for working capital to get operating cash flow",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Investing activities capture cash spent on long-term assets like CapEx, and financing activities capture debt, equity, and dividend flows",
+          "kind": "mechanism"
+        },
+        {
+          "text": "Net income from the income statement feeds the cash flow statement and flows into retained earnings on the balance sheet, and the cash flow statement's net change in cash explains why the balance sheet's cash balance changed",
+          "kind": "causal"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 8,
+          "kind": "edge_align",
+          "klpKind": "causal",
+          "aEdges": [
+            {
+              "from": "net income",
+              "to": "operating cash flow",
+              "type": "precedes"
+            },
+            {
+              "from": "cash flow statement",
+              "to": "balance sheet",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "net income",
+              "to": "cash flow statement",
+              "type": "precedes"
+            },
+            {
+              "from": "net change in cash",
+              "to": "cash balance",
+              "type": "causes"
+            }
+          ],
+          "targetCount": 2,
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 2,
+          "kind": "extra_context",
+          "klpKind": "definition",
+          "concept": "profitability measurement",
+          "distinctFrom": [
+            "net income"
+          ],
+          "conflictIndex": 1
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 8,
+          "conflictIndex": 0,
+          "sameLinks": [
+            {
+              "a": 1,
+              "b": 0
+            }
+          ]
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 1,
+          "distinct": true
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-flash",
+        "proposal": {
+          "parent": "financial statements",
+          "leaves": [
+            {
+              "name": "three financial statements",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "income statement",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "net income",
+              "klpRefs": [
+                2,
+                8
+              ]
+            },
+            {
+              "name": "balance sheet",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "accounting equation",
+              "klpRefs": [
+                4
+              ]
+            },
+            {
+              "name": "cash flow statement",
+              "klpRefs": [
+                5,
+                6,
+                7
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "profitability measurement"
+            },
+            {
+              "klpRef": 2,
+              "concept": "profitability measurement"
+            },
+            {
+              "klpRef": 3,
+              "concept": "asset recording"
+            },
+            {
+              "klpRef": 4,
+              "concept": "balance sheet funding"
+            },
+            {
+              "klpRef": 5,
+              "concept": "liquidity measurement"
+            },
+            {
+              "klpRef": 6,
+              "concept": "operating cash flow"
+            },
+            {
+              "klpRef": 7,
+              "concept": "investing cash flow"
+            },
+            {
+              "klpRef": 7,
+              "concept": "financing cash flow"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 8,
+              "from": "net income",
+              "to": "retained earnings",
+              "type": "precedes"
+            },
+            {
+              "klpRef": 8,
+              "from": "net income",
+              "to": "operating cash flow",
+              "type": "precedes"
+            },
+            {
+              "klpRef": 8,
+              "from": "cash flow statement",
+              "to": "balance sheet",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "glm-5.3-flash",
+        "proposal": {
+          "parent": "financial statement basics",
+          "leaves": [
+            {
+              "name": "financial statements",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "income statement",
+              "klpRefs": [
+                1
+              ]
+            },
+            {
+              "name": "net income",
+              "klpRefs": [
+                2
+              ]
+            },
+            {
+              "name": "balance sheet",
+              "klpRefs": [
+                3
+              ]
+            },
+            {
+              "name": "accounting equation",
+              "klpRefs": [
+                4
+              ]
+            },
+            {
+              "name": "cash flow statement",
+              "klpRefs": [
+                5
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 1,
+              "concept": "profitability measurement"
+            },
+            {
+              "klpRef": 3,
+              "concept": "asset measurement"
+            },
+            {
+              "klpRef": 5,
+              "concept": "liquidity measurement"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 1,
+              "from": "revenue",
+              "to": "net income",
+              "type": "precedes"
+            },
+            {
+              "klpRef": 6,
+              "from": "net income",
+              "to": "operating cash flow",
+              "type": "precedes"
+            },
+            {
+              "klpRef": 6,
+              "from": "depreciation and amortization",
+              "to": "operating cash flow",
+              "type": "applies_within"
+            },
+            {
+              "klpRef": 7,
+              "from": "capital expenditures",
+              "to": "investing cash flow",
+              "type": "applies_within"
+            },
+            {
+              "klpRef": 7,
+              "from": "dividends",
+              "to": "financing cash flow",
+              "type": "applies_within"
+            },
+            {
+              "klpRef": 8,
+              "from": "net income",
+              "to": "cash flow statement",
+              "type": "precedes"
+            },
+            {
+              "klpRef": 8,
+              "from": "net income",
+              "to": "retained earnings",
+              "type": "precedes"
+            },
+            {
+              "klpRef": 8,
+              "from": "net change in cash",
+              "to": "cash balance",
+              "type": "causes"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "financial statements",
+        "parentReason": "rule:shorter",
+        "leaves": [
+          {
+            "name": "financial statements",
+            "klpRefs": [
+              0
+            ],
+            "reason": "rule:shorter",
+            "source": "b",
+            "container": true,
+            "containerAllowed": true
+          },
+          {
+            "name": "income statement",
+            "klpRefs": [
+              1
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": true,
+            "containerAllowed": true
+          },
+          {
+            "name": "net income",
+            "klpRefs": [
+              2,
+              8
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "balance sheet",
+            "klpRefs": [
+              3
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": true,
+            "containerAllowed": true
+          },
+          {
+            "name": "accounting equation",
+            "klpRefs": [
+              4
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "cash flow statement",
+            "klpRefs": [
+              5
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": true,
+            "containerAllowed": true
+          }
+        ],
+        "relations": [
+          {
+            "from": "revenue",
+            "to": "net income",
+            "type": "precedes",
+            "klpRef": 1,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "net income",
+            "to": "operating cash flow",
+            "type": "precedes",
+            "klpRef": 6,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "depreciation and amortization",
+            "to": "operating cash flow",
+            "type": "applies_within",
+            "klpRef": 6,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "capital expenditures",
+            "to": "investing cash flow",
+            "type": "applies_within",
+            "klpRef": 7,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "dividends",
+            "to": "financing cash flow",
+            "type": "applies_within",
+            "klpRef": 7,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "net income",
+            "to": "retained earnings",
+            "type": "precedes",
+            "klpRef": 8,
+            "reason": "rule:edge-both",
+            "source": "both",
+            "containerEndpoint": false
+          },
+          {
+            "from": "net income",
+            "to": "cash flow statement",
+            "type": "precedes",
+            "klpRef": 8,
+            "reason": "judge:same-link→gemini",
+            "source": "b",
+            "containerEndpoint": true
+          },
+          {
+            "from": "net change in cash",
+            "to": "cash balance",
+            "type": "causes",
+            "klpRef": 8,
+            "reason": "judge:distinct→klp-vocabulary",
+            "source": "b",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 1,
+            "concept": "profitability measurement",
+            "reason": "rule:ctx-both",
+            "source": "both"
+          },
+          {
+            "klpRef": 3,
+            "concept": "asset measurement",
+            "reason": "rule:ctx-gemini",
+            "source": "b"
+          },
+          {
+            "klpRef": 5,
+            "concept": "liquidity measurement",
+            "reason": "rule:ctx-both",
+            "source": "both"
+          },
+          {
+            "klpRef": 6,
+            "concept": "operating cash flow",
+            "reason": "rule:ctx-in-vocab",
+            "source": "a"
+          },
+          {
+            "klpRef": 7,
+            "concept": "investing cash flow",
+            "reason": "rule:ctx-in-vocab",
+            "source": "a"
+          },
+          {
+            "klpRef": 7,
+            "concept": "financing cash flow",
+            "reason": "rule:ctx-in-vocab",
+            "source": "a"
+          },
+          {
+            "klpRef": 2,
+            "concept": "profitability measurement",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 3: compress:context dropped side a \"asset recording\" (min-count 1)",
+          "klp 4: drop:container-context side a \"balance sheet funding\"",
+          "klp 6: rule:edge-priority dropped leaf A \"cash flow statement\"",
+          "klp 7: rule:edge-priority dropped leaf A \"cash flow statement\"",
+          "klp 8: compress:edge dropped side a net income --precedes--> operating cash flow (min-count 2)"
+        ]
+      }
+    },
+    {
+      "id": "cmsfkfv9c001v04jooywp1ptm",
+      "term": "What are non-recurring items? What do we generally do with them?",
+      "setTitle": "Accounting - \"Talking\"",
+      "klps": [
+        {
+          "text": "Non-recurring items are one-off income or expense items that don't reflect the run-rate performance of the business",
+          "kind": "definition"
+        },
+        {
+          "text": "Typical examples are restructuring charges, inventory write-downs, impairments, and gains or losses on asset sales",
+          "kind": "example"
+        },
+        {
+          "text": "Non-recurring items are added back when comparing companies because they are not part of core operations",
+          "kind": "causal"
+        },
+        {
+          "text": "The add-back gets you to earnings the business can be expected to generate going forward",
+          "kind": "causal"
+        },
+        {
+          "text": "Caveat: these are still real cash costs, and some companies take 'one-off' charges repeatedly, so don't ignore them entirely",
+          "kind": "condition"
+        },
+        {
+          "text": "Adjustments should be symmetric — strip out unusually large one-off gains, not just charges",
+          "kind": "contrast"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 3,
+          "kind": "edge_align",
+          "klpKind": "causal",
+          "aEdges": [
+            {
+              "from": "add-back of non-recurring items",
+              "to": "normalized earnings",
+              "type": "causes"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "non-recurring items",
+              "to": "run-rate earnings",
+              "type": "precedes"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 5,
+          "kind": "edge_align",
+          "klpKind": "contrast",
+          "aEdges": [
+            {
+              "from": "one-off gains",
+              "to": "restructuring charges",
+              "type": "confused_with"
+            }
+          ],
+          "bEdges": [
+            {
+              "from": "non-recurring charges",
+              "to": "non-recurring gains",
+              "type": "confused_with"
+            }
+          ],
+          "targetCount": 1,
+          "conflictIndex": 1
+        },
+        {
+          "klpRef": 5,
+          "kind": "extra_context",
+          "klpKind": "contrast",
+          "concept": "symmetric adjustments",
+          "distinctFrom": [],
+          "conflictIndex": 2
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 3,
+          "conflictIndex": 0,
+          "sameLinks": [
+            {
+              "a": 0,
+              "b": 0
+            }
+          ]
+        },
+        {
+          "klpRef": 5,
+          "conflictIndex": 1,
+          "sameLinks": [
+            {
+              "a": 0,
+              "b": 0
+            }
+          ]
+        },
+        {
+          "klpRef": 5,
+          "conflictIndex": 2,
+          "distinct": true
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-flash",
+        "proposal": {
+          "parent": "non-recurring items",
+          "leaves": [
+            {
+              "name": "non-recurring items",
+              "klpRefs": [
+                0,
+                1
+              ]
+            },
+            {
+              "name": "add-back of non-recurring items",
+              "klpRefs": [
+                2
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 4,
+              "concept": "one-off charges that recur"
+            },
+            {
+              "klpRef": 5,
+              "concept": "symmetric adjustments"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 3,
+              "from": "add-back of non-recurring items",
+              "to": "normalized earnings",
+              "type": "causes"
+            },
+            {
+              "klpRef": 4,
+              "from": "non-recurring items",
+              "to": "cash costs",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 5,
+              "from": "one-off gains",
+              "to": "restructuring charges",
+              "type": "confused_with"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "glm-5.3-flash",
+        "proposal": {
+          "parent": "earnings normalization",
+          "leaves": [
+            {
+              "name": "non-recurring items",
+              "klpRefs": [
+                0,
+                1,
+                4
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 4,
+              "concept": "earnings quality"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "non-recurring items",
+              "to": "comparable company analysis",
+              "type": "applies_within"
+            },
+            {
+              "klpRef": 3,
+              "from": "non-recurring items",
+              "to": "run-rate earnings",
+              "type": "precedes"
+            },
+            {
+              "klpRef": 5,
+              "from": "non-recurring charges",
+              "to": "non-recurring gains",
+              "type": "confused_with"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "non-recurring items",
+        "parentReason": "rule:klp-vocabulary",
+        "leaves": [
+          {
+            "name": "non-recurring items",
+            "klpRefs": [
+              0,
+              1
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "non-recurring items",
+            "to": "comparable company analysis",
+            "type": "applies_within",
+            "klpRef": 2,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "non-recurring items",
+            "to": "cash costs",
+            "type": "confused_with",
+            "klpRef": 4,
+            "reason": "rule:ds-extra-edge",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "add-back of non-recurring items",
+            "to": "normalized earnings",
+            "type": "causes",
+            "klpRef": 3,
+            "reason": "judge:same-link→klp-vocabulary",
+            "source": "a",
+            "containerEndpoint": false
+          },
+          {
+            "from": "one-off gains",
+            "to": "restructuring charges",
+            "type": "confused_with",
+            "klpRef": 5,
+            "reason": "judge:same-link→klp-vocabulary",
+            "source": "a",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 4,
+            "concept": "one-off charges that recur",
+            "reason": "rule:klp-vocabulary",
+            "source": "a"
+          },
+          {
+            "klpRef": 5,
+            "concept": "symmetric adjustments",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 2: rule:edge-priority dropped leaf A \"add-back of non-recurring items\"",
+          "klp 4: compress:context dropped side b \"earnings quality\" (min-count 1)",
+          "klp 4: rule:edge-priority dropped leaf B \"non-recurring items\""
+        ]
+      }
+    },
+    {
+      "id": "cmsfkfvgr003p04jocjuzwwgo",
+      "term": "** (WEIRD) What is the difference between IRR and WACC?",
+      "setTitle": "Accounting - \"Talking\"",
+      "klps": [
+        {
+          "text": "IRR is the projected return on a project's expenditures — the implied interest rate needed on the initial investment to match the project's projected returns.",
+          "kind": "definition"
+        },
+        {
+          "text": "WACC is the minimum required return that the company's debt and equity providers demand, blended and weighted by the capital mix.",
+          "kind": "definition"
+        },
+        {
+          "text": "IRR is computed solely from a specific project's own cash flows, independent of how the firm is financed.",
+          "kind": "contrast"
+        },
+        {
+          "text": "WACC is computed from the company's capital structure — the proportions and costs of its debt and equity — and is the same for every project the firm considers.",
+          "kind": "contrast"
+        },
+        {
+          "text": "WACC acts as the hurdle rate — a project creates value only if its IRR exceeds the WACC.",
+          "kind": "condition"
+        }
+      ],
+      "conflictsSent": [
+        {
+          "klpRef": 0,
+          "kind": "extra_context",
+          "klpKind": "definition",
+          "concept": "capital budgeting",
+          "distinctFrom": [
+            "internal rate of return"
+          ],
+          "conflictIndex": 0
+        },
+        {
+          "klpRef": 2,
+          "kind": "extra_context",
+          "klpKind": "contrast",
+          "concept": "project cash flow analysis",
+          "distinctFrom": [
+            "internal rate of return -> weighted average cost of capital"
+          ],
+          "conflictIndex": 1
+        }
+      ],
+      "verdicts": [
+        {
+          "klpRef": 0,
+          "conflictIndex": 0,
+          "distinct": true
+        },
+        {
+          "klpRef": 2,
+          "conflictIndex": 1,
+          "distinct": true
+        }
+      ],
+      "judgeCalls": 1,
+      "deepseek": {
+        "model": "deepseek-flash",
+        "proposal": {
+          "parent": "project return versus cost of capital",
+          "leaves": [
+            {
+              "name": "internal rate of return",
+              "klpRefs": [
+                0,
+                2
+              ]
+            },
+            {
+              "name": "weighted average cost of capital",
+              "klpRefs": [
+                1,
+                3
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 0,
+              "concept": "capital budgeting"
+            },
+            {
+              "klpRef": 2,
+              "concept": "project cash flow analysis"
+            },
+            {
+              "klpRef": 3,
+              "concept": "capital structure"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 4,
+              "from": "internal rate of return",
+              "to": "weighted average cost of capital",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 4,
+              "from": "weighted average cost of capital",
+              "to": "internal rate of return",
+              "type": "requires"
+            }
+          ]
+        }
+      },
+      "gemini": {
+        "model": "glm-5.3-flash",
+        "proposal": {
+          "parent": "capital budgeting",
+          "leaves": [
+            {
+              "name": "internal rate of return",
+              "klpRefs": [
+                0
+              ]
+            },
+            {
+              "name": "weighted average cost of capital",
+              "klpRefs": [
+                1
+              ]
+            }
+          ],
+          "contexts": [
+            {
+              "klpRef": 4,
+              "concept": "capital budgeting"
+            }
+          ],
+          "relations": [
+            {
+              "klpRef": 2,
+              "from": "internal rate of return",
+              "to": "weighted average cost of capital",
+              "type": "confused_with"
+            },
+            {
+              "klpRef": 3,
+              "from": "weighted average cost of capital",
+              "to": "capital structure",
+              "type": "applies_within"
+            },
+            {
+              "klpRef": 4,
+              "from": "internal rate of return",
+              "to": "weighted average cost of capital",
+              "type": "requires"
+            }
+          ]
+        }
+      },
+      "merged": {
+        "parent": "project return versus cost of capital",
+        "parentReason": "rule:klp-vocabulary",
+        "leaves": [
+          {
+            "name": "internal rate of return",
+            "klpRefs": [
+              0
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          },
+          {
+            "name": "weighted average cost of capital",
+            "klpRefs": [
+              1
+            ],
+            "reason": "rule:tie-gemini",
+            "source": "both",
+            "container": false,
+            "containerAllowed": false
+          }
+        ],
+        "relations": [
+          {
+            "from": "internal rate of return",
+            "to": "weighted average cost of capital",
+            "type": "confused_with",
+            "klpRef": 2,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "weighted average cost of capital",
+            "to": "capital structure",
+            "type": "applies_within",
+            "klpRef": 3,
+            "reason": "rule:gemini-extra-edge",
+            "source": "b",
+            "containerEndpoint": false
+          },
+          {
+            "from": "internal rate of return",
+            "to": "weighted average cost of capital",
+            "type": "requires",
+            "klpRef": 4,
+            "reason": "rule:type-gemini",
+            "source": "b",
+            "containerEndpoint": false
+          }
+        ],
+        "contexts": [
+          {
+            "klpRef": 3,
+            "concept": "capital structure",
+            "reason": "rule:ctx-in-vocab",
+            "source": "a"
+          },
+          {
+            "klpRef": 4,
+            "concept": "capital budgeting",
+            "reason": "rule:ctx-gemini",
+            "source": "b"
+          },
+          {
+            "klpRef": 0,
+            "concept": "capital budgeting",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          },
+          {
+            "klpRef": 2,
+            "concept": "project cash flow analysis",
+            "reason": "judge:extra-kept",
+            "source": "a"
+          }
+        ],
+        "conflicts": [],
+        "notes": [
+          "klp 2: rule:edge-priority dropped leaf A \"internal rate of return\"",
+          "klp 3: rule:edge-priority dropped leaf A \"weighted average cost of capital\"",
+          "klp 4: compress:edge dropped weighted average cost of capital --requires--> internal rate of return"
+        ]
+      }
+    }
+  ],
+  "tokens": [
+    {
+      "step": "judge",
+      "model": "deepseek-flash",
+      "calls": 3,
+      "input": 2810,
+      "output": 134,
+      "reasoning": 0,
+      "cached": 1920
+    },
+    {
+      "step": "mint",
+      "model": "deepseek-flash",
+      "calls": 3,
+      "input": 6875,
+      "output": 942,
+      "reasoning": 0,
+      "cached": 6272
+    },
+    {
+      "step": "mint",
+      "model": "glm-5.3-flash",
+      "calls": 3,
+      "input": 6751,
+      "output": 6899,
+      "reasoning": 6008,
+      "cached": 2176
+    }
+  ]
+}

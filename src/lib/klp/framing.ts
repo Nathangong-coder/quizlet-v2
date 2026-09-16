@@ -42,6 +42,40 @@ import { computeSeparation, type CandidateGrade, type SeparationResult } from '@
 export const FRAMING_KINDS = ['definition', 'contrast'] as const
 export const FRAMING_PROBE = 'memorized_template'
 
+/**
+ * A card whose points are at least this share framing is MEMORIZABLE
+ * (2026-09-13, owner): a question a template answers. Its separation is
+ * recorded but is not a defect — no separation finding is raised, the card
+ * is neither `separated` nor `low_discrimination`, and the veto does not
+ * count the separation floor against its rounds.
+ */
+export const MEMORIZABLE_FRAMING_SHARE = 0.6
+
+export function framingShare(roles: PointRole[]): number {
+  return roles.length === 0 ? 0 : roles.filter((r) => r === 'framing').length / roles.length
+}
+
+export function isMemorizable(roles: PointRole[]): boolean {
+  return roles.length > 0 && framingShare(roles) >= MEMORIZABLE_FRAMING_SHARE
+}
+
+/**
+ * The judged classification wins over the rule (owner, 2026-09-13: "the
+ * model should ... override my general rule"). A point the classifier did
+ * not label keeps the rule's role; an out-of-range index is ignored.
+ */
+export function applyRoleOverride(
+  ruleRoles: PointRole[],
+  judged: { index: number; role: PointRole }[] | undefined,
+): PointRole[] {
+  if (!judged) return ruleRoles
+  const out = [...ruleRoles]
+  for (const j of judged) {
+    if (Number.isInteger(j.index) && j.index >= 0 && j.index < out.length) out[j.index] = j.role
+  }
+  return out
+}
+
 export type PointRole = 'framing' | 'substance'
 
 export function isFramingKind(kind: string): boolean {

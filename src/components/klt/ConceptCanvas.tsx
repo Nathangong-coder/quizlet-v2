@@ -288,12 +288,15 @@ export function ConceptCanvas({
                   const to = layout.byKltId.get(rel.toKltId)
                   if (!from || !to) return null
                   const geo = relationPath(from, to)
-                  const cls = RELATION_CLASS[rel.type] ?? 'stroke-muted-foreground'
+                  // a cross-listing is the tree's own "also under": a second parent, drawn in the tree's grey, not a typed dependency
+                  const crossListed = rel.provenance === 'cross_listed'
+                  const cls = crossListed ? 'stroke-muted-foreground' : (RELATION_CLASS[rel.type] ?? 'stroke-muted-foreground')
+                  const label = crossListed ? 'also under' : rel.type.replace('_', ' ')
                   return (
                     <g key={`${rel.fromKltId}-${rel.type}-${rel.toKltId}`} className="group">
-                      <path d={geo.d} fill="none" strokeWidth={1.5} strokeDasharray="5 4" className={`${cls} opacity-70`} />
+                      <path d={geo.d} fill="none" strokeWidth={crossListed ? 1.25 : 1 + Math.min(3, (rel.cardCount - 1) * 0.75)} strokeDasharray={crossListed ? '2 4' : '5 4'} className={`${cls} opacity-70`} />
                       <path d={geo.d} fill="none" strokeWidth={10} className="stroke-transparent">
-                        <title>{`${rel.type.replace('_', ' ')} · ${rel.cardCount} card${rel.cardCount === 1 ? '' : 's'} · ${rel.provenance}`}</title>
+                        <title>{`${label} · ${rel.cardCount} card${rel.cardCount === 1 ? '' : 's'} · ${rel.provenance}`}</title>
                       </path>
                       <text
                         x={geo.midX}
@@ -301,7 +304,7 @@ export function ConceptCanvas({
                         textAnchor="middle"
                         className="fill-muted-foreground text-[10px] opacity-0 group-hover:opacity-100"
                       >
-                        {rel.type.replace('_', ' ')}
+                        {label}
                       </text>
                     </g>
                   )

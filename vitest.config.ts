@@ -11,6 +11,10 @@ export default defineConfig({
     // it set) — each *.test.tsx opts in per-file instead, via a
     // `// @vitest-environment jsdom` docblock as its first line.
     setupFiles: ['./tests/setup/jest-dom.ts'],
+    // Git worktrees live under .claude/worktrees; without this, a path filter
+    // like `vitest run tests/klp` also collects the other branch's tests and
+    // runs them against THIS branch's source (2026-09-13).
+    exclude: ['**/node_modules/**', '**/.claude/**'],
   },
   resolve: {
     alias: {

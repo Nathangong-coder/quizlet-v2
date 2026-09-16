@@ -34,7 +34,7 @@ describe('resolveKltWrites', () => {
     // A gap would make rank mean two different things depending on what the
     // model happened to return, and masteryTopicRanks reads rank as a cutoff.
     const out = resolveKltWrites(
-      [{ ref: 0, label: 'x', concepts: ['the weighted average cost of capital', 'Bankruptcy'] }],
+      [{ ref: 0, label: 'x', concepts: ['the weighted average cost of capital for a firm', 'Bankruptcy'] }],
       ids,
     )
     expect(out[0].topics).toEqual([{ name: 'Bankruptcy', normalizedName: 'bankruptcy', rank: 1 }])

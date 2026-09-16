@@ -37,30 +37,36 @@ export const WriteAdversariesSchema = z.object({
 
 const ARCHETYPE: Record<ProbeKind, string> = {
   vague: 'vague: refuses to commit to specifics; gestures at the right area without stating the actual claims a strong answer makes.',
-  memorized_template: 'memorized_template: the shape and vocabulary of a strong answer — the structure a template gives you — with no real substance underneath.',
+  memorized_template: 'memorized_template: the shape and vocabulary of a strong answer — the structure a template gives you — with no real substance underneath. IT MUST BE WRONG: it reaches the wrong conclusion or no conclusion; where the question gives numbers, it gets the key comparison backwards, compares the wrong pair, or names the numbers without concluding. A template answer that happens to be right is not a wrong answer and is useless here.',
   confident_wrong: 'confident_wrong: articulate and structured, but wrong on the substance — a candidate who is sure of themselves and has a real misconception (state the misconception, do not merely omit things).',
 };
 
 export const WRITE_ADVERSARIES_PROMPT = {
   id: 'write-adversaries',
-  version: 2,
+  // v3 (2026-09-13): the template trap must be WRONG. On the re-authored M&A
+  // set the whole separation drop was this trap scoring higher, and on the
+  // numeric scenarios it was a correct answer wearing a template's label —
+  // "8% is greater than 6%, so the deal creates value; 8% is less than 10%,
+  // so the deal is dilutive" scored 0.81 against the points, as it should.
+  // v4 (2026-09-14): instructions first, card last (prefix cache).
+  version: 4,
   schema: WriteAdversariesSchema,
 
   build(input: WriteAdversariesBuildInput): string {
     const kinds = input.kinds && input.kinds.length > 0 ? input.kinds : PROBE_KINDS;
     const count = kinds.length === 1 ? 'ONE wrong answer' : `${['', 'ONE', 'TWO', 'THREE'][kinds.length] ?? kinds.length} wrong answers, one per archetype`;
-    return `You are writing WRONG answers to a finance interview question, to test whether a grading rubric can tell a strong answer from a plausible weak one. You are not shown the rubric. Write the answers a real candidate would give.
-
-Question: ${input.question}
-
-A strong answer, for context on what complete looks like (your wrong answers must NOT restate it — they must fall short of it in the specific ways below):
-${input.referenceAnswer}
+    return `You are writing WRONG answers to a finance interview question, to test whether a grading rubric can tell a strong answer from a plausible weak one. You are not shown the rubric. Write the answers a real candidate would give. A strong answer is given for context on what complete looks like — your wrong answers must NOT restate it; they must fall short of it in the specific ways below.
 
 Write EXACTLY ${count}, each 3-6 sentences, each sounding like a genuine attempt:
 ${kinds.map((k) => `- ${ARCHETYPE[k]}`).join('\n')}
 
 Output JSON:
 { "wrongAnswers": [ { "kind": ${kinds.map((k) => `"${k}"`).join(' | ')}, "text": string } ] }
-The entries must cover exactly ${kinds.join(', ')}, one each.`;
+The entries must cover exactly ${kinds.join(', ')}, one each.
+
+Question: ${input.question}
+
+The strong answer:
+${input.referenceAnswer}`;
   },
 };

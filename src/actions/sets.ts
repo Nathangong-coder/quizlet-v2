@@ -12,8 +12,6 @@ import { normalizeTextMarks } from '@/lib/cards/content';
 import { collectSetCategories, normalizeCategoryName } from '@/lib/cards/categories'
 import { reconcileCards } from '@/lib/cards/reconcile'
 import { extractKlpsForCards } from '@/actions/klp'
-import { summarizeKltsForCards } from '@/lib/klt/summarize'
-import { placeUnparentedConcepts } from '@/lib/klt/place'
 import { selectRefreshableStaleCardIds } from '@/lib/cards/stale'
 import { rescoreSetAttempts } from '@/lib/quiz/rescore'
 import type { CardKlpStatus } from '@/lib/cards/klp-status'
@@ -200,7 +198,7 @@ function isRedirectError(error: any): boolean {
   return error && (error as any).digest?.includes('NEXT_REDIRECT')
 }
 
-export async function createSet(input: SetInput): Promise<ActionResult<{ setId: string }>> {
+export async function createSet(input: SetInput): Promise<ActionResult<{ setId: string; build?: boolean }>> {
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -251,21 +249,11 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
       })
       // Chained, not parallel: summarization reads the KLPs extraction just
       // wrote, so racing them would summarize an empty set.
+      // Only the legacy extraction now (2026-09-16); the topic layer is built
+      // by the owner's build step — see the same note in `updateSet`.
       after(async () => {
         const ids = created.map((c) => c.id)
         await extractKlpsForCards(session.user.id, ids)
-        await summarizeKltsForCards(session.user.id, ids)
-        // Third and last: hang the new concepts in the tree. Without this a
-        // concept is created but never parented, so it reports mastery only as
-        // an isolated node and never rolls up into a subject — the tree would
-        // freeze at whatever the last manual backfill produced.
-        //
-        // Cheap when there is nothing to do: it early-returns after ONE query
-        // when no concept is unparented, so an ordinary edit costs no AI call.
-        // Scoped to THIS set: a concept this set has linked but not placed is
-        // "unplaced" here regardless of whether some other set already
-        // placed the same concept in its own tree.
-        await placeUnparentedConcepts(session.user.id, set.id)
       })
     } catch (klpErr) {
       // Nothing more to do — see comment above — but log so an operator can
@@ -274,7 +262,7 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
     }
 
     revalidatePath('/sets')
-    return { success: true, data: { setId: set.id } }
+    return { success: true, data: { setId: set.id, build: true } }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { success: false, error: error.issues[0].message }
@@ -283,7 +271,7 @@ export async function createSet(input: SetInput): Promise<ActionResult<{ setId: 
   }
 }
 
-export async function updateSet(id: string, input: SetInput): Promise<ActionResult<{ setId: string }>> {
+export async function updateSet(id: string, input: SetInput): Promise<ActionResult<{ setId: string; build?: boolean }>> {
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -404,15 +392,21 @@ export async function updateSet(id: string, input: SetInput): Promise<ActionResu
       })
     }
 
+    // The legacy one-pass extraction still runs so a quiz has SOME key
+    // points minutes after an edit. The topic layer is no longer touched
+    // here (2026-09-16): `summarizeKltsForCards` + `placeUnparentedConcepts`
+    // wrote AI-summarised nodes straight into the owner's tree, which is now
+    // built by the minting loop and the set-level rebuild — the owner's
+    // build step (`src/lib/klp/build-set.ts`, started by `?build=1` on the
+    // set page) authors the edited cards properly and re-plans the tree
+    // without moving anything the owner placed by hand.
     after(async () => {
       await extractKlpsForCards(session.user.id, stale)
-      await summarizeKltsForCards(session.user.id, stale)
-      await placeUnparentedConcepts(session.user.id, id)
     })
 
     revalidatePath('/sets')
     revalidatePath(`/sets/${id}`)
-    return { success: true, data: { setId: id } }
+    return { success: true, data: { setId: id, build: stale.length > 0 } }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return { success: false, error: error.issues[0].message }

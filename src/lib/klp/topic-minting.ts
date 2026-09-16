@@ -100,7 +100,7 @@ export interface PromptKlp {
   kind: string
 }
 
-export function buildTopicMintingPrompt(term: string, klps: PromptKlp[]): string {
+export function buildTopicMintingPrompt(term: string, klps: PromptKlp[], linksBlock = ''): string {
   const lines = klps.map((k) => `[${k.ref}] (${k.kind}) ${k.text}`).join('\n')
   return `You are building the topic hierarchy for a finance study library.
 
@@ -113,6 +113,7 @@ Card: ${term}
 KLPs:
 ${lines}
 
+${linksBlock}
 Produce the small piece of topic hierarchy these points belong to.
 
 RULE 1 — ONE PARENT, SPECIFIC CHILDREN.
@@ -195,9 +196,10 @@ Edge types, use the closest one:
 Prefer naming a WIDELY-REUSABLE concept at each end. "net income", "operating cash
 flow", "retained earnings" are reusable; "the year-1 net income figure" is not.
 
-RULE 8 — THE KIND LABEL IS A DEFAULT FOR THE SHAPE.
-Each KLP's kind, in parentheses, tells you what shape it usually takes. Follow the
-default unless the point clearly is not that shape.
+RULE 8 — THE KIND LABEL DECIDES THE SHAPE, AND THE SHAPE IS CHECKED.
+Each KLP's kind, in parentheses, tells you what shape it takes. Your output is checked
+point by point against this rule and against the known links above; a (causal),
+(condition) or (contrast) point minted as a leaf is a violation and is sent back.
   (contrast)      -> almost always a relation of type confused_with between the two
                      things being contrasted
   (causal)        -> usually a relation (causes or precedes)

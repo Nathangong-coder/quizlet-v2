@@ -280,7 +280,7 @@ export function SetForm({
 
         if (result.success) {
           toast.success(mode === 'create' ? 'Set created!' : 'Set updated!')
-          router.push(`/sets/${result.data?.setId}`)
+          router.push(`/sets/${result.data?.setId}${result.data?.build ? '?build=1' : ''}`)
           router.refresh()
         } else {
           toast.error(result.error || 'An error occurred')
