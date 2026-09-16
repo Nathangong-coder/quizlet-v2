@@ -16,10 +16,12 @@ procedure / applied; the loop passes the mode to the minter but the corpus was N
 (the planner applies the mode after the fact — an applied card's leaves become labels + rank-2 links).
 The tree overlay draws only cross-listings and ≥2-card edges; the Dependencies view keeps every edge.
 Record: `docs/ai/model-performance.md`, "The vertical tree — rebuild v2". Artifact v2:
-https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374. **Owner decisions pending:**
-the "merger vs acquisition" chapter (weak); whether to re-mint the corpus with the mode instruction
-(~$0.40, ~1.5 h); the tree cap (3 M&A names still refused); writing the other four sets (same
-command, minutes each now); rank-2 weighting for mastery. Sub-agents/future sessions: `reasoning
+https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374. **All five sets are written** with the same command (Accounting-Knowledge 79 nodes / 15 chapters,
+Talking copy 95 / 17, Talking 96 / 9, LBO 12 / 4; plans in `docs/ai/runs/2026-09-15/plan-*-v2.json`).
+The three Accounting sets share the global vocabulary and each places its own copy of the shared
+root. **Owner decisions pending:** the "merger vs acquisition" chapter (weak); whether to re-mint
+the corpus with the mode instruction (~$0.40, ~1.5 h); the tree cap (a few names still refused per
+set); rank-2 weighting for mastery. Sub-agents/future sessions: `reasoning
 effort` on the judge is deliberately batched (25 pairs a call) — do not judge pair by pair.
 
 **HANDOFF 2026-09-15 (evening) — THE CORPUS IS THROUGH THE LOOP; THE M&A TREE IS WRITTEN AND

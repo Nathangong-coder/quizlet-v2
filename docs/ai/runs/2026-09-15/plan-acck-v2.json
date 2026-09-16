@@ -1,0 +1,6576 @@
+{
+  "setId": "cmtfexkmd001k04jr6t2wtl70",
+  "domain": "accounting",
+  "nodes": [
+    {
+      "key": "accounting",
+      "name": "accounting",
+      "parent": null,
+      "role": "domain",
+      "nature": "concept",
+      "status": "active",
+      "cards": [],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "land depreciation",
+      "name": "land depreciation",
+      "parent": "capitalized cost",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkrd001l04jr2axcty6u"
+      ],
+      "klps": 0,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "goodwill",
+      "name": "goodwill",
+      "parent": "nonrecurring item",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexks2001o04jrsm1qk1h1"
+      ],
+      "klps": 2,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39hzuw0004r0k697n7snip",
+        "name": "goodwill",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "three financial statement",
+      "name": "three financial statements",
+      "parent": "financial statements",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkt6001r04jrpb0oa0q4"
+      ],
+      "klps": 1,
+      "votes": {
+        "financial statements": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "threestatement linkage",
+      "name": "three-statement linkage",
+      "parent": "financial statements",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexku5001u04jrpku2igfc"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "stock-based compensation",
+      "name": "stock-based compensation",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "active",
+      "cards": [
+        "cmtfexkut001x04jr5c0bkyv6",
+        "cmtfexljl005604jrfto6iqrz",
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "klps": 3,
+      "votes": {
+        "accounting": 9
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97ncl6007khwk6kk17wref",
+        "name": "stock-based compensation",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "principal repayment",
+      "name": "principal repayment",
+      "parent": "debt instrument",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkvx002004jrwobif2aj"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmtff06e7009x04jr8z16oh5u",
+        "name": "principal repayment",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "trapped cash",
+      "name": "trapped cash",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkwv002304jrn3606thl"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmtff06gq00a204jrpo0pbzyf",
+        "name": "trapped cash",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "intercompany investment",
+      "name": "intercompany investments",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkxh002604jrq2yuy7vv"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "pik interest",
+      "name": "PIK interest",
+      "parent": "debt instrument",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkz2002904jr5b0upt4o"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "original issue discount",
+      "name": "original issue discount",
+      "parent": "debt instrument",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkzm002c04jrplrbc7c2"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "share price estimation",
+      "name": "share price estimation",
+      "parent": "valuation",
+      "role": "anchor",
+      "nature": "calculation",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl06002f04jr39aq8zlw"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "p e ratio",
+      "name": "P/E ratio",
+      "parent": "valuation",
+      "role": "anchor",
+      "nature": "calculation",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl0w002i04jrfr2no9zu"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97njdp007whwk60vryhob6",
+        "name": "p/e ratio",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "defined contribution plan",
+      "name": "defined contribution plan",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl1g002l04jr60k3vs87"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "earning inflation",
+      "name": "earnings inflation",
+      "parent": "nonrecurring item",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl20002o04jrp4r482nx"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "capitalization",
+      "name": "capitalization",
+      "parent": "capitalized cost",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl2k002r04jr12fu7pm0"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "share price increase",
+      "name": "share price increase",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "skill",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl34002u04jrtpc5ztom"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "retention ratio",
+      "name": "retention ratio",
+      "parent": "share repurchases",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl45002x04jrafsdyqzb"
+      ],
+      "klps": 2,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "nonrecurring expense adjustment",
+      "name": "non-recurring expense adjustment",
+      "parent": "nonrecurring item",
+      "role": "anchor",
+      "nature": "skill",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl4q003004jr03vi4mwi"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "cash conversion cycle",
+      "name": "cash conversion cycle",
+      "parent": "working capital efficiency",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl59003304jrdgqbgapc",
+        "cmtfexl5u003604jrqg6hcnw1",
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "klps": 2,
+      "votes": {
+        "accounting": 3,
+        "working capital efficiency": 3,
+        "turnover ratio": 3
+      },
+      "alsoUnder": [
+        "turnover ratio"
+      ],
+      "matched": null
+    },
+    {
+      "key": "working capital efficiency",
+      "name": "working capital efficiency",
+      "parent": "working capital",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl5u003604jrqg6hcnw1"
+      ],
+      "klps": 1,
+      "votes": {
+        "working capital": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "working capital line item",
+      "name": "working capital line items",
+      "parent": "working capital",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6e003904jrpan721dh"
+      ],
+      "klps": 1,
+      "votes": {
+        "working capital": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "return on asset",
+      "name": "return on assets",
+      "parent": "profitability ratio",
+      "role": "anchor",
+      "nature": "calculation",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6x003c04jr9pul6rs4"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "return on invested capital",
+      "name": "return on invested capital",
+      "parent": "profitability ratio",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl7i003f04jro1i7i5ds"
+      ],
+      "klps": 2,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "liquidity ratio",
+      "name": "liquidity ratios",
+      "parent": "profitability ratio",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl81003i04jr7p8440i8"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "turnover ratio",
+      "name": "turnover ratios",
+      "parent": "profitability ratio",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "debt service coverage ratio",
+      "name": "debt service coverage ratio",
+      "parent": "debt instrument",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl9p003o04jrt3ny6omr"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "share repurchases",
+      "name": "share repurchase",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "active",
+      "cards": [
+        "cmtfexlac003r04jr2edriphm",
+        "cmtfexl34002u04jrtpc5ztom"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmtff05tg008w04jrz9pp6f57",
+        "name": "share repurchases",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "software development cost",
+      "name": "software development costs",
+      "parent": "capitalized cost",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlaw003u04jrtv5y7qcg"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "factory purchase and sale",
+      "name": "factory purchase and sale",
+      "parent": "capitalized cost",
+      "role": "anchor",
+      "nature": "calculation",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlbh003x04jrhld73oqy"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "levered vs unlevered free cash flow",
+      "name": "levered vs unlevered free cash flow",
+      "parent": "free cash flow",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlc1004004jr43abdagw"
+      ],
+      "klps": 0,
+      "votes": {
+        "free cash flow": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "wacc",
+      "name": "wacc",
+      "parent": "return on invested capital",
+      "role": "anchor",
+      "nature": "calculation",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlck004304jr8c760u6i",
+        "cmtfexl7i003f04jro1i7i5ds"
+      ],
+      "klps": 2,
+      "votes": {
+        "accounting": 3,
+        "return on invested capital": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97i5n2001zhwk6wsrumoe8",
+        "name": "wacc",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "cost of capital",
+      "name": "cost of capital",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "skill",
+      "status": "active",
+      "cards": [
+        "cmtfexlem004604jrvi4cwtij"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97okrd008phwk6nigf2fh6",
+        "name": "cost of capital",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "levered beta",
+      "name": "levered beta",
+      "parent": "cost of capital",
+      "role": "anchor",
+      "nature": "calculation",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlfd004904jrum8123im"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "cost of debt",
+      "name": "cost of debt",
+      "parent": "cost of capital",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlfy004c04jrr5gfdpfj",
+        "cmtfexlem004604jrvi4cwtij"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97iwu5002jhwk6v9603vyj",
+        "name": "cost of debt",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "lease treatment in dcf",
+      "name": "lease treatment in dcf",
+      "parent": "lease accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlge004f04jrc03mmus5"
+      ],
+      "klps": 0,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "operating lease",
+      "name": "operating lease",
+      "parent": "lease accounting",
+      "role": "anchor",
+      "nature": "skill",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlgx004i04jr9nddimag",
+        "cmtfexlge004f04jrc03mmus5"
+      ],
+      "klps": 2,
+      "votes": {
+        "accounting": 3,
+        "lease treatment in dcf": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "lease accounting over time",
+      "name": "lease accounting over time",
+      "parent": "lease accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlh7004l04jrgrslari0"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "lease capitalization",
+      "name": "lease capitalization",
+      "parent": "lease accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlho004o04jr22mh0ian"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "terminal value",
+      "name": "terminal value",
+      "parent": "valuation",
+      "role": "anchor",
+      "nature": "calculation",
+      "status": "candidate",
+      "cards": [
+        "cmtfexli6004r04jrhspkfz5o",
+        "cmtfexlj2005004jrt5aefms6"
+      ],
+      "klps": 2,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "diluted share count",
+      "name": "diluted share count",
+      "parent": "share repurchases",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlih004u04jr3175vhy1"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "terminal growth rate",
+      "name": "terminal growth rate",
+      "parent": "valuation",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlis004x04jramrs3pja"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "terminal value method",
+      "name": "terminal value methods",
+      "parent": "terminal value",
+      "role": "alias",
+      "nature": "calculation",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlj2005004jrt5aefms6"
+      ],
+      "klps": 1,
+      "votes": {
+        "terminal value": 3
+      },
+      "alsoUnder": [],
+      "matched": null,
+      "mergedInto": "terminal value"
+    },
+    {
+      "key": "comp set",
+      "name": "comp set",
+      "parent": "valuation",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljd005304jrwj19vhwt"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "accretion dilution",
+      "name": "accretion dilution analysis",
+      "parent": "valuation",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljv005904jr3mpaefm3",
+        "cmtfexlk6005c04jrqeioc7hb"
+      ],
+      "klps": 2,
+      "votes": {
+        "accounting": 6
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39jexx008rr0k6wyu8wohl",
+        "name": "accretion/dilution",
+        "rule": "alias",
+        "status": "active"
+      }
+    },
+    {
+      "key": "stock option tax deduction",
+      "name": "stock option tax deduction",
+      "parent": "stock-based compensation",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkr005i04jrtu896cwb"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "stockbased compensation tax effect",
+      "name": "stock-based compensation tax effects",
+      "parent": "stock-based compensation",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexll1005l04jrf15hfuw7"
+      ],
+      "klps": 0,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "target irr",
+      "name": "target IRR",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "skill",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlld005o04jr4sfbi1bn"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "financial statements",
+      "name": "financial statements",
+      "parent": "accounting",
+      "role": "context",
+      "nature": "concept",
+      "status": "active",
+      "cards": [
+        "cmtfexkt6001r04jrpb0oa0q4"
+      ],
+      "klps": 0,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97otzz0092hwk65yefsuf2",
+        "name": "financial statements",
+        "rule": "placed",
+        "status": "active"
+      }
+    },
+    {
+      "key": "working capital",
+      "name": "working capital",
+      "parent": "financial statements",
+      "role": "context",
+      "nature": "concept",
+      "status": "active",
+      "cards": [
+        "cmtfexl5u003604jrqg6hcnw1"
+      ],
+      "klps": 0,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97i22y001rhwk62guyc6qe",
+        "name": "working capital",
+        "rule": "placed",
+        "status": "active"
+      }
+    },
+    {
+      "key": "free cash flow",
+      "name": "free cash flow",
+      "parent": "financial statements",
+      "role": "context",
+      "nature": "concept",
+      "status": "active",
+      "cards": [
+        "cmtfexlc1004004jr43abdagw"
+      ],
+      "klps": 0,
+      "votes": {
+        "accounting": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97ia0v0023hwk6w1yajx5n",
+        "name": "free cash flow",
+        "rule": "placed",
+        "status": "active"
+      }
+    },
+    {
+      "key": "depreciation",
+      "name": "depreciation",
+      "parent": "land depreciation",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkrd001l04jr2axcty6u"
+      ],
+      "klps": 1,
+      "votes": {
+        "land depreciation": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97i0i2001mhwk6jros8cel",
+        "name": "depreciation",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "indefinite useful life",
+      "name": "indefinite useful life",
+      "parent": "land depreciation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkrd001l04jr2axcty6u"
+      ],
+      "klps": 1,
+      "votes": {
+        "land depreciation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "building and parking lot",
+      "name": "buildings and parking lots",
+      "parent": "land depreciation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkrd001l04jr2axcty6u"
+      ],
+      "klps": 1,
+      "votes": {
+        "land depreciation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "us gaap treatment",
+      "name": "us gaap treatment",
+      "parent": "goodwill",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexks2001o04jrsm1qk1h1"
+      ],
+      "klps": 1,
+      "votes": {
+        "goodwill": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "no amortization",
+      "name": "no amortization",
+      "parent": "goodwill",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexks2001o04jrsm1qk1h1"
+      ],
+      "klps": 1,
+      "votes": {
+        "us gaap treatment": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "indefinite life",
+      "name": "indefinite life",
+      "parent": "goodwill",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexks2001o04jrsm1qk1h1"
+      ],
+      "klps": 1,
+      "votes": {
+        "goodwill": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "annual impairment test",
+      "name": "annual impairment test",
+      "parent": "goodwill",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexks2001o04jrsm1qk1h1"
+      ],
+      "klps": 2,
+      "votes": {
+        "goodwill": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "impairment writedown",
+      "name": "impairment write-down",
+      "parent": "goodwill",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexks2001o04jrsm1qk1h1"
+      ],
+      "klps": 1,
+      "votes": {
+        "annual impairment test": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "private company amortization election",
+      "name": "private company amortization election",
+      "parent": "goodwill",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexks2001o04jrsm1qk1h1"
+      ],
+      "klps": 1,
+      "votes": {
+        "goodwill": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "tax amortization",
+      "name": "tax amortization",
+      "parent": "goodwill",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexks2001o04jrsm1qk1h1"
+      ],
+      "klps": 1,
+      "votes": {
+        "goodwill": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "tax accounting",
+      "name": "tax accounting",
+      "parent": "accounting",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexks2001o04jrsm1qk1h1"
+      ],
+      "klps": 1,
+      "votes": {
+        "accounting": 1
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "period profitability",
+      "name": "period profitability",
+      "parent": "three financial statement",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkt6001r04jrpb0oa0q4"
+      ],
+      "klps": 1,
+      "votes": {
+        "three financial statement": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "pointintime resource",
+      "name": "point-in-time resources",
+      "parent": "three financial statement",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkt6001r04jrpb0oa0q4"
+      ],
+      "klps": 1,
+      "votes": {
+        "three financial statement": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "cash from operation",
+      "name": "cash from operations",
+      "parent": "three financial statement",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkt6001r04jrpb0oa0q4"
+      ],
+      "klps": 1,
+      "votes": {
+        "three financial statement": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "investing and financing section",
+      "name": "investing and financing sections",
+      "parent": "three financial statement",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkt6001r04jrpb0oa0q4"
+      ],
+      "klps": 1,
+      "votes": {
+        "cash from operation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "net change in cash",
+      "name": "net change in cash",
+      "parent": "three financial statement",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkt6001r04jrpb0oa0q4"
+      ],
+      "klps": 1,
+      "votes": {
+        "cash from operation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "retained earnings",
+      "name": "retained earnings",
+      "parent": "stock-based compensation",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkt6001r04jrpb0oa0q4",
+        "cmtfexku5001u04jrpku2igfc",
+        "cmtfexkut001x04jr5c0bkyv6"
+      ],
+      "klps": 3,
+      "votes": {
+        "pointintime resource": 3,
+        "net income": 3,
+        "stock-based compensation": 3
+      },
+      "alsoUnder": [
+        "net income",
+        "three financial statement"
+      ],
+      "matched": {
+        "kltId": "cmu39k5vd00d8r0k60o9llnav",
+        "name": "retained earnings",
+        "rule": "exact",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "net income",
+      "name": "net income",
+      "parent": "share repurchases",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexku5001u04jrpku2igfc",
+        "cmtfexkut001x04jr5c0bkyv6",
+        "cmtfexlac003r04jr2edriphm",
+        "cmtfexl2k002r04jr12fu7pm0"
+      ],
+      "klps": 4,
+      "votes": {
+        "threestatement linkage": 3,
+        "pretax income": 3,
+        "share repurchases": 3,
+        "capitalization": 3
+      },
+      "alsoUnder": [
+        "threestatement linkage",
+        "stock-based compensation"
+      ],
+      "matched": {
+        "kltId": "cmt97iu7l002ehwk6v1wi6r4l",
+        "name": "net income",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "operating section",
+      "name": "operating section",
+      "parent": "threestatement linkage",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexku5001u04jrpku2igfc"
+      ],
+      "klps": 1,
+      "votes": {
+        "threestatement linkage": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "working capital adjustment",
+      "name": "working capital adjustments",
+      "parent": "threestatement linkage",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexku5001u04jrpku2igfc"
+      ],
+      "klps": 1,
+      "votes": {
+        "operating section": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39jr8600aqr0k6ctxh6q95",
+        "name": "working capital adjustment",
+        "rule": "exact",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "investing section",
+      "name": "investing section",
+      "parent": "threestatement linkage",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexku5001u04jrpku2igfc"
+      ],
+      "klps": 1,
+      "votes": {
+        "threestatement linkage": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "financing section",
+      "name": "financing section",
+      "parent": "threestatement linkage",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexku5001u04jrpku2igfc"
+      ],
+      "klps": 1,
+      "votes": {
+        "threestatement linkage": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "ending cash",
+      "name": "ending cash",
+      "parent": "threestatement linkage",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexku5001u04jrpku2igfc"
+      ],
+      "klps": 2,
+      "votes": {
+        "threestatement linkage": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "additional paidin capital",
+      "name": "additional paid-in capital",
+      "parent": "stock-based compensation",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkut001x04jr5c0bkyv6",
+        "cmtfexlkr005i04jrtu896cwb"
+      ],
+      "klps": 2,
+      "votes": {
+        "stock-based compensation": 3,
+        "stock option tax deduction": 3
+      },
+      "alsoUnder": [
+        "stock option tax deduction"
+      ],
+      "matched": null
+    },
+    {
+      "key": "pretax income",
+      "name": "pre-tax income",
+      "parent": "stock-based compensation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkut001x04jr5c0bkyv6"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock-based compensation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "operating cash flow",
+      "name": "operating cash flow",
+      "parent": "stock-based compensation",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkut001x04jr5c0bkyv6",
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "klps": 2,
+      "votes": {
+        "stock-based compensation": 3,
+        "cash flow adjustment": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39k3rh00cwr0k6a1iqolb4",
+        "name": "operating cash flow",
+        "rule": "exact",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "cash balance",
+      "name": "cash balance",
+      "parent": "operating cash flow",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkut001x04jr5c0bkyv6"
+      ],
+      "klps": 1,
+      "votes": {
+        "operating cash flow": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "equity increase",
+      "name": "equity increase",
+      "parent": "additional paidin capital",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkut001x04jr5c0bkyv6"
+      ],
+      "klps": 1,
+      "votes": {
+        "additional paidin capital": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "balance sheet equality",
+      "name": "balance sheet equality",
+      "parent": "additional paidin capital",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkut001x04jr5c0bkyv6"
+      ],
+      "klps": 1,
+      "votes": {
+        "equity increase": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "income statement treatment",
+      "name": "income statement treatment",
+      "parent": "principal repayment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkvx002004jrwobif2aj"
+      ],
+      "klps": 1,
+      "votes": {
+        "principal repayment": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "financing cash outflow",
+      "name": "financing cash outflow",
+      "parent": "share repurchases",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkvx002004jrwobif2aj",
+        "cmtfexlac003r04jr2edriphm"
+      ],
+      "klps": 2,
+      "votes": {
+        "principal repayment": 3,
+        "share repurchases": 3
+      },
+      "alsoUnder": [
+        "principal repayment"
+      ],
+      "matched": null
+    },
+    {
+      "key": "ending cash balance",
+      "name": "ending cash balance",
+      "parent": "financing cash outflow",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkvx002004jrwobif2aj"
+      ],
+      "klps": 1,
+      "votes": {
+        "financing cash outflow": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "net effect",
+      "name": "net effect",
+      "parent": "principal repayment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkvx002004jrwobif2aj"
+      ],
+      "klps": 1,
+      "votes": {
+        "principal repayment": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "worldwide tax system",
+      "name": "worldwide tax system",
+      "parent": "trapped cash",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkwv002304jrn3606thl"
+      ],
+      "klps": 1,
+      "votes": {
+        "trapped cash": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "domestic funding restriction",
+      "name": "domestic funding restriction",
+      "parent": "trapped cash",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkwv002304jrn3606thl"
+      ],
+      "klps": 1,
+      "votes": {
+        "trapped cash": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "net debt adjustment",
+      "name": "net debt adjustment",
+      "parent": "trapped cash",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkwv002304jrn3606thl"
+      ],
+      "klps": 1,
+      "votes": {
+        "trapped cash": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "territorial tax system",
+      "name": "territorial tax system",
+      "parent": "trapped cash",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkwv002304jrn3606thl"
+      ],
+      "klps": 1,
+      "votes": {
+        "trapped cash": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "capital allocation problem",
+      "name": "capital allocation problem",
+      "parent": "trapped cash",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkwv002304jrn3606thl"
+      ],
+      "klps": 1,
+      "votes": {
+        "trapped cash": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "subsidiary distress",
+      "name": "subsidiary distress",
+      "parent": "trapped cash",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkwv002304jrn3606thl"
+      ],
+      "klps": 1,
+      "votes": {
+        "trapped cash": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "ownership and intent",
+      "name": "ownership and intent",
+      "parent": "intercompany investment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkxh002604jrq2yuy7vv"
+      ],
+      "klps": 1,
+      "votes": {
+        "intercompany investment": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "passive stake",
+      "name": "passive stake",
+      "parent": "intercompany investment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkxh002604jrq2yuy7vv"
+      ],
+      "klps": 1,
+      "votes": {
+        "ownership and intent": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "significant influence",
+      "name": "significant influence",
+      "parent": "intercompany investment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkxh002604jrq2yuy7vv"
+      ],
+      "klps": 1,
+      "votes": {
+        "ownership and intent": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "equity method income",
+      "name": "equity method income",
+      "parent": "intercompany investment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkxh002604jrq2yuy7vv"
+      ],
+      "klps": 1,
+      "votes": {
+        "significant influence": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "equity method dividend",
+      "name": "equity method dividends",
+      "parent": "intercompany investment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkxh002604jrq2yuy7vv"
+      ],
+      "klps": 1,
+      "votes": {
+        "significant influence": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "control and consolidation",
+      "name": "control and consolidation",
+      "parent": "intercompany investment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkxh002604jrq2yuy7vv"
+      ],
+      "klps": 1,
+      "votes": {
+        "ownership and intent": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "investment security",
+      "name": "investment securities",
+      "parent": "intercompany investment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkxh002604jrq2yuy7vv"
+      ],
+      "klps": 1,
+      "votes": {
+        "intercompany investment": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "unrealized gain treatment",
+      "name": "unrealized gain treatment",
+      "parent": "intercompany investment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkxh002604jrq2yuy7vv"
+      ],
+      "klps": 1,
+      "votes": {
+        "investment security": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "interest expense recognition",
+      "name": "interest expense recognition",
+      "parent": "pik interest",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkz2002904jr5b0upt4o"
+      ],
+      "klps": 1,
+      "votes": {
+        "pik interest": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "tax reduction",
+      "name": "tax reduction",
+      "parent": "pik interest",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkz2002904jr5b0upt4o"
+      ],
+      "klps": 1,
+      "votes": {
+        "pik interest": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "noncash addback",
+      "name": "non-cash add-back",
+      "parent": "pik interest",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkz2002904jr5b0upt4o"
+      ],
+      "klps": 1,
+      "votes": {
+        "pik interest": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "cash increase",
+      "name": "cash increase",
+      "parent": "pik interest",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkz2002904jr5b0upt4o"
+      ],
+      "klps": 2,
+      "votes": {
+        "pik interest": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "debt accrual to principal",
+      "name": "debt accrual to principal",
+      "parent": "pik interest",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkz2002904jr5b0upt4o"
+      ],
+      "klps": 1,
+      "votes": {
+        "pik interest": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "discounted issue price",
+      "name": "discounted issue price",
+      "parent": "original issue discount",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkzm002c04jrplrbc7c2"
+      ],
+      "klps": 2,
+      "votes": {
+        "original issue discount": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "issuer balance sheet recording",
+      "name": "issuer balance sheet recording",
+      "parent": "original issue discount",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkzm002c04jrplrbc7c2"
+      ],
+      "klps": 1,
+      "votes": {
+        "original issue discount": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "discount accretion",
+      "name": "discount accretion",
+      "parent": "original issue discount",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkzm002c04jrplrbc7c2"
+      ],
+      "klps": 1,
+      "votes": {
+        "original issue discount": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "accretion interest expense",
+      "name": "accretion interest expense",
+      "parent": "original issue discount",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkzm002c04jrplrbc7c2"
+      ],
+      "klps": 1,
+      "votes": {
+        "discount accretion": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "highyield and convertible debt",
+      "name": "high-yield and convertible debt",
+      "parent": "original issue discount",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexkzm002c04jrplrbc7c2"
+      ],
+      "klps": 1,
+      "votes": {
+        "original issue discount": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "growth rate assumption",
+      "name": "growth rate assumption",
+      "parent": "share price estimation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl06002f04jr39aq8zlw"
+      ],
+      "klps": 1,
+      "votes": {
+        "share price estimation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "separate",
+      "name": "separate calculations",
+      "parent": "share price estimation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl06002f04jr39aq8zlw"
+      ],
+      "klps": 1,
+      "votes": {
+        "share price estimation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "basic share outstanding",
+      "name": "basic shares outstanding",
+      "parent": "share price estimation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl06002f04jr39aq8zlw"
+      ],
+      "klps": 1,
+      "votes": {
+        "share price estimation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "share issued",
+      "name": "shares issued",
+      "parent": "share price estimation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl06002f04jr39aq8zlw"
+      ],
+      "klps": 1,
+      "votes": {
+        "share price estimation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "share repurchased",
+      "name": "shares repurchased",
+      "parent": "share price estimation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl06002f04jr39aq8zlw"
+      ],
+      "klps": 1,
+      "votes": {
+        "share price estimation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "retirement at market price",
+      "name": "retirement at market price",
+      "parent": "share price estimation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl06002f04jr39aq8zlw"
+      ],
+      "klps": 1,
+      "votes": {
+        "share price estimation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "adjusted share count",
+      "name": "adjusted share count",
+      "parent": "share price estimation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl06002f04jr39aq8zlw"
+      ],
+      "klps": 1,
+      "votes": {
+        "share price estimation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "p e formula",
+      "name": "P/E formula",
+      "parent": "p e ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl0w002i04jrfr2no9zu"
+      ],
+      "klps": 1,
+      "votes": {
+        "p e ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "eps from p e",
+      "name": "EPS from P/E",
+      "parent": "p e ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl0w002i04jrfr2no9zu"
+      ],
+      "klps": 1,
+      "votes": {
+        "p e ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "eps example",
+      "name": "EPS example",
+      "parent": "p e ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl0w002i04jrfr2no9zu"
+      ],
+      "klps": 1,
+      "votes": {
+        "p e ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "recorded expense",
+      "name": "recorded expense",
+      "parent": "defined contribution plan",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl1g002l04jr60k3vs87"
+      ],
+      "klps": 1,
+      "votes": {
+        "defined contribution plan": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "401 k match",
+      "name": "401(k) match",
+      "parent": "defined contribution plan",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl1g002l04jr60k3vs87"
+      ],
+      "klps": 1,
+      "votes": {
+        "defined contribution plan": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "retirement value",
+      "name": "retirement value",
+      "parent": "defined contribution plan",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl1g002l04jr60k3vs87"
+      ],
+      "klps": 1,
+      "votes": {
+        "defined contribution plan": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "defined benefit plan",
+      "name": "defined benefit plan",
+      "parent": "defined contribution plan",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl1g002l04jr60k3vs87"
+      ],
+      "klps": 1,
+      "votes": {
+        "defined contribution plan": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "actuarial assumption",
+      "name": "actuarial assumptions",
+      "parent": "defined contribution plan",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl1g002l04jr60k3vs87"
+      ],
+      "klps": 1,
+      "votes": {
+        "defined benefit plan": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "funded status",
+      "name": "funded status",
+      "parent": "defined contribution plan",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl1g002l04jr60k3vs87"
+      ],
+      "klps": 1,
+      "votes": {
+        "defined benefit plan": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "lifo to fifo switch",
+      "name": "lifo to fifo switch",
+      "parent": "earning inflation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl20002o04jrp4r482nx"
+      ],
+      "klps": 1,
+      "votes": {
+        "earning inflation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "impaired asset writedown refusal",
+      "name": "impaired asset write-down refusal",
+      "parent": "earning inflation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl20002o04jrp4r482nx"
+      ],
+      "klps": 1,
+      "votes": {
+        "earning inflation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "deferred spending",
+      "name": "deferred spending",
+      "parent": "earning inflation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl20002o04jrp4r482nx"
+      ],
+      "klps": 1,
+      "votes": {
+        "earning inflation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "expense capitalization",
+      "name": "expense capitalization",
+      "parent": "earning inflation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl20002o04jrp4r482nx"
+      ],
+      "klps": 1,
+      "votes": {
+        "earning inflation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "aggressive revenue recognition",
+      "name": "aggressive revenue recognition",
+      "parent": "earning inflation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl20002o04jrp4r482nx"
+      ],
+      "klps": 1,
+      "votes": {
+        "earning inflation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "channel stuffing",
+      "name": "channel stuffing",
+      "parent": "earning inflation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl20002o04jrp4r482nx"
+      ],
+      "klps": 1,
+      "votes": {
+        "aggressive revenue recognition": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "expensing",
+      "name": "expensing",
+      "parent": "capitalization",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl2k002r04jr12fu7pm0"
+      ],
+      "klps": 1,
+      "votes": {
+        "capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "depreciation timing",
+      "name": "depreciation timing",
+      "parent": "capitalization",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl2k002r04jr12fu7pm0"
+      ],
+      "klps": 1,
+      "votes": {
+        "capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "net income effect",
+      "name": "net income effect",
+      "parent": "net income",
+      "role": "alias",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl2k002r04jr12fu7pm0"
+      ],
+      "klps": 1,
+      "votes": {
+        "capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null,
+      "mergedInto": "net income"
+    },
+    {
+      "key": "depreciation example",
+      "name": "depreciation example",
+      "parent": "capitalization",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl2k002r04jr12fu7pm0"
+      ],
+      "klps": 1,
+      "votes": {
+        "capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "equipment example",
+      "name": "equipment example",
+      "parent": "capitalization",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl2k002r04jr12fu7pm0"
+      ],
+      "klps": 1,
+      "votes": {
+        "capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "timing difference",
+      "name": "timing difference",
+      "parent": "capitalization",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl2k002r04jr12fu7pm0"
+      ],
+      "klps": 1,
+      "votes": {
+        "capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "useful life test",
+      "name": "useful life test",
+      "parent": "capitalization",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl2k002r04jr12fu7pm0"
+      ],
+      "klps": 1,
+      "votes": {
+        "capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "routine cost",
+      "name": "routine costs",
+      "parent": "capitalization",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl2k002r04jr12fu7pm0"
+      ],
+      "klps": 1,
+      "votes": {
+        "capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "payout ratio",
+      "name": "payout ratio",
+      "parent": "retention ratio",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl45002x04jrafsdyqzb"
+      ],
+      "klps": 3,
+      "votes": {
+        "retention ratio": 6
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "retention ratio example",
+      "name": "retention ratio example",
+      "parent": "retention ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl45002x04jrafsdyqzb"
+      ],
+      "klps": 1,
+      "votes": {
+        "retention ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "payout ratio example",
+      "name": "payout ratio example",
+      "parent": "payout ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl45002x04jrafsdyqzb"
+      ],
+      "klps": 1,
+      "votes": {
+        "payout ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "sustainable growth rate",
+      "name": "sustainable growth rate",
+      "parent": "retention ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl45002x04jrafsdyqzb"
+      ],
+      "klps": 1,
+      "votes": {
+        "retention ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "day inventory held",
+      "name": "days inventory held",
+      "parent": "cash conversion cycle",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl59003304jrdgqbgapc",
+        "cmtfexl5u003604jrqg6hcnw1"
+      ],
+      "klps": 3,
+      "votes": {
+        "cash conversion cycle": 3,
+        "working capital efficiency": 3
+      },
+      "alsoUnder": [
+        "working capital efficiency"
+      ],
+      "matched": null
+    },
+    {
+      "key": "day sale outstanding",
+      "name": "days sales outstanding",
+      "parent": "cash conversion cycle",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl59003304jrdgqbgapc",
+        "cmtfexl5u003604jrqg6hcnw1"
+      ],
+      "klps": 3,
+      "votes": {
+        "cash conversion cycle": 3,
+        "working capital efficiency": 3
+      },
+      "alsoUnder": [
+        "working capital efficiency"
+      ],
+      "matched": null
+    },
+    {
+      "key": "day payable outstanding",
+      "name": "days payable outstanding",
+      "parent": "cash conversion cycle",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl59003304jrdgqbgapc",
+        "cmtfexl5u003604jrqg6hcnw1"
+      ],
+      "klps": 3,
+      "votes": {
+        "cash conversion cycle": 3,
+        "working capital efficiency": 3
+      },
+      "alsoUnder": [
+        "working capital efficiency"
+      ],
+      "matched": null
+    },
+    {
+      "key": "threepart formula",
+      "name": "three-part formula",
+      "parent": "cash conversion cycle",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl59003304jrdgqbgapc"
+      ],
+      "klps": 1,
+      "votes": {
+        "cash conversion cycle": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "eight line item",
+      "name": "eight line items",
+      "parent": "working capital line item",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6e003904jrpan721dh"
+      ],
+      "klps": 1,
+      "votes": {
+        "working capital line item": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "working capital asset item",
+      "name": "working capital asset items",
+      "parent": "working capital line item",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6e003904jrpan721dh"
+      ],
+      "klps": 1,
+      "votes": {
+        "working capital line item": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "working capital liability item",
+      "name": "working capital liability items",
+      "parent": "working capital line item",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6e003904jrpan721dh"
+      ],
+      "klps": 1,
+      "votes": {
+        "working capital line item": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "cash exclusion",
+      "name": "cash exclusion",
+      "parent": "working capital line item",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6e003904jrpan721dh"
+      ],
+      "klps": 1,
+      "votes": {
+        "working capital asset item": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "debt exclusion",
+      "name": "debt exclusion",
+      "parent": "working capital line item",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6e003904jrpan721dh"
+      ],
+      "klps": 1,
+      "votes": {
+        "working capital liability item": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "operatingasset line item",
+      "name": "operating-asset line items",
+      "parent": "working capital line item",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6e003904jrpan721dh"
+      ],
+      "klps": 1,
+      "votes": {
+        "working capital asset item": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "equity returns",
+      "name": "return on equity",
+      "parent": "return on asset",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6x003c04jr9pul6rs4"
+      ],
+      "klps": 1,
+      "votes": {
+        "return on asset": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39jg1d008yr0k6usgurgqg",
+        "name": "equity returns",
+        "rule": "exact",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "debttoequity mix",
+      "name": "debt-to-equity mix",
+      "parent": "return on asset",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6x003c04jr9pul6rs4"
+      ],
+      "klps": 1,
+      "votes": {
+        "return on asset": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "asset funding split",
+      "name": "asset funding split",
+      "parent": "return on asset",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6x003c04jr9pul6rs4"
+      ],
+      "klps": 1,
+      "votes": {
+        "debttoequity mix": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "net income on asset",
+      "name": "net income on assets",
+      "parent": "return on asset",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6x003c04jr9pul6rs4"
+      ],
+      "klps": 1,
+      "votes": {
+        "asset funding split": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "roe",
+      "name": "roe calculation",
+      "parent": "return on asset",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6x003c04jr9pul6rs4"
+      ],
+      "klps": 1,
+      "votes": {
+        "equity returns": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "equity multiplier",
+      "name": "equity multiplier",
+      "parent": "return on asset",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl6x003c04jr9pul6rs4"
+      ],
+      "klps": 1,
+      "votes": {
+        "equity returns": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "nopat",
+      "name": "nopat",
+      "parent": "return on invested capital",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl7i003f04jro1i7i5ds"
+      ],
+      "klps": 1,
+      "votes": {
+        "return on invested capital": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "invested capital",
+      "name": "invested capital",
+      "parent": "return on invested capital",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl7i003f04jro1i7i5ds"
+      ],
+      "klps": 1,
+      "votes": {
+        "return on invested capital": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "current ratio",
+      "name": "current ratio",
+      "parent": "liquidity ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl81003i04jr7p8440i8"
+      ],
+      "klps": 1,
+      "votes": {
+        "liquidity ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "quick ratio",
+      "name": "quick ratio",
+      "parent": "liquidity ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl81003i04jr7p8440i8"
+      ],
+      "klps": 1,
+      "votes": {
+        "liquidity ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "stricter test",
+      "name": "stricter test",
+      "parent": "liquidity ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl81003i04jr7p8440i8"
+      ],
+      "klps": 1,
+      "votes": {
+        "quick ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "uncollectible receivable",
+      "name": "uncollectible receivables",
+      "parent": "liquidity ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl81003i04jr7p8440i8"
+      ],
+      "klps": 1,
+      "votes": {
+        "liquidity ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "illiquid shortterm investment",
+      "name": "illiquid short-term investments",
+      "parent": "liquidity ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl81003i04jr7p8440i8"
+      ],
+      "klps": 1,
+      "votes": {
+        "liquidity ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "asset turnover",
+      "name": "asset turnover",
+      "parent": "turnover ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "klps": 1,
+      "votes": {
+        "turnover ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "inventory turnover",
+      "name": "inventory turnover",
+      "parent": "turnover ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "klps": 1,
+      "votes": {
+        "turnover ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "receivable turnover",
+      "name": "receivables turnover",
+      "parent": "turnover ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "klps": 1,
+      "votes": {
+        "turnover ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "account payable turnover",
+      "name": "accounts payable turnover",
+      "parent": "turnover ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "klps": 1,
+      "votes": {
+        "turnover ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "day metric",
+      "name": "days metrics",
+      "parent": "turnover ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "klps": 1,
+      "votes": {
+        "turnover ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "turnover interpretation",
+      "name": "turnover interpretation",
+      "parent": "turnover ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "klps": 1,
+      "votes": {
+        "turnover ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "faster is better",
+      "name": "faster is better",
+      "parent": "turnover ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "klps": 1,
+      "votes": {
+        "turnover interpretation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "payable stretch",
+      "name": "payables stretch",
+      "parent": "turnover ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "klps": 1,
+      "votes": {
+        "turnover interpretation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "distressed borrowing situation",
+      "name": "distressed borrowing situations",
+      "parent": "debt service coverage ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl9p003o04jrt3ny6omr"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt service coverage ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "debt service coverage ratio formula",
+      "name": "dscr formula",
+      "parent": "debt service coverage ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl9p003o04jrt3ny6omr"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt service coverage ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "capital expenditure deduction rationale",
+      "name": "capex deduction rationale",
+      "parent": "debt service coverage ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl9p003o04jrt3ny6omr"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt service coverage ratio formula": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "lender debt service coverage ratio threshold",
+      "name": "lender dscr thresholds",
+      "parent": "debt service coverage ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl9p003o04jrt3ny6omr"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt service coverage ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "restructuring covenant",
+      "name": "restructuring covenants",
+      "parent": "debt service coverage ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl9p003o04jrt3ny6omr"
+      ],
+      "klps": 1,
+      "votes": {
+        "lender debt service coverage ratio threshold": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "fixed charge coverage ratio",
+      "name": "fixed charge coverage ratio",
+      "parent": "debt service coverage ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl9p003o04jrt3ny6omr"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt service coverage ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "fixed charge coverage ratio formula",
+      "name": "fccr formula",
+      "parent": "debt service coverage ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl9p003o04jrt3ny6omr"
+      ],
+      "klps": 1,
+      "votes": {
+        "fixed charge coverage ratio": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "lease expense treatment",
+      "name": "lease expense treatment",
+      "parent": "debt service coverage ratio",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl9p003o04jrt3ny6omr"
+      ],
+      "klps": 1,
+      "votes": {
+        "fixed charge coverage ratio formula": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "cash reduction",
+      "name": "cash reduction",
+      "parent": "share repurchases",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlac003r04jr2edriphm"
+      ],
+      "klps": 1,
+      "votes": {
+        "share repurchases": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "equity reduction",
+      "name": "equity reduction",
+      "parent": "share repurchases",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlac003r04jr2edriphm"
+      ],
+      "klps": 2,
+      "votes": {
+        "share repurchases": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "treasury stock",
+      "name": "treasury stock",
+      "parent": "share repurchases",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlac003r04jr2edriphm",
+        "cmtfexlih004u04jr3175vhy1"
+      ],
+      "klps": 2,
+      "votes": {
+        "equity reduction": 3,
+        "diluted share count": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "earnings per share",
+      "name": "earnings per share",
+      "parent": "share repurchases",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlac003r04jr2edriphm"
+      ],
+      "klps": 1,
+      "votes": {
+        "share repurchases": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97k4mh0042hwk66jvyikr4",
+        "name": "earnings per share",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "capitalization situation",
+      "name": "capitalization situations",
+      "parent": "software development cost",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlaw003u04jrtv5y7qcg"
+      ],
+      "klps": 1,
+      "votes": {
+        "software development cost": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "internaluse software",
+      "name": "internal-use software",
+      "parent": "software development cost",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlaw003u04jrtv5y7qcg"
+      ],
+      "klps": 1,
+      "votes": {
+        "capitalization situation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "application development stage",
+      "name": "application development stage",
+      "parent": "software development cost",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlaw003u04jrtv5y7qcg"
+      ],
+      "klps": 1,
+      "votes": {
+        "internaluse software": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "software for sale",
+      "name": "software for sale",
+      "parent": "software development cost",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlaw003u04jrtv5y7qcg"
+      ],
+      "klps": 1,
+      "votes": {
+        "capitalization situation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "technological feasibility",
+      "name": "technological feasibility",
+      "parent": "software development cost",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlaw003u04jrtv5y7qcg"
+      ],
+      "klps": 1,
+      "votes": {
+        "software for sale": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "pretrigger expensing",
+      "name": "pre-trigger expensing",
+      "parent": "software development cost",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlaw003u04jrtv5y7qcg"
+      ],
+      "klps": 1,
+      "votes": {
+        "capitalization situation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "capitalized cost treatment",
+      "name": "capitalized cost treatment",
+      "parent": "software development cost",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlaw003u04jrtv5y7qcg"
+      ],
+      "klps": 1,
+      "votes": {
+        "software development cost": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "amortization",
+      "name": "amortization",
+      "parent": "software development cost",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlaw003u04jrtv5y7qcg"
+      ],
+      "klps": 1,
+      "votes": {
+        "capitalized cost treatment": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "year 1 depreciation",
+      "name": "year 1 depreciation",
+      "parent": "factory purchase and sale",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlbh003x04jrhld73oqy"
+      ],
+      "klps": 1,
+      "votes": {
+        "factory purchase and sale": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "year 1 operating cash flow",
+      "name": "year 1 operating cash flow",
+      "parent": "factory purchase and sale",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlbh003x04jrhld73oqy"
+      ],
+      "klps": 1,
+      "votes": {
+        "factory purchase and sale": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "year 1 investing cash flow",
+      "name": "year 1 investing cash flow",
+      "parent": "factory purchase and sale",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlbh003x04jrhld73oqy"
+      ],
+      "klps": 1,
+      "votes": {
+        "factory purchase and sale": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "year 1 balance sheet",
+      "name": "year 1 balance sheet",
+      "parent": "factory purchase and sale",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlbh003x04jrhld73oqy"
+      ],
+      "klps": 1,
+      "votes": {
+        "factory purchase and sale": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "year 2 sale loss",
+      "name": "year 2 sale loss",
+      "parent": "factory purchase and sale",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlbh003x04jrhld73oqy"
+      ],
+      "klps": 1,
+      "votes": {
+        "factory purchase and sale": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "year 2 operating cash flow",
+      "name": "year 2 operating cash flow",
+      "parent": "factory purchase and sale",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlbh003x04jrhld73oqy"
+      ],
+      "klps": 1,
+      "votes": {
+        "factory purchase and sale": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "year 2 balance sheet",
+      "name": "year 2 balance sheet",
+      "parent": "factory purchase and sale",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlbh003x04jrhld73oqy"
+      ],
+      "klps": 1,
+      "votes": {
+        "factory purchase and sale": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "twoyear net effect",
+      "name": "two-year net effect",
+      "parent": "factory purchase and sale",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlbh003x04jrhld73oqy"
+      ],
+      "klps": 1,
+      "votes": {
+        "factory purchase and sale": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "unlevered free cash flow",
+      "name": "unlevered free cash flow",
+      "parent": "levered vs unlevered free cash flow",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlc1004004jr43abdagw",
+        "cmtfexlge004f04jrc03mmus5"
+      ],
+      "klps": 2,
+      "votes": {
+        "levered vs unlevered free cash flow": 3,
+        "rent expense": 3
+      },
+      "alsoUnder": [
+        "operating lease"
+      ],
+      "matched": null
+    },
+    {
+      "key": "unlevered free cash flow formula",
+      "name": "unlevered fcf formula",
+      "parent": "unlevered free cash flow",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlc1004004jr43abdagw"
+      ],
+      "klps": 1,
+      "votes": {
+        "unlevered free cash flow": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "earning before interest and tax tax adjustment",
+      "name": "ebit tax adjustment",
+      "parent": "unlevered free cash flow",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlc1004004jr43abdagw"
+      ],
+      "klps": 1,
+      "votes": {
+        "unlevered free cash flow formula": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "levered free cash flow",
+      "name": "levered free cash flow",
+      "parent": "levered vs unlevered free cash flow",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlc1004004jr43abdagw"
+      ],
+      "klps": 1,
+      "votes": {
+        "levered vs unlevered free cash flow": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "debt service reduction",
+      "name": "debt service reduction",
+      "parent": "levered vs unlevered free cash flow",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlc1004004jr43abdagw"
+      ],
+      "klps": 1,
+      "votes": {
+        "levered free cash flow": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "discount rate matching",
+      "name": "discount rate matching",
+      "parent": "levered vs unlevered free cash flow",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlc1004004jr43abdagw"
+      ],
+      "klps": 1,
+      "votes": {
+        "levered vs unlevered free cash flow": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "capital structure",
+      "name": "capital structure",
+      "parent": "wacc",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlck004304jr8c760u6i",
+        "cmtfexljd005304jrwj19vhwt"
+      ],
+      "klps": 2,
+      "votes": {
+        "wacc": 3,
+        "comp set": 3
+      },
+      "alsoUnder": [
+        "comp set"
+      ],
+      "matched": {
+        "kltId": "cmt97oqfz008yhwk6ktzvbpu0",
+        "name": "capital structure",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "cost of equity",
+      "name": "cost of equity",
+      "parent": "wacc",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlck004304jr8c760u6i",
+        "cmtfexlem004604jrvi4cwtij"
+      ],
+      "klps": 1,
+      "votes": {
+        "wacc": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97j3th002whwk68aw85ys9",
+        "name": "cost of equity",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "risk-free rate",
+      "name": "risk-free rate",
+      "parent": "cost of equity",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlck004304jr8c760u6i",
+        "cmtfexlfy004c04jrr5gfdpfj"
+      ],
+      "klps": 2,
+      "votes": {
+        "cost of equity": 3,
+        "credit spread": 3
+      },
+      "alsoUnder": [
+        "cost of debt"
+      ],
+      "matched": {
+        "kltId": "cmt97gzuz000ahwk6ze35bgve",
+        "name": "risk-free rate",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "beta",
+      "name": "beta",
+      "parent": "cost of equity",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlck004304jr8c760u6i"
+      ],
+      "klps": 1,
+      "votes": {
+        "cost of equity": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97h3k0000ihwk6hu09wzxd",
+        "name": "beta",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "equity risk premium",
+      "name": "equity risk premium",
+      "parent": "cost of equity",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlck004304jr8c760u6i"
+      ],
+      "klps": 1,
+      "votes": {
+        "cost of equity": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97h1v1000fhwk6akjzarwv",
+        "name": "equity risk premium",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "unlevered beta",
+      "name": "unlevered beta",
+      "parent": "levered beta",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlfd004904jrum8123im"
+      ],
+      "klps": 1,
+      "votes": {
+        "levered beta": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97gxgv0003hwk6tslsi28k",
+        "name": "unlevered beta",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "relevering formula",
+      "name": "relevering formula",
+      "parent": "levered beta",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlfd004904jrum8123im"
+      ],
+      "klps": 1,
+      "votes": {
+        "levered beta": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "unlevering formula",
+      "name": "unlevering formula",
+      "parent": "levered beta",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlfd004904jrum8123im"
+      ],
+      "klps": 1,
+      "votes": {
+        "levered beta": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "interest tax shield",
+      "name": "interest tax shield",
+      "parent": "levered beta",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlfd004904jrum8123im"
+      ],
+      "klps": 1,
+      "votes": {
+        "levered beta": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "market yield on debt",
+      "name": "market yield on debt",
+      "parent": "cost of debt",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlfy004c04jrr5gfdpfj"
+      ],
+      "klps": 1,
+      "votes": {
+        "cost of debt": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "interest expense proxy",
+      "name": "interest expense proxy",
+      "parent": "cost of debt",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlfy004c04jrr5gfdpfj"
+      ],
+      "klps": 1,
+      "votes": {
+        "cost of debt": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "synthetic rating",
+      "name": "synthetic rating",
+      "parent": "cost of debt",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlfy004c04jrr5gfdpfj"
+      ],
+      "klps": 1,
+      "votes": {
+        "cost of debt": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "credit spread",
+      "name": "credit spread",
+      "parent": "cost of debt",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlfy004c04jrr5gfdpfj"
+      ],
+      "klps": 1,
+      "votes": {
+        "cost of debt": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "estimated yield on debt",
+      "name": "estimated yield on debt",
+      "parent": "cost of debt",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlfy004c04jrr5gfdpfj"
+      ],
+      "klps": 1,
+      "votes": {
+        "cost of debt": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "operating lease treatment",
+      "name": "operating lease treatment",
+      "parent": "operating lease",
+      "role": "alias",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlge004f04jrc03mmus5"
+      ],
+      "klps": 1,
+      "votes": {
+        "lease treatment in dcf": 3
+      },
+      "alsoUnder": [],
+      "matched": null,
+      "mergedInto": "operating lease"
+    },
+    {
+      "key": "rent expense",
+      "name": "rent expense",
+      "parent": "operating lease",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlge004f04jrc03mmus5"
+      ],
+      "klps": 1,
+      "votes": {
+        "operating lease treatment": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "finance lease treatment",
+      "name": "finance lease treatment",
+      "parent": "lease treatment in dcf",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlge004f04jrc03mmus5"
+      ],
+      "klps": 1,
+      "votes": {
+        "lease treatment in dcf": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "ifr 16 capitalization",
+      "name": "ifrs 16 capitalization",
+      "parent": "lease treatment in dcf",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlge004f04jrc03mmus5"
+      ],
+      "klps": 1,
+      "votes": {
+        "lease treatment in dcf": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "lease payment schedule",
+      "name": "lease payment schedule",
+      "parent": "lease treatment in dcf",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlge004f04jrc03mmus5"
+      ],
+      "klps": 1,
+      "votes": {
+        "ifr 16 capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "rou depreciation addback",
+      "name": "rou depreciation add-back",
+      "parent": "lease treatment in dcf",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlge004f04jrc03mmus5"
+      ],
+      "klps": 1,
+      "votes": {
+        "ifr 16 capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "principal repayment outflow",
+      "name": "principal repayment outflow",
+      "parent": "lease treatment in dcf",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlge004f04jrc03mmus5"
+      ],
+      "klps": 1,
+      "votes": {
+        "ifr 16 capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "hard gaap method",
+      "name": "hard gaap method",
+      "parent": "lease treatment in dcf",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlge004f04jrc03mmus5"
+      ],
+      "klps": 1,
+      "votes": {
+        "lease treatment in dcf": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "tax shield misstatement",
+      "name": "tax shield misstatement",
+      "parent": "lease treatment in dcf",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlge004f04jrc03mmus5"
+      ],
+      "klps": 1,
+      "votes": {
+        "hard gaap method": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "gaap operating lease expense",
+      "name": "gaap operating lease expense",
+      "parent": "lease accounting over time",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlh7004l04jrgrslari0"
+      ],
+      "klps": 1,
+      "votes": {
+        "lease accounting over time": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "ifr lease expense split",
+      "name": "ifrs lease expense split",
+      "parent": "lease accounting over time",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlh7004l04jrgrslari0"
+      ],
+      "klps": 1,
+      "votes": {
+        "lease accounting over time": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "ifr depreciation and interest",
+      "name": "ifrs depreciation and interest",
+      "parent": "lease accounting over time",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlh7004l04jrgrslari0"
+      ],
+      "klps": 1,
+      "votes": {
+        "ifr lease expense split": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "plain debt comparison",
+      "name": "plain debt comparison",
+      "parent": "lease accounting over time",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlh7004l04jrgrslari0"
+      ],
+      "klps": 1,
+      "votes": {
+        "lease accounting over time": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "rightofuse asset",
+      "name": "right-of-use asset",
+      "parent": "lease capitalization",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlho004o04jr22mh0ian"
+      ],
+      "klps": 1,
+      "votes": {
+        "lease capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "lease liability",
+      "name": "lease liability",
+      "parent": "lease capitalization",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlho004o04jr22mh0ian"
+      ],
+      "klps": 1,
+      "votes": {
+        "lease capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "initial measurement",
+      "name": "initial measurement",
+      "parent": "lease capitalization",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlho004o04jr22mh0ian"
+      ],
+      "klps": 1,
+      "votes": {
+        "lease capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "subsequent measurement",
+      "name": "subsequent measurement",
+      "parent": "lease capitalization",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlho004o04jr22mh0ian"
+      ],
+      "klps": 1,
+      "votes": {
+        "lease capitalization": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "gordon growth method",
+      "name": "gordon growth method",
+      "parent": "terminal value",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexli6004r04jrhspkfz5o"
+      ],
+      "klps": 1,
+      "votes": {
+        "terminal value": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "gordon growth formula",
+      "name": "gordon growth formula",
+      "parent": "terminal value",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexli6004r04jrhspkfz5o"
+      ],
+      "klps": 1,
+      "votes": {
+        "gordon growth method": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "terminalyear cash flow",
+      "name": "terminal-year cash flow",
+      "parent": "terminal value",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexli6004r04jrhspkfz5o"
+      ],
+      "klps": 1,
+      "votes": {
+        "gordon growth formula": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "discount rate",
+      "name": "discount rate",
+      "parent": "terminal value",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexli6004r04jrhspkfz5o"
+      ],
+      "klps": 1,
+      "votes": {
+        "gordon growth formula": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97i9bl0022hwk6sxmcgvd8",
+        "name": "discount rate",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "exit multiple method",
+      "name": "exit multiple method",
+      "parent": "terminal value",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexli6004r04jrhspkfz5o"
+      ],
+      "klps": 1,
+      "votes": {
+        "terminal value": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "discounting terminal value",
+      "name": "discounting terminal value",
+      "parent": "terminal value",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexli6004r04jrhspkfz5o"
+      ],
+      "klps": 1,
+      "votes": {
+        "gordon growth method": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "sensitivity of gordon growth",
+      "name": "sensitivity of gordon growth",
+      "parent": "terminal value",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexli6004r04jrhspkfz5o"
+      ],
+      "klps": 1,
+      "votes": {
+        "gordon growth method": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "outofthemoney option",
+      "name": "out-of-the-money options",
+      "parent": "diluted share count",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlih004u04jr3175vhy1"
+      ],
+      "klps": 1,
+      "votes": {
+        "diluted share count": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "treasury stock method",
+      "name": "treasury stock method",
+      "parent": "treasury stock",
+      "role": "alias",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlih004u04jr3175vhy1"
+      ],
+      "klps": 1,
+      "votes": {
+        "diluted share count": 3
+      },
+      "alsoUnder": [],
+      "matched": null,
+      "mergedInto": "treasury stock"
+    },
+    {
+      "key": "net option dilution",
+      "name": "net option dilution",
+      "parent": "treasury stock",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlih004u04jr3175vhy1"
+      ],
+      "klps": 1,
+      "votes": {
+        "treasury stock method": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "inthemoney convertible",
+      "name": "in-the-money convertibles",
+      "parent": "diluted share count",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlih004u04jr3175vhy1"
+      ],
+      "klps": 1,
+      "votes": {
+        "diluted share count": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "ifconverted method",
+      "name": "if-converted method",
+      "parent": "diluted share count",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlih004u04jr3175vhy1"
+      ],
+      "klps": 1,
+      "votes": {
+        "inthemoney convertible": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "restricted stock",
+      "name": "restricted stock",
+      "parent": "diluted share count",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlih004u04jr3175vhy1"
+      ],
+      "klps": 1,
+      "votes": {
+        "diluted share count": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "reasonable longterm growth range",
+      "name": "reasonable long-term growth range",
+      "parent": "terminal growth rate",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlis004x04jramrs3pja"
+      ],
+      "klps": 1,
+      "votes": {
+        "terminal growth rate": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "gdp growth benchmark",
+      "name": "gdp growth benchmark",
+      "parent": "terminal growth rate",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlis004x04jramrs3pja"
+      ],
+      "klps": 1,
+      "votes": {
+        "terminal growth rate": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "developed market ceiling",
+      "name": "developed market ceiling",
+      "parent": "terminal growth rate",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlis004x04jramrs3pja"
+      ],
+      "klps": 1,
+      "votes": {
+        "gdp growth benchmark": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "implied exit multiple",
+      "name": "implied exit multiple",
+      "parent": "terminal value",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlj2005004jrt5aefms6"
+      ],
+      "klps": 1,
+      "votes": {
+        "terminal value method": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "implied growth rate",
+      "name": "implied growth rate",
+      "parent": "terminal value",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlj2005004jrt5aefms6"
+      ],
+      "klps": 1,
+      "votes": {
+        "terminal value method": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "defensible growth band",
+      "name": "defensible growth band",
+      "parent": "terminal value",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlj2005004jrt5aefms6"
+      ],
+      "klps": 1,
+      "votes": {
+        "implied growth rate": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "buyer multiple test",
+      "name": "buyer multiple test",
+      "parent": "terminal value",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlj2005004jrt5aefms6"
+      ],
+      "klps": 1,
+      "votes": {
+        "implied exit multiple": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "assumption consistency check",
+      "name": "assumption consistency check",
+      "parent": "terminal value",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlj2005004jrt5aefms6"
+      ],
+      "klps": 1,
+      "votes": {
+        "terminal value method": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "profitability",
+      "name": "profitability",
+      "parent": "comp set",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljd005304jrwj19vhwt"
+      ],
+      "klps": 1,
+      "votes": {
+        "comp set": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97j8ro0039hwk68v0lnq2z",
+        "name": "profitability",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "risk comparability",
+      "name": "risk comparability",
+      "parent": "comp set",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljd005304jrwj19vhwt"
+      ],
+      "klps": 1,
+      "votes": {
+        "comp set": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "market presence",
+      "name": "market presence",
+      "parent": "comp set",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljd005304jrwj19vhwt"
+      ],
+      "klps": 1,
+      "votes": {
+        "comp set": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "business model",
+      "name": "business model",
+      "parent": "comp set",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljd005304jrwj19vhwt"
+      ],
+      "klps": 1,
+      "votes": {
+        "comp set": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "growth rate",
+      "name": "growth rate",
+      "parent": "comp set",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljd005304jrwj19vhwt"
+      ],
+      "klps": 1,
+      "votes": {
+        "comp set": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "margin profile",
+      "name": "margin profile",
+      "parent": "comp set",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljd005304jrwj19vhwt"
+      ],
+      "klps": 1,
+      "votes": {
+        "comp set": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "peer matching limit",
+      "name": "peer matching limits",
+      "parent": "comp set",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljd005304jrwj19vhwt"
+      ],
+      "klps": 1,
+      "votes": {
+        "comp set": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "cash expense treatment",
+      "name": "cash expense treatment",
+      "parent": "stock-based compensation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljl005604jrfto6iqrz"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock-based compensation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "economic cost of dilution",
+      "name": "economic cost of dilution",
+      "parent": "stock-based compensation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljl005604jrfto6iqrz"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock-based compensation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "addback with share count",
+      "name": "add-back with share count",
+      "parent": "stock-based compensation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljl005604jrfto6iqrz"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock-based compensation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "historical free cash flow",
+      "name": "historical free cash flow",
+      "parent": "stock-based compensation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljl005604jrfto6iqrz"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock-based compensation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "whole future valuation",
+      "name": "whole future valuation",
+      "parent": "stock-based compensation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljl005604jrfto6iqrz"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock-based compensation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "premiumadjusted purchase multiple",
+      "name": "premium-adjusted purchase multiple",
+      "parent": "accretion dilution",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljv005904jr3mpaefm3"
+      ],
+      "klps": 1,
+      "votes": {
+        "accretion dilution": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "stock cost of capital",
+      "name": "stock cost of capital",
+      "parent": "accretion dilution",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljv005904jr3mpaefm3"
+      ],
+      "klps": 1,
+      "votes": {
+        "accretion dilution": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "aftertax cost of debt",
+      "name": "after-tax cost of debt",
+      "parent": "accretion dilution",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljv005904jr3mpaefm3"
+      ],
+      "klps": 1,
+      "votes": {
+        "accretion dilution": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "blended financing cost",
+      "name": "blended financing cost",
+      "parent": "accretion dilution",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexljv005904jr3mpaefm3",
+        "cmtfexlk6005c04jrqeioc7hb"
+      ],
+      "klps": 2,
+      "votes": {
+        "accretion dilution": 3,
+        "yield method": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "yield method",
+      "name": "yield method",
+      "parent": "accretion dilution",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlk6005c04jrqeioc7hb"
+      ],
+      "klps": 1,
+      "votes": {
+        "accretion dilution": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "target earnings yield",
+      "name": "target earnings yield",
+      "parent": "accretion dilution",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlk6005c04jrqeioc7hb"
+      ],
+      "klps": 2,
+      "votes": {
+        "yield method": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39j60j007cr0k6tkoqziqk",
+        "name": "target earnings yield",
+        "rule": "exact",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "eps method",
+      "name": "eps method",
+      "parent": "accretion dilution",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlk6005c04jrqeioc7hb"
+      ],
+      "klps": 2,
+      "votes": {
+        "accretion dilution": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "accretion dilution percentage",
+      "name": "accretion/dilution percentage",
+      "parent": "accretion dilution",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlk6005c04jrqeioc7hb"
+      ],
+      "klps": 1,
+      "votes": {
+        "eps method": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39jfel008ur0k6qoxf8p4c",
+        "name": "accretion/dilution percentage",
+        "rule": "exact",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "aftertax net income effect",
+      "name": "after-tax net income effect",
+      "parent": "stock-based compensation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock-based compensation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "tax deduction timing",
+      "name": "tax deduction timing",
+      "parent": "stock-based compensation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock-based compensation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "deferred tax asset",
+      "name": "deferred tax asset",
+      "parent": "stock-based compensation",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock-based compensation": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97hbdf000zhwk6vldyfytc",
+        "name": "deferred tax asset",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "cash flow adjustment",
+      "name": "cash flow adjustments",
+      "parent": "stock-based compensation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock-based compensation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "apic and retained earning",
+      "name": "apic and retained earnings",
+      "parent": "stock-based compensation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock-based compensation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "balance sheet balancing",
+      "name": "balance sheet balancing",
+      "parent": "stock-based compensation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "klps": 1,
+      "votes": {
+        "apic and retained earning": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "deferred tax asset classification",
+      "name": "deferred tax asset classification",
+      "parent": "deferred tax asset",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "klps": 1,
+      "votes": {
+        "deferred tax asset": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "financing cash inflow",
+      "name": "financing cash inflow",
+      "parent": "stock option tax deduction",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkr005i04jrtu896cwb"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock option tax deduction": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "scenario 1 tax shortfall",
+      "name": "scenario 1 tax shortfall",
+      "parent": "stock option tax deduction",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkr005i04jrtu896cwb"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock option tax deduction": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "scenario 1 net income",
+      "name": "scenario 1 net income",
+      "parent": "stock option tax deduction",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkr005i04jrtu896cwb"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock option tax deduction": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "scenario 1 cash flow",
+      "name": "scenario 1 cash flow",
+      "parent": "stock option tax deduction",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkr005i04jrtu896cwb"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock option tax deduction": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "scenario 1 balance sheet",
+      "name": "scenario 1 balance sheet",
+      "parent": "stock option tax deduction",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkr005i04jrtu896cwb"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock option tax deduction": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "scenario 2 tax windfall",
+      "name": "scenario 2 tax windfall",
+      "parent": "stock option tax deduction",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkr005i04jrtu896cwb"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock option tax deduction": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "scenario 2 cash flow",
+      "name": "scenario 2 cash flow",
+      "parent": "stock option tax deduction",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlkr005i04jrtu896cwb"
+      ],
+      "klps": 1,
+      "votes": {
+        "stock option tax deduction": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "deferred tax asset reversal",
+      "name": "deferred tax asset reversal",
+      "parent": "stockbased compensation tax effect",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexll1005l04jrf15hfuw7"
+      ],
+      "klps": 1,
+      "votes": {
+        "stockbased compensation tax effect": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "income tax expense increase",
+      "name": "income tax expense increase",
+      "parent": "stockbased compensation tax effect",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexll1005l04jrf15hfuw7"
+      ],
+      "klps": 1,
+      "votes": {
+        "stockbased compensation tax effect": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "net income decrease",
+      "name": "net income decrease",
+      "parent": "stockbased compensation tax effect",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexll1005l04jrf15hfuw7"
+      ],
+      "klps": 1,
+      "votes": {
+        "stockbased compensation tax effect": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "cash flow neutrality",
+      "name": "cash flow neutrality",
+      "parent": "stockbased compensation tax effect",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexll1005l04jrf15hfuw7"
+      ],
+      "klps": 1,
+      "votes": {
+        "stockbased compensation tax effect": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "balance sheet",
+      "name": "balance sheet balance",
+      "parent": "stockbased compensation tax effect",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexll1005l04jrf15hfuw7"
+      ],
+      "klps": 1,
+      "votes": {
+        "stockbased compensation tax effect": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97k2ol003vhwk69u3z0thi",
+        "name": "balance sheet",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "stockbased compensation reversal",
+      "name": "stock-based compensation reversal",
+      "parent": "stockbased compensation tax effect",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexll1005l04jrf15hfuw7"
+      ],
+      "klps": 1,
+      "votes": {
+        "stockbased compensation tax effect": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "net income increase",
+      "name": "net income increase",
+      "parent": "stockbased compensation tax effect",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexll1005l04jrf15hfuw7"
+      ],
+      "klps": 1,
+      "votes": {
+        "stockbased compensation tax effect": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "historical cost accounting",
+      "name": "historical cost accounting",
+      "parent": "share price increase",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl34002u04jrtpc5ztom"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "no company cash",
+      "name": "no company cash",
+      "parent": "share price increase",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl34002u04jrtpc5ztom"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "shareholder trade",
+      "name": "shareholder trades",
+      "parent": "share price increase",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl34002u04jrtpc5ztom"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "marketbased measure",
+      "name": "market-based measures",
+      "parent": "share price increase",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl34002u04jrtpc5ztom"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "book equity",
+      "name": "book equity",
+      "parent": "share price increase",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl34002u04jrtpc5ztom"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "market cap",
+      "name": "market cap",
+      "parent": "share price increase",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl34002u04jrtpc5ztom"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "company market transaction",
+      "name": "company market transactions",
+      "parent": "share price increase",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl34002u04jrtpc5ztom"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "share issuance",
+      "name": "share issuance",
+      "parent": "share price increase",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl34002u04jrtpc5ztom"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "share repurchase",
+      "name": "share repurchase",
+      "parent": "share price increase",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl34002u04jrtpc5ztom"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "litigation expense treatment",
+      "name": "litigation expense treatment",
+      "parent": "nonrecurring expense adjustment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl4q003004jr03vi4mwi"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "recurring cost of business",
+      "name": "recurring cost of business",
+      "parent": "nonrecurring expense adjustment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl4q003004jr03vi4mwi"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "frequency and linkage test",
+      "name": "frequency and linkage test",
+      "parent": "nonrecurring expense adjustment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl4q003004jr03vi4mwi"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "pharma litigation example",
+      "name": "pharma litigation example",
+      "parent": "nonrecurring expense adjustment",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexl4q003004jr03vi4mwi"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "default risk spread",
+      "name": "default risk spread",
+      "parent": "cost of capital",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlem004604jrvi4cwtij"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "zero beta equity",
+      "name": "zero beta equity",
+      "parent": "cost of capital",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlem004604jrvi4cwtij"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "zero wacc",
+      "name": "zero wacc",
+      "parent": "cost of capital",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlem004604jrvi4cwtij"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "equity value",
+      "name": "equity value",
+      "parent": "operating lease",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlgx004i04jr9nddimag"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "enterprise value",
+      "name": "enterprise value",
+      "parent": "operating lease",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlgx004i04jr9nddimag"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "borrowing to buy",
+      "name": "borrowing to buy",
+      "parent": "operating lease",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlgx004i04jr9nddimag"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "revenue growth",
+      "name": "revenue growth",
+      "parent": "target irr",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlld005o04jr4sfbi1bn"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "free cash flow conversion",
+      "name": "free cash flow conversion",
+      "parent": "target irr",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlld005o04jr4sfbi1bn"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "entry and exit multiple",
+      "name": "entry and exit multiples",
+      "parent": "target irr",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlld005o04jr4sfbi1bn"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "debt sweep rate",
+      "name": "debt sweep rate",
+      "parent": "target irr",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlld005o04jr4sfbi1bn"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "leverage gap",
+      "name": "leverage gap",
+      "parent": "target irr",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlld005o04jr4sfbi1bn"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "wacc blend",
+      "name": "WACC blend",
+      "parent": "target irr",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlld005o04jr4sfbi1bn"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "equity and debt weight",
+      "name": "equity and debt weights",
+      "parent": "target irr",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlld005o04jr4sfbi1bn"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "cost of debt example",
+      "name": "cost of debt example",
+      "parent": "target irr",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlld005o04jr4sfbi1bn"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "debt sizing",
+      "name": "debt sizing",
+      "parent": "target irr",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtfexlld005o04jr4sfbi1bn"
+      ],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "lease accounting",
+      "name": "lease accounting",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "active",
+      "cards": [],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "valuation",
+      "name": "valuation",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "active",
+      "cards": [],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "debt instrument",
+      "name": "debt instruments",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "active",
+      "cards": [],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "profitability ratio",
+      "name": "profitability ratios",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "active",
+      "cards": [],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "nonrecurring item",
+      "name": "non-recurring items",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "active",
+      "cards": [],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "capitalized cost",
+      "name": "capitalized costs",
+      "parent": "accounting",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "active",
+      "cards": [],
+      "klps": 0,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    }
+  ],
+  "clusters": [
+    {
+      "members": [
+        "three financial statement",
+        "stock-based compensation"
+      ],
+      "sharedChildren": [
+        "retained earnings"
+      ],
+      "sharedWords": [],
+      "wantsParent": false
+    },
+    {
+      "members": [
+        "threestatement linkage",
+        "share repurchases"
+      ],
+      "sharedChildren": [
+        "net income"
+      ],
+      "sharedWords": [],
+      "wantsParent": false
+    },
+    {
+      "members": [
+        "trapped cash",
+        "cash conversion cycle",
+        "levered vs unlevered free cash flow"
+      ],
+      "sharedChildren": [],
+      "sharedWords": [
+        "cash"
+      ],
+      "wantsParent": true
+    },
+    {
+      "members": [
+        "share price estimation",
+        "share price increase"
+      ],
+      "sharedChildren": [],
+      "sharedWords": [
+        "share",
+        "price"
+      ],
+      "wantsParent": false
+    },
+    {
+      "members": [
+        "p e ratio",
+        "retention ratio",
+        "liquidity ratio",
+        "turnover ratio"
+      ],
+      "sharedChildren": [],
+      "sharedWords": [
+        "ratio"
+      ],
+      "wantsParent": true
+    },
+    {
+      "members": [
+        "capitalization",
+        "lease capitalization"
+      ],
+      "sharedChildren": [],
+      "sharedWords": [
+        "capitalization"
+      ],
+      "wantsParent": false
+    },
+    {
+      "members": [
+        "working capital efficiency",
+        "working capital line item",
+        "cost of capital"
+      ],
+      "sharedChildren": [],
+      "sharedWords": [
+        "working",
+        "capital"
+      ],
+      "wantsParent": true
+    },
+    {
+      "members": [
+        "return on asset",
+        "return on invested capital"
+      ],
+      "sharedChildren": [],
+      "sharedWords": [
+        "return"
+      ],
+      "wantsParent": false
+    },
+    {
+      "members": [
+        "debt service coverage ratio",
+        "cost of debt"
+      ],
+      "sharedChildren": [],
+      "sharedWords": [
+        "debt"
+      ],
+      "wantsParent": false
+    },
+    {
+      "members": [
+        "wacc",
+        "comp set"
+      ],
+      "sharedChildren": [
+        "capital structure"
+      ],
+      "sharedWords": [],
+      "wantsParent": false
+    },
+    {
+      "members": [
+        "lease treatment in dcf",
+        "operating lease"
+      ],
+      "sharedChildren": [],
+      "sharedWords": [
+        "lease"
+      ],
+      "wantsParent": false
+    },
+    {
+      "members": [
+        "terminal value",
+        "terminal growth rate"
+      ],
+      "sharedChildren": [],
+      "sharedWords": [
+        "terminal"
+      ],
+      "wantsParent": false
+    }
+  ],
+  "anchorMatches": {
+    "new": 32,
+    "exact": 11,
+    "placed": 5,
+    "alias": 2
+  },
+  "edges": [
+    {
+      "from": "net income",
+      "to": "retained earnings",
+      "type": "causes",
+      "cards": [
+        "cmtfexku5001u04jrpku2igfc"
+      ]
+    },
+    {
+      "from": "stock-based compensation",
+      "to": "additional paidin capital",
+      "type": "causes",
+      "cards": [
+        "cmtfexkut001x04jr5c0bkyv6"
+      ]
+    },
+    {
+      "from": "capitalization",
+      "to": "net income",
+      "type": "causes",
+      "cards": [
+        "cmtfexl2k002r04jr12fu7pm0"
+      ]
+    },
+    {
+      "from": "day inventory held",
+      "to": "working capital efficiency",
+      "type": "applies_within",
+      "cards": [
+        "cmtfexl5u003604jrqg6hcnw1"
+      ]
+    },
+    {
+      "from": "day sale outstanding",
+      "to": "day payable outstanding",
+      "type": "confused_with",
+      "cards": [
+        "cmtfexl5u003604jrqg6hcnw1"
+      ]
+    },
+    {
+      "from": "day inventory held",
+      "to": "cash conversion cycle",
+      "type": "causes",
+      "cards": [
+        "cmtfexl5u003604jrqg6hcnw1"
+      ]
+    },
+    {
+      "from": "share repurchases",
+      "to": "net income",
+      "type": "causes",
+      "cards": [
+        "cmtfexlac003r04jr2edriphm"
+      ]
+    },
+    {
+      "from": "financing cash outflow",
+      "to": "share repurchases",
+      "type": "applies_within",
+      "cards": [
+        "cmtfexlac003r04jr2edriphm"
+      ]
+    },
+    {
+      "from": "net income",
+      "to": "earnings per share",
+      "type": "requires",
+      "cards": [
+        "cmtfexlac003r04jr2edriphm"
+      ]
+    },
+    {
+      "from": "capital structure",
+      "to": "wacc",
+      "type": "causes",
+      "cards": [
+        "cmtfexlck004304jr8c760u6i"
+      ]
+    },
+    {
+      "from": "capital structure",
+      "to": "levered beta",
+      "type": "applies_within",
+      "cards": [
+        "cmtfexlck004304jr8c760u6i"
+      ]
+    },
+    {
+      "from": "cost of equity",
+      "to": "risk-free rate",
+      "type": "requires",
+      "cards": [
+        "cmtfexlck004304jr8c760u6i"
+      ]
+    },
+    {
+      "from": "cost of equity",
+      "to": "beta",
+      "type": "requires",
+      "cards": [
+        "cmtfexlck004304jr8c760u6i"
+      ]
+    },
+    {
+      "from": "beta",
+      "to": "levered beta",
+      "type": "confused_with",
+      "cards": [
+        "cmtfexlck004304jr8c760u6i"
+      ]
+    },
+    {
+      "from": "capital structure",
+      "to": "levered beta",
+      "type": "causes",
+      "cards": [
+        "cmtfexlck004304jr8c760u6i"
+      ]
+    },
+    {
+      "from": "levered beta",
+      "to": "unlevered beta",
+      "type": "confused_with",
+      "cards": [
+        "cmtfexlfd004904jrum8123im"
+      ]
+    }
+  ],
+  "rolledEdges": [
+    {
+      "from": "depreciation",
+      "to": "land depreciation",
+      "type": "applies_within",
+      "cards": [
+        "cmtfexkrd001l04jr2axcty6u"
+      ],
+      "via": [
+        "indefinite useful life→land depreciation"
+      ]
+    },
+    {
+      "from": "three financial statement",
+      "to": "free cash flow",
+      "type": "confused_with",
+      "cards": [
+        "cmtfexkt6001r04jrpb0oa0q4"
+      ],
+      "via": [
+        "net change in cash→three financial statement"
+      ]
+    },
+    {
+      "from": "net income",
+      "to": "threestatement linkage",
+      "type": "precedes",
+      "cards": [
+        "cmtfexku5001u04jrpku2igfc"
+      ],
+      "via": [
+        "operating section→threestatement linkage"
+      ]
+    },
+    {
+      "from": "pik interest",
+      "to": "stock-based compensation",
+      "type": "requires",
+      "cards": [
+        "cmtfexkz2002904jr5b0upt4o"
+      ],
+      "via": [
+        "cash increase→pik interest",
+        "balance sheet balancing→stock-based compensation",
+        "debt accrual to principal→pik interest",
+        "balance sheet balancing→stock-based compensation"
+      ]
+    },
+    {
+      "from": "pik interest",
+      "to": "stock-based compensation",
+      "type": "causes",
+      "cards": [
+        "cmtfexkz2002904jr5b0upt4o"
+      ],
+      "via": [
+        "debt accrual to principal→pik interest",
+        "balance sheet balancing→stock-based compensation"
+      ]
+    },
+    {
+      "from": "defined contribution plan",
+      "to": "deferred tax asset",
+      "type": "causes",
+      "cards": [
+        "cmtfexl1g002l04jr60k3vs87"
+      ],
+      "via": [
+        "actuarial assumptions→defined contribution plan"
+      ]
+    },
+    {
+      "from": "share price increase",
+      "to": "balance sheet",
+      "type": "causes",
+      "cards": [
+        "cmtfexl34002u04jrtpc5ztom"
+      ],
+      "via": [
+        "historical cost accounting→share price increase",
+        "balance sheet values→balance sheet"
+      ]
+    },
+    {
+      "from": "cash conversion cycle",
+      "to": "day inventory held",
+      "type": "requires",
+      "cards": [
+        "cmtfexl59003304jrdgqbgapc"
+      ],
+      "via": [
+        "three-part formula→cash conversion cycle"
+      ]
+    },
+    {
+      "from": "cash conversion cycle",
+      "to": "day sale outstanding",
+      "type": "requires",
+      "cards": [
+        "cmtfexl59003304jrdgqbgapc"
+      ],
+      "via": [
+        "three-part formula→cash conversion cycle"
+      ]
+    },
+    {
+      "from": "cash conversion cycle",
+      "to": "day payable outstanding",
+      "type": "requires",
+      "cards": [
+        "cmtfexl59003304jrdgqbgapc"
+      ],
+      "via": [
+        "three-part formula→cash conversion cycle"
+      ]
+    },
+    {
+      "from": "liquidity ratio",
+      "to": "cash conversion cycle",
+      "type": "causes",
+      "cards": [
+        "cmtfexl81003i04jr7p8440i8"
+      ],
+      "via": [
+        "uncollectible receivables→liquidity ratio",
+        "receivables aging and cash conversion cycle→cash conversion cycle"
+      ]
+    },
+    {
+      "from": "turnover ratio",
+      "to": "cash conversion cycle",
+      "type": "precedes",
+      "cards": [
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "via": [
+        "days metrics→turnover ratio"
+      ]
+    },
+    {
+      "from": "turnover ratio",
+      "to": "cash conversion cycle",
+      "type": "causes",
+      "cards": [
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "via": [
+        "days metrics→turnover ratio"
+      ]
+    },
+    {
+      "from": "turnover ratio",
+      "to": "cash conversion cycle",
+      "type": "applies_within",
+      "cards": [
+        "cmtfexl92003l04jrmdij1esj"
+      ],
+      "via": [
+        "turnover interpretation→turnover ratio"
+      ]
+    },
+    {
+      "from": "treasury stock",
+      "to": "share repurchases",
+      "type": "causes",
+      "cards": [
+        "cmtfexlac003r04jr2edriphm"
+      ],
+      "via": [
+        "equity reduction→share repurchases"
+      ]
+    },
+    {
+      "from": "levered vs unlevered free cash flow",
+      "to": "unlevered free cash flow",
+      "type": "causes",
+      "cards": [
+        "cmtfexlc1004004jr43abdagw"
+      ],
+      "via": [
+        "debt service reduction→levered vs unlevered free cash flow"
+      ]
+    },
+    {
+      "from": "cost of capital",
+      "to": "cost of debt",
+      "type": "causes",
+      "cards": [
+        "cmtfexlem004604jrvi4cwtij"
+      ],
+      "via": [
+        "default risk spread→cost of capital"
+      ]
+    },
+    {
+      "from": "cost of debt",
+      "to": "cost of capital",
+      "type": "requires",
+      "cards": [
+        "cmtfexlem004604jrvi4cwtij"
+      ],
+      "via": [
+        "zero wacc→cost of capital"
+      ]
+    },
+    {
+      "from": "cost of equity",
+      "to": "cost of capital",
+      "type": "applies_within",
+      "cards": [
+        "cmtfexlem004604jrvi4cwtij"
+      ],
+      "via": [
+        "zero beta equity→cost of capital"
+      ]
+    },
+    {
+      "from": "unlevered beta",
+      "to": "levered beta",
+      "type": "applies_within",
+      "cards": [
+        "cmtfexlfd004904jrum8123im"
+      ],
+      "via": [
+        "relevering formula→levered beta"
+      ]
+    },
+    {
+      "from": "discount rate",
+      "to": "terminal value",
+      "type": "applies_within",
+      "cards": [
+        "cmtfexli6004r04jrhspkfz5o"
+      ],
+      "via": [
+        "gordon growth method→terminal value"
+      ]
+    },
+    {
+      "from": "diluted share count",
+      "to": "treasury stock",
+      "type": "requires",
+      "cards": [
+        "cmtfexlih004u04jr3175vhy1"
+      ],
+      "via": [
+        "out-of-the-money options→diluted share count",
+        "net option dilution→treasury stock"
+      ]
+    },
+    {
+      "from": "treasury stock",
+      "to": "diluted share count",
+      "type": "confused_with",
+      "cards": [
+        "cmtfexlih004u04jr3175vhy1"
+      ],
+      "via": [
+        "net option dilution→treasury stock",
+        "restricted stock→diluted share count"
+      ]
+    },
+    {
+      "from": "capital structure",
+      "to": "comp set",
+      "type": "requires",
+      "cards": [
+        "cmtfexljd005304jrwj19vhwt"
+      ],
+      "via": [
+        "margin profile→comp set"
+      ]
+    },
+    {
+      "from": "accretion dilution",
+      "to": "blended financing cost",
+      "type": "requires",
+      "cards": [
+        "cmtfexljv005904jr3mpaefm3"
+      ],
+      "via": [
+        "stock cost of capital→accretion dilution",
+        "after-tax cost of debt→accretion dilution"
+      ]
+    },
+    {
+      "from": "stock-based compensation",
+      "to": "deferred tax asset",
+      "type": "confused_with",
+      "cards": [
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "via": [
+        "after-tax net income effect→stock-based compensation",
+        "deferred tax asset classification→deferred tax asset"
+      ]
+    },
+    {
+      "from": "stock-based compensation",
+      "to": "deferred tax asset",
+      "type": "causes",
+      "cards": [
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "via": [
+        "tax deduction timing→stock-based compensation"
+      ]
+    },
+    {
+      "from": "deferred tax asset",
+      "to": "stock-based compensation",
+      "type": "precedes",
+      "cards": [
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "via": [
+        "cash flow adjustments→stock-based compensation"
+      ]
+    },
+    {
+      "from": "stock-based compensation",
+      "to": "operating cash flow",
+      "type": "precedes",
+      "cards": [
+        "cmtfexlkg005f04jrddv4qa8c"
+      ],
+      "via": [
+        "cash flow adjustments→stock-based compensation"
+      ]
+    },
+    {
+      "from": "stock option tax deduction",
+      "to": "additional paidin capital",
+      "type": "requires",
+      "cards": [
+        "cmtfexlkr005i04jrtu896cwb"
+      ],
+      "via": [
+        "financing cash inflow→stock option tax deduction"
+      ]
+    },
+    {
+      "from": "stockbased compensation tax effect",
+      "to": "balance sheet",
+      "type": "requires",
+      "cards": [
+        "cmtfexll1005l04jrf15hfuw7"
+      ],
+      "via": [
+        "cash flow neutrality→stockbased compensation tax effect"
+      ]
+    }
+  ],
+  "droppedEdges": 285,
+  "generalLinks": [
+    {
+      "cardId": "cmtfexl34002u04jrtpc5ztom",
+      "klpRefs": [
+        7
+      ],
+      "key": "share repurchases"
+    },
+    {
+      "cardId": "cmtfexlem004604jrvi4cwtij",
+      "klpRefs": [
+        3
+      ],
+      "key": "cost of debt"
+    },
+    {
+      "cardId": "cmtfexlem004604jrvi4cwtij",
+      "klpRefs": [
+        4
+      ],
+      "key": "cost of equity"
+    },
+    {
+      "cardId": "cmtfexlld005o04jr4sfbi1bn",
+      "klpRefs": [
+        1
+      ],
+      "key": "free cash flow"
+    },
+    {
+      "cardId": "cmtfexlld005o04jr4sfbi1bn",
+      "klpRefs": [
+        7
+      ],
+      "key": "cost of debt"
+    }
+  ],
+  "judgeCandidates": [
+    {
+      "specific": "working capital efficiency",
+      "general": "capital structure"
+    },
+    {
+      "specific": "working capital line item",
+      "general": "capital structure"
+    },
+    {
+      "specific": "return on invested capital",
+      "general": "capital structure"
+    },
+    {
+      "specific": "cost of capital",
+      "general": "capital structure"
+    },
+    {
+      "specific": "levered beta",
+      "general": "beta"
+    },
+    {
+      "specific": "lease capitalization",
+      "general": "capitalization"
+    },
+    {
+      "specific": "stockbased compensation tax effect",
+      "general": "stock-based compensation"
+    },
+    {
+      "specific": "working capital",
+      "general": "capital structure"
+    },
+    {
+      "specific": "additional paidin capital",
+      "general": "capital structure"
+    },
+    {
+      "specific": "unlevered free cash flow",
+      "general": "free cash flow"
+    },
+    {
+      "specific": "unlevered beta",
+      "general": "beta"
+    }
+  ],
+  "merges": [
+    {
+      "from": "terminal value method",
+      "into": "terminal value",
+      "rule": "facet"
+    },
+    {
+      "from": "net income effect",
+      "into": "net income",
+      "rule": "facet"
+    },
+    {
+      "from": "operating lease treatment",
+      "into": "operating lease",
+      "rule": "facet"
+    },
+    {
+      "from": "treasury stock method",
+      "into": "treasury stock",
+      "rule": "facet"
+    }
+  ],
+  "modes": {
+    "knowledge": 30,
+    "procedure": 7,
+    "calculation": 8,
+    "applied": 5
+  }
+}

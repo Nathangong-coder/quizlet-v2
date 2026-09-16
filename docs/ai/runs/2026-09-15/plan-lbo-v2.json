@@ -1,0 +1,1211 @@
+{
+  "setId": "cmtj7pxfc000005l4rv4krxxy",
+  "domain": "leveraged buyouts",
+  "nodes": [
+    {
+      "key": "leveraged buyout",
+      "name": "leveraged buyouts",
+      "parent": null,
+      "role": "domain",
+      "nature": "concept",
+      "status": "active",
+      "cards": [
+        "cmtjcmjbi000404k4fpqphmjw"
+      ],
+      "klps": 1,
+      "votes": {},
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "leverage in an lbo",
+      "name": "leverage in an lbo",
+      "parent": "lbo value creation",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtj7pxht000105l4xxtnhlbk"
+      ],
+      "klps": 1,
+      "votes": {
+        "leveraged buyout": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "lbo model",
+      "name": "lbo model",
+      "parent": "leveraged buyout",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "active",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "klps": 1,
+      "votes": {
+        "leveraged buyout": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "lbo value creation",
+      "name": "lbo value creation",
+      "parent": "leveraged buyout",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "active",
+      "cards": [
+        "cmtjcmjcc000a04k4pftq7hsd"
+      ],
+      "klps": 1,
+      "votes": {
+        "value creation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "good lbo candidate",
+      "name": "good lbo candidate",
+      "parent": "lbo valuation",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjco000d04k4by5nbcdu"
+      ],
+      "klps": 1,
+      "votes": {
+        "leveraged buyout": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "debt capacity",
+      "name": "debt capacity",
+      "parent": "lbo model",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcz000g04k4eqiixxzz"
+      ],
+      "klps": 1,
+      "votes": {
+        "leveraged buyout": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39ibe00027r0k6fvdbc04v",
+        "name": "debt capacity",
+        "rule": "exact",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "pe holding period",
+      "name": "pe holding period",
+      "parent": "leveraged buyout",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjdb000j04k42m4m2u0k"
+      ],
+      "klps": 1,
+      "votes": {
+        "leveraged buyout": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "debt paydown",
+      "name": "debt paydown",
+      "parent": "lbo model",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "active",
+      "cards": [
+        "cmtjcmjdo000m04k4oik4zmi2",
+        "cmtj7pxht000105l4xxtnhlbk",
+        "cmtjcmjbi000404k4fpqphmjw",
+        "cmtjcmjcc000a04k4pftq7hsd",
+        "cmtjcmjdb000j04k42m4m2u0k",
+        "cmtjcmjep000u04k41n614t20"
+      ],
+      "klps": 6,
+      "votes": {
+        "leveraged buyout": 6,
+        "leverage in an lbo": 3,
+        "lbo value creation": 3,
+        "pe holding period": 3,
+        "leverage": 3
+      },
+      "alsoUnder": [
+        "leverage in an lbo",
+        "lbo value creation",
+        "pe holding period",
+        "leverage"
+      ],
+      "matched": null
+    },
+    {
+      "key": "lbo valuation",
+      "name": "lbo valuation",
+      "parent": "leveraged buyout",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "active",
+      "cards": [
+        "cmtjcmje0000p04k4m78q0yzm"
+      ],
+      "klps": 1,
+      "votes": {
+        "leveraged buyout": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "leverage",
+      "name": "leverage",
+      "parent": "lbo value creation",
+      "role": "anchor",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjep000u04k41n614t20"
+      ],
+      "klps": 1,
+      "votes": {
+        "leveraged buyout": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97idbt0027hwk6qifi2y5y",
+        "name": "leverage",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "value creation",
+      "name": "value creation",
+      "parent": "leveraged buyout",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcc000a04k4pftq7hsd"
+      ],
+      "klps": 0,
+      "votes": {
+        "leveraged buyout": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39i5ik0015r0k606zb2bgm",
+        "name": "value creation",
+        "rule": "placed",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "debtfunded purchase price",
+      "name": "debt-funded purchase price",
+      "parent": "leverage in an lbo",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtj7pxht000105l4xxtnhlbk"
+      ],
+      "klps": 1,
+      "votes": {
+        "leverage in an lbo": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "equity base",
+      "name": "equity base",
+      "parent": "leverage in an lbo",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtj7pxht000105l4xxtnhlbk"
+      ],
+      "klps": 1,
+      "votes": {
+        "leverage in an lbo": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "private equity sponsor",
+      "name": "private equity sponsors",
+      "parent": "leveraged buyout",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjbi000404k4fpqphmjw"
+      ],
+      "klps": 1,
+      "votes": {
+        "leveraged buyout": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "targetlevel debt",
+      "name": "target-level debt",
+      "parent": "leveraged buyout",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjbi000404k4fpqphmjw"
+      ],
+      "klps": 1,
+      "votes": {
+        "leveraged buyout": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "sponsor equity stake",
+      "name": "sponsor equity stake",
+      "parent": "debt paydown",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjbi000404k4fpqphmjw"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt paydown": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "exit return",
+      "name": "exit return",
+      "parent": "leveraged buyout",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjbi000404k4fpqphmjw"
+      ],
+      "klps": 1,
+      "votes": {
+        "leveraged buyout": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39jgci0090r0k6maezsy1u",
+        "name": "exit return",
+        "rule": "exact",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "deal assumption",
+      "name": "deal assumptions",
+      "parent": "lbo model",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo model": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "funding split",
+      "name": "funding split",
+      "parent": "lbo model",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo model": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "new debt",
+      "name": "new debt",
+      "parent": "lbo model",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "klps": 1,
+      "votes": {
+        "funding split": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "sponsor equity contribution",
+      "name": "sponsor equity contribution",
+      "parent": "lbo model",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "klps": 1,
+      "votes": {
+        "funding split": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39i4g0000yr0k6mpz3gqg7",
+        "name": "sponsor equity contribution",
+        "rule": "exact",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "capital structure",
+      "name": "capital structure",
+      "parent": "lbo model",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo model": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97oqfz008yhwk6ktzvbpu0",
+        "name": "capital structure",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "cash flow projection",
+      "name": "cash flow projection",
+      "parent": "lbo model",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo model": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "exit multiple",
+      "name": "exit multiple",
+      "parent": "lbo model",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo model": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "exit equity proceed",
+      "name": "exit equity proceeds",
+      "parent": "lbo model",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo model": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "irr",
+      "name": "irr calculation",
+      "parent": "lbo model",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo model": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "ebitda growth",
+      "name": "ebitda growth",
+      "parent": "lbo value creation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcc000a04k4pftq7hsd"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo value creation": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39jg6x008zr0k6l25grx32",
+        "name": "ebitda growth",
+        "rule": "exact",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "multiple expansion",
+      "name": "multiple expansion",
+      "parent": "lbo value creation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcc000a04k4pftq7hsd"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo value creation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "expense reduction",
+      "name": "expense reductions",
+      "parent": "lbo value creation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcc000a04k4pftq7hsd"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo value creation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "operational improvement",
+      "name": "operational improvements",
+      "parent": "lbo value creation",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcc000a04k4pftq7hsd",
+        "cmtjcmjdb000j04k42m4m2u0k"
+      ],
+      "klps": 2,
+      "votes": {
+        "lbo value creation": 3,
+        "pe holding period": 3
+      },
+      "alsoUnder": [
+        "pe holding period"
+      ],
+      "matched": null
+    },
+    {
+      "key": "addon acquisition",
+      "name": "add-on acquisitions",
+      "parent": "lbo value creation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcc000a04k4pftq7hsd"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo value creation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "stable cash flow",
+      "name": "stable cash flows",
+      "parent": "good lbo candidate",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjco000d04k4by5nbcdu"
+      ],
+      "klps": 1,
+      "votes": {
+        "good lbo candidate": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "low capital expenditure need",
+      "name": "low capex needs",
+      "parent": "good lbo candidate",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjco000d04k4by5nbcdu"
+      ],
+      "klps": 1,
+      "votes": {
+        "good lbo candidate": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "strong asset base",
+      "name": "strong asset base",
+      "parent": "good lbo candidate",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjco000d04k4by5nbcdu"
+      ],
+      "klps": 1,
+      "votes": {
+        "good lbo candidate": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "comparable lbo transaction",
+      "name": "comparable lbo transactions",
+      "parent": "debt capacity",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcz000g04k4eqiixxzz"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt capacity": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "credit statistic",
+      "name": "credit statistics",
+      "parent": "debt capacity",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcz000g04k4eqiixxzz"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt capacity": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "leverage ratio",
+      "name": "leverage ratios",
+      "parent": "debt capacity",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcz000g04k4eqiixxzz"
+      ],
+      "klps": 1,
+      "votes": {
+        "credit statistic": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu3eg4900004hok6przb078v",
+        "name": "leverage ratio",
+        "rule": "exact",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "coverage ratio",
+      "name": "coverage ratios",
+      "parent": "debt capacity",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcz000g04k4eqiixxzz"
+      ],
+      "klps": 1,
+      "votes": {
+        "credit statistic": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "cash flow service",
+      "name": "cash flow service",
+      "parent": "debt capacity",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcz000g04k4eqiixxzz"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt capacity": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "company stability",
+      "name": "company stability",
+      "parent": "debt capacity",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjcz000g04k4eqiixxzz"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt capacity": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "secondary sale",
+      "name": "secondary sale",
+      "parent": "pe holding period",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjdb000j04k42m4m2u0k"
+      ],
+      "klps": 1,
+      "votes": {
+        "pe holding period": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "strategic buyer sale",
+      "name": "strategic buyer sale",
+      "parent": "pe holding period",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjdb000j04k42m4m2u0k"
+      ],
+      "klps": 1,
+      "votes": {
+        "pe holding period": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "ipo exit",
+      "name": "ipo exit",
+      "parent": "pe holding period",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjdb000j04k42m4m2u0k"
+      ],
+      "klps": 1,
+      "votes": {
+        "pe holding period": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "gradual selldown",
+      "name": "gradual sell-down",
+      "parent": "pe holding period",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjdb000j04k42m4m2u0k"
+      ],
+      "klps": 1,
+      "votes": {
+        "ipo exit": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "free cash flow",
+      "name": "free cash flow",
+      "parent": "debt paydown",
+      "role": "leaf",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjdo000m04k4oik4zmi2"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt paydown": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmt97ia0v0023hwk6w1yajx5n",
+        "name": "free cash flow",
+        "rule": "exact",
+        "status": "active"
+      }
+    },
+    {
+      "key": "interest expense",
+      "name": "interest expense",
+      "parent": "debt paydown",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjdo000m04k4oik4zmi2"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt paydown": 3
+      },
+      "alsoUnder": [],
+      "matched": {
+        "kltId": "cmu39jlcq009or0k6e9udz70p",
+        "name": "interest expense",
+        "rule": "exact",
+        "status": "candidate"
+      }
+    },
+    {
+      "key": "mandatory amortization",
+      "name": "mandatory amortization",
+      "parent": "debt paydown",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjdo000m04k4oik4zmi2"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt paydown": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "optional prepayment",
+      "name": "optional prepayment",
+      "parent": "debt paydown",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjdo000m04k4oik4zmi2"
+      ],
+      "klps": 1,
+      "votes": {
+        "debt paydown": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "required irr",
+      "name": "required irr",
+      "parent": "lbo valuation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmje0000p04k4m78q0yzm"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo valuation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "sponsor return source",
+      "name": "sponsor return sources",
+      "parent": "lbo valuation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmje0000p04k4m78q0yzm"
+      ],
+      "klps": 2,
+      "votes": {
+        "lbo valuation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "strategic buyer advantage",
+      "name": "strategic buyer advantage",
+      "parent": "lbo valuation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmje0000p04k4m78q0yzm"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo valuation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "lboimplied entry price",
+      "name": "lbo-implied entry price",
+      "parent": "lbo valuation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmje0000p04k4m78q0yzm"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo valuation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "football field placement",
+      "name": "football field placement",
+      "parent": "lbo valuation",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmje0000p04k4m78q0yzm"
+      ],
+      "klps": 1,
+      "votes": {
+        "lbo valuation": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "interest expense drag",
+      "name": "interest expense drag",
+      "parent": "leverage",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjep000u04k41n614t20"
+      ],
+      "klps": 1,
+      "votes": {
+        "leverage": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "gross irr",
+      "name": "gross irr",
+      "parent": "leverage",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjep000u04k41n614t20"
+      ],
+      "klps": 1,
+      "votes": {
+        "leverage": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "marginal return threshold",
+      "name": "marginal return threshold",
+      "parent": "leverage",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjep000u04k41n614t20"
+      ],
+      "klps": 1,
+      "votes": {
+        "leverage": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "interest burden fragility",
+      "name": "interest burden fragility",
+      "parent": "leverage",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjep000u04k41n614t20"
+      ],
+      "klps": 1,
+      "votes": {
+        "leverage": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    },
+    {
+      "key": "incremental leverage",
+      "name": "incremental leverage",
+      "parent": "leverage",
+      "role": "label",
+      "nature": "concept",
+      "status": "candidate",
+      "cards": [
+        "cmtjcmjep000u04k41n614t20"
+      ],
+      "klps": 1,
+      "votes": {
+        "leverage": 3
+      },
+      "alsoUnder": [],
+      "matched": null
+    }
+  ],
+  "clusters": [
+    {
+      "members": [
+        "leverage in an lbo",
+        "lbo model",
+        "lbo value creation",
+        "good lbo candidate",
+        "pe holding period",
+        "lbo valuation",
+        "leverage"
+      ],
+      "sharedChildren": [
+        "debt paydown"
+      ],
+      "sharedWords": [
+        "lbo",
+        "leverage"
+      ],
+      "wantsParent": true
+    },
+    {
+      "members": [
+        "debt capacity",
+        "debt paydown"
+      ],
+      "sharedChildren": [],
+      "sharedWords": [
+        "debt"
+      ],
+      "wantsParent": false
+    }
+  ],
+  "anchorMatches": {
+    "new": 6,
+    "exact": 3,
+    "placed": 1
+  },
+  "edges": [
+    {
+      "from": "capital structure",
+      "to": "debt paydown",
+      "type": "requires",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ]
+    },
+    {
+      "from": "pe holding period",
+      "to": "operational improvement",
+      "type": "causes",
+      "cards": [
+        "cmtjcmjdb000j04k42m4m2u0k"
+      ]
+    },
+    {
+      "from": "pe holding period",
+      "to": "debt paydown",
+      "type": "causes",
+      "cards": [
+        "cmtjcmjdb000j04k42m4m2u0k"
+      ]
+    },
+    {
+      "from": "free cash flow",
+      "to": "debt paydown",
+      "type": "causes",
+      "cards": [
+        "cmtjcmjdo000m04k4oik4zmi2"
+      ]
+    }
+  ],
+  "rolledEdges": [
+    {
+      "from": "leverage in an lbo",
+      "to": "debt paydown",
+      "type": "precedes",
+      "cards": [
+        "cmtj7pxht000105l4xxtnhlbk"
+      ],
+      "via": [
+        "debt-funded purchase price→leverage in an lbo"
+      ]
+    },
+    {
+      "from": "lbo model",
+      "to": "debt paydown",
+      "type": "requires",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "via": [
+        "funding split→lbo model"
+      ]
+    },
+    {
+      "from": "lbo model",
+      "to": "debt paydown",
+      "type": "causes",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "via": [
+        "cash flow projection→lbo model"
+      ]
+    },
+    {
+      "from": "debt paydown",
+      "to": "lbo model",
+      "type": "causes",
+      "cards": [
+        "cmtjcmjc0000704k4ufvhr7y1"
+      ],
+      "via": [
+        "exit equity proceeds→lbo model",
+        "irr calculation→lbo model"
+      ]
+    },
+    {
+      "from": "operational improvement",
+      "to": "lbo value creation",
+      "type": "causes",
+      "cards": [
+        "cmtjcmjcc000a04k4pftq7hsd"
+      ],
+      "via": [
+        "ebitda growth→lbo value creation"
+      ]
+    },
+    {
+      "from": "debt paydown",
+      "to": "free cash flow",
+      "type": "applies_within",
+      "cards": [
+        "cmtjcmjdo000m04k4oik4zmi2"
+      ],
+      "via": [
+        "interest expense→debt paydown"
+      ]
+    }
+  ],
+  "droppedEdges": 53,
+  "generalLinks": [],
+  "judgeCandidates": [
+    {
+      "specific": "leverage in an lbo",
+      "general": "leverage"
+    }
+  ],
+  "merges": [],
+  "modes": {
+    "knowledge": 8,
+    "procedure": 2
+  }
+}
