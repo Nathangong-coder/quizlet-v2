@@ -348,6 +348,14 @@ model Card {
   /// independently — a card can have perfectly good KLPs and no topics yet.
   kltStatus           String                   @default("pending")
   kltError            String?                  @db.Text
+  /// The card's minted topic fragment (`CardTopicProposalV2`: anchor, domain,
+  /// leaves with `under`, contexts, relations) — what the set-level rebuild
+  /// stitches into the tree. Stored so a rebuild never needs the loop's JSON
+  /// files and a single edited card can be re-minted alone. `topicKlpVersion`
+  /// is the `klpVersion` it was minted from: a mismatch means the points
+  /// changed and the fragment is stale. NULL before 2026-09-15 / never minted.
+  topicProposal       Json?
+  topicKlpVersion     Int?
   klps                CardKlp[]
   quizQuestions       QuizQuestion[]
   diagnosticQuestions DiagnosticQuestion[]

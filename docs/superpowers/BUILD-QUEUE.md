@@ -1,5 +1,19 @@
 # Build queue & carried-over findings
 
+**HANDOFF 2026-09-16 — OWNERS CAN BUILD; MAIN IS MERGED IN.** `origin/main` (study-platform PRs
+#56–#62) is merged into this branch (two docs-only conflicts, kept both sides; 3,98x tests green).
+Every set with authored key points is minted and written (the five). The owner's build path exists:
+`src/lib/klp/build-set.ts` (one bounded step: author → mint → rebuild, on the owner's credentials
+via `src/lib/klp/generators.ts`), `src/actions/klp-build.ts`, `KeyPointsBuild` on the set page
+(auto-starts after a save with `?build=1`), the cron drains topics for touched sets, and
+`scripts/build-set.ts` is the env-key twin. `Card.topicProposal` stores each card's minted fragment
+(migration `20260916010000`), so a rebuild never needs the loop files. Live-verified over env keys
+on the 3-card Test Set; the stored-credential path needs `GOOGLE_KEY_ENCRYPTION_SECRET`, absent
+locally. **Owed:** a signed-in browser pass of the panel (auto-start, stop, error text); deciding
+whether a legacy set's first build should also run the chapter skeleton (the in-app rebuild is pure
+TypeScript — no judge, no chapters — so a fresh set gets a flat top level until the operator script
+or a later pass groups it).
+
 **HANDOFF 2026-09-15 (night) — REBUILD v2: THE M&A TREE IS VERTICAL.** After the owner's read of
 the first tree, the planner was rebuilt (`src/lib/klt/rebuild.ts`: anchors first, weighted votes,
 contexts point up, endpoints never mint nodes, the NODE BAR — ≥2 cards or ≥3 points or an anchor,

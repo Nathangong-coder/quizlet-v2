@@ -15,6 +15,8 @@ import { SubjectChip } from '@/components/sets/SubjectChip'
 import { ShareButton } from '@/components/sets/ShareButton'
 import ReportSetDialog from '@/components/sets/ReportSetDialog'
 import { SetViewTabs } from '@/components/sets/SetViewTabs'
+import { KeyPointsBuild } from '@/components/sets/KeyPointsBuild'
+import { Suspense } from 'react'
 
 /**
  * Title and description from the set itself, for link previews and search —
@@ -172,6 +174,18 @@ export default async function SetViewsLayout({
             it. Publishing it again will not re-list it.
           </p>
         </div>
+      )}
+
+      {/*
+        The owner's build panel: what the set still needs (key points, topics,
+        a tree rebuild) and a button that runs it one step at a time on the
+        owner's own credentials. Auto-starts after a save (`?build=1`). In a
+        Suspense boundary because it reads the search params on the client.
+      */}
+      {isOwner && (
+        <Suspense fallback={null}>
+          <KeyPointsBuild setId={id} />
+        </Suspense>
       )}
 
       {!isOwner && (

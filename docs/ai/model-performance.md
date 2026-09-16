@@ -1221,3 +1221,27 @@ a runtime dependency.
 to `glm-5.3-flash` at `reasoning_effort: low`; keep `grade` and `diagnostic` on DeepSeek;
 `concept-tree` either. Never run GLM at the default effort for a runtime task — 30-40 s a
 call and most of the tokens are thinking.
+
+### The owner's build path — key points and topics from the set page (2026-09-16)
+
+The pipeline was operator-only: `author-klps` and `mint-loop` over env keys, a daily cron that
+authors six cards on the operator's account, and the legacy one-pass extractor on every save.
+Now a set owner has the same pipeline behind one button. `src/lib/klp/generators.ts` builds the
+authoring and minting generators over `generateJson` — the owner's credentials, lent keys and the
+shared budget — with the role split expressed as TASKS, not model names: writing goes out as
+`author` (Z.ai-first by `TASK_PROVIDER_PREFERENCE`), every judging call as `klp-extract`
+(DeepSeek-first), minting as `concept-tree`. `src/lib/klp/build-set.ts` runs one bounded step:
+author up to 2 cards → mint up to 3 → rebuild the set's tree from the fragments stored on the
+cards (`Card.topicProposal` / `topicKlpVersion`, migration `20260916010000`, backfilled for the
+276 minted cards) WITHOUT resetting placement. `KeyPointsBuild` on the set page loops the step
+until the set reads ready and auto-starts after a save that changed a card (`?build=1`); the cron
+uses the same generator and drains topics for the sets it touched. The legacy summariser and
+`placeUnparentedConcepts` no longer run on save — they wrote AI-summarised nodes straight into
+the owner's tree.
+
+**Measured on the 3-card "Test Set" over env keys (`scripts/build-set.ts`, the operator twin):**
+author 2 cards 101 s, author 1 card 62 s, mint 3 cards 19 s, rebuild 11 s → ready. About a minute
+and half a cent per card, as the panel says. The stored-credential path could not be exercised
+on this machine — `GOOGLE_KEY_ENCRYPTION_SECRET` is not in the local `.env`, so every stored key
+fails to decrypt locally ("All 5 AI attempts failed": the aggregate error's `detail.attempts`
+says why per credential); it is set in production.
