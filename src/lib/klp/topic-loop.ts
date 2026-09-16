@@ -30,7 +30,8 @@ export const TOPIC_BARS = {
   enforcement: 1.0,
   anchored: 0.9,
   causalEdges: 0.9,
-  brevity: 0.8,
+  /** 1.0 from 2026-09-15: a name over four words is a finding every round, never let through. */
+  brevity: 1,
   roundTrip: 0.75,
   distinctness: 0.9,
 } as const

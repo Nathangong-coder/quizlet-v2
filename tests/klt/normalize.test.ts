@@ -49,8 +49,9 @@ describe('parseKltName', () => {
   })
 
   it(`rejects more than ${MAX_KLT_WORDS} words — a topic, not a sentence`, () => {
-    expect(parseKltName('the weighted average cost of capital')).toBeNull()
-    expect(parseKltName('weighted average cost capital')).not.toBeNull()
+    expect(parseKltName('the weighted average cost of capital plus a premium')).toBeNull()
+    expect(parseKltName('strategic buyer vs financial buyer')).not.toBeNull()
+    expect(parseKltName('the weighted average cost of capital')).not.toBeNull()
   })
 
   it(`rejects names longer than ${MAX_KLT_CHARS} characters`, () => {

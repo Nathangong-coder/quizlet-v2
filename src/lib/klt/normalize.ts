@@ -9,8 +9,15 @@
  * forces names toward general concepts and away from anything that could carry
  * content specific to one private set.
  */
-export const MAX_KLT_WORDS = 4
-export const MAX_KLT_CHARS = 40
+/**
+ * Raised 4 → 6 words / 40 → 48 chars on 2026-09-15: the minting loop asks for
+ * ≤4-word names and enforces brevity, but a legitimate five-word concept
+ * ("strategic buyer vs financial buyer") was refused by the tree and left
+ * unplaced with its points still linked. The cap is the tree's last guard,
+ * not the minter's target — the prompts still say four.
+ */
+export const MAX_KLT_WORDS = 6
+export const MAX_KLT_CHARS = 48
 
 /**
  * Caps for `CardKlp.label`, the short headline.
