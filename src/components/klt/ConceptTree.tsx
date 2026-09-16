@@ -201,6 +201,13 @@ export function ConceptTree({ setId, setTitle, isAdmin = false, canEdit = false 
   }, [loadPresets])
 
   const allNodes = useMemo(() => nodes ?? [], [nodes])
+  /**
+   * The tree draws only the relations worth a dashed line over it: a second
+   * parent (`cross_listed`) and any dependency two or more cards agree on.
+   * Every edge is still there in the Dependencies view; the owner's read of
+   * the first overlay (584 dashed curves) was that it hid the tree.
+   */
+  const importantRelations = useMemo(() => relations.filter((r) => r.provenance === 'cross_listed' || r.cardCount >= 2), [relations])
   const byKltId = useMemo(() => new Map(allNodes.map((n) => [n.kltId, n])), [allNodes])
   const selected = selectedKltId ? byKltId.get(selectedKltId) ?? null : null
 
@@ -648,7 +655,7 @@ export function ConceptTree({ setId, setTitle, isAdmin = false, canEdit = false 
                   <ConceptCanvas
                     visible={visible}
                     allNodes={allNodes}
-                    relations={relations}
+                    relations={importantRelations}
                     collapsed={collapsed}
                     selectedKltId={selectedKltId}
                     canEdit={canEdit}

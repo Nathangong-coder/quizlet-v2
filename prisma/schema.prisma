@@ -439,6 +439,12 @@ model Klt {
   /// Every row that existed before this column is `active` — the legacy
   /// summariser and the hand-built tree never had a candidate stage.
   status         String       @default("active")
+  /// concept | skill | calculation (2026-09-15). What KIND of node this is,
+  /// derived from the cards that mint it (`card-mode.ts`): an applied
+  /// scenario card mints one `skill` node, a calculate card a `calculation`.
+  /// Rendering and, later, mastery treat them differently — a skill needs
+  /// several worked examples before it counts as known. Never a concept axis.
+  nature         String       @default("concept")
   mergedIntoId   String?
   mergedInto     Klt?         @relation("KltMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
   mergedFrom     Klt[]        @relation("KltMerge")
@@ -1539,6 +1545,13 @@ model CardAuthoring {
   model           String?
   /// separated | low_discrimination | failed
   status          String
+  /// The writer's step-0 classification of the QUESTION (`QUESTION_TYPES`:
+  /// define | enumerate | walkthrough | why | compare | scenario | calculate).
+  /// Persisted from 2026-09-15 so the topic tree can read it — a scenario card
+  /// exercises a SKILL on a case and its specifics must not become topics.
+  /// Backfilled from the run files for everything authored before; NULL
+  /// means the writer did not return one.
+  questionType    String?
   createdAt       DateTime @default(now())
   card            Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
   probes          AuthoringProbe[]

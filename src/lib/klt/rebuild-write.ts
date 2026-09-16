@@ -1,93 +1,148 @@
 /**
- * THE WRITE STEP FOR A REBUILT TREE (2026-09-15). Persists a `TreePlan` and
- * its fragments so the set's tree is what `/concepts` shows and edits:
+ * THE WRITE STEP FOR A REBUILT TREE (2026-09-15; v2 the same evening for the
+ * planner's labels, aliases, natures and cross-listings). Persists a
+ * `TreePlan` and its fragments so the set's tree is what `/concepts` shows
+ * and edits:
  *
- *   Klt          upserted by normalizedName; a NEW row takes the plan's
- *                status (candidate | active); an existing row is untouched
- *   SetKltNode   the plan's parents, written as root→node paths through
- *                `applyPaths` — a node the set already has KEEPS its place
- *                (the owner's hand edits win over a vote), a new node lands
- *                where the votes put it; the domain is the set's root
- *   KlpTopic     rank 1 from each leaf to its points, rank 2 for contexts
- *                and for the card's ANCHOR on every point (the owner's
- *                "context persisted throughout the card"); the card's
- *                existing links are replaced, so a re-run is idempotent
- *   KltRelation  the plan's edges (provenance `minted`) and the rolled-up
- *                edges (provenance `rolled`), upserted on (from, to, type)
- *                with card ids merged; a directed edge that would close a
- *                cycle is skipped and reported
+ *   Klt          REAL nodes only (never a label, never an alias); looked up in
+ *                one query; a NEW row takes the plan's status and nature; an
+ *                existing row keeps its status but takes a skill/calculation
+ *                nature the plan asserts. A plan ALIAS whose name already has a
+ *                row marks that row `merged` → survivor and writes a KltAlias;
+ *                one with no row writes only the KltAlias.
+ *   SetKltNode   root→node paths through `applyPaths` — a node the set already
+ *                has KEEPS its place (the owner's hand edits win over a vote);
+ *                `resetPlacement` drops the set's old rows first because
+ *                `applyPaths` refuses to re-parent an existing node.
+ *   KlpTopic     rank 1 from each leaf to its points, resolved through labels
+ *                and aliases to the nearest REAL node; rank 2 for contexts,
+ *                for an applied card's general links, and for the card's
+ *                ANCHOR on every point; a card's links are replaced, so a
+ *                re-run is idempotent.
+ *   KltRelation  the plan's edges (`minted`), rolled edges (`rolled`) and
+ *                cross-listings (`cross_listed`, type applies_within, child →
+ *                second parent) upserted on (from, to, type); a directed edge
+ *                that would close a cycle is skipped and reported. With
+ *                `resetPlacement`, rows of those provenances whose cards all
+ *                belong to this set are deleted first, so a re-plan does not
+ *                leave last run's edges behind.
  *   Card         kltStatus = 'ready'
  *
- * Cluster parents are NOT created here — `nameClusters` in the script does
- * that with one model call per ★ cluster and then reparents through the
- * same `applyPaths`. Nothing about mastery is touched: writing links
- * changes which topic evidence rolls up to, which is the point.
+ * Cluster parents are named by the script (`nameClusters`) before this runs.
  */
 import { prisma } from '@/lib/db'
 import { applyPaths } from '@/lib/klt/structure'
 import { DIRECTED_TYPES } from '@/lib/klp/relations'
 import { wouldCycleRelations, type DirectedEdge } from '@/lib/klt/mint-plan'
-import type { TreePlan, CardFragment } from '@/lib/klt/rebuild'
+import type { TreePlan, CardFragment, PlannedNode } from '@/lib/klt/rebuild'
 import { normalizeName } from '@/lib/klt/match'
 import { parseKltName } from '@/lib/klt/normalize'
 
 export interface RebuildWriteResult {
-  /** Names `parseKltName` refused, and how many nodes (them plus descendants) therefore have no placement. */
   unparseable: string[]
   unplaceable: number
   kltCreated: number
   kltReused: number
+  natureUpdated: number
+  aliasesWritten: number
+  kltMerged: number
   placements: { created: number; skipped: number }
+  placementDropped: number
+  relationsDropped: number
   klpTopics: number
   relationsWritten: number
   rolledWritten: number
+  crossListed: number
   relationsSkippedForCycles: string[]
   cardsReady: number
 }
 
 export interface RebuildWriteOptions {
-  /**
-   * Drop the set's EXISTING placement (`SetKltNode` rows) before applying the
-   * plan. `applyPaths` refuses any path that would re-parent a node the set
-   * already has, so a legacy flat placement (M&A had 21 depth-0 roots from the
-   * orphaned concept layer, 10 live links) blocks the whole tree. Concepts,
-   * links and relations are untouched — only where the nodes sit in this set.
-   */
   resetPlacement?: boolean
 }
 
-export async function persistTreePlan(plan: TreePlan, fragments: CardFragment[], model: string, opts: RebuildWriteOptions = {}): Promise<RebuildWriteResult & { placementDropped: number }> {
-  let placementDropped = 0
-  if (opts.resetPlacement) {
-    const r = await prisma.setKltNode.deleteMany({ where: { setId: plan.setId } })
-    placementDropped = r.count
+const OWN_PROVENANCES = ['minted', 'rolled', 'cross_listed']
+
+export async function persistTreePlan(plan: TreePlan, fragments: CardFragment[], model: string, opts: RebuildWriteOptions = {}): Promise<RebuildWriteResult> {
+  const byKey = new Map(plan.nodes.map((n) => [n.key, n]))
+  const domain = plan.nodes.find((n) => n.role === 'domain')!
+  const isReal = (n: PlannedNode | undefined): n is PlannedNode => !!n && n.role !== 'label' && n.role !== 'alias'
+  /** The real node a key resolves to: through aliases (survivor) and labels (parent). */
+  const realKey = (key: string | null | undefined): string | null => {
+    let cur = key ?? null
+    const seen = new Set<string>()
+    while (cur && !seen.has(cur)) {
+      seen.add(cur)
+      const n: PlannedNode | undefined = byKey.get(cur)
+      if (!n) return null
+      if (n.role !== 'label' && n.role !== 'alias') return cur
+      cur = n.role === 'alias' ? (n.mergedInto ?? null) : n.parent
+    }
+    return null
   }
-  // 1. vocabulary. A plan key is the MATCHER's normal form (`normalizeName`:
-  //    singular, abbreviations expanded); a Klt row is keyed by the TREE's
-  //    (`normalizeKltName`: lower-case, punctuation stripped). A matched node
-  //    already carries the row's key; a new node is stored under the tree form
-  //    of its display name so the editor's own create/rename finds it.
+
+  let placementDropped = 0, relationsDropped = 0
+  if (opts.resetPlacement) {
+    placementDropped = (await prisma.setKltNode.deleteMany({ where: { setId: plan.setId } })).count
+    const setCards = new Set((await prisma.card.findMany({ where: { setId: plan.setId }, select: { id: true } })).map((c) => c.id))
+    const own = await prisma.kltRelation.findMany({ where: { provenance: { in: OWN_PROVENANCES } }, select: { id: true, cardIds: true } })
+    const ids = own.filter((r) => r.cardIds.length > 0 && r.cardIds.every((c) => setCards.has(c))).map((r) => r.id)
+    if (ids.length) relationsDropped = (await prisma.kltRelation.deleteMany({ where: { id: { in: ids } } })).count
+  }
+
+  // 1. vocabulary — real nodes only, one lookup
+  const real = plan.nodes.filter(isReal)
   const ids = new Map<string, string>()
   const storedKey = new Map<string, string>()
-  // a name the tree's own cap refuses (`parseKltName`: 4 words, 40 chars) is
-  // not placed, nor is anything the plan hung beneath it — reported, not fudged
   const unparseable: string[] = []
-  let kltCreated = 0, kltReused = 0
-  for (const n of plan.nodes) {
-    // a match against a stored row (not a `plan:` entry the planner grew) is that row
-    if (n.matched && !n.matched.kltId.startsWith('plan:')) { ids.set(n.key, n.matched.kltId); storedKey.set(n.key, n.key); kltReused += 1; continue }
+  const wanted = new Map<string, PlannedNode>()
+  for (const n of real) {
+    if (n.matched && !n.matched.kltId.startsWith('plan:')) { ids.set(n.key, n.matched.kltId); storedKey.set(n.key, n.key); continue }
     const parsed = parseKltName(n.name)
     if (!parsed) { unparseable.push(n.name); continue }
     storedKey.set(n.key, parsed.normalizedName)
-    const existing = await prisma.klt.findUnique({ where: { normalizedName: parsed.normalizedName }, select: { id: true } })
-    if (existing) { ids.set(n.key, existing.id); kltReused += 1; continue }
-    const row = await prisma.klt.create({ data: { name: parsed.name, normalizedName: parsed.normalizedName, status: n.status }, select: { id: true } })
-    ids.set(n.key, row.id)
-    kltCreated += 1
+    wanted.set(parsed.normalizedName, n)
+  }
+  const existingRows = await prisma.klt.findMany({ where: { normalizedName: { in: [...wanted.keys()] } }, select: { id: true, normalizedName: true, nature: true } })
+  let kltCreated = 0, kltReused = ids.size, natureUpdated = 0
+  const existingByNorm = new Map(existingRows.map((r) => [r.normalizedName, r]))
+  for (const [norm, n] of wanted) {
+    const ex = existingByNorm.get(norm)
+    if (ex) {
+      ids.set(n.key, ex.id); kltReused += 1
+      if (n.nature !== 'concept' && ex.nature !== n.nature) { await prisma.klt.update({ where: { id: ex.id }, data: { nature: n.nature } }); natureUpdated += 1 }
+      continue
+    }
+    const row = await prisma.klt.create({ data: { name: parseKltName(n.name)!.name, normalizedName: norm, status: n.status, nature: n.nature }, select: { id: true } })
+    ids.set(n.key, row.id); kltCreated += 1
+  }
+  for (const n of real) {
+    if (!(n.matched && !n.matched.kltId.startsWith('plan:')) || n.nature === 'concept') continue
+    const r = await prisma.klt.update({ where: { id: n.matched.kltId }, data: { nature: n.nature }, select: { nature: true } }).catch(() => null)
+    if (r) natureUpdated += 1
+  }
+
+  // 1b. aliases: a merged name points at its survivor
+  let aliasesWritten = 0, kltMerged = 0
+  for (const n of plan.nodes) {
+    if (n.role !== 'alias') continue
+    const survivor = realKey(n.mergedInto)
+    const survivorId = survivor ? ids.get(survivor) : undefined
+    if (!survivorId) continue
+    const parsed = parseKltName(n.name)
+    const norms = new Set([n.key, parsed?.normalizedName].filter((x): x is string => !!x))
+    for (const norm of norms) {
+      const row = await prisma.klt.findUnique({ where: { normalizedName: norm }, select: { id: true, status: true } })
+      if (row && row.id === survivorId) continue
+      if (row && row.status !== 'merged') { await prisma.klt.update({ where: { id: row.id }, data: { status: 'merged', mergedIntoId: survivorId } }); kltMerged += 1 }
+      const existingAlias = await prisma.kltAlias.findUnique({ where: { normalizedName: norm }, select: { id: true } })
+      if (existingAlias) continue
+      await prisma.kltAlias.create({ data: { normalizedName: norm, name: n.name, kltId: survivorId, source: plan.merges.find((m) => m.from === n.key)?.rule === 'judge' ? 'judge' : 'merge' } })
+      aliasesWritten += 1
+    }
   }
 
   // 2. placement: root→node paths in stored keys, parents first
-  const byKey = new Map(plan.nodes.map((n) => [n.key, n]))
   const pathOf = (key: string): string[] | null => {
     const out: string[] = []
     let cur: string | null = key
@@ -95,31 +150,41 @@ export async function persistTreePlan(plan: TreePlan, fragments: CardFragment[],
     while (cur && !seen.has(cur)) {
       seen.add(cur)
       const sk = storedKey.get(cur)
-      if (!sk) return null
-      out.unshift(sk)
-      cur = byKey.get(cur)?.parent ?? null
+      // an ancestor the tree cap refused is skipped, not fatal: the node hangs
+      // from the next placeable ancestor ("buyer type" under a five-word parent)
+      if (sk) out.unshift(sk)
+      else if (cur === key) return null
+      const p = realKey(byKey.get(cur)?.parent)
+      cur = p === cur ? null : p
     }
-    return out
+    return out.length ? out : null
   }
-  const domainKey = storedKey.get(plan.nodes.find((n) => n.role === 'domain')!.key)!
-  const allPaths = plan.nodes.filter((n) => n.role !== 'domain').map((n) => pathOf(n.key))
+  const domainKey = storedKey.get(domain.key)!
+  const allPaths = real.filter((n) => n.role !== 'domain').map((n) => pathOf(n.key))
   const paths = allPaths.filter((p): p is string[] => p !== null).sort((a, b) => a.length - b.length)
   const unplaceable = allPaths.length - paths.length
   const placements = await applyPaths(plan.setId, [[domainKey], ...paths])
 
   // 3. KLP links
-  let klpTopics = 0
-  let cardsReady = 0
+  let klpTopics = 0, cardsReady = 0
+  const generalByCard = new Map<string, { klpRefs: number[]; key: string }[]>()
+  for (const g of plan.generalLinks) { const a = generalByCard.get(g.cardId) ?? []; a.push(g); generalByCard.set(g.cardId, a) }
   for (const f of fragments) {
     const klps = await prisma.cardKlp.findMany({ where: { cardId: f.cardId, supersededAt: null }, orderBy: { index: 'asc' }, select: { id: true, index: true } })
     const klpId = (ref: number) => klps.find((k) => k.index === ref)?.id
-    const resolve = (name: string) => ids.get(normalizeName(name)) ?? ids.get(plan.nodes.find((n) => n.name === name)?.key ?? '')
+    const resolveName = (name: string): string | undefined => {
+      const norm = normalizeName(name)
+      const direct = byKey.get(norm) ?? plan.nodes.find((n) => n.name === name)
+      const key = realKey(direct?.key ?? null)
+      return key ? ids.get(key) : undefined
+    }
     const rows: { klpId: string; kltId: string; rank: number }[] = []
     const seen = new Set<string>()
     const push = (kid: string | undefined, tid: string | undefined, rank: number) => { if (!kid || !tid) return; const k = `${kid}|${tid}`; if (seen.has(k)) return; seen.add(k); rows.push({ klpId: kid, kltId: tid, rank }) }
-    for (const l of f.leaves) for (const ref of l.klpRefs) push(klpId(ref), resolve(l.name), 1)
-    for (const c of f.contexts) push(klpId(c.klpRef), resolve(c.concept), 2)
-    const anchorId = resolve(f.anchor)
+    const anchorId = resolveName(f.anchor)
+    for (const l of f.leaves) for (const ref of l.klpRefs) push(klpId(ref), resolveName(l.name) ?? anchorId, 1)
+    for (const c of f.contexts) push(klpId(c.klpRef), resolveName(c.concept), 2)
+    for (const g of generalByCard.get(f.cardId) ?? []) for (const ref of g.klpRefs) push(klpId(ref), ids.get(realKey(g.key) ?? ''), 2)
     for (const k of klps) push(k.id, anchorId, 2)
     await prisma.$transaction(async (tx) => {
       if (klps.length) await tx.klpTopic.deleteMany({ where: { klpId: { in: klps.map((k) => k.id) } } })
@@ -134,10 +199,10 @@ export async function persistTreePlan(plan: TreePlan, fragments: CardFragment[],
   const stored = await prisma.kltRelation.findMany({ where: { type: { in: [...DIRECTED_TYPES] } }, select: { fromKltId: true, toKltId: true } })
   const directed: DirectedEdge[] = stored.map((e) => ({ from: e.fromKltId, to: e.toKltId }))
   const skipped: string[] = []
-  let relationsWritten = 0, rolledWritten = 0
+  let relationsWritten = 0, rolledWritten = 0, crossListed = 0
   const isDirected = (t: string) => (DIRECTED_TYPES as readonly string[]).includes(t)
-  const writeEdge = async (e: { from: string; to: string; type: string; cards: string[] }, provenance: 'minted' | 'rolled') => {
-    const fromId = ids.get(e.from), toId = ids.get(e.to)
+  const writeEdge = async (e: { from: string; to: string; type: string; cards: string[] }, provenance: string) => {
+    const fromId = ids.get(realKey(e.from) ?? ''), toId = ids.get(realKey(e.to) ?? '')
     if (!fromId || !toId || fromId === toId) return false
     if (isDirected(e.type) && wouldCycleRelations(directed, fromId, toId)) { skipped.push(`${e.from} --${e.type}--> ${e.to}`); return false }
     const existing = await prisma.kltRelation.findUnique({ where: { fromKltId_toKltId_type: { fromKltId: fromId, toKltId: toId, type: e.type } }, select: { id: true, cardIds: true, models: true } })
@@ -148,6 +213,7 @@ export async function persistTreePlan(plan: TreePlan, fragments: CardFragment[],
   }
   for (const e of plan.edges) if (await writeEdge(e, 'minted')) relationsWritten += 1
   for (const e of plan.rolledEdges) if (await writeEdge(e, 'rolled')) rolledWritten += 1
+  for (const n of real) for (const p of n.alsoUnder) if (await writeEdge({ from: n.key, to: p, type: 'applies_within', cards: n.cards }, 'cross_listed')) crossListed += 1
 
-  return { unparseable, unplaceable, kltCreated, kltReused, placements, klpTopics, relationsWritten, rolledWritten, relationsSkippedForCycles: skipped, cardsReady, placementDropped }
+  return { unparseable, unplaceable, kltCreated, kltReused, natureUpdated, aliasesWritten, kltMerged, placements, placementDropped, relationsDropped, klpTopics, relationsWritten, rolledWritten, crossListed, relationsSkippedForCycles: skipped, cardsReady }
 }

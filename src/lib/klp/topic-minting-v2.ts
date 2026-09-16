@@ -34,6 +34,7 @@
 import { z } from 'zod'
 import { RELATABLE_TYPES } from '@/lib/klp/relations'
 import type { PromptKlp } from '@/lib/klp/topic-minting'
+import { modeInstruction, type CardMode } from '@/lib/klp/card-mode'
 
 export const MAX_NAME_WORDS = 4
 
@@ -68,8 +69,15 @@ export const CardTopicProposalV2Schema = z.object({
 })
 export type CardTopicProposalV2 = z.infer<typeof CardTopicProposalV2Schema>
 
-export function buildTopicMintingPromptV2(term: string, setTitle: string, klps: PromptKlp[], linksBlock = ''): string {
+/**
+ * `mode` (2026-09-15, `card-mode.ts`): the writer's question type turned into
+ * a minting instruction — an applied scenario mints the SKILL it exercises,
+ * not the case's own facts. Optional so every existing caller and the run
+ * files that predate it are unchanged; the loop passes it when it knows it.
+ */
+export function buildTopicMintingPromptV2(term: string, setTitle: string, klps: PromptKlp[], linksBlock = '', mode?: CardMode): string {
   const lines = klps.map((k) => `[${k.ref}] (${k.kind}) ${k.text}`).join('\n')
+  const modeBlock = mode ? `${modeInstruction(mode)}\n\n` : ''
   return `You are building the topic map for ONE flashcard in a finance study library. Below are the card's Key Learning Points (KLPs) — each a claim a learner can get right or wrong on its own — and, where it exists, the card's own relation graph.
 
 Study set (the domain): ${setTitle}
@@ -78,7 +86,7 @@ Card: ${term}
 KLPs:
 ${lines}
 
-${linksBlock}Produce the piece of topic map these points belong to, as JSON.
+${modeBlock}${linksBlock}Produce the piece of topic map these points belong to, as JSON.
 
 THE ANCHOR — do this first.
 Name the ONE thing the question is about: "anchor". It is usually what the first point defines (a question about deferred revenue in a merger has the anchor "deferred revenue"). Then name the "domain" it sits under here — the study set's subject in two or three words ("mergers and acquisitions", "accounting", "leveraged buyouts"). The same concept can exist under another domain (deferred revenue under the balance sheet); this card's copy lives under THIS domain, so name the domain the way the set means it.

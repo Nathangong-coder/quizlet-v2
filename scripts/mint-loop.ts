@@ -16,6 +16,7 @@ import { resolveLanguageModel } from '../src/lib/ai/providers'
 import { readDirectPool, comboResolveInput } from '../src/lib/klp/direct-pool'
 import { CardTopicProposalV2Schema } from '../src/lib/klp/topic-minting-v2'
 import { RoundTripSchema } from '../src/lib/ai/prompts/roundtrip-assign'
+import { cardMode } from '../src/lib/klp/card-mode'
 import { mintCardLoop, TOPIC_BARS, type TopicGenerator, type TopicLoopOutcome } from '../src/lib/klp/topic-loop'
 import type { KlpLink } from '../src/lib/klp/topic-enforcement'
 import { TokenMeter } from '../src/lib/klp/token-meter'
@@ -67,7 +68,7 @@ async function main() {
     orderBy: { position: 'asc' },
     skip: only.length ? 0 : skip,
     take: only.length ? undefined : limit,
-    select: { id: true, term: true, klps: { where: { supersededAt: null }, orderBy: { index: 'asc' }, select: { id: true, text: true, kind: true, relationsFrom: { select: { toKlpId: true, type: true } } } } },
+    select: { id: true, term: true, authorings: { orderBy: { createdAt: 'desc' }, take: 1, select: { questionType: true } }, klps: { where: { supersededAt: null }, orderBy: { index: 'asc' }, select: { id: true, text: true, kind: true, relationsFrom: { select: { toKlpId: true, type: true } } } } },
   })
   // resumable: keep what a previous run of this file already did
   const prior: { outcomes: (TopicLoopOutcome & { cardId: string })[] } = existsSync(out) ? JSON.parse(readFileSync(out, 'utf8')) : { outcomes: [] }
@@ -84,7 +85,7 @@ async function main() {
     const links: KlpLink[] = []
     c.klps.forEach((k, i) => { for (const r of k.relationsFrom) { const to = index.get(r.toKlpId); if (to !== undefined) links.push({ from: i, to, type: r.type }) } })
     try {
-      const o = await mintCardLoop({ term: c.term, setTitle: set?.title ?? '', klps: c.klps.map((k) => ({ text: k.text, kind: k.kind })), links }, gen)
+      const o = await mintCardLoop({ term: c.term, setTitle: set?.title ?? '', klps: c.klps.map((k) => ({ text: k.text, kind: k.kind })), links, mode: cardMode({ questionType: c.authorings[0]?.questionType ?? null, kinds: c.klps.map((k) => k.kind) }) }, gen)
       outcomes.push({ ...o, cardId: c.id })
       const s = o.settings
       console.log(`[${n}/${rows.length}] ${c.term.slice(0, 60)} — ${o.status}${o.flags.length ? ` (${o.flags.join(', ')})` : ''} | rounds ${o.rounds.length} kept ${o.keptRound} | overall ${s.overall.toFixed(2)} cov ${s.coverage.toFixed(2)} anch ${s.anchored.toFixed(2)} caus ${s.causalEdges.toFixed(2)} tgt ${s.causalTargets.toFixed(2)} brev ${s.brevity.toFixed(2)} dist ${s.distinctness.toFixed(2)} rt ${s.roundTrip === undefined ? '—' : s.roundTrip.toFixed(2)} enf ${o.enforcement.klpKltEnforcement.toFixed(2)} | anchor "${o.anchor}"`)

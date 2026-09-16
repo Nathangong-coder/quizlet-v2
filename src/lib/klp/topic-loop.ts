@@ -17,6 +17,7 @@
  * the same order the KLP bars were set in. Every number the loop reads is
  * computed in TypeScript; the model only proposes and assigns.
  */
+import type { CardMode } from '@/lib/klp/card-mode'
 import { buildTopicMintingPromptV2, type CardTopicProposalV2, toV1 } from '@/lib/klp/topic-minting-v2'
 import { enforcementReport, renderLinks, type KlpLink, type EnforcementReport } from '@/lib/klp/topic-enforcement'
 import { kltSettings, roundTripLabels, withRoundTrip, type KltSettingsReport } from '@/lib/klp/topic-settings'
@@ -107,8 +108,8 @@ function renderProposal(p: CardTopicProposalV2): string {
   return `anchor: "${p.anchor}" under domain "${p.domain}"\nleaves:\n${leaves || '  (none)'}\nrelations:\n${rels || '  (none)'}\ncontexts:\n${ctx || '  (none)'}`
 }
 
-export function buildTopicRevisePrompt(term: string, setTitle: string, klps: PromptKlp[], linksBlock: string, proposal: CardTopicProposalV2, findings: TopicFinding[]): string {
-  const base = buildTopicMintingPromptV2(term, setTitle, klps, linksBlock)
+export function buildTopicRevisePrompt(term: string, setTitle: string, klps: PromptKlp[], linksBlock: string, proposal: CardTopicProposalV2, findings: TopicFinding[], mode?: CardMode): string {
+  const base = buildTopicMintingPromptV2(term, setTitle, klps, linksBlock, mode)
   const list = findings.map((f) => `  - ${f.where ? `${f.where}: ` : ''}${f.issue} — ${f.fix}`).join('\n')
   return `${base}
 
@@ -120,7 +121,7 @@ ${list}`
 }
 
 export async function mintCardLoop(
-  input: { term: string; setTitle: string; klps: { text: string; kind: string }[]; links: KlpLink[] },
+  input: { term: string; setTitle: string; klps: { text: string; kind: string }[]; links: KlpLink[]; mode?: CardMode },
   gen: TopicGenerator,
   opts: { seed?: number; maxRounds?: number } = {},
 ): Promise<TopicLoopOutcome> {
@@ -129,7 +130,7 @@ export async function mintCardLoop(
   const maxRounds = opts.maxRounds ?? MAX_TOPIC_ROUNDS
   const rounds: TopicRound[] = []
 
-  let proposal = await gen.mint(buildTopicMintingPromptV2(input.term, input.setTitle, promptKlps, linksBlock))
+  let proposal = await gen.mint(buildTopicMintingPromptV2(input.term, input.setTitle, promptKlps, linksBlock, input.mode))
   for (let round = 0; ; round++) {
     let settings = kltSettings({ klps: input.klps, proposal })
     const enforcement = enforcementReport(input.klps, input.links, toV1(proposal))
@@ -148,7 +149,7 @@ export async function mintCardLoop(
     rounds.push({ round, proposal, settings, enforcement, findings, barsMissed: missed })
     if (findings.length === 0 || round >= maxRounds) break
     try {
-      proposal = await gen.revise(buildTopicRevisePrompt(input.term, input.setTitle, promptKlps, linksBlock, proposal, findings))
+      proposal = await gen.revise(buildTopicRevisePrompt(input.term, input.setTitle, promptKlps, linksBlock, proposal, findings, input.mode))
     } catch {
       break
     }

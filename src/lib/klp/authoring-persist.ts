@@ -107,6 +107,7 @@ export async function persistAuthoring(
         referenceAnswer: outcome.referenceAnswer,
         separationScore: outcome.separationScore,
         substanceSeparation: outcome.substanceSeparation,
+        questionType: outcome.questionType ?? null,
         referenceVerdicts: outcome.referenceVerdicts,
         ...(outcome.rebuild
           ? {

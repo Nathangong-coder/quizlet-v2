@@ -1060,3 +1060,82 @@ level 2, 227 at level 3, most of them a single card's leaves. The DAG's cross-ca
 editor is for.
 
 Artifact (tree + DAG + cluster names + corpus scoreboard): https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374
+
+### The vertical tree — rebuild v2, question type persisted, card modes (2026-09-15, night)
+
+The owner read the first written M&A tree and gave two examples and a principle. "pro forma
+EPS" sat under "earnings yield" because four cards each voted a different parent and the tie
+went to the earliest card — where pro forma EPS was only the far end of an arrow. "Sources
+and uses" sat under "divestiture" because a context voted for the card's anchor, i.e. the
+broad concept was filed under the card that mentioned it. The principle: *most of what one
+card has should not be a unique node under the domain*. Measured on that tree: 520 of 581
+nodes were single-card; 20 of 34 branches under the domain were one card. Every card minted
+~7 unique nodes regardless of its question type (define 7.0, scenario 6.6, calculate 4.3,
+walkthrough 7.2) — so the type does not explain the width; it explains what KIND of node a
+card should make.
+
+**Rebuild v2 (`src/lib/klt/rebuild.ts`, 13 tests), the rules in order:** anchors resolved before
+any leaf (so a context can hit an anchor a later card names); weighted `under` votes (3) with ties to
+the parent with more cards; contexts point UP (a context that matches an existing node cross-lists
+the card's anchor under it); edge endpoints never mint nodes (resolve to a real node directly or
+through a label, or the edge is dropped and counted); the NODE BAR — a leaf becomes a node only at
+≥2 cards or ≥3 points or an anchor or an *active* existing topic, else it is a LABEL whose points
+link to the nearest real ancestor; card MODE; facet-suffix merges by rule (test / analysis /
+schedule / process …) and a containment JUDGE (DeepSeek, one batched call per 25 pairs; the survivor
+is the node with more evidence, so "accretion/dilution" judged the same as a one-card "dilution"
+keeps its name); the chapter SKELETON (one call groups the branches under the domain into ≤10
+chapters, names ≤4 words, a chapter needs two members).
+
+**Question type persisted (`CardAuthoring.questionType`, migration `20260915170000`), backfilled
+from the run files for 273 of 278 cards** (why 64, compare 44, enumerate 41, define 37,
+walkthrough 37, scenario 33, calculate 17). **Card mode (`src/lib/klp/card-mode.ts`)**: define /
+why / compare / enumerate → knowledge; calculate → calculation; walkthrough → procedure; scenario →
+applied unless mostly quantitative. M&A: knowledge 45, calculation 13, applied 12, procedure 10.
+An applied card mints one SKILL node (`Klt.nature`, majority of the cards anchoring there) and
+its leaves are labels, with a rank-2 link to any general concept they exercise. The loop now
+passes the mode to the minter (`modeInstruction`, optional; the corpus run predates it and was
+NOT re-run — the planner applies the mode after the fact).
+
+**M&A, v2, written** (`--judge --chapters --write --reset-placement`, four minutes, four calls):
+
+```
+                         v1 (afternoon)     v2 (night)
+real nodes               581                105   (+347 point labels)
+branches under domain    34 (20 one card)   11 (1 one card)
+mean / max depth         2.4 / 6            2.3 / 5
+nodes fed by ≥2 cards    ~11%               42%
+skills / calculations    —                  9 / 7
+KLP links                1,080              759
+relations                493 + 146          41 direct + 74 via a label + 38 cross-listings; 405 dropped
+judge                    —                  24 pairs: 8 same, 15 related, 1 unrelated
+```
+
+The chapters, verbatim from one call: purchase price allocation (goodwill, asset write-up,
+deferred revenue, bargain purchase gain, NOLs, gross NOLs, tax deferral); accretion/dilution
+(EPS, EPS dilution, accretive acquisition, earnings yield, breakeven cost of debt, foregone
+interest, combined equity value); synergy (break-even synergies, synergy distribution, cost
+treatment, post-acquisition adjustments, recasting); deal financing (consideration choice,
+financing currency, stock refusal, stock-for-stock, sources and uses, debt sizing, debt/EBITDA,
+LBO); sell-side process (positioning, buyer universe, inbound offer, fairness opinion, timing);
+purchase structure (ownership split, JV, partial exit, divestiture, consolidation); strategic
+rationale (merger rationale, value creation, candidate, buyer types, success); acquisition
+evaluation (offer price, premium, working capital peg, contribution analysis, sensitivity);
+merger vs acquisition (revenue combination, cash flow statement, EBITDA — the weakest). Both of
+the owner's examples now read the right way: pro forma EPS sits under accretion/dilution, and
+divestiture is cross-listed under sources and uses (which merged with "sources and uses schedule").
+
+**Two defects found by the run.** A cluster or chapter name that matched a member in the OTHER
+normal form ("synergy" vs the stored "synergies") created a duplicate parent above its own
+member — names are now found in either form. And one "explain to a client" scenario turned
+accretion/dilution into a skill — nature is now the majority of the cards anchoring there.
+
+**The tree overlay** draws only cross-listings ("also under", dotted) and edges two or more
+cards share; every edge stays in the Dependencies view. The soap card is now one skill node,
+"company sale positioning", under the sell-side chapter with nine point labels, and "strategic
+buyer" gets its rank-2 link.
+
+**Not done, deliberately:** the corpus was not re-minted with the mode instruction (it would
+cost a run and the planner already applies the mode); the other four sets are not written; the
+"merger vs acquisition" chapter is the owner's to rename or dissolve.
+
+Artifact v2: https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374

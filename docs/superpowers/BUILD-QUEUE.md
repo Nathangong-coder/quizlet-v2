@@ -1,5 +1,27 @@
 # Build queue & carried-over findings
 
+**HANDOFF 2026-09-15 (night) — REBUILD v2: THE M&A TREE IS VERTICAL.** After the owner's read of
+the first tree, the planner was rebuilt (`src/lib/klt/rebuild.ts`: anchors first, weighted votes,
+contexts point up, endpoints never mint nodes, the NODE BAR — ≥2 cards or ≥3 points or an anchor,
+else a point label — card mode, facet merges + a DeepSeek consolidation judge, a one-call chapter
+skeleton) and the M&A tree re-written: 105 real nodes + 347 point labels, 11 chapters (1 single-card),
+42% of nodes fed by ≥2 cards, 9 skill and 7 calculation nodes (`Klt.nature`), 759 links. Command:
+```
+npx tsx --conditions=react-server --env-file=.env scripts/rebuild-tree.ts --from docs/ai/runs/2026-09-15/loop-<set>.json --judge --chapters --write --reset-placement
+```
+(four minutes and four DeepSeek calls for M&A). `CardAuthoring.questionType` is persisted
+(migration `20260915170000_question_type_klt_nature`, backfilled 273/278 by
+`scripts/backfill-question-type.ts`) and `card-mode.ts` turns it into knowledge / calculation /
+procedure / applied; the loop passes the mode to the minter but the corpus was NOT re-minted with it
+(the planner applies the mode after the fact — an applied card's leaves become labels + rank-2 links).
+The tree overlay draws only cross-listings and ≥2-card edges; the Dependencies view keeps every edge.
+Record: `docs/ai/model-performance.md`, "The vertical tree — rebuild v2". Artifact v2:
+https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374. **Owner decisions pending:**
+the "merger vs acquisition" chapter (weak); whether to re-mint the corpus with the mode instruction
+(~$0.40, ~1.5 h); the tree cap (3 M&A names still refused); writing the other four sets (same
+command, minutes each now); rank-2 weighting for mastery. Sub-agents/future sessions: `reasoning
+effort` on the judge is deliberately batched (25 pairs a call) — do not judge pair by pair.
+
 **HANDOFF 2026-09-15 (evening) — THE CORPUS IS THROUGH THE LOOP; THE M&A TREE IS WRITTEN AND
 EDITABLE; THE DAG VIEW IS LIVE.** 276 of 278 cards cleared the loop (two M&A cards fail the schema
 every time), 72% clear the bars, every set reads the same (`docs/ai/model-performance.md`, "The corpus
