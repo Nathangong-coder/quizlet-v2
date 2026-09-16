@@ -47,3 +47,34 @@ ${list}
 Output JSON: { "chapters": [ { "name": string, "members": [string, ...], "reason": string }, ... ] }`;
   },
 };
+
+/**
+ * The second pass (same night): the skeleton call leaves some one-card
+ * branches ungrouped — at temperature 0 the grouping still moves with the
+ * input, and a re-mint of 33 cards left six singletons under the M&A root.
+ * Given the chapters that now exist, file each leftover branch into one, or
+ * say none. A branch filed here is a placement vote the owner can undo.
+ */
+export const AssignBranchesSchema = z.object({
+  assignments: z.array(z.object({ branch: z.string(), chapter: z.string().nullable(), reason: z.string().optional() })),
+});
+
+export const ASSIGN_BRANCHES_PROMPT = {
+  id: 'assign-branches',
+  version: 1,
+  schema: AssignBranchesSchema,
+
+  build(input: { domain: string; chapters: { name: string; members: string[] }[]; branches: { name: string; children: string[] }[] }): string {
+    const ch = input.chapters.map((c) => `- ${c.name}  (holds: ${c.members.slice(0, 8).join(', ')})`).join('\n');
+    const br = input.branches.map((b) => `- ${b.name}${b.children.length ? '  (covers: ' + b.children.slice(0, 6).join(', ') + ')' : ''}`).join('\n');
+    return `The topic tree of a study set on "${input.domain}" has these chapters:
+${ch}
+
+These branches still sit directly under the domain. File each one into the chapter it belongs to, or answer null when it is genuinely its own subject at the top level.
+
+Branches:
+${br}
+
+Copy names VERBATIM. Output JSON: { "assignments": [ { "branch": string, "chapter": string | null, "reason": string }, ... ] } — one entry per branch.`;
+  },
+};

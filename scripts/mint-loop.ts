@@ -51,7 +51,15 @@ async function main() {
     } catch (err) {
       if (!NoObjectGeneratedError.isInstance(err)) throw err
       await pacer.waitTurn()
-      res = await attempt()
+      try {
+        res = await attempt()
+      } catch (err2) {
+        // the second failure is worth reading: what the model wrote and why the schema refused it
+        if (NoObjectGeneratedError.isInstance(err2) && process.env.MINT_DEBUG) console.error(`[mint-loop] ${step} schema failure:
+${err2.text?.slice(0, 3000) ?? ''}
+--- cause: ${String((err2.cause as Error | undefined)?.message ?? '').slice(0, 1500)}`)
+        throw err2
+      }
     }
     meter.add(step, combo.model, { inputTokens: res.usage?.inputTokens, outputTokens: res.usage?.outputTokens, reasoningTokens: res.usage?.outputTokenDetails?.reasoningTokens, cachedTokens: res.usage?.inputTokenDetails?.cacheReadTokens })
     return res.output as T

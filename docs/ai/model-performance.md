@@ -1139,3 +1139,34 @@ cost a run and the planner already applies the mode); the other four sets are no
 "merger vs acquisition" chapter is the owner's to rename or dissolve.
 
 Artifact v2: https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374
+
+### The targeted re-mint and the second chapter pass (2026-09-15, late)
+
+The owner asked why the whole corpus was being re-minted after a prompt change. It should
+not have been: the mode line only changes what the minter writes for applied and calculation
+cards, and the hard brevity bar only for cards whose proposal carried a >4-word name.
+`scripts/remint-subset.ts` lists exactly those — **68 of 278** (M&A 33, Acc-Knowledge 14,
+Talking copy 14, Talking 7, LBO 0) — `mint-loop --cards` re-mints them, `scripts/splice-loop.ts`
+lays the new fragments over the set's loop file, and the rebuild runs on the spliced file.
+~12 minutes and ~$0.10 instead of ~75 minutes.
+
+The soap card failed the schema twice under the first applied instruction: the model did what
+it was told — named general concepts (pricing power, horizontal integration, supply chain
+resilience) — but as 15 leaves, several with no points. The instruction now says every leaf
+still carries its klpRefs and the limit of 10 holds; the card then minted as the skill
+"positioning a company for sale" with ten general leaves (revenue diversification, pricing
+power, supply chain resilience, strategic buyer, horizontal integration …). `MINT_DEBUG=1`
+prints the refused text on the second schema failure, which is how this was found.
+
+The chapter skeleton moved with its input: on the re-minted M&A it grouped 54 branches into 10
+chapters but left six singletons under the root that the first run had grouped. A second call
+(`ASSIGN_BRANCHES_PROMPT`) now files every leftover into an existing chapter or says null —
+"working capital peg" → purchase price allocation, "leveraged buyout" → deal financing.
+
+**Final trees** (real nodes / point labels / chapters / single-card chapters / multi-card share):
+M&A 108 / 355 / 12 / 2 / 44%; Accounting-Knowledge 76 / 250 / 14 / 2 / 28%; Talking copy
+97 / 288 / 10 / 0 / 27%; Talking 94 / 241 / 11 / 1 / 27%; LBO 10 / 45 / 3 / 0 / 30%. No name
+refused by the raised tree cap (6 words / 48 chars) except one on Talking copy. M&A's chapters:
+purchase price allocation, accretion/dilution analysis, deal financing, synergies, strategic
+rationale, buyer and target landscape, sell-side process, deal structure, valuation inputs,
+tax considerations.

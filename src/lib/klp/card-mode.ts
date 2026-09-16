@@ -66,7 +66,7 @@ export function cardMode(input: ModeInput): CardMode {
 export function modeInstruction(mode: CardMode): string {
   switch (mode) {
     case 'applied':
-      return 'THIS CARD IS A WORKED EXAMPLE (a skill applied to one case). The anchor is the SKILL it exercises (e.g. "positioning a company for sale"). Name, as leaves, only the GENERAL concepts the answer draws on (e.g. "strategic buyer", "vertical integration", "pricing power") — never the case\'s own facts (the company\'s channels, its factory, its brand tier); file those points under the general concept they illustrate.'
+      return 'THIS CARD IS A WORKED EXAMPLE (a skill applied to one case). The anchor is the SKILL it exercises (e.g. "positioning a company for sale"). Each leaf is the GENERAL concept a point illustrates (e.g. "strategic buyer", "vertical integration", "pricing power", "supply chain resilience") — never the case\'s own fact (the company\'s channels, its factory, its brand tier). File each point under the general concept it illustrates: every leaf still carries the klpRefs of the points it files (a leaf with no points is not allowed), and the usual limit of 10 leaves holds — prefer one general leaf per point over sub-leaves.'
     case 'calculation':
       return 'THIS CARD IS A CALCULATION. The anchor is the test or formula; the leaves are its inputs and outputs; the steps are `precedes` edges in order.'
     case 'procedure':

@@ -26,7 +26,7 @@ import { persistTreePlan } from '../src/lib/klt/rebuild-write'
 import { normalizeName, type VocabEntry } from '../src/lib/klt/match'
 import { NAME_CLUSTER_PROMPT } from '../src/lib/ai/prompts/name-cluster'
 import { JUDGE_CONSOLIDATION_PROMPT } from '../src/lib/ai/prompts/judge-consolidation'
-import { CHAPTER_SKELETON_PROMPT } from '../src/lib/ai/prompts/chapter-skeleton'
+import { CHAPTER_SKELETON_PROMPT, ASSIGN_BRANCHES_PROMPT } from '../src/lib/ai/prompts/chapter-skeleton'
 import { parseKltName } from '../src/lib/klt/normalize'
 import { cardMode } from '../src/lib/klp/card-mode'
 
@@ -135,6 +135,23 @@ async function chapterSkeleton(plan: TreePlan): Promise<{ chapters: number; plac
     }
     chapters += 1
     console.log(`  chapter "${ch.name}" ← ${members.map((m) => m.name).join(' | ')}${ch.reason ? ': ' + ch.reason : ''}`)
+  }
+  // second pass: file the leftovers into the chapters that now exist
+  const chapterNodes = plan.nodes.filter((n) => real(n) && n.parent === domain.key && plan.nodes.some((m) => real(m) && m.parent === n.key))
+  const leftovers = plan.nodes.filter((n) => real(n) && n.parent === domain.key && !chapterNodes.includes(n))
+  if (chapterNodes.length && leftovers.length) {
+    const res2 = await generateText({ model, prompt: ASSIGN_BRANCHES_PROMPT.build({ domain: plan.domain, chapters: chapterNodes.map((c) => ({ name: c.name, members: kids(c.key) })), branches: leftovers.map((b) => ({ name: b.name, children: kids(b.key) })) }), output: Output.object({ schema: ASSIGN_BRANCHES_PROMPT.schema }), maxRetries: 1, temperature: 0 })
+    const chByName = new Map(chapterNodes.map((c) => [c.name.toLowerCase(), c]))
+    const brByName = new Map(leftovers.map((b) => [b.name.toLowerCase(), b]))
+    for (const a of res2.output.assignments) {
+      const b = brByName.get(a.branch.toLowerCase())
+      const c = a.chapter ? chByName.get(a.chapter.toLowerCase()) : undefined
+      if (!b || !c || b.key === c.key) continue
+      b.parent = c.key
+      b.alsoUnder = b.alsoUnder.filter((k) => k !== c.key)
+      placed += 1
+      console.log(`  filed "${b.name}" → "${c.name}"${a.reason ? ': ' + a.reason : ''}`)
+    }
   }
   return { chapters, placed, refused }
 }

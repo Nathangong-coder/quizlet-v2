@@ -16,7 +16,7 @@ procedure / applied; the loop passes the mode to the minter but the corpus was N
 (the planner applies the mode after the fact — an applied card's leaves become labels + rank-2 links).
 The tree overlay draws only cross-listings and ≥2-card edges; the Dependencies view keeps every edge.
 Record: `docs/ai/model-performance.md`, "The vertical tree — rebuild v2". Artifact v2:
-https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374. **All five sets are written** with the same command (Accounting-Knowledge 79 nodes / 15 chapters,
+https://claude.ai/code/artifact/ea6eae09-4f37-402b-ae13-97cdb0bdc374. **Re-minted (68 cards, the ones the prompt change touches — `scripts/remint-subset.ts` + `splice-loop.ts`) and re-written late 2026-09-15**; the chapter pass has a second call that files leftovers; tree cap is 6 words / 48 chars; brevity is a hard bar. **All five sets are written** with the same command (Accounting-Knowledge 79 nodes / 15 chapters,
 Talking copy 95 / 17, Talking 96 / 9, LBO 12 / 4; plans in `docs/ai/runs/2026-09-15/plan-*-v2.json`).
 The three Accounting sets share the global vocabulary and each places its own copy of the shared
 root. **Owner decisions pending:** the "merger vs acquisition" chapter (weak); whether to re-mint

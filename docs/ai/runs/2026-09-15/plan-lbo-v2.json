@@ -18,21 +18,27 @@
       "matched": null
     },
     {
-      "key": "leverage in an lbo",
+      "key": "leverage",
       "name": "leverage in an lbo",
-      "parent": "lbo value creation",
+      "parent": "lbo model",
       "role": "anchor",
       "nature": "concept",
       "status": "candidate",
       "cards": [
-        "cmtj7pxht000105l4xxtnhlbk"
+        "cmtj7pxht000105l4xxtnhlbk",
+        "cmtjcmjep000u04k41n614t20"
       ],
-      "klps": 1,
+      "klps": 2,
       "votes": {
-        "leveraged buyout": 3
+        "leveraged buyout": 6
       },
       "alsoUnder": [],
-      "matched": null
+      "matched": {
+        "kltId": "cmt97idbt0027hwk6qifi2y5y",
+        "name": "leverage",
+        "rule": "alias",
+        "status": "active"
+      }
     },
     {
       "key": "lbo model",
@@ -49,32 +55,42 @@
         "leveraged buyout": 3
       },
       "alsoUnder": [],
-      "matched": null
+      "matched": {
+        "kltId": "cmu3ekftu0002vwk6nq2hr7kj",
+        "name": "lbo model",
+        "rule": "exact",
+        "status": "active"
+      }
     },
     {
       "key": "lbo value creation",
       "name": "lbo value creation",
-      "parent": "leveraged buyout",
+      "parent": "lbo model",
       "role": "anchor",
       "nature": "concept",
-      "status": "active",
+      "status": "candidate",
       "cards": [
         "cmtjcmjcc000a04k4pftq7hsd"
       ],
       "klps": 1,
       "votes": {
-        "value creation": 3
+        "leveraged buyout": 3
       },
       "alsoUnder": [],
-      "matched": null
+      "matched": {
+        "kltId": "cmu3ekfwn0003vwk6foifmjsy",
+        "name": "lbo value creation",
+        "rule": "exact",
+        "status": "active"
+      }
     },
     {
       "key": "good lbo candidate",
       "name": "good lbo candidate",
-      "parent": "lbo valuation",
+      "parent": "leveraged buyout",
       "role": "anchor",
       "nature": "concept",
-      "status": "candidate",
+      "status": "active",
       "cards": [
         "cmtjcmjco000d04k4by5nbcdu"
       ],
@@ -83,12 +99,17 @@
         "leveraged buyout": 3
       },
       "alsoUnder": [],
-      "matched": null
+      "matched": {
+        "kltId": "cmu3ekg2b0004vwk6gsaqe442",
+        "name": "good lbo candidate",
+        "rule": "exact",
+        "status": "candidate"
+      }
     },
     {
       "key": "debt capacity",
       "name": "debt capacity",
-      "parent": "lbo model",
+      "parent": "lbo valuation",
       "role": "anchor",
       "nature": "concept",
       "status": "candidate",
@@ -110,7 +131,7 @@
     {
       "key": "pe holding period",
       "name": "pe holding period",
-      "parent": "leveraged buyout",
+      "parent": "good lbo candidate",
       "role": "anchor",
       "nature": "concept",
       "status": "candidate",
@@ -122,12 +143,17 @@
         "leveraged buyout": 3
       },
       "alsoUnder": [],
-      "matched": null
+      "matched": {
+        "kltId": "cmu3ekg800005vwk6xf2dl5q3",
+        "name": "pe holding period",
+        "rule": "exact",
+        "status": "candidate"
+      }
     },
     {
       "key": "debt paydown",
       "name": "debt paydown",
-      "parent": "lbo model",
+      "parent": "leverage",
       "role": "anchor",
       "nature": "concept",
       "status": "active",
@@ -142,18 +168,20 @@
       "klps": 6,
       "votes": {
         "leveraged buyout": 6,
-        "leverage in an lbo": 3,
+        "leverage": 6,
         "lbo value creation": 3,
-        "pe holding period": 3,
-        "leverage": 3
+        "pe holding period": 3
       },
       "alsoUnder": [
-        "leverage in an lbo",
         "lbo value creation",
-        "pe holding period",
-        "leverage"
+        "pe holding period"
       ],
-      "matched": null
+      "matched": {
+        "kltId": "cmu3ekgdq0006vwk6wpuayne1",
+        "name": "debt paydown",
+        "rule": "exact",
+        "status": "active"
+      }
     },
     {
       "key": "lbo valuation",
@@ -170,56 +198,17 @@
         "leveraged buyout": 3
       },
       "alsoUnder": [],
-      "matched": null
-    },
-    {
-      "key": "leverage",
-      "name": "leverage",
-      "parent": "lbo value creation",
-      "role": "anchor",
-      "nature": "concept",
-      "status": "candidate",
-      "cards": [
-        "cmtjcmjep000u04k41n614t20"
-      ],
-      "klps": 1,
-      "votes": {
-        "leveraged buyout": 3
-      },
-      "alsoUnder": [],
       "matched": {
-        "kltId": "cmt97idbt0027hwk6qifi2y5y",
-        "name": "leverage",
+        "kltId": "cmu3ekggk0007vwk6ki1kym2c",
+        "name": "lbo valuation",
         "rule": "exact",
         "status": "active"
       }
     },
     {
-      "key": "value creation",
-      "name": "value creation",
-      "parent": "leveraged buyout",
-      "role": "label",
-      "nature": "concept",
-      "status": "candidate",
-      "cards": [
-        "cmtjcmjcc000a04k4pftq7hsd"
-      ],
-      "klps": 0,
-      "votes": {
-        "leveraged buyout": 3
-      },
-      "alsoUnder": [],
-      "matched": {
-        "kltId": "cmu39i5ik0015r0k606zb2bgm",
-        "name": "value creation",
-        "rule": "placed",
-        "status": "candidate"
-      }
-    },
-    {
       "key": "debtfunded purchase price",
       "name": "debt-funded purchase price",
-      "parent": "leverage in an lbo",
+      "parent": "leverage",
       "role": "label",
       "nature": "concept",
       "status": "candidate",
@@ -228,7 +217,7 @@
       ],
       "klps": 1,
       "votes": {
-        "leverage in an lbo": 3
+        "leverage": 3
       },
       "alsoUnder": [],
       "matched": null
@@ -236,7 +225,7 @@
     {
       "key": "equity base",
       "name": "equity base",
-      "parent": "leverage in an lbo",
+      "parent": "leverage",
       "role": "label",
       "nature": "concept",
       "status": "candidate",
@@ -245,7 +234,7 @@
       ],
       "klps": 1,
       "votes": {
-        "leverage in an lbo": 3
+        "leverage": 3
       },
       "alsoUnder": [],
       "matched": null
@@ -397,10 +386,10 @@
       }
     },
     {
-      "key": "capital structure",
+      "key": "capital structure neutrality",
       "name": "capital structure",
       "parent": "lbo model",
-      "role": "leaf",
+      "role": "label",
       "nature": "concept",
       "status": "candidate",
       "cards": [
@@ -412,10 +401,10 @@
       },
       "alsoUnder": [],
       "matched": {
-        "kltId": "cmt97oqfz008yhwk6ktzvbpu0",
-        "name": "capital structure",
-        "rule": "exact",
-        "status": "active"
+        "kltId": "cmu3eg54a000chok6rsswo83n",
+        "name": "capital structure neutrality",
+        "rule": "alias",
+        "status": "candidate"
       }
     },
     {
@@ -543,7 +532,7 @@
       "matched": null
     },
     {
-      "key": "operational improvement",
+      "key": "operational improvements",
       "name": "operational improvements",
       "parent": "lbo value creation",
       "role": "leaf",
@@ -561,7 +550,12 @@
       "alsoUnder": [
         "pe holding period"
       ],
-      "matched": null
+      "matched": {
+        "kltId": "cmu3ekgmb0008vwk6tkqjpxll",
+        "name": "operational improvements",
+        "rule": "exact",
+        "status": "candidate"
+      }
     },
     {
       "key": "addon acquisition",
@@ -1058,20 +1052,18 @@
   "clusters": [
     {
       "members": [
-        "leverage in an lbo",
+        "leverage",
         "lbo model",
         "lbo value creation",
         "good lbo candidate",
         "pe holding period",
-        "lbo valuation",
-        "leverage"
+        "lbo valuation"
       ],
       "sharedChildren": [
         "debt paydown"
       ],
       "sharedWords": [
-        "lbo",
-        "leverage"
+        "lbo"
       ],
       "wantsParent": true
     },
@@ -1088,22 +1080,14 @@
     }
   ],
   "anchorMatches": {
-    "new": 6,
-    "exact": 3,
-    "placed": 1
+    "alias": 1,
+    "new": 1,
+    "exact": 8
   },
   "edges": [
     {
-      "from": "capital structure",
-      "to": "debt paydown",
-      "type": "requires",
-      "cards": [
-        "cmtjcmjc0000704k4ufvhr7y1"
-      ]
-    },
-    {
       "from": "pe holding period",
-      "to": "operational improvement",
+      "to": "operational improvements",
       "type": "causes",
       "cards": [
         "cmtjcmjdb000j04k42m4m2u0k"
@@ -1128,14 +1112,14 @@
   ],
   "rolledEdges": [
     {
-      "from": "leverage in an lbo",
+      "from": "leverage",
       "to": "debt paydown",
       "type": "precedes",
       "cards": [
         "cmtj7pxht000105l4xxtnhlbk"
       ],
       "via": [
-        "debt-funded purchase price→leverage in an lbo"
+        "debt-funded purchase price→leverage"
       ]
     },
     {
@@ -1146,7 +1130,8 @@
         "cmtjcmjc0000704k4ufvhr7y1"
       ],
       "via": [
-        "funding split→lbo model"
+        "funding split→lbo model",
+        "capital structure→lbo model"
       ]
     },
     {
@@ -1173,7 +1158,7 @@
       ]
     },
     {
-      "from": "operational improvement",
+      "from": "operational improvements",
       "to": "lbo value creation",
       "type": "causes",
       "cards": [
@@ -1197,12 +1182,7 @@
   ],
   "droppedEdges": 53,
   "generalLinks": [],
-  "judgeCandidates": [
-    {
-      "specific": "leverage in an lbo",
-      "general": "leverage"
-    }
-  ],
+  "judgeCandidates": [],
   "merges": [],
   "modes": {
     "knowledge": 8,
