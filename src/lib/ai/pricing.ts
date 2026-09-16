@@ -126,12 +126,47 @@ export const MODEL_RATES: Record<string, ModelRate> = {
     checkedOn: '2026-09-06',
   },
 
+  // ---- Z.ai (GLM) -------------------------------------------------------
+  //
+  // TRANSCRIBED from https://docs.z.ai/guides/overview/pricing on 2026-09-12
+  // (the same reading `src/lib/klp/token-meter.ts` carries for the operator
+  // scripts; the two tables must agree). Flat rates, no peak clock. Keyed
+  // both as `zai:` — the provider id the direct pool and the credential
+  // catalogue use — and reached from a `custom:` credential pointed at
+  // api.z.ai, see `estimateCallCost`.
+  'zai:glm-5.3-flash': {
+    inputPerMTok: 0.15,
+    outputPerMTok: 0.5,
+    cachedInputPerMTok: 0.03,
+    checkedOn: '2026-09-12',
+  },
+  'zai:glm-5.3': {
+    inputPerMTok: 1.4,
+    outputPerMTok: 4.4,
+    cachedInputPerMTok: 0.26,
+    checkedOn: '2026-09-12',
+  },
+
   // ---- Google -----------------------------------------------------------
   //
   // DELIBERATELY ABSENT. No authoritative figure has been read for these, and
   // Google's own pricing page is not something this file may guess at. Their
   // calls therefore show as `unpriced` — which is the honest state, and
   // visible, rather than a plausible number nobody checked.
+}
+
+/**
+ * The rate for a `(provider, model)`. A `custom` credential carries no
+ * provider identity of its own, so a GLM model id on one is read at the
+ * Z.ai rate — the only place a `glm-*` id is served — rather than left
+ * unpriced. Any other custom model stays unpriced: the endpoint could be
+ * anything.
+ */
+export function rateFor(provider: string, model: string): ModelRate | undefined {
+  const direct = MODEL_RATES[`${provider}:${model}`]
+  if (direct) return direct
+  if (provider === 'custom' && model.startsWith('glm-')) return MODEL_RATES[`zai:${model}`]
+  return undefined
 }
 
 export interface CallUsage {
@@ -154,7 +189,7 @@ export interface CallUsage {
  * than added on top.
  */
 export function estimateCallCost(usage: CallUsage): number | null {
-  const rate = MODEL_RATES[`${usage.provider}:${usage.model}`]
+  const rate = rateFor(usage.provider, usage.model)
   if (!rate) return null
   if (usage.inputTokens === null && usage.outputTokens === null) return null
 

@@ -194,7 +194,7 @@ describe('loadBorrowableCredentials', () => {
         label: 'Shared DeepSeek',
         provider: 'deepseek',
         used: 1_000_000,
-        budget: 1_000_000,
+        budget: DEFAULT_SHARED_TOKEN_BUDGET,
         remaining: 0,
         exhausted: true,
         // Named so the UI can say WHEN the allowance comes back rather than

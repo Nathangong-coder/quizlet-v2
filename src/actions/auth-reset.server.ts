@@ -1,6 +1,7 @@
 'use server'
 
 import { after } from 'next/server'
+import { checkSpam, type SpamSignals } from '@/lib/forms/spam'
 import { prisma } from '@/lib/db'
 import { identifierWhere } from '@/lib/auth/identifier'
 import { mintToken, peekToken, consumeToken, invalidateTokens } from '@/lib/auth/tokens'
@@ -24,7 +25,12 @@ import type { ActionResult } from '@/types/action'
  */
 export async function requestPasswordReset(input: {
   identifier: string
+  spam?: SpamSignals
 }): Promise<ActionResult<void>> {
+  // A tripped spam check returns the SAME fixed success as every other
+  // outcome — this endpoint must never reveal anything by its response —
+  // it simply does not enqueue the email.
+  if (!checkSpam(input.spam).ok) return { success: true, data: undefined }
   const identifier = typeof input.identifier === 'string' ? input.identifier : ''
 
   after(async () => {

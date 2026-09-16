@@ -1,6 +1,7 @@
 'use server'
 
 import { after } from 'next/server'
+import { checkSpam, SPAM_REJECTION_MESSAGE, type SpamSignals } from '@/lib/forms/spam'
 import { prisma } from '@/lib/db'
 import { checkHandle, HANDLE_REJECTION_MESSAGES } from '@/lib/users/handle'
 import {
@@ -43,7 +44,12 @@ export async function signUp(input: {
   email: string
   password: string
   inviteCode: string
+  /** Honeypot + render clock from `useSpamSignals`. See src/lib/forms/spam.ts. */
+  spam?: SpamSignals
 }): Promise<ActionResult<{ email: string }>> {
+  // FIRST, before the flag, the invite or the database: a bot is not a caller.
+  if (!checkSpam(input.spam).ok) return { success: false, error: SPAM_REJECTION_MESSAGE }
+
   // Checked HERE, not only on the page. A server action is a public endpoint;
   // a page-level guard is a UI affordance, not access control. The flag is now
   // a master kill switch rather than the primary control — invite codes are

@@ -14,7 +14,7 @@ import type { PrismaClient } from '@prisma/client'
  * incomplete. A cap that silently stops enforcing because a model has no price
  * is worse than one denominated in the unit we actually measure.
  */
-export const DEFAULT_SHARED_TOKEN_BUDGET = 1_000_000
+export const DEFAULT_SHARED_TOKEN_BUDGET = 500_000
 
 /**
  * Start of the budget week: the most recent Monday, 00:00 UTC.

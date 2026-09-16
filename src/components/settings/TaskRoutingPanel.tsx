@@ -11,6 +11,7 @@ import { listCredentials, listTaskRoutings, saveTaskRouting, type CredentialRow 
 import { PROVIDER_META, type ProviderId } from '@/lib/ai/providers';
 import { AI_TASKS, AI_TASK_LABELS, type AiTask } from '@/lib/ai/model-routing';
 import { GOOGLE_APPROVED_MODELS, isPolicedTask } from '@/lib/ai/model-policy';
+import { TASK_PROVIDER_PREFERENCE } from '@/lib/ai/task-defaults';
 
 const TASKS = AI_TASKS;
 type Task = AiTask;
@@ -46,6 +47,10 @@ const TASK_DESCRIPTIONS: Record<Task, string> = {
     'Writes and marks the questions in a diagnostic test. The results feed your learner profile. Stored and reused.',
   author:
     'The full authoring pipeline: drafts a reference answer, extracts key learning points, then tests them against deliberately wrong answers and keeps only the ones that tell a strong answer from a weak one. Slow, run rarely, and the most quality-sensitive task here. Stored and reused.',
+  'game-pieces':
+    'Turns a set’s key learning points into short prompt/answer pieces for Blitz, Crossword and Match, when the set owner presses Prepare games. Stored on the set and reused by every player; identical cards across sets share them.',
+  'hot-seat':
+    'Writes the interviewer’s follow-up question in Hot Seat when you miss a point. Nothing is stored; the grading itself runs under the grade task.',
 };
 
 interface RowState {
@@ -155,13 +160,20 @@ export default function TaskRoutingPanel() {
               <div key={task} className="space-y-2 pb-4 border-b last:border-b-0 last:pb-0">
                 <Label>{TASK_LABELS[task]}</Label>
                 <p className="text-xs text-muted-foreground">{TASK_DESCRIPTIONS[task]}</p>
+                {!row.credentialId && (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Default order:</span>{' '}
+                    {TASK_PROVIDER_PREFERENCE[task].map((p) => PROVIDER_META[p as ProviderId]?.label ?? p).join(' → ')}
+                    {' '}— your own keys first, then shared ones; set from measurement, and a pin below overrides it.
+                  </p>
+                )}
                 <div className="flex flex-col sm:flex-row gap-2">
                   <select
                     className="h-8 flex-1 rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground dark:bg-input/30"
                     value={row.credentialId}
                     onChange={(e) => selectCredential(task, e.target.value)}
                   >
-                    <option value="">Use provider default</option>
+                    <option value="">Use the default order</option>
                     {credentials.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.label} ({PROVIDER_META[c.provider as ProviderId]?.label ?? c.provider})

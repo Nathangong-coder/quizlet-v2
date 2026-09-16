@@ -89,9 +89,17 @@ export function buildCredentialPool(input: {
   extraModels: (provider: string) => string[]
   exhausted?: ReadonlySet<string>
   limit?: number
+  /**
+   * The task's provider preference (`TASK_PROVIDER_PREFERENCE`): lower ranks
+   * first, applied INSIDE each group after the LRU order — so own keys still
+   * beat borrowed ones, and among a group's keys the measured-best provider
+   * for this task goes first, LRU breaking ties within a provider.
+   */
+  providerRank?: (provider: string) => number
 }): PoolAttempt[] {
   const exhausted = input.exhausted ?? new Set<string>()
   const limit = input.limit ?? MAX_ATTEMPTS_PER_CALL
+  const rank = input.providerRank ?? (() => 0)
 
   // Credential order first, so the LRU rule still decides who goes before whom
   // — but only WITHIN a group. Sorting the groups separately and concatenating
@@ -99,7 +107,8 @@ export function buildCredentialPool(input: {
   // the whole list would let recency reorder across the boundary.
   const groups = [...new Set(input.credentials.map((c) => c.group ?? 0))].sort((a, b) => a - b)
   const ordered = groups.flatMap((group) =>
-    selectAttemptOrder(input.credentials.filter((c) => (c.group ?? 0) === group)),
+    // Array.prototype.sort is stable, so equal ranks keep their LRU order.
+    selectAttemptOrder(input.credentials.filter((c) => (c.group ?? 0) === group)).sort((a, b) => rank(a.provider) - rank(b.provider)),
   )
 
   // Each credential contributes its own default model FIRST, then — only if it

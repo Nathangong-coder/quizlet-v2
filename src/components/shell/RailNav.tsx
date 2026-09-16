@@ -2,23 +2,23 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Compass, FileText, Folder, FolderPlus, Gauge, Home, Library, LogIn, NotebookPen, Plus, Stethoscope } from 'lucide-react'
+import { Bell, ClipboardCheck, Compass, Folder, Gamepad2, Gauge, Home, Layers, Library, LogIn, Plus, ScrollText, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { isRailItemCurrent, isRecentCurrent, railItems, type RailIcon } from '@/lib/shell/nav'
+import { isRailItemCurrent, railSections, type RailIcon } from '@/lib/shell/nav'
 
 const ICONS: Record<RailIcon, React.ComponentType<{ className?: string }>> = {
   home: Home,
-  compass: Compass,
+  bell: Bell,
   library: Library,
+  compass: Compass,
+  layers: Layers,
+  scroll: ScrollText,
+  gamepad: Gamepad2,
+  clipboard: ClipboardCheck,
   plus: Plus,
   login: LogIn,
   gauge: Gauge,
-}
-
-export interface RailRecent {
-  id: string
-  title: string
-  isOwn: boolean
+  users: Users,
 }
 
 export interface RailFolder {
@@ -26,92 +26,157 @@ export interface RailFolder {
   name: string
 }
 
+export interface RailGroup {
+  id: string
+  name: string
+}
+
+const ROW = 'group flex items-center gap-2 rounded-[4px] py-1.5 text-sm transition-colors'
+const CURRENT = 'bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--primary)]'
+const IDLE = 'text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground'
+
 /**
- * The rail's links. Text links intentionally share the compact text-sm/py-2
- * rhythm used by recent sets; section labels carry hierarchy instead of making
- * the primary destinations visually louder than the learner's own material.
+ * The rail's links: the sections from `railSections`, then the learner's
+ * folders and groups as plain name lists with a "+ folder" / "+ group" row
+ * (no section titles — the names are the title). Notifications carry the
+ * unread count as a badge.
  */
 export function RailNav({
   signedIn,
   role,
-  recents,
   folders,
+  groups = [],
+  unread = 0,
   onNavigate,
   collapsed = false,
 }: {
   signedIn: boolean
   role?: string | null
-  recents: RailRecent[]
   folders: RailFolder[]
+  groups?: RailGroup[]
+  unread?: number
   onNavigate?: () => void
   collapsed?: boolean
 }) {
   const pathname = usePathname()
-  const items = railItems(signedIn, role)
-  const diagnosticCurrent = pathname === '/diagnostic' || pathname.startsWith('/diagnostic/')
-  const postmortemCurrent = pathname === '/postmortem' || pathname.startsWith('/postmortem/')
-  const notesCurrent = pathname === '/notes' || pathname.startsWith('/notes/')
+  const sections = railSections(signedIn, role)
 
   return (
     <nav aria-label="Main" className="flex flex-col gap-0.5">
-      {items.map((item) => {
-        const Icon = ICONS[item.icon]
-        const current = isRailItemCurrent(pathname, item.href)
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            aria-current={current ? 'page' : undefined}
-            aria-label={item.label}
-            title={collapsed ? item.label : undefined}
-            className={cn(
-              'group flex items-center gap-2 rounded-[4px] py-1.5 text-sm transition-colors',
-              collapsed ? 'justify-center px-0' : 'px-3',
-              current
-                ? 'bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--primary)]'
-                : 'text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground',
-            )}
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            {!collapsed && item.label}
-          </Link>
-        )
-      })}
+      {sections.map((section, si) => (
+        <div key={si} className={cn(si > 0 && 'mt-5')}>
+          {section.label && !collapsed && <p className="label mb-1.5 px-3 text-muted-foreground">{section.label}</p>}
+          {section.items.map((item) => {
+            const Icon = ICONS[item.icon]
+            const current = isRailItemCurrent(pathname, item.href)
+            const badge = item.icon === 'bell' && unread > 0 ? (unread > 99 ? '99+' : String(unread)) : null
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                aria-current={current ? 'page' : undefined}
+                aria-label={badge ? `${item.label}, ${unread} unread` : item.label}
+                title={collapsed ? item.label : undefined}
+                className={cn(ROW, collapsed ? 'relative justify-center px-0' : 'px-3', current ? CURRENT : IDLE)}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                {badge && (
+                  <span className={cn('rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-4 text-primary-foreground', collapsed && 'absolute -right-0.5 -top-0.5')} data-testid="unread-badge">
+                    {badge}
+                  </span>
+                )}
+              </Link>
+            )
+          })}
+        </div>
+      ))}
 
-      {recents.length > 0 && (
+      {signedIn && (
         <>
-          {!collapsed && <div className="mb-1.5 mt-6 px-3"><p className="label text-muted-foreground">Recents</p></div>}
-          <ul className={cn('flex flex-col gap-0.5', collapsed && 'mt-6')}>
-            {recents.map((recent) => {
-              const current = isRecentCurrent(pathname, recent.id)
-              return <li key={recent.id}><Link href={`/sets/${recent.id}`} onClick={onNavigate} aria-current={current ? 'page' : undefined} aria-label={recent.title} title={recent.title} className={cn('flex items-center gap-2 rounded-[4px] py-1.5 text-sm transition-colors', collapsed ? 'justify-center px-0' : 'px-3', current ? 'bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--primary)]' : 'text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground')}>{collapsed ? <Library className="h-4 w-4 shrink-0" aria-hidden="true" /> : <><span aria-hidden="true" className={cn('h-3.5 w-[3px] shrink-0 rounded-full', recent.isOwn ? 'bg-primary/50' : 'bg-muted-foreground/30')} /><span className="truncate">{recent.title}</span></>}</Link></li>
-            })}
-          </ul>
+          <NameList
+            items={folders}
+            icon={Folder}
+            hrefFor={(id) => `/folders/${id}`}
+            addHref="/folders/new"
+            addLabel="+ folder"
+            allHref="/folders"
+            allLabel="All folders"
+            pathname={pathname}
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+          />
+          <NameList
+            items={groups}
+            icon={Users}
+            hrefFor={(id) => `/groups/${id}`}
+            addHref="/groups/new"
+            addLabel="+ group"
+            allHref="/groups"
+            allLabel="All groups"
+            pathname={pathname}
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+          />
         </>
       )}
-
-      {signedIn && <>
-        <div className={cn('border-t border-sidebar-border pt-3', recents.length > 0 ? 'mt-4' : 'mt-6')}>
-          <Link href="/folders" onClick={onNavigate} aria-label="All folders" title={collapsed ? 'All folders' : undefined} className={cn('mb-2 flex items-center gap-2 rounded-[4px] py-1.5 text-muted-foreground transition-colors hover:text-foreground', collapsed ? 'justify-center px-0' : 'px-3')}><Folder className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{!collapsed && <span className="label">Your folders</span>}</Link>
-          {folders.length > 0 && <ul className="flex flex-col gap-0.5">{folders.map((folder) => {
-            const current = pathname === `/folders/${folder.id}`
-            return <li key={folder.id}><Link href={`/folders/${folder.id}`} onClick={onNavigate} aria-current={current ? 'page' : undefined} aria-label={folder.name} title={collapsed ? folder.name : undefined} className={cn('flex items-center gap-2 rounded-[4px] py-1.5 text-sm transition-colors', collapsed ? 'justify-center px-0' : 'px-3', current ? 'bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--primary)]' : 'text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground')}><Folder className="h-4 w-4 shrink-0" aria-hidden="true" />{!collapsed && <span className="truncate">{folder.name}</span>}</Link></li>
-          })}</ul>}
-          <Link href="/folders/new" onClick={onNavigate} aria-label="Create a folder" title={collapsed ? '+ folder' : undefined} className={cn('flex items-center gap-2 rounded-[4px] py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/70 hover:text-foreground', collapsed ? 'justify-center px-0' : 'px-3')}><FolderPlus className="h-4 w-4 shrink-0" aria-hidden="true" />{!collapsed && '+ folder'}</Link>
-        </div>
-
-        <div className="mt-4 border-t border-sidebar-border pt-3">
-          {!collapsed && <p className="label mb-2 px-3 text-muted-foreground">Other features</p>}
-          <RailFeatureLink href="/diagnostic" label="Diagnostic test" icon={Stethoscope} current={diagnosticCurrent} collapsed={collapsed} onNavigate={onNavigate} />
-          <RailFeatureLink href="/postmortem" label="Postmortem" icon={NotebookPen} current={postmortemCurrent} collapsed={collapsed} onNavigate={onNavigate} />
-          <RailFeatureLink href="/notes" label="Study notes" icon={FileText} current={notesCurrent} collapsed={collapsed} onNavigate={onNavigate} />
-        </div>
-      </>}
     </nav>
   )
 }
 
-function RailFeatureLink({ href, label, icon: Icon, current, collapsed, onNavigate }: { href: string; label: string; icon: React.ComponentType<{ className?: string }>; current: boolean; collapsed: boolean; onNavigate?: () => void }) {
-  return <Link href={href} onClick={onNavigate} aria-current={current ? 'page' : undefined} aria-label={label} title={collapsed ? label : undefined} className={cn('group flex items-center gap-2 rounded-[4px] py-1.5 text-sm transition-colors', collapsed ? 'justify-center px-0' : 'px-3', current ? 'bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--primary)]' : 'text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground')}><Icon className="h-4 w-4 shrink-0" aria-hidden="true" />{!collapsed && label}</Link>
+/**
+ * A list of the learner's own things by name, then a plain "+ …" row. No
+ * title (the owner's call): the names say what the list is. Collapsed, the
+ * rows become icons and the "+" row becomes a plus.
+ */
+function NameList({
+  items,
+  icon: Icon,
+  hrefFor,
+  addHref,
+  addLabel,
+  allHref,
+  allLabel,
+  pathname,
+  collapsed,
+  onNavigate,
+}: {
+  items: { id: string; name: string }[]
+  icon: React.ComponentType<{ className?: string }>
+  hrefFor: (id: string) => string
+  addHref: string
+  addLabel: string
+  allHref: string
+  allLabel: string
+  pathname: string
+  collapsed: boolean
+  onNavigate?: () => void
+}) {
+  return (
+    <div className="mt-5 border-t border-sidebar-border pt-3">
+      {items.length > 0 && (
+        <ul className="flex flex-col gap-0.5">
+          {items.map((item) => {
+            const href = hrefFor(item.id)
+            const current = pathname === href
+            return (
+              <li key={item.id}>
+                <Link href={href} onClick={onNavigate} aria-current={current ? 'page' : undefined} aria-label={item.name} title={collapsed ? item.name : undefined} className={cn(ROW, collapsed ? 'justify-center px-0' : 'px-3', current ? CURRENT : IDLE)}>
+                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  {!collapsed && <span className="truncate">{item.name}</span>}
+                </Link>
+              </li>
+            )
+          })}
+          {items.length >= 6 && !collapsed && (
+            <li><Link href={allHref} onClick={onNavigate} className={cn(ROW, 'px-3 text-xs', IDLE)}>{allLabel} →</Link></li>
+          )}
+        </ul>
+      )}
+      <Link href={addHref} onClick={onNavigate} aria-label={addLabel} title={collapsed ? addLabel : undefined} className={cn(ROW, collapsed ? 'justify-center px-0' : 'px-3', IDLE)}>
+        {collapsed ? <Plus className="h-4 w-4 shrink-0" aria-hidden="true" /> : addLabel}
+      </Link>
+    </div>
+  )
 }

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Gamepad2, RotateCcw, GraduationCap } from "lucide-react";
+import { Gamepad2, RotateCcw, GraduationCap, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ActivityTileProps {
@@ -31,8 +31,10 @@ const TILE_SURFACE =
 
 const TILES: Tile[] = [
   {
-    label: "Matching Game",
-    href: (id) => `/sets/${id}/match`,
+    // The games hub, not Match directly. Match keeps its old route and is the
+    // first card on the hub, so `/sets/[id]/match` deep links still work.
+    label: "Games",
+    href: (id) => `/sets/${id}/games`,
     icon: Gamepad2,
     requiresAuth: false,
   },
@@ -48,11 +50,19 @@ const TILES: Tile[] = [
     icon: GraduationCap,
     requiresAuth: true,
   },
+  {
+    // The set as one printable page of key points, shaded by mastery.
+    // Readable by anyone who can read the set; the shading is the viewer's.
+    label: "Study guide",
+    href: (id) => `/sets/${id}/guide`,
+    icon: ScrollText,
+    requiresAuth: false,
+  },
 ];
 
 export function ActivityTiles({ id, userId }: ActivityTileProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-6">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
       {TILES.map((tile) => {
         const isLocked = tile.requiresAuth && !userId;
 

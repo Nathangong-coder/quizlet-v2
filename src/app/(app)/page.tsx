@@ -6,7 +6,7 @@ import { loadHomeRecentItems } from '@/lib/home/recent-items'
 import { RecommendedStrip } from '@/components/home/RecommendedStrip'
 import { JumpBackStrip } from '@/components/home/JumpBackStrip'
 import { RecentItems } from '@/components/home/RecentItems'
-import { Landing } from '@/components/home/Landing'
+import { redirect } from 'next/navigation'
 import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
 
 /**
@@ -19,7 +19,15 @@ import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
  */
 export default async function Home() {
   const session = await auth()
-  if (!session?.user?.id) return <Landing />
+  // The middleware rewrites a signed-out `/` to /welcome before this runs, so
+  // reaching here without a session means the middleware SAW a session cookie
+  // that the server then refused — a JWT whose `sessionVersion` no longer
+  // matches (password changed or reset on another device). The edge cannot
+  // check the version, so it keeps sending `/welcome` back to `/`; a redirect
+  // to `/welcome` here therefore LOOPED (found 2026-09-14 with a stale dev
+  // cookie). Send them to sign in instead, which is what a revoked session
+  // needs anyway.
+  if (!session?.user?.id) redirect('/login')
 
   const [recentItems, recommended] = await Promise.all([
     loadHomeRecentItems(session.user.id, 8, readableSetWhere(session.user.id)),

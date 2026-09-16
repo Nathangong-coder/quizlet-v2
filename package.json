@@ -31,6 +31,7 @@
     "reuse-klps": "tsx --conditions=react-server --env-file=.env scripts/reuse-klps.ts",
     "verify:diagnostic": "tsx --env-file=.env scripts/verify-diagnostic.ts",
     "probe-models": "tsx --env-file=.env scripts/probe-model-policy.ts",
+    "bench-models": "tsx --conditions=react-server --env-file=.env scripts/bench-models.ts",
     "probe-grading": "tsx --env-file=.env scripts/probe-grading-matrix.ts"
   },
   "dependencies": {
@@ -44,6 +45,7 @@
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/adapter-neon": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.5.0",
     "ai": "^7.0.37",
     "bcryptjs": "^3.0.3",

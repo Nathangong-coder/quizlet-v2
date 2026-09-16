@@ -53,6 +53,11 @@ model User {
   /// `handle`; `checkHandle` returns both so a caller cannot persist one alone.
   normalizedHandle String? @unique
 
+  /// Public profile bio (2026-09-13). Shown on /u/<handle> only, so it is
+  /// meaningless without a handle; the account page hides the field until one
+  /// is set. Single line, capped by BIO_MAX_LENGTH in src/lib/users/bio.ts.
+  bio              String?
+
   /// Install-wide capability. Vocabulary: USER_ROLES in src/lib/auth/roles.ts
   /// (learner|staff|admin). Import that const rather than writing a literal —
   /// this is a String column, so a typo compiles and never matches.
@@ -128,6 +133,14 @@ model User {
   learnerTuning    LearnerTuning?
   setViews         SetView[]
   setReports       SetReport[]
+  groupsOwned      StudyGroup[]
+  groupMemberships StudyGroupMember[]
+  groupSetsAdded   StudyGroupSet[]
+  gameScores       GameScore[]
+  groupJoinRequests StudyGroupJoinRequest[]
+  groupInvites      StudyGroupInvite[]       @relation("GroupInviteInvitee")
+  groupInvitesSent  StudyGroupInvite[]       @relation("GroupInviteInviter")
+  notifications     Notification[]
   feedback         Feedback[]
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -212,6 +225,13 @@ model Set {
   /// date rather than jumping to the front of the list again.
   publishedAt    DateTime?
 
+  /// Subject taxonomy leaf slug (2026-09-13). Vocabulary: SUBJECTS in
+  /// src/lib/subjects/taxonomy.ts — a FIXED two-level tree in code; this
+  /// column holds the LEAF and the group is derived. Nullable: nothing forces
+  /// a subject. Slugs are persisted, so a slug rename strands rows; add a leaf
+  /// and migrate instead. Owner-set only; validated against the tree on write.
+  subject        String?
+
   /// Fork attribution. `forkedFromId` is the LIVE link and may go dark
   /// (SetNull on source delete); the two denormalized fields are captured AT
   /// FORK TIME and are what actually renders. See spec §7.3 — rendering from
@@ -234,12 +254,23 @@ model Set {
   postmortems   PostmortemSession[]
   diagnosticAttempts DiagnosticAttempt[]
   folderLinks   FolderSet[]
+  groupLinks    StudyGroupSet[]
+  gamePieces    GamePiece[]
+  gameScores    GameScore[]
+  /// Learning games (2026-09-13, docs/superpowers/specs/2026-09-13-learning-games-design.md).
+  /// The last "Prepare games" run: when, and its per-card summary
+  /// ({ made, copied, generated, skipped: [{cardId, reason}], failed: [...] })
+  /// so the hub can say "Prepared 12 Sep · 41 pieces · 3 skipped" without
+  /// recomputing. Null until the owner has prepared once.
+  gamesPreparedAt      DateTime?
+  gamesPrepareSummary  Json?
   kltNodes      SetKltNode[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   @@index([userId])
   @@index([visibility, listingBlocked, publishedAt])
+  @@index([subject])
   @@index([forkedFromId])
 }
 
@@ -297,6 +328,7 @@ model Card {
   confidenceEvents    ConfidenceEvent[]
   studyEvents         StudyEvent[]
   quizOptionCaches    QuizOptionCache[]
+  gamePieces          GamePiece[]
   quizAnswers         QuizAnswer[]
   contentBlocks       CardContentBlock[]
   categoryAssignments CardCategoryAssignment[]
@@ -705,6 +737,134 @@ model ConfidenceEvent {
 
   @@index([userId, cardId])
   @@index([userId, createdAt])
+}
+
+/// Study groups (2026-09-13, docs/superpowers/specs/2026-09-13-study-groups-design.md).
+///
+/// THE PRIVACY CONTRACT, in one sentence: joining a group lets its members see
+/// your progress on the GROUP'S sets, and nothing else. There is no snapshot —
+/// every number a member sees is computed live from `CardProgress` and
+/// `StudySession` rows filtered by (member, group set), so leaving the group
+/// ends the sharing at once and there is nothing to erase.
+///
+/// Private only: a group is reached by its invite code, never listed.
+model StudyGroup {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// Bearer code in the join link. Rotated by the owner; the old link then
+  /// 404s. Rules in src/lib/groups/invite.ts.
+  inviteCode  String   @unique
+  /// private | public (2026-09-14). A PUBLIC group is listed in the groups
+  /// directory and anyone signed in may REQUEST to join; the owner accepts or
+  /// declines. Private groups are reachable only by invite link or an owner's
+  /// invitation. Vocabulary: GROUP_VISIBILITIES in src/lib/groups/roles.ts.
+  visibility  String   @default("private")
+  members     StudyGroupMember[]
+  sets        StudyGroupSet[]
+  joinRequests StudyGroupJoinRequest[]
+  invites      StudyGroupInvite[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([visibility, createdAt])
+}
+
+/// A signed-in user asking to join a PUBLIC group. The requester accepts the
+/// privacy contract at request time (`acknowledged`), so an accepted request
+/// creates a member row with the same consent an invite-link join carries.
+/// status: pending | accepted | declined.
+model StudyGroupJoinRequest {
+  id        String     @id @default(cuid())
+  groupId   String
+  group     StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String?
+  status    String     @default("pending")
+  createdAt DateTime   @default(now())
+  decidedAt DateTime?
+
+  @@unique([groupId, userId])
+  @@index([userId, status])
+  @@index([groupId, status])
+}
+
+/// An owner inviting a user (found through the public-user directory) into
+/// a group. The invitee accepts — consenting to the privacy contract at that
+/// moment — or declines. status: pending | accepted | declined.
+model StudyGroupInvite {
+  id          String     @id @default(cuid())
+  groupId     String
+  group       StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User       @relation("GroupInviteInvitee", fields: [userId], references: [id], onDelete: Cascade)
+  invitedById String
+  invitedBy   User       @relation("GroupInviteInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+  status      String     @default("pending")
+  createdAt   DateTime   @default(now())
+  decidedAt   DateTime?
+
+  @@unique([groupId, userId])
+  @@index([userId, status])
+  @@index([groupId, status])
+}
+
+/// In-app notifications (2026-09-14). One row per event a user should see:
+/// a group invite, a join request on a group they own, a decision on their
+/// own request or invite. `href` is where the notification takes them;
+/// `kind` is the closed vocabulary in src/lib/notifications/kinds.ts. Read
+/// state is per row; nothing is ever pushed anywhere else.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  title     String
+  body      String?
+  href      String?
+  meta      Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+model StudyGroupMember {
+  id       String     @id @default(cuid())
+  groupId  String
+  group    StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// owner | member — vocabulary GROUP_ROLES in src/lib/groups/roles.ts.
+  /// The owner ALSO has a member row, so "everyone in the group" is one query.
+  role     String     @default("member")
+  joinedAt DateTime   @default(now())
+
+  @@unique([groupId, userId])
+  @@index([userId])
+}
+
+/// A set attached to a group. Only link/public sets may be attached (the
+/// action refuses a private one), so membership grants NO read rights of its
+/// own — `readableSetWhere` is untouched by this feature. A set that later
+/// goes private stays attached but renders as "no longer shared" and is
+/// excluded from every progress read.
+model StudyGroupSet {
+  id        String     @id @default(cuid())
+  groupId   String
+  group     StudyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  setId     String
+  set       Set        @relation(fields: [setId], references: [id], onDelete: Cascade)
+  addedById String
+  addedBy   User       @relation(fields: [addedById], references: [id], onDelete: Cascade)
+  addedAt   DateTime   @default(now())
+
+  @@unique([groupId, setId])
+  @@index([setId])
 }
 
 /// Unified study-memory event log. The single write path (recordStudyEvent
@@ -1144,6 +1304,74 @@ model AiTaskRouting {
   credential   AiCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
 
   @@unique([userId, task])
+  @@index([userId])
+}
+
+/// A short prompt/answer pair derived from ONE key point (or, for a
+/// vocabulary-shaped card, from the card itself), so arcade formats work on
+/// cards whose definitions are paragraphs. Blitz, Crossword and the pieces
+/// variant of Match consume these; Gauntlet and Hot Seat use whole cards.
+///
+/// Versioned like `CardKlp`: a card whose `klpVersion` moved on has its older
+/// pieces IGNORED, never deleted. Reused across identical cards on
+/// `sourceHash` (= `Card.klpSourceHash`), exact match only — see
+/// src/lib/klp/reuse.ts for why a similarity match is wrong here too.
+model GamePiece {
+  id         String   @id @default(cuid())
+  cardId     String
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  /// Denormalised so a set's whole pool is one query.
+  setId      String
+  set        Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
+  /// NULL when `kind = term` (the card's own term/definition).
+  klpId      String?
+  klpVersion Int
+  sourceHash String
+  /// term | cloze — PIECE_KINDS in src/lib/games/pieces.ts
+  kind       String
+  prompt     String   @db.Text
+  answer     String
+  /// string[] of alternative spellings accepted by typed games.
+  aliases    Json     @default("[]")
+  enabled    Boolean  @default(true)
+  /// Model attribution. NULL for a deterministic `term` piece; a COPIED piece
+  /// carries the donor's model, because that is who wrote it.
+  model      String?
+  createdAt  DateTime @default(now())
+
+  @@index([setId, klpVersion])
+  @@index([cardId])
+  @@index([sourceHash])
+}
+
+/// A finished game run, for the per-set public leaderboards (2026-09-13).
+///
+/// THE ONE THING A GAME WRITES. Games still write no study memory — no
+/// StudyEvent, CardProgress, KlpState, QuizAnswer — and
+/// tests/games/actions.test.ts keeps asserting that. A score is a number a
+/// player chose to put their handle next to; it feeds nothing.
+///
+/// One row per run; the board shows each player's best. Only a signed-in
+/// player WITH a handle is written (the board ranks by handle, and a row
+/// nobody can be credited for is noise). Anonymous runs are never saved.
+model GameScore {
+  id        String   @id @default(cuid())
+  /// gauntlet | hot-seat | blitz | crossword | match — GAME_IDS
+  game      String
+  /// Per-game mode (gauntlet: mc | sa; hot-seat: easy | normal | hard; others: default)
+  mode      String
+  setId     String
+  set       Set      @relation(fields: [setId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Higher is better for every game; time-based games store negative ms
+  /// (see src/lib/games/scores.ts) so one ORDER BY serves all boards.
+  score     Int
+  /// Small, game-specific detail for the row: { hp, kills, mood, ms, ... }.
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([setId, game, mode, score])
   @@index([userId])
 }
 

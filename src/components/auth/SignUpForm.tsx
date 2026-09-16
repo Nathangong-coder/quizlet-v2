@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useSpamSignals } from '@/components/forms/SpamGuard'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +17,7 @@ export default function SignUpForm() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const spam = useSpamSignals()
   const [isPending, startTransition] = useTransition()
 
   function submit() {
@@ -29,7 +31,7 @@ export default function SignUpForm() {
     }
 
     startTransition(async () => {
-      const res = await signUp({ handle, email, password, inviteCode })
+      const res = await signUp({ handle, email, password, inviteCode, spam: spam.signals() })
       if (!res.success) {
         setError(res.error)
         return
@@ -49,14 +51,16 @@ export default function SignUpForm() {
         e.preventDefault()
         submit()
       }}
-      className="space-y-4"
+      className="relative space-y-4"
     >
+      {spam.field}
       <div className="space-y-1">
         <label htmlFor="signup-invite" className="text-sm font-medium">
           Invite code
         </label>
         <Input
           id="signup-invite"
+          required
           value={inviteCode}
           onChange={(e) => setInviteCode(e.target.value)}
           autoComplete="off"
@@ -73,6 +77,7 @@ export default function SignUpForm() {
         </label>
         <Input
           id="signup-handle"
+          required
           value={handle}
           onChange={(e) => setHandle(e.target.value)}
           maxLength={HANDLE_MAX_LENGTH}
@@ -91,6 +96,7 @@ export default function SignUpForm() {
         <Input
           id="signup-email"
           type="email"
+          required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
@@ -105,6 +111,8 @@ export default function SignUpForm() {
         <Input
           id="signup-password"
           type="password"
+          required
+          minLength={PASSWORD_MIN_LENGTH}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="new-password"
@@ -121,6 +129,8 @@ export default function SignUpForm() {
         <Input
           id="signup-confirm"
           type="password"
+          required
+          minLength={PASSWORD_MIN_LENGTH}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           autoComplete="new-password"

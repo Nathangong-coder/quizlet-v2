@@ -5,10 +5,11 @@ import { Input } from '@/components/ui/input'
 
 export type LibrarySort = 'recent' | 'created' | 'studied'
 
-export function LibraryToolbar({ query, sort, type }: { query: string; sort: LibrarySort; type: string }) {
+export function LibraryToolbar({ query, sort, type, subject }: { query: string; sort: LibrarySort; type: string; subject?: string }) {
   return (
     <form action="/sets" method="get" className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
       <input type="hidden" name="type" value={type} />
+      {subject && <input type="hidden" name="subject" value={subject} />}
       <label className="flex items-center gap-2 text-sm text-muted-foreground">
         <span className="sr-only">Sort your library</span>
         <select name="sort" defaultValue={sort} onChange={(event) => event.currentTarget.form?.requestSubmit()} className="h-10 rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50">

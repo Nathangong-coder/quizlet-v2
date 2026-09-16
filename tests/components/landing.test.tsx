@@ -1,26 +1,30 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 afterEach(cleanup)
 
 import { Landing } from '@/components/home/Landing'
-import { FeatureShowcase, SHOWCASE_TABS } from '@/components/home/FeatureShowcase'
+import { SiteFooter } from '@/components/marketing/SiteFooter'
+import { FOOTER_COLUMNS, STUDY_TOOLS, SUBJECT_LINKS, PUBLIC_STATIC_PATHS } from '@/lib/marketing/nav'
+import { FEATURES } from '@/lib/marketing/features'
 
 describe('Landing makes no database read', () => {
   // The page renders for every anonymous hit including crawlers, so it must
   // stay a pure render. A source scan is the only guard that fails at the
   // moment someone adds the import, rather than at the moment the database
   // falls over under crawler load.
-  const files = ['src/components/home/Landing.tsx', 'src/components/home/FeatureShowcase.tsx']
+  const files = [
+    'src/components/home/Landing.tsx',
+    'src/components/marketing/MarketingHeader.tsx',
+    'src/components/marketing/SiteFooter.tsx',
+    'src/lib/marketing/nav.ts',
+  ]
 
   it.each(files)('%s imports neither the Prisma client nor a server action', (file) => {
     const source = readFileSync(join(process.cwd(), file), 'utf8')
-    // Import statements only: the doc comment in Landing.tsx names these
-    // modules to say they are forbidden, and a scan that matched prose would
-    // fail on its own explanation.
     expect(source).not.toMatch(/from ['"]@\/lib\/db/)
     expect(source).not.toMatch(/from ['"]@prisma\/client/)
     expect(source).not.toMatch(/from ['"]@\/actions\//)
@@ -28,28 +32,36 @@ describe('Landing makes no database read', () => {
   })
 })
 
-describe('Landing links', () => {
+describe('Landing', () => {
   const env = process.env.CREDENTIALS_SIGNUP_ENABLED
   beforeEach(() => { delete process.env.CREDENTIALS_SIGNUP_ENABLED })
   afterEach(() => { if (env === undefined) delete process.env.CREDENTIALS_SIGNUP_ENABLED; else process.env.CREDENTIALS_SIGNUP_ENABLED = env })
 
-  it('hides every sign-up link when the flag is off, because /signup 404s', () => {
+  it('has ONE call to action — sign in when sign-up is closed, sign up when open — repeated only in the closing block', () => {
     render(<Landing />)
-    expect(screen.queryAllByRole('link', { name: /create an account/i })).toHaveLength(0)
-    expect(screen.getAllByRole('link', { name: /^sign in$/i }).length).toBeGreaterThan(0)
-  })
-
-  it('shows sign-up in both the hero and the closing call when the flag is on', () => {
+    expect(screen.queryAllByRole('link', { name: /sign up for free/i })).toHaveLength(0)
+    expect(screen.getAllByRole('link', { name: /^sign in$/i })).toHaveLength(2)
+    cleanup()
     process.env.CREDENTIALS_SIGNUP_ENABLED = 'true'
     render(<Landing />)
-    expect(screen.getAllByRole('link', { name: /create an account/i })).toHaveLength(2)
+    expect(screen.getAllByRole('link', { name: /sign up for free/i })).toHaveLength(2)
+    expect(screen.queryAllByRole('link', { name: /^sign in$/i })).toHaveLength(0)
   })
 
-  it('always offers the one link that needs no account', () => {
+  it('offers browse as a text link that needs no account', () => {
     render(<Landing />)
-    const browse = screen.getAllByRole('link', { name: /browse published sets/i })
-    expect(browse.length).toBeGreaterThan(0)
-    for (const a of browse) expect(a).toHaveAttribute('href', '/browse')
+    expect(screen.getByRole('link', { name: /browse published sets/i })).toHaveAttribute('href', '/browse')
+  })
+
+  it('shows every study tool as a gallery, each linking to its feature page, with Coming on the unbuilt one', () => {
+    render(<Landing />)
+    const tools = screen.getByRole('region', { name: /study tools/i })
+    const links = tools.querySelectorAll('a')
+    expect(links).toHaveLength(FEATURES.length)
+    expect([...links].map((a) => a.getAttribute('href'))).toEqual(FEATURES.map((f) => `/features/${f.slug}`))
+    expect(tools.textContent).toMatch(/Coming/)
+    // A horizontal strip, not a grid: it scrolls sideways so every tool fits.
+    expect(tools.querySelector('ul')?.className).toMatch(/overflow-x-auto/)
   })
 
   it('does not advertise voice — it is not built', () => {
@@ -58,45 +70,25 @@ describe('Landing links', () => {
   })
 })
 
-describe('FeatureShowcase tabs', () => {
-  it('names every way of studying that the app actually has', () => {
-    expect(SHOWCASE_TABS.map((t) => t.id)).toEqual([
-      'short-answer', 'key-points', 'concept-tree', 'insights', 'memory', 'diagnostic',
-    ])
+describe('navigation data', () => {
+  it('Study tools lists every feature (study groups is one of them now); Subjects lists every group', () => {
+    expect(STUDY_TOOLS.map((l) => l.href)).toEqual(FEATURES.map((f) => `/features/${f.slug}`))
+    expect(STUDY_TOOLS.some((l) => l.href === '/features/groups')).toBe(true)
+    expect(SUBJECT_LINKS.every((l) => l.href.startsWith('/browse?subject='))).toBe(true)
+    expect(SUBJECT_LINKS.length).toBe(9)
   })
 
-  it('opens on the first tab with its panel, and only that panel, rendered', () => {
-    render(<FeatureShowcase />)
-    const tabs = screen.getAllByRole('tab')
-    expect(tabs).toHaveLength(SHOWCASE_TABS.length)
-    expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
-    const panel = screen.getByRole('tabpanel')
-    expect(panel).toHaveAttribute('aria-labelledby', tabs[0].id)
-    expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(SHOWCASE_TABS[0].claim)
+  it('the footer carries the legal pages and the sitemap lists them', () => {
+    const legal = FOOTER_COLUMNS.find((c) => c.heading === 'Legal')!
+    expect(legal.links.map((l) => l.href)).toEqual(['/privacy', '/terms', '/cookies'])
+    for (const p of ['/privacy', '/terms', '/cookies', '/', '/browse', '/features']) expect(PUBLIC_STATIC_PATHS).toContain(p)
   })
 
-  it('switches the panel on click', () => {
-    render(<FeatureShowcase />)
-    fireEvent.click(screen.getByRole('tab', { name: /concept tree/i }))
-    expect(screen.getByRole('tab', { name: /concept tree/i })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(SHOWCASE_TABS[2].claim)
-  })
-
-  it('moves selection with the arrow keys and wraps, per the ARIA tabs pattern', () => {
-    render(<FeatureShowcase />)
-    const tabs = screen.getAllByRole('tab')
-    fireEvent.keyDown(tabs[0], { key: 'ArrowRight' })
-    expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(SHOWCASE_TABS[1].claim)
-    fireEvent.keyDown(tabs[1], { key: 'ArrowLeft' })
-    fireEvent.keyDown(tabs[0], { key: 'ArrowLeft' })
-    expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(SHOWCASE_TABS[SHOWCASE_TABS.length - 1].claim)
-    fireEvent.keyDown(tabs[SHOWCASE_TABS.length - 1], { key: 'Home' })
-    expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(SHOWCASE_TABS[0].claim)
-  })
-
-  it('keeps one tab stop in the list — only the selected tab is focusable', () => {
-    render(<FeatureShowcase />)
-    const tabs = screen.getAllByRole('tab')
-    expect(tabs.filter((t) => t.getAttribute('tabindex') === '0')).toHaveLength(1)
+  it('renders the footer with every column as a labelled nav', () => {
+    render(<SiteFooter />)
+    for (const c of FOOTER_COLUMNS) expect(screen.getByRole('navigation', { name: c.heading })).toBeTruthy()
+    expect(screen.getByText(/© \d{4} synapseHQ/)).toBeTruthy()
+    // No fake language selector.
+    expect(screen.queryByRole('combobox')).toBeNull()
   })
 })

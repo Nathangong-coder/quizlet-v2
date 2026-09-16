@@ -4,11 +4,18 @@
  * Pure and router-free on purpose: the active-state rule below is the single
  * thing about a persistent nav that is easy to get subtly wrong, and it should
  * be provable without mounting a component or faking `usePathname`.
+ *
+ * SHAPE (owner, 2026-09-14, after Quizlet's rail): one section of Home ·
+ * Notifications · Your library, then "Start here" — Browse, Flashcards,
+ * Study guides, Games, Tests — each with its own icon and its own hub page.
+ * Recents are gone; the diagnostic test lives under Tests, not the rail.
+ * Folders and groups follow as plain name lists (no section title) with a
+ * "+ folder" / "+ group" row.
  */
 
 import { isStaff } from '@/lib/auth/roles'
 
-export type RailIcon = 'home' | 'compass' | 'library' | 'plus' | 'login' | 'gauge'
+export type RailIcon = 'home' | 'bell' | 'library' | 'compass' | 'layers' | 'scroll' | 'gamepad' | 'clipboard' | 'plus' | 'login' | 'gauge' | 'users'
 
 export interface RailItem {
   href: string
@@ -16,33 +23,49 @@ export interface RailItem {
   icon: RailIcon
 }
 
-/**
- * What the rail offers, by session state.
- *
- * A signed-out visitor still gets a rail rather than a bare page. `/browse` is
- * the only surface a stranger can use to judge whether this app is worth an
- * account, and showing them an empty frame at that exact moment makes the
- * product look smaller than it is. What they do NOT get is Library and New set,
- * which would both bounce them straight to a sign-in wall.
- */
-export function railItems(signedIn: boolean, role?: string | null): RailItem[] {
+export interface RailSection {
+  /** Shown as a small label above the section; undefined for the first one. */
+  label?: string
+  items: RailItem[]
+}
+
+export function railSections(signedIn: boolean, role?: string | null): RailSection[] {
   if (!signedIn) {
+    // A signed-out visitor still gets a rail rather than a bare page: `/browse`
+    // is the one surface a stranger can use to judge the app. What they do NOT
+    // get is anything that would bounce them to a sign-in wall.
     return [
-      { href: '/', label: 'Home', icon: 'home' },
-      { href: '/browse', label: 'Browse', icon: 'compass' },
-      { href: '/login', label: 'Sign in', icon: 'login' },
+      { items: [{ href: '/', label: 'Home', icon: 'home' }] },
+      { label: 'Start here', items: [{ href: '/browse', label: 'Browse', icon: 'compass' }] },
+      { items: [{ href: '/login', label: 'Sign in', icon: 'login' }] },
     ]
   }
-  const items: RailItem[] = [
+  const first: RailItem[] = [
     { href: '/', label: 'Home', icon: 'home' },
-    { href: '/browse', label: 'Browse', icon: 'compass' },
-    { href: '/sets', label: 'Library', icon: 'library' },
-    { href: '/sets/new', label: 'New set', icon: 'plus' },
+    { href: '/notifications', label: 'Notifications', icon: 'bell' },
+    { href: '/sets', label: 'Your library', icon: 'library' },
   ]
   // A signed-out visitor never sees it regardless of role — there is no role
   // without a session, and the early return above already guarantees that.
-  if (isStaff(role)) items.push({ href: '/staff', label: 'Staff', icon: 'gauge' })
-  return items
+  if (isStaff(role)) first.push({ href: '/staff', label: 'Staff', icon: 'gauge' })
+  return [
+    { items: first },
+    {
+      label: 'Start here',
+      items: [
+        { href: '/browse', label: 'Browse', icon: 'compass' },
+        { href: '/flashcards', label: 'Flashcards', icon: 'layers' },
+        { href: '/study-guides', label: 'Study guides', icon: 'scroll' },
+        { href: '/games', label: 'Games', icon: 'gamepad' },
+        { href: '/tests', label: 'Tests', icon: 'clipboard' },
+      ],
+    },
+  ]
+}
+
+/** Every rail link, flattened — for the tests and for anything that only needs the list. */
+export function railItems(signedIn: boolean, role?: string | null): RailItem[] {
+  return railSections(signedIn, role).flatMap((s) => s.items)
 }
 
 /**
@@ -66,15 +89,5 @@ export function isRailItemCurrent(pathname: string, href: string): boolean {
   return pathname === href
 }
 
-/**
- * A recents row is current only on that set's own page — not on its edit
- * screen, and not inside a quiz launched from it. Those are different places,
- * and highlighting the rail row while the rail is not even the way you got
- * there would be a claim about location that is false.
- */
-export function isRecentCurrent(pathname: string, setId: string): boolean {
-  return pathname === `/sets/${setId}`
-}
-
-/** How many recents the rail shows. The homepage strip keeps its own, larger, limit. */
-export const RAIL_RECENTS_LIMIT = 6
+/** How many folders / groups the rail lists by name before "+ folder" / "+ group". */
+export const RAIL_LIST_LIMIT = 6

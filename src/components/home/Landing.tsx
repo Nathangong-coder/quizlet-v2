@@ -1,170 +1,171 @@
 import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { isSignupOpen } from '@/lib/auth/signup-flag'
-import { Section, SectionHeader, SectionBody } from '@/components/ui/section'
-import { FeatureShowcase } from '@/components/home/FeatureShowcase'
+import { FEATURES, getFeature } from '@/lib/marketing/features'
+import { Mock } from '@/components/marketing/mocks'
+import { StatusBadge } from '@/components/marketing/StatusBadge'
 
 /**
- * The signed-out first screen.
+ * The signed-out first screen — simple, one job: get a visitor to sign up
+ * (or, when sign-up is closed, to sign in), with the rest of the site one
+ * hop away through the top bar's Study tools / Subjects menus, the four
+ * tool cards, and the footer.
  *
- * It replaces what a new visitor used to get: `redirect('/sets')` followed by
- * "Sign in to see your sets" — a page that describes an empty container
- * belonging to an account they do not have, and says nothing about what the
- * app is for.
+ * Shape borrowed from Quizlet's home: a question as the headline, one line,
+ * ONE button, then EVERY study tool as a horizontally scrolling gallery
+ * (owner, 2026-09-14 — it used to show four), then two zig-zag stories. What
+ * is not borrowed: nothing here is advertised that is not built (Learn
+ * carries its Coming badge) and there is no voice.
  *
- * NO DATA FETCHING. This renders for every anonymous hit including crawlers,
- * so it must not be a database read. `isSignupOpen()` is an env lookup, not a
- * query. `tests/components/landing.test.tsx` scans this file and the showcase
- * for a `@/lib/db` or `@prisma` import so the rule cannot rot quietly.
+ * NO DATA FETCHING. This renders for every anonymous hit including
+ * crawlers. `isSignupOpen()` is an env lookup; `tests/components/landing.test.tsx`
+ * scans this file for a database import so the rule cannot rot.
  *
- * The sign-up link is GATED on `isSignupOpen()`: `/signup` calls `notFound()`
- * when the flag is off, so an unconditional link would be the front door
- * pointing at a 404. Signing IN is never gated, so that link is always shown.
- *
- * PUBLIC-FACING. Everything here describes WHAT the app does, at the altitude
- * a learner cares about, and only what is BUILT. No voice — spoken practice
- * is a later stage, and a landing page that advertises it would be the first
- * thing the app got wrong. And nothing about HOW: the authoring pipeline, the
- * scoring model, and the model roster are not for this page.
+ * ONE CALL TO ACTION. The hero has one button. "Browse published sets" is a
+ * text link — the one thing that works without an account, deliberately
+ * not styled as a second button.
  */
+
+// Light slabs with DARK text in both themes. The base stylesheet paints every
+// h2 in --foreground (light on dark), so the title and line carry an explicit
+// colour rather than inheriting — Lighthouse caught the dark-mode failure.
+// One slab per feature, in the registry's order; a feature without an entry
+// falls back to indigo, so adding a ninth feature cannot break the gallery.
+const SLABS: Record<string, string> = {
+  flashcards: 'bg-indigo-200',
+  learn: 'bg-sky-200',
+  'study-guides': 'bg-lime-300',
+  postmortems: 'bg-amber-200',
+  test: 'bg-teal-200',
+  review: 'bg-rose-200',
+  games: 'bg-violet-300',
+  groups: 'bg-orange-200',
+}
+const SLAB_TEXT = 'text-slate-950'
+const SLAB_MUTED = 'text-slate-800'
+
 export function Landing() {
   const signupOpen = isSignupOpen()
+  const cta = signupOpen ? { href: '/signup', label: 'Sign up for free' } : { href: '/login', label: 'Sign in' }
+  const test = getFeature('test')!
+  const games = getFeature('games')!
+  const groups = getFeature('groups')!
 
   return (
-    <div className="py-12 sm:py-16">
+    <div className="py-10 sm:py-16">
       {/* ---------- Hero ---------- */}
-      <div className="mx-auto max-w-3xl text-center">
-        <h1 className="display mx-auto max-w-[20ch]">
-          Recognising the answer is not knowing it.
+      <section className="mx-auto max-w-3xl text-center" aria-labelledby="hero-title">
+        <h1 id="hero-title" className="display mx-auto max-w-[18ch] text-[clamp(2.25rem,1.5rem+3vw,3.5rem)]">
+          How do you want to study?
         </h1>
-
-        <p className="lede mx-auto mt-6">
-          Flashcards test whether you can pick the right answer out of a lineup. synapseHQ
-          makes you write it — then reads what you wrote against the ideas the card actually
-          teaches, tells you which one you missed and how, and builds your next session out of
-          exactly that.
+        <p className="lede mx-auto mt-5">
+          Flashcards that know what they teach, tests that read your answer point by point, and a memory that only moves when you earn it — all in one place.
         </p>
-
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          {signupOpen ? (
-            <>
-              <Link href="/signup" className={cn(buttonVariants())}>
-                Create an account
-              </Link>
-              <Link href="/login" className={cn(buttonVariants({ variant: 'ghost' }))}>
-                Sign in
-              </Link>
-            </>
-          ) : (
-            <Link href="/login" className={cn(buttonVariants())}>
-              Sign in
-            </Link>
-          )}
-          {/*
-            The one link that works WITHOUT an account. A landing page whose every
-            affordance is a login wall asks for a commitment before it has shown
-            anything; /browse is a real page full of real material, so it is the
-            strongest thing here and is deliberately not buried in body copy.
-          */}
-          <Link href="/browse" className={cn(buttonVariants({ variant: 'outline' }))}>
-            Browse published sets
+        <div className="mt-8">
+          <Link href={cta.href} className={cn(buttonVariants({ size: 'lg' }), 'h-12 rounded-full px-8 text-base')}>
+            {cta.label}
           </Link>
         </div>
-      </div>
+        <p className="mt-4 text-sm">
+          <Link href="/browse" className="text-primary underline-offset-4 hover:underline">
+            Browse published sets without an account
+          </Link>
+        </p>
+      </section>
 
-      {/* ---------- Feature showcase (tabs) ---------- */}
-      <Section className="mx-auto mt-20 max-w-5xl" rule={false}>
-        <SectionHeader title="Six ways to study one set" hint="every one of them feeds the same memory" />
-        <SectionBody>
-          <FeatureShowcase />
-        </SectionBody>
-      </Section>
-
-      {/* ---------- Why it is different ---------- */}
-      <Section className="mx-auto max-w-5xl">
-        <SectionHeader title="Why it works differently" />
-        <SectionBody>
-          <div className="grid gap-8 sm:grid-cols-3">
-            <div>
-              <div className="label">Ideas, not definitions</div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Matching your words to a definition rewards paraphrase. Grading against the
-                card&rsquo;s key points rewards the substance, and makes the feedback specific:
-                &ldquo;you have the mechanism and missed the condition it depends on.&rdquo;
-              </p>
-            </div>
-            <div>
-              <div className="label">Mistakes with names</div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                An error is not just a lost mark. It is an inversion, a conflation, a leap the
-                answer never justified, an answer too thin to count — named from a fixed list, so
-                the same mistake can be recognised when it comes back.
-              </p>
-            </div>
-            <div>
-              <div className="label">Honest memory</div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Your confidence on each idea moves only on evidence, weighs a written answer more
-                than a lucky guess, and says &ldquo;not enough evidence&rdquo; rather than inventing
-                a number. Forget a card and the evidence is gone, not just the estimate.
-              </p>
-            </div>
-          </div>
-        </SectionBody>
-      </Section>
-
-      {/* ---------- How it goes ---------- */}
-      <Section className="mx-auto max-w-5xl">
-        <SectionHeader title="How it goes" />
-        <SectionBody>
-          <ol className="grid gap-6 sm:grid-cols-3">
-            {[
-              ['Bring your cards', 'Import a term|definition list, build a set by hand, or copy a published one. Your copy is private and your progress is yours.'],
-              ['Study in your own words', 'Write the answer, or take a quick diagnostic across a subject. Every answer comes back with what you hit, what you missed, and why.'],
-              ['Let the next session find you', 'What you missed, what is fading, and what you keep confusing become the plan. You open the app and the work is already chosen.'],
-            ].map(([title, body], i) => (
-              <li key={title} className="flex gap-4">
-                <span
-                  aria-hidden="true"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary font-heading text-sm font-bold text-primary-foreground"
-                >
-                  {i + 1}
-                </span>
-                <div>
-                  <div className="font-heading font-bold">{title}</div>
-                  <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+      {/* ---------- Every study tool, as a gallery ---------- */}
+      <section className="mt-14" aria-label="Study tools">
+        <div className="flex items-baseline justify-between">
+          <h2 className="label">Every way to study</h2>
+          <span className="text-xs text-muted-foreground" aria-hidden="true">scroll →</span>
+        </div>
+        {/* -mx-4 + px-4: the strip bleeds to the page edge so the last card
+            peeks in from the right, which is what says "this scrolls". */}
+        <ul className="-mx-4 mt-3 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:thin]">
+          {FEATURES.map((f) => (
+            <li key={f.slug} className="w-[min(78vw,280px)] shrink-0 snap-start">
+              <Link
+                href={`/features/${f.slug}`}
+                className={cn('group flex h-full flex-col overflow-hidden rounded-2xl transition-transform hover:-translate-y-0.5', SLABS[f.slug] ?? 'bg-indigo-200')}
+              >
+                <div className="flex items-center justify-between gap-2 px-5 pt-5">
+                  <h3 className={cn('truncate font-heading text-xl font-bold', SLAB_TEXT)}>{f.label}</h3>
+                  {f.status === 'coming' && <span className={cn('shrink-0 rounded-full bg-black/15 px-2 py-0.5 text-[11px] font-semibold', SLAB_TEXT)}>Coming</span>}
                 </div>
-              </li>
-            ))}
-          </ol>
-        </SectionBody>
-      </Section>
+                <p className={cn('line-clamp-2 px-5 pt-1 text-sm', SLAB_MUTED)}>{f.benefits[0].title}</p>
+                {/* A fixed window onto the mock, clipped: every card is the
+                    same height whatever its panel draws. */}
+                <div className="mt-4 h-48 overflow-hidden px-4 text-foreground">
+                  <div className="origin-top scale-[0.9] transition-transform group-hover:scale-[0.94]">
+                    <Mock id={f.heroMock} />
+                  </div>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
 
-      {/* ---------- Closing CTA ---------- */}
-      <div className="mx-auto mt-16 max-w-5xl rounded-2xl bg-accent px-6 py-10 text-center sm:px-10">
-        <h2 className="font-heading text-2xl font-bold tracking-tight text-balance">
-          Write the answer. See exactly what you missed.
-        </h2>
-        <p className="lede mx-auto mt-3">
-          Built for finance interview prep first — short-answer practice with feedback that
-          says which idea went wrong — and it works for anything you can put on a card.
-        </p>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          {signupOpen ? (
-            <Link href="/signup" className={cn(buttonVariants())}>
-              Create an account
-            </Link>
-          ) : (
-            <Link href="/login" className={cn(buttonVariants())}>
-              Sign in
-            </Link>
-          )}
-          <Link href="/browse" className={cn(buttonVariants({ variant: 'ghost' }))}>
-            Browse published sets
+      {/* ---------- Start strong ---------- */}
+      <section className="mt-24 grid items-center gap-10 lg:grid-cols-2 lg:gap-16" aria-labelledby="start-strong">
+        <div>
+          <div className="label">Start strong</div>
+          <h2 id="start-strong" className="mt-2 font-heading text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+            Write the answer. See exactly what you missed.
+          </h2>
+          <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
+            Every card carries the handful of ideas a good answer has to contain. Your written answer is read against each one and comes back with the sentence that earned or lost it — not a score, a reason.
+          </p>
+          <Link href={`/features/${test.slug}`} className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-primary underline-offset-4 hover:underline">
+            See how a test works
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Link>
         </div>
-      </div>
+        <div className="rounded-2xl bg-accent p-4 sm:p-8">
+          <Mock id="short-answer" />
+        </div>
+      </section>
+
+      {/* ---------- Stay on track ---------- */}
+      <section className="mt-24 grid items-center gap-10 lg:grid-cols-2 lg:gap-16" aria-labelledby="stay-on-track">
+        <div className="rounded-2xl bg-accent p-4 sm:p-8 lg:order-1">
+          <Mock id="games-hub" />
+        </div>
+        <div className="lg:order-2">
+          <div className="label">Stay on track</div>
+          <h2 id="stay-on-track" className="mt-2 font-heading text-3xl font-bold tracking-tight text-balance sm:text-4xl">
+            Small sessions. Honest progress.
+          </h2>
+          <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
+            Games built from your set, study groups that show who has which card down, and a memory that says &ldquo;not enough evidence&rdquo; rather than inventing a number. It fits into a day and tells you the truth about it.
+          </p>
+          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+            <Link href={`/features/${games.slug}`} className="inline-flex items-center gap-1.5 font-semibold text-primary underline-offset-4 hover:underline">
+              Learning games <StatusBadge feature={games} />
+            </Link>
+            <Link href={`/features/${groups.slug}`} className="inline-flex items-center gap-1.5 font-semibold text-primary underline-offset-4 hover:underline">
+              Study groups
+            </Link>
+            <Link href="/features/review" className="inline-flex items-center gap-1.5 font-semibold text-primary underline-offset-4 hover:underline">
+              Review &amp; memory
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- Closing ---------- */}
+      <section className="mt-24 rounded-2xl bg-accent px-6 py-12 text-center sm:px-10" aria-labelledby="closing">
+        <h2 id="closing" className="font-heading text-2xl font-bold tracking-tight text-balance sm:text-3xl">
+          Built for finance interview prep first. Works for anything on a card.
+        </h2>
+        <div className="mt-6">
+          <Link href={cta.href} className={cn(buttonVariants({ size: 'lg' }), 'h-12 rounded-full px-8 text-base')}>
+            {cta.label}
+          </Link>
+        </div>
+      </section>
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { notFound } from 'next/navigation'
@@ -10,8 +11,33 @@ import { readableSetWhere, toSetVisibility } from '@/lib/sets/visibility'
 import { recordSetView } from '@/lib/sets/recents'
 import { ForkButton } from '@/components/sets/ForkButton'
 import { ForkAttribution } from '@/components/sets/ForkAttribution'
+import { SubjectChip } from '@/components/sets/SubjectChip'
+import { ShareButton } from '@/components/sets/ShareButton'
 import ReportSetDialog from '@/components/sets/ReportSetDialog'
 import { SetViewTabs } from '@/components/sets/SetViewTabs'
+
+/**
+ * Title and description from the set itself, for link previews and search —
+ * read through `readableSetWhere` like every other set read, so a private
+ * set's title never appears in a preview generated for a stranger.
+ */
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const session = await auth()
+  const set = await prisma.set.findFirst({
+    where: { id, ...readableSetWhere(session?.user?.id ?? null) },
+    select: { title: true, description: true, visibility: true, _count: { select: { cards: true } } },
+  })
+  if (!set) return { title: 'Set not found' }
+  const description = set.description?.trim() || `${set._count.cards} cards to study on synapseHQ.`
+  return {
+    title: set.title,
+    description,
+    // Only a PUBLIC set is worth indexing; link-shared sets are reachable but not advertised.
+    robots: set.visibility === 'public' ? undefined : { index: false, follow: false },
+    openGraph: { title: set.title, description },
+  }
+}
 
 /**
  * The shared frame for the three views of a set.
@@ -48,7 +74,9 @@ export default async function SetViewsLayout({
       id: true,
       title: true,
       description: true,
+      subject: true,
       userId: true,
+      user: { select: { handle: true } },
       visibility: true,
       listingBlocked: true,
       forkedFromId: true,
@@ -78,6 +106,7 @@ export default async function SetViewsLayout({
     <div className="max-w-4xl">
       <div className="flex items-start justify-between gap-4 mb-2">
         <div className="min-w-0">
+          <SubjectChip slug={set.subject} className="mb-2" />
           <h1 className="display">{set.title}</h1>
           {set.description && <p className="lede mt-2 max-w-prose">{set.description}</p>}
           {/* Renders nothing unless this set is a fork. The credit text comes
@@ -97,6 +126,7 @@ export default async function SetViewsLayout({
             is authored; Knowledge embeds the canvas rather than replacing the
             editor.
           */}
+          <ShareButton setId={id} visibility={toSetVisibility(set.visibility)} isOwner={isOwner} />
           {!isOwner && viewerId && <ForkButton setId={id} />}
           {isOwner && (
             <>
@@ -114,6 +144,18 @@ export default async function SetViewsLayout({
 
       <p className="text-sm text-muted-foreground mb-6">
         {set._count.cards} {set._count.cards === 1 ? 'card' : 'cards'}
+        {/* Credit by HANDLE only, never `name` (the OAuth real-name field),
+            and only when one exists — a handle-less owner has no public page
+            to link to and no public name to show. */}
+        {set.user.handle && (
+          <>
+            <span aria-hidden="true"> · </span>
+            by{' '}
+            <Link href={`/u/${set.user.handle}`} className="hover:text-foreground hover:underline underline-offset-4">
+              @{set.user.handle}
+            </Link>
+          </>
+        )}
       </p>
 
       {/*

@@ -117,6 +117,75 @@ tree-like view (topological layers, hubs at the top), distinct from the concept 
 canvas draws today (which only overlays relations as dashed lines).
 
 **HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress.** Two long runs were started this day and both are RESUMABLE;
+
+**BRANCH `study-platform` (2026-09-13, worktree `.claude/worktrees/study-platform`, off
+`da19728` on `spec2-klp-authoring`, NOT merged, PUSHED at the owner's request for a PR).** Six
+sub-projects in one session, each its own commit and spec; five migrations applied to the dev
+database (`20260913120000_set_subject`, `20260913130000_user_bio`,
+`20260913140000_study_groups`, `20260913150000_game_pieces`, `20260913160000_game_scores` —
+all additive, nullable or new tables). Suite 3483 → 3836.
+
+| # | commit | what | spec |
+|---|---|---|---|
+| 1 | `976aee6` | games design | `specs/2026-09-13-learning-games-design.md` |
+| 2 | `3af08a0` | seven-tab showcase + `/features/<slug>` pages (26 CSS mocks; Learn & Study guides badged Coming) | `specs/2026-09-13-feature-pages-design.md` |
+| 3 | `9637fb3` | fixed two-level subject taxonomy on `Set.subject`; Browse + Library filters | `specs/2026-09-13-subject-taxonomy-design.md` |
+| 4 | `4682091` | `/u/<handle>` public profiles, bio, Share button on the set page | `specs/2026-09-13-public-profiles-and-sharing-design.md` |
+| 5 | `979c39d` | invite-only study groups, consent-gated join, per-set leaderboard, card coverage | `specs/2026-09-13-study-groups-design.md` |
+| 6 | `6f0f494` | Gauntlet / Hot Seat / Blitz / Crossword on a KLP-derived piece layer; games write no history | games spec §8 (as built) |
+
+**Live gates owed (need a signed-in browser; the agent cannot sign in):** groups end to end
+(create → invite → join on a second account → attach → leaderboard → leave); games with a
+real **Prepare games** run on an authored set, then one round of each game; setting a subject
+on the set edit form and seeing it in the Library facet. Follow-up commits: Match writes nothing (`27619cd`); landing redesign + 20-item launch checklist (`d2dc4ef`); `(marketing)` route group + middleware rewrite for the visitor's `/`, bundle pass 782→608 KiB, Lighthouse perf 68→86, and the middleware fail-open fix (`req.auth?.user`) — see `specs/2026-09-13-landing-and-launch-checklist-design.md` §3.
+**Games revamp (2026-09-13, evening, games spec §9):** characters as on-brand pixel sprites
+(`src/lib/games/sprites.ts`, `PixelSprite`); Gauntlet is a knight with **100 HP and no lives**
+against twelve enemies with a boss and a magician (heal / weaken), in **MC** (AI distractors,
+cached per card) or **short-answer** (accuracy on the key points = chance to hit) mode; Hot
+Seat has a host with a face and a subject costume, **easy 4 / normal 5 / hard 7** rounds, 90 s
+per question, and **never lists the missed points** during the interview; Match deals **eight
+pairs from pieces** (deactivated below eight) on one screen with a timer; every game has a
+per-set, per-mode **leaderboard** on `GameScore` — the one row a game writes (§0.1 narrowed;
+not memory), and only for a signed-in player with a handle. Two hydration mismatches (Match,
+Crossword) were found only in the browser and fixed by seeding from the server (`freshSeed`,
+`initMatchGame(cards, id, rng)`). **Live gate owed (signed in):** a Gauntlet run in each mode,
+a Hot Seat interview in each difficulty with a probe, and one score of each kind landing on a
+board. `MatchTimer` was rewritten to derive elapsed time (react-compiler rule).
+**Second brief (2026-09-14, evening) — six commits on the branch after the games revamp:**
+Gauntlet reviews a missed card then asks a different one (`db2fae3`); the landing is a
+scrolling gallery of all eight tools, games are open to visitors (Gauntlet MC; SA and Hot Seat
+stay signed-in — they grade on the player's keys), study groups is a feature page, flashcards
+are flat with no arrows, and a stale-session `/` ↔ `/welcome` redirect loop now goes to
+`/login` (`f22d3e7`); a **Mastery** set view and a printable **Study guide**
+(`/sets/[id]/guide`) built from key points, shaded by the viewer's `KlpState` above their own
+floor — `src/lib/sets/mastery.ts`, study guides feature marked live (`3066343`); **Review
+mode** built out with a setup screen (starred / due / weak / categories / side / order), a
+flat keyboard-driven deck and a summary with "review the ones you missed" (`660b559`); the
+**group page** is four tabs with a pulse overview, "study next", a member roster, and a
+card × member coverage grid on each set (`src/lib/groups/pulse.ts`). **Live gates owed
+(signed in):** a Review session end to end (setup → deck → summary → missed-only rerun), the
+Mastery tab and guide shading on a set with `KlpState` rows, and the group page tabs with two
+members. **Not done:** anonymous Hot Seat — impossible without a key to grade with; a
+site-shared key for visitors is the owner's call (cost and abuse).
+**Third brief (2026-09-14, night):** `/usage` — the AI spend dashboard on its own page (time and
+key filters, daily bars by model/task, task donut, per-model cards, labelled call history, CSV;
+`src/lib/ai/usage-dashboard.ts`, `c6f9067`). Public study groups: `StudyGroup.visibility`,
+`StudyGroupJoinRequest`, `StudyGroupInvite`, `Notification` (migration
+`20260914120000_group_requests_notifications`, applied); `/groups/browse` with request-to-join
+(consent at request time), owner accept/decline, an invite-people dialog over the public-user
+directory, `/notifications` with accept/decline inline, and an unread badge on the rail
+(`src/actions/group-membership.ts`, tested). The rail is Quizlet-shaped: Home · Notifications ·
+Your library, then Start here (Browse / Flashcards / Study guides / Games / Tests, each with a hub
+page under `(app)/`), then folders and groups by name with a plain "+ folder" / "+ group"; recents
+and the diagnostic rail entry are gone — the diagnostic lives on `/tests` and as a dismissable
+prompt on any set page you have not yet diagnosed (`?set=` preselects). **Live gates owed (signed
+in):** the whole request → accept → member flow between two accounts, an invitation from the
+directory, the notifications badge count, and the new rail on a real session. Public groups shipped
+(was deferred).
+Deferred on purpose: study stats on profiles.
+
+**HANDOFF 2026-09-12 — the KLP corpus and the concept graph, in progress. Read this before
+anything else in this file.** Two long runs were started this day and both are RESUMABLE;
 the topic WRITE needs the owner's shell (the agent's auto-mode denied it as a shared-resource
 write). Everything below is one command each.
 

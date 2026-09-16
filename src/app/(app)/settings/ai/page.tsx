@@ -4,7 +4,6 @@ import Link from 'next/link';
 import CredentialList from '@/components/settings/CredentialList';
 import TaskRoutingPanel from '@/components/settings/TaskRoutingPanel';
 import SharedKeysPanel from '@/components/settings/SharedKeysPanel';
-import TokenUsagePanel from '@/components/settings/TokenUsagePanel';
 import { PageHeader } from '@/components/ui/page-header';
 
 /**
@@ -37,7 +36,13 @@ export default async function AiSettingsPage() {
 
       <SharedKeysPanel />
 
-      <TokenUsagePanel />
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-5">
+        <div>
+          <h2 className="font-semibold">Your AI usage</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Cost, requests and tokens by day, by model and by task, with every call labelled — on its own page.</p>
+        </div>
+        <Link href="/usage" className="text-sm font-semibold text-primary underline-offset-4 hover:underline">Open the usage dashboard →</Link>
+      </section>
 
       <CredentialList />
 

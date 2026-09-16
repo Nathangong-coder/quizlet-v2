@@ -6,6 +6,7 @@ import { getAccountSettings } from '@/actions/account'
 import ThemeChoice from '@/components/account/ThemeChoice'
 import {
   HandlePanel,
+  BioPanel,
   ContactEmailPanel,
   EmailUpdatesPanel,
 } from '@/components/account/AccountPanels'
@@ -67,6 +68,25 @@ export default async function AccountPage() {
         >
           <HandlePanel initial={account.handle} />
         </SettingRow>
+
+        {/* Meaningless without a handle: the bio only ever renders on
+            /u/<handle>, so the row waits until there is a page for it. */}
+        {account.handle && (
+          <SettingRow
+            label="Public profile"
+            description={
+              <>
+                One line shown on{' '}
+                <Link href={`/u/${account.handle}`} className="underline underline-offset-4 hover:text-foreground">
+                  /u/{account.handle}
+                </Link>
+                , beside your published sets.
+              </>
+            }
+          >
+            <BioPanel initial={account.bio} />
+          </SettingRow>
+        )}
 
         <SettingRow
           label="Account email"

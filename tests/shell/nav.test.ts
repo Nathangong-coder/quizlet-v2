@@ -2,13 +2,20 @@ import { describe, it, expect } from 'vitest'
 import {
   railItems,
   isRailItemCurrent,
-  isRecentCurrent,
-  RAIL_RECENTS_LIMIT,
+  railSections,
+  RAIL_LIST_LIMIT,
 } from '@/lib/shell/nav'
 
 describe('railItems', () => {
-  it('offers Home, Browse, Library and New set when signed in', () => {
-    expect(railItems(true).map((i) => i.href)).toEqual(['/', '/browse', '/sets', '/sets/new'])
+  it('offers Home, Notifications and Your library, then the Start here tools, when signed in', () => {
+    expect(railItems(true).map((i) => i.href)).toEqual(['/', '/notifications', '/sets', '/browse', '/flashcards', '/study-guides', '/games', '/tests'])
+    const sections = railSections(true)
+    expect(sections.map((s) => s.label)).toEqual([undefined, 'Start here'])
+    // Every Start here tool has an icon of its own.
+    const icons = sections[1].items.map((i) => i.icon)
+    expect(new Set(icons).size).toBe(icons.length)
+    // No recents, no diagnostic: the diagnostic lives under Tests.
+    expect(railItems(true).some((i) => i.href === '/diagnostic')).toBe(false)
   })
 
   it('omits Library and New set when signed out', () => {
@@ -74,26 +81,10 @@ describe('isRailItemCurrent', () => {
   })
 })
 
-describe('isRecentCurrent', () => {
-  it('is current on the set page itself', () => {
-    expect(isRecentCurrent('/sets/abc', 'abc')).toBe(true)
-  })
-
-  it('is NOT current on that set edit screen or its activities', () => {
-    // Those are different places, and the rail was not how you got there.
-    expect(isRecentCurrent('/sets/abc/edit', 'abc')).toBe(false)
-    expect(isRecentCurrent('/sets/abc/quiz', 'abc')).toBe(false)
-  })
-
-  it('does not confuse a set whose id is a prefix of another', () => {
-    expect(isRecentCurrent('/sets/abcdef', 'abc')).toBe(false)
-  })
-})
-
-describe('RAIL_RECENTS_LIMIT', () => {
-  it('is short enough not to compete with the page', () => {
-    expect(RAIL_RECENTS_LIMIT).toBeGreaterThan(0)
-    expect(RAIL_RECENTS_LIMIT).toBeLessThanOrEqual(8)
+describe('RAIL_LIST_LIMIT', () => {
+  it('keeps the folder and group lists short enough not to compete with the page', () => {
+    expect(RAIL_LIST_LIMIT).toBeGreaterThan(0)
+    expect(RAIL_LIST_LIMIT).toBeLessThanOrEqual(8)
   })
 })
 

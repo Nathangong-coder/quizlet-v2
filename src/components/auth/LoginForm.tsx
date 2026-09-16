@@ -93,6 +93,7 @@ export default function LoginForm({
           </label>
           <Input
             id="login-identifier"
+            required
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
             autoComplete="username"
@@ -106,6 +107,7 @@ export default function LoginForm({
           <Input
             id="login-password"
             type="password"
+            required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"

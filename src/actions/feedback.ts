@@ -1,6 +1,7 @@
 'use server'
 
 import { after } from 'next/server'
+import { checkSpam, SPAM_REJECTION_MESSAGE, type SpamSignals } from '@/lib/forms/spam'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { feedbackSchema } from '@/lib/feedback/schema'
@@ -32,7 +33,9 @@ export async function submitFeedback(input: {
   email: string
   subject: string
   message: string
+  spam?: SpamSignals
 }): Promise<ActionResult<{ delivered: boolean }>> {
+  if (!checkSpam(input.spam).ok) return { success: false, error: SPAM_REJECTION_MESSAGE }
   const session = await auth()
   const userId = session?.user?.id
   if (!userId) return { success: false, error: 'Sign in to send feedback.' }

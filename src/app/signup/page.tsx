@@ -1,9 +1,12 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import SignUpForm from '@/components/auth/SignUpForm'
 import { isSignupOpen } from '@/lib/auth/signup-flag'
+
+export const metadata: Metadata = { title: 'Create an account', description: 'Create a synapseHQ account with an invite code.' }
 
 /**
  * Behind CREDENTIALS_SIGNUP_ENABLED. `notFound()` rather than a "coming soon"

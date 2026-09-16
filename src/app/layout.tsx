@@ -4,6 +4,8 @@ import './globals.css'
 import { Toaster } from 'sonner'
 import { cn } from '@/lib/utils'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
+import { SITE_NAME, SITE_TAGLINE, SITE_DESCRIPTION, TITLE_TEMPLATE, siteOrigin } from '@/lib/site'
+import { CookieBanner } from '@/components/consent/CookieBanner'
 
 /**
  * The UI uses the Hurme families named by the design direction. They are
@@ -18,9 +20,30 @@ const plexMono = IBM_Plex_Mono({
   display: 'swap',
 })
 
+/**
+ * Site-wide metadata. Every page inherits the title template, description,
+ * Open Graph and Twitter card; a page that sets its own `title` gets
+ * "Page · synapseHQ". `metadataBase` makes the generated
+ * `opengraph-image` and every relative URL absolute for crawlers.
+ */
 export const metadata: Metadata = {
-  title: 'synapseHQ',
-  description: 'Finance interview prep — flashcards, matching, AI grading',
+  metadataBase: new URL(siteOrigin()),
+  title: { default: `${SITE_NAME} — ${SITE_TAGLINE}`, template: TITLE_TEMPLATE },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    locale: 'en_GB',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+  },
+  robots: { index: true, follow: true },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -51,6 +74,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           {/* Follows the app theme rather than defaulting to light. */}
           <Toaster richColors closeButton theme="system" />
+          {/* Consent + analytics gate, on every page including the bare ones. */}
+          <CookieBanner />
         </ThemeProvider>
       </body>
     </html>

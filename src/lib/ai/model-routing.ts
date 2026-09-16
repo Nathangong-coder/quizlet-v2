@@ -41,6 +41,14 @@ export const AI_TASKS = [
   'note-analysis',
   'diagnostic',
   'author',
+  /**
+   * The two game tasks (2026-09-15). `game-pieces` was logged as
+   * `distractors` and hid inside "Multiple-choice distractors" on the usage
+   * dashboard; `hot-seat` (the interviewer's follow-up question) was logged
+   * as `grade`. Each is its own workload with its own routing decision.
+   */
+  'game-pieces',
+  'hot-seat',
 ] as const;
 
 export type AiTask = (typeof AI_TASKS)[number];
@@ -60,4 +68,6 @@ export const AI_TASK_LABELS: Record<AiTask, string> = {
   'note-analysis': 'Study note analysis',
   diagnostic: 'Diagnostic test generation & grading',
   author: 'KLP authoring (reference answers & discrimination test)',
+  'game-pieces': 'Game pieces (Blitz, Crossword, Match)',
+  'hot-seat': 'Hot Seat interviewer (follow-up questions)',
 };

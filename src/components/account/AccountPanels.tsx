@@ -4,7 +4,8 @@ import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { saveHandle, saveContactEmail, saveEmailUpdates } from '@/actions/account'
+import { saveHandle, saveBio, saveContactEmail, saveEmailUpdates } from '@/actions/account'
+import { BIO_MAX_LENGTH } from '@/lib/users/bio'
 import { HANDLE_MAX_LENGTH } from '@/lib/users/handle'
 
 /**
@@ -62,6 +63,53 @@ export function HandlePanel({ initial }: { initial: string | null }) {
       <p className="text-xs text-muted-foreground">
         Letters, numbers and underscores. This is the name shown on sets you publish —
         your account name stays private.
+      </p>
+    </form>
+  )
+}
+
+export function BioPanel({ initial }: { initial: string | null }) {
+  const [value, setValue] = useState(initial ?? '')
+  const [saved, setSaved] = useState(initial ?? '')
+  const [isPending, startTransition] = useTransition()
+  const dirty = value.trim() !== saved
+
+  function submit() {
+    startTransition(async () => {
+      const res = await saveBio(value)
+      if (!res.success) {
+        toast.error(res.error)
+        return
+      }
+      setSaved(res.data.bio ?? '')
+      setValue(res.data.bio ?? '')
+      toast.success('Bio saved')
+    })
+  }
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        submit()
+      }}
+      className="space-y-2"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          maxLength={BIO_MAX_LENGTH}
+          placeholder="One line about what you are studying"
+          aria-label="Bio"
+          className="max-w-md"
+        />
+        <Button type="submit" size="sm" disabled={isPending || !dirty}>
+          {isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        <span className="metric">{value.length}</span>/{BIO_MAX_LENGTH}
       </p>
     </form>
   )

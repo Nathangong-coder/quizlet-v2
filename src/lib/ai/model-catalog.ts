@@ -48,6 +48,10 @@ const LIST_ENDPOINTS: Record<ProviderId, (key: string, baseUrl?: string | null) 
     url: `${(baseUrl ?? 'https://openrouter.ai/api/v1').replace(/\/$/, '')}/models`,
     headers: { Authorization: `Bearer ${key}` },
   }),
+  zai: (key, baseUrl) => ({
+    url: `${(baseUrl ?? 'https://api.z.ai/api/paas/v4').replace(/\/$/, '')}/models`,
+    headers: { Authorization: `Bearer ${key}` },
+  }),
   custom: (key, baseUrl) => ({
     url: `${(baseUrl ?? '').replace(/\/$/, '')}/models`,
     headers: { Authorization: `Bearer ${key}` },
