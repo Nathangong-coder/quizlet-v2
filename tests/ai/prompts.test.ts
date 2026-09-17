@@ -70,18 +70,24 @@ describe('GRADE_SHORT_ANSWER_PROMPT', () => {
     expect(prompt).not.toContain('Learner context')
   })
 
-  it('build() prepends "Learner context: ..." when a profileBlock is supplied', () => {
+  // Spec 5 Phase A (Task 3) INVERTED this test. It used to assert the profile
+  // was prepended; the grader is now a stateless instrument that never sees
+  // the learner, so a stray `profileBlock` (cast past the type, which no
+  // longer has the field) must leave the prompt untouched.
+  it('build() never prepends "Learner context: ..." even when a profileBlock is smuggled in', () => {
     const prompt = GRADE_SHORT_ANSWER_PROMPT.build({
       card,
       answer: 'Profit before non-cash and financing items.',
       profileBlock: PROFILE_BLOCK,
-    })
-    expect(prompt.startsWith(`Learner context: ${PROFILE_BLOCK}`)).toBe(true)
+    } as never)
+    expect(prompt.startsWith('Learner context')).toBe(false)
+    expect(prompt).not.toContain(PROFILE_BLOCK)
   })
 
   it('keeps the rubric schema/JSON shape identical regardless of profileBlock', () => {
-    const withBlock = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x', profileBlock: PROFILE_BLOCK })
+    const withBlock = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x', profileBlock: PROFILE_BLOCK } as never)
     const withoutBlock = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x' })
+    expect(withBlock).toBe(withoutBlock)
     for (const p of [withBlock, withoutBlock]) {
       expect(p).toContain('"clarity"')
       expect(p).toContain('"conciseness"')
@@ -98,8 +104,8 @@ describe('GRADE_SHORT_ANSWER_PROMPT v2 (KLP-aware)', () => {
     { ref: 1, text: 'D&A is added back because it is non-cash', kind: 'causal' },
   ]
 
-  it('is version 4', () => {
-    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(4)
+  it('is version 5', () => {
+    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(5)
   })
 
   it('lists each KLP by ref and asks for a per-KLP status', () => {
@@ -107,7 +113,10 @@ describe('GRADE_SHORT_ANSWER_PROMPT v2 (KLP-aware)', () => {
     expect(p).toContain('[0]')
     expect(p).toContain('EBITDA excludes interest expense')
     expect(p).toContain('klpResults')
-    expect(p).toContain('passed')
+    // v5: the positive verdict is spelled "correct"; "passed" is a read-only
+    // alias on historical rows and is never offered to the grader (Spec 5 D1).
+    expect(p).toContain('"correct"')
+    expect(p).not.toContain('"passed"')
   })
 
   it('names every allowed error type so the model cannot invent one', () => {

@@ -335,7 +335,7 @@ function mockGradingFor(positions: number[], score = 9) {
       score,
       status: score >= 8 ? 'mastered' : 'partial',
       feedback: `Feedback ${position}`,
-      klpResults: [{ klpRef: 0, status: score >= 8 ? 'passed' : 'partial' }],
+      klpResults: [{ klpRef: 0, status: score >= 8 ? 'correct' : 'partial' }],
     })),
   })
 }
@@ -355,7 +355,7 @@ function mockGrading(options: { withKlpResults?: boolean } = {}) {
         feedback: `Feedback ${position}`,
         mistake: position === 0 ? 'Missed the mechanism.' : undefined,
         ...(withKlpResults
-          ? { klpResults: [{ klpRef: 0, status: position === 0 ? 'failed' : 'passed' }] }
+          ? { klpResults: [{ klpRef: 0, status: position === 0 ? 'failed' : 'correct' }] }
           : {}),
       })),
     })

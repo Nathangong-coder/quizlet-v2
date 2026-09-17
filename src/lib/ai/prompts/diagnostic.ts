@@ -10,6 +10,8 @@ import {
   CONCISENESS_TYPES,
   MAX_TAGS_PER_ANSWER,
 } from '@/lib/errors/taxonomy';
+import { RUNTIME_VERDICTS } from '@/lib/klp/verdicts';
+import { verdictInstructionBlock } from './verdict-block';
 
 export interface DiagnosticProbePromptInput {
   probeRef: number;
@@ -92,9 +94,17 @@ ${input.probes.map((probe) => `[${probe.probeRef}] (${probe.kind})\nKey point: $
  * is the whole reason error types can be aggregated at all; a grader that has
  * not been shown it cannot honour it.
  */
+/**
+ * v3 (Spec 5 Phase A): the three-label paragraph — a second, independent copy
+ * of the runtime grader's wording — is replaced by the shared block
+ * (`./verdict-block`, RUNTIME_VERDICTS, strict and kind-aware), so the
+ * diagnostic differs from the runtime grader only in WHICH key point it chose
+ * to ask (`src/lib/diagnostic/select.ts`). Per-point output is
+ * `{ klpRef: 0, status, quote? }`; `evidence` is accepted for one version.
+ */
 export const DIAGNOSTIC_GRADING_PROMPT = {
   id: 'diagnostic-grading',
-  version: 2,
+  version: 3,
   schema: DiagnosticGradeSetSchema,
   build(input: DiagnosticGradingBuildInput): string {
     return `Grade every diagnostic response against its key point and expected answer.
@@ -110,13 +120,11 @@ These limits are about the length of each field. They are NOT permission to leav
 
 For EACH question also return:
 
-"klpResults": exactly one entry, with klpRef 0, judging the key point that
-  question tested.
-  - "passed"  — the learner holds it
-  - "partial" — mentioned but incomplete or imprecise
-  - "failed"  — absent, or stated wrongly
+${verdictInstructionBlock({ strict: true, showKinds: true, vocabulary: RUNTIME_VERDICTS })}
+
+"klpResults": exactly one entry, with klpRef 0 — { "klpRef": 0, "status": verdict, "quote"?: string }.
   Judge ONLY that key point. You are not being asked about anything else the
-  card teaches. Include a short verbatim "evidence" quote where one exists.
+  card teaches.
 
 "errorTags": at most ${MAX_TAGS_PER_ANSWER} tags, at most 2 per dimension.
   Tag only what is genuinely wrong; a clean answer returns an empty list.

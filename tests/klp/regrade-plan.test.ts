@@ -98,6 +98,7 @@ describe('GRADE_CANDIDATE_PROMPT v2 layout', () => {
     expect(iCand).toBeGreaterThan(iRef)
     expect(p.lastIndexOf('GRADE STRICTLY')).toBeLessThan(iRef)
     expect(p).toContain('OMIT it entirely when the verdict is "correct"')
-    expect(GRADE_CANDIDATE_PROMPT.version).toBe(3)
+    // v4 (Spec 5 Phase A): the verdict paragraph became the shared block.
+    expect(GRADE_CANDIDATE_PROMPT.version).toBe(4)
   })
 })

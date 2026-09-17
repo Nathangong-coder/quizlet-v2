@@ -6,6 +6,8 @@ import {
 } from '@/lib/ai/prompts/diagnostic'
 import { DiagnosticGradeSetSchema, DiagnosticQuestionSetSchema } from '@/lib/ai/schemas'
 import { ACCURACY_TYPES, CLARITY_TYPES, CONCISENESS_TYPES } from '@/lib/errors/taxonomy'
+import { RUNTIME_VERDICTS } from '@/lib/klp/verdicts'
+import { verdictInstructionBlock } from '@/lib/ai/prompts/verdict-block'
 
 describe('DIAGNOSTIC_QUESTIONS_PROMPT v2', () => {
   it('is version 2', () => {
@@ -62,8 +64,8 @@ describe('DIAGNOSTIC_QUESTIONS_PROMPT v2', () => {
 })
 
 describe('DIAGNOSTIC_GRADING_PROMPT v2', () => {
-  it('is version 2', () => {
-    expect(DIAGNOSTIC_GRADING_PROMPT.version).toBe(2)
+  it('is version 3 — v2 offered three labels, v3 offers the runtime vocabulary', () => {
+    expect(DIAGNOSTIC_GRADING_PROMPT.version).toBe(3)
   })
 
   it('keeps grading structured and shows the key point being judged', () => {
@@ -105,6 +107,35 @@ describe('DIAGNOSTIC_GRADING_PROMPT v2', () => {
       questions: [{ ref: 0, question: 'q', expectedAnswer: 'e', keyPoint: 'k', answer: 'a' }],
     })
     expect(grading).toContain('Judge ONLY that key point')
+  })
+
+  /**
+   * Spec 5 Phase A, Task 3: the diagnostic grader carried a second,
+   * independent copy of the three-label wording. It now calls the same
+   * shared block the runtime and authoring graders use.
+   */
+  it('offers every runtime verdict verbatim and never "passed"', () => {
+    const prompt = DIAGNOSTIC_GRADING_PROMPT.build({
+      questions: [{ ref: 0, question: 'q', expectedAnswer: 'e', keyPoint: 'k', answer: 'a' }],
+    })
+    for (const v of RUNTIME_VERDICTS) expect(prompt).toContain(`"${v}"`)
+    expect(prompt).not.toMatch(/"passed"/)
+  })
+
+  it('is written against the shared block (mutation check)', () => {
+    const prompt = DIAGNOSTIC_GRADING_PROMPT.build({
+      questions: [{ ref: 0, question: 'q', expectedAnswer: 'e', keyPoint: 'k', answer: 'a' }],
+    })
+    expect(prompt).toContain(verdictInstructionBlock({ strict: true, showKinds: true, vocabulary: RUNTIME_VERDICTS }))
+    expect(prompt).toContain('{ "klpRef": 0, "status": verdict, "quote"?: string }')
+  })
+
+  it('accepts every runtime verdict on a key point and rejects "passed"', () => {
+    const grade = (status: string) => ({
+      grades: [{ questionRef: 0, score: 6, status: 'partial', feedback: 'ok', klpResults: [{ klpRef: 0, status, quote: 'q' }] }],
+    })
+    for (const v of RUNTIME_VERDICTS) expect(DiagnosticGradeSetSchema.safeParse(grade(v)).success).toBe(true)
+    expect(DiagnosticGradeSetSchema.safeParse(grade('passed')).success).toBe(false)
   })
 
   it('accepts per-key-point verdicts and error tags', () => {

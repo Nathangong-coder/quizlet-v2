@@ -2,14 +2,60 @@ import { z } from 'zod';
 import { CORRUPTIONS } from '@/lib/quiz/options';
 import { DIMENSIONS, MAX_TAGS_PER_ANSWER } from '@/lib/errors/taxonomy';
 import { PROBE_KINDS, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
-import { KLP_VERDICTS } from '@/lib/klp/verdicts';
+import { KLP_VERDICTS, RUNTIME_VERDICTS } from '@/lib/klp/verdicts';
 import { RELATABLE_TYPES, RELATION_PROVENANCES } from '@/lib/klp/relations';
 import { EXPLOIT_STRATEGIES } from '@/lib/klp/exploit';
 import { ABSTRACTION_LEVELS } from '@/lib/klp/abstraction';
 import { PANEL_LEVELS } from '@/lib/klp/panel';
 
-/** interim — Task 3 replaces with RUNTIME_VERDICTS */
-const LEGACY_GRADE_STATUSES = ['passed', 'partial', 'failed'] as const;
+/**
+ * The per-key-point verdict a RUNTIME grader may return (Spec 5 D6: a strict
+ * enum — an out-of-vocabulary label is a parse failure, never a dropped row).
+ * `passed` is a read-only alias on historical rows and is never accepted
+ * here; `fabrication` / `unsupported_leap` describe what an answer ADDS and
+ * belong to `unwarranted[]`, so they are not offered either. The cast keeps
+ * the inferred type at the runtime subset of `KlpStatus`, which is what
+ * `buildAnalysisWrites` and the games are typed against.
+ */
+type RuntimeVerdict = (typeof RUNTIME_VERDICTS)[number];
+const RuntimeVerdictEnum = z.enum(RUNTIME_VERDICTS as unknown as [RuntimeVerdict, ...RuntimeVerdict[]]);
+
+/**
+ * Shared by `ShortAnswerGradeSchema` and `DiagnosticGradeSetSchema` — one
+ * per-answer analysis contract. `quote` is what the shared verdict block asks
+ * for (a VERBATIM excerpt, resolved to a span in TS); `evidence` is accepted
+ * as an alias for one version so a grader still on the old wording parses.
+ */
+const KlpResultsSchema = z.array(z.object({
+  klpRef: z.number().int().min(0),
+  status: RuntimeVerdictEnum,
+  quote: z.string().optional(),
+  evidence: z.string().optional(),
+})).optional();
+
+const RelationResultsSchema = z.array(z.object({
+  relationRef: z.number().int().min(0),
+  status: RuntimeVerdictEnum,
+  quote: z.string().optional(),
+})).optional();
+
+const FormResultsSchema = z.array(z.object({
+  formRef: z.number().int().min(0),
+  status: z.enum(['met', 'not_met']),
+  quote: z.string().optional(),
+})).optional();
+
+/**
+ * Claims the answer makes that the key points do NOT make and that are false,
+ * misleading or invented — exactly what a per-point verdict cannot see. The
+ * 1-10 magnitude is the model's judgment of THIS instance; nothing ranks one
+ * claim against another in TS.
+ */
+const UnwarrantedSchema = z.array(z.object({
+  text: z.string().min(1),
+  quote: z.string().optional(),
+  magnitude: z.number().int().min(1).max(10),
+})).optional();
 
 export const MultipleChoiceOptionsSchema = z.object({
   options: z.array(z.string().min(1)).length(4),
@@ -41,11 +87,10 @@ export const ShortAnswerGradeSchema = z.object({
    * Per-KLP outcomes. `klpRef` is an index into the prompt's KLP list, never a
    * cuid. Optional so the no-KLP path parses today's shape unchanged.
    */
-  klpResults: z.array(z.object({
-    klpRef: z.number().int().min(0),
-    status: z.enum(LEGACY_GRADE_STATUSES),
-    evidence: z.string().optional(),
-  })).optional(),
+  klpResults: KlpResultsSchema,
+  relationResults: RelationResultsSchema,
+  formResults: FormResultsSchema,
+  unwarranted: UnwarrantedSchema,
   /**
    * `type` is z.string(), not an enum: it is validated against its OWN
    * dimension in TS (buildAnalysisWrites), which a flat enum cannot express.
@@ -206,11 +251,7 @@ export const DiagnosticGradeSetSchema = z.object({
     status: z.enum(['mastered', 'partial', 'missed']),
     feedback: cappedText(1200),
     mistake: optionalCappedText(800),
-    klpResults: z.array(z.object({
-      klpRef: z.number().int().min(0),
-      status: z.enum(LEGACY_GRADE_STATUSES),
-      evidence: z.string().optional(),
-    })).optional(),
+    klpResults: KlpResultsSchema,
     errorTags: z.array(z.object({
       dimension: z.enum(DIMENSIONS),
       type: z.string().min(1),

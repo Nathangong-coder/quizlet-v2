@@ -71,9 +71,10 @@ describe('AI Schemas', () => {
       expect(() => ShortAnswerGradeSchema.parse(invalid)).toThrow();
     });
 
-    // Interim: klpResults.status stays baseline-strict (passed/partial/failed)
-    // until Task 3 switches it to RUNTIME_VERDICTS. This test inverts then.
-    it('klpResults.status rejects a wide-vocabulary verdict and accepts the legacy word', () => {
+    // Spec 5 Phase A, Task 3: klpResults.status is the runtime vocabulary.
+    // `passed` is a read-only alias on historical rows (D1) — the grader is
+    // never offered it, so the schema never accepts it.
+    it('klpResults.status accepts a wide-vocabulary verdict and rejects the legacy word', () => {
       const base = {
         clarity: criterion(8),
         conciseness: criterion(7),
@@ -87,13 +88,13 @@ describe('AI Schemas', () => {
           ...base,
           klpResults: [{ klpRef: 0, status: 'correct' }],
         }),
-      ).toThrow();
+      ).not.toThrow();
       expect(() =>
         ShortAnswerGradeSchema.parse({
           ...base,
           klpResults: [{ klpRef: 0, status: 'passed' }],
         }),
-      ).not.toThrow();
+      ).toThrow();
     });
   });
 

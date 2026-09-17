@@ -143,7 +143,7 @@ async function main() {
       const refs = grades.map((g) => g.questionRef).sort()
       const oneVerdictEach = grades.every((g) => (g.klpResults ?? []).length === 1)
       const separates =
-        grades.find((g) => g.questionRef === 0)?.klpResults?.[0]?.status === 'passed' &&
+        grades.find((g) => g.questionRef === 0)?.klpResults?.[0]?.status === 'correct' &&
         grades.find((g) => g.questionRef === 1)?.klpResults?.[0]?.status === 'failed'
 
       const problems: string[] = []

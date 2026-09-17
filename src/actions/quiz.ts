@@ -912,7 +912,6 @@ export async function submitShortAnswer(input: {
       const prompt = GRADE_SHORT_ANSWER_PROMPT.build({
         card,
         answer: input.answer,
-        profileBlock,
         klps: promptKlps.length > 0 ? promptKlps : undefined,
       });
       let grade;
@@ -1037,7 +1036,6 @@ export async function submitShortAnswer(input: {
       card,
       promptBlocks: contentBlocks,
       answer: input.answer,
-      profileBlock,
       klps: promptKlps.length > 0 ? promptKlps : undefined,
     });
 

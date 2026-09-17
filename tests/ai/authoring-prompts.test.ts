@@ -4,6 +4,8 @@ import { GRADE_CANDIDATE_PROMPT } from '@/lib/ai/prompts/grade-candidate'
 import { RELATE_KLPS_PROMPT } from '@/lib/ai/prompts/relate-klps'
 import { AI_TASKS } from '@/lib/ai/model-routing'
 import { KLP_VERDICTS } from '@/lib/klp/verdicts'
+import { verdictInstructionBlock, STRICT_GRADING_CLAUSE, KIND_STRICTNESS_CLAUSE } from '@/lib/ai/prompts/verdict-block'
+import { STRICT_GRADING_CLAUSE as REEXPORTED_STRICT, KIND_STRICTNESS_CLAUSE as REEXPORTED_KIND, RELAXED_KINDS } from '@/lib/ai/prompts/grade-candidate'
 import { AuthorDraftSchema, RelationDraftSchema } from '@/lib/ai/schemas'
 import { PROBE_KINDS, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config'
 
@@ -129,6 +131,36 @@ describe('GRADE_CANDIDATE_PROMPT', () => {
   it('grades exactly one candidate', () => {
     expect(built).toContain('Uh, something goes down.')
     expect(built.toLowerCase()).not.toContain('candidate 2')
+  })
+
+  /**
+   * Spec 5 Phase A, Task 3: the measured wording now lives in ONE shared
+   * block (`verdict-block.ts`), which the authoring grader, the runtime
+   * grader and the diagnostic grader all call. The authoring grader offers
+   * the FULL vocabulary, quoted, and keeps its own `evidence` output line.
+   */
+  it('is written against the shared verdict block and offers every label quoted', () => {
+    expect(built).toContain(verdictInstructionBlock({ strict: false, showKinds: false }))
+    for (const v of KLP_VERDICTS) expect(built).toContain(`"${v}"`)
+    expect(built).toContain('"verdicts": [ { "klpIndex": number, "verdict": string, "evidence": string } ]')
+  })
+
+  it('in strict mode with kinds, carries the strict and kind clauses through the block', () => {
+    const strict = GRADE_CANDIDATE_PROMPT.build({
+      question: 'q', referenceAnswer: 'r',
+      klps: [{ text: 'a', kind: 'mechanism' }],
+      candidateAnswer: 'c', strict: true,
+    })
+    expect(strict).toContain(verdictInstructionBlock({ strict: true, showKinds: true }))
+    expect(strict).toContain(STRICT_GRADING_CLAUSE)
+    expect(strict).toContain(KIND_STRICTNESS_CLAUSE)
+    expect(built).not.toContain(STRICT_GRADING_CLAUSE)
+  })
+
+  it('re-exports the clauses so existing importers keep working', () => {
+    expect(REEXPORTED_STRICT).toBe(STRICT_GRADING_CLAUSE)
+    expect(REEXPORTED_KIND).toBe(KIND_STRICTNESS_CLAUSE)
+    expect(RELAXED_KINDS).toEqual(['mechanism', 'condition', 'quantitative'])
   })
 
   /**

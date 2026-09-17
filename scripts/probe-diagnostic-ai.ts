@@ -178,7 +178,7 @@ async function main() {
   check('every klpResult targets klpRef 0 — only the point that was asked',
     gradeSet.grades.every((g) => (g.klpResults ?? []).every((r) => r.klpRef === 0)))
   check('verdicts differentiate a correct answer from a blank one',
-    gradeSet.grades[0]?.klpResults?.[0]?.status === 'passed' &&
+    gradeSet.grades[0]?.klpResults?.[0]?.status === 'correct' &&
       gradeSet.grades[1]?.klpResults?.[0]?.status === 'failed',
     `got ${gradeSet.grades[0]?.klpResults?.[0]?.status} / ${gradeSet.grades[1]?.klpResults?.[0]?.status}`)
   console.log(`  grading output tokens: ${gradeOutputTokens} total, ${maxGradeOutput} worst batch`)
