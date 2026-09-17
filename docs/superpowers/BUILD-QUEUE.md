@@ -1,5 +1,35 @@
 # Build queue & carried-over findings
 
+**HANDOFF 2026-09-17 — SPEC 6 (SELF-RATED CONFIDENCE) IS BUILT; BROWSER GATE OWED.** Branch
+`spec6-confidence` (worktree, off `spec2-klp-authoring`), seven commits, unpushed. Design:
+`docs/superpowers/specs/2026-09-17-spec6-self-rated-confidence-design.md`; plan:
+`docs/superpowers/plans/2026-09-17-spec6-self-rated-confidence.md`. What landed: the 1-4 vocabulary
+(`src/lib/memory/self-rating.ts`, Prisma-free), two nullable columns on `StudyEvent`
+(`selfRating`, `selfRatingMoment`) and `LearnerTuning.captureSelfRating @default(true)` (migration
+`20260917120000_self_rating_capture`, additive, applied to the shared dev DB), the gate in
+`recordStudyEvent` (toggle off / bad value / missing moment ⇒ NULL, NULL; no tuning row ⇒ on),
+`SelfRatingPicker` (`src/components/study/`), capture in quiz MC/SA/TF and the diagnostic
+(retrospective, `after_answer`) and in Review (prospective, `before_answer`, keys 1-4 pre-flip,
+frozen after; the answer-key hints render only post-flip so the two meanings of `2` never share the
+screen), `SelfRatingPanel` on `/settings/study` (the fifth partial field on `saveTuning`), and the
+readout: `bucketCalibration` (`src/lib/metrics/calibration.ts`, counts only, floor 20),
+`CalibrationTile` on `/profile/learner`, `selfRating` on every `/profile/memory` row with a chip.
+**Guards:** `tests/memory/self-rating-home.test.ts` (the rating lives on `StudyEvent` and nowhere
+else), `tests/memory/record-self-rating.test.ts` (the gate, with a mutation check), one forwarding
+assertion per write site (four in `quiz.ts`, one each in `confidence.ts` and `diagnostic.ts`).
+Games files import nothing new; `tests/games/*` and `erase-coverage` untouched and green. Suite
+4,042 / tsc clean / lint 171 (unchanged). **Two rulings worth knowing:** keyboard `1-4` binds in
+Review only — the quiz renders every section stacked on one page, so a window-level key would rate
+the current card in every section at once; and the picker appears only once a question has an
+answer, which is what makes the moment retrospective. **Owed (spec §10, signed in):** one MC, one
+SA, one TF answer each rated and visible as a chip on `/profile/memory`; a Review card rated
+pre-flip with `2` then answered *Know It* with `2` and the row showing rating 2 / `before_answer`;
+a diagnostic sitting; the toggle off and a subsequent answer with no chip; the tile appearing at the
+twentieth rated answer. Also owed: `prisma migrate diff` shows three pre-existing index drifts
+(`AiCallLog_credentialId_userId_idx`, `Folder_userId_pinned_updatedAt_idx`,
+`SetKltNode_ancestorIds_idx`) that are NOT this spec's — whoever owns those migrations should
+reconcile them.
+
 **HANDOFF 2026-09-16 — OWNERS CAN BUILD; MAIN IS MERGED IN.** `origin/main` (study-platform PRs
 #56–#62) is merged into this branch (two docs-only conflicts, kept both sides; 3,98x tests green).
 Every set with authored key points is minted and written (the five). The owner's build path exists:
@@ -1396,9 +1426,10 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
    `/staff/klps` (Spec 1) already has a status-agnostic `Verdicts` column — it reads whatever
    statuses actually exist rather than a hardcoded three, so the widening to 13 labels needs no
    change there.
-6. **Spec 6 — Self-rated confidence capture.** One tap before the answer is revealed. Changes no
-   formula, blocks nothing, nothing blocks it — **pull it forward into any gap.** Every week it
-   waits is a week of history that can never be calibrated. **Closes G3.**
+6. **Spec 6 — Self-rated confidence capture. BUILT 2026-09-17** (branch `spec6-confidence`; see
+   the handoff at the top — browser gate owed). One tap before the answer is revealed. Changes no
+   formula, blocks nothing, nothing blocks it. Every week it waited was a week of history that can
+   never be calibrated; capture now runs by default. **Closes G3** the moment rated rows accumulate.
 7. **Spec 7 — Mastery engine rework.** Speed as a SECOND AXIS, not a multiplier (latency is
    untrusted by construction; a multiplier propagates noise into the knowledge estimate — model
    fluency separately, degrade to no-signal below 3 timed observations, gate `mastered` on both).
