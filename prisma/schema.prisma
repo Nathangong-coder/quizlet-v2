@@ -887,6 +887,13 @@ model StudyEvent {
   score           Int? // 0-100 scale, for graded outcomes (e.g. short-answer overall * 10)
   confidenceAfter Int
   latencyMs       Int?
+  /// Spec 6: the learner's belief before feedback, 1-4. NULL = not captured
+  /// (toggle off, skipped, or predates 2026-09-17). Never 0, never defaulted.
+  /// Written only by `recordStudyEvent`, which is the gate (toggle + vocabulary).
+  selfRating      Int?
+  /// `before_answer` (Review, pre-flip) | `after_answer` (quiz, diagnostic).
+  /// NULL iff selfRating is NULL — enforced in `recordStudyEvent`, not the DB.
+  selfRatingMoment String?
   createdAt       DateTime @default(now())
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   card            Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
@@ -1665,6 +1672,11 @@ model LearnerTuning {
   /// learner generated, and unlike a bad ordering that is not recoverable by
   /// changing the setting back.
   studyScope Json?
+  /// Spec 6: whether the self-rating picker is shown and the server accepts a
+  /// rating. Default ON — the value of the capture is the history, and an
+  /// opt-in nobody finds records nothing. Not a threshold: it feeds no
+  /// computation yet, which is why it is a column and not a `thresholds` key.
+  captureSelfRating Boolean @default(true)
   version    Int      @default(1)
   updatedAt  DateTime @updatedAt
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
