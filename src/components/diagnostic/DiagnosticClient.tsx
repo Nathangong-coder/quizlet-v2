@@ -22,12 +22,13 @@ type Phase = 'setup' | 'generating' | 'testing' | 'submitting' | 'results'
 
 const QUESTION_COUNTS = [12, 20, 30]
 
-export function DiagnosticClient({ sets, history, initialSetId, captureSelfRating = true }: {
+export function DiagnosticClient({ sets, history, initialSetId, captureSelfRating }: {
   sets: DiagnosticSetOption[]
   history: DiagnosticHistoryItem[]
   initialSetId?: string
-  /** Spec 6: LearnerTuning.captureSelfRating, read server-side by the page. */
-  captureSelfRating?: boolean
+  /** Spec 6: LearnerTuning.captureSelfRating, read server-side by the page. Required
+   *  so a page that forgets it is a tsc error, not a silently-on picker. */
+  captureSelfRating: boolean
 }) {
   const [phase, setPhase] = useState<Phase>('setup')
   const [setId, setSetId] = useState(initialSetId ?? sets[0]?.id ?? '')
@@ -86,6 +87,8 @@ export function DiagnosticClient({ sets, history, initialSetId, captureSelfRatin
   function updateAnswer(value: string) {
     if (!currentQuestion) return
     setAnswers((current) => ({ ...current, [currentQuestion.id]: value }))
+    // The picker hides when the box goes blank; the rating goes with it.
+    if (value.trim() === '') setRatings(({ [currentQuestion.id]: _dropped, ...rest }) => rest)
     setStartedAt((current) => current[currentQuestion.id] ? current : { ...current, [currentQuestion.id]: Date.now() })
   }
 

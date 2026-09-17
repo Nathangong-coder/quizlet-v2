@@ -9,7 +9,7 @@ describe('self-rating single-home guard', () => {
   it('selfRating lives on StudyEvent and nowhere else in the schema', () => {
     const schema = readFileSync(join(__dirname, '../../prisma/schema.prisma'), 'utf-8')
     const models = [...schema.matchAll(/model (\w+) \{[\s\S]*?\n\}/g)]
-      .filter((m) => /\bselfRating\b/.test(m[0]))
+      .filter((m) => /\bselfRating(Moment)?\b/.test(m[0]))
       .map((m) => m[1])
     expect(models).toEqual(['StudyEvent'])
   })

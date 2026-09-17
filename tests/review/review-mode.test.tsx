@@ -33,7 +33,7 @@ beforeEach(() => {
 
 describe('ReviewMode', () => {
   it('sets up a deck — filters change the count on the button — then runs it and summarizes', async () => {
-    render(<ReviewMode cards={cards} categories={[{ id: 'cat', name: 'Talking', color: null }]} setId="s1" now={NOW} />)
+    render(<ReviewMode cards={cards} categories={[{ id: 'cat', name: 'Talking', color: null }]} setId="s1" now={NOW} captureSelfRating />)
     expect(screen.getByRole('button', { name: /start review · 3 cards/i })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /starred/i }))
     expect(screen.getByRole('button', { name: /start review · 1 card$/i })).toBeTruthy()

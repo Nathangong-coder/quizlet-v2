@@ -1,7 +1,7 @@
 # Build queue & carried-over findings
 
 **HANDOFF 2026-09-17 — SPEC 6 (SELF-RATED CONFIDENCE) IS BUILT; BROWSER GATE OWED.** Branch
-`spec6-confidence` (worktree, off `spec2-klp-authoring`), eight commits, unpushed. Design:
+`spec6-confidence` (worktree, off `spec2-klp-authoring`), ten commits, unpushed. Design:
 `docs/superpowers/specs/2026-09-17-spec6-self-rated-confidence-design.md`; plan:
 `docs/superpowers/plans/2026-09-17-spec6-self-rated-confidence.md`. What landed: the 1-4 vocabulary
 (`src/lib/memory/self-rating.ts`, Prisma-free), two nullable columns on `StudyEvent`
@@ -25,7 +25,10 @@ answer, which is what makes the moment retrospective. **Owed (spec §10, signed 
 SA, one TF answer each rated and visible as a chip on `/profile/memory`; a Review card rated
 pre-flip with `2` then answered *Know It* with `2` and the row showing rating 2 / `before_answer`;
 a diagnostic sitting; the toggle off and a subsequent answer with no chip; the tile appearing at the
-twentieth rated answer. Also owed: `prisma migrate diff` shows three pre-existing index drifts
+twentieth rated answer; **from the whole-branch review:** a Review card flipped, un-flipped, re-rated
+(keys and clicks both inert), flipped again and answered — the row carries the ORIGINAL pre-reveal
+rating; and a quiz MC card rated, then re-answered with another option — the picker is cleared and
+the submitted row has no rating unless re-rated. Also owed: `prisma migrate diff` shows three pre-existing index drifts
 (`AiCallLog_credentialId_userId_idx`, `Folder_userId_pinned_updatedAt_idx`,
 `SetKltNode_ancestorIds_idx`) that are NOT this spec's — whoever owns those migrations should
 reconcile them.

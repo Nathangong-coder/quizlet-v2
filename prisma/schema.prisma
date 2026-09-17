@@ -879,24 +879,24 @@ model StudyGroupSet {
 /// in src/lib/memory/record.ts) is the only writer — every mode (review,
 /// quiz MC/SA/TF, matching, lesson) logs here on every answer.
 model StudyEvent {
-  id              String   @id @default(cuid())
-  userId          String
-  cardId          String
-  source          String // "review" | "quiz-mc" | "quiz-sa" | "quiz-tf" | "matching" | "lesson"
-  correct         Boolean?
-  score           Int? // 0-100 scale, for graded outcomes (e.g. short-answer overall * 10)
-  confidenceAfter Int
-  latencyMs       Int?
+  id               String   @id @default(cuid())
+  userId           String
+  cardId           String
+  source           String // "review" | "quiz-mc" | "quiz-sa" | "quiz-tf" | "matching" | "lesson"
+  correct          Boolean?
+  score            Int? // 0-100 scale, for graded outcomes (e.g. short-answer overall * 10)
+  confidenceAfter  Int
+  latencyMs        Int?
   /// Spec 6: the learner's belief before feedback, 1-4. NULL = not captured
   /// (toggle off, skipped, or predates 2026-09-17). Never 0, never defaulted.
   /// Written only by `recordStudyEvent`, which is the gate (toggle + vocabulary).
-  selfRating      Int?
+  selfRating       Int?
   /// `before_answer` (Review, pre-flip) | `after_answer` (quiz, diagnostic).
   /// NULL iff selfRating is NULL — enforced in `recordStudyEvent`, not the DB.
   selfRatingMoment String?
-  createdAt       DateTime @default(now())
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  card            Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card             Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   sessionId        String?
   confidenceBefore Int?

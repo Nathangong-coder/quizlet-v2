@@ -149,6 +149,8 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
                   onClick={() => {
                     timer.stop(card.id);
                     setSelectedAnswers(prev => ({ ...prev, [card.id]: val }));
+                    // A rating made about the other option is dropped.
+                    setRatings(({ [card.id]: _dropped, ...rest }) => rest);
                   }}
                   className={cn(
                     'px-8 capitalize transition-all',

@@ -109,11 +109,11 @@ export async function recordStudyEvent(
       select: { captureSelfRating: true },
     })
     const captureSelfRating = tuning?.captureSelfRating ?? true
-    const selfRating =
-      captureSelfRating && isSelfRating(meta?.selfRating) && isSelfRatingMoment(meta?.selfRatingMoment)
-        ? meta.selfRating
-        : null
-    const selfRatingMoment = selfRating === null ? null : (meta!.selfRatingMoment as string)
+    const rating = meta?.selfRating
+    const moment = meta?.selfRatingMoment
+    const accepted = captureSelfRating && isSelfRating(rating) && isSelfRatingMoment(moment)
+    const selfRating = accepted ? rating : null
+    const selfRatingMoment = accepted ? moment : null
     // ------------------------------------------------------------------------
 
     // Recent history for this card, used to compute mastery alongside the

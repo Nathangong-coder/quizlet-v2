@@ -68,6 +68,35 @@ describe('ReviewSession self-rating', () => {
     expect(checked()).toEqual(['false', 'false', 'false', 'false'])
   })
 
+  it('un-flipping does not thaw the rating: flip, un-flip, press 4 and click — the original survives to the write', async () => {
+    render(<ReviewSession cards={cards} setId="s1" />)
+    fireEvent.keyDown(window, { key: '2' })
+    await tick()
+    expect(checked()).toEqual(['false', 'true', 'false', 'false'])
+
+    // Reveal, then flip back to the prompt side.
+    fireEvent.keyDown(window, { key: ' ' })
+    fireEvent.keyDown(window, { key: ' ' })
+    expect(screen.getByText('Alpha')).toBeTruthy()
+    // Still frozen: the answer has been seen once, so a new rating would be contaminated.
+    for (const r of screen.getAllByRole('radio')) expect((r as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.keyDown(window, { key: '4' })
+    fireEvent.click(screen.getByRole('radio', { name: 'Certain' }))
+    await tick()
+    expect(checked()).toEqual(['false', 'true', 'false', 'false'])
+    expect(h.recordReview).not.toHaveBeenCalled()
+
+    // Flip again and answer; the write carries the ORIGINAL 2.
+    fireEvent.keyDown(window, { key: ' ' })
+    fireEvent.keyDown(window, { key: '2' })
+    await tick()
+    expect(h.recordReview).toHaveBeenCalledTimes(1)
+    expect(h.recordReview).toHaveBeenCalledWith('a', true, expect.objectContaining({ selfRating: 2 }))
+    // And the next card is thawed again.
+    expect(screen.getByText('Beta')).toBeTruthy()
+    for (const r of screen.getAllByRole('radio')) expect((r as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('an unrated card answers with no selfRating', async () => {
     render(<ReviewSession cards={cards} setId="s1" />)
     fireEvent.keyDown(window, { key: ' ' })

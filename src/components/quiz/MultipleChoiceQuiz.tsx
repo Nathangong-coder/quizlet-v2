@@ -145,6 +145,9 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
                 onValueChange={(val) => {
                   timer.stop(card.id);
                   setSelectedAnswers(prev => ({ ...prev, [card.id]: val }));
+                  // The rating was about the previous option; a new option
+                  // needs a new judgment, so it is dropped rather than carried.
+                  setRatings(({ [card.id]: _dropped, ...rest }) => rest);
                 }}
                 className="space-y-3"
               >

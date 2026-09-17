@@ -103,7 +103,13 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
             <Textarea
               placeholder="Type your answer here..."
               value={answers[card.id] || ''}
-              onChange={(e) => setAnswers(prev => ({ ...prev, [card.id]: e.target.value }))}
+              onChange={(e) => {
+                const text = e.target.value;
+                setAnswers(prev => ({ ...prev, [card.id]: text }));
+                // The picker hides when the box goes blank; the rating goes
+                // with it, so a fresh answer starts unrated.
+                if (text.trim() === '') setRatings(({ [card.id]: _dropped, ...rest }) => rest);
+              }}
               className="min-h-[150px] py-4"
             />
             {captureSelfRating && (answers[card.id] || '').trim() !== '' && (

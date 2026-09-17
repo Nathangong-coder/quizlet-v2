@@ -57,6 +57,18 @@ export default function ReviewSession({ cards, setId, setup = DEFAULT_REVIEW_SET
   // Spec 6 §3.2: the prospective rating for the card currently up. Reset on
   // every presentation (including a re-queue) alongside `flipped`.
   const [rating, setRating] = useState<SelfRating | null>(null)
+  // Whether the answer side has been shown AT ALL for this card. The picker
+  // freezes on this, not on `flipped`: the card toggles back, so freezing on
+  // the current flip state would let flip -> un-flip -> re-rate -> flip ->
+  // answer persist a rating contaminated by the answer as `before_answer`.
+  const [revealed, setRevealed] = useState(false)
+
+  function flip() {
+    setFlipped((f) => {
+      if (!f) setRevealed(true)
+      return !f
+    })
+  }
   const [stars, setStars] = useState<Record<string, boolean>>(() => Object.fromEntries(cards.map((c) => [c.id, Boolean(c.starred)])))
   const [shownCount, setShownCount] = useState(0)
   const [isPending, startTransition] = useTransition()
@@ -152,6 +164,7 @@ export default function ReviewSession({ cards, setId, setup = DEFAULT_REVIEW_SET
       }
       setSession((prev) => answerCard(prev, cardId, knew))
       setFlipped(false)
+      setRevealed(false)
       setRating(null)
       setShownCount((n) => n + 1)
       // Reset for the next card presented (including a re-queued card), so
@@ -176,7 +189,7 @@ export default function ReviewSession({ cards, setId, setup = DEFAULT_REVIEW_SET
       if (done || !card) return
       const target = e.target as HTMLElement | null
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return
-      if (e.key === ' ') { e.preventDefault(); setFlipped((f) => !f) }
+      if (e.key === ' ') { e.preventDefault(); flip() }
       else if (e.key === '1') handleAnswer(false)
       else if (e.key === '2') handleAnswer(true)
       else if (e.key === 's' || e.key === 'S') toggleStar()
@@ -256,8 +269,8 @@ export default function ReviewSession({ cards, setId, setup = DEFAULT_REVIEW_SET
         <SelfRatingPicker
           value={rating}
           onChange={setRating}
-          keyboard
-          disabled={flipped}
+          keyboard={!revealed}
+          disabled={revealed}
           prompt="Do you know this one?"
         />
       )}
@@ -267,7 +280,7 @@ export default function ReviewSession({ cards, setId, setup = DEFAULT_REVIEW_SET
           type="button"
           aria-label={flipped ? `Show ${first}` : `Show ${first === 'term' ? 'definition' : 'term'}`}
           aria-pressed={flipped}
-          onClick={() => setFlipped((f) => !f)}
+          onClick={flip}
           className={cn(
             'flex min-h-64 w-full select-none flex-col items-center justify-center gap-3 rounded-xl border-2 p-6 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             flipped ? 'border-primary/30 bg-muted' : 'border-border bg-card',
