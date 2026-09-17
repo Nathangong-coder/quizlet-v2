@@ -39,4 +39,8 @@ describe('labelForKlpStatus', () => {
       expect(labelForKlpStatus(s).length).toBeGreaterThan(0)
     }
   })
+
+  it('labelForKlpStatus is total over KLP_STATUSES', () => {
+    for (const s of KLP_STATUSES) expect(labelForKlpStatus(s).length).toBeGreaterThan(0)
+  })
 })

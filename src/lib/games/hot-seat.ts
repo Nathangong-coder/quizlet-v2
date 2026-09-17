@@ -1,4 +1,5 @@
 import { mulberry32, shuffle } from './rng'
+import type { KlpStatus } from '@/lib/errors/klp-credit'
 
 /**
  * Hot Seat — the short-answer game. Pure mood arithmetic and the
@@ -41,7 +42,7 @@ export interface KlpVerdict {
   klpId: string
   text: string
   weight: number
-  status: 'passed' | 'partial' | 'failed'
+  status: KlpStatus
 }
 
 export interface HotSeatTurn {
