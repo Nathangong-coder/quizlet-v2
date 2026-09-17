@@ -9,6 +9,7 @@ import { sourceLabel } from '@/lib/memory/source-labels'
 import type { StudyEventHistoryRow } from '@/actions/memory'
 import { cn } from '@/lib/utils'
 import { formatDuration } from '@/lib/memory/activity-labels'
+import { SELF_RATING_LABELS, isSelfRating } from '@/lib/memory/self-rating'
 
 /**
  * How one answer's outcome reads in the Accuracy column.
@@ -123,7 +124,18 @@ export default function ActivityTable({ events, onScopeToCard, onDelete }: Activ
                   {format(when, 'MMM d, h:mm a')}
                 </div>
 
-                <div className="text-right text-sm tabular-nums">{outcome}</div>
+                <div className="text-right text-sm tabular-nums">
+                  {outcome}
+                  {/* Spec 6: the per-row proof of capture. Absent = not rated. */}
+                  {isSelfRating(event.selfRating) && (
+                    <span
+                      className="ml-1.5 inline-block rounded-full border border-border bg-muted px-1.5 py-px align-middle text-[10px] font-medium text-muted-foreground"
+                      title={`Rated "${SELF_RATING_LABELS[event.selfRating]}" before seeing the result`}
+                    >
+                      {SELF_RATING_LABELS[event.selfRating]}
+                    </span>
+                  )}
+                </div>
 
                 <div className="text-right text-sm tabular-nums text-muted-foreground">
                   {event.confidenceAfter}

@@ -12,6 +12,7 @@ import MissedWork from '@/components/learner/MissedWork';
 import TopicMastery from '@/components/learner/TopicMastery';
 import StudyNext from '@/components/learner/StudyNext';
 import { RetentionPanel, MisconceptionList } from '@/components/learner/RetentionPanel';
+import { CalibrationTile } from '@/components/profile/CalibrationTile';
 import { getLearnerDashboard, type LearnerDashboard } from '@/actions/learner-dashboard';
 import { listMemoryFilterOptions, type MemoryFilterOptions } from '@/actions/memory';
 import {
@@ -215,6 +216,9 @@ function LearnerDashboardContent() {
             forgetting={d.metrics.forgetting}
             paceOutliers={d.metrics.paceOutliers}
           />
+
+          {/* Spec 6: counts only, suppressed under the floor. */}
+          <CalibrationTile calibration={d.metrics.calibration} />
         </>
       )}
     </div>

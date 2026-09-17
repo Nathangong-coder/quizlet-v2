@@ -31,6 +31,8 @@ export interface StudyEventHistoryRow {
   correct: boolean | null;
   score: number | null;
   latencyMs: number | null;
+  /** Spec 6: the learner's 1-4 belief before feedback; null = not captured. */
+  selfRating: number | null;
   confidenceAfter: number;
   createdAt: string;
   /**
@@ -86,6 +88,7 @@ export async function getStudyEventHistory(
         correct: true,
         score: true,
         latencyMs: true,
+        selfRating: true,
         confidenceAfter: true,
         createdAt: true,
         sessionId: true,
@@ -106,6 +109,7 @@ export async function getStudyEventHistory(
       correct: r.correct,
       score: r.score,
       latencyMs: r.latencyMs,
+      selfRating: r.selfRating,
       confidenceAfter: r.confidenceAfter,
       createdAt: r.createdAt.toISOString(),
       sessionId: r.sessionId,

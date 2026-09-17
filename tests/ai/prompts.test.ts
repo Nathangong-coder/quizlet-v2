@@ -232,6 +232,7 @@ describe('SESSION_INSIGHT_PROMPT', () => {
       confidenceBefore: 5,
       confidenceAfter: 4,
       latencyMs: 900,
+      selfRating: null,
       categoryNames: ['Valuation'],
     },
   ])
