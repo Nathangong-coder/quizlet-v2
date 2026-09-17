@@ -97,7 +97,7 @@ export function SelfRatingPicker({
               )}
             >
               <span className="font-medium leading-tight">{SELF_RATING_LABELS[r]}</span>
-              {keyboard && (
+              {keyboard && !disabled && (
                 <span className="mt-0.5 font-mono text-[10px] leading-none opacity-70" aria-hidden="true">
                   {r}
                 </span>

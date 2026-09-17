@@ -20,6 +20,8 @@ import { startStudySession, finishStudySession } from '@/actions/study-session'
 import { cn } from '@/lib/utils'
 import { ContentBlockView } from '@/components/cards/ContentBlockView'
 import { getNumberedListIndex } from '@/lib/cards/content'
+import { SelfRatingPicker } from '@/components/study/SelfRatingPicker'
+import type { SelfRating } from '@/lib/memory/self-rating'
 
 interface ReviewSessionProps {
   cards: ReviewCardInput[]
@@ -28,6 +30,9 @@ interface ReviewSessionProps {
   /** Start again — with only these card ids, or the whole deck when absent. */
   onRestart?: (ids: string[] | null) => void
   onChangeSetup?: () => void
+  /** Spec 6: show the pre-flip self-rating picker. Read server-side from
+   *  LearnerTuning.captureSelfRating; the server nulls a rating regardless. */
+  captureSelfRating?: boolean
 }
 
 /**
@@ -36,14 +41,22 @@ interface ReviewSessionProps {
  * know, 2 = know it, S stars. Progress on top, confidence and a star on the
  * card, and a summary at the end that offers the missed cards again.
  *
+ * Spec 6 (D6): BEFORE the flip, 1-4 rate "Do you know this one?" — the
+ * answer keys are inert then (`handleAnswer` returns unless flipped), so the
+ * two meanings of "2" are never live together. The flip freezes the rating;
+ * the key hints switch by state so only the live meaning is on screen.
+ *
  * Persistence is unchanged from the original: a `StudySession` opened lazily
  * on the first answer, one `recordReview` per answer, closed when the deck
  * empties. Every guard around that (ref-guarded open, awaited close) is kept
  * verbatim — it was written against real races.
  */
-export default function ReviewSession({ cards, setId, setup = DEFAULT_REVIEW_SETUP, onRestart, onChangeSetup }: ReviewSessionProps) {
+export default function ReviewSession({ cards, setId, setup = DEFAULT_REVIEW_SETUP, onRestart, onChangeSetup, captureSelfRating = true }: ReviewSessionProps) {
   const [session, setSession] = useState<RS>(() => initReviewSession(cards))
   const [flipped, setFlipped] = useState(false)
+  // Spec 6 §3.2: the prospective rating for the card currently up. Reset on
+  // every presentation (including a re-queue) alongside `flipped`.
+  const [rating, setRating] = useState<SelfRating | null>(null)
   const [stars, setStars] = useState<Record<string, boolean>>(() => Object.fromEntries(cards.map((c) => [c.id, Boolean(c.starred)])))
   const [shownCount, setShownCount] = useState(0)
   const [isPending, startTransition] = useTransition()
@@ -120,6 +133,9 @@ export default function ReviewSession({ cards, setId, setup = DEFAULT_REVIEW_SET
     if (!card || !flipped) return
     const cardId = card.id
     const deckSize = cards.length
+    // Read now, not inside the transition: the picker is frozen post-flip so
+    // this cannot change, but the state reset below must not race it.
+    const selfRating = captureSelfRating ? rating ?? undefined : undefined
     startTransition(async () => {
       ensureSession(deckSize)
       if (openingRef.current) await openingRef.current
@@ -128,6 +144,7 @@ export default function ReviewSession({ cards, setId, setup = DEFAULT_REVIEW_SET
         await recordReview(cardId, knew, {
           sessionId: sessionIdRef.current ?? undefined,
           latencyMs,
+          selfRating,
         })
       } catch (error) {
         console.error('recordReview threw:', error)
@@ -135,6 +152,7 @@ export default function ReviewSession({ cards, setId, setup = DEFAULT_REVIEW_SET
       }
       setSession((prev) => answerCard(prev, cardId, knew))
       setFlipped(false)
+      setRating(null)
       setShownCount((n) => n + 1)
       // Reset for the next card presented (including a re-queued card), so
       // its latency is measured from this appearance onward.
@@ -234,6 +252,16 @@ export default function ReviewSession({ cards, setId, setup = DEFAULT_REVIEW_SET
         <div className="h-full bg-primary transition-all" style={{ width: `${pct}%` }} />
       </div>
 
+      {captureSelfRating && (
+        <SelfRatingPicker
+          value={rating}
+          onChange={setRating}
+          keyboard
+          disabled={flipped}
+          prompt="Do you know this one?"
+        />
+      )}
+
       <div className="relative">
         <button
           type="button"
@@ -275,10 +303,10 @@ export default function ReviewSession({ cards, setId, setup = DEFAULT_REVIEW_SET
           onClick={() => handleAnswer(false)}
           disabled={isPending || !flipped}
         >
-          Don&rsquo;t know <kbd className="ml-2 rounded border border-current/30 px-1 text-[10px]">1</kbd>
+          Don&rsquo;t know {flipped && <kbd className="ml-2 rounded border border-current/30 px-1 text-[10px]">1</kbd>}
         </Button>
         <Button className="bg-success text-success-foreground hover:bg-success/90" onClick={() => handleAnswer(true)} disabled={isPending || !flipped}>
-          Know it <kbd className="ml-2 rounded border border-current/30 px-1 text-[10px]">2</kbd>
+          Know it {flipped && <kbd className="ml-2 rounded border border-current/30 px-1 text-[10px]">2</kbd>}
         </Button>
       </div>
 
