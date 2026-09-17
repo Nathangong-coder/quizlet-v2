@@ -1,7 +1,7 @@
 # Build queue & carried-over findings
 
 **HANDOFF 2026-09-17 — SPEC 6 (SELF-RATED CONFIDENCE) IS BUILT; BROWSER GATE OWED.** Branch
-`spec6-confidence` (worktree, off `spec2-klp-authoring`), seven commits, unpushed. Design:
+`spec6-confidence` (worktree, off `spec2-klp-authoring`), eight commits, unpushed. Design:
 `docs/superpowers/specs/2026-09-17-spec6-self-rated-confidence-design.md`; plan:
 `docs/superpowers/plans/2026-09-17-spec6-self-rated-confidence.md`. What landed: the 1-4 vocabulary
 (`src/lib/memory/self-rating.ts`, Prisma-free), two nullable columns on `StudyEvent`
