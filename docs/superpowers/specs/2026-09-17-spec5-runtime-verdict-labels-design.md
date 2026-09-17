@@ -128,10 +128,10 @@ benchmark (§8) reports. Spans persist on `AnswerKlpResult.spanStart/spanEnd` (n
 the new relation/form rows; `evidence` (the quote text) stays for display.
 
 **`unwarranted[]`.** The content call returns, per answer, a list of claims the answer makes that
-the card's key points do not — each a `{ text, quote }`. This is the contamination check
+the card's key points do not — each a `{ text, quote, magnitude }` (magnitude 1–10, how serious this instance is, the same scale tags use, so the existing contamination band applies unchanged). This is the contamination check
 (`src/lib/errors/contamination.ts`) made first-class: today it is an `AnswerErrorTag` of type
 `fabrication`/`unsupported_leap` with `klpId null`, capped at the tag limits. It becomes its own
-table, `AnswerUnwarrantedClaim { quizAnswerId, text, spanStart, spanEnd }`, uncapped, and the
+table, `AnswerUnwarrantedClaim { quizAnswerId, text, magnitude, spanStart, spanEnd }`, uncapped, and the
 contamination factor reads it instead of tags. The tag path keeps working unchanged for
 clarity/conciseness tags until Phase B retires them.
 
