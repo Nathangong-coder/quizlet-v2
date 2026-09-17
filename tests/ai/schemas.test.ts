@@ -70,6 +70,31 @@ describe('AI Schemas', () => {
       };
       expect(() => ShortAnswerGradeSchema.parse(invalid)).toThrow();
     });
+
+    // Interim: klpResults.status stays baseline-strict (passed/partial/failed)
+    // until Task 3 switches it to RUNTIME_VERDICTS. This test inverts then.
+    it('klpResults.status rejects a wide-vocabulary verdict and accepts the legacy word', () => {
+      const base = {
+        clarity: criterion(8),
+        conciseness: criterion(7),
+        correctness: criterion(9),
+        overall: 8,
+        summary: 'Great answer, but could be more concise.',
+        suggestedImprovement: 'Try to remove the first sentence.',
+      };
+      expect(() =>
+        ShortAnswerGradeSchema.parse({
+          ...base,
+          klpResults: [{ klpRef: 0, status: 'correct' }],
+        }),
+      ).toThrow();
+      expect(() =>
+        ShortAnswerGradeSchema.parse({
+          ...base,
+          klpResults: [{ klpRef: 0, status: 'passed' }],
+        }),
+      ).not.toThrow();
+    });
   });
 
   describe('TrainingPlanSchema', () => {

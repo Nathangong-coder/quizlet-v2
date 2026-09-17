@@ -1,13 +1,15 @@
 import { z } from 'zod';
 import { CORRUPTIONS } from '@/lib/quiz/options';
 import { DIMENSIONS, MAX_TAGS_PER_ANSWER } from '@/lib/errors/taxonomy';
-import { KLP_STATUSES } from '@/lib/errors/klp-credit';
 import { PROBE_KINDS, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
 import { KLP_VERDICTS } from '@/lib/klp/verdicts';
 import { RELATABLE_TYPES, RELATION_PROVENANCES } from '@/lib/klp/relations';
 import { EXPLOIT_STRATEGIES } from '@/lib/klp/exploit';
 import { ABSTRACTION_LEVELS } from '@/lib/klp/abstraction';
 import { PANEL_LEVELS } from '@/lib/klp/panel';
+
+/** interim — Task 3 replaces with RUNTIME_VERDICTS */
+const LEGACY_GRADE_STATUSES = ['passed', 'partial', 'failed'] as const;
 
 export const MultipleChoiceOptionsSchema = z.object({
   options: z.array(z.string().min(1)).length(4),
@@ -41,7 +43,7 @@ export const ShortAnswerGradeSchema = z.object({
    */
   klpResults: z.array(z.object({
     klpRef: z.number().int().min(0),
-    status: z.enum(KLP_STATUSES),
+    status: z.enum(LEGACY_GRADE_STATUSES),
     evidence: z.string().optional(),
   })).optional(),
   /**
@@ -206,7 +208,7 @@ export const DiagnosticGradeSetSchema = z.object({
     mistake: optionalCappedText(800),
     klpResults: z.array(z.object({
       klpRef: z.number().int().min(0),
-      status: z.enum(KLP_STATUSES),
+      status: z.enum(LEGACY_GRADE_STATUSES),
       evidence: z.string().optional(),
     })).optional(),
     errorTags: z.array(z.object({
