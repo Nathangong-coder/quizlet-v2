@@ -33,6 +33,14 @@ export interface DiagnosticGradingBuildInput {
     question: string;
     expectedAnswer: string;
     keyPoint: string;
+    /**
+     * `CardKlp.kind` of the key point. The shared block's kind clause reads
+     * it: mechanism / condition / quantitative are judged on substance,
+     * everything else strictly. `submitDiagnostic` always passes it; a point
+     * rendered WITHOUT a kind is graded at the strict tier — which is what
+     * every diagnostic point silently got in v3 until this field existed.
+     */
+    kind?: string;
     answer: string;
   }>;
 }
@@ -101,6 +109,11 @@ ${input.probes.map((probe) => `[${probe.probeRef}] (${probe.kind})\nKey point: $
  * diagnostic differs from the runtime grader only in WHICH key point it chose
  * to ask (`src/lib/diagnostic/select.ts`). Per-point output is
  * `{ klpRef: 0, status, quote? }`; `evidence` is accepted for one version.
+ * Each key point is rendered WITH its kind (`Key point [0] (mechanism): …`),
+ * because the block is built with `showKinds: true` and its kind clause is
+ * inert on a point that carries no kind — every diagnostic point was being
+ * graded at the strict tier, a divergence from the quiz grader on the same
+ * proposition (fix round, 2026-09-17).
  */
 export const DIAGNOSTIC_GRADING_PROMPT = {
   id: 'diagnostic-grading',
@@ -143,7 +156,7 @@ ${verdictInstructionBlock({ strict: true, showKinds: true, vocabulary: RUNTIME_V
   - "quote": the span of the answer the tag refers to.
 
 Questions and responses:
-${input.questions.map((item) => `[${item.ref}] Key point [0]: ${item.keyPoint}\nQuestion: ${item.question}\nExpected answer: ${item.expectedAnswer}\nLearner answer: ${item.answer || '[no answer]'}`).join('\n\n')}`;
+${input.questions.map((item) => `[${item.ref}] Key point [0]${item.kind ? ` (${item.kind})` : ''}: ${item.keyPoint}\nQuestion: ${item.question}\nExpected answer: ${item.expectedAnswer}\nLearner answer: ${item.answer || '[no answer]'}`).join('\n\n')}`;
   },
 };
 

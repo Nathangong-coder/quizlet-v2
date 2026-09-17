@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MultipleChoiceOptionsSchema, ShortAnswerGradeSchema, TrainingPlanSchema } from '@/lib/ai/schemas';
+import { CandidateGradeSchema, MultipleChoiceOptionsSchema, ShortAnswerGradeSchema, TrainingPlanSchema } from '@/lib/ai/schemas';
 
 describe('AI Schemas', () => {
   describe('MultipleChoiceOptionsSchema', () => {
@@ -95,6 +95,59 @@ describe('AI Schemas', () => {
           klpResults: [{ klpRef: 0, status: 'passed' }],
         }),
       ).toThrow();
+    });
+
+    /**
+     * Task 3 fix round: the shared verdict block asks for `quote`, every
+     * consumer (`buildAnalysisWrites` -> `AnswerKlpResult.evidence`) reads
+     * `evidence`, and the schema accepted both — so nothing failed and every
+     * runtime row's evidence was null. The parsed value bridges the two.
+     */
+    describe('quote -> evidence bridge', () => {
+      const base = {
+        clarity: criterion(8),
+        conciseness: criterion(7),
+        correctness: criterion(9),
+        overall: 8,
+        summary: 's',
+        suggestedImprovement: 'i',
+      };
+
+      it('a klpResult carrying only `quote` parses with `evidence` populated', () => {
+        const parsed = ShortAnswerGradeSchema.parse({
+          ...base,
+          klpResults: [{ klpRef: 0, status: 'omission', quote: 'x' }],
+        });
+        expect(parsed.klpResults?.[0].evidence).toBe('x');
+        expect(parsed.klpResults?.[0].quote).toBe('x');
+      });
+
+      it('an explicit `evidence` wins over `quote`', () => {
+        const parsed = ShortAnswerGradeSchema.parse({
+          ...base,
+          klpResults: [{ klpRef: 0, status: 'omission', quote: 'the quote', evidence: 'the evidence' }],
+        });
+        expect(parsed.klpResults?.[0].evidence).toBe('the evidence');
+      });
+
+      it('neither key leaves `evidence` undefined, never a fabricated string', () => {
+        const parsed = ShortAnswerGradeSchema.parse({
+          ...base,
+          klpResults: [{ klpRef: 0, status: 'correct' }],
+        });
+        expect(parsed.klpResults?.[0].evidence).toBeUndefined();
+      });
+
+      it('the authoring grader (CandidateGradeSchema) bridges the same way — its output line says evidence, the block it embeds says quote', () => {
+        const parsed = CandidateGradeSchema.parse({
+          verdicts: [
+            { klpIndex: 0, verdict: 'omission', quote: 'q' },
+            { klpIndex: 1, verdict: 'partial', quote: 'q', evidence: 'e' },
+            { klpIndex: 2, verdict: 'correct' },
+          ],
+        });
+        expect(parsed.verdicts.map((v) => v.evidence)).toEqual(['q', 'e', undefined]);
+      });
     });
   });
 

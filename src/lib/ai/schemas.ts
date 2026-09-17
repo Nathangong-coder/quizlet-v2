@@ -21,17 +21,33 @@ type RuntimeVerdict = (typeof RUNTIME_VERDICTS)[number];
 const RuntimeVerdictEnum = z.enum(RUNTIME_VERDICTS as unknown as [RuntimeVerdict, ...RuntimeVerdict[]]);
 
 /**
+ * The shared verdict block asks the grader for `quote` (a VERBATIM excerpt);
+ * every consumer downstream (`buildAnalysisWrites` -> `AnswerKlpResult.evidence`,
+ * `regrade-run`, the authoring separation loop) reads `evidence`. Both keys
+ * are accepted, and this bridge fills `evidence` from `quote` when the grader
+ * used the block's word — so the excerpt is persisted no matter which key the
+ * model chose. Without it the schema accepted both, nothing failed, and every
+ * runtime row's `evidence` was null (fix round, 2026-09-17). An explicit
+ * `evidence` wins, so a reply carrying both is never silently overwritten.
+ * The output type is the input type on purpose: `evidence` stays optional so
+ * a grade built by hand (`blankAnswerGrade`) needs no placeholder key.
+ */
+const bridgeQuoteToEvidence = <T extends { evidence?: string; quote?: string }>(r: T): T =>
+  ({ ...r, evidence: r.evidence ?? r.quote });
+
+/**
  * Shared by `ShortAnswerGradeSchema` and `DiagnosticGradeSetSchema` — one
  * per-answer analysis contract. `quote` is what the shared verdict block asks
  * for (a VERBATIM excerpt, resolved to a span in TS); `evidence` is accepted
- * as an alias for one version so a grader still on the old wording parses.
+ * as an alias for one version so a grader still on the old wording parses,
+ * and is always populated on the parsed value (see `bridgeQuoteToEvidence`).
  */
 const KlpResultsSchema = z.array(z.object({
   klpRef: z.number().int().min(0),
   status: RuntimeVerdictEnum,
   quote: z.string().optional(),
   evidence: z.string().optional(),
-})).optional();
+}).transform(bridgeQuoteToEvidence)).optional();
 
 const RelationResultsSchema = z.array(z.object({
   relationRef: z.number().int().min(0),
@@ -540,8 +556,12 @@ export const CandidateGradeSchema = z.object({
   verdicts: z.array(z.object({
     klpIndex: z.number().int().min(0),
     verdict: z.enum(KLP_VERDICTS),
+    // The prompt's output line names `evidence`; the shared verdict block it
+    // embeds says `quote`. Both parse, and the bridge fills `evidence` either
+    // way — the twin of the runtime bridge above.
     evidence: z.string().optional(),
-  })),
+    quote: z.string().optional(),
+  }).transform(bridgeQuoteToEvidence)),
 });
 
 export type CandidateGrade = z.infer<typeof CandidateGradeSchema>;

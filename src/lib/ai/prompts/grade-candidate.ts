@@ -87,6 +87,10 @@ export interface GradeCandidateBuildInput {
  * runtime and diagnostic graders. The vocabulary is listed quoted, and the
  * label guidance names omission vs contradicted as different failures. The
  * output line keeps its `evidence` field: authoring rows store `evidence`.
+ * Its word cap is the block's 20 words (fix round: the line said 15 while
+ * the block it points at said 20, and a grader given two caps picks one at
+ * random); `CandidateGradeSchema` bridges a `quote` key into `evidence`
+ * either way, so a model that followed the block's word loses nothing.
  */
 export const GRADE_CANDIDATE_PROMPT = {
   id: 'grade-candidate',
@@ -118,7 +122,7 @@ For each KLP, decide whether the candidate's answer supports it. ${verdictInstru
 
 Output JSON:
 { "verdicts": [ { "klpIndex": number, "verdict": string, "evidence": string } ] }
-One entry per KLP, referencing it by its [index]. "evidence" carries the quote asked for above: ONE short clause (at most 15 words) quoting or naming what in the answer decided the verdict; OMIT it entirely when the verdict is "correct".
+One entry per KLP, referencing it by its [index]. "evidence" carries the quote asked for above: a VERBATIM excerpt (at most 20 words, copied exactly) of what in the answer decided the verdict; OMIT it entirely when the verdict is "correct".
 
 Question: ${input.question}
 

@@ -84,6 +84,18 @@ JSON Schema:
  * prefix order, so a provider prefix cache hits across every answer on the
  * card.
  */
+/**
+ * Spec 5 §3: a relation verdict and a form result carry a quote on EVERY
+ * verdict, `correct` and `met` included — the opposite of the key-point rule
+ * in the shared block ("omit quote on correct"). A key point's `correct` needs
+ * no span; a relation's `correct` is the ONLY record of WHERE the learner
+ * asserted the link, and a form requirement's `met` of where the shape was
+ * satisfied, so without the quote the span Task 5 resolves is null on every
+ * met relation (fix round, 2026-09-17). Rendered only when the prompt lists a
+ * relation or a form requirement, so the no-relation prompt is unchanged.
+ */
+const QUOTE_EVERY_RELATION_FORM = 'For relations and form requirements, include "quote" on EVERY verdict, including "correct" and "met".';
+
 const ANALYSIS_BODY = (input: { klps: PromptKlp[]; relations?: PromptRelation[]; formReqs?: PromptFormReq[]; referenceAnswer?: string }) => {
   const rel = input.relations?.length
     ? `\nRelations between key points (a link the card teaches):\n${input.relations.map((r) => `[R${r.ref}] (${r.type}) [${r.fromRef}] → [${r.toRef}]`).join('\n')}\n`
@@ -103,7 +115,7 @@ ${verdictInstructionBlock({ strict: true, showKinds: true, vocabulary: RUNTIME_V
 Return:
 
 "klpResults": one entry per key point above — { "klpRef": number, "status": verdict, "quote"?: string }.
-${input.relations?.length ? `"relationResults": one entry per relation above — { "relationRef": number, "status": verdict, "quote"?: string }. "correct" = the answer asserts the link itself; "omission" = both ends present, link never made; "inversion" = link asserted backwards; "contradicted" = the answer denies it.\n` : ''}${input.formReqs?.length ? `"formResults": one entry per form requirement — { "formRef": number, "status": "met" | "not_met", "quote"?: string }.\n` : ''}
+${input.relations?.length ? `"relationResults": one entry per relation above — { "relationRef": number, "status": verdict, "quote"?: string }. "correct" = the answer asserts the link itself; "omission" = both ends present, link never made; "inversion" = link asserted backwards; "contradicted" = the answer denies it.\n` : ''}${input.formReqs?.length ? `"formResults": one entry per form requirement — { "formRef": number, "status": "met" | "not_met", "quote"?: string }.\n` : ''}${input.relations?.length || input.formReqs?.length ? `${QUOTE_EVERY_RELATION_FORM}\n` : ''}
 "unwarranted": every claim the answer makes that the key points above do NOT make and that is false, misleading or invented — { "text": one sentence naming the claim, "quote": verbatim excerpt, "magnitude": 1-10 how serious this instance is }. AN ANSWER THAT COVERS EVERY KEY POINT CAN STILL BE WRONG: the points above say what must be PRESENT and nothing about what must be ABSENT, and this list is exactly what they cannot see. A clean answer returns [].
 
 "errorTags": at most ${MAX_TAGS_PER_ANSWER} tags, at most 2 per dimension. Tag only what is genuinely wrong; a clean answer returns an empty list.

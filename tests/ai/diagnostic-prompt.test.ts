@@ -84,6 +84,27 @@ describe('DIAGNOSTIC_GRADING_PROMPT v2', () => {
     expect(grading).toContain('exactly one entry, with klpRef 0')
   })
 
+  /**
+   * Task 3 fix round: the block is built with `showKinds: true`, but a point
+   * rendered without its kind is graded at the strict tier — so every
+   * diagnostic key point silently diverged from the quiz grader on the same
+   * proposition. The kind now rides on the question line.
+   */
+  it('renders the key point WITH its kind, so the block\'s kind clause can read it', () => {
+    const grading = DIAGNOSTIC_GRADING_PROMPT.build({
+      questions: [{
+        ref: 0,
+        question: 'q',
+        expectedAnswer: 'e',
+        keyPoint: 'D&A is added back because it is non-cash.',
+        kind: 'mechanism',
+        answer: 'a',
+      }],
+    })
+    expect(grading).toContain('Key point [0] (mechanism): D&A is added back because it is non-cash.')
+    expect(grading).toContain('Strictness by kind')
+  })
+
   it('spells out the closed error-type vocabulary', () => {
     // Found by a live probe, not by this suite: left implicit, gemini-3.6-flash
     // returned `missing_response` and `incorrect_answer`, neither of which is

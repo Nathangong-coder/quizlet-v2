@@ -395,15 +395,16 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
     if (attempt.status !== 'in_progress') return { success: false, error: 'This diagnostic has already been submitted' }
 
     // The key point behind each question, for the weight that feeds
-    // significance. Read now rather than inside the write transaction, which
-    // is already doing a lock-read-write per key point.
+    // significance and the kind the grader's strictness clause reads. Read
+    // now rather than inside the write transaction, which is already doing a
+    // lock-read-write per key point.
     const anchorIds = attempt.questions
       .map((question) => question.klpId)
       .filter((klpId): klpId is string => klpId !== null)
     const anchors = new Map(
       (await prisma.cardKlp.findMany({
         where: { id: { in: anchorIds } },
-        select: { id: true, weight: true },
+        select: { id: true, weight: true, kind: true },
       })).map((klp) => [klp.id, klp]),
     )
 
@@ -479,6 +480,10 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
               question: question.prompt,
               expectedAnswer: question.expectedAnswer,
               keyPoint: question.learningPoint,
+              // Without the kind, the shared block's kind clause is inert and
+              // the point is graded at the strict tier — a divergence from
+              // the quiz grader on the same proposition.
+              kind: question.klpId ? anchors.get(question.klpId)?.kind : undefined,
               answer: answerFor(question),
             })),
           }),

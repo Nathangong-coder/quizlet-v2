@@ -77,6 +77,37 @@ describe('GRADE_SHORT_ANSWER_PROMPT v5 (shared verdict block)', () => {
     expect(p).toContain('"relationResults"'); expect(p).toContain('"formResults"'); expect(p).toContain('"unwarranted"')
   })
 
+  /**
+   * Spec 5 §3 (fix round): the shared block says "omit quote on correct" —
+   * right for a key point, wrong for a relation or a form requirement, whose
+   * `correct` / `met` is the only record of WHERE the link was asserted. The
+   * sentence follows the output lines and is present whenever either list is.
+   */
+  const QUOTE_EVERY = 'For relations and form requirements, include "quote" on EVERY verdict, including "correct" and "met".'
+
+  it('asks for a quote on every relation verdict, "correct" included', () => {
+    const p = GRADE_SHORT_ANSWER_PROMPT.build({
+      card, answer: 'x', klps: [...klps, { ref: 1, text: 'FCF rises', kind: 'causal' }],
+      relations: [{ ref: 0, type: 'causes', fromRef: 0, toRef: 1 }],
+    })
+    expect(p).toContain(QUOTE_EVERY)
+    expect(p.indexOf(QUOTE_EVERY)).toBeGreaterThan(p.indexOf('"relationResults"'))
+    expect(p.indexOf(QUOTE_EVERY)).toBeLessThan(p.indexOf('"unwarranted"'))
+  })
+
+  it('asks for a quote on every form result, "met" included', () => {
+    const p = GRADE_SHORT_ANSWER_PROMPT.build({
+      card, answer: 'x', klps, formReqs: [{ ref: 0, text: 'States direction and magnitude' }],
+    })
+    expect(p).toContain(QUOTE_EVERY)
+    expect(p.indexOf(QUOTE_EVERY)).toBeGreaterThan(p.indexOf('"formResults"'))
+  })
+
+  it('says nothing about relation or form quotes when the card has neither', () => {
+    const p = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x', klps })
+    expect(p).not.toContain(QUOTE_EVERY)
+  })
+
   it('shows the reference answer after the key points and before the answer', () => {
     const p = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'THE ANSWER', klps, referenceAnswer: 'THE REFERENCE' })
     expect(p.indexOf('THE REFERENCE')).toBeGreaterThan(p.indexOf(klps[0].text))
