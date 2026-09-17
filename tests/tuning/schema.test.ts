@@ -139,6 +139,7 @@ describe('parseStrategy', () => {
 describe('shapeTuning', () => {
   it('returns balanced with no overrides when the user has no row', () => {
     expect(shapeTuning(null)).toEqual({
+      captureSelfRating: true,
       strategy: 'balanced',
       bandOverrides: {},
       thresholdOverrides: {},

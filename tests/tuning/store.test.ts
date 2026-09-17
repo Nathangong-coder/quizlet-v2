@@ -139,6 +139,8 @@ describe('saveTuning is PARTIAL (spec §5)', () => {
       bandOverrides: { inversion: [1, 2] },
       thresholdOverrides: { minObservations: 1 },
       studyScope: { setIds: ['set-a'], categoryKeys: [] },
+      // Spec 6: absent from this mocked row, so the shaped default.
+      captureSelfRating: true,
     })
   })
 

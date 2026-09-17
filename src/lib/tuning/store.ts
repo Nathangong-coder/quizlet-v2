@@ -58,6 +58,6 @@ export async function getUserTuning(userId: string): Promise<ResolvedTuning> {
     thresholds: resolveThresholds(shaped.thresholdOverrides),
     strategy: shaped.strategy,
     studyScope: shaped.studyScope,
-    captureSelfRating: row?.captureSelfRating ?? true,
+    captureSelfRating: shaped.captureSelfRating,
   }
 }

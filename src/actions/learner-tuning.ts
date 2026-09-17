@@ -16,7 +16,7 @@ export async function loadTuning(): Promise<ActionResult<TuningRow>> {
   const { prisma } = await import('@/lib/db')
   const row = await prisma.learnerTuning.findUnique({
     where: { userId: session.user.id },
-    select: { strategy: true, bands: true, thresholds: true, studyScope: true },
+    select: { strategy: true, bands: true, thresholds: true, studyScope: true, captureSelfRating: true },
   })
   // SPARSE, deliberately: the panel shows "your override" next to "the shipped
   // default", so it needs to know which keys the learner actually edited.
@@ -33,7 +33,8 @@ export async function loadTuning(): Promise<ActionResult<TuningRow>> {
  *
  * The fourth field (Spec 3C's study scope) needed no change to the other three
  * precisely because this was built partial. That is the payoff of the 3B
- * decision, collected.
+ * decision, collected. The fifth (Spec 6's `captureSelfRating`) collected it
+ * again.
  *
  * `bandOverrides: {}` is NOT the same as absent: it is the global reset, and
  * it must stay expressible. The same holds for an empty `studyScope`, which
@@ -44,6 +45,7 @@ export async function saveTuning(input: {
   bandOverrides?: unknown
   thresholdOverrides?: unknown
   studyScope?: unknown
+  captureSelfRating?: boolean
 }): Promise<ActionResult<TuningRow>> {
   const session = await auth()
   if (!session?.user?.id) return { success: false, error: 'Not signed in' }
@@ -57,6 +59,7 @@ export async function saveTuning(input: {
     bands?: BandOverrides
     thresholds?: ThresholdOverrides
     studyScope?: StoredStudyScope
+    captureSelfRating?: boolean
     version: number
   } = { version: TUNING_VERSION }
 
@@ -93,6 +96,14 @@ export async function saveTuning(input: {
     data.studyScope = { setIds: scope.data.setIds, categoryKeys: scope.data.categoryKeys }
   }
   if (input.strategy !== undefined) data.strategy = parseStrategy(input.strategy)
+  if (input.captureSelfRating !== undefined) {
+    // A boolean or nothing: a truthy string coerced to `true` would silently
+    // turn the capture back on for a learner who asked for it off.
+    if (typeof input.captureSelfRating !== 'boolean') {
+      return { success: false, error: 'The self-rating setting must be on or off.' }
+    }
+    data.captureSelfRating = input.captureSelfRating
+  }
 
   const { prisma } = await import('@/lib/db')
   // `create` needs the full row; `update` writes only the named fields, which
@@ -107,10 +118,12 @@ export async function saveTuning(input: {
       // Empty arrays, not null — both mean "everything", but the explicit form
       // says so to anyone reading the row.
       studyScope: data.studyScope ?? { setIds: [], categoryKeys: [] },
+      // Default ON (Spec 6 D5): an opt-in nobody finds records nothing.
+      captureSelfRating: data.captureSelfRating ?? true,
       version: TUNING_VERSION,
     },
     update: data,
-    select: { strategy: true, bands: true, thresholds: true, studyScope: true },
+    select: { strategy: true, bands: true, thresholds: true, studyScope: true, captureSelfRating: true },
   })
 
   revalidatePath('/settings/study')
