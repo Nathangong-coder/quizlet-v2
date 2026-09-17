@@ -333,7 +333,7 @@ export async function getLearnerMetrics({
     cleanStreaks: computeCleanStreaks(
       klpOutcomes.map((o) => ({
         klpId: o.klpId,
-        status: o.status as 'passed' | 'partial' | 'failed',
+        status: o.status,
         createdAt: o.createdAt,
       })),
     ),
