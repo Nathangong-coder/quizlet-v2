@@ -12,18 +12,24 @@ import { QuizSectionHandle, SectionNav } from './section';
 import { useErrorToast } from '@/components/errors/useErrorToast';
 import { useQuestionTimer } from './useQuestionTimer';
 import { QuestionTimerDisplay } from './QuestionTimer';
+import { SelfRatingPicker } from '@/components/study/SelfRatingPicker';
+import type { SelfRating } from '@/lib/memory/self-rating';
 
 type QuizCard = PrismaCard & { contentBlocks?: ContentBlock[] };
 
 interface TrueFalseQuizProps {
   cards: QuizCard[];
   attemptId: string;
+  /** Spec 6: show the self-rating picker (see MultipleChoiceQuiz). */
+  captureSelfRating?: boolean;
 }
 
 export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
-  function TrueFalseQuiz({ cards, attemptId }, ref) {
+  function TrueFalseQuiz({ cards, attemptId, captureSelfRating = true }, ref) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedAnswers, setSelectedAnswers] = useState<{ [cardId: string]: string }>({});
+    // Spec 6 §3.1: the retrospective rating, editable until submit.
+    const [ratings, setRatings] = useState<{ [cardId: string]: SelfRating }>({});
     const { show: showError, dialog: errorDialog } = useErrorToast();
     const timer = useQuestionTimer();
     const [statements, setStatements] = useState<{ [cardId: string]: string }>({});
@@ -70,6 +76,7 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
           cardId: card.id,
           selectedOption: selected,
           latencyMs: timer.elapsed(card.id),
+          selfRating: ratings[card.id],
         });
         if (!res.success) showError(res.error || 'Failed to save answer', res.detail);
       }
@@ -87,7 +94,7 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
     // `selectedAnswers` is in the dep array, so the handle is rebuilt on every
     // pick and never reports a stale count. Verified deliberately: a stale 0
     // here would let the container discard an attempt the learner really took.
-    useImperativeHandle(ref, () => ({ commitAll, answeredCount }), [cards, selectedAnswers, attemptId]);
+    useImperativeHandle(ref, () => ({ commitAll, answeredCount }), [cards, selectedAnswers, attemptId, ratings]);
 
     function goNext() {
       const activeId = cards[currentIndex]?.id;
@@ -152,6 +159,13 @@ export const TrueFalseQuiz = forwardRef<QuizSectionHandle, TrueFalseQuizProps>(
                 </Button>
               ))}
             </div>
+            {captureSelfRating && selectedAnswers[card.id] && (
+              <SelfRatingPicker
+                className="border-t pt-4 text-left"
+                value={ratings[card.id] ?? null}
+                onChange={(v) => setRatings(prev => ({ ...prev, [card.id]: v }))}
+              />
+            )}
           </CardContent>
         </CardUI>
 

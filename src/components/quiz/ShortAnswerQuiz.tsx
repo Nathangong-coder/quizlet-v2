@@ -11,18 +11,24 @@ import { QuizSectionHandle, SectionNav } from './section';
 import { useErrorToast } from '@/components/errors/useErrorToast';
 import { useQuestionTimer } from './useQuestionTimer';
 import { QuestionTimerDisplay } from './QuestionTimer';
+import { SelfRatingPicker } from '@/components/study/SelfRatingPicker';
+import type { SelfRating } from '@/lib/memory/self-rating';
 
 type QuizCard = Card & { contentBlocks?: ContentBlock[] };
 
 interface ShortAnswerQuizProps {
   cards: QuizCard[];
   attemptId: string;
+  /** Spec 6: show the self-rating picker (see MultipleChoiceQuiz). */
+  captureSelfRating?: boolean;
 }
 
 export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProps>(
-  function ShortAnswerQuiz({ cards, attemptId }, ref) {
+  function ShortAnswerQuiz({ cards, attemptId, captureSelfRating = true }, ref) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [answers, setAnswers] = useState<{ [cardId: string]: string }>({});
+    // Spec 6 §3.1: the retrospective rating, editable until submit.
+    const [ratings, setRatings] = useState<{ [cardId: string]: SelfRating }>({});
     const { show: showError, dialog: errorDialog } = useErrorToast();
     const timer = useQuestionTimer();
 
@@ -48,6 +54,7 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
           cardId: card.id,
           answer: text,
           latencyMs: timer.elapsed(card.id),
+          selfRating: ratings[card.id],
         });
         if (!res.success) showError(res.error || 'Failed to grade answer', res.detail);
       }
@@ -65,7 +72,7 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
     // `answers` is in the dep array, so the handle is rebuilt on every
     // keystroke and never reports a stale count. Verified deliberately: a
     // stale 0 would let the container discard an attempt the learner took.
-    useImperativeHandle(ref, () => ({ commitAll, answeredCount }), [cards, answers, attemptId]);
+    useImperativeHandle(ref, () => ({ commitAll, answeredCount }), [cards, answers, attemptId, ratings]);
 
     function goNext() {
       const activeId = cards[currentIndex]?.id;
@@ -99,6 +106,12 @@ export const ShortAnswerQuiz = forwardRef<QuizSectionHandle, ShortAnswerQuizProp
               onChange={(e) => setAnswers(prev => ({ ...prev, [card.id]: e.target.value }))}
               className="min-h-[150px] py-4"
             />
+            {captureSelfRating && (answers[card.id] || '').trim() !== '' && (
+              <SelfRatingPicker
+                value={ratings[card.id] ?? null}
+                onChange={(v) => setRatings(prev => ({ ...prev, [card.id]: v }))}
+              />
+            )}
           </CardContent>
         </CardComponent>
 

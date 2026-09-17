@@ -77,9 +77,11 @@ describe('SelfRatingPicker', () => {
     for (const r of screen.getAllByRole('radio')) expect((r as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('shows a key hint 1-4 under each option', () => {
+  it('shows a key hint 1-4 under each option only when keyboard is on', () => {
+    render(<SelfRatingPicker value={null} onChange={() => {}} keyboard />)
+    screen.getAllByRole('radio').forEach((r, i) => expect(r.textContent).toContain(String(i + 1)))
+    cleanup()
     render(<SelfRatingPicker value={null} onChange={() => {}} />)
-    const radios = screen.getAllByRole('radio')
-    radios.forEach((r, i) => expect(r.textContent).toContain(String(i + 1)))
+    screen.getAllByRole('radio').forEach((r, i) => expect(r.textContent).not.toContain(String(i + 1)))
   })
 })

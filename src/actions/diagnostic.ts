@@ -50,6 +50,9 @@ const DiagnosticAnswerSchema = z.object({
   questionId: z.string().trim().min(1).max(80),
   answer: z.string().max(10000),
   latencyMs: z.number().int().min(0).max(60 * 60 * 1000).optional(),
+  /** Spec 6: the learner's 1-4 belief, rated after typing and before submit.
+   *  Absent = skipped. Out of range is refused with the rest of the form. */
+  selfRating: z.number().int().min(1).max(4).optional(),
 })
 
 const DiagnosticSubmitSchema = z.object({
@@ -561,6 +564,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
         grade,
         answer: answerFor(question),
         latencyMs: answers.get(question.id)?.latencyMs,
+        selfRating: answers.get(question.id)?.selfRating,
         score: grade?.score ?? null,
         status: grade ? statusForScore(grade.score) : null,
         feedback: grade?.feedback ?? 'This answer could not be graded. It has been left out of your score.',
@@ -700,7 +704,8 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
             // happened.
             quizAnswerId: answer.id,
             outcome: { overall: item.score },
-            meta: { latencyMs: item.latencyMs },
+            // Spec 6 §3.3: retrospective — rated after typing, before submit.
+            meta: { latencyMs: item.latencyMs, selfRating: item.selfRating, selfRatingMoment: 'after_answer' },
           }, tx)
         }
       }

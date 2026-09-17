@@ -25,7 +25,12 @@ export interface SelfRatingPickerProps {
   onChange: (v: SelfRating) => void
   /** Frozen after the flip in Review. */
   disabled?: boolean
-  /** Bind `1`-`4` on `window` while mounted (ignored inside inputs/textareas). */
+  /**
+   * Bind `1`-`4` on `window` while mounted (ignored inside inputs/textareas)
+   * and show the key hint under each option. Review only: the quiz renders
+   * every section stacked on one page, so a window-level key would rate the
+   * current card in every section at once.
+   */
   keyboard?: boolean
   /** "How sure are you?" (quiz, default) / "Do you know this one?" (Review). */
   prompt?: string
@@ -92,9 +97,11 @@ export function SelfRatingPicker({
               )}
             >
               <span className="font-medium leading-tight">{SELF_RATING_LABELS[r]}</span>
-              <span className="mt-0.5 font-mono text-[10px] leading-none opacity-70" aria-hidden="true">
-                {r}
-              </span>
+              {keyboard && (
+                <span className="mt-0.5 font-mono text-[10px] leading-none opacity-70" aria-hidden="true">
+                  {r}
+                </span>
+              )}
             </button>
           )
         })}
