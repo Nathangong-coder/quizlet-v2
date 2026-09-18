@@ -96,7 +96,9 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
     }),
     prisma.answerKlpResult.groupBy({
       by: ['klpId', 'status'],
-      where: { klpId: { in: ids } },
+      // Live generation only (Spec 5 §6): a regraded answer's old verdict is
+      // history, not a second vote.
+      where: { klpId: { in: ids }, supersededAt: null },
       _count: { _all: true },
     }),
     // Fetched per-card (not per-KLP-version) and matched in memory below: a
@@ -420,8 +422,11 @@ export async function loadLearnerRecord(userId: string): Promise<LearnerRecord |
         mode: true,
         analysisStatus: true,
         card: { select: { term: true } },
-        klpResults: { select: { status: true, klp: { select: { text: true, label: true } } } },
-        errorTags: { select: { dimension: true, type: true, significance: true } },
+        klpResults: {
+          where: { supersededAt: null },
+          select: { status: true, klp: { select: { text: true, label: true } } },
+        },
+        errorTags: { where: { supersededAt: null }, select: { dimension: true, type: true, significance: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: 30,

@@ -80,7 +80,11 @@ export async function loadCardRegradeInput(cardId: string): Promise<CardRegradeI
   const answers = await prisma.quizAnswer.findMany({
     // At least one result pointing at a SUPERSEDED key point. This predicate is
     // the work queue — see the planner's header on why no queue table exists.
-    where: { cardId, klpResults: { some: { klp: { supersededAt: { not: null } } } } },
+    // LIVE generation only (`supersededAt: null` on the result row — distinct
+    // from the KEY POINT's `supersededAt`, which is the strandedness test).
+    // A grader-version regrade (src/lib/analysis/regrade.ts) leaves old
+    // generations as history; they are not evidence to carry or drop.
+    where: { cardId, klpResults: { some: { supersededAt: null, klp: { supersededAt: { not: null } } } } },
     orderBy: { createdAt: 'asc' },
     select: {
       id: true,
@@ -88,6 +92,7 @@ export async function loadCardRegradeInput(cardId: string): Promise<CardRegradeI
       mode: true,
       answer: true,
       klpResults: {
+        where: { supersededAt: null },
         select: {
           klpId: true,
           status: true,
@@ -225,7 +230,7 @@ export async function applyRegradePlan(
     } else {
       const remap = new Map(plan.carried.map((c) => [c.fromKlpId, c.toKlpId]))
       const tags = await tx.answerErrorTag.findMany({
-        where: { quizAnswerId: plan.answerId },
+        where: { quizAnswerId: plan.answerId, supersededAt: null },
         select: { id: true, klpId: true, secondaryKlpId: true },
       })
       for (const tag of tags) {
@@ -352,7 +357,7 @@ export async function regradeCard(
  */
 export async function findStrandedCardIds(limit: number): Promise<string[]> {
   const rows = await prisma.card.findMany({
-    where: { quizAnswers: { some: { klpResults: { some: { klp: { supersededAt: { not: null } } } } } } },
+    where: { quizAnswers: { some: { klpResults: { some: { supersededAt: null, klp: { supersededAt: { not: null } } } } } } },
     orderBy: { id: 'asc' },
     take: limit,
     select: { id: true },

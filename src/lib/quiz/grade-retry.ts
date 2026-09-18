@@ -54,3 +54,42 @@ export function unknownValueOf(err: unknown): string | undefined {
   const value = (err as FailureShape | undefined)?.detail?.value;
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
+
+/**
+ * D6: the grading call, retried ONCE in place when `shouldRetryGradeInPlace`
+ * says so. The second failure propagates to the caller, which records the
+ * failed row.
+ *
+ * On a MIXED retry — the first reply carried an out-of-vocabulary label and
+ * the second failed some other way (a quota, an outage) with no value — the
+ * thrown error is made to carry `unknownValueOf(second) ?? unknownValueOf(first)`.
+ * The failed row's `unknownStatus` exists to record what label the grader
+ * invented, and the first attempt is the only one that knows. The second
+ * failure is still what propagates: its kinds decide the classification;
+ * only the value is inherited, and only when it has none of its own.
+ */
+export async function gradeWithOneRetry<T>(call: () => Promise<T>): Promise<T> {
+  let first: unknown;
+  try {
+    return await call();
+  } catch (err) {
+    if (!shouldRetryGradeInPlace(err)) throw err;
+    first = err;
+  }
+  console.warn('Short-answer grade failed the schema; retrying once in place (D6).');
+  try {
+    return await call();
+  } catch (second) {
+    const inherited = unknownValueOf(first);
+    if (
+      inherited !== undefined &&
+      unknownValueOf(second) === undefined &&
+      second !== null &&
+      typeof second === 'object'
+    ) {
+      const shaped = second as FailureShape;
+      shaped.detail = { ...(shaped.detail ?? {}), value: inherited };
+    }
+    throw second;
+  }
+}

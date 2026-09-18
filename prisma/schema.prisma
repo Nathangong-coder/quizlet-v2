@@ -1470,9 +1470,14 @@ model QuizAnswer {
   analysisStatus     String? // analyzed | no_provenance | no_klps | failed
   analysisVersion    Int? // which analysis contract produced these rows
   analysisWarnings   Json? // [{ reason, value }] — non-fatal losses
-  /// Spec 5 Phase A §6: which GRADER_VERSION produced this answer's Phase A
-  /// rows (relation/form/unwarranted-claim results). Null predates Phase A.
+  /// Spec 5 Phase A §6: which GRADER_VERSION produced this answer's LIVE
+  /// analysis rows. Null predates Phase A. Moved by `npm run regrade`, which
+  /// writes a new generation of rows under the current version and marks the
+  /// old generation `supersededAt` — never deleting it.
   graderVersion      Int?
+  /// When `npm run regrade` last wrote a new generation of this answer's
+  /// analysis rows. Null means the live rows are the ones the quiz wrote.
+  regradedAt         DateTime?
   klpResults         AnswerKlpResult[]
   errorTags          AnswerErrorTag[]
   relationResults    AnswerRelationResult[]
@@ -1507,10 +1512,20 @@ model AnswerKlpResult {
   spanStart    Int?
   spanEnd      Int?
   createdAt    DateTime   @default(now())
+  /// Spec 5 Phase A §6: set when `npm run regrade` replaced this row with one
+  /// from a newer GRADER_VERSION. A superseded row is history, never evidence:
+  /// EVERY reader filters `supersededAt: null` (tests/analysis/live-rows-only).
+  ///
+  /// Uniqueness of the LIVE generation on (quizAnswerId, klpId) is a partial
+  /// unique index in migration 20260917103000_regrade_generations —
+  /// `WHERE "supersededAt" IS NULL` — which Prisma cannot declare, so it is
+  /// invisible to `migrate diff`. The plain index below is for the cascade
+  /// and for generation-agnostic reads.
+  supersededAt DateTime?
   quizAnswer   QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
   klp          CardKlp    @relation(fields: [klpId], references: [id], onDelete: Cascade)
 
-  @@unique([quizAnswerId, klpId])
+  @@index([quizAnswerId, klpId])
   @@index([klpId, status])
   @@index([klpId, createdAt])
 }
@@ -1545,6 +1560,10 @@ model AnswerErrorTag {
   significance   Int // computed; excludes repeatBonus
   quote          String?    @db.Text
   createdAt      DateTime   @default(now())
+  /// Spec 5 Phase A §6: see AnswerKlpResult.supersededAt. A regrade produces
+  /// a new generation of tags too; the old ones stay as history and every
+  /// reader filters them out, or a regraded answer's misconceptions count twice.
+  supersededAt   DateTime?
   quizAnswer     QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
   klp            CardKlp?   @relation("ErrorTagKlp", fields: [klpId], references: [id], onDelete: SetNull)
   secondaryKlp   CardKlp?   @relation("ErrorTagSecondaryKlp", fields: [secondaryKlpId], references: [id], onDelete: SetNull)
@@ -1569,10 +1588,13 @@ model AnswerRelationResult {
   spanStart    Int?
   spanEnd      Int?
   createdAt    DateTime    @default(now())
+  /// See AnswerKlpResult.supersededAt. Live uniqueness on
+  /// (quizAnswerId, relationId) is a partial unique index in SQL.
+  supersededAt DateTime?
   quizAnswer   QuizAnswer  @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
   relation     KlpRelation @relation(fields: [relationId], references: [id], onDelete: Cascade)
 
-  @@unique([quizAnswerId, relationId])
+  @@index([quizAnswerId, relationId])
 }
 
 /// Spec 5 Phase A §3/§6: whether an answer met one of a card's authored form
@@ -1587,10 +1609,13 @@ model AnswerFormResult {
   spanStart         Int?
   spanEnd           Int?
   createdAt         DateTime            @default(now())
+  /// See AnswerKlpResult.supersededAt. Live uniqueness on
+  /// (quizAnswerId, formRequirementId) is a partial unique index in SQL.
+  supersededAt      DateTime?
   quizAnswer        QuizAnswer          @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
   formRequirement   CardFormRequirement @relation(fields: [formRequirementId], references: [id], onDelete: Cascade)
 
-  @@unique([quizAnswerId, formRequirementId])
+  @@index([quizAnswerId, formRequirementId])
 }
 
 /// Spec 5 Phase A §3/§6: a claim the answer made that the grader could not
@@ -1605,7 +1630,11 @@ model AnswerUnwarrantedClaim {
   spanStart    Int?
   spanEnd      Int?
   createdAt    DateTime   @default(now())
+  /// See AnswerKlpResult.supersededAt.
+  supersededAt DateTime?
   quizAnswer   QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
+
+  @@index([quizAnswerId])
 }
 
 /// Spec 5 Phase A §5/§6: an authored, versioned structural/completeness
@@ -1625,7 +1654,11 @@ model CardFormRequirement {
   card          Card               @relation(fields: [cardId], references: [id], onDelete: Cascade)
   answerResults AnswerFormResult[]
 
-  @@index([cardId, klpVersion])
+  /// One requirement per (card, version, index): an owner click racing the
+  /// cron could double-write a card's requirements, and the grader must see
+  /// each shape once or two refs would name the same requirement. The
+  /// unique also covers the (cardId, klpVersion) lookup.
+  @@unique([cardId, klpVersion, index])
 }
 
 /// Stage 8: one asked question, frozen at the moment it was asked.

@@ -197,9 +197,13 @@ export function buildAnalysisWrites(input: {
    * nothing to quote (MC/TF), where no draft carries a quote either.
    */
   answerText: string
-  /** The card's relations, by the ref the grader was shown. Empty until wired. */
+  /**
+   * The card's relations, by the ref the grader was shown — the SAME array
+   * `promptViewOf` numbered (`src/lib/quiz/grading-context.ts`), so a verdict
+   * on `[R1]` lands on `relations[1]`. Empty for a mode that shows none (MC/TF).
+   */
   relations: { id: string }[]
-  /** The card's form requirements, by the ref the grader was shown. Empty until wired. */
+  /** The card's form requirements, by the ref the grader was shown. Same rule. */
   formReqs: { id: string }[]
   relationResults: RelationResultDraft[]
   formResults: FormResultDraft[]

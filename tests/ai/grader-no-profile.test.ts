@@ -22,6 +22,14 @@ describe('the grader never sees the learner', () => {
     expect(src).not.toMatch(/learnerContextBlock|profileBlock/)
   })
 
+  it('the annotation prompt module never imports learner context either', () => {
+    // Annotations are the second AI call of the same grading action. A
+    // `profileBlock` field left on its input type is one refactor away from
+    // being wired back in — the boundary is closed by TYPE, not only by scan.
+    const src = readFileSync(join(__dirname, '../../src/lib/ai/prompts/annotation.ts'), 'utf-8')
+    expect(src).not.toMatch(/learnerContextBlock|profileBlock/)
+  })
+
   it('submitShortAnswer never fetches a learner profile', () => {
     const src = readFileSync(join(__dirname, '../../src/actions/quiz.ts'), 'utf-8')
     const start = src.indexOf('export async function submitShortAnswer(')

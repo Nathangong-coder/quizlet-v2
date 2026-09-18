@@ -40,10 +40,13 @@ describe('blankAnswerGrade', () => {
     expect(grade.feedback).toMatch(/no answer/i)
   })
 
-  it('records the key point as failed, not merely unobserved', () => {
+  it('records the key point as an omission, not merely unobserved', () => {
     // The learner was asked and produced nothing. That is a real negative
-    // observation, and `failed` is 0.0 credit in every mode.
-    expect(blankAnswerGrade(0).klpResults).toEqual([{ klpRef: 0, status: 'failed' }])
+    // observation — and under Spec 5's runtime vocabulary its NAME is
+    // `omission` (the point was not addressed), not the legacy catch-all
+    // `failed`. Credit is identical (0.0 in every mode); only the label,
+    // which Spec 3's misconception rollup reads, changes.
+    expect(blankAnswerGrade(0).klpResults).toEqual([{ klpRef: 0, status: 'omission' }])
   })
 
   it('tags nothing', () => {

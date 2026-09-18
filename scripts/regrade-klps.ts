@@ -185,7 +185,7 @@ async function selectCardIds(args: string[]): Promise<string[]> {
   const rows = await prisma.card.findMany({
     where: {
       ...(setId ? { setId } : {}),
-      quizAnswers: { some: { klpResults: { some: { klp: { supersededAt: { not: null } } } } } },
+      quizAnswers: { some: { klpResults: { some: { supersededAt: null, klp: { supersededAt: { not: null } } } } } },
     },
     orderBy: { id: 'asc' },
     select: { id: true },

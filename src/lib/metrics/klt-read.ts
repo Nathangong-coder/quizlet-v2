@@ -50,6 +50,8 @@ export async function loadMissedWork(
       quizAnswer: { userId },
       status: { in: MISS_STATUSES },
       klp: { card },
+      // Live generation only (Spec 5 §6; tests/analysis/live-rows-only).
+      supersededAt: null,
     },
     select: {
       klpId: true,
@@ -83,7 +85,7 @@ export async function loadMissedWork(
       select: { klpId: true, pKnown: true, observations: true },
     }),
     prisma.answerErrorTag.findMany({
-      where: { quizAnswer: { userId }, klpId: { in: klpIds } },
+      where: { quizAnswer: { userId }, klpId: { in: klpIds }, supersededAt: null },
       select: { quizAnswerId: true, klpId: true, type: true },
     }),
   ])

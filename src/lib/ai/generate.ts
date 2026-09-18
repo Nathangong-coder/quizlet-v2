@@ -439,6 +439,18 @@ export interface GenerationMeta {
   credentialLabel: string
   /** How many credentials had to fail before this one worked. 0 on a clean first attempt. */
   failedAttempts: number
+  /**
+   * The winning attempt's provider-reported token usage, as logged to
+   * `AiCallLog`. Undefined when the provider reported none. Exposed so an
+   * operator script on the pooled path (`npm run regrade`) can print the
+   * same token table `--direct` prints from `generateText` directly.
+   */
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    reasoningTokens?: number
+    cachedTokens?: number
+  }
 }
 
 /**
@@ -603,6 +615,14 @@ export async function generateJsonWithMeta<T>({
       credentialId: winner.id,
       credentialLabel: winner.label,
       failedAttempts: result.failures.length,
+      usage: won
+        ? {
+            inputTokens: won.inputTokens,
+            outputTokens: won.outputTokens,
+            reasoningTokens: won.reasoningTokens,
+            cachedTokens: won.cachedTokens,
+          }
+        : undefined,
     },
   };
 }

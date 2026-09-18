@@ -34,10 +34,13 @@ export function isBlankAnswer(answer: string): boolean {
  * is removed instead of the behaviour being asked away.
  *
  * The values are the same ones the grader is told to use: 1/10 is the bottom of
- * the `missed` band. `failed` on the key point is a real negative observation,
- * not an absence of one — the learner was asked and produced nothing — and
- * `klpCredit` scores `failed` at 0.0 in every mode. No error tags: there is no
- * text to tag, and a fabricated tag is indistinguishable from a real one.
+ * the `missed` band. `omission` on the key point is a real negative
+ * observation, not an absence of one — the learner was asked and produced
+ * nothing, so the point was not addressed, which is exactly what `omission`
+ * NAMES under Spec 5's runtime vocabulary (the legacy `failed` said only
+ * "wrong somehow"). `klpCredit` scores it 0.0 in every mode, the same as
+ * `failed`. No error tags: there is no text to tag, and a fabricated tag is
+ * indistinguishable from a real one.
  */
 export function blankAnswerGrade(questionRef: number): Grade {
   return {
@@ -45,7 +48,7 @@ export function blankAnswerGrade(questionRef: number): Grade {
     score: 1,
     status: 'missed',
     feedback: 'No answer was submitted for this question.',
-    klpResults: [{ klpRef: 0, status: 'failed' }],
+    klpResults: [{ klpRef: 0, status: 'omission' }],
     errorTags: [],
   }
 }

@@ -164,12 +164,19 @@ describe('GRADE_SHORT_ANSWER_PROMPT v2 (KLP-aware)', () => {
 })
 
 describe('ANNOTATION_PROMPT', () => {
-  it('build() works with and without a profileBlock', () => {
+  it('build() is learner-blind: no profile field exists and no learner context is rendered', () => {
+    // Spec 5, "The boundary": annotation is the grading action's second AI
+    // call. It used to accept a `profileBlock`; the field is gone so the
+    // boundary is closed by type (tests/ai/grader-no-profile.test.ts scans
+    // the module as well).
     const card = makeCard()
-    const withBlock = ANNOTATION_PROMPT.build({ card, answer: 'x', correct: card.definition, profileBlock: PROFILE_BLOCK })
-    const withoutBlock = ANNOTATION_PROMPT.build({ card, answer: 'x', correct: card.definition })
-    expect(withBlock).toContain(PROFILE_BLOCK)
-    expect(withoutBlock).not.toContain('Learner context')
+    const prompt = ANNOTATION_PROMPT.build({ card, answer: 'x', correct: card.definition })
+    expect(prompt).not.toContain('Learner context')
+    expect(prompt).not.toContain(PROFILE_BLOCK)
+    expect(prompt).toContain('You are a linguistic expert')
+    // @ts-expect-error — the field no longer exists on AnnotationBuildInput.
+    const typed: Parameters<typeof ANNOTATION_PROMPT.build>[0] = { card, answer: 'x', correct: card.definition, profileBlock: PROFILE_BLOCK }
+    expect(typed).toBeDefined()
   })
 })
 

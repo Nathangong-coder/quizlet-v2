@@ -41,7 +41,7 @@ import type { StudySource } from '@/lib/memory/scoring';
 import { toStoredTags, deriveTagScores, REPEAT_WINDOW_ATTEMPTS, type RawTagRow } from '@/lib/errors/derive';
 import { loadAnsweredAttemptIds } from '@/lib/quiz/history';
 import { loadGradingContext, promptViewOf } from '@/lib/quiz/grading-context';
-import { shouldRetryGradeInPlace, unknownValueOf } from '@/lib/quiz/grade-retry';
+import { gradeWithOneRetry, unknownValueOf } from '@/lib/quiz/grade-retry';
 import { gradeMaxOutputTokens } from '@/lib/analysis/output-cap';
 import { getUserTuning } from '@/lib/tuning/store';
 import { MC_TF_MAGNITUDE } from '@/lib/errors/bands';
@@ -889,22 +889,11 @@ async function recordFailedShortAnswerAnalysis(input: {
   }
 }
 
-/**
- * D6 (Spec 5 §4): the grading call, retried ONCE in place when the reply
- * failed the strict schema. `shouldRetryGradeInPlace` decides — a
- * `schema_invalid` is retried, an `output_truncated` (the ceiling was hit)
- * is not, nothing else is. The second failure propagates to the caller,
- * which records the failed row.
- */
-async function gradeWithOneRetry<T>(call: () => Promise<T>): Promise<T> {
-  try {
-    return await call();
-  } catch (err) {
-    if (!shouldRetryGradeInPlace(err)) throw err;
-    console.warn('Short-answer grade failed the schema; retrying once in place (D6).');
-    return call();
-  }
-}
+// D6 (Spec 5 §4): the grading call is retried ONCE in place by
+// `gradeWithOneRetry` (src/lib/quiz/grade-retry.ts) — a `schema_invalid` is
+// retried, an `output_truncated` is not, nothing else is; on a mixed retry the
+// first failure's out-of-vocabulary label survives onto the thrown error so
+// the failed row can record it.
 
 export async function submitShortAnswer(input: {
   attemptId: string;
@@ -1325,10 +1314,15 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
         answers: {
           include: {
             card: { include: { contentBlocks: { orderBy: { position: 'asc' } } } },
+            // Live generation only: `npm run regrade` leaves the old rows as
+            // history (Spec 5 §6), and the results page shows the current
+            // grader's verdicts, not every grader's.
             klpResults: {
+              where: { supersededAt: null },
               include: { klp: { select: { text: true, kind: true } } },
             },
             errorTags: {
+              where: { supersededAt: null },
               include: {
                 klp: { select: { text: true, kind: true } },
                 secondaryKlp: { select: { text: true, kind: true } },
@@ -1413,6 +1407,7 @@ export async function getQuizAttemptSummary(attemptId: string): Promise<ActionRe
           attemptId: { in: windowIds },
           analysisStatus: 'analyzed',
         },
+        supersededAt: null,
       },
       select: {
         dimension: true, type: true, klpId: true, relevance: true, starred: true,

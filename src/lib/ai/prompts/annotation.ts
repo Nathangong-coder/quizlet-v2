@@ -1,12 +1,16 @@
 import { Card } from '@prisma/client';
 import { AnnotationSchema } from '@/lib/ai/schemas';
-import { learnerContextBlock } from './shared';
 
+/**
+ * Spec 5, "The boundary": annotation is the second AI call of the grading
+ * action and is as learner-blind as the first. There is deliberately no
+ * learner-profile field here — the boundary is closed by TYPE, and
+ * `tests/ai/grader-no-profile.test.ts` scans this module too.
+ */
 export interface AnnotationBuildInput {
   card: Card;
   answer: string;
   correct: string;
-  profileBlock?: string;
 }
 
 /**
@@ -22,7 +26,7 @@ export const ANNOTATION_PROMPT = {
   schema: AnnotationSchema,
 
   build(input: AnnotationBuildInput): string {
-    return `${learnerContextBlock(input.profileBlock)}You are a linguistic expert. Analyze the following response for a finance interview.
+    return `You are a linguistic expert. Analyze the following response for a finance interview.
 
 Term: ${input.card.term}
 Correct Definition: ${input.correct}

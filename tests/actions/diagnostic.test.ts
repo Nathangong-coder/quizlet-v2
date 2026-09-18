@@ -603,7 +603,9 @@ describe('submitDiagnosticTest', () => {
     expect(h.createAnswerWithAnalysis).toHaveBeenCalledTimes(QUESTION_COUNT)
     for (const call of h.createAnswerWithAnalysis.mock.calls) {
       expect(call[1].klpResults).toHaveLength(1)
-      expect(call[1].klpResults[0].status).toBe('failed')
+      // Spec 5: a blank answer is an `omission` (the point was not addressed),
+      // not the legacy catch-all `failed`. Credit is 0 either way.
+      expect(call[1].klpResults[0].status).toBe('omission')
       expect(call[1].klpResults[0].credit).toBe(0)
     }
   })

@@ -70,7 +70,8 @@ async function main() {
     // resolve however the database happens to return them. `id` guarantees
     // a total order so the same input always replays to the same posterior.
     const rows = await prisma.answerKlpResult.findMany({
-      where: { quizAnswer: { userId } },
+      // Live generation only — a regraded answer's superseded rows are history.
+      where: { quizAnswer: { userId }, supersededAt: null },
       select: {
         klpId: true,
         status: true,
