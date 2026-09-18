@@ -33,7 +33,8 @@
     "verify:diagnostic": "tsx --env-file=.env scripts/verify-diagnostic.ts",
     "probe-models": "tsx --env-file=.env scripts/probe-model-policy.ts",
     "bench-models": "tsx --conditions=react-server --env-file=.env scripts/bench-models.ts",
-    "probe-grading": "tsx --env-file=.env scripts/probe-grading-matrix.ts"
+    "probe-grading": "tsx --env-file=.env scripts/probe-grading-matrix.ts",
+    "probe-grade-tokens": "tsx --conditions=react-server --env-file=.env scripts/probe-grade-tokens.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.22",

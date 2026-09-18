@@ -1245,3 +1245,23 @@ and half a cent per card, as the panel says. The stored-credential path could no
 on this machine — `GOOGLE_KEY_ENCRYPTION_SECRET` is not in the local `.env`, so every stored key
 fails to decrypt locally ("All 5 AI attempts failed": the aggregate error's `detail.attempts`
 says why per credential); it is set in production.
+
+### Spec 5 — the grading ceiling (`scripts/probe-grade-tokens.ts`)
+
+**NOT YET RUN.** The grading output ceiling (`src/lib/analysis/output-cap.ts`,
+`gradeMaxOutputTokens`) ships with the controller-ruled placeholders
+`GRADE_TOKENS_BASE = 2048` / `GRADE_TOKENS_PER_ITEM = 600` because this build pass ran
+in an environment with no raw provider keys available to it (`npm run probe-grade-tokens`
+needs `GOOGLE_API_KEY`/`GOOGLE_API_KEYS`, `DEEPSEEK_API_KEY`, or `ZAI_API_KEY` in a bare
+`.env`, and was explicitly not run here). The script itself is built and type-checks: it
+samples up to 20 stored short-answer `QuizAnswer` rows on cards with 4-9 live KLPs, rebuilds
+the exact v5 grading prompt (key points, plus relations and form requirements where the card
+has them) per row, calls each `--models` entry at a generous 16384-token cap, fits
+`outputTokens ~ intercept + slope * items` by least squares, and prints `p95` plus a
+recommended `GRADE_TOKENS_BASE`/`GRADE_TOKENS_PER_ITEM` pair sized to ~2x that p95 at the
+sample's mean item count.
+
+**Next operator with keys:** run `npm run probe-grade-tokens -- --models deepseek-flash` (add
+`,gemini-3.1-flash-lite` to compare), paste the printed pair into `output-cap.ts`, and replace
+this paragraph with the real run's numbers — sample size, per-model finishReason counts, the
+fitted line, p95, and the recommended pair.

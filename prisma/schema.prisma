@@ -1215,6 +1215,12 @@ model AiCallLog {
   ok              Boolean
   /// FailureKind (src/lib/errors/classify.ts). NULL on success.
   failureKind     String?
+  /// Spec 5 Phase A, D6's fail-loud path: the attempt's raw error message on
+  /// a failure, NULL on success. When the failure was a strict-enum rejection
+  /// (`extractUnknownEnumValue`, src/lib/errors/classify.ts), the offending
+  /// value is appended so it is visible on /staff/ai-history rather than only
+  /// existing as a categorical `failureKind`.
+  error           String?  @db.Text
   latencyMs       Int
   /// Tokens this attempt consumed, as the provider reported them.
   ///

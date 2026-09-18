@@ -13,6 +13,7 @@ import type { PrismaClient } from '@prisma/client';
 import {
   classifyProviderError,
   describeFailure,
+  extractUnknownEnumValue,
   isRetryable,
   type AttemptRow,
   type ErrorDetail,
@@ -108,6 +109,7 @@ export async function runAttempts<T>(
         model: candidate.model,
         kind,
         message: err instanceof Error ? err.message : String(err),
+        value: extractUnknownEnumValue(err),
       });
       // Every kind advances to the next credential. The retryable/fatal
       // distinction is consumed by callers via `flagworthyFailures` below.
@@ -120,6 +122,10 @@ export async function runAttempts<T>(
     title: `All ${failures.length} AI attempt${failures.length === 1 ? '' : 's'} failed`,
     attempts: failures,
     technical: failures.map((f) => `${f.label} / ${f.model}: ${f.message}`).join('\n\n'),
+    // D6's fail-loud path: surface the first out-of-vocabulary value any
+    // attempt hit, so a caller showing this detail can display it without
+    // walking `attempts` itself.
+    value: failures.find((f) => f.value !== undefined)?.value,
   });
 }
 
@@ -153,6 +159,14 @@ export interface AiCallRecord {
   credentialLabel: string;
   ok: boolean;
   failureKind: FailureKind | null;
+  /**
+   * The attempt's raw error message on a failure, NULL/undefined on success.
+   * When the failure was a strict-enum rejection (`extractUnknownEnumValue`),
+   * the offending value is appended — see `src/lib/errors/classify.ts` — so
+   * it is visible on `/staff/ai-history` rather than existing only as the
+   * categorical `failureKind`.
+   */
+  error?: string;
   latencyMs: number;
   /**
    * Provider-reported token usage. Undefined on a failure, which normally
@@ -543,6 +557,8 @@ export async function generateJsonWithMeta<T>({
         });
         return output as T;
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const unknownValue = extractUnknownEnumValue(err);
         calls.push({
           userId, task,
           provider: cred.provider,
@@ -552,6 +568,7 @@ export async function generateJsonWithMeta<T>({
           ok: false,
           failureKind: classifyProviderError(err),
           latencyMs: Date.now() - startedAt,
+          error: unknownValue ? `${message}\nunknown value: ${unknownValue}` : message,
         });
         throw err;
       }

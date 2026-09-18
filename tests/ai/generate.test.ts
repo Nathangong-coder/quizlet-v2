@@ -1,6 +1,44 @@
-import { describe, it, expect } from 'vitest';
-import { runAttempts, flagworthyFailures, AiGenerationError, type AttemptCandidate } from '@/lib/ai/generate';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { z } from 'zod';
+import { runAttempts, flagworthyFailures, generateJson, AiGenerationError, type AttemptCandidate } from '@/lib/ai/generate';
 import type { AttemptRow, FailureKind } from '@/lib/errors/classify';
+
+/**
+ * Mocked-prisma harness for the D6 fail-loud path below, matching the pattern
+ * in tests/ai/generate-pool.test.ts: `prisma` is dynamically imported inside
+ * `generateJson`, so a module mock reaches it with no real database.
+ */
+const h = vi.hoisted(() => ({
+  findMany: vi.fn(),
+  findUnique: vi.fn(),
+  update: vi.fn(),
+  updateMany: vi.fn(),
+  groupBy: vi.fn(),
+  createMany: vi.fn(),
+  generateText: vi.fn(),
+}));
+
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    aiCredential: { findMany: h.findMany, update: h.update, updateMany: h.updateMany },
+    aiTaskRouting: { findUnique: h.findUnique },
+    aiCallLog: { findMany: vi.fn().mockResolvedValue([]), groupBy: h.groupBy, createMany: h.createMany },
+  },
+}));
+
+vi.mock('ai', () => ({
+  generateText: h.generateText,
+  Output: { object: (opts: unknown) => opts },
+}));
+
+vi.mock('@/lib/security/api-key', () => ({
+  decryptApiKey: (value: string) => `decrypted:${value}`,
+}));
+
+vi.mock('@/lib/ai/providers', () => ({
+  AI_PROVIDERS: ['google', 'anthropic', 'openai', 'openrouter', 'deepseek', 'zai', 'custom'],
+  resolveLanguageModel: (args: unknown) => args,
+}));
 
 const candidate = (over: Partial<AttemptCandidate> & { id: string }): AttemptCandidate => ({
   label: over.id,
@@ -145,5 +183,96 @@ describe('flagworthyFailures', () => {
   it('attributes by credentialId, not array position', () => {
     const rows = [row('x', 'rate_limited'), row('y', 'invalid_key'), row('z', 'internal')];
     expect(flagworthyFailures(rows).map((f) => f.credentialId)).toEqual(['y']);
+  });
+});
+
+/**
+ * D6's fail-loud path (Spec 5 Phase A, Task 7): a strict `z.enum(...)`
+ * rejecting the model's reply must not vanish into a generic "unexpected
+ * response shape" — the offending value is recorded on the `AiCallLog` row so
+ * it is visible on /staff/ai-history, not just as the categorical
+ * `failureKind: 'schema_invalid'`.
+ */
+describe('generateJson — unknown enum values are logged, not swallowed', () => {
+  const GOOGLE = {
+    id: 'google-1',
+    userId: 'u1',
+    provider: 'google',
+    label: 'Google',
+    encryptedApiKey: 'enc',
+    keyHint: 'AIza…abcd',
+    baseUrl: null,
+    defaultModel: 'gemini-3.6-flash',
+    role: 'primary',
+    enabled: true,
+    shared: false,
+    sharedTokenBudget: null,
+    lastUsedAt: null,
+    lastErrorAt: null,
+    lastErrorKind: null,
+    verifiedAt: null,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    h.findMany.mockResolvedValue([GOOGLE]);
+    h.findUnique.mockResolvedValue(null);
+    h.groupBy.mockResolvedValue([]);
+    h.update.mockResolvedValue({});
+    h.updateMany.mockResolvedValue({ count: 1 });
+    h.createMany.mockResolvedValue({ count: 0 });
+  });
+
+  /**
+   * Builds the same real AI SDK v7 chain the classify.ts tests verify:
+   * `NoObjectGeneratedError.cause` is an `AI_TypeValidationError` carrying
+   * `.value` (the full object that failed validation), whose own `.cause` is
+   * the real `ZodError`.
+   */
+  function unknownEnumError(receivedLabel: string) {
+    const zodError = Object.assign(new Error('Invalid enum value'), {
+      issues: [{ code: 'invalid_value', values: ['correct', 'partial', 'failed'], path: ['klpResults', 0, 'status'] }],
+    });
+    const typeValidationError = Object.assign(new Error('Type validation failed'), {
+      name: 'AI_TypeValidationError',
+      value: { klpResults: [{ status: receivedLabel }] },
+      cause: zodError,
+    });
+    return Object.assign(new Error('No object generated: response did not match schema.'), {
+      name: 'AI_NoObjectGeneratedError',
+      cause: typeValidationError,
+    });
+  }
+
+  it('records the received value on the AiCallLog row for a Zod enum failure', async () => {
+    h.generateText.mockRejectedValue(unknownEnumError('bogus_label'));
+
+    await expect(
+      generateJson({ userId: 'u1', task: 'grade', schema: z.object({ ok: z.boolean() }), prompt: 'hi' }),
+    ).rejects.toBeInstanceOf(AiGenerationError);
+
+    // The single Google credential fans out across its approved alternate
+    // models for a policed task (see credential-pool.ts), so more than one
+    // attempt row is expected here — every one hit the SAME mocked rejection,
+    // so every one must carry the value.
+    expect(h.createMany).toHaveBeenCalledTimes(1);
+    const rows = (h.createMany.mock.calls[0][0] as { data: { error?: string }[] }).data;
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(r.error).toContain('unknown value: bogus_label');
+    }
+  });
+
+  it('surfaces the same value on the thrown aggregate error detail', async () => {
+    h.generateText.mockRejectedValue(unknownEnumError('bogus_label'));
+
+    const err = await generateJson({
+      userId: 'u1', task: 'grade', schema: z.object({ ok: z.boolean() }), prompt: 'hi',
+    }).then(() => null, (e) => e);
+
+    expect(err).toBeInstanceOf(AiGenerationError);
+    expect((err as AiGenerationError).detail.value).toBe('bogus_label');
   });
 });
