@@ -193,6 +193,12 @@ async function main() {
       starred: false,
       klpResults: grade.klpResults ?? [],
       errorTags: (grade.errorTags ?? []) as never,
+      answerText: '',
+      relations: [],
+      formReqs: [],
+      relationResults: [],
+      formResults: [],
+      unwarranted: [],
       forcedStatus: (grade.klpResults ?? []).length === 0 ? 'no_provenance' : undefined,
     })
     const credit = writes.klpResults[0]?.credit
@@ -210,6 +216,12 @@ async function main() {
       starred: false,
       klpResults: g.klpResults ?? [],
       errorTags: [],
+      answerText: '',
+      relations: [],
+      formReqs: [],
+      relationResults: [],
+      formResults: [],
+      unwarranted: [],
     }).klpResults)
     .find((r) => r.status === 'passed')
   console.log('')

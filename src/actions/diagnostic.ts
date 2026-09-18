@@ -647,6 +647,15 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
           starred: starredByCard.get(item.question.cardId) ?? false,
           klpResults: item.grade?.klpResults ?? [],
           errorTags: (item.grade?.errorTags ?? []) as ErrorTagDraft[],
+          // Spec 5 Phase A: quotes are located in the submitted answer. The
+          // diagnostic asks one key point per question, so it carries no
+          // relation or form verdicts; Task 8 revisits what it forwards.
+          answerText: item.answer,
+          relations: [],
+          formReqs: [],
+          relationResults: [],
+          formResults: [],
+          unwarranted: [],
           // An ungraded question writes its raw record with `failed` — the
           // spec's own degradation status for "grading did not produce a
           // grade". Zero rows alone cannot be told apart from a clean answer.

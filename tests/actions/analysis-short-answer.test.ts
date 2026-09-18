@@ -19,6 +19,10 @@ const h = vi.hoisted(() => ({
   answerCreate: vi.fn(),
   klpResultCreateMany: vi.fn(),
   errorTagCreateMany: vi.fn(),
+  // Spec 5 Phase A: the three new answer-child tables.
+  relationResultCreateMany: vi.fn(),
+  formResultCreateMany: vi.fn(),
+  unwarrantedCreateMany: vi.fn(),
   klpStateFindUnique: vi.fn(),
   klpStateUpsert: vi.fn(),
   // B2: the prior answer is superseded INSIDE the write transaction now, and
@@ -64,6 +68,7 @@ vi.mock('@/lib/ai/context', () => ({ safeProfileBlock: vi.fn() }))
 vi.mock('@/lib/memory/record', () => ({ recordStudyEvent: vi.fn() }))
 
 import { submitShortAnswer } from '@/actions/quiz'
+import { GRADER_VERSION } from '@/lib/analysis/version'
 
 const OWNER = 'user-owner'
 const ATTEMPT_ID = 'a1'
@@ -106,6 +111,9 @@ beforeEach(() => {
   h.answerCreate.mockResolvedValue({ id: 'answer-1' })
   h.klpResultCreateMany.mockResolvedValue({ count: 0 })
   h.errorTagCreateMany.mockResolvedValue({ count: 0 })
+  h.relationResultCreateMany.mockResolvedValue({ count: 0 })
+  h.formResultCreateMany.mockResolvedValue({ count: 0 })
+  h.unwarrantedCreateMany.mockResolvedValue({ count: 0 })
   h.klpStateFindUnique.mockResolvedValue(null)
   h.klpStateUpsert.mockResolvedValue({})
   h.txPriorFindMany.mockResolvedValue([])
@@ -128,6 +136,9 @@ beforeEach(() => {
       // $queryRaw cannot deserialize under the Neon adapter (see state-writer.ts).
       $executeRaw: h.txExecuteRaw,
       answerErrorTag: { createMany: h.errorTagCreateMany },
+      answerRelationResult: { createMany: h.relationResultCreateMany },
+      answerFormResult: { createMany: h.formResultCreateMany },
+      answerUnwarrantedClaim: { createMany: h.unwarrantedCreateMany },
       klpState: {
         findUnique: h.klpStateFindUnique,
         upsert: h.klpStateUpsert,
@@ -365,6 +376,74 @@ describe('submitShortAnswer analysis capture', () => {
     expect(data.isCorrect).toBeNull()
     expect(h.klpResultCreateMany).not.toHaveBeenCalled()
     expect(h.errorTagCreateMany).not.toHaveBeenCalled()
+  })
+
+  it('stamps graderVersion on the answer row (Spec 5 §6)', async () => {
+    h.generateJson.mockResolvedValue({
+      ...gradeShape,
+      klpResults: [{ klpRef: 0, status: 'correct' }],
+      errorTags: [],
+    })
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
+
+    expect(h.answerCreate.mock.calls[0][0].data.graderVersion).toBe(GRADER_VERSION)
+  })
+
+  it('resolves the grader quote to a span over the SUBMITTED answer text', async () => {
+    h.generateJson.mockResolvedValue({
+      ...gradeShape,
+      klpResults: [{ klpRef: 0, status: 'inversion', quote: 'cost of debt' }],
+      errorTags: [],
+    })
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'WACC is the cost of debt only' })
+
+    expect(h.klpResultCreateMany.mock.calls[0][0].data[0]).toMatchObject({
+      klpId: 'klp-a', status: 'inversion', credit: 0, evidence: 'cost of debt', spanStart: 12, spanEnd: 24,
+    })
+  })
+
+  it('writes an unwarranted claim through its own table and docks key-point credit', async () => {
+    h.generateJson.mockResolvedValue({
+      ...gradeShape,
+      klpResults: [{ klpRef: 0, status: 'correct' }],
+      errorTags: [],
+      unwarranted: [{ text: 'says WACC ignores equity', quote: 'ignores equity', magnitude: 10 }],
+    })
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'WACC ignores equity' })
+
+    expect(h.unwarrantedCreateMany).toHaveBeenCalledTimes(1)
+    expect(h.unwarrantedCreateMany.mock.calls[0][0].data).toEqual([
+      expect.objectContaining({
+        quizAnswerId: 'answer-1', text: 'says WACC ignores equity', magnitude: 10, spanStart: 5, spanEnd: 19,
+      }),
+    ])
+    // Full dock: 0.95 x 0.5. The claim never became an error tag.
+    expect(h.klpResultCreateMany.mock.calls[0][0].data[0].credit).toBeCloseTo(0.475)
+    expect(h.errorTagCreateMany).not.toHaveBeenCalled()
+  })
+
+  it('forwards relation and form verdicts, which are warnings (not rows) until Task 8 wires the ids', async () => {
+    // The grader's arrays reach buildAnalysisWrites; with no relation / form
+    // requirement ids passed yet, every ref is unresolvable — recorded as a
+    // warning on the answer, never fabricated into a row.
+    h.generateJson.mockResolvedValue({
+      ...gradeShape,
+      klpResults: [{ klpRef: 0, status: 'correct' }],
+      errorTags: [],
+      relationResults: [{ relationRef: 0, status: 'correct', quote: 'text' }],
+      formResults: [{ formRef: 0, status: 'met' }],
+    })
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
+
+    expect(h.relationResultCreateMany).not.toHaveBeenCalled()
+    expect(h.formResultCreateMany).not.toHaveBeenCalled()
+    const data = h.answerCreate.mock.calls[0][0].data
+    expect(data.analysisWarnings).toContainEqual({ reason: 'unresolved_relation_ref', value: '0' })
+    expect(data.analysisWarnings).toContainEqual({ reason: 'unresolved_form_ref', value: '0' })
   })
 
   it('does not record a failed row for an unrelated pre-grading failure', async () => {

@@ -111,6 +111,12 @@ async function main() {
           errorTags: question.position === 0
             ? [{ dimension: 'accuracy', type: 'omission', klpRef: 0, magnitude: 6 }]
             : [],
+          answerText: '',
+          relations: [],
+          formReqs: [],
+          relationResults: [],
+          formResults: [],
+          unwarranted: [],
         })
 
         const answer = await createAnswerWithAnalysis(

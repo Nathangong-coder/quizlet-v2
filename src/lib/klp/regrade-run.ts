@@ -322,6 +322,15 @@ export async function regradeCard(
           starred: answer.starred,
           klpResults: graded.klpResults,
           errorTags: [],
+          // Spec 5 Phase A: spans resolve against the stored answer. This
+          // regrade only rewrites key-point rows (see applyRegradePlan), so
+          // the relation/form/claim arrays stay empty here.
+          answerText: answer.answerText ?? '',
+          relations: [],
+          formReqs: [],
+          relationResults: [],
+          formResults: [],
+          unwarranted: [],
         })
       }
     }

@@ -4,8 +4,10 @@ import {
 } from '@/lib/errors/taxonomy'
 import { computeSignificance } from '@/lib/errors/significance'
 import { klpCredit, type KlpStatus } from '@/lib/errors/klp-credit'
+import type { KlpVerdict } from '@/lib/klp/verdicts'
 import { resolveSeverity } from '@/lib/errors/bands'
 import { contaminationFactor } from '@/lib/errors/contamination'
+import { resolveSpan } from '@/lib/analysis/spans'
 
 /**
  * Version of the whole analysis-capture contract: the error-tag vocabulary,
@@ -27,8 +29,23 @@ import { contaminationFactor } from '@/lib/errors/contamination'
  * recomputable from the answer's own persisted `AnswerErrorTag` rows, which
  * already store dimension, type, klpId and severity — so the inputs ARE stored,
  * as the analysis contract requires, without a migration.
+ *
+ * v4 (Spec 5 Phase A, the content pass): the KLP vocabulary is widened from
+ * three labels to the runtime verdict set, strict grading is on, the learner
+ * profile is removed from the judgment prompt, `correct` replaces `passed`
+ * (which is never written again — a read-only alias), every non-`correct`
+ * verdict quotes the answer and the quote is resolved in TypeScript to
+ * `AnswerKlpResult.spanStart/spanEnd`, relation verdicts persist on
+ * `AnswerRelationResult` (passive provenance), form requirements on
+ * `AnswerFormResult`, and unwarranted claims — the contamination check made
+ * first-class — on `AnswerUnwarrantedClaim`, which the contamination factor
+ * now reads alongside the tags. A v3 credit and a v4 credit are therefore not
+ * comparable whenever the answer carried an unwarranted claim, and a v3 row's
+ * `failed` is not distinguishable from a v4 row's specific label.
+ * `QuizAnswer.graderVersion` (`GRADER_VERSION`, version.ts) separately names
+ * the instrument that produced the rows.
  */
-export const ANALYSIS_VERSION = 3
+export const ANALYSIS_VERSION = 4
 
 /** Why an answer has the analysis rows it has. */
 export type AnalysisOutcome = 'analyzed' | 'no_provenance' | 'no_klps' | 'failed'
@@ -40,8 +57,44 @@ export interface KlpRef {
 
 export interface KlpResultDraft {
   klpRef: number
+  /**
+   * `KlpStatus`, the superset, not `KlpVerdict`: the runtime schema only ever
+   * parses a verdict, but MC/TF drafts and legacy carry-forward paths are
+   * typed against the persisted vocabulary, which still includes `passed`.
+   */
   status: KlpStatus
+  /** The verbatim excerpt the grader cited. Resolved to a span in TS. */
+  quote?: string
+  /**
+   * Alias of `quote`, filled by the schema bridge (`bridgeQuoteToEvidence`)
+   * and by older callers. `quote` wins when both are present.
+   */
   evidence?: string
+}
+
+/** One relation on the card, judged passively from the answer (Spec 5 §4). */
+export interface RelationResultDraft {
+  relationRef: number
+  status: KlpVerdict
+  quote?: string
+}
+
+/** One authored form requirement, met or not (Spec 5 §5). */
+export interface FormResultDraft {
+  formRef: number
+  status: 'met' | 'not_met'
+  quote?: string
+}
+
+/**
+ * A claim the answer makes that the key points do not — false, misleading or
+ * invented (Spec 5 §3). `magnitude` is the grader's 1-10 seriousness for THIS
+ * instance; the contamination band maps it, TypeScript never ranks it.
+ */
+export interface UnwarrantedDraft {
+  text: string
+  quote?: string
+  magnitude: number
 }
 
 export interface ErrorTagDraft {
@@ -59,15 +112,48 @@ export interface AnalysisWarning {
   value: string
 }
 
+/**
+ * Character offsets into `QuizAnswer.answer` for the quote a row cites. Both
+ * null when the grader gave no quote (a `correct` key-point verdict) or gave
+ * one that could not be located (a paraphrase — recorded as `quote_unresolved`).
+ * Explicitly null rather than absent, so a fresh unresolved row and a
+ * pre-Phase-A row read the same way.
+ */
+interface SpanColumns {
+  spanStart: number | null
+  spanEnd: number | null
+}
+
 export interface AnalysisWrites {
   status: AnalysisOutcome
-  klpResults: {
+  klpResults: ({
     klpId: string
     status: KlpStatus
     credit: number
     mode: StudySource
+    /** The quote text, kept for display; the span is its location. */
     evidence?: string
-  }[]
+  } & SpanColumns)[]
+  /** `AnswerRelationResult` rows. Passive: judged from the answer as given, no probe asked. */
+  relationResults: ({
+    relationId: string
+    status: KlpVerdict
+    credit: number
+    provenance: 'passive'
+    evidence?: string
+  } & SpanColumns)[]
+  /** `AnswerFormResult` rows. */
+  formResults: ({
+    formRequirementId: string
+    status: 'met' | 'not_met'
+    evidence?: string
+  } & SpanColumns)[]
+  /** `AnswerUnwarrantedClaim` rows — uncapped, unlike tags. */
+  unwarranted: ({
+    text: string
+    magnitude: number
+    evidence?: string
+  } & SpanColumns)[]
   errorTags: {
     dimension: Dimension
     type: string
@@ -106,12 +192,39 @@ export function buildAnalysisWrites(input: {
   starred: boolean
   klpResults: KlpResultDraft[]
   errorTags: ErrorTagDraft[]
+  /**
+   * The stored answer text every quote is located in. `''` for a mode with
+   * nothing to quote (MC/TF), where no draft carries a quote either.
+   */
+  answerText: string
+  /** The card's relations, by the ref the grader was shown. Empty until wired. */
+  relations: { id: string }[]
+  /** The card's form requirements, by the ref the grader was shown. Empty until wired. */
+  formReqs: { id: string }[]
+  relationResults: RelationResultDraft[]
+  formResults: FormResultDraft[]
+  unwarranted: UnwarrantedDraft[]
   /** Overrides the derived status, e.g. 'no_provenance' for a v1 cache row. */
   forcedStatus?: AnalysisOutcome
 }): AnalysisWrites {
   const warnings: AnalysisWarning[] = []
   const resolve = (ref?: number): KlpRef | null =>
     typeof ref === 'number' ? input.klps[ref] ?? null : null
+
+  // The MODEL quotes; TypeScript locates. A quote that was given and cannot be
+  // found is a paraphrase — kept as `evidence` for display, span null, and
+  // named in the warnings so the benchmark can count the rate. No quote at all
+  // (a `correct` key-point verdict is not asked for one) is silent: nothing
+  // went unresolved.
+  const locate = (quote: string | undefined, ref: string): SpanColumns => {
+    if (quote === undefined) return { spanStart: null, spanEnd: null }
+    const span = resolveSpan(input.answerText, quote)
+    if (!span) {
+      warnings.push({ reason: 'quote_unresolved', value: ref })
+      return { spanStart: null, spanEnd: null }
+    }
+    return { spanStart: span.start, spanEnd: span.end }
+  }
 
   const accepted: AnalysisWrites['errorTags'] = []
   for (const t of input.errorTags) {
@@ -186,7 +299,18 @@ export function buildAnalysisWrites(input: {
   // (post-cap) rather than `accepted` so that a tag dropped by the per-dimension
   // cap cannot dock credit while being absent from the row that would explain
   // why — the factor must be recomputable from what was actually persisted.
-  const factor = contaminationFactor(errorTags)
+  //
+  // Unwarranted claims (Spec 5 §3) are the second source. Uncapped and never
+  // validated against a vocabulary — there is none; the text IS the claim —
+  // so every draft becomes a row, and every row informs the factor. An
+  // unresolvable quote only costs the span, never the claim.
+  const unwarranted: AnalysisWrites['unwarranted'] = input.unwarranted.map((u, i) => ({
+    text: u.text,
+    magnitude: u.magnitude,
+    evidence: u.quote,
+    ...locate(u.quote, `unwarranted:${i}`),
+  }))
+  const factor = contaminationFactor({ tags: errorTags, unwarranted })
 
   const klpResults: AnalysisWrites['klpResults'] = []
   // AnswerKlpResult is unique on (quizAnswerId, klpId), and nothing stops the
@@ -211,17 +335,72 @@ export function buildAnalysisWrites(input: {
       continue
     }
     seenKlpIds.add(klp.id)
+    const quote = r.quote ?? r.evidence
     klpResults.push({
       klpId: klp.id,
       status: r.status,
       credit: klpCredit(r.status, input.mode, factor),
       mode: input.mode,
-      evidence: r.evidence,
+      evidence: quote,
+      ...locate(quote, `klp:${r.klpRef}`),
+    })
+  }
+
+  // Relations, judged passively (Spec 5 §4): the same ref-resolution and
+  // dedupe discipline as key points — AnswerRelationResult is unique on
+  // (quizAnswerId, relationId) — and the same credit formula, so a relation
+  // observation and a key-point observation are comparable numbers. An
+  // unresolvable ref is a warning and no row: until the call site passes the
+  // card's relation ids, every ref lands here, which is the honest state.
+  const relationResults: AnalysisWrites['relationResults'] = []
+  const seenRelationIds = new Set<string>()
+  for (const r of input.relationResults) {
+    const rel = input.relations[r.relationRef] ?? null
+    if (!rel) {
+      warnings.push({ reason: 'unresolved_relation_ref', value: String(r.relationRef) })
+      continue
+    }
+    if (seenRelationIds.has(rel.id)) {
+      warnings.push({ reason: 'duplicate_relation_ref', value: String(r.relationRef) })
+      continue
+    }
+    seenRelationIds.add(rel.id)
+    relationResults.push({
+      relationId: rel.id,
+      status: r.status,
+      credit: klpCredit(r.status, input.mode, factor),
+      provenance: 'passive',
+      evidence: r.quote,
+      ...locate(r.quote, `rel:${r.relationRef}`),
+    })
+  }
+
+  // Form requirements (Spec 5 §5): met or not, no credit — form is not
+  // knowledge and must not feed the posterior. Unique on
+  // (quizAnswerId, formRequirementId), hence the dedupe.
+  const formResults: AnalysisWrites['formResults'] = []
+  const seenFormIds = new Set<string>()
+  for (const f of input.formResults) {
+    const req = input.formReqs[f.formRef] ?? null
+    if (!req) {
+      warnings.push({ reason: 'unresolved_form_ref', value: String(f.formRef) })
+      continue
+    }
+    if (seenFormIds.has(req.id)) {
+      warnings.push({ reason: 'duplicate_form_ref', value: String(f.formRef) })
+      continue
+    }
+    seenFormIds.add(req.id)
+    formResults.push({
+      formRequirementId: req.id,
+      status: f.status,
+      evidence: f.quote,
+      ...locate(f.quote, `form:${f.formRef}`),
     })
   }
 
   const status: AnalysisOutcome =
     input.forcedStatus ?? (input.klps.length === 0 ? 'no_klps' : 'analyzed')
 
-  return { status, klpResults, errorTags, warnings }
+  return { status, klpResults, errorTags, relationResults, formResults, unwarranted, warnings }
 }

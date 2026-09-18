@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { ANALYSIS_VERSION, type AnalysisWrites } from '@/lib/analysis/persist';
+import { GRADER_VERSION } from '@/lib/analysis/version';
 import { persistKlpStates, rebuildKlpStates, lockKlpStates } from '@/lib/metrics/state-writer';
 import { recomputeCardProgress } from '@/lib/memory/recompute';
 
@@ -89,6 +90,10 @@ export async function createAnswerWithAnalysis(
         ...answerData,
         analysisStatus: writes.status,
         analysisVersion: ANALYSIS_VERSION,
+        // Which INSTRUMENT produced the rows, beside which CONTRACT they
+        // follow (Spec 5 §6). A prompt or lexicon edit moves this and not
+        // ANALYSIS_VERSION; a regrade rewrites rows under a new value of it.
+        graderVersion: GRADER_VERSION,
         analysisWarnings:
           writes.warnings.length > 0 ? (writes.warnings as unknown as object) : undefined,
       },
@@ -101,6 +106,26 @@ export async function createAnswerWithAnalysis(
     if (writes.errorTags.length > 0) {
       await tx.answerErrorTag.createMany({
         data: writes.errorTags.map((t) => ({ ...t, quizAnswerId: answer.id })),
+      });
+    }
+    // Spec 5 Phase A's three answer-child tables. Each skipped when empty —
+    // an empty createMany is a wasted round-trip in a transaction that already
+    // serialises one lock per key point. None of these feeds KlpState: form
+    // is not knowledge, a claim is already folded into every credit above via
+    // the contamination factor, and a relation posterior is Phase B's.
+    if (writes.relationResults.length > 0) {
+      await tx.answerRelationResult.createMany({
+        data: writes.relationResults.map((r) => ({ ...r, quizAnswerId: answer.id })),
+      });
+    }
+    if (writes.formResults.length > 0) {
+      await tx.answerFormResult.createMany({
+        data: writes.formResults.map((f) => ({ ...f, quizAnswerId: answer.id })),
+      });
+    }
+    if (writes.unwarranted.length > 0) {
+      await tx.answerUnwarrantedClaim.createMany({
+        data: writes.unwarranted.map((u) => ({ ...u, quizAnswerId: answer.id })),
       });
     }
 

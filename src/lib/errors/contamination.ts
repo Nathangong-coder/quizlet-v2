@@ -136,7 +136,7 @@ export interface ContaminationInput {
  * means. Docking only some would require deciding which, which is the inference
  * this engine refuses.
  */
-export function contaminationFactor(tags: ContaminationInput[]): number {
+export function contaminationFactorFromTags(tags: ContaminationInput[]): number {
   const relevant = tags.filter(
     (t) => t.dimension === 'accuracy' && t.klpId === null && isContaminationType(t.type),
   )
@@ -148,9 +148,52 @@ export function contaminationFactor(tags: ContaminationInput[]): number {
 }
 
 /**
+ * Everything on one answer that can contaminate it.
+ *
+ * `unwarranted` is Spec 5 §3's `AnswerUnwarrantedClaim` — the contamination
+ * check made first-class. Each claim carries the grader's 1-10 magnitude for
+ * THIS instance (the same scale error tags use), so the existing band applies
+ * unchanged. The tag path is kept because clarity/conciseness tags still flow
+ * through it until Phase B, and because a legacy answer's factor must remain
+ * recomputable from its persisted tags alone.
+ */
+export interface ContaminationSources {
+  tags: ContaminationInput[]
+  unwarranted: { magnitude: number }[]
+}
+
+/** The 1-10 magnitude scale an unwarranted claim is graded on. */
+const MAX_MAGNITUDE = 10
+
+/**
+ * Unwarranted claims (Spec 5 §3) carry a 1-10 magnitude; map it to the same
+ * 1-5 severity band tags use and take the worst source.
+ *
+ * Halves, rounded up: 1-2 → 1, 3-4 → 2, ..., 9-10 → 5. So a magnitude-10
+ * claim docks exactly what a severity-5 tag docks — the anchor above holds for
+ * both sources. Worst-of, not sum, for the reason `contaminationFactorFromTags`
+ * gives: two false asides are not twice as disqualifying as one.
+ *
+ * The array form is the pre-Spec-5 signature and means `{ tags, unwarranted: [] }`.
+ * Kept so a tag-only caller (and every test written against it) reads the same.
+ */
+export function contaminationFactor(src: ContaminationSources | ContaminationInput[]): number {
+  if (Array.isArray(src)) return contaminationFactorFromTags(src)
+  const fromTags = contaminationFactorFromTags(src.tags)
+  if (src.unwarranted.length === 0) return fromTags
+  const worst = Math.max(
+    ...src.unwarranted.map((u) =>
+      Math.ceil(Math.min(Math.max(u.magnitude, 1), MAX_MAGNITUDE) / 2),
+    ),
+  )
+  const scaled = Math.min(worst, MAX_SEVERITY) / MAX_SEVERITY
+  return Math.min(fromTags, 1 - CONTAMINATION_MAX_DOCK * scaled)
+}
+
+/**
  * Was this answer contaminated at all? Cheaper than comparing floats, and it
  * is the question a UI or a report actually asks.
  */
-export function isContaminated(tags: ContaminationInput[]): boolean {
-  return contaminationFactor(tags) < 1
+export function isContaminated(src: ContaminationSources | ContaminationInput[]): boolean {
+  return contaminationFactor(src) < 1
 }

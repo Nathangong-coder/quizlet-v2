@@ -552,6 +552,14 @@ export async function submitMultipleChoiceAnswer(input: {
       starred: progress?.starred ?? false,
       klpResults: drafts.klpResults,
       errorTags: drafts.errorTags,
+      // Spec 5 Phase A: a pick carries nothing to quote, and the drafts
+      // above carry no quotes — so no span is ever attempted here.
+      answerText: input.selectedOption,
+      relations: [],
+      formReqs: [],
+      relationResults: [],
+      formResults: [],
+      unwarranted: [],
       forcedStatus,
     });
 
@@ -735,6 +743,14 @@ export async function submitTrueFalseAnswer(input: {
       starred: progress?.starred ?? false,
       klpResults: drafts.klpResults,
       errorTags: drafts.errorTags,
+      // Spec 5 Phase A: a pick carries nothing to quote, and the drafts
+      // above carry no quotes — so no span is ever attempted here.
+      answerText: input.selectedOption,
+      relations: [],
+      formReqs: [],
+      relationResults: [],
+      formResults: [],
+      unwarranted: [],
       forcedStatus,
     });
 
@@ -824,6 +840,12 @@ async function recordFailedShortAnswerAnalysis(input: {
       starred: input.starred,
       klpResults: [],
       errorTags: [],
+      answerText: input.answer,
+      relations: [],
+      formReqs: [],
+      relationResults: [],
+      formResults: [],
+      unwarranted: [],
       forcedStatus: 'failed',
     });
     await createAnswerWithAnalysis(
@@ -976,6 +998,15 @@ export async function submitShortAnswer(input: {
         starred,
         klpResults: grade.klpResults ?? [],
         errorTags: (grade.errorTags ?? []) as ErrorTagDraft[],
+        answerText: input.answer,
+        // Task 8 passes the card's relation and form-requirement ids; until
+        // then every relation/form ref the grader returns is an
+        // `unresolved_*` warning, never a row.
+        relations: [],
+        formReqs: [],
+        relationResults: grade.relationResults ?? [],
+        formResults: grade.formResults ?? [],
+        unwarranted: grade.unwarranted ?? [],
         forcedStatus,
       });
 
@@ -1095,6 +1126,13 @@ export async function submitShortAnswer(input: {
       starred,
       klpResults: grade.klpResults ?? [],
       errorTags: (grade.errorTags ?? []) as ErrorTagDraft[],
+      answerText: input.answer,
+      // See the text-only path: relation/form ids arrive with Task 8.
+      relations: [],
+      formReqs: [],
+      relationResults: grade.relationResults ?? [],
+      formResults: grade.formResults ?? [],
+      unwarranted: grade.unwarranted ?? [],
       forcedStatus,
     });
 

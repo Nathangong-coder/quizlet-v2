@@ -7,12 +7,26 @@ const klps = [
   { id: 'klp-b', weight: 3 },
 ]
 
+// Spec 5 Phase A: the builder now also takes the answer text (spans are
+// resolved against it), the card's relations and form requirements, and the
+// grader's relation/form/unwarranted arrays. Empty here; the Spec 5 block at
+// the bottom exercises them.
+const spec5Empty = {
+  answerText: '',
+  relations: [] as { id: string }[],
+  formReqs: [] as { id: string }[],
+  relationResults: [],
+  formResults: [],
+  unwarranted: [],
+}
+
 const base = {
   mode: 'quiz-sa' as const,
   klps,
   starred: false,
   klpResults: [],
   errorTags: [],
+  ...spec5Empty,
 }
 
 describe('buildAnalysisWrites — KLP results', () => {
@@ -22,7 +36,13 @@ describe('buildAnalysisWrites — KLP results', () => {
       klpResults: [{ klpRef: 0, status: 'passed', evidence: 'said it plainly' }],
     })
     expect(w.klpResults).toEqual([
-      { klpId: 'klp-a', status: 'passed', credit: 0.95, mode: 'quiz-sa', evidence: 'said it plainly' },
+      {
+        klpId: 'klp-a', status: 'passed', credit: 0.95, mode: 'quiz-sa', evidence: 'said it plainly',
+        // The quote is not in the (empty) answer text, so no span — null, not
+        // absent, because the columns exist now and a legacy row's null must
+        // mean the same thing as a fresh unresolved one.
+        spanStart: null, spanEnd: null,
+      },
     ])
   })
 
@@ -181,6 +201,7 @@ describe('magnitude persistence (Spec 3)', () => {
       mode: 'quiz-sa',
       klps: [{ id: 'klp1', weight: 5 }],
       starred: false,
+      ...spec5Empty,
       klpResults: [],
       errorTags: [
         { dimension: 'accuracy', type: 'inversion', klpRef: 0, magnitude: 1 },
@@ -197,6 +218,7 @@ describe('magnitude persistence (Spec 3)', () => {
       mode: 'quiz-mc',
       klps: [{ id: 'klp1', weight: 5 }],
       starred: false,
+      ...spec5Empty,
       klpResults: [],
       errorTags: [
         { dimension: 'accuracy', type: 'inversion', klpRef: 0, magnitude: MC_TF_MAGNITUDE },
@@ -212,6 +234,7 @@ describe('magnitude persistence (Spec 3)', () => {
       mode: 'quiz-sa',
       klps: [{ id: 'klp1', weight: 5 }],
       starred: false,
+      ...spec5Empty,
       klpResults: [],
       errorTags: [
         { dimension: 'conciseness', type: 'redundancy', magnitude: 1 },
@@ -238,6 +261,7 @@ describe('duplicate KLP references must not destroy the answer (B10)', () => {
       mode: 'quiz-sa',
       klps: [{ id: 'klp1', weight: 5 }],
       starred: false,
+      ...spec5Empty,
       klpResults: [
         { klpRef: 0, status: 'partial' },
         { klpRef: 0, status: 'passed' },
@@ -256,6 +280,7 @@ describe('duplicate KLP references must not destroy the answer (B10)', () => {
       mode: 'quiz-sa',
       klps: [{ id: 'klp1', weight: 5 }],
       starred: false,
+      ...spec5Empty,
       klpResults: [
         { klpRef: 0, status: 'failed' },
         { klpRef: 0, status: 'passed' },
@@ -272,6 +297,7 @@ describe('duplicate KLP references must not destroy the answer (B10)', () => {
       mode: 'quiz-sa',
       klps: [{ id: 'klp1', weight: 5 }, { id: 'klp2', weight: 3 }],
       starred: false,
+      ...spec5Empty,
       klpResults: [
         { klpRef: 0, status: 'passed' },
         { klpRef: 1, status: 'failed' },
@@ -291,6 +317,7 @@ describe('duplicate KLP references must not destroy the answer (B10)', () => {
       mode: 'quiz-sa',
       klps: [{ id: 'klp1', weight: 5 }, { id: 'klp1', weight: 5 }],
       starred: false,
+      ...spec5Empty,
       klpResults: [
         { klpRef: 0, status: 'passed' },
         { klpRef: 1, status: 'failed' },
@@ -299,5 +326,215 @@ describe('duplicate KLP references must not destroy the answer (B10)', () => {
     })
 
     expect(result.klpResults).toHaveLength(1)
+  })
+})
+
+describe('Spec 5 Phase A — spans, relations, form results, unwarranted claims', () => {
+  // "FCF rises because D&A is non-cash." — 'FCF rises' sits at [0, 9);
+  // 'D&A is non-cash' starts after "FCF rises because " (18 chars).
+  const answerText = 'FCF rises because D&A is non-cash.'
+  const s5 = {
+    mode: 'quiz-sa' as const,
+    klps: [{ id: 'k1', weight: 3 }, { id: 'k2', weight: 4 }],
+    starred: false,
+    relations: [{ id: 'r1' }],
+    formReqs: [{ id: 'f1' }],
+    answerText,
+    errorTags: [],
+    klpResults: [],
+    relationResults: [],
+    formResults: [],
+    unwarranted: [],
+  }
+
+  it('resolves quotes to spans and warns on a paraphrase', () => {
+    const w = buildAnalysisWrites({
+      ...s5,
+      klpResults: [{ klpRef: 0, status: 'correct' }, { klpRef: 1, status: 'inversion', quote: 'FCF rises' }],
+    })
+    expect(w.klpResults[1]).toMatchObject({
+      klpId: 'k2', status: 'inversion', credit: 0, evidence: 'FCF rises', spanStart: 0, spanEnd: 9,
+    })
+    // A `correct` verdict carries no quote: null span and NO warning — the
+    // grader was never asked to quote there, so nothing went unresolved.
+    expect(w.klpResults[0]).toMatchObject({ klpId: 'k1', spanStart: null, spanEnd: null })
+    expect(w.warnings).toEqual([])
+
+    const w2 = buildAnalysisWrites({
+      ...s5,
+      klpResults: [{ klpRef: 1, status: 'omission', quote: 'cash flow goes up' }],
+    })
+    expect(w2.klpResults[0].spanStart).toBeNull()
+    expect(w2.klpResults[0].spanEnd).toBeNull()
+    // The paraphrase is still kept as evidence text for display; only the span is missing.
+    expect(w2.klpResults[0].evidence).toBe('cash flow goes up')
+    expect(w2.warnings).toContainEqual({ reason: 'quote_unresolved', value: 'klp:1' })
+  })
+
+  it('accepts the bridged `evidence` key as the quote (the schema transform fills it)', () => {
+    const w = buildAnalysisWrites({
+      ...s5,
+      klpResults: [{ klpRef: 1, status: 'partial', evidence: 'FCF rises' }],
+    })
+    expect(w.klpResults[0]).toMatchObject({ evidence: 'FCF rises', spanStart: 0, spanEnd: 9 })
+  })
+
+  it('writes relation results with passive provenance and form results', () => {
+    const w = buildAnalysisWrites({
+      ...s5,
+      relationResults: [{ relationRef: 0, status: 'omission', quote: 'D&A is non-cash' }],
+      formResults: [{ formRef: 0, status: 'not_met' }],
+    })
+    expect(w.relationResults).toHaveLength(1)
+    expect(w.relationResults[0]).toMatchObject({
+      relationId: 'r1', status: 'omission', credit: 0, provenance: 'passive',
+      evidence: 'D&A is non-cash', spanStart: 18, spanEnd: 33,
+    })
+    expect(w.formResults).toHaveLength(1)
+    expect(w.formResults[0]).toMatchObject({
+      formRequirementId: 'f1', status: 'not_met', spanStart: null, spanEnd: null,
+    })
+    expect(w.warnings).toEqual([])
+  })
+
+  it('credits a relation the way a key point is credited — status x mode x factor', () => {
+    const w = buildAnalysisWrites({
+      ...s5,
+      relationResults: [{ relationRef: 0, status: 'correct', quote: 'FCF rises' }],
+    })
+    expect(w.relationResults[0].credit).toBeCloseTo(0.95)
+    const tf = buildAnalysisWrites({
+      ...s5,
+      mode: 'quiz-tf',
+      relationResults: [{ relationRef: 0, status: 'correct', quote: 'FCF rises' }],
+    })
+    expect(tf.relationResults[0].credit).toBeCloseTo(0.5)
+  })
+
+  it('warns on an unresolved relation or form quote with a typed ref', () => {
+    const w = buildAnalysisWrites({
+      ...s5,
+      relationResults: [{ relationRef: 0, status: 'correct', quote: 'not in the answer' }],
+      formResults: [{ formRef: 0, status: 'met', quote: 'nor this' }],
+    })
+    expect(w.relationResults[0].spanStart).toBeNull()
+    expect(w.formResults[0].spanStart).toBeNull()
+    expect(w.warnings).toContainEqual({ reason: 'quote_unresolved', value: 'rel:0' })
+    expect(w.warnings).toContainEqual({ reason: 'quote_unresolved', value: 'form:0' })
+  })
+
+  it('an unresolved relation ref is a warning, never a row', () => {
+    const w = buildAnalysisWrites({
+      ...s5,
+      relationResults: [{ relationRef: 7, status: 'correct' }],
+    })
+    expect(w.relationResults).toHaveLength(0)
+    expect(w.warnings).toContainEqual({ reason: 'unresolved_relation_ref', value: '7' })
+  })
+
+  it('an unresolved form ref is a warning, never a row', () => {
+    const w = buildAnalysisWrites({
+      ...s5,
+      formResults: [{ formRef: 3, status: 'met' }],
+    })
+    expect(w.formResults).toHaveLength(0)
+    expect(w.warnings).toContainEqual({ reason: 'unresolved_form_ref', value: '3' })
+  })
+
+  it('with NO relations or form reqs wired (Task 8 pending), every ref is a warning and no row', () => {
+    // This is the state every SA call site is in until Task 8 passes the
+    // real ids: the grader's arrays are forwarded, the id lists are empty.
+    const w = buildAnalysisWrites({
+      ...s5,
+      relations: [],
+      formReqs: [],
+      relationResults: [{ relationRef: 0, status: 'correct' }],
+      formResults: [{ formRef: 0, status: 'met' }],
+    })
+    expect(w.relationResults).toEqual([])
+    expect(w.formResults).toEqual([])
+    expect(w.warnings).toContainEqual({ reason: 'unresolved_relation_ref', value: '0' })
+    expect(w.warnings).toContainEqual({ reason: 'unresolved_form_ref', value: '0' })
+  })
+
+  it('dedupes a relation named twice, keeping the first judgment', () => {
+    // AnswerRelationResult is unique on (quizAnswerId, relationId), same
+    // constraint shape AnswerKlpResult has — and the same transaction-wide
+    // rollback if it is violated.
+    const w = buildAnalysisWrites({
+      ...s5,
+      relationResults: [
+        { relationRef: 0, status: 'failed', quote: 'FCF rises' },
+        { relationRef: 0, status: 'correct', quote: 'FCF rises' },
+      ],
+    })
+    expect(w.relationResults).toHaveLength(1)
+    expect(w.relationResults[0].status).toBe('failed')
+    expect(w.warnings).toContainEqual({ reason: 'duplicate_relation_ref', value: '0' })
+  })
+
+  it('unwarranted claims dock KLP credit through the contamination band', () => {
+    const clean = buildAnalysisWrites({
+      ...s5,
+      klpResults: [{ klpRef: 0, status: 'correct' }],
+    })
+    const dirty = buildAnalysisWrites({
+      ...s5,
+      klpResults: [{ klpRef: 0, status: 'correct' }],
+      unwarranted: [{ text: 'claims D&A is a cash outflow', quote: 'D&A is non-cash', magnitude: 10 }],
+    })
+    expect(dirty.unwarranted).toHaveLength(1)
+    expect(dirty.unwarranted[0]).toMatchObject({
+      text: 'claims D&A is a cash outflow', magnitude: 10, evidence: 'D&A is non-cash', spanStart: 18, spanEnd: 33,
+    })
+    expect(dirty.klpResults[0].credit).toBeLessThan(clean.klpResults[0].credit)
+    // Magnitude 10 is the top of the band: the same dock a severity-5 tag gives.
+    expect(dirty.klpResults[0].credit).toBeCloseTo(clean.klpResults[0].credit * 0.5)
+  })
+
+  it('an unwarranted claim also docks relation credit', () => {
+    const clean = buildAnalysisWrites({
+      ...s5,
+      relationResults: [{ relationRef: 0, status: 'correct', quote: 'FCF rises' }],
+    })
+    const dirty = buildAnalysisWrites({
+      ...s5,
+      relationResults: [{ relationRef: 0, status: 'correct', quote: 'FCF rises' }],
+      unwarranted: [{ text: 'x', magnitude: 6 }],
+    })
+    expect(dirty.relationResults[0].credit).toBeLessThan(clean.relationResults[0].credit)
+  })
+
+  it('an unwarranted claim with no quote is still a row, with a null span and no warning', () => {
+    const w = buildAnalysisWrites({
+      ...s5,
+      unwarranted: [{ text: 'invented a tax shield figure', magnitude: 4 }],
+    })
+    expect(w.unwarranted[0]).toMatchObject({ text: 'invented a tax shield figure', magnitude: 4, spanStart: null })
+    expect(w.warnings).toEqual([])
+  })
+
+  it('an unwarranted claim whose quote does not resolve warns with its index', () => {
+    const w = buildAnalysisWrites({
+      ...s5,
+      unwarranted: [
+        { text: 'a', quote: 'FCF rises', magnitude: 2 },
+        { text: 'b', quote: 'nowhere in the answer', magnitude: 2 },
+      ],
+    })
+    expect(w.unwarranted).toHaveLength(2)
+    expect(w.warnings).toEqual([{ reason: 'quote_unresolved', value: 'unwarranted:1' }])
+  })
+
+  it('never writes passed', () => {
+    const w = buildAnalysisWrites({
+      ...s5,
+      klpResults: [{ klpRef: 0, status: 'correct' }, { klpRef: 1, status: 'partial' }],
+      relationResults: [{ relationRef: 0, status: 'correct', quote: 'FCF rises' }],
+    })
+    expect(w.klpResults.every((r) => r.status !== 'passed')).toBe(true)
+    // A relation row's status is typed `KlpVerdict`, which has no `passed`
+    // member — comparing the literal is a tsc error, so widen to string here.
+    expect(w.relationResults.every((r) => (r.status as string) !== 'passed')).toBe(true)
   })
 })
