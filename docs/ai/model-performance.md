@@ -1265,3 +1265,42 @@ sample's mean item count.
 `,gemini-3.1-flash-lite` to compare), paste the printed pair into `output-cap.ts`, and replace
 this paragraph with the real run's numbers — sample size, per-model finishReason counts, the
 fitted line, p95, and the recommended pair.
+
+### Spec 5 — grader benchmark baseline (`npm run bench-grader`)
+
+**NOT YET RUN — the LBO baseline is OWED.** The script, the persisted panel/result tables, the
+scoring (`src/lib/analysis/benchmark.ts`) and the report (`src/lib/analysis/benchmark-report.ts`)
+are built, type-check, and boot against the live database (`--dry-run` on the LBO set plans a
+`levels` panel for all 10 cards: every card has live key points and a reference answer at its
+current `klpVersion`). This build pass ran in an environment with no raw provider keys, so nothing
+was called. **This is the baseline the v5 grading prompt is held to from now on; until it is
+recorded, no grader change can claim it did not regress.**
+
+**Next operator with keys** — one command, ~50 calls (one adversary call + four grading calls
+per card), about $0.05 on DeepSeek:
+
+```
+npx tsx --conditions=react-server --env-file=.env scripts/bench-grader.ts --set cmtj7pxfc000005l4rv4krxxy --author --direct
+```
+
+With `KLP_DIRECT_PROVIDER=deepseek` (the grader — the same role split as authoring) and
+`KLP_AUTHOR_PROVIDER=zai` / `KLP_AUTHOR_MODELS=glm-5.3-flash` (the adversary: the `grader-panel`
+task is writer-family, Z.ai first at `high` effort). Without an author pool the adversary writes on
+the grader's model, which is legal but weaker: a grader reading answers its own family wrote is a
+softer test. Pin `--model deepseek-flash` (or run a one-model pool) so every answer on a card is
+graded by ONE model — rank agreement subtracts coverage scores, and two graders on one card fold
+the gap between graders into the gap between levels.
+
+**Record here, from the printed report:** per card, rank agreement as `n/6` and the three
+adjacent gaps; the pooled rank agreement and cards at 6/6; the mean adjacent gap; every inversion
+with the adversary's first line beside the grader's verdicts (that pairing is what a prompt fix is
+written from); the unresolved-quote rate (grader quality — a paraphrase where a verbatim quote was
+asked for); the model that graded and `graderVersion` (`src/lib/analysis/version.ts`, 1 at
+build). Then run once more with `--kind modes --author` for the shape matrix (gap /
+misconception / connectivity / template; expected → observed), and record which cells miss.
+
+The run is idempotent per `(answer, graderVersion, model)` and per `(card, klpVersion, kind)`: a
+halt on quota resumes where it stopped, a re-authored card gets a new panel and its old one
+stays as history, and a grader change (`GRADER_VERSION` bump) is a re-grade against the fixed
+panel — the fixed-card-set rule from `bench-models`. `author-klps` prints the compact form of
+this report beside its weight histogram whenever the set has panels.

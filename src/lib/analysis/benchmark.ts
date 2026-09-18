@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { STATUS_CREDIT } from '@/lib/errors/klp-credit'
 
 /**
@@ -58,6 +59,126 @@ export interface BenchRelationVerdict {
 
 export interface BenchFormVerdict {
   status: 'met' | 'not_met' | string
+}
+
+/**
+ * THE PERSISTED ENTRY SHAPES on `GraderPanelResult` (controller ruling,
+ * Task 11). One entry per graded item, keyed BOTH by the prompt ref (what
+ * the grader said) and the row id (what it resolves to), with the item's
+ * weight at grading time so `coverageScore` is computable from the row
+ * alone, and the span TypeScript resolved from the grader's quote — `null`
+ * when the quote did not resolve (counted in `unresolvedQuotes`) or no
+ * quote was given. The spec's `spans Json` column lives inside these
+ * entries rather than beside them: a span without its verdict is nothing.
+ */
+export interface PanelSpan {
+  spanStart: number | null
+  spanEnd: number | null
+}
+
+export interface PanelKlpVerdict extends PanelSpan {
+  klpRef: number
+  klpId: string
+  status: string
+  weight: number
+  quote?: string
+}
+
+export interface PanelRelationVerdict extends PanelSpan {
+  relationRef: number
+  relationId: string
+  status: string
+  quote?: string
+}
+
+export interface PanelFormVerdict extends PanelSpan {
+  formRef: number
+  formRequirementId: string
+  status: 'met' | 'not_met'
+  quote?: string
+}
+
+const SpanColumns = {
+  spanStart: z.number().int().nullable(),
+  spanEnd: z.number().int().nullable(),
+}
+
+export const PanelKlpVerdictSchema = z.object({
+  klpRef: z.number().int().min(0),
+  klpId: z.string().min(1),
+  status: z.string().min(1),
+  weight: z.number(),
+  quote: z.string().optional(),
+  ...SpanColumns,
+})
+
+export const PanelRelationVerdictSchema = z.object({
+  relationRef: z.number().int().min(0),
+  relationId: z.string().min(1),
+  status: z.string().min(1),
+  quote: z.string().optional(),
+  ...SpanColumns,
+})
+
+export const PanelFormVerdictSchema = z.object({
+  formRef: z.number().int().min(0),
+  formRequirementId: z.string().min(1),
+  status: z.enum(['met', 'not_met']),
+  quote: z.string().optional(),
+  ...SpanColumns,
+})
+
+/** The three verdict lists of one `GraderPanelResult`, typed. */
+export interface PanelResultLists {
+  verdicts: PanelKlpVerdict[]
+  relationVerdicts: PanelRelationVerdict[]
+  formVerdicts: PanelFormVerdict[]
+  unresolvedQuotes: number
+}
+
+/**
+ * Reads the three `Json` columns of a stored result row into the typed
+ * lists. THROWS on a malformed column, naming it: a benchmark that scored a
+ * garbled row as zero coverage would report a grader defect that is really
+ * a writer defect, and the only writer is `buildPanelVerdicts`.
+ */
+export function readPanelResult(row: {
+  verdicts: unknown
+  relationVerdicts: unknown
+  formVerdicts: unknown
+  unresolvedQuotes: number
+}): PanelResultLists {
+  const read = <T>(name: string, schema: z.ZodType<T>, value: unknown): T[] => {
+    const parsed = z.array(schema).safeParse(value)
+    if (!parsed.success) {
+      throw new Error(`GraderPanelResult.${name} is malformed: ${parsed.error.issues[0]?.message ?? 'invalid'}`)
+    }
+    return parsed.data
+  }
+  return {
+    verdicts: read('verdicts', PanelKlpVerdictSchema, row.verdicts),
+    relationVerdicts: read('relationVerdicts', PanelRelationVerdictSchema, row.relationVerdicts),
+    formVerdicts: read('formVerdicts', PanelFormVerdictSchema, row.formVerdicts),
+    unresolvedQuotes: row.unresolvedQuotes,
+  }
+}
+
+/**
+ * Converters from the persisted entries to what the scoring functions read.
+ * Structurally the persisted entry already satisfies the `Bench*` interface;
+ * these exist so a caller narrows deliberately — and so the scoring
+ * interfaces can stay minimal when the persisted shape grows.
+ */
+export function toBenchKlpVerdicts(entries: readonly PanelKlpVerdict[]): (BenchKlpVerdict & { quote?: string })[] {
+  return entries.map((e) => ({ status: e.status, weight: e.weight, quote: e.quote }))
+}
+
+export function toBenchRelationVerdicts(entries: readonly PanelRelationVerdict[]): (BenchRelationVerdict & { quote?: string })[] {
+  return entries.map((e) => ({ status: e.status, quote: e.quote }))
+}
+
+export function toBenchFormVerdicts(entries: readonly PanelFormVerdict[]): (BenchFormVerdict & { quote?: string })[] {
+  return entries.map((e) => ({ status: e.status, quote: e.quote }))
 }
 
 /**

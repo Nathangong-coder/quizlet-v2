@@ -8,6 +8,13 @@ import {
   adjacentGaps,
   shapeAgreement,
   unresolvedQuoteRate,
+  toBenchKlpVerdicts,
+  toBenchRelationVerdicts,
+  toBenchFormVerdicts,
+  readPanelResult,
+  type PanelKlpVerdict,
+  type PanelRelationVerdict,
+  type PanelFormVerdict,
 } from '@/lib/analysis/benchmark'
 
 /**
@@ -304,5 +311,55 @@ describe('unresolvedQuoteRate', () => {
   it('is 0 with no quotes at all, never NaN', () => {
     expect(unresolvedQuoteRate([])).toEqual({ unresolved: 0, quotes: 0, rate: 0 })
     expect(unresolvedQuoteRate([{ unresolvedQuotes: 0, verdicts: [{}], relationVerdicts: [], formVerdicts: [] }]).rate).toBe(0)
+  })
+})
+
+/**
+ * The persisted entry shapes on `GraderPanelResult` (controller ruling, Task
+ * 11): a key-point entry is `{ klpRef, klpId, status, weight, quote?, spanStart,
+ * spanEnd }`, a relation entry `{ relationRef, relationId, status, quote?,
+ * spanStart, spanEnd }`, a form entry `{ formRef, formRequirementId, status,
+ * quote?, spanStart, spanEnd }`. The converters narrow them to what the
+ * scoring functions read, so a score is computable from the row alone.
+ */
+describe('panel verdict converters', () => {
+  const klp: PanelKlpVerdict = { klpRef: 0, klpId: 'k0', status: 'partial', weight: 3, quote: 'x', spanStart: 0, spanEnd: 1 }
+  const rel: PanelRelationVerdict = { relationRef: 0, relationId: 'r0', status: 'omission', spanStart: null, spanEnd: null }
+  const form: PanelFormVerdict = { formRef: 0, formRequirementId: 'f0', status: 'not_met', quote: 'y', spanStart: null, spanEnd: null }
+
+  it('narrow a persisted entry to the scoring shape, keeping status, weight and quote', () => {
+    expect(toBenchKlpVerdicts([klp])).toEqual([{ status: 'partial', weight: 3, quote: 'x' }])
+    expect(toBenchRelationVerdicts([rel])).toEqual([{ status: 'omission', quote: undefined }])
+    expect(toBenchFormVerdicts([form])).toEqual([{ status: 'not_met', quote: 'y' }])
+  })
+
+  it('feed the scoring functions directly', () => {
+    expect(coverageScore(toBenchKlpVerdicts([klp, { ...klp, klpRef: 1, klpId: 'k1', status: 'correct', weight: 1 }]))).toBeCloseTo(2.5 / 4, 6)
+    expect(shapeAgreement({
+      mode: 'template',
+      verdicts: toBenchKlpVerdicts([{ ...klp, status: 'correct' }]),
+      relationVerdicts: toBenchRelationVerdicts([]),
+      formVerdicts: toBenchFormVerdicts([form]),
+    }).agreed).toBe(true)
+  })
+
+  it('readPanelResult validates the three Json columns of a stored row', () => {
+    const row = readPanelResult({
+      verdicts: [klp],
+      relationVerdicts: [rel],
+      formVerdicts: [form],
+      unresolvedQuotes: 1,
+    })
+    expect(row.verdicts).toEqual([klp])
+    expect(row.relationVerdicts).toEqual([rel])
+    expect(row.formVerdicts).toEqual([form])
+    expect(row.unresolvedQuotes).toBe(1)
+    expect(unresolvedQuoteRate([row])).toEqual({ unresolved: 1, quotes: 2, rate: 0.5 })
+  })
+
+  it('readPanelResult refuses a malformed column rather than scoring garbage as zero', () => {
+    expect(() => readPanelResult({ verdicts: [{ status: 'correct' }], relationVerdicts: [], formVerdicts: [], unresolvedQuotes: 0 })).toThrow(/verdicts/)
+    expect(() => readPanelResult({ verdicts: 'nope', relationVerdicts: [], formVerdicts: [], unresolvedQuotes: 0 })).toThrow()
+    expect(() => readPanelResult({ verdicts: [], relationVerdicts: [], formVerdicts: [{ ...form, status: 'maybe' }], unresolvedQuotes: 0 })).toThrow(/formVerdicts/)
   })
 })

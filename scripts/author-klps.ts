@@ -32,6 +32,9 @@ import {
   formatBreadthHistogram,
 } from '../src/lib/klp/histogram'
 import { PROBE_KINDS } from '../src/lib/klp/authoring-config'
+import { GRADER_VERSION } from '../src/lib/analysis/version'
+import { loadBenchmarkRows } from '../src/lib/analysis/benchmark-run'
+import { formatBenchmarkReport } from '../src/lib/analysis/benchmark-report'
 import { formatPanelCurve } from '../src/lib/klp/panel'
 import {
   readDirectPool,
@@ -1032,6 +1035,24 @@ async function main() {
     console.log(formatBreadthHistogram(buildBreadthHistogram(stats.failCounts, stats.probesPerCard)))
     console.log()
     console.log('Corpus-wide distribution (this run plus everything already stored): npm run klp-histogram')
+  }
+
+  // The grader benchmark, beside the histogram (Spec 5 §8, "Re-runnable").
+  // Read-only: the set's stored panels and their results at the current
+  // grader version. A re-authored card's panel is stale and drops out of
+  // this read, so after a run that re-authored cards the report shrinks —
+  // that is the signal to run `npm run bench-grader -- --set <id> --author`.
+  // Nothing is printed when the set has no panels; a benchmark that was
+  // never run is not a number. The read is harmless on a dry run too.
+  try {
+    const benchRows = await loadBenchmarkRows(set.id, { graderVersion: GRADER_VERSION })
+    if (benchRows.length > 0) {
+      console.log()
+      console.log(formatBenchmarkReport(benchRows, { title: set.title, verbose: false }))
+      console.log(`Per-inversion detail and a re-grade: npm run bench-grader -- --set ${set.id}`)
+    }
+  } catch (err) {
+    console.error(`[author-klps] benchmark read failed: ${err instanceof Error ? err.message : String(err)}`)
   }
 
   // Concerns are printed LAST and never persisted: a pipeline that silently
