@@ -1308,3 +1308,44 @@ halt on quota resumes where it stopped, a re-authored card gets a new panel and 
 stays as history, and a grader change (`GRADER_VERSION` bump) is a re-grade against the fixed
 panel — the fixed-card-set rule from `bench-models`. `author-klps` prints the compact form of
 this report beside its weight histogram whenever the set has panels.
+
+### Spec 5 — the content pass, live (`npm run probe-runtime-grade`)
+
+**NOT YET RUN — OWED, on two models.** Phase A shipped its live probe (`scripts/probe-runtime-grade.ts`,
+built and type-checked; it boots read-only against the live database and refuses to grade until a
+raw key is present) but this build pass had no provider keys, so no grading call was made. Booted
+with a bogus key it loads the default card correctly — LBO card 1, "Why do LBOs use leverage?",
+`klpVersion 4`: 5 key points, 4 relations (`causes [1]→[2]`, `requires [2]→[4]`, `requires [3]→[4]`,
+`precedes [1]→[3]`), 0 form requirements (none authored yet), 9 items → ceiling 7448 tokens — and
+the documented inversion edit still matches the stored reference.
+
+What it does: three fixed answers on that card — the reference answer, a blank, and the reference
+with ONE causal point reversed by a documented string edit (key point [3]: "each dollar of debt paid
+down converts into equity value, so the sponsor's ownership grows" → "erodes equity value, so the
+sponsor's ownership shrinks"; nothing else changes) — each graded through `GRADE_SHORT_ANSWER_PROMPT`
+v5 with the real `loadGradingContext` and the real `gradeMaxOutputTokens`. PASS/FAIL per answer:
+one verdict per key point / relation / form requirement; every label in `RUNTIME_VERDICTS`;
+reference all `correct`; blank all `omission`; inverted point `inversion` or `contradicted`; every
+quote resolves via `resolveSpan`; output tokens under the ceiling with `finishReason` not `length`.
+Then the same three answers through `GRADE_CANDIDATE_PROMPT` strict — the authoring grader the
+runtime wording was ported from — with per-point agreement printed. Exit 1 on any FAIL.
+
+**Next operator with keys — two runs, ~12 calls total, cents:**
+
+```
+npm run probe-runtime-grade -- --model deepseek-flash
+npm run probe-runtime-grade -- --model gemini-3.1-flash-lite
+```
+
+(`DEEPSEEK_API_KEY` for the first; `GOOGLE_API_KEY` or `GOOGLE_API_KEYS` for the second — any
+Google id in the script's `MODEL_PROVIDER` table works, and the Google run spends 6 of that model's
+20 free-tier requests for the day.) **Record here, per model:** every PASS/FAIL line; the verdict
+line for each of the three answers (and the relation line — on the inverted answer `requires [3]→[4]`
+and `precedes [1]→[3]` are the edges that lean on the reversed point, so they are the ones expected
+to move); the unresolved-quote count; `outputTokens / 7448` and `finishReason` per call (an
+`output_truncated` here says the placeholder ceiling constants are too low for a 9-item card and
+`probe-grade-tokens` has to run first); and the per-point agreement `k/n` per answer plus the pooled
+number. That pooled agreement is the figure that says the port preserved the measured grader; a
+disagreement on `fabrication` / `unsupported_leap` is the vocabulary split (the runtime routes
+those to `unwarranted[]`), not the port. A reference read as anything but all-`correct` on DeepSeek
+is a prompt finding, not a model finding — DeepSeek is the grader the strict clause was tuned on.

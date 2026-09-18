@@ -265,6 +265,11 @@ the way a knowledgeable adversary intended. Same discipline, pointed at the inst
    panel answer graded **in isolation**, never shown together — `GRADE_CANDIDATES_SEPARATELY`'s
    lesson verbatim. Results persisted as `GraderPanelResult { answerId, graderVersion, model,
    verdicts Json, spans Json, unresolvedQuotes Int }`.
+   **Erratum (built 2026-09-17, Task 10 ruling):** `GraderPanelResult` stores THREE Json lists —
+   `verdicts`, `relationVerdicts`, `formVerdicts` — with the span (`quote`, `spanStart`, `spanEnd`)
+   and the key point's `weight` riding INSIDE each entry (`{ klpRef, klpId, status, weight, quote,
+   spanStart, spanEnd }`); there is no separate `spans` column. This supersedes the `verdicts +
+   spans` wording above.
 3. **Scoring in TypeScript** (`src/lib/analysis/benchmark.ts`, pure): per answer, coverage =
    credit-weighted KLPs right. For a `levels` panel: **rank agreement** (pairwise over the 6 pairs;
    6/6 is perfect) and **gap** (score distance between adjacent levels — where an order that is
