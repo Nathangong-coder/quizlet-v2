@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { WRITE_GRADER_PANEL_PROMPT, type WriteGraderPanelBuildInput } from '@/lib/ai/prompts/write-grader-panel'
-import { GraderPanelSchema } from '@/lib/ai/schemas'
+import { GraderPanelSchema, graderPanelSchemaFor } from '@/lib/ai/schemas'
 import { PROMPT_REGISTRY } from '@/lib/ai/prompts/registry'
 import { GRADER_PANEL_LEVELS, GRADER_PANEL_MODES } from '@/lib/analysis/benchmark'
 
@@ -125,13 +125,25 @@ describe('GraderPanelSchema', () => {
     expect(GraderPanelSchema.safeParse({ answers: dup }).success).toBe(false)
   })
 
-  it('rejects a mixed panel, an answer with both a level and a mode, and one with neither', () => {
+  it('rejects a mixed panel and one with neither label', () => {
     const mixed = [...levels.slice(0, 2), ...modes.slice(2)]
     expect(GraderPanelSchema.safeParse({ answers: mixed }).success).toBe(false)
-    const both = levels.map((a) => ({ ...a, mode: 'gap' }))
-    expect(GraderPanelSchema.safeParse({ answers: both }).success).toBe(false)
     const neither = levels.map((_a, i) => answer({ intendedRank: i + 1 }))
     expect(GraderPanelSchema.safeParse({ answers: neither }).success).toBe(false)
+  })
+
+  it('tolerates a stray second label — the shape constrained decoding produced (2026-09-18)', () => {
+    // Gemini and GLM filled BOTH `level` and `mode` when both fields existed
+    // in the JSON schema. The kind's own schema has no `mode` field, so the
+    // stray key is stripped and an otherwise-perfect panel is kept.
+    const both = levels.map((a) => ({ ...a, mode: 'template' }))
+    expect(graderPanelSchemaFor('levels').safeParse({ answers: both }).success).toBe(true)
+    expect(graderPanelSchemaFor('levels').safeParse({ answers: both }).data?.answers.some((a) => 'mode' in a)).toBe(false)
+  })
+
+  it('a kind schema rejects the other kind outright', () => {
+    expect(graderPanelSchemaFor('levels').safeParse({ answers: modes }).success).toBe(false)
+    expect(graderPanelSchemaFor('modes').safeParse({ answers: levels }).success).toBe(false)
   })
 
   it('rejects an empty text or rationale', () => {

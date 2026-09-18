@@ -777,43 +777,59 @@ export type FormRequirements = z.infer<typeof FormRequirementsSchema>;
  * than it catches, and the benchmark reads the grader, not the adversary's
  * word discipline.
  */
-export const GraderPanelSchema = z.object({
-  answers: z.array(z.object({
-    level: z.enum(GRADER_PANEL_LEVELS).optional(),
-    mode: z.enum(GRADER_PANEL_MODES).optional(),
-    intendedRank: z.number().int().min(1).max(4),
-    text: z.string().min(1),
-    rationale: z.string().min(1),
-  })).length(4),
+/**
+ * ONE SCHEMA PER PANEL KIND (2026-09-18). The first version offered `level`
+ * and `mode` as two optional fields on one schema and refined "exactly one
+ * of them". Under a provider's constrained decoding every field in the JSON
+ * schema is a field the model may fill, and it filled BOTH — Gemini and GLM
+ * wrote `"level": "expert", "mode": "template"` on 3 of 10 LBO cards and the
+ * refinement rejected a panel that was otherwise perfect. A levels panel now
+ * has no `mode` field to fill and a modes panel no `level`; the shared
+ * refinements (four distinct ranks; each label once; on a levels panel the
+ * rank the level implies) stay. `GraderPanelSchema` remains the union for
+ * readers that hold either.
+ */
+const panelAnswerBase = {
+  intendedRank: z.number().int().min(1).max(4),
+  text: z.string().min(1),
+  rationale: z.string().min(1),
+};
+
+export const GraderPanelLevelsSchema = z.object({
+  answers: z.array(z.object({ level: z.enum(GRADER_PANEL_LEVELS), ...panelAnswerBase })).length(4),
 }).superRefine((panel, ctx) => {
   const { answers } = panel;
-  const levelled = answers.filter((a) => a.level !== undefined);
-  const moded = answers.filter((a) => a.mode !== undefined);
-  if (answers.some((a) => (a.level === undefined) === (a.mode === undefined))) {
-    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'each answer carries exactly one of level or mode' });
-    return;
-  }
-  if (levelled.length !== 0 && moded.length !== 0) {
-    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a panel is all levels or all modes, never mixed' });
-    return;
-  }
-  const ranks = new Set(answers.map((a) => a.intendedRank));
-  if (ranks.size !== answers.length) {
+  if (new Set(answers.map((a) => a.intendedRank)).size !== answers.length) {
     ctx.addIssue({ code: 'custom', path: ['answers'], message: 'intendedRank must be 1-4, each once' });
   }
-  if (levelled.length === answers.length) {
-    if (new Set(levelled.map((a) => a.level)).size !== GRADER_PANEL_LEVELS.length) {
-      ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a levels panel carries each level exactly once' });
+  if (new Set(answers.map((a) => a.level)).size !== GRADER_PANEL_LEVELS.length) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a levels panel carries each level exactly once' });
+  }
+  for (const [i, a] of answers.entries()) {
+    const expected = GRADER_PANEL_LEVELS.indexOf(a.level) + 1;
+    if (a.intendedRank !== expected) {
+      ctx.addIssue({ code: 'custom', path: ['answers', i, 'intendedRank'], message: `"${a.level}" is rank ${expected}` });
     }
-    for (const [i, a] of levelled.entries()) {
-      const expected = GRADER_PANEL_LEVELS.indexOf(a.level!) + 1;
-      if (a.intendedRank !== expected) {
-        ctx.addIssue({ code: 'custom', path: ['answers', i, 'intendedRank'], message: `"${a.level}" is rank ${expected}` });
-      }
-    }
-  } else if (new Set(moded.map((a) => a.mode)).size !== GRADER_PANEL_MODES.length) {
+  }
+});
+
+export const GraderPanelModesSchema = z.object({
+  answers: z.array(z.object({ mode: z.enum(GRADER_PANEL_MODES), ...panelAnswerBase })).length(4),
+}).superRefine((panel, ctx) => {
+  const { answers } = panel;
+  if (new Set(answers.map((a) => a.intendedRank)).size !== answers.length) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'intendedRank must be 1-4, each once' });
+  }
+  if (new Set(answers.map((a) => a.mode)).size !== GRADER_PANEL_MODES.length) {
     ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a modes panel carries each failure shape exactly once' });
   }
 });
+
+/** Either kind — what a reader that stores or displays a panel holds. */
+export const GraderPanelSchema = z.union([GraderPanelLevelsSchema, GraderPanelModesSchema]);
+
+export function graderPanelSchemaFor(kind: 'levels' | 'modes'): typeof GraderPanelLevelsSchema | typeof GraderPanelModesSchema {
+  return kind === 'levels' ? GraderPanelLevelsSchema : GraderPanelModesSchema;
+}
 
 export type GraderPanelDraft = z.infer<typeof GraderPanelSchema>;

@@ -1268,17 +1268,17 @@ fitted line, p95, and the recommended pair.
 
 ### Spec 5 — grader benchmark baseline (`npm run bench-grader`)
 
-**RUN 2026-09-18 — grader v2, `deepseek-flash` grading, 10/10 LBO cards, artifact
+**RUN 2026-09-18 — grader v2, `deepseek-flash` grading, 10/10 LBO cards, every panel written by a DIFFERENT family from the grader (7 GLM, 3 Gemini), artifact
 https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg (every answer, verdict, quote and rationale).**
 
 | | |
 | --- | --- |
-| Rank agreement | **54/60 (90.0%)**, 5/10 cards at 6/6 |
-| Mean adjacent gap | 0.22 (expert→competent 0.11, competent→weak 0.41, weak→wrong 0.15) |
+| Rank agreement | **56/60 (93.3%)**, 7/10 cards at 6/6 |
+| Mean adjacent gap | 0.24 |
 | Unjudged points | 0/284 |
-| Quotes unresolved | 17/484 (3.5%) — all on relation verdicts; the grader paraphrases links |
+| Quotes unresolved | 16/303 (5%) — all on relation verdicts; the grader paraphrases links |
 | Cost | 28 grades: 88k in / 31k out on DeepSeek ≈ $0.022; panels ≈ $0.006 |
-| Panels | 7 on `glm-5.3-flash` (`high`), 3 on `deepseek-flash` (GLM failed the panel schema on those three even after the 32k ceiling — a writer-compliance question, not a ceiling one) |
+| Panels | 7 on `glm-5.3-flash` (`high`), 3 on `gemini-3.1-flash-lite`. A first pass wrote those three on DeepSeek — the grader's own family, a softer test — and was discarded. |
 
 **The first run (grader v1) found two instrument defects and was discarded — this is what the
 benchmark is for.** (1) On the 9-point "walk me through an LBO" card DeepSeek returned the rubric
@@ -1291,17 +1291,21 @@ and `ShortAnswerGradeWithAnalysisSchema` (`klpResults` required wherever key poi
 entirely on reasoning and emitted nothing on 5 of 10 panel writes (`finishReason: length`, text
 length 0); `authorPanel` now passes `PANEL_MAX_OUTPUT_TOKENS` 32768.
 
-**Every one of the six inversions is one of two shapes, and neither is a mis-grade:**
+**A THIRD instrument defect surfaced on the re-author: both GLM and Gemini filled `level` AND `mode` under constrained decoding because both were optional fields of one schema, and the "exactly one" refinement rejected otherwise-perfect panels (3/10 cards, both writers; DeepSeek, schema-in-prompt, did not). Fixed: one schema per panel kind (`graderPanelSchemaFor`), a levels panel has no `mode` field to fill.**
 
-- **expert ties competent at 1.00** (3 cards: "What is an LBO", "walk me through", "how long
-  does a PE firm hold"). The adversary's competent answer names ONE gap each — "never states that
-  deleveraging grows the sponsor's equity stake", "never mentions the sponsor's return hurdle",
-  "never states the roughly ten-year fund life, only 'the fund's life'" — and the grader credited
-  that point `correct` all three times. **This is the "harsh enough?" question for the owner:** on
+**Every one of the four inversions is one of two shapes, and neither is a mis-grade:**
+
+- **expert ties competent at 1.00** (2 cards: "What is an LBO", "walk me through"; a third,
+  "how long does a PE firm hold", tied on the DeepSeek-written panel and separated cleanly on the
+  Gemini one). The adversary's competent answer names ONE gap each — "never states that
+  deleveraging grows the sponsor's equity stake" ([3], mechanism), "never mentions the sponsor's
+  return hurdle" ([8], causal) — and the grader credited that point `correct` both times. Both are
+  the TRAILING CLAUSE of a compound key point; on the mechanism point the kind-aware relaxation
+  credits it by design, on the causal point strict should have bitten and did not. **This is the "harsh enough?" question for the owner:** on
   the expert/competent margin the strict clause is not biting on a point that is gestured at
   rather than stated. On the weak answers the same grader hands out `partial`/`incomplete`
   freely, so it is not blanket leniency — it is leniency when the surrounding answer is fluent.
-- **wrong outscores weak** (3 cards). The wrong answer is caught exactly where the adversary put
+- **wrong outscores weak** (2 cards). The wrong answer is caught exactly where the adversary put
   the error (`contradicted` on [5],[7] and five relations; `contradicted` on [2],[3],[4]) but
   states every other point, so its coverage beats a weak answer with three holes. Coverage and
   verdict composition are separate axes by design (the owner's grader doc: never a composite).

@@ -13,15 +13,16 @@ benchmark is the acceptance test. Suite **4,277** tests, `tsc` clean, lint **171
 **UPDATE 2026-09-18 (afternoon, owner present, keys in `.env`): the runtime probe and the LBO
 benchmark baseline RAN.** Probe on DeepSeek: reference all `correct`, blank all `omission`, the
 hand-inverted causal point `inversion` (and its relation), 8/9 quotes resolved. Benchmark, grader
-**v2**: rank agreement **54/60 (90.0%)**, 5/10 cards perfect, mean adjacent gap 0.22, 0 unjudged;
+**v2**, every panel cross-family (7 GLM + 3 Gemini, DeepSeek grading): rank agreement **56/60 (93.3%)**, 7/10 cards perfect, mean adjacent gap 0.24, 0 unjudged;
 artifact https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg; record in `docs/ai/model-performance.md`.
 The FIRST run (grader v1) exposed two instrument defects, both fixed in `6dea6cb`: DeepSeek dropped
 the optional `klpResults` on a long card (→ prompt v6 with one output schema + the required
 `ShortAnswerGradeWithAnalysisSchema`), and GLM at `high` effort burned the default output budget on
-reasoning and wrote nothing on 5/10 panels (→ `PANEL_MAX_OUTPUT_TOKENS` 32768). GLM still fails the
-panel schema on 3/10 cards (written on DeepSeek instead) — writer compliance, open. **Owner's read
-owed:** the three expert/competent ties are the grader crediting a point the adversary says was only
-gestured at ("harsh enough?"); the three wrong-over-weak inversions are coverage vs composition — a
+reasoning and wrote nothing on 5/10 panels (→ `PANEL_MAX_OUTPUT_TOKENS` 32768). A third defect: both
+writers filled `level` AND `mode` under constrained decoding (one schema, two optional fields) —
+fixed with one schema per panel kind (`graderPanelSchemaFor`). **Owner's read
+owed:** the two expert/competent ties are the grader crediting the trailing clause of a compound key point
+("harsh enough?" — the causal one should have been `incomplete`); the two wrong-over-weak inversions are coverage vs composition — a
 ranking-rule decision. `graderVersion` is now **2**; the row check below expects 2.
 **OWED to the owner (keys/browser), in this order:** (1) `npm run probe-grade-tokens -- --models
 deepseek-flash` → paste the printed pair into `src/lib/analysis/output-cap.ts` (2048/600 are

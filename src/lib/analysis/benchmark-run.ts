@@ -1,9 +1,11 @@
+import type { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { GRADE_SHORT_ANSWER_PROMPT } from '@/lib/ai/prompts/grade-short-answer'
 import { WRITE_GRADER_PANEL_PROMPT } from '@/lib/ai/prompts/write-grader-panel'
 import {
   GraderPanelSchema,
+  graderPanelSchemaFor,
   ShortAnswerGradeSchema,
   ShortAnswerGradeWithAnalysisSchema,
   type GraderPanelDraft,
@@ -48,7 +50,8 @@ import type { BenchmarkCardRow } from '@/lib/analysis/benchmark-report'
 /** The adversary seam: writes one panel. Task `grader-panel`, writer family. */
 export type PanelWriter = (input: {
   prompt: string
-  schema: typeof GraderPanelSchema
+  /** The kind's own schema (`graderPanelSchemaFor(kind)`): a levels panel has no `mode` field to fill. */
+  schema: z.ZodType<GraderPanelDraft>
   /** `PANEL_MAX_OUTPUT_TOKENS` — reasoning tokens count against it. */
   maxOutputTokens: number
 }) => Promise<{ value: GraderPanelDraft; model: string }>
@@ -145,7 +148,7 @@ export async function authorPanel(cardId: string, kind: GraderPanelKind, gen: Pa
   })
 
   // OUTSIDE the transaction: never an AI call inside one.
-  const { value, model } = await gen({ prompt, schema: GraderPanelSchema, maxOutputTokens: PANEL_MAX_OUTPUT_TOKENS })
+  const { value, model } = await gen({ prompt, schema: graderPanelSchemaFor(kind), maxOutputTokens: PANEL_MAX_OUTPUT_TOKENS })
 
   const panel = await prisma.graderPanel.create({
     data: {
@@ -156,8 +159,8 @@ export async function authorPanel(cardId: string, kind: GraderPanelKind, gen: Pa
       model,
       answers: {
         create: value.answers.map((a) => ({
-          level: a.level ?? null,
-          mode: a.mode ?? null,
+          level: 'level' in a ? a.level : null,
+          mode: 'mode' in a ? a.mode : null,
           intendedRank: a.intendedRank,
           text: a.text,
           rationale: a.rationale,
