@@ -51,3 +51,37 @@ describe('Spec 5 Phase A tables cascade from their parents', () => {
     expect(relationBlock('CardFormRequirement', 'card')).toContain('onDelete: Cascade')
   })
 })
+
+// Spec 5 §8: the grader benchmark's three tables. A re-authored card
+// invalidates its panel (the panel is keyed on klpVersion and a deleted card
+// must take its panels with it); a deleted panel must take its answers, and
+// an answer its grader results — otherwise a benchmark re-run reads verdicts
+// on answers no longer on any panel.
+describe('Spec 5 §8 grader-panel tables cascade from their parents', () => {
+  it('GraderPanel.card cascades on delete', () => {
+    expect(relationBlock('GraderPanel', 'card')).toContain('onDelete: Cascade')
+  })
+
+  it('GraderPanelAnswer.panel cascades on delete', () => {
+    expect(relationBlock('GraderPanelAnswer', 'panel')).toContain('onDelete: Cascade')
+  })
+
+  it('GraderPanelResult.answer cascades on delete', () => {
+    expect(relationBlock('GraderPanelResult', 'answer')).toContain('onDelete: Cascade')
+  })
+
+  it('one panel per (card, klpVersion, kind), and every persisted AI artifact records its model', () => {
+    const panel = schema.match(/model GraderPanel \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(panel).toMatch(/@@unique\(\[cardId, klpVersion, kind\]\)/)
+    expect(panel).toMatch(/^\s*model\s+String\s*$/m)
+    expect(panel).toMatch(/^\s*promptVersion\s+Int\s*$/m)
+    const result = schema.match(/model GraderPanelResult \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(result).toMatch(/^\s*model\s+String\s*$/m)
+    expect(result).toMatch(/^\s*graderVersion\s+Int\s*$/m)
+    expect(result).toMatch(/^\s*promptVersion\s+Int\s*$/m)
+    for (const col of ['verdicts', 'relationVerdicts', 'formVerdicts']) {
+      expect(result).toMatch(new RegExp(`^\\s*${col}\\s+Json\\s*$`, 'm'))
+    }
+    expect(result).toMatch(/^\s*unresolvedQuotes\s+Int\s*$/m)
+  })
+})

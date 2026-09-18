@@ -7,6 +7,7 @@ import { RELATABLE_TYPES, RELATION_PROVENANCES } from '@/lib/klp/relations';
 import { EXPLOIT_STRATEGIES } from '@/lib/klp/exploit';
 import { ABSTRACTION_LEVELS } from '@/lib/klp/abstraction';
 import { PANEL_LEVELS } from '@/lib/klp/panel';
+import { GRADER_PANEL_LEVELS, GRADER_PANEL_MODES } from '@/lib/analysis/benchmark';
 
 /**
  * The per-key-point verdict a RUNTIME grader may return (Spec 5 D6: a strict
@@ -741,3 +742,64 @@ export const FormRequirementsSchema = z.object({
 });
 
 export type FormRequirements = z.infer<typeof FormRequirementsSchema>;
+
+/**
+ * Spec 5 §8 — the grader benchmark panel (`WRITE_GRADER_PANEL_PROMPT`).
+ *
+ * Exactly four answers, and the four must be ONE panel: all carrying a
+ * `level` (a `levels` panel — each of expert / competent / weak / wrong
+ * once, `intendedRank` equal to the level's position, because the adversary
+ * calling its "wrong" answer rank 1 is contradicting itself) or all carrying
+ * a `mode` (a `modes` panel — each of gap / misconception / connectivity /
+ * template once, ranks 1-4 distinct in whatever order the adversary
+ * defends). `.length(4)` alone would pass four "expert" answers, and a
+ * mixed panel would score half a curve against half a confusion matrix, so
+ * the refinements pin the design rather than the count. A partial panel is
+ * useless, not reduced — better to fail the call than score a curve with a
+ * hole in it (the same reasoning as `PanelSchema`).
+ *
+ * Word counts (60-200) are asked for in the prompt and not enforced here: a
+ * hard bound on a length the model estimates would fail more good panels
+ * than it catches, and the benchmark reads the grader, not the adversary's
+ * word discipline.
+ */
+export const GraderPanelSchema = z.object({
+  answers: z.array(z.object({
+    level: z.enum(GRADER_PANEL_LEVELS).optional(),
+    mode: z.enum(GRADER_PANEL_MODES).optional(),
+    intendedRank: z.number().int().min(1).max(4),
+    text: z.string().min(1),
+    rationale: z.string().min(1),
+  })).length(4),
+}).superRefine((panel, ctx) => {
+  const { answers } = panel;
+  const levelled = answers.filter((a) => a.level !== undefined);
+  const moded = answers.filter((a) => a.mode !== undefined);
+  if (answers.some((a) => (a.level === undefined) === (a.mode === undefined))) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'each answer carries exactly one of level or mode' });
+    return;
+  }
+  if (levelled.length !== 0 && moded.length !== 0) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a panel is all levels or all modes, never mixed' });
+    return;
+  }
+  const ranks = new Set(answers.map((a) => a.intendedRank));
+  if (ranks.size !== answers.length) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'intendedRank must be 1-4, each once' });
+  }
+  if (levelled.length === answers.length) {
+    if (new Set(levelled.map((a) => a.level)).size !== GRADER_PANEL_LEVELS.length) {
+      ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a levels panel carries each level exactly once' });
+    }
+    for (const [i, a] of levelled.entries()) {
+      const expected = GRADER_PANEL_LEVELS.indexOf(a.level!) + 1;
+      if (a.intendedRank !== expected) {
+        ctx.addIssue({ code: 'custom', path: ['answers', i, 'intendedRank'], message: `"${a.level}" is rank ${expected}` });
+      }
+    }
+  } else if (new Set(moded.map((a) => a.mode)).size !== GRADER_PANEL_MODES.length) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a modes panel carries each failure shape exactly once' });
+  }
+});
+
+export type GraderPanelDraft = z.infer<typeof GraderPanelSchema>;

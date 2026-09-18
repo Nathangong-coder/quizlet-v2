@@ -360,6 +360,7 @@ model Card {
   quizQuestions       QuizQuestion[]
   diagnosticQuestions DiagnosticQuestion[]
   formRequirements    CardFormRequirement[]
+  graderPanels        GraderPanel[]
 
   @@index([setId])
 }
@@ -1663,6 +1664,80 @@ model CardFormRequirement {
   /// each shape once or two refs would name the same requirement. The
   /// unique also covers the (cardId, klpVersion) lookup.
   @@unique([cardId, klpVersion, index])
+}
+
+/// Spec 5 §8: the grader benchmark's PANEL for one card — four answers
+/// written by an adversary (`WRITE_GRADER_PANEL_PROMPT`, the writer family)
+/// with a stated intent each, that the runtime grader is measured against.
+///
+/// `kind` is `levels` (four competence levels, expert → wrong, with ranks)
+/// or `modes` (one answer per failure shape: gap / misconception /
+/// connectivity / template) — vocabulary `GRADER_PANEL_KINDS` in
+/// src/lib/analysis/benchmark.ts. One panel per (card, klpVersion, kind):
+/// the panel is written against a specific set of key points, so a
+/// re-authored card (klpVersion + 1) needs a new panel and the old one is
+/// history. `model` and `promptVersion` are required — every persisted AI
+/// artifact records what wrote it. Cascades from the card.
+model GraderPanel {
+  id            String              @id @default(cuid())
+  cardId        String
+  klpVersion    Int
+  /// levels | modes (GRADER_PANEL_KINDS)
+  kind          String
+  promptVersion Int
+  model         String
+  createdAt     DateTime            @default(now())
+  card          Card                @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  answers       GraderPanelAnswer[]
+
+  @@unique([cardId, klpVersion, kind])
+}
+
+/// One panel answer and the adversary's STATED intent for it. Exactly one of
+/// `level` (`levels` panel: expert | competent | weak | wrong) or `mode`
+/// (`modes` panel: gap | misconception | connectivity | template) is set;
+/// `intendedRank` is 1-4, distinct within the panel. `rationale` names which
+/// points it nails, fudges, omits or inverts and which form rules it breaks —
+/// printed beside the grader's quotes when the two disagree. The grader is
+/// shown `text` ALONE, never the other three columns.
+model GraderPanelAnswer {
+  id           String              @id @default(cuid())
+  panelId      String
+  level        String?
+  mode         String?
+  intendedRank Int
+  text         String              @db.Text
+  rationale    String              @db.Text
+  panel        GraderPanel         @relation(fields: [panelId], references: [id], onDelete: Cascade)
+  results      GraderPanelResult[]
+
+  @@index([panelId])
+}
+
+/// The runtime grader's verdicts on ONE panel answer, graded in isolation,
+/// under one (graderVersion, promptVersion, model). A new grader is a new
+/// row against the same fixed answer — that is what makes the benchmark
+/// re-runnable. `verdicts` keeps the per-KLP status + weight + quote per
+/// answer (Spec 7's cold-start item parameters read this: a hit pattern
+/// across levels for every key point), `relationVerdicts` / `formVerdicts`
+/// the same for relations and form requirements, and `unresolvedQuotes`
+/// counts quotes that did not resolve to a span of the answer. Scoring
+/// (src/lib/analysis/benchmark.ts) is computed from these columns in TS;
+/// no score is stored, so a formula change is a re-read, not a re-grade.
+model GraderPanelResult {
+  id               String            @id @default(cuid())
+  answerId         String
+  graderVersion    Int
+  model            String
+  promptVersion    Int
+  verdicts         Json
+  relationVerdicts Json
+  formVerdicts     Json
+  unresolvedQuotes Int
+  createdAt        DateTime          @default(now())
+  answer           GraderPanelAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+
+  @@index([answerId])
 }
 
 /// Stage 8: one asked question, frozen at the moment it was asked.
