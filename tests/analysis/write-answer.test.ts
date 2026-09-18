@@ -145,5 +145,19 @@ describe('createAnswerWithAnalysis — Spec 5 Phase A rows', () => {
     expect(tx.answerUnwarrantedClaim.createMany).toHaveBeenCalledWith({
       data: [expect.objectContaining({ quizAnswerId: 'ans-1', text: 'claims D&A is cash', magnitude: 10, spanStart: 18 })],
     })
+
+    // Row writes land BEFORE the KlpState advisory lock: the lock opens the
+    // serialised read-modify-write section, and every AnswerKlpResult a
+    // replay could read through this transaction must already exist by then.
+    const lockAt = tx.$executeRaw.mock.invocationCallOrder[0]
+    expect(lockAt).toBeDefined()
+    for (const delegate of [
+      tx.answerKlpResult.createMany,
+      tx.answerRelationResult.createMany,
+      tx.answerFormResult.createMany,
+      tx.answerUnwarrantedClaim.createMany,
+    ]) {
+      expect(delegate.mock.invocationCallOrder[0]).toBeLessThan(lockAt)
+    }
   })
 })

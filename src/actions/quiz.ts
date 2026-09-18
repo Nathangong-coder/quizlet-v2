@@ -115,7 +115,10 @@ function binaryModeDrafts(input: {
     const klpResults = input.targetKlpIds
       .map(refOf)
       .filter((ref) => ref >= 0)
-      .map((klpRef) => ({ klpRef, status: 'passed' as const }));
+      // `correct`, not `passed`: the alias is read-only from v4 (Spec 5 D1).
+      // buildAnalysisWrites normalises it too, so this is the draft saying
+      // what it means rather than the only guard.
+      .map((klpRef) => ({ klpRef, status: 'correct' as const }));
     // A correct answer whose targets resolve to nothing is the SAME failure
     // as a wrong pick with no provenance, just wearing a different hat — most
     // often the mid-attempt-edit case, where every id the question was

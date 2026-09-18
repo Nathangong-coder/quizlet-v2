@@ -223,9 +223,9 @@ describe('submitMultipleChoiceAnswer analysis capture', () => {
     expect(rows).toHaveLength(3)
     expect(rows).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ klpId: 'klp-a', status: 'passed', credit: 0.75, mode: 'quiz-mc' }),
-        expect.objectContaining({ klpId: 'klp-b', status: 'passed', credit: 0.75, mode: 'quiz-mc' }),
-        expect.objectContaining({ klpId: 'klp-picked', status: 'passed', credit: 0.75, mode: 'quiz-mc' }),
+        expect.objectContaining({ klpId: 'klp-a', status: 'correct', credit: 0.75, mode: 'quiz-mc' }),
+        expect.objectContaining({ klpId: 'klp-b', status: 'correct', credit: 0.75, mode: 'quiz-mc' }),
+        expect.objectContaining({ klpId: 'klp-picked', status: 'correct', credit: 0.75, mode: 'quiz-mc' }),
       ]),
     )
     expect(h.errorTagCreateMany).not.toHaveBeenCalled()
@@ -281,8 +281,8 @@ describe('submitTrueFalseAnswer analysis capture', () => {
     expect(rows).toHaveLength(2)
     expect(rows).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ klpId: 'klp-a', status: 'passed', credit: 0.5, mode: 'quiz-tf' }),
-        expect.objectContaining({ klpId: 'klp-b', status: 'passed', credit: 0.5, mode: 'quiz-tf' }),
+        expect.objectContaining({ klpId: 'klp-a', status: 'correct', credit: 0.5, mode: 'quiz-tf' }),
+        expect.objectContaining({ klpId: 'klp-b', status: 'correct', credit: 0.5, mode: 'quiz-tf' }),
       ]),
     )
     expect(h.errorTagCreateMany).not.toHaveBeenCalled()

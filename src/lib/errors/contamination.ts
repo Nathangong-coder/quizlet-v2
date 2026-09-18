@@ -174,11 +174,10 @@ const MAX_MAGNITUDE = 10
  * both sources. Worst-of, not sum, for the reason `contaminationFactorFromTags`
  * gives: two false asides are not twice as disqualifying as one.
  *
- * The array form is the pre-Spec-5 signature and means `{ tags, unwarranted: [] }`.
- * Kept so a tag-only caller (and every test written against it) reads the same.
+ * A tag-only caller uses `contaminationFactorFromTags` directly; this is the
+ * one signature the write path reads.
  */
-export function contaminationFactor(src: ContaminationSources | ContaminationInput[]): number {
-  if (Array.isArray(src)) return contaminationFactorFromTags(src)
+export function contaminationFactor(src: ContaminationSources): number {
   const fromTags = contaminationFactorFromTags(src.tags)
   if (src.unwarranted.length === 0) return fromTags
   const worst = Math.max(
@@ -194,6 +193,6 @@ export function contaminationFactor(src: ContaminationSources | ContaminationInp
  * Was this answer contaminated at all? Cheaper than comparing floats, and it
  * is the question a UI or a report actually asks.
  */
-export function isContaminated(src: ContaminationSources | ContaminationInput[]): boolean {
+export function isContaminated(src: ContaminationSources): boolean {
   return contaminationFactor(src) < 1
 }

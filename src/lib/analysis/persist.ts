@@ -216,6 +216,9 @@ export function buildAnalysisWrites(input: {
   // named in the warnings so the benchmark can count the rate. No quote at all
   // (a `correct` key-point verdict is not asked for one) is silent: nothing
   // went unresolved.
+  // An empty or blank quote is "no quote", not a paraphrase: nothing was
+  // cited, so there is nothing to fail to find — no evidence, no span, no warning.
+  const quoteOf = (q: string | undefined): string | undefined => (q && q.trim() ? q : undefined)
   const locate = (quote: string | undefined, ref: string): SpanColumns => {
     if (quote === undefined) return { spanStart: null, spanEnd: null }
     const span = resolveSpan(input.answerText, quote)
@@ -304,12 +307,15 @@ export function buildAnalysisWrites(input: {
   // validated against a vocabulary — there is none; the text IS the claim —
   // so every draft becomes a row, and every row informs the factor. An
   // unresolvable quote only costs the span, never the claim.
-  const unwarranted: AnalysisWrites['unwarranted'] = input.unwarranted.map((u, i) => ({
-    text: u.text,
-    magnitude: u.magnitude,
-    evidence: u.quote,
-    ...locate(u.quote, `unwarranted:${i}`),
-  }))
+  const unwarranted: AnalysisWrites['unwarranted'] = input.unwarranted.map((u, i) => {
+    const quote = quoteOf(u.quote)
+    return {
+      text: u.text,
+      magnitude: u.magnitude,
+      evidence: quote,
+      ...locate(quote, `unwarranted:${i}`),
+    }
+  })
   const factor = contaminationFactor({ tags: errorTags, unwarranted })
 
   const klpResults: AnalysisWrites['klpResults'] = []
@@ -335,11 +341,14 @@ export function buildAnalysisWrites(input: {
       continue
     }
     seenKlpIds.add(klp.id)
-    const quote = r.quote ?? r.evidence
+    const quote = quoteOf(r.quote ?? r.evidence)
+    // `passed` is a read-only alias; from v4 no row is written with it — every
+    // caller is covered here, not at each draft site.
+    const status: KlpStatus = r.status === 'passed' ? 'correct' : r.status
     klpResults.push({
       klpId: klp.id,
-      status: r.status,
-      credit: klpCredit(r.status, input.mode, factor),
+      status,
+      credit: klpCredit(status, input.mode, factor),
       mode: input.mode,
       evidence: quote,
       ...locate(quote, `klp:${r.klpRef}`),
@@ -365,13 +374,14 @@ export function buildAnalysisWrites(input: {
       continue
     }
     seenRelationIds.add(rel.id)
+    const quote = quoteOf(r.quote)
     relationResults.push({
       relationId: rel.id,
       status: r.status,
       credit: klpCredit(r.status, input.mode, factor),
       provenance: 'passive',
-      evidence: r.quote,
-      ...locate(r.quote, `rel:${r.relationRef}`),
+      evidence: quote,
+      ...locate(quote, `rel:${r.relationRef}`),
     })
   }
 
@@ -391,11 +401,12 @@ export function buildAnalysisWrites(input: {
       continue
     }
     seenFormIds.add(req.id)
+    const quote = quoteOf(f.quote)
     formResults.push({
       formRequirementId: req.id,
       status: f.status,
-      evidence: f.quote,
-      ...locate(f.quote, `form:${f.formRef}`),
+      evidence: quote,
+      ...locate(quote, `form:${f.formRef}`),
     })
   }
 

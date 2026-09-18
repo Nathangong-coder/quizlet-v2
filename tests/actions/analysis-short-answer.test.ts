@@ -163,7 +163,8 @@ describe('submitShortAnswer analysis capture', () => {
     await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
 
     expect(h.klpResultCreateMany.mock.calls[0][0].data).toEqual([
-      expect.objectContaining({ klpId: 'klp-a', status: 'passed', credit: 0.95, mode: 'quiz-sa' }),
+      // A legacy `passed` draft lands as `correct`: no v4 row says passed.
+      expect.objectContaining({ klpId: 'klp-a', status: 'correct', credit: 0.95, mode: 'quiz-sa' }),
     ])
   })
 

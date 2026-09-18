@@ -37,7 +37,8 @@ describe('buildAnalysisWrites — KLP results', () => {
     })
     expect(w.klpResults).toEqual([
       {
-        klpId: 'klp-a', status: 'passed', credit: 0.95, mode: 'quiz-sa', evidence: 'said it plainly',
+        // The legacy `passed` draft is normalised: no v4 row says passed.
+        klpId: 'klp-a', status: 'correct', credit: 0.95, mode: 'quiz-sa', evidence: 'said it plainly',
         // The quote is not in the (empty) answer text, so no span — null, not
         // absent, because the columns exist now and a legacy row's null must
         // mean the same thing as a fresh unresolved one.
@@ -371,6 +372,21 @@ describe('Spec 5 Phase A — spans, relations, form results, unwarranted claims'
     expect(w2.warnings).toContainEqual({ reason: 'quote_unresolved', value: 'klp:1' })
   })
 
+  it('treats an empty quote as no quote — null span, no evidence, no warning', () => {
+    const w = buildAnalysisWrites({
+      ...s5,
+      klpResults: [{ klpRef: 0, status: 'correct', quote: '' }, { klpRef: 1, status: 'partial', quote: '   ' }],
+      relationResults: [{ relationRef: 0, status: 'correct', quote: '' }],
+      unwarranted: [{ text: 'x', quote: '', magnitude: 2 }],
+    })
+    expect(w.klpResults[0]).toMatchObject({ spanStart: null, spanEnd: null })
+    expect(w.klpResults[0].evidence).toBeUndefined()
+    expect(w.klpResults[1].evidence).toBeUndefined()
+    expect(w.relationResults[0].evidence).toBeUndefined()
+    expect(w.unwarranted[0].evidence).toBeUndefined()
+    expect(w.warnings).toEqual([])
+  })
+
   it('accepts the bridged `evidence` key as the quote (the schema transform fills it)', () => {
     const w = buildAnalysisWrites({
       ...s5,
@@ -526,12 +542,15 @@ describe('Spec 5 Phase A — spans, relations, form results, unwarranted claims'
     expect(w.warnings).toEqual([{ reason: 'quote_unresolved', value: 'unwarranted:1' }])
   })
 
-  it('never writes passed', () => {
+  it('never writes passed — a legacy passed draft lands as correct, at full credit', () => {
+    // `passed` is a read-only alias from v4 on. MC/TF drafts and any older
+    // caller are covered HERE, not at each draft site.
     const w = buildAnalysisWrites({
       ...s5,
-      klpResults: [{ klpRef: 0, status: 'correct' }, { klpRef: 1, status: 'partial' }],
+      klpResults: [{ klpRef: 0, status: 'passed' }, { klpRef: 1, status: 'partial' }],
       relationResults: [{ relationRef: 0, status: 'correct', quote: 'FCF rises' }],
     })
+    expect(w.klpResults[0]).toMatchObject({ klpId: 'k1', status: 'correct', credit: 0.95 })
     expect(w.klpResults.every((r) => r.status !== 'passed')).toBe(true)
     // A relation row's status is typed `KlpVerdict`, which has no `passed`
     // member — comparing the literal is a tsc error, so widen to string here.
