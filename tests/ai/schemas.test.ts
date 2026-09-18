@@ -1,3 +1,4 @@
+import { ShortAnswerGradeWithAnalysisSchema } from '@/lib/ai/schemas'
 import { describe, it, expect } from 'vitest';
 import { CandidateGradeSchema, MultipleChoiceOptionsSchema, ShortAnswerGradeSchema, TrainingPlanSchema } from '@/lib/ai/schemas';
 
@@ -181,3 +182,20 @@ describe('AI Schemas', () => {
     });
   });
 });
+
+describe('ShortAnswerGradeWithAnalysisSchema (v6 — klpResults required when key points were listed)', () => {
+  const rubric = {
+    clarity: { score: 8, pros: [], cons: [] },
+    conciseness: { score: 8, pros: [], cons: [] },
+    correctness: { score: 8, pros: [], cons: [] },
+    overall: 8, summary: 's', suggestedImprovement: 'i',
+  }
+  it('rejects a reply that drops klpResults — the silent zero-verdict failure the benchmark caught', () => {
+    expect(ShortAnswerGradeWithAnalysisSchema.safeParse({ ...rubric }).success).toBe(false)
+    expect(ShortAnswerGradeWithAnalysisSchema.safeParse({ ...rubric, klpResults: [] }).success).toBe(false)
+  })
+  it('accepts a reply with at least one verdict, and the base schema still accepts the rubric-only shape', () => {
+    expect(ShortAnswerGradeWithAnalysisSchema.safeParse({ ...rubric, klpResults: [{ klpRef: 0, status: 'omission' }] }).success).toBe(true)
+    expect(ShortAnswerGradeSchema.safeParse({ ...rubric }).success).toBe(true)
+  })
+})

@@ -48,7 +48,7 @@ export interface GradeShortAnswerBuildPartsInput {
   referenceAnswer?: string;
 }
 
-const RUBRIC_BODY = `For each of the following categories, provide a score (1-10), a list of pros, and a list of cons:
+const RUBRIC_CRITERIA = `For each of the following categories, provide a score (1-10), a list of pros, and a list of cons:
 1. Clarity: How easy is the answer to understand?
 2. Conciseness: Does the answer avoid unnecessary filler?
 3. Correctness: How accurate is the answer compared to the definition?
@@ -56,18 +56,45 @@ const RUBRIC_BODY = `For each of the following categories, provide a score (1-10
 Additionally, provide:
 - Overall Score: A final weighted grade (1-10).
 - Summary: A concise synthesis of the performance.
-- Suggested Improvement: A specific, actionable tip to make this answer "interview-ready".
+- Suggested Improvement: A specific, actionable tip to make this answer "interview-ready".`;
+
+const RUBRIC_SCHEMA_FIELDS = `  "clarity": { "score": number, "pros": string[], "cons": string[] },
+  "conciseness": { "score": number, "pros": string[], "cons": string[] },
+  "correctness": { "score": number, "pros": string[], "cons": string[] },
+  "overall": number,
+  "summary": string,
+  "suggestedImprovement": string`;
+
+const RUBRIC_BODY = `${RUBRIC_CRITERIA}
 
 Output the result as JSON.
 
 JSON Schema:
 {
-  "clarity": { "score": number, "pros": string[], "cons": string[] },
-  "conciseness": { "score": number, "pros": string[], "cons": string[] },
-  "correctness": { "score": number, "pros": string[], "cons": string[] },
-  "overall": number,
-  "summary": string,
-  "suggestedImprovement": string
+${RUBRIC_SCHEMA_FIELDS}
+}`;
+
+/**
+ * v6 (2026-09-18, found by the grader benchmark's first run): on the KLP path
+ * the rubric's literal `JSON Schema: {...}` listing used to come FIRST, with
+ * the analysis fields asked for afterwards as "Additionally return …". On a
+ * long card (9 points, 8 relations) DeepSeek produced exactly the schema it
+ * had been shown and silently omitted `klpResults` — and because the field
+ * was optional, the reply parsed and yielded zero verdicts. Now the KLP path
+ * shows ONE schema listing, rubric and analysis fields together, placed right
+ * before the learner's answer, and says `klpResults` is required. The
+ * no-KLP path is byte-identical to v5.
+ */
+const OUTPUT_SCHEMA = (input: { relations?: PromptRelation[]; formReqs?: PromptFormReq[] }) => `Output ONE JSON object containing ALL of the following fields — the rubric fields AND the analysis fields together. "klpResults" is REQUIRED and must contain exactly one entry per key point listed above; never omit it.
+
+JSON Schema:
+{
+${RUBRIC_SCHEMA_FIELDS},
+  "klpResults": [ { "klpRef": number, "status": string, "quote"?: string } ],${input.relations?.length ? `
+  "relationResults": [ { "relationRef": number, "status": string, "quote": string } ],` : ''}${input.formReqs?.length ? `
+  "formResults": [ { "formRef": number, "status": "met" | "not_met", "quote": string } ],` : ''}
+  "unwarranted": [ { "text": string, "quote": string, "magnitude": number } ],
+  "errorTags": [ { "dimension": string, "type": string, "klpRef"?: number, "secondaryKlpRef"?: number, "magnitude": number, "quote"?: string } ]
 }`;
 
 /**
@@ -112,7 +139,7 @@ ${input.klps.map((k) => `[${k.ref}] (${k.kind}) ${k.text}`).join('\n')}
 ${rel}${form}${reference}
 ${verdictInstructionBlock({ strict: true, showKinds: true, vocabulary: RUNTIME_VERDICTS })}
 
-Return:
+The analysis fields, explained (the JSON schema for the whole reply follows below):
 
 "klpResults": one entry per key point above — { "klpRef": number, "status": verdict, "quote"?: string }.
 ${input.relations?.length ? `"relationResults": one entry per relation above — { "relationRef": number, "status": verdict, "quote"?: string }. "correct" = the answer asserts the link itself; "omission" = both ends present, link never made; "inversion" = link asserted backwards; "contradicted" = the answer denies it.\n` : ''}${input.formReqs?.length ? `"formResults": one entry per form requirement — { "formRef": number, "status": "met" | "not_met", "quote"?: string }.\n` : ''}${input.relations?.length || input.formReqs?.length ? `${QUOTE_EVERY_RELATION_FORM}\n` : ''}
@@ -177,7 +204,7 @@ Rank by what matters most. Do not pad to the cap.`;
  */
 export const GRADE_SHORT_ANSWER_PROMPT = {
   id: 'grade-short-answer',
-  version: 5,
+  version: 6,
   schema: ShortAnswerGradeSchema,
 
   build(input: GradeShortAnswerBuildInput): string {
@@ -187,7 +214,9 @@ export const GRADE_SHORT_ANSWER_PROMPT = {
 Term: ${input.card.term}
 Expected Definition: ${input.card.definition}
 
-${RUBRIC_BODY}${ANALYSIS_BODY({ ...input, klps: input.klps })}
+${RUBRIC_CRITERIA}${ANALYSIS_BODY({ ...input, klps: input.klps })}
+
+${OUTPUT_SCHEMA(input)}
 
 User Answer: "${input.answer}"`;
     }
@@ -211,7 +240,9 @@ ${mediaNote}
 
 Expected Definition: ${input.card.definition}
 
-${RUBRIC_BODY}${ANALYSIS_BODY({ ...input, klps: input.klps })}
+${RUBRIC_CRITERIA}${ANALYSIS_BODY({ ...input, klps: input.klps })}
+
+${OUTPUT_SCHEMA(input)}
 
 User Answer: "${input.answer}"`
       : `You are a finance interview grader. Grade the following short-answer response.

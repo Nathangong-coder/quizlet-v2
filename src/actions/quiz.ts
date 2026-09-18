@@ -14,6 +14,7 @@ import {
   MultipleChoiceOptionsSchema,
   MultipleChoiceOptions,
   ShortAnswerGradeSchema,
+  ShortAnswerGradeWithAnalysisSchema,
   MultipleChoiceFeedbackSchema,
   AnnotationSchema,
   MultipleChoiceKlpSchema,
@@ -981,6 +982,11 @@ export async function submitShortAnswer(input: {
     const maxOutputTokens = gradeMaxOutputTokens(
       promptKlps.length + promptRelations.length + promptFormReqs.length,
     );
+    // v6: with key points listed, `klpResults` is REQUIRED — a reply that
+    // drops the analysis section fails Zod (→ one retry, then loud) instead
+    // of parsing as zero verdicts. Without key points the rubric-only shape
+    // is the whole contract.
+    const gradeSchema = promptKlps.length > 0 ? ShortAnswerGradeWithAnalysisSchema : ShortAnswerGradeSchema;
     const failedAnalysisInput = (gradingErr: unknown) => ({
       attemptId: input.attemptId,
       userId,
@@ -1013,7 +1019,7 @@ export async function submitShortAnswer(input: {
             userId,
             task: 'grade',
             prompt,
-            schema: ShortAnswerGradeSchema,
+            schema: gradeSchema,
             maxOutputTokens,
           }),
         );
@@ -1142,7 +1148,7 @@ export async function submitShortAnswer(input: {
           userId,
           task: 'grade',
           parts,
-          schema: ShortAnswerGradeSchema,
+          schema: gradeSchema,
           maxOutputTokens,
         }),
       );

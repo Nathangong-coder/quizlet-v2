@@ -3,7 +3,7 @@ import type { Card } from '@prisma/client'
 import { prisma } from '../src/lib/db'
 import { resolveLanguageModel, type ProviderId } from '../src/lib/ai/providers'
 import { GRADE_SHORT_ANSWER_PROMPT, type PromptRelation, type PromptFormReq } from '../src/lib/ai/prompts/grade-short-answer'
-import { ShortAnswerGradeSchema } from '../src/lib/ai/schemas'
+import { ShortAnswerGradeSchema, ShortAnswerGradeWithAnalysisSchema } from '../src/lib/ai/schemas'
 import { parseList } from '../src/lib/klp/direct-pool'
 
 /**
@@ -283,7 +283,7 @@ async function main() {
         const res = await generateText({
           model: languageModel,
           prompt,
-          output: Output.object({ schema: ShortAnswerGradeSchema }),
+          output: Output.object({ schema: ShortAnswerGradeWithAnalysisSchema }),
           maxOutputTokens: PROBE_MAX_OUTPUT_TOKENS,
           maxRetries: 0,
         })

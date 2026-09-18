@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { pinPerCard, CardAbandonedError, type PinnedPool } from '@/lib/analysis/benchmark-pin'
 import type { ShortAnswerGrade } from '@/lib/ai/schemas'
-import { ShortAnswerGradeSchema } from '@/lib/ai/schemas'
+import { ShortAnswerGradeWithAnalysisSchema } from '@/lib/ai/schemas'
 
 /**
  * THE UNIT OF PINNING IS THE CARD (`src/lib/klp/direct-pool.ts`): rank
@@ -24,7 +24,7 @@ function fakePool(combos: Combo[]): PinnedPool<Combo> & { next: ReturnType<typeo
 }
 
 const grade = {} as ShortAnswerGrade
-const input = { prompt: 'p', schema: ShortAnswerGradeSchema, maxOutputTokens: 100 }
+const input = { prompt: 'p', schema: ShortAnswerGradeWithAnalysisSchema, maxOutputTokens: 100 }
 
 describe('pinPerCard', () => {
   it('takes one combo per card and grades every answer of the card on it', async () => {

@@ -127,6 +127,20 @@ export const ShortAnswerGradeSchema = z.object({
 
 export type ShortAnswerGrade = z.infer<typeof ShortAnswerGradeSchema>;
 
+/**
+ * The grade schema WHEN LIVE KEY POINTS WERE SUPPLIED (v6, 2026-09-18). The
+ * base schema keeps `klpResults` optional so the no-KLP rubric-only reply
+ * parses; here it is REQUIRED and non-empty, so a model that returns the
+ * rubric and silently drops the analysis section — DeepSeek did, on a 9-point
+ * card, on the benchmark's first run — fails Zod, is retried once in place
+ * (D6), and then fails loud instead of producing zero verdicts that read as
+ * "no evidence". Every grading path that lists key points uses this one.
+ */
+export const ShortAnswerGradeWithAnalysisSchema = ShortAnswerGradeSchema.extend({
+  klpResults: KlpResultsSchema.unwrap().min(1),
+});
+export type ShortAnswerGradeWithAnalysis = z.infer<typeof ShortAnswerGradeWithAnalysisSchema>;
+
 export const AnnotationSchema = z.object({
   annotations: z.array(z.object({
     type: z.enum(['bold', 'underline', 'highlight']),

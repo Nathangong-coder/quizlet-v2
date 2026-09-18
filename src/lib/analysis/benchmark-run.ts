@@ -5,6 +5,7 @@ import { WRITE_GRADER_PANEL_PROMPT } from '@/lib/ai/prompts/write-grader-panel'
 import {
   GraderPanelSchema,
   ShortAnswerGradeSchema,
+  ShortAnswerGradeWithAnalysisSchema,
   type GraderPanelDraft,
   type ShortAnswerGrade,
 } from '@/lib/ai/schemas'
@@ -48,12 +49,15 @@ import type { BenchmarkCardRow } from '@/lib/analysis/benchmark-report'
 export type PanelWriter = (input: {
   prompt: string
   schema: typeof GraderPanelSchema
+  /** `PANEL_MAX_OUTPUT_TOKENS` — reasoning tokens count against it. */
+  maxOutputTokens: number
 }) => Promise<{ value: GraderPanelDraft; model: string }>
 
 /** The grader seam: grades one answer. Task `grade`, the runtime grader. */
 export type BenchGrader = (input: {
   prompt: string
-  schema: typeof ShortAnswerGradeSchema
+  /** `ShortAnswerGradeWithAnalysisSchema` — key points are always listed here. */
+  schema: typeof ShortAnswerGradeWithAnalysisSchema
   maxOutputTokens: number
 }) => Promise<{ value: ShortAnswerGrade; model: string }>
 
@@ -107,6 +111,16 @@ export interface AuthorPanelResult {
  * the planner guarantees none exists, and the constraint guarantees it if
  * the planner is bypassed.
  */
+/**
+ * The panel writer's ceiling. Four answers of 60-200 words plus four
+ * rationales are ~2k tokens of TEXT, but the writer is the authoring family
+ * at `high` reasoning effort, and on the benchmark's first run GLM spent the
+ * provider's default budget (8,192) entirely on reasoning and emitted nothing
+ * — `finishReason: 'length'`, text length 0 — on 5 of 10 cards. Reasoning
+ * tokens count against the ceiling; the ceiling must leave room after them.
+ */
+export const PANEL_MAX_OUTPUT_TOKENS = 32768
+
 export async function authorPanel(cardId: string, kind: GraderPanelKind, gen: PanelWriter): Promise<AuthorPanelResult> {
   const card = await prisma.card.findUnique({
     where: { id: cardId },
@@ -131,7 +145,7 @@ export async function authorPanel(cardId: string, kind: GraderPanelKind, gen: Pa
   })
 
   // OUTSIDE the transaction: never an AI call inside one.
-  const { value, model } = await gen({ prompt, schema: GraderPanelSchema })
+  const { value, model } = await gen({ prompt, schema: GraderPanelSchema, maxOutputTokens: PANEL_MAX_OUTPUT_TOKENS })
 
   const panel = await prisma.graderPanel.create({
     data: {
@@ -245,7 +259,7 @@ export async function gradePanelAnswer(answerId: string, gen: BenchGrader): Prom
   })
   const maxOutputTokens = gradeMaxOutputTokens(promptKlps.length + promptRelations.length + promptFormReqs.length)
 
-  const { value: grade, model } = await gen({ prompt, schema: ShortAnswerGradeSchema, maxOutputTokens })
+  const { value: grade, model } = await gen({ prompt, schema: ShortAnswerGradeWithAnalysisSchema, maxOutputTokens })
 
   const built = buildPanelVerdicts(grade, {
     answerText: answer.text,

@@ -4,7 +4,7 @@ import { prisma } from '../src/lib/db'
 import { resolveLanguageModel, type ProviderId } from '../src/lib/ai/providers'
 import { GRADE_SHORT_ANSWER_PROMPT } from '../src/lib/ai/prompts/grade-short-answer'
 import { GRADE_CANDIDATE_PROMPT } from '../src/lib/ai/prompts/grade-candidate'
-import { ShortAnswerGradeSchema, CandidateGradeSchema, type ShortAnswerGrade } from '../src/lib/ai/schemas'
+import { ShortAnswerGradeSchema, ShortAnswerGradeWithAnalysisSchema, CandidateGradeSchema, type ShortAnswerGrade } from '../src/lib/ai/schemas'
 import { loadGradingContext, promptViewOf } from '../src/lib/quiz/grading-context'
 import { gradeMaxOutputTokens } from '../src/lib/analysis/output-cap'
 import { resolveSpan } from '../src/lib/analysis/spans'
@@ -299,7 +299,7 @@ async function main() {
       const res = await generateText({
         model: languageModel,
         prompt,
-        output: Output.object({ schema: ShortAnswerGradeSchema }),
+        output: Output.object({ schema: ShortAnswerGradeWithAnalysisSchema }),
         maxOutputTokens: ceiling,
         maxRetries: 0,
       })

@@ -122,8 +122,8 @@ describe('GRADE_SHORT_ANSWER_PROMPT v5 (shared verdict block)', () => {
     expect(promptText.indexOf('THE REFERENCE')).toBeLessThan(promptText.indexOf('THE ANSWER'))
   })
 
-  it('is version 5 — promptVersion is persisted on every grade', () => {
-    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(5)
+  it('is version 6 — promptVersion is persisted on every grade', () => {
+    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(6)
   })
 })
 
@@ -165,5 +165,41 @@ describe('ShortAnswerGradeSchema v5 (runtime vocabulary)', () => {
   it('rejects a form status outside met | not_met and an unwarranted magnitude outside 1-10', () => {
     expect(ShortAnswerGradeSchema.safeParse({ ...base, formResults: [{ formRef: 0, status: 'partial' }] }).success).toBe(false)
     expect(ShortAnswerGradeSchema.safeParse({ ...base, unwarranted: [{ text: 't', quote: 'q', magnitude: 11 }] }).success).toBe(false)
+  })
+})
+
+describe('GRADE_SHORT_ANSWER_PROMPT v6 (one output schema on the KLP path)', () => {
+  const card = { term: 'Walk me through an LBO', definition: 'A buyout financed mostly with debt.' } as never
+  const klps = [
+    { ref: 0, text: 'The sponsor funds most of the price with debt.', kind: 'mechanism' },
+    { ref: 1, text: 'Cash flow pays the debt down over the hold.', kind: 'causal' },
+  ]
+
+  it('lists klpResults inside the ONE JSON schema, after the criteria and before the answer', () => {
+    const p = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'THE ANSWER', klps })
+    const schemaAt = p.indexOf('Output ONE JSON object containing ALL of the following fields')
+    expect(schemaAt).toBeGreaterThan(-1)
+    expect(p.indexOf('"klpResults": [')).toBeGreaterThan(schemaAt)
+    expect(p.indexOf('"klpResults": [')).toBeLessThan(p.indexOf('User Answer: "THE ANSWER"'))
+    expect(p).toContain('"klpResults" is REQUIRED')
+    // the rubric's old stand-alone listing must not appear twice
+    expect(p.match(/JSON Schema:/g)?.length).toBe(1)
+  })
+
+  it('adds relationResults / formResults to the schema only when they are listed', () => {
+    const bare = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x', klps })
+    expect(bare).not.toContain('"relationResults": [')
+    expect(bare).not.toContain('"formResults": [')
+    const full = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x', klps,
+      relations: [{ ref: 0, type: 'causes', fromRef: 0, toRef: 1 }], formReqs: [{ ref: 0, text: 'States direction and magnitude' }] })
+    expect(full).toContain('"relationResults": [')
+    expect(full).toContain('"formResults": [')
+  })
+
+  it('leaves the no-KLP prompt exactly as v5 left it (rubric schema last)', () => {
+    const p = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'x' })
+    expect(p).toContain('Output the result as JSON.\n\nJSON Schema:\n{\n  "clarity"')
+    expect(p).not.toContain('klpResults')
+    expect(p.trim().endsWith('}')).toBe(true)
   })
 })

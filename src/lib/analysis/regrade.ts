@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { GRADE_SHORT_ANSWER_PROMPT } from '@/lib/ai/prompts/grade-short-answer'
-import { ShortAnswerGradeSchema, type ShortAnswerGrade } from '@/lib/ai/schemas'
+import { ShortAnswerGradeSchema, ShortAnswerGradeWithAnalysisSchema, type ShortAnswerGrade } from '@/lib/ai/schemas'
 import { ANALYSIS_VERSION, buildAnalysisWrites, type AnalysisOutcome, type ErrorTagDraft } from '@/lib/analysis/persist'
 import { GRADER_VERSION } from '@/lib/analysis/version'
 import { gradeMaxOutputTokens } from '@/lib/analysis/output-cap'
@@ -137,7 +137,8 @@ export function planRegrade(
 /** What the script's generator receives. The prompt is already built. */
 export interface RegradeGenInput {
   prompt: string
-  schema: typeof ShortAnswerGradeSchema
+  /** `ShortAnswerGradeWithAnalysisSchema` — a regrade always lists key points. */
+  schema: typeof ShortAnswerGradeWithAnalysisSchema
   /** The fluid ceiling (`gradeMaxOutputTokens`) for this card's item count. */
   maxOutputTokens: number
 }
@@ -292,7 +293,7 @@ export async function regradeAnswer(
   )
 
   // OUTSIDE the transaction — see the header.
-  const { value: grade, model } = await gen({ prompt, schema: ShortAnswerGradeSchema, maxOutputTokens })
+  const { value: grade, model } = await gen({ prompt, schema: ShortAnswerGradeWithAnalysisSchema, maxOutputTokens })
 
   // Same rule as submitShortAnswer: no per-point verdicts on a card that has
   // points is the grader not doing the job, never a clean grade.

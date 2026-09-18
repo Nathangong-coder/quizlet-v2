@@ -5,4 +5,12 @@
  * `ANALYSIS_VERSION` (persist.ts) describes the CONTRACT (what rows exist);
  * this describes the grader. Both persist on QuizAnswer.
  */
-export const GRADER_VERSION = 1
+/**
+ * History:
+ *  1 — Phase A as built (grade-short-answer v5).
+ *  2 — 2026-09-18: grade-short-answer v6, ONE output schema on the KLP path
+ *      and `klpResults` required (ShortAnswerGradeWithAnalysisSchema). Found
+ *      by the first benchmark run: DeepSeek dropped the analysis section on a
+ *      9-point card and the optional field let it parse as zero verdicts.
+ */
+export const GRADER_VERSION = 2
