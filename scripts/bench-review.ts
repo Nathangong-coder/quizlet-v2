@@ -1,5 +1,6 @@
 import { prisma } from '../src/lib/db'
-import { readPanelResult, coverageScore, rankAgreement, adjacentGaps } from '../src/lib/analysis/benchmark'
+import { readPanelResult, coverageScore, rankAgreement, adjacentGaps, toBenchKlpVerdicts, toBenchRelationVerdicts } from '../src/lib/analysis/benchmark'
+import { answerScore, compositionOf, GRADER_SCORING } from '../src/lib/analysis/scoring-rules'
 import { GRADER_VERSION } from '../src/lib/analysis/version'
 
 /**
@@ -27,6 +28,7 @@ async function main() {
   const model = opt(args, '--model')
   const kind = opt(args, '--kind') ?? 'levels'
 
+  const rules = GRADER_SCORING
   const cards = await prisma.card.findMany({
     where: { setId },
     orderBy: { createdAt: 'asc' },
@@ -74,7 +76,11 @@ async function main() {
       const row = a.results[0]
       if (!row) return { level: a.level, mode: a.mode, intendedRank: a.intendedRank, text: a.text, rationale: a.rationale, result: null }
       const r = readPanelResult(row)
-      const score = coverageScore(r.verdicts, r.unjudged)
+      const bk = toBenchKlpVerdicts(r.verdicts)
+      const br = toBenchRelationVerdicts(r.relationVerdicts)
+      const score = answerScore(bk, br, r.unjudged)
+      const coverage = coverageScore(bk, r.unjudged)
+      const composition = compositionOf(bk, br, r.unjudged)
       return {
         level: a.level,
         mode: a.mode,
@@ -84,6 +90,9 @@ async function main() {
         result: {
           model: row.model,
           score,
+          coverage,
+          composition,
+          expression: (row as { expression?: unknown }).expression ?? null,
           unresolvedQuotes: r.unresolvedQuotes,
           unjudged: r.unjudged.map((u) => ({ index: byId.get(u.klpId)?.index ?? null, weight: u.weight })),
           verdicts: r.verdicts.map((v) => ({
@@ -120,7 +129,7 @@ async function main() {
       answers,
     })
   }
-  process.stdout.write(JSON.stringify({ setId, kind, model: model ?? null, graderVersion: GRADER_VERSION, cards: out }, null, 2))
+  process.stdout.write(JSON.stringify({ setId, kind, model: model ?? null, graderVersion: GRADER_VERSION, scoring: rules, cards: out }, null, 2))
 }
 
 main()

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  isLevelsKind,
   GRADER_PANEL_LEVELS,
   GRADER_PANEL_MODES,
   GRADER_PANEL_KINDS,
@@ -24,10 +25,10 @@ import {
  * hand-built inputs.
  */
 describe('grader-panel vocabulary', () => {
-  it('names the four levels in rank order, the four failure shapes and the two panel kinds', () => {
+  it('names the four levels in rank order, the four failure shapes and the three panel kinds', () => {
     expect(GRADER_PANEL_LEVELS).toEqual(['expert', 'competent', 'weak', 'wrong'])
     expect(GRADER_PANEL_MODES).toEqual(['gap', 'misconception', 'connectivity', 'template'])
-    expect(GRADER_PANEL_KINDS).toEqual(['levels', 'modes'])
+    expect(GRADER_PANEL_KINDS).toEqual(['levels', 'modes', 'blind'])
   })
 })
 
@@ -391,5 +392,13 @@ describe('panel verdict converters', () => {
     expect(() => readPanelResult({ verdicts: 'nope', relationVerdicts: [], formVerdicts: [], unresolvedQuotes: 0 })).toThrow()
     expect(() => readPanelResult({ verdicts: [], relationVerdicts: [], formVerdicts: [{ ...form, status: 'maybe' }], unresolvedQuotes: 0 })).toThrow(/formVerdicts/)
     expect(() => readPanelResult({ verdicts: [], relationVerdicts: [], formVerdicts: [], unresolvedQuotes: 0, unjudged: [{ klpId: 'k' }] })).toThrow(/unjudged/)
+  })
+})
+
+describe('the blind panel kind (2026-09-18)', () => {
+  it('is levels-shaped for scoring, and modes is not', () => {
+    expect(isLevelsKind('levels')).toBe(true)
+    expect(isLevelsKind('blind')).toBe(true)
+    expect(isLevelsKind('modes')).toBe(false)
   })
 })

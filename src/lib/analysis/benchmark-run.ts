@@ -283,6 +283,13 @@ export async function gradePanelAnswer(answerId: string, gen: BenchGrader): Prom
       unresolvedQuotes: built.unresolvedQuotes,
       judgedOf: built.judgedOf,
       unjudged: built.unjudged as unknown as Prisma.InputJsonValue,
+      // The expression axis, legacy rubric until Phase B — see the column's doc.
+      expression: {
+        clarity: grade.clarity.score,
+        conciseness: grade.conciseness.score,
+        correctness: grade.correctness.score,
+        overall: grade.overall,
+      } as Prisma.InputJsonValue,
     },
     select: { id: true },
   })
@@ -370,7 +377,7 @@ export async function loadBenchmarkRows(
       return {
         cardId: p.cardId,
         term: p.card.term,
-        kind: p.kind,
+        kind: p.kind as GraderPanelKind,
         klpVersion: p.klpVersion,
         answers,
         ...(selection.kind === 'mixed' ? { mixed: selection.models } : {}),

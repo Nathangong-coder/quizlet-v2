@@ -828,8 +828,8 @@ export const GraderPanelModesSchema = z.object({
 /** Either kind — what a reader that stores or displays a panel holds. */
 export const GraderPanelSchema = z.union([GraderPanelLevelsSchema, GraderPanelModesSchema]);
 
-export function graderPanelSchemaFor(kind: 'levels' | 'modes'): typeof GraderPanelLevelsSchema | typeof GraderPanelModesSchema {
-  return kind === 'levels' ? GraderPanelLevelsSchema : GraderPanelModesSchema;
+export function graderPanelSchemaFor(kind: 'levels' | 'modes' | 'blind'): typeof GraderPanelLevelsSchema | typeof GraderPanelModesSchema {
+  return kind === 'modes' ? GraderPanelModesSchema : GraderPanelLevelsSchema;
 }
 
 export type GraderPanelDraft = z.infer<typeof GraderPanelSchema>;

@@ -41,8 +41,21 @@ export type GraderPanelLevel = (typeof GRADER_PANEL_LEVELS)[number]
 export const GRADER_PANEL_MODES = ['gap', 'misconception', 'connectivity', 'template'] as const
 export type GraderPanelMode = (typeof GRADER_PANEL_MODES)[number]
 
-export const GRADER_PANEL_KINDS = ['levels', 'modes'] as const
+export const GRADER_PANEL_KINDS = ['levels', 'modes', 'blind'] as const
 export type GraderPanelKind = (typeof GRADER_PANEL_KINDS)[number]
+
+/**
+ * `blind` (2026-09-18, owner's ask) is a levels panel written by an adversary
+ * that sees ONLY the question and the reference answer — no key points, no
+ * relations, no form requirements — so its answers are shaped like a real
+ * learner's prose rather than around the grader's own rubric. It carries the
+ * same four levels and is scored by the same rank agreement; only the
+ * writer's inputs differ. A panel is "levels-shaped" for scoring when it is
+ * either kind.
+ */
+export function isLevelsKind(kind: GraderPanelKind): boolean {
+  return kind === 'levels' || kind === 'blind'
+}
 
 /** The shape the scoring rule reads off a graded answer; `none` when no rule fires. */
 export type ObservedShape = GraderPanelMode | 'none'

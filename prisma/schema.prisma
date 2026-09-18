@@ -1746,6 +1746,13 @@ model GraderPanelResult {
   /// verdict for, with weight at grading time so the denominator is
   /// computable from the row alone, exactly as `verdicts` carries weight.
   unjudged         Json              @default("[]")
+  /// The EXPRESSION axis for this answer (2026-09-18). Until Phase B computes
+  /// span metrics in code, this holds the legacy 1-10 rubric the same grading
+  /// call returns — `{ clarity, conciseness, correctness, overall }` — so the
+  /// benchmark can show all three axes (coverage, composition, expression)
+  /// side by side today. NULL on rows graded before the column existed.
+  /// Phase B replaces the shape; readers treat it as opaque.
+  expression       Json?
   createdAt        DateTime          @default(now())
   answer           GraderPanelAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
 

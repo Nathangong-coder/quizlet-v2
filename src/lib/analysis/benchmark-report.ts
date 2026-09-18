@@ -1,3 +1,4 @@
+import { answerScore, compositionOf, type VerdictComposition } from '@/lib/analysis/scoring-rules'
 import {
   GRADER_PANEL_MODES,
   adjacentGaps,
@@ -11,6 +12,8 @@ import {
   type ObservedShape,
   type PanelResultLists,
   type UnresolvedQuoteRate,
+  isLevelsKind,
+  type GraderPanelKind,
 } from '@/lib/analysis/benchmark'
 
 /**
@@ -48,7 +51,7 @@ export interface ReportAnswer {
 export interface BenchmarkCardRow {
   cardId: string
   term: string
-  kind: string
+  kind: GraderPanelKind
   klpVersion: number
   answers: ReportAnswer[]
   /**
@@ -97,16 +100,37 @@ export interface BenchmarkSummary {
 
 interface ScoredAnswer extends ReportAnswer {
   result: ReportResult
+  /** `answerScore` — coverage MINUS the contradiction term (`GRADER_SCORING`). Rank agreement reads this. */
   score: number
+  /** Holes only — the old rule, kept beside the score so the two axes stay readable. */
+  coverage: number
+  composition: VerdictComposition
 }
 
 function scored(row: BenchmarkCardRow): ScoredAnswer[] | null {
   const out: ScoredAnswer[] = []
   for (const a of row.answers) {
     if (!a.result) return null
-    out.push({ ...a, result: a.result, score: coverageScore(toBenchKlpVerdicts(a.result.verdicts), a.result.unjudged) })
+    const verdicts = toBenchKlpVerdicts(a.result.verdicts)
+    const relations = toBenchRelationVerdicts(a.result.relationVerdicts)
+    out.push({
+      ...a,
+      result: a.result,
+      score: answerScore(verdicts, relations, a.result.unjudged),
+      coverage: coverageScore(verdicts, a.result.unjudged),
+      composition: compositionOf(verdicts, relations, a.result.unjudged),
+    })
   }
   return out
+}
+
+function compositionLine(c: VerdictComposition): string {
+  const parts = [`${c.correct}✓`]
+  if (c.partial) parts.push(`${c.partial}½`)
+  if (c.missing) parts.push(`${c.missing} missing`)
+  if (c.wrong) parts.push(`${c.wrong} WRONG`)
+  if (c.relationsWrong) parts.push(`R${c.relationsWrong} wrong`)
+  return parts.join(' ')
 }
 
 function emptyMatrix(): ShapeMatrix {
@@ -154,7 +178,7 @@ export function summarizeBenchmark(rows: readonly BenchmarkCardRow[]): Benchmark
   let gapCount = 0
 
   for (const row of rows) {
-    if (row.kind === 'levels') s.levelsCards++
+    if (isLevelsKind(row.kind)) s.levelsCards++
     else if (row.kind === 'modes') s.modesCards++
     if (row.mixed) {
       s.mixedCards++
@@ -173,7 +197,7 @@ export function summarizeBenchmark(rows: readonly BenchmarkCardRow[]): Benchmark
     }
     const answers = scored(row)
     if (!answers) continue
-    if (row.kind === 'levels') {
+    if (isLevelsKind(row.kind)) {
       const ra = rankAgreement(answers)
       s.rankAgreed += ra.agreed
       s.rankTotal += ra.total
@@ -280,7 +304,7 @@ export function formatBenchmarkReport(rows: readonly BenchmarkCardRow[], opts: F
     const judgedOf = answers.reduce((n, a) => n + a.result.judgedOf, 0)
     const byRank = [...answers].sort((a, b) => a.intendedRank - b.intendedRank)
 
-    if (row.kind === 'levels') {
+    if (isLevelsKind(row.kind)) {
       const ra = rankAgreement(answers)
       const gaps = adjacentGaps(answers)
       const meanGap = gaps.length > 0 ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 0
@@ -288,7 +312,7 @@ export function formatBenchmarkReport(rows: readonly BenchmarkCardRow[], opts: F
         `${head}  rank agreement ${ra.agreed}/${ra.total}  gaps ${gaps.map(f2).join(' / ')} (mean ${f2(meanGap)})  ` +
           `quotes ${unresolved}/${quotes} unresolved  unjudged ${unjudged}/${judgedOf}`,
       )
-      lines.push(`  ${byRank.map((a) => `${labelOf(a)} ${f2(a.score)}`).join(' · ')}`)
+      lines.push(`  ${byRank.map((a) => `${labelOf(a)} ${f2(a.score)} (cov ${f2(a.coverage)}; ${compositionLine(a.composition)})`).join(' · ')}`)
       for (const [better, worse] of ra.inversions) {
         const b = byRank.find((a) => a.intendedRank === better)!
         const w = byRank.find((a) => a.intendedRank === worse)!
@@ -322,7 +346,7 @@ export function formatBenchmarkReport(rows: readonly BenchmarkCardRow[], opts: F
 
   lines.push('--- totals ---')
   if (s.levelsCards > 0) {
-    const gradedLevels = rows.filter((r) => r.kind === 'levels' && !r.mixed && scored(r) !== null).length
+    const gradedLevels = rows.filter((r) => isLevelsKind(r.kind) && !r.mixed && scored(r) !== null).length
     lines.push(
       `rank agreement ${s.rankAgreed}/${s.rankTotal} (${pct(s.rankAgreed, s.rankTotal)}); ` +
         `${s.perfectCards}/${gradedLevels} card(s) at 6/6; ` +

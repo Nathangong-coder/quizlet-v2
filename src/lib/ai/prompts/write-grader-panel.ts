@@ -9,7 +9,7 @@ export interface WriteGraderPanelBuildInput {
   definition: string;
   /** `CardAuthoring.referenceAnswer` at the card's current klpVersion. */
   referenceAnswer: string;
-  /** The live key points, by prompt ref, with kinds. */
+  /** The live key points, by prompt ref, with kinds. Ignored — never rendered — for `kind: 'blind'`. */
   klps: PromptKlp[];
   relations: PromptRelation[];
   formReqs: PromptFormReq[];
@@ -21,6 +21,21 @@ const LEVELS_TASK = `Write four answers at four LEVELS of competence, each level
 - "competent": a good answer with one real gap or one imprecise point. It states most key points correctly and contradicts none; it should read as a strong candidate on a normal day, not as a shorter expert answer.
 - "weak": an answer that omits at least two key points but contradicts none — thin and partly right, never wrong. It may fudge a point it half-remembers.
 - "wrong": an answer that is confidently wrong on at least one causal point — it asserts the opposite of, or a false version of, a key point of kind causal or mechanism, and reads as sure of itself. It may still get other points right.`;
+
+/**
+ * The BLIND variant of the levels task (2026-09-18, owner's ask). The
+ * adversary sees the question and the reference answer ONLY — no key points,
+ * no relations, no form requirements — so its four answers are shaped like a
+ * real learner's prose, not around the grader's rubric. The levels mean the
+ * same thing; the rationale is written in the adversary's own terms (which
+ * parts of the reference's substance are stated, fudged, omitted or wrong)
+ * because it has no [n] to cite.
+ */
+const BLIND_TASK = `Write four answers at four LEVELS of competence, each level exactly once. You have the question and a strong reference answer and nothing else; judge substance against the reference, in your own reading of what it teaches:
+- "expert": a complete, correct answer covering everything the reference establishes — every claim, every cause-and-effect, every condition — in a different candidate's words and order. It must not copy the reference verbatim.
+- "competent": a good answer with ONE real gap or ONE imprecise claim. It covers most of the substance correctly and contradicts nothing; it reads as a strong candidate on a normal day, not as a shorter expert answer. Name the gap in the rationale.
+- "weak": an answer that leaves out at least two substantive things the reference establishes but contradicts none — thin and partly right, never wrong. It may fudge something it half-remembers.
+- "wrong": an answer that is confidently wrong on at least one cause-and-effect or mechanism — it asserts the opposite of, or a false version of, something the reference teaches, and reads as sure of itself. It may still get other things right.`;
 
 const MODES_TASK = `Write four answers, one per FAILURE SHAPE, each shape exactly once. Each is a plausible candidate's answer that fails in exactly the named way — the shapes must not bleed into each other:
 - "gap": omits at least two key points and never contradicts one. Everything it says is right; it is what it does not say. No wrong direction, no false version, no invented claim.
@@ -75,8 +90,26 @@ export const WRITE_GRADER_PANEL_PROMPT = {
       ? `\nForm requirements (the SHAPE a complete answer must have):\n${input.formReqs.map((f) => `[F${f.ref}] ${f.text}`).join('\n')}\n`
       : '';
 
-    const task = input.kind === 'levels' ? LEVELS_TASK : MODES_TASK;
-    const labelKey = input.kind === 'levels' ? 'level' : 'mode';
+    const task = input.kind === 'levels' ? LEVELS_TASK : input.kind === 'blind' ? BLIND_TASK : MODES_TASK;
+    const labelKey = input.kind === 'modes' ? 'mode' : 'level';
+    const levelsShaped = input.kind !== 'modes';
+
+    if (input.kind === 'blind') {
+      return `You are writing a BENCHMARK PANEL for one interview question: four candidate answers, each written to a stated intent, that will be used to test whether an automated grader reads answers the way a knowledgeable interviewer would. You are the adversary. The grader will see each answer's text ALONE — one at a time, never two together, and never your labels, ranks or rationale — so every answer must be self-contained: it must read as one candidate's complete reply to the question, with nothing that refers to another answer or to this task.
+
+${task}
+
+For EVERY answer:
+- "text": 60-200 words, in the voice of a candidate answering in an interview. Self-contained.
+- "intendedRank": the level's rank — "expert" is 1, "competent" 2, "weak" 3, "wrong" 4.
+- "rationale": ONE paragraph saying why the answer sits where it does — which parts of the reference's substance it states, fudges, leaves out or gets wrong, in your own words. Be specific: the rationale is what a reviewer reads when the grader disagrees with you.
+
+Question: ${input.question}
+Definition on the card: ${input.definition}
+Reference answer: ${input.referenceAnswer}
+
+Output JSON: { "answers": [ { "level": string, "intendedRank": number, "text": string, "rationale": string } ] } — exactly four entries, one per level.`;
+    }
 
     return `You are writing a BENCHMARK PANEL for one interview question: four candidate answers, each written to a stated intent, that will be used to test whether an automated grader reads answers the way a knowledgeable interviewer would. You are the adversary. The grader will see each answer's text ALONE — one at a time, never two together, and never your labels, ranks or rationale — so every answer must be self-contained: it must read as one candidate's complete reply to the question, with nothing that refers to another answer or to this task.
 
@@ -93,6 +126,6 @@ Reference answer: ${input.referenceAnswer}
 Key points, with kinds:
 ${input.klps.map((k) => `[${k.ref}] (${k.kind}) ${k.text}`).join('\n')}
 ${relations}${form}
-Output JSON: { "answers": [ { "${labelKey}": string, "intendedRank": number, "text": string, "rationale": string } ] } — exactly four entries, one per ${input.kind === 'levels' ? 'level' : 'failure shape'}.`;
+Output JSON: { "answers": [ { "${labelKey}": string, "intendedRank": number, "text": string, "rationale": string } ] } — exactly four entries, one per ${levelsShaped ? 'level' : 'failure shape'}.`;
   },
 };

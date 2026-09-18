@@ -151,3 +151,21 @@ describe('GraderPanelSchema', () => {
     expect(GraderPanelSchema.safeParse({ answers: [...levels.slice(0, 3), { ...levels[3], rationale: '' }] }).success).toBe(false)
   })
 })
+
+describe('the blind panel prompt', () => {
+  it('shows the adversary the question and the reference only — never a key point, relation or form requirement', () => {
+    const p = WRITE_GRADER_PANEL_PROMPT.build({
+      question: 'Q?', definition: 'D', referenceAnswer: 'THE REFERENCE', kind: 'blind',
+      klps: [{ ref: 0, text: 'SECRET KEY POINT', kind: 'causal' }],
+      relations: [{ ref: 0, type: 'causes', fromRef: 0, toRef: 0 }],
+      formReqs: [{ ref: 0, text: 'SECRET FORM RULE' }],
+    })
+    expect(p).toContain('THE REFERENCE')
+    expect(p).not.toContain('SECRET KEY POINT')
+    expect(p).not.toContain('SECRET FORM RULE')
+    expect(p).not.toContain('[R0]')
+    expect(p).not.toMatch(/Key points/)
+    for (const l of ['expert', 'competent', 'weak', 'wrong']) expect(p).toContain(`"${l}"`)
+    expect(p).toContain('"level": string')
+  })
+})
