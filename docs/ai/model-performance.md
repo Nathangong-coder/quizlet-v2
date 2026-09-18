@@ -1277,19 +1277,23 @@ was called. **This is the baseline the v5 grading prompt is held to from now on;
 recorded, no grader change can claim it did not regress.**
 
 **Next operator with keys** — one command, ~50 calls (one adversary call + four grading calls
-per card), about $0.05 on DeepSeek:
+per card), about $0.05 on DeepSeek. `--model` is not optional for a baseline: it pins the planning
+key and the report to ONE grader, so the recorded number is one model's and never a mix:
 
 ```
-npx tsx --conditions=react-server --env-file=.env scripts/bench-grader.ts --set cmtj7pxfc000005l4rv4krxxy --author --direct
+npx tsx --conditions=react-server --env-file=.env scripts/bench-grader.ts --set cmtj7pxfc000005l4rv4krxxy --author --direct --model deepseek-flash
 ```
 
 With `KLP_DIRECT_PROVIDER=deepseek` (the grader — the same role split as authoring) and
 `KLP_AUTHOR_PROVIDER=zai` / `KLP_AUTHOR_MODELS=glm-5.3-flash` (the adversary: the `grader-panel`
 task is writer-family, Z.ai first at `high` effort). Without an author pool the adversary writes on
 the grader's model, which is legal but weaker: a grader reading answers its own family wrote is a
-softer test. Pin `--model deepseek-flash` (or run a one-model pool) so every answer on a card is
-graded by ONE model — rank agreement subtracts coverage scores, and two graders on one card fold
-the gap between graders into the gap between levels.
+softer test. On `--direct` the grader is PINNED PER CARD (`src/lib/analysis/benchmark-pin.ts`):
+one combo is taken when a card starts and all four answers are graded on it, because rank
+agreement subtracts coverage scores and two graders on one card fold the gap between graders
+into the gap between levels. A quota hit mid-card abandons that card for the run; a card whose
+stored results end up split across models is reported `MIXED` and excluded from the totals, and
+`--model <id>` completes it on one model.
 
 **Record here, from the printed report:** per card, rank agreement as `n/6` and the three
 adjacent gaps; the pooled rank agreement and cards at 6/6; the mean adjacent gap; every inversion

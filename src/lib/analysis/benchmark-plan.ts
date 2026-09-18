@@ -123,6 +123,79 @@ export function planBench(
   return { toGrade, skipped }
 }
 
+export interface CardBatch {
+  cardId: string
+  answerIds: string[]
+}
+
+/**
+ * The plan's answers grouped by card, first-seen card order, answers in
+ * plan order. THE UNIT OF PINNING IS THE CARD (`src/lib/klp/direct-pool.ts`):
+ * the script takes one combo per batch and grades every answer in it on
+ * that combo, so rank agreement never subtracts two graders' scores.
+ */
+export function groupByCard(toGrade: readonly BenchPlan['toGrade'][number][]): CardBatch[] {
+  const byCard = new Map<string, string[]>()
+  for (const g of toGrade) {
+    const list = byCard.get(g.cardId)
+    if (list) list.push(g.answerId)
+    else byCard.set(g.cardId, [g.answerId])
+  }
+  return [...byCard].map(([cardId, answerIds]) => ({ cardId, answerIds }))
+}
+
+export interface ResultKey {
+  model: string
+  createdAt: Date
+}
+
+export type CardResultSelection<R extends ResultKey = ResultKey> =
+  | { kind: 'complete'; model: string; byAnswer: Record<string, R> }
+  | { kind: 'mixed'; models: string[] }
+  | { kind: 'incomplete'; ungraded: number }
+
+/**
+ * Which results a card is scored over — results sharing ONE model, or none.
+ * The caller has narrowed `results` to one graderVersion already.
+ *
+ * `complete`: some model has a result for every answer; with two such
+ * models, the one whose LAST result is most recent wins (the later run is
+ * the one the operator meant). `mixed`: every answer has a result but no
+ * single model covers the card — graded across two runs on two models, and
+ * scoring it would fold the gap between graders into the gap between
+ * levels; the report names it and the fix is `--model <id>`. `incomplete`:
+ * an answer has no result at all.
+ */
+export function selectCardResults<R extends ResultKey>(
+  answers: readonly { id: string; results: readonly R[] }[],
+): CardResultSelection<R> {
+  const ungraded = answers.filter((a) => a.results.length === 0).length
+  if (ungraded > 0 || answers.length === 0) return { kind: 'incomplete', ungraded }
+
+  const models = new Set<string>()
+  for (const a of answers) for (const r of a.results) models.add(r.model)
+
+  let best: { model: string; byAnswer: Record<string, R>; last: number } | null = null
+  for (const model of models) {
+    const byAnswer: Record<string, R> = {}
+    let last = -Infinity
+    let covers = true
+    for (const a of answers) {
+      const mine = a.results.filter((r) => r.model === model)
+      if (mine.length === 0) {
+        covers = false
+        break
+      }
+      const latest = mine.reduce((x, y) => (y.createdAt > x.createdAt ? y : x))
+      byAnswer[a.id] = latest
+      last = Math.max(last, latest.createdAt.getTime())
+    }
+    if (covers && (!best || last > best.last)) best = { model, byAnswer, last }
+  }
+  if (best) return { kind: 'complete', model: best.model, byAnswer: best.byAnswer }
+  return { kind: 'mixed', models: [...models].sort() }
+}
+
 /** What the grader's refs resolve against: the same arrays the prompt was built from, in order. */
 export interface PanelVerdictContext {
   answerText: string

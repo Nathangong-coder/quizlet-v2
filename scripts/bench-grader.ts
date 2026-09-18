@@ -25,7 +25,8 @@ import {
 import { TokenMeter } from '../src/lib/klp/token-meter'
 import { GRADER_VERSION } from '../src/lib/analysis/version'
 import { GRADER_PANEL_KINDS, type GraderPanelKind } from '../src/lib/analysis/benchmark'
-import { planBench, planPanels } from '../src/lib/analysis/benchmark-plan'
+import { groupByCard, planBench, planPanels } from '../src/lib/analysis/benchmark-plan'
+import { pinPerCard, CardAbandonedError, type PinnedGrader } from '../src/lib/analysis/benchmark-pin'
 import {
   authorPanel,
   gradePanelAnswer,
@@ -56,6 +57,12 @@ import { formatBenchmarkReport } from '../src/lib/analysis/benchmark-report'
  * is a re-grade against the FIXED panel, which is the whole point — the
  * fixed-card-set rule from `bench-models`.
  *
+ * THE UNIT OF PINNING IS THE CARD. On --direct one combo is taken per card
+ * and all four answers are graded on it (`src/lib/analysis/benchmark-pin.ts`);
+ * a quota hit mid-card abandons the card for this run rather than re-pin. A
+ * card whose stored results are split across models is reported MIXED and
+ * excluded from the totals — `--model <id>` completes it on one model.
+ *
  * Flags:
  *   --set <setId>     required; this never walks the corpus
  *   --author          write panels for cards lacking one at their live klpVersion
@@ -68,8 +75,10 @@ import { formatBenchmarkReport } from '../src/lib/analysis/benchmark-report'
  *                     bypassing the encrypted credential pool — needed locally, where
  *                     `.env` carries no GOOGLE_KEY_ENCRYPTION_SECRET
  *   --model <id>      the planning key: skip answers already graded under this
- *                     model at the current graderVersion. Defaults to the direct
- *                     pool's model when it has exactly one, else "any model"
+ *                     model at the current graderVersion, and read the report
+ *                     for this model only. Defaults to the direct pool's model
+ *                     when it has exactly one, else "any model". PASS IT for a
+ *                     baseline: the recorded number must be one grader's
  *   --dry-run         print the plans (which cards need a panel, which answers
  *                     need grading) and the current report; call nothing, write nothing
  *   --limit <n>       cap the answers graded this run (panels are not capped)
@@ -105,7 +114,7 @@ const USAGE = `usage: npm run bench-grader -- --set <setId> [--author] [--kind l
   --limit <n>          cap the answers graded this run
   --rpm <n>            pacing for --direct
 
-The LBO baseline: npx tsx --conditions=react-server --env-file=.env scripts/bench-grader.ts --set cmtj7pxfc000005l4rv4krxxy --author --direct`
+The LBO baseline (one grader, pinned): npx tsx --conditions=react-server --env-file=.env scripts/bench-grader.ts --set cmtj7pxfc000005l4rv4krxxy --author --direct --model deepseek-flash`
 
 const METER = new TokenMeter()
 
@@ -125,72 +134,107 @@ function pooledCall<T>(ownerId: string, task: AiTask, step: string) {
 }
 
 /**
- * `--direct`: raw keys, rotating per CALL. Safe here for the reason it is
- * safe in `regrade` and NOT in `author-klps`: a rank agreement compares four
- * answers' coverage scores, and coverage is `STATUS_CREDIT` over categorical
- * verdicts — but two graders on one card would fold the gap between graders
- * into the gap between levels. So `--model` (or a one-model pool) is the
- * intended way to run a baseline; rotation exists for the quota-starved
- * free tier, and the model is recorded on every result row so a mixed run
- * is at least legible.
- *
- * Same temperature as the pooled path (`temperatureForTask`), so a bench
- * result is comparable to a quiz grade.
+ * `--direct`: ONE structured call on ONE combo. Built through the same
+ * `resolveLanguageModel` the website uses; same temperature as the pooled
+ * path (`temperatureForTask`), so a bench result is comparable to a quiz
+ * grade. Throws `RunHaltedError('daily_quota')` when the combo is out of
+ * quota — the caller decides what that retires.
  */
-function directCall<T>(pool: DirectCombo[], pacer: Pacer, task: AiTask, step: string) {
-  return async (input: { prompt: string; schema: z.ZodSchema<T>; maxOutputTokens?: number }) => {
+function callOnCombo<T>(
+  combo: DirectCombo,
+  pacer: Pacer,
+  task: AiTask,
+  step: string,
+  input: { prompt: string; schema: z.ZodSchema<T>; maxOutputTokens?: number },
+): Promise<T> {
+  const model = resolveLanguageModel(comboResolveInput(combo))
+  return callWithPacingAndRetry(
+    async () => {
+      const attempt = () =>
+        generateText({
+          model,
+          prompt: input.prompt,
+          output: Output.object({ schema: input.schema }),
+          maxOutputTokens: input.maxOutputTokens,
+          temperature: temperatureForTask(task),
+          // The pacing layer owns retry; two retry authorities multiply.
+          maxRetries: 0,
+        })
+      let res: Awaited<ReturnType<typeof attempt>>
+      try {
+        res = await attempt()
+      } catch (err) {
+        // One retry in place on a malformed reply, never on a truncated
+        // one (the ceiling is the problem there, not compliance).
+        if (!NoObjectGeneratedError.isInstance(err) || err.finishReason === 'length') throw err
+        console.log(`    ${combo.model}: malformed reply; retrying once in place`)
+        await pacer.waitTurn()
+        res = await attempt()
+      }
+      // Metered on success only — a failed attempt reports no usage.
+      METER.add(step, combo.model, {
+        inputTokens: res.usage?.inputTokens,
+        outputTokens: res.usage?.outputTokens,
+        reasoningTokens: res.usage?.outputTokenDetails?.reasoningTokens,
+        cachedTokens: res.usage?.inputTokenDetails?.cacheReadTokens,
+      })
+      return res.output
+    },
+    { pacer, clock: realClock },
+  )
+}
+
+const isDailyQuota = (err: unknown): boolean => err instanceof RunHaltedError && err.haltReason === 'daily_quota'
+
+/**
+ * The PANEL writer on `--direct`: rotates per call. A panel is one call per
+ * card, so per-call rotation IS per-card here, and nothing is subtracted
+ * across panels. A quota hit retires the combo and moves to the next.
+ */
+function directPanelWriter(pool: DirectCombo[], pacer: Pacer): PanelWriter {
+  return async (input) => {
     for (;;) {
       const combo = nextCombo(pool)
-      if (!combo) throw new Error(`every key x model combo is out of daily quota (${step})`)
+      if (!combo) throw new Error('every AUTHOR key x model combo is out of daily quota')
       markTried(combo, new Date())
-      const model = resolveLanguageModel(comboResolveInput(combo))
-
       try {
-        const value = await callWithPacingAndRetry(
-          async () => {
-            const attempt = () =>
-              generateText({
-                model,
-                prompt: input.prompt,
-                output: Output.object({ schema: input.schema }),
-                maxOutputTokens: input.maxOutputTokens,
-                temperature: temperatureForTask(task),
-                // The pacing layer owns retry; two retry authorities multiply.
-                maxRetries: 0,
-              })
-            let res: Awaited<ReturnType<typeof attempt>>
-            try {
-              res = await attempt()
-            } catch (err) {
-              // One retry in place on a malformed reply, never on a truncated
-              // one (the ceiling is the problem there, not compliance).
-              if (!NoObjectGeneratedError.isInstance(err) || err.finishReason === 'length') throw err
-              console.log(`    ${combo.model}: malformed reply; retrying once in place`)
-              await pacer.waitTurn()
-              res = await attempt()
-            }
-            // Metered on success only — a failed attempt reports no usage.
-            METER.add(step, combo.model, {
-              inputTokens: res.usage?.inputTokens,
-              outputTokens: res.usage?.outputTokens,
-              reasoningTokens: res.usage?.outputTokenDetails?.reasoningTokens,
-              cachedTokens: res.usage?.inputTokenDetails?.cacheReadTokens,
-            })
-            return res.output
-          },
-          { pacer, clock: realClock },
-        )
+        const value = await callOnCombo(combo, pacer, 'grader-panel', 'panel', input)
         return { value, model: combo.model }
       } catch (err) {
-        if (err instanceof RunHaltedError && err.haltReason === 'daily_quota') {
-          markExhausted(combo)
-          console.error(`    ${combo.id} out of daily quota; ${poolStatus(pool).available} left`)
-          continue
-        }
-        throw err
+        if (!isDailyQuota(err)) throw err
+        markExhausted(combo)
+        console.error(`    ${combo.id} out of daily quota; ${poolStatus(pool).available} left`)
       }
     }
   }
+}
+
+/**
+ * The GRADER on `--direct`: PINNED PER CARD (`src/lib/analysis/benchmark-pin.ts`).
+ * One combo is taken when a card starts and every answer of that card is
+ * graded on it — rank agreement subtracts the card's four coverage scores,
+ * and two graders on one card would put the gap between graders inside the
+ * gap between levels (`src/lib/klp/direct-pool.ts`, "THE UNIT OF PINNING IS
+ * THE CARD"). A quota hit mid-card retires the combo and abandons the
+ * card's remaining answers for this run; the next run picks them up, and
+ * `selectCardResults` refuses to score a card across two models.
+ */
+function directCardGrader(pool: DirectCombo[], pacer: Pacer): (cardId: string) => PinnedGrader<DirectCombo> | null {
+  return pinPerCard<DirectCombo>(
+    {
+      next: () => {
+        const combo = nextCombo(pool)
+        if (combo) markTried(combo, new Date())
+        return combo
+      },
+      retire: (combo) => {
+        markExhausted(combo)
+        console.error(`    ${combo.id} out of daily quota; ${poolStatus(pool).available} left`)
+      },
+    },
+    (combo, input) => callOnCombo(combo, pacer, 'grade', 'grade', input),
+    isDailyQuota,
+  )
 }
 
 async function main() {
@@ -260,12 +304,17 @@ async function main() {
         ` — bypassing stored credentials (pacing at ${rpm} req/min)`,
     )
   }
-  const grader: BenchGrader = direct
-    ? directCall(gradePool, pacer, 'grade', 'grade')
-    : pooledCall(set.userId, 'grade', 'grade')
-  const writer: PanelWriter = direct
-    ? directCall(panelPool, pacer, 'grader-panel', 'panel')
-    : pooledCall(set.userId, 'grader-panel', 'panel')
+  // The grader is chosen PER CARD. On --direct that is a pinned combo; on the
+  // stored pool `generateJsonWithMeta` rotates per call and cannot be pinned
+  // from here, so a pooled owner with several credentials on different
+  // models can produce a MIXED card — the report names it and --model
+  // completes it. A pooled path is therefore best run with one enabled
+  // grading credential, or an AiTaskRouting pin on `grade`.
+  const pooledGrader: BenchGrader = pooledCall(set.userId, 'grade', 'grade')
+  const graderFor: (cardId: string) => PinnedGrader<{ model: string }> | null = direct
+    ? directCardGrader(gradePool, pacer)
+    : () => ({ combo: { model: 'stored pool' }, grade: pooledGrader })
+  const writer: PanelWriter = direct ? directPanelWriter(panelPool, pacer) : pooledCall(set.userId, 'grader-panel', 'panel')
 
   // The planning key. A direct pool with one model IS the model; otherwise
   // only an explicit --model pins it, and "any result at this graderVersion"
@@ -329,47 +378,78 @@ async function main() {
 
   const graded: string[] = []
   const gradeFailures: { answerId: string; error: string }[] = []
+  let abandonedCards = 0
+  const termOfCard = new Map(panels.map((p) => [p.cardId, p.term]))
+  const batches = groupByCard(toGrade)
   if (dryRun) {
-    const termOfPanel = new Map(panels.map((p) => [p.id, p.term]))
-    for (const g of toGrade) console.log(`  grade   ${g.answerId}  (${termOfPanel.get(g.panelId) ?? g.cardId})`)
+    for (const b of batches) {
+      console.log(`  card    ${termOfCard.get(b.cardId) ?? b.cardId} — ${b.answerIds.length} answer(s), one pinned model`)
+      for (const id of b.answerIds) console.log(`    grade ${id}`)
+    }
   } else {
-    for (const g of toGrade) {
-      try {
-        const r = await gradePanelAnswer(g.answerId, grader)
-        if (r.outcome === 'skipped') {
-          console.log(`  ${g.answerId} — skipped (${r.reason})`)
-          continue
-        }
-        graded.push(g.answerId)
-        cardsTouched.add(g.cardId)
-        console.log(
-          `  ${g.answerId} — graded on ${r.model}: ${r.verdicts} key point(s), ${r.relationVerdicts} relation(s), ` +
-            `${r.formVerdicts} form, ${r.unresolvedQuotes} unresolved quote(s)` +
-            (r.warnings.length > 0 ? `; warnings: ${r.warnings.map((w) => `${w.reason}:${w.value}`).join(' ')}` : ''),
-        )
-      } catch (err) {
-        // One answer's failure must not abandon the run: each result is its
-        // own row, so what succeeded stays and a re-run picks this one up.
-        const message = err instanceof Error ? err.message : String(err)
-        gradeFailures.push({ answerId: g.answerId, error: message })
-        console.error(`  ${g.answerId} — FAILED: ${message}`)
-        if (err instanceof RunHaltedError) {
-          console.error(`[bench-grader] halted (${err.haltReason}); re-run to resume — graded answers are skipped.`)
-          break
+    // THE UNIT OF PINNING IS THE CARD: one grader per batch, every answer of
+    // the card on it. The loop is card-major so the pin is taken once, outside
+    // the per-answer loop — never inside it.
+    cards: for (const b of batches) {
+      const pinned = graderFor(b.cardId)
+      if (!pinned) {
+        console.error(`[bench-grader] STOPPING RUN — every key x model combo is out of daily quota. Re-run to resume; graded answers are skipped.`)
+        break
+      }
+      console.log(`  card    ${termOfCard.get(b.cardId) ?? b.cardId} — pinned ${pinned.combo.model}`)
+      for (const answerId of b.answerIds) {
+        try {
+          const r = await gradePanelAnswer(answerId, pinned.grade)
+          if (r.outcome === 'skipped') {
+            console.log(`    ${answerId} — skipped (${r.reason})`)
+            continue
+          }
+          graded.push(answerId)
+          cardsTouched.add(b.cardId)
+          console.log(
+            `    ${answerId} — graded on ${r.model}: ${r.verdicts} key point(s), ${r.relationVerdicts} relation(s), ` +
+              `${r.formVerdicts} form, ${r.unresolvedQuotes} unresolved quote(s)` +
+              (r.warnings.length > 0 ? `; warnings: ${r.warnings.map((w) => `${w.reason}:${w.value}`).join(' ')}` : ''),
+          )
+        } catch (err) {
+          // One answer's failure must not abandon the run: each result is its
+          // own row, so what succeeded stays and a re-run picks this one up.
+          const message = err instanceof Error ? err.message : String(err)
+          gradeFailures.push({ answerId, error: message })
+          console.error(`    ${answerId} — FAILED: ${message}`)
+          if (err instanceof CardAbandonedError) {
+            // The pinned combo is out of quota. The card's remaining answers
+            // are NOT re-pinned within this run — that would grade one card on
+            // two models. The next card pins fresh; the next run finishes this one.
+            abandonedCards++
+            console.error(`    card abandoned for this run (${err.model} out of quota); its remaining answers wait for the next run`)
+            continue cards
+          }
+          if (err instanceof RunHaltedError) {
+            console.error(`[bench-grader] halted (${err.haltReason}); re-run to resume — graded answers are skipped.`)
+            break cards
+          }
         }
       }
     }
   }
 
   // 3. The report, over everything stored for this set at the current grader.
-  const rows = await loadBenchmarkRows(set.id, { graderVersion: GRADER_VERSION, model: planModel, kind })
-  console.log()
-  console.log(formatBenchmarkReport(rows, { title: set.title }))
+  // A malformed stored row must not fail a run whose writes succeeded: the
+  // rows are on disk either way, and the report can be re-read.
+  try {
+    const rows = await loadBenchmarkRows(set.id, { graderVersion: GRADER_VERSION, model: planModel, kind })
+    console.log()
+    console.log(formatBenchmarkReport(rows, { title: set.title }))
+  } catch (err) {
+    console.error(`[bench-grader] report read failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
 
   console.log()
   console.log(
     `[bench-grader] done — ${panelsWritten} panel(s) written, ${graded.length} answer(s) graded under grader v${GRADER_VERSION}, ` +
-      `${panelFailures.length + gradeFailures.length} failed, ${toGrade.length - graded.length - gradeFailures.length} not reached.`,
+      `${panelFailures.length + gradeFailures.length} failed, ${abandonedCards} card(s) abandoned on quota, ` +
+      `${toGrade.length - graded.length - gradeFailures.length} not reached.`,
   )
   if (!dryRun) {
     // Per-card cost is over the cards this run touched (authored or graded).

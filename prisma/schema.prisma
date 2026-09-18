@@ -1737,6 +1737,8 @@ model GraderPanelResult {
   createdAt        DateTime          @default(now())
   answer           GraderPanelAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
 
+  /// One result per (answer, grader, model): the planner's idempotency key, enforced.
+  @@unique([answerId, graderVersion, model])
   @@index([answerId])
 }
 

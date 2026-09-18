@@ -14,6 +14,7 @@ import { loadGradingContext, promptViewOf } from '@/lib/quiz/grading-context'
 import { readPanelResult, type GraderPanelKind } from '@/lib/analysis/benchmark'
 import {
   buildPanelVerdicts,
+  selectCardResults,
   type BenchPanel,
   type BenchResultKey,
   type ExistingPanel,
@@ -280,10 +281,14 @@ export async function gradePanelAnswer(answerId: string, gen: BenchGrader): Prom
 
 /**
  * The report's rows for one set: every panel of the kind (or both kinds),
- * each answer with the LATEST result at `graderVersion` — narrowed to one
- * `model` when given, so two graders measured against the same panel can
- * each be read alone. Only panels at the card's live klpVersion: a stale
- * panel's results describe points the card no longer teaches.
+ * each card scored over results sharing ONE model at `graderVersion`
+ * (`selectCardResults`) — narrowed to `model` when given, so two graders
+ * measured against the same panel can each be read alone. A card whose
+ * results are split across models with none covering every answer comes
+ * back `mixed` (named in the report, excluded from totals): scoring it would
+ * fold the gap between graders into the gap between levels. Only panels at
+ * the card's live klpVersion: a stale panel's results describe points the
+ * card no longer teaches.
  */
 export async function loadBenchmarkRows(
   setId: string,
@@ -309,10 +314,10 @@ export async function loadBenchmarkRows(
           results: {
             where: { graderVersion: opts.graderVersion, ...(opts.model ? { model: opts.model } : {}) },
             orderBy: { createdAt: 'desc' },
-            take: 1,
             select: {
               model: true,
               graderVersion: true,
+              createdAt: true,
               verdicts: true,
               relationVerdicts: true,
               formVerdicts: true,
@@ -325,13 +330,10 @@ export async function loadBenchmarkRows(
   })
   return panels
     .filter((p) => p.card.klps[0]?.version === p.klpVersion)
-    .map((p) => ({
-      cardId: p.cardId,
-      term: p.card.term,
-      kind: p.kind,
-      klpVersion: p.klpVersion,
-      answers: p.answers.map((a) => {
-        const r = a.results[0]
+    .map((p) => {
+      const selection = selectCardResults(p.answers)
+      const answers = p.answers.map((a) => {
+        const r = selection.kind === 'complete' ? selection.byAnswer[a.id] : undefined
         return {
           id: a.id,
           level: a.level,
@@ -340,6 +342,14 @@ export async function loadBenchmarkRows(
           rationale: a.rationale,
           result: r ? { model: r.model, graderVersion: r.graderVersion, ...readPanelResult(r) } : null,
         }
-      }),
-    }))
+      })
+      return {
+        cardId: p.cardId,
+        term: p.card.term,
+        kind: p.kind,
+        klpVersion: p.klpVersion,
+        answers,
+        ...(selection.kind === 'mixed' ? { mixed: selection.models } : {}),
+      }
+    })
 }

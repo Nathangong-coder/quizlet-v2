@@ -84,4 +84,16 @@ describe('Spec 5 §8 grader-panel tables cascade from their parents', () => {
     }
     expect(result).toMatch(/^\s*unresolvedQuotes\s+Int\s*$/m)
   })
+
+  it('one result per (answer, graderVersion, model) — the bench planner\'s idempotency key, enforced', () => {
+    const result = schema.match(/model GraderPanelResult \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(result).toMatch(/@@unique\(\[answerId, graderVersion, model\]\)/)
+    const migration = readFileSync(
+      join(process.cwd(), 'prisma/migrations/20260917140000_grader_panel_result_unique/migration.sql'),
+      'utf8',
+    )
+    expect(migration).toMatch(/CREATE UNIQUE INDEX "GraderPanelResult_answerId_graderVersion_model_key"/)
+    // Additive only: one statement, nothing dropped or altered.
+    expect(migration.match(/^(CREATE|ALTER|DROP)\b/gm)).toEqual(['CREATE'])
+  })
 })

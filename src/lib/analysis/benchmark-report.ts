@@ -51,6 +51,14 @@ export interface BenchmarkCardRow {
   kind: string
   klpVersion: number
   answers: ReportAnswer[]
+  /**
+   * Set when the card's results at this grader version are split across
+   * models with no single model covering every answer (`selectCardResults`).
+   * Such a card is named and excluded from every total: scoring it would fold
+   * the gap between two graders into the gap between levels. Its `answers`
+   * carry no `result`.
+   */
+  mixed?: string[]
 }
 
 export type ShapeMatrix = Record<string, Record<ObservedShape, number>>
@@ -74,6 +82,8 @@ export interface BenchmarkSummary {
   quotes: UnresolvedQuoteRate
   /** Answers with no result. A card with one is excluded from the rank and shape numbers. */
   ungraded: number
+  /** Cards excluded because their results are split across models — see `BenchmarkCardRow.mixed`. */
+  mixedCards: number
   models: string[]
   graderVersions: number[]
 }
@@ -124,6 +134,7 @@ export function summarizeBenchmark(rows: readonly BenchmarkCardRow[]): Benchmark
     shapeMatrix: emptyMatrix(),
     quotes: { unresolved: 0, quotes: 0, rate: 0 },
     ungraded: 0,
+    mixedCards: 0,
     models: [],
     graderVersions: [],
   }
@@ -136,6 +147,10 @@ export function summarizeBenchmark(rows: readonly BenchmarkCardRow[]): Benchmark
   for (const row of rows) {
     if (row.kind === 'levels') s.levelsCards++
     else if (row.kind === 'modes') s.modesCards++
+    if (row.mixed) {
+      s.mixedCards++
+      continue
+    }
     for (const a of row.answers) {
       if (!a.result) {
         s.ungraded++
@@ -238,6 +253,10 @@ export function formatBenchmarkReport(rows: readonly BenchmarkCardRow[], opts: F
 
   for (const row of rows) {
     const head = `${row.term}  [${row.kind} v${row.klpVersion}]`
+    if (row.mixed) {
+      lines.push(`${head}  MIXED — results on ${row.mixed.join(', ')}; not scored (re-run with --model <id> to complete one)`)
+      continue
+    }
     const answers = scored(row)
     if (!answers) {
       const missing = row.answers.filter((a) => !a.result).length
@@ -288,7 +307,7 @@ export function formatBenchmarkReport(rows: readonly BenchmarkCardRow[], opts: F
 
   lines.push('--- totals ---')
   if (s.levelsCards > 0) {
-    const gradedLevels = rows.filter((r) => r.kind === 'levels' && scored(r) !== null).length
+    const gradedLevels = rows.filter((r) => r.kind === 'levels' && !r.mixed && scored(r) !== null).length
     lines.push(
       `rank agreement ${s.rankAgreed}/${s.rankTotal} (${pct(s.rankAgreed, s.rankTotal)}); ` +
         `${s.perfectCards}/${gradedLevels} card(s) at 6/6; ` +
@@ -308,5 +327,6 @@ export function formatBenchmarkReport(rows: readonly BenchmarkCardRow[], opts: F
   }
   lines.push(`unresolved quotes ${s.quotes.unresolved}/${s.quotes.quotes} (${pct(s.quotes.unresolved, s.quotes.quotes)})`)
   lines.push(`ungraded answers: ${s.ungraded}`)
+  if (s.mixedCards > 0) lines.push(`mixed cards: ${s.mixedCards} (results split across models; excluded above)`)
   return lines.join('\n')
 }

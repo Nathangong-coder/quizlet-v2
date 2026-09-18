@@ -143,6 +143,25 @@ describe('formatBenchmarkReport — levels panels', () => {
     expect(out).toMatch(/ungraded answers: 1/)
   })
 
+  it('a card with results on two models is MIXED: named, told how to fix, and excluded from every total', () => {
+    const mixed: BenchmarkCardRow = {
+      ...cleanCard,
+      cardId: 'card-4',
+      term: 'Two graders',
+      mixed: ['deepseek-flash', 'glm-5.3-flash'],
+      answers: cleanCard.answers.map((a) => ({ ...a, result: null })),
+    }
+    const out = formatBenchmarkReport([invertedCard, mixed])
+    expect(out).toMatch(/Two graders.*MIXED.*deepseek-flash, glm-5.3-flash.*--model/)
+    expect(out).not.toMatch(/Two graders.*rank agreement/)
+    expect(out).toMatch(/rank agreement 5\/6/)
+    expect(out).toMatch(/mixed cards: 1/)
+    const s = summarizeBenchmark([invertedCard, mixed])
+    expect(s.mixedCards).toBe(1)
+    expect(s.rankTotal).toBe(6)
+    expect(s.ungraded).toBe(0)
+  })
+
   it('handles an empty run without dividing by zero', () => {
     const out = formatBenchmarkReport([])
     expect(out).toContain('no panels')

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { planPanels, planBench, buildPanelVerdicts } from '@/lib/analysis/benchmark-plan'
+import { planPanels, planBench, buildPanelVerdicts, groupByCard, selectCardResults } from '@/lib/analysis/benchmark-plan'
 import type { ShortAnswerGrade } from '@/lib/ai/schemas'
 
 /**
@@ -82,6 +82,15 @@ describe('planBench', () => {
     expect(plan.toGrade.map((g) => g.answerId)).toEqual(['a1', 'a2'])
   })
 
+  it('a card graded on two models has nothing left to grade under "any model" — the report names it mixed; --model <id> completes it', () => {
+    const results = [
+      { answerId: 'a1', graderVersion: 1, model: 'deepseek-flash' },
+      { answerId: 'a2', graderVersion: 1, model: 'glm-5.3-flash' },
+    ]
+    expect(planBench(panels, results, { graderVersion: 1, model: null }).toGrade).toEqual([])
+    expect(planBench(panels, results, { graderVersion: 1, model: 'deepseek-flash' }).toGrade.map((g) => g.answerId)).toEqual(['a2'])
+  })
+
   it('with the model unknown in advance (a rotating pool), any result at the grader version counts', () => {
     const results = [{ answerId: 'a1', graderVersion: 1, model: 'glm-5.3-flash' }]
     const plan = planBench(panels, results, { graderVersion: 1, model: null })
@@ -160,5 +169,77 @@ describe('buildPanelVerdicts', () => {
   it('a grade with no per-point lists at all yields empty lists', () => {
     const out = buildPanelVerdicts({} as unknown as ShortAnswerGrade, ctx)
     expect(out).toEqual({ verdicts: [], relationVerdicts: [], formVerdicts: [], unresolvedQuotes: 0, warnings: [] })
+  })
+})
+
+describe('groupByCard', () => {
+  it('groups the plan into one batch per card, first-seen card order, answers in plan order', () => {
+    const batches = groupByCard([
+      { answerId: 'a1', panelId: 'p1', cardId: 'a' },
+      { answerId: 'a2', panelId: 'p1', cardId: 'a' },
+      { answerId: 'b1', panelId: 'p2', cardId: 'b' },
+      { answerId: 'a3', panelId: 'p1', cardId: 'a' },
+    ])
+    expect(batches).toEqual([
+      { cardId: 'a', answerIds: ['a1', 'a2', 'a3'] },
+      { cardId: 'b', answerIds: ['b1'] },
+    ])
+  })
+
+  it('is empty on an empty plan', () => {
+    expect(groupByCard([])).toEqual([])
+  })
+})
+
+/**
+ * A card is scored only over results sharing ONE (graderVersion, model): a
+ * card graded across two runs on two models would fold the gap between
+ * graders into the gap between levels. The caller has already narrowed
+ * results to one graderVersion.
+ */
+describe('selectCardResults', () => {
+  const t = (n: number) => new Date(2026, 8, 17, 0, 0, n)
+  const r = (model: string, n: number) => ({ model, createdAt: t(n) })
+
+  it('picks the one model that covers every answer', () => {
+    const out = selectCardResults([
+      { id: 'a1', results: [r('deepseek-flash', 1)] },
+      { id: 'a2', results: [r('deepseek-flash', 2)] },
+    ])
+    expect(out).toEqual({ kind: 'complete', model: 'deepseek-flash', byAnswer: { a1: r('deepseek-flash', 1), a2: r('deepseek-flash', 2) } })
+  })
+
+  it('a card with results split across two models is MIXED, never scored together', () => {
+    const out = selectCardResults([
+      { id: 'a1', results: [r('deepseek-flash', 1)] },
+      { id: 'a2', results: [r('glm-5.3-flash', 2)] },
+    ])
+    expect(out).toEqual({ kind: 'mixed', models: ['deepseek-flash', 'glm-5.3-flash'] })
+  })
+
+  it('when two models each cover the whole card, the more recently completed one wins', () => {
+    const out = selectCardResults([
+      { id: 'a1', results: [r('deepseek-flash', 1), r('glm-5.3-flash', 3)] },
+      { id: 'a2', results: [r('deepseek-flash', 2), r('glm-5.3-flash', 4)] },
+    ])
+    expect(out.kind).toBe('complete')
+    if (out.kind === 'complete') expect(out.model).toBe('glm-5.3-flash')
+  })
+
+  it('an answer with no result at all makes the card incomplete, even beside another model', () => {
+    const out = selectCardResults([
+      { id: 'a1', results: [r('deepseek-flash', 1)] },
+      { id: 'a2', results: [] },
+    ])
+    expect(out).toEqual({ kind: 'incomplete', ungraded: 1 })
+  })
+
+  it('a card that is complete on one model and partial on another is complete on the first', () => {
+    const out = selectCardResults([
+      { id: 'a1', results: [r('deepseek-flash', 1), r('glm-5.3-flash', 5)] },
+      { id: 'a2', results: [r('deepseek-flash', 2)] },
+    ])
+    expect(out.kind).toBe('complete')
+    if (out.kind === 'complete') expect(out.model).toBe('deepseek-flash')
   })
 })
