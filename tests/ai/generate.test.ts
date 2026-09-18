@@ -265,6 +265,23 @@ describe('generateJson — unknown enum values are logged, not swallowed', () =>
     }
   });
 
+  it('bounds AiCallLog.error at 4000 chars — a validation error embeds the whole model reply', async () => {
+    // A Hot Seat or authoring reply that fails Zod runs to many KB, and the
+    // SDK puts the entire reply in the message. The row is a log line.
+    h.generateText.mockRejectedValue(new Error('Type validation failed: ' + 'x'.repeat(20_000)));
+
+    await expect(
+      generateJson({ userId: 'u1', task: 'grade', schema: z.object({ ok: z.boolean() }), prompt: 'hi' }),
+    ).rejects.toBeInstanceOf(AiGenerationError);
+
+    const rows = (h.createMany.mock.calls[0][0] as { data: { error?: string }[] }).data;
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(r.error?.length).toBe(4000);
+      expect(r.error?.startsWith('Type validation failed: ')).toBe(true);
+    }
+  });
+
   it('surfaces the same value on the thrown aggregate error detail', async () => {
     h.generateText.mockRejectedValue(unknownEnumError('bogus_label'));
 

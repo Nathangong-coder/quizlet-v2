@@ -44,6 +44,8 @@ function levelAnswer(
       relationVerdicts: [],
       formVerdicts: [],
       unresolvedQuotes: verdicts.filter((v) => v.quote !== undefined && v.spanStart === null).length,
+      judgedOf: verdicts.length,
+      unjudged: [],
       ...extra,
     },
   }
@@ -196,6 +198,8 @@ describe('formatBenchmarkReport — modes panels', () => {
           ? [{ formRef: 0, formRequirementId: 'form-0', status: 'not_met', spanStart: null, spanEnd: null }]
           : [],
         unresolvedQuotes: 0,
+        judgedOf: verdicts.length,
+        unjudged: [],
       },
     }
   }
@@ -226,6 +230,73 @@ describe('formatBenchmarkReport — modes panels', () => {
     expect(summary.shapeMatrix.template.template).toBe(1)
     expect(summary.shapeAgreed).toBe(3)
     expect(summary.shapeTotal).toBe(4)
+  })
+})
+
+describe('formatBenchmarkReport — unjudged key points', () => {
+  // FINAL REVIEW finding (5): `coverageScore` read only the verdicts the
+  // grader returned, so an expert answer on which the grader judged ONE of
+  // seven points (correctly) scored 1.0. The result row now carries what it
+  // was graded against, the score counts the silent points at 0, and the
+  // report prints the column beside `unresolved`.
+  const seven = Array.from({ length: 7 }, (_, i) => ({ klpId: `klp-${i}`, weight: 1 }))
+  const oneOfSeven: BenchmarkCardRow = {
+    cardId: 'card-u',
+    term: 'Sponsor returns',
+    kind: 'levels',
+    klpVersion: 1,
+    answers: [
+      // The grader judged only [0] on the expert answer.
+      levelAnswer('expert', [klp(0, 'correct', 1, 'IRR')], 'Nails everything.', { judgedOf: 7, unjudged: seven.slice(1) }),
+      levelAnswer('competent', [klp(0, 'correct'), klp(1, 'partial'), klp(2, 'correct'), klp(3, 'correct'), klp(4, 'omission'), klp(5, 'correct'), klp(6, 'correct')], 'Fudges [1], omits [4].'),
+      levelAnswer('weak', [klp(0, 'correct'), klp(1, 'omission'), klp(2, 'omission'), klp(3, 'omission'), klp(4, 'omission'), klp(5, 'omission'), klp(6, 'omission')], 'Only [0].'),
+      levelAnswer('wrong', [klp(0, 'inversion'), klp(1, 'omission'), klp(2, 'omission'), klp(3, 'omission'), klp(4, 'omission'), klp(5, 'omission'), klp(6, 'omission')], 'Inverts [0].'),
+    ],
+  }
+
+  it('scores the one-of-seven answer at 1/7 by weight, not 1.0 — and the rank inversion shows', () => {
+    const out = formatBenchmarkReport([oneOfSeven])
+    // expert 0.14 sits below competent (5.5/7 = 0.79) — an inversion the old
+    // denominator hid behind a perfect 1.00.
+    expect(out).toMatch(/expert 0\.14/)
+    expect(out).toMatch(/INVERSION expert \(rank 1\) 0\.14 <= competent \(rank 2\) 0\.79/)
+  })
+
+  it('prints an `unjudged` column beside `unresolved` on the card line and in the totals', () => {
+    const out = formatBenchmarkReport([oneOfSeven])
+    expect(out).toMatch(/Sponsor returns.*quotes \d+\/\d+ unresolved  unjudged 6\/28/)
+    expect(out).toMatch(/^unjudged key points 6\/28 \(21\.4%\) — counted at 0 credit$/m)
+    const s = summarizeBenchmark([oneOfSeven])
+    expect(s.unjudged).toEqual({ unjudged: 6, judgedOf: 28 })
+  })
+
+  it('a modes card prints the column too', () => {
+    const modesRow: BenchmarkCardRow = {
+      cardId: 'card-um',
+      term: 'Paydown',
+      kind: 'modes',
+      klpVersion: 1,
+      answers: [
+        {
+          id: 'ans-gap',
+          level: null,
+          mode: 'gap',
+          intendedRank: 1,
+          rationale: 'Written as gap.',
+          result: {
+            model: 'm',
+            graderVersion: 1,
+            verdicts: [klp(0, 'correct'), klp(1, 'omission')],
+            relationVerdicts: [],
+            formVerdicts: [],
+            unresolvedQuotes: 0,
+            judgedOf: 3,
+            unjudged: [{ klpId: 'klp-2', weight: 1 }],
+          },
+        },
+      ],
+    }
+    expect(formatBenchmarkReport([modesRow])).toMatch(/Paydown.*unresolved  unjudged 1\/3/)
   })
 })
 

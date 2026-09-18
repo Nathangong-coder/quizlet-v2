@@ -213,6 +213,7 @@ export type PanelVerdictWarning = {
     | 'duplicate_relation_ref'
     | 'unresolved_form_ref'
     | 'duplicate_form_ref'
+    | 'klp_unjudged'
   value: string
 }
 
@@ -307,5 +308,15 @@ export function buildPanelVerdicts(grade: ShortAnswerGrade, ctx: PanelVerdictCon
     })
   }
 
-  return { verdicts, relationVerdicts, formVerdicts, unresolvedQuotes, warnings }
+  // Every live point the grader said nothing about. Persisted with its
+  // weight so `coverageScore` puts it in the denominator at 0 credit —
+  // otherwise a grader that judged one of seven points scored 1.0.
+  const unjudged: PanelVerdicts['unjudged'] = []
+  for (const k of ctx.klps) {
+    if (seenKlp.has(k.id)) continue
+    unjudged.push({ klpId: k.id, weight: k.weight })
+    warnings.push({ reason: 'klp_unjudged', value: k.id })
+  }
+
+  return { verdicts, relationVerdicts, formVerdicts, unresolvedQuotes, judgedOf: ctx.klps.length, unjudged, warnings }
 }

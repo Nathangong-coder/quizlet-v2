@@ -96,4 +96,20 @@ describe('Spec 5 §8 grader-panel tables cascade from their parents', () => {
     // Additive only: one statement, nothing dropped or altered.
     expect(migration.match(/^(CREATE|ALTER|DROP)\b/gm)).toEqual(['CREATE'])
   })
+
+  it('a result records what it was graded AGAINST (judgedOf, unjudged) so unjudged key points score 0', () => {
+    // FINAL REVIEW finding (5). Both columns default so a row that predates
+    // them reads as "nothing unjudged" (none existed at deploy).
+    const result = schema.match(/model GraderPanelResult \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(result).toMatch(/^\s*judgedOf\s+Int\s+@default\(0\)\s*$/m)
+    expect(result).toMatch(/^\s*unjudged\s+Json\s+@default\("\[\]"\)\s*$/m)
+    const migration = readFileSync(
+      join(process.cwd(), 'prisma/migrations/20260917150000_grader_panel_unjudged/migration.sql'),
+      'utf8',
+    )
+    expect(migration).toMatch(/ALTER TABLE "GraderPanelResult" ADD COLUMN\s+"judgedOf" INTEGER NOT NULL DEFAULT 0/)
+    expect(migration).toMatch(/ADD COLUMN\s+"unjudged" JSONB NOT NULL DEFAULT '\[\]'/)
+    // Additive only: one ALTER, no DROP — the drift lines were trimmed.
+    expect(migration.match(/^(CREATE|ALTER|DROP)\b/gm)).toEqual(['ALTER'])
+  })
 })

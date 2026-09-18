@@ -136,7 +136,7 @@ function binaryModeDrafts(input: {
   // Wrong, and nothing tells us WHICH proposition failed: no QuizQuestion
   // row, a v1 cache row, or a v2 distractor missing provenance. Record no
   // claim rather than an invented one.
-  if (!input.failedKlpId || !input.corruption) {
+  if (!input.failedKlpId) {
     return { klpResults: [], errorTags: [], attribution: 'unattributable' };
   }
 
@@ -145,8 +145,19 @@ function binaryModeDrafts(input: {
   // CURRENT live KLP set — a mid-attempt card edit superseded it.
   if (klpRef < 0) return { klpResults: [], errorTags: [], attribution: 'unattributable' };
 
+  // Spec 5 §2: the distractor's persisted corruption IS the verdict. It is one
+  // of CORRUPTIONS ⊂ KLP_VERDICTS (a test pins the inclusion), so the row says
+  // `inversion`, not the flattened `failed`, and the results page reads
+  // "Inverted:" through labelForKlpStatus. The error tag carries the same
+  // token as its type. Without a corruption (a row that knows WHICH point but
+  // not HOW — an older TF statement) the point still failed; only the shape
+  // of the failure is unknown, so the row is `failed` and no tag is invented.
+  if (!input.corruption) {
+    return { klpResults: [{ klpRef, status: 'failed' }], errorTags: [], attribution: 'attributed' };
+  }
+
   return {
-    klpResults: [{ klpRef, status: 'failed' }],
+    klpResults: [{ klpRef, status: input.corruption }],
     errorTags: [
       {
         dimension: 'accuracy',

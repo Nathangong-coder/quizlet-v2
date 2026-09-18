@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { prisma } from '../src/lib/db'
 import { DIAGNOSTIC_GRADING_PROMPT } from '../src/lib/ai/prompts/diagnostic'
-import { KLP_STATUSES } from '../src/lib/errors/klp-credit'
+import { KLP_STATUSES, STATUS_CREDIT, type KlpStatus } from '../src/lib/errors/klp-credit'
 import { DIMENSIONS, MAX_TAGS_PER_ANSWER } from '../src/lib/errors/taxonomy'
 
 /**
@@ -166,8 +166,11 @@ async function main() {
             klpResults?: { status: string }[]
           }[]
           const shaped = grades.length === 2 && grades.every((g) => (g.klpResults ?? []).length === 1)
-          const correct = grades.find((g) => g.questionRef === 0)?.klpResults?.[0]?.status === 'passed'
-          const vacuous = grades.find((g) => g.questionRef === 1)?.klpResults?.[0]?.status === 'failed'
+          // Credit, never the label (Spec 5 §7): `passed` is a read-only
+          // alias and a blank grades `omission`; both compare by STATUS_CREDIT.
+          const creditOf = (status: string | undefined) => STATUS_CREDIT[status as KlpStatus]
+          const correct = creditOf(grades.find((g) => g.questionRef === 0)?.klpResults?.[0]?.status) >= 1
+          const vacuous = creditOf(grades.find((g) => g.questionRef === 1)?.klpResults?.[0]?.status) === 0
           ok = shaped && correct && vacuous
           if (!ok) {
             note = shaped

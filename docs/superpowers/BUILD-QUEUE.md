@@ -1528,10 +1528,10 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
      then `migrate deploy`, never bare `migrate dev`, never reset. `prisma format` re-aligned the
      whole schema in Task 4 (87 semantic lines of 539); the Spec 6 hunks are >25 lines clear, so the
      merge should be clean — re-check if anyone runs `prisma format` again.
-   - `GraderPanelResult` has no DB uniqueness on `(answerId, graderVersion, model)` (idempotence is
-     in the script's planning); the stored-pool path of `bench-grader` cannot pin per card (use one
-     credential or an `AiTaskRouting` pin on `grade`); its exhaustion log names the AUTHOR pool
-     when the grade pool is the fallback.
+   - `GraderPanelResult` uniqueness on `(answerId, graderVersion, model)` IS enforced (migration
+     `20260917140000_grader_panel_result_unique`, Task 11 fix round); the stored-pool path of
+     `bench-grader` cannot pin per card (use one credential or an `AiTaskRouting` pin on `grade`);
+     its exhaustion log names the AUTHOR pool when the grade pool is the fallback.
    - Form-reqs pass: a failure is not recorded on the card (`build-set.ts`) nor counted in
      `summarize.failed`; a weak-check throw after the write reports the card failed (catch inside
      the module, return `checkError`); a `--direct` quota halt mid weak-check loses that check; the

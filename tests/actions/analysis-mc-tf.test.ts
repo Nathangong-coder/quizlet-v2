@@ -176,9 +176,12 @@ describe('submitMultipleChoiceAnswer analysis capture', () => {
     expect(h.generateJson).not.toHaveBeenCalled()
   })
 
-  it('writes one failed result for the PICKED distractor only', async () => {
+  it('writes one result for the PICKED distractor only, with its corruption as the status', async () => {
     // The question targeted 3 KLPs. Rejecting the other two distractors
     // carries no information — the learner rejected the correct answer too.
+    // Spec 5 §2: the distractor's persisted corruption IS the verdict — the
+    // row reads `inversion`, not a flattened `failed`, so the results page
+    // can say "Inverted:" and the credit table still books it at 0.
     h.questionFindUnique.mockResolvedValue({
       options: mcOptions,
       targetKlpIds: ['klp-a', 'klp-b', 'klp-picked'],
@@ -193,7 +196,7 @@ describe('submitMultipleChoiceAnswer analysis capture', () => {
 
     const rows = h.klpResultCreateMany.mock.calls[0][0].data
     expect(rows).toHaveLength(1)
-    expect(rows[0]).toMatchObject({ klpId: 'klp-picked', status: 'failed', credit: 0 })
+    expect(rows[0]).toMatchObject({ klpId: 'klp-picked', status: 'inversion', credit: 0 })
 
     const tags = h.errorTagCreateMany.mock.calls[0][0].data
     expect(tags).toHaveLength(1)
@@ -288,7 +291,7 @@ describe('submitTrueFalseAnswer analysis capture', () => {
     expect(h.errorTagCreateMany).not.toHaveBeenCalled()
   })
 
-  it('TF wrong, shown corrupted, answered "true": one failed KLP result and one error tag', async () => {
+  it('TF wrong, shown corrupted, answered "true": one KLP result carrying the corruption and one error tag', async () => {
     h.questionFindUnique.mockResolvedValue({
       statement: 'point picked, corrupted.',
       isTrue: false,
@@ -307,12 +310,40 @@ describe('submitTrueFalseAnswer analysis capture', () => {
     expect(result.data.isCorrect).toBe(false)
 
     const rows = h.klpResultCreateMany.mock.calls[0][0].data
-    expect(rows).toEqual([expect.objectContaining({ klpId: 'klp-picked', status: 'failed', credit: 0 })])
+    expect(rows).toEqual([expect.objectContaining({ klpId: 'klp-picked', status: 'conflation', credit: 0 })])
 
     const tags = h.errorTagCreateMany.mock.calls[0][0].data
     expect(tags).toEqual([
       expect.objectContaining({ dimension: 'accuracy', type: 'conflation', klpId: 'klp-picked', severity: 4 }),
     ])
+  })
+
+  it('TF wrong with provenance that names the KLP but no corruption: the row is `failed`, no tag is invented', async () => {
+    // The statement row knows WHICH point was corrupted but not HOW (an older
+    // generator that did not persist a corruption). The point still failed —
+    // that is not a guess — but the shape of the failure is unknown, so the
+    // status is the flat `failed` and no accuracy tag is fabricated for it.
+    h.questionFindUnique.mockResolvedValue({
+      statement: 'point picked, corrupted somehow.',
+      isTrue: false,
+      corruption: null,
+      targetKlpIds: ['klp-picked'],
+    })
+
+    const result = await submitTrueFalseAnswer({
+      attemptId: ATTEMPT_ID,
+      cardId: CARD_ID,
+      selectedOption: 'true',
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) throw new Error(result.error)
+    expect(result.data.isCorrect).toBe(false)
+
+    const rows = h.klpResultCreateMany.mock.calls[0][0].data
+    expect(rows).toEqual([expect.objectContaining({ klpId: 'klp-picked', status: 'failed', credit: 0 })])
+    expect(h.errorTagCreateMany).not.toHaveBeenCalled()
+    expect(h.answerCreate.mock.calls[0][0].data.analysisStatus).toBe('analyzed')
   })
 
   it('writes NO KLP result when "false" was answered to the real definition', async () => {

@@ -128,25 +128,51 @@ export const PanelFormVerdictSchema = z.object({
   ...SpanColumns,
 })
 
-/** The three verdict lists of one `GraderPanelResult`, typed. */
+/**
+ * A live key point the grader returned NO verdict for, with its weight at
+ * grading time. Persisted beside the verdicts so `coverageScore` can put it
+ * in the denominator from the row alone: a grader that judges one of seven
+ * points and gets it right has NOT shown the answer covers the card.
+ */
+export interface PanelUnjudged {
+  klpId: string
+  weight: number
+}
+
+export const PanelUnjudgedSchema = z.object({
+  klpId: z.string().min(1),
+  weight: z.number(),
+})
+
+/** The three verdict lists of one `GraderPanelResult`, typed, plus what they were graded against. */
 export interface PanelResultLists {
   verdicts: PanelKlpVerdict[]
   relationVerdicts: PanelRelationVerdict[]
   formVerdicts: PanelFormVerdict[]
   unresolvedQuotes: number
+  /** Live key points in the prompt — `verdicts.length + unjudged.length`. */
+  judgedOf: number
+  /** The key points with no verdict, at 0 credit in `coverageScore`. */
+  unjudged: PanelUnjudged[]
 }
 
 /**
- * Reads the three `Json` columns of a stored result row into the typed
- * lists. THROWS on a malformed column, naming it: a benchmark that scored a
- * garbled row as zero coverage would report a grader defect that is really
- * a writer defect, and the only writer is `buildPanelVerdicts`.
+ * Reads the `Json` columns of a stored result row into the typed lists.
+ * THROWS on a malformed column, naming it: a benchmark that scored a garbled
+ * row as zero coverage would report a grader defect that is really a writer
+ * defect, and the only writer is `buildPanelVerdicts`. `judgedOf` /
+ * `unjudged` are optional on the way in for a row written before the
+ * columns existed (none do; the column defaults are 0 / `[]`): such a row is
+ * read as "every verdict was judged, nothing missing", which is what the old
+ * score assumed.
  */
 export function readPanelResult(row: {
   verdicts: unknown
   relationVerdicts: unknown
   formVerdicts: unknown
   unresolvedQuotes: number
+  judgedOf?: number | null
+  unjudged?: unknown
 }): PanelResultLists {
   const read = <T>(name: string, schema: z.ZodType<T>, value: unknown): T[] => {
     const parsed = z.array(schema).safeParse(value)
@@ -155,11 +181,16 @@ export function readPanelResult(row: {
     }
     return parsed.data
   }
+  const verdicts = read('verdicts', PanelKlpVerdictSchema, row.verdicts)
+  const unjudged = row.unjudged === undefined || row.unjudged === null ? [] : read('unjudged', PanelUnjudgedSchema, row.unjudged)
+  const judgedOf = row.judgedOf ? row.judgedOf : verdicts.length + unjudged.length
   return {
-    verdicts: read('verdicts', PanelKlpVerdictSchema, row.verdicts),
+    verdicts,
     relationVerdicts: read('relationVerdicts', PanelRelationVerdictSchema, row.relationVerdicts),
     formVerdicts: read('formVerdicts', PanelFormVerdictSchema, row.formVerdicts),
     unresolvedQuotes: row.unresolvedQuotes,
+    judgedOf,
+    unjudged,
   }
 }
 
@@ -186,8 +217,18 @@ export function toBenchFormVerdicts(entries: readonly PanelFormVerdict[]): (Benc
  * Credit comes from `STATUS_CREDIT` (1 / 0.5 / 0; the legacy `passed` alias
  * reads as 1). A label outside the table is 0, never `NaN` — a benchmark
  * that prints `NaN` for one answer poisons every mean above it.
+ *
+ * The denominator is the FULL set the answer was graded against: the
+ * verdicts the grader returned plus `unjudged`, the live points it returned
+ * nothing for, at 0 credit. Without the second list a grader that judged one
+ * of seven points and got it right scored 1.0 — the benchmark rewarded
+ * silence. A point the grader did not judge is a point the answer has not
+ * been shown to hold.
  */
-export function coverageScore(verdicts: readonly BenchKlpVerdict[]): number {
+export function coverageScore(
+  verdicts: readonly BenchKlpVerdict[],
+  unjudged: readonly { weight: number }[] = [],
+): number {
   let earned = 0
   let possible = 0
   for (const v of verdicts) {
@@ -195,6 +236,7 @@ export function coverageScore(verdicts: readonly BenchKlpVerdict[]): number {
     earned += credit * v.weight
     possible += v.weight
   }
+  for (const u of unjudged) possible += u.weight
   return possible > 0 ? earned / possible : 0
 }
 
@@ -262,6 +304,8 @@ export interface ShapedAnswer {
   verdicts: readonly BenchKlpVerdict[]
   relationVerdicts: readonly BenchRelationVerdict[]
   formVerdicts: readonly BenchFormVerdict[]
+  /** Key points with no verdict; they lower coverage exactly as in `coverageScore`. */
+  unjudged?: readonly { weight: number }[]
 }
 
 export interface ShapeAgreement {
@@ -311,7 +355,7 @@ export function observedShape(answer: Omit<ShapedAnswer, 'mode'>): ObservedShape
 
   if (verdicts.some((v) => WRONG_MODEL_STATUSES.has(v.status))) return 'misconception'
 
-  const coverage = coverageScore(verdicts)
+  const coverage = coverageScore(verdicts, answer.unjudged ?? [])
   if (coverage >= 1 && verdicts.length > 0 && relationVerdicts.some((r) => r.status === 'omission')) return 'connectivity'
 
   if (coverage >= TEMPLATE_COVERAGE_FLOOR && formVerdicts.some((f) => f.status === 'not_met')) return 'template'

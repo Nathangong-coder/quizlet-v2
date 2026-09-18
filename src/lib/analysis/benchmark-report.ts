@@ -80,6 +80,13 @@ export interface BenchmarkSummary {
   shapeTotal: number
   shapeMatrix: ShapeMatrix
   quotes: UnresolvedQuoteRate
+  /**
+   * Key points the grader returned no verdict for, pooled over every result
+   * read, beside the number it was asked about. A grader that skips points
+   * is a grader defect the coverage score now counts against it (at 0), and
+   * the pair says how often it happens.
+   */
+  unjudged: { unjudged: number; judgedOf: number }
   /** Answers with no result. A card with one is excluded from the rank and shape numbers. */
   ungraded: number
   /** Cards excluded because their results are split across models — see `BenchmarkCardRow.mixed`. */
@@ -97,7 +104,7 @@ function scored(row: BenchmarkCardRow): ScoredAnswer[] | null {
   const out: ScoredAnswer[] = []
   for (const a of row.answers) {
     if (!a.result) return null
-    out.push({ ...a, result: a.result, score: coverageScore(toBenchKlpVerdicts(a.result.verdicts)) })
+    out.push({ ...a, result: a.result, score: coverageScore(toBenchKlpVerdicts(a.result.verdicts), a.result.unjudged) })
   }
   return out
 }
@@ -116,6 +123,7 @@ function shapeOf(a: ScoredAnswer) {
     verdicts: toBenchKlpVerdicts(a.result.verdicts),
     relationVerdicts: toBenchRelationVerdicts(a.result.relationVerdicts),
     formVerdicts: toBenchFormVerdicts(a.result.formVerdicts),
+    unjudged: a.result.unjudged,
   })
 }
 
@@ -133,6 +141,7 @@ export function summarizeBenchmark(rows: readonly BenchmarkCardRow[]): Benchmark
     shapeTotal: 0,
     shapeMatrix: emptyMatrix(),
     quotes: { unresolved: 0, quotes: 0, rate: 0 },
+    unjudged: { unjudged: 0, judgedOf: 0 },
     ungraded: 0,
     mixedCards: 0,
     models: [],
@@ -159,6 +168,8 @@ export function summarizeBenchmark(rows: readonly BenchmarkCardRow[]): Benchmark
       results.push(a.result)
       models.add(a.result.model)
       versions.add(a.result.graderVersion)
+      s.unjudged.unjudged += a.result.unjudged.length
+      s.unjudged.judgedOf += a.result.judgedOf
     }
     const answers = scored(row)
     if (!answers) continue
@@ -265,6 +276,8 @@ export function formatBenchmarkReport(rows: readonly BenchmarkCardRow[], opts: F
     }
     const quotes = answers.reduce((n, a) => n + quoteCount(a.result), 0)
     const unresolved = answers.reduce((n, a) => n + a.result.unresolvedQuotes, 0)
+    const unjudged = answers.reduce((n, a) => n + a.result.unjudged.length, 0)
+    const judgedOf = answers.reduce((n, a) => n + a.result.judgedOf, 0)
     const byRank = [...answers].sort((a, b) => a.intendedRank - b.intendedRank)
 
     if (row.kind === 'levels') {
@@ -273,7 +286,7 @@ export function formatBenchmarkReport(rows: readonly BenchmarkCardRow[], opts: F
       const meanGap = gaps.length > 0 ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 0
       lines.push(
         `${head}  rank agreement ${ra.agreed}/${ra.total}  gaps ${gaps.map(f2).join(' / ')} (mean ${f2(meanGap)})  ` +
-          `quotes ${unresolved}/${quotes} unresolved`,
+          `quotes ${unresolved}/${quotes} unresolved  unjudged ${unjudged}/${judgedOf}`,
       )
       lines.push(`  ${byRank.map((a) => `${labelOf(a)} ${f2(a.score)}`).join(' · ')}`)
       for (const [better, worse] of ra.inversions) {
@@ -289,7 +302,9 @@ export function formatBenchmarkReport(rows: readonly BenchmarkCardRow[], opts: F
     } else {
       const reads = answers.map((a) => ({ a, sh: shapeOf(a) }))
       const agreed = reads.filter((r) => r.sh.agreed).length
-      lines.push(`${head}  shape agreement ${agreed}/${reads.length}  quotes ${unresolved}/${quotes} unresolved`)
+      lines.push(
+        `${head}  shape agreement ${agreed}/${reads.length}  quotes ${unresolved}/${quotes} unresolved  unjudged ${unjudged}/${judgedOf}`,
+      )
       lines.push(
         `  ${reads
           .map((r) => (r.sh.agreed ? `${r.sh.expected} ok` : `${r.sh.expected} -> ${r.sh.observed}`))
@@ -326,6 +341,7 @@ export function formatBenchmarkReport(rows: readonly BenchmarkCardRow[], opts: F
     }
   }
   lines.push(`unresolved quotes ${s.quotes.unresolved}/${s.quotes.quotes} (${pct(s.quotes.unresolved, s.quotes.quotes)})`)
+  lines.push(`unjudged key points ${s.unjudged.unjudged}/${s.unjudged.judgedOf} (${pct(s.unjudged.unjudged, s.unjudged.judgedOf)}) — counted at 0 credit`)
   lines.push(`ungraded answers: ${s.ungraded}`)
   if (s.mixedCards > 0) lines.push(`mixed cards: ${s.mixedCards} (results split across models; excluded above)`)
   return lines.join('\n')

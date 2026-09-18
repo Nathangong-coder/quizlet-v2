@@ -108,6 +108,8 @@ export async function loadCardRegradeInput(cardId: string): Promise<CardRegradeI
           credit: true,
           mode: true,
           evidence: true,
+          spanStart: true,
+          spanEnd: true,
           klp: { select: { text: true, supersededAt: true } },
         },
       },
@@ -153,6 +155,8 @@ export async function loadCardRegradeInput(cardId: string): Promise<CardRegradeI
         mode: r.mode as StudySource,
         credit: r.credit,
         evidence: r.evidence,
+        spanStart: r.spanStart,
+        spanEnd: r.spanEnd,
         isLive: r.klp.supersededAt === null,
       })),
     }] : [])),
@@ -214,10 +218,17 @@ export async function applyRegradePlan(
         ? fresh.klpResults
         : plan.carried.map((c) => ({
             klpId: c.toKlpId,
-            status: c.status,
+            // The planner already normalised the read-only `passed` alias to
+            // `correct`; this is the writer's own guard on the same rule, so
+            // a plan built elsewhere cannot re-introduce the alias under v4.
+            status: c.status === 'passed' ? 'correct' : c.status,
             credit: c.credit,
             mode: c.mode,
             evidence: c.evidence ?? undefined,
+            // The answer text is unchanged by a KLP edit, so the resolved
+            // quote offsets stay valid and travel with the row.
+            spanStart: c.spanStart,
+            spanEnd: c.spanEnd,
           }))
 
     if (toWrite.length > 0) {

@@ -198,6 +198,8 @@ export type GradePanelAnswerResult =
       relationVerdicts: number
       formVerdicts: number
       unresolvedQuotes: number
+      /** Live key points the grader returned no verdict for. */
+      unjudged: number
       warnings: PanelVerdictWarning[]
     }
 
@@ -262,6 +264,8 @@ export async function gradePanelAnswer(answerId: string, gen: BenchGrader): Prom
       relationVerdicts: built.relationVerdicts as unknown as Prisma.InputJsonValue,
       formVerdicts: built.formVerdicts as unknown as Prisma.InputJsonValue,
       unresolvedQuotes: built.unresolvedQuotes,
+      judgedOf: built.judgedOf,
+      unjudged: built.unjudged as unknown as Prisma.InputJsonValue,
     },
     select: { id: true },
   })
@@ -275,6 +279,7 @@ export async function gradePanelAnswer(answerId: string, gen: BenchGrader): Prom
     relationVerdicts: built.relationVerdicts.length,
     formVerdicts: built.formVerdicts.length,
     unresolvedQuotes: built.unresolvedQuotes,
+    unjudged: built.unjudged.length,
     warnings: built.warnings,
   }
 }
@@ -322,6 +327,8 @@ export async function loadBenchmarkRows(
               relationVerdicts: true,
               formVerdicts: true,
               unresolvedQuotes: true,
+              judgedOf: true,
+              unjudged: true,
             },
           },
         },

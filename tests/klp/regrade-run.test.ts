@@ -78,7 +78,7 @@ describe('applyRegradePlan spares a grader-regrade\'s superseded history', () =>
         mode: 'quiz-sa',
         action: 'remap',
         status: 'analyzed',
-        carried: [{ fromKlpId: 'k-old', toKlpId: 'k-new', status: 'correct', credit: 0.95, mode: 'quiz-sa', evidence: null }],
+        carried: [{ fromKlpId: 'k-old', toKlpId: 'k-new', status: 'correct', credit: 0.95, mode: 'quiz-sa', evidence: null, spanStart: null, spanEnd: null }],
         droppedKlpIds: [],
         uncoveredKlpIds: [],
         warnings: [],
@@ -93,5 +93,56 @@ describe('applyRegradePlan spares a grader-regrade\'s superseded history', () =>
     expect(tx.answerErrorTag.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { quizAnswerId: 'a1', supersededAt: null } }),
     )
+  })
+})
+
+describe('applyRegradePlan carry path is a writer, and obeys the v4 write rules', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('re-creates a carried `passed` prior as a `correct` row, with its spans', async () => {
+    // FINAL REVIEW finding (2): the carry path re-created rows with
+    // `prior.status` verbatim, so a legacy `passed` row was WRITTEN again under
+    // ANALYSIS_VERSION 4 (reachable from the cron regradeSweep, no AI call),
+    // and the resolved quote offsets were dropped although the answer text —
+    // the thing they index — had not changed.
+    await applyRegradePlan(
+      {
+        answerId: 'a1',
+        mode: 'quiz-sa',
+        action: 'remap',
+        status: 'analyzed',
+        carried: [
+          { fromKlpId: 'k-old', toKlpId: 'k-new', status: 'passed', credit: 0.95, mode: 'quiz-sa', evidence: 'the quote', spanStart: 4, spanEnd: 13 },
+        ],
+        droppedKlpIds: [],
+        uncoveredKlpIds: [],
+        warnings: [],
+      },
+      'u1',
+      null,
+    )
+    expect(tx.answerKlpResult.createMany).toHaveBeenCalledTimes(1)
+    const rows = tx.answerKlpResult.createMany.mock.calls[0][0].data
+    expect(rows).toEqual([
+      expect.objectContaining({
+        quizAnswerId: 'a1',
+        klpId: 'k-new',
+        status: 'correct',
+        credit: 0.95,
+        evidence: 'the quote',
+        spanStart: 4,
+        spanEnd: 13,
+      }),
+    ])
+    expect(rows.some((r: { status: string }) => r.status === 'passed')).toBe(false)
+  })
+
+  it('source scan: no write in regrade-run.ts carries the literal status `passed`', async () => {
+    const fs = await import('node:fs')
+    const path = await import('node:path')
+    const src = fs.readFileSync(path.resolve(process.cwd(), 'src/lib/klp/regrade-run.ts'), 'utf8')
+    // A `status: 'passed'` object property is what a writer would look like;
+    // the comparison `=== 'passed'` in the normaliser is the guard, not a write.
+    expect(src).not.toMatch(/status:\s*['"]passed['"]/)
   })
 })

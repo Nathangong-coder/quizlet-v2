@@ -59,6 +59,39 @@ describe('MissedWork', () => {
     expect(screen.getByText(FULL_TEXT)).toBeTruthy()
     expect(screen.getByText('Short answer')).toBeTruthy()
     expect(screen.getByText('negated relationship')).toBeTruthy()
+    // The status badge renders the LABEL, never the raw token.
+    expect(screen.getByText('Missed')).toBeTruthy()
+    expect(screen.queryByText('failed')).toBeNull()
+  })
+
+  it('colours a status badge by credit and reads it by label — an `omission` is a full miss', () => {
+    // FINAL REVIEW finding (3): the badge compared `status === 'failed'` and
+    // printed the raw token, so a Spec 5 `omission` (credit 0) rendered grey
+    // as if it were a half-miss and read "omission" to the learner.
+    const withOmission: MissedTopic[] = [
+      {
+        ...topics[0],
+        klps: [
+          {
+            ...topics[0].klps[0],
+            misses: [
+              { klpId: 'k1', status: 'omission', mode: 'quiz-sa', createdAt: new Date('2026-09-17'), errorTypes: [] },
+              { klpId: 'k1', status: 'partial', mode: 'quiz-sa', createdAt: new Date('2026-09-16'), errorTypes: [] },
+            ],
+          },
+        ],
+      },
+    ]
+    render(<MissedWork topics={withOmission} floor={3} />)
+    fireEvent.click(screen.getByRole('button', { name: /Debt impact on WACC/i }))
+    const missing = screen.getByText('Missing')
+    const partial = screen.getByText('Partially covered')
+    expect(screen.queryByText('omission')).toBeNull()
+    // Credit 0 is destructive; credit 0.5 is not — the variant is the credit
+    // bucket, so the two badges must not share a class list.
+    expect(missing.className).not.toBe(partial.className)
+    expect(missing.className).toMatch(/text-destructive/)
+    expect(partial.className).not.toMatch(/text-destructive/)
   })
 
   it('renders an unmeasured topic as its own state, never as 0%', () => {

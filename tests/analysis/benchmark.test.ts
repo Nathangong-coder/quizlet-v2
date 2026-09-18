@@ -53,6 +53,18 @@ describe('coverageScore', () => {
     expect(coverageScore([])).toBe(0)
     expect(coverageScore([{ status: 'nonsense', weight: 5 }])).toBe(0)
   })
+
+  it('counts an unjudged key point at 0 credit in the denominator — one correct of seven is 1/7, not 1.0', () => {
+    // FINAL REVIEW finding (5): a grader that returned a verdict for one of
+    // seven points, and got it right, scored a perfect 1.0. Silence is not
+    // coverage.
+    const unjudged = Array.from({ length: 6 }, (_, i) => ({ klpId: `k${i + 1}`, weight: 1 }))
+    expect(coverageScore([{ status: 'correct', weight: 1 }], unjudged)).toBeCloseTo(1 / 7, 6)
+    // By WEIGHT: a heavy unjudged point costs more than a light one.
+    expect(coverageScore([{ status: 'correct', weight: 1 }], [{ weight: 4 }])).toBeCloseTo(0.2, 6)
+    // Nothing judged at all: 0, not NaN.
+    expect(coverageScore([], unjudged)).toBe(0)
+  })
 })
 
 describe('rankAgreement', () => {
@@ -349,17 +361,35 @@ describe('panel verdict converters', () => {
       relationVerdicts: [rel],
       formVerdicts: [form],
       unresolvedQuotes: 1,
+      judgedOf: 3,
+      unjudged: [{ klpId: 'k1', weight: 2 }, { klpId: 'k2', weight: 1 }],
     })
     expect(row.verdicts).toEqual([klp])
     expect(row.relationVerdicts).toEqual([rel])
     expect(row.formVerdicts).toEqual([form])
     expect(row.unresolvedQuotes).toBe(1)
+    expect(row.judgedOf).toBe(3)
+    expect(row.unjudged).toEqual([{ klpId: 'k1', weight: 2 }, { klpId: 'k2', weight: 1 }])
     expect(unresolvedQuoteRate([row])).toEqual({ unresolved: 1, quotes: 2, rate: 0.5 })
+    // And the score reads the row alone: 0.5*3 earned of 3+2+1 possible.
+    expect(coverageScore(toBenchKlpVerdicts(row.verdicts), row.unjudged)).toBeCloseTo(1.5 / 6, 6)
+  })
+
+  it('readPanelResult tolerates a row written before judgedOf/unjudged existed', () => {
+    // Column defaults are 0 / `[]`; an older reader shape passes neither.
+    // Either reads as "every verdict was judged, nothing missing".
+    const legacy = readPanelResult({ verdicts: [klp], relationVerdicts: [], formVerdicts: [], unresolvedQuotes: 0 })
+    expect(legacy.judgedOf).toBe(1)
+    expect(legacy.unjudged).toEqual([])
+    const defaulted = readPanelResult({ verdicts: [klp], relationVerdicts: [], formVerdicts: [], unresolvedQuotes: 0, judgedOf: 0, unjudged: [] })
+    expect(defaulted.judgedOf).toBe(1)
+    expect(defaulted.unjudged).toEqual([])
   })
 
   it('readPanelResult refuses a malformed column rather than scoring garbage as zero', () => {
     expect(() => readPanelResult({ verdicts: [{ status: 'correct' }], relationVerdicts: [], formVerdicts: [], unresolvedQuotes: 0 })).toThrow(/verdicts/)
     expect(() => readPanelResult({ verdicts: 'nope', relationVerdicts: [], formVerdicts: [], unresolvedQuotes: 0 })).toThrow()
     expect(() => readPanelResult({ verdicts: [], relationVerdicts: [], formVerdicts: [{ ...form, status: 'maybe' }], unresolvedQuotes: 0 })).toThrow(/formVerdicts/)
+    expect(() => readPanelResult({ verdicts: [], relationVerdicts: [], formVerdicts: [], unresolvedQuotes: 0, unjudged: [{ klpId: 'k' }] })).toThrow(/unjudged/)
   })
 })

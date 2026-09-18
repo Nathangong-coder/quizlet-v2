@@ -1734,6 +1734,18 @@ model GraderPanelResult {
   relationVerdicts Json
   formVerdicts     Json
   unresolvedQuotes Int
+  /// How many live key points the answer was graded AGAINST (the prompt's
+  /// list), as opposed to how many verdicts came back. `coverageScore`
+  /// reads the full set — a grader that judges one of seven points scores
+  /// 1/7 by weight, not 1.0 — and the gap between this and `verdicts.length`
+  /// is the report's `unjudged` column. `@default(0)` only for rows that
+  /// predate the column (none existed at deploy); `readPanelResult` reads
+  /// 0 as "unknown, assume every verdict was judged".
+  judgedOf         Int               @default(0)
+  /// `[{ klpId, weight }]` — the live key points the grader returned NO
+  /// verdict for, with weight at grading time so the denominator is
+  /// computable from the row alone, exactly as `verdicts` carries weight.
+  unjudged         Json              @default("[]")
   createdAt        DateTime          @default(now())
   answer           GraderPanelAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
 

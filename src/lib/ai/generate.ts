@@ -580,7 +580,11 @@ export async function generateJsonWithMeta<T>({
           ok: false,
           failureKind: classifyProviderError(err),
           latencyMs: Date.now() - startedAt,
-          error: unknownValue ? `${message}\nunknown value: ${unknownValue}` : message,
+          // Bounded: an AI SDK validation error embeds the WHOLE model reply
+          // in its message, and a Hot Seat or authoring reply runs to many KB.
+          // The first 4000 chars carry the error class, the path and the
+          // offending value; the row is a log line, not a transcript.
+          error: (unknownValue ? `${message}\nunknown value: ${unknownValue}` : message).slice(0, 4000),
         });
         throw err;
       }

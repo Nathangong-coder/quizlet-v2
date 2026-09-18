@@ -154,7 +154,10 @@ describe('buildPanelVerdicts', () => {
       'duplicate_klp_ref',
       'unresolved_relation_ref',
       'duplicate_form_ref',
+      // k1 got no verdict (ref 5 was out of range), so it is unjudged.
+      'klp_unjudged',
     ])
+    expect(out.unjudged).toEqual([{ klpId: 'k1', weight: 1 }])
   })
 
   it('an empty or blank quote is "no quote" — no span, nothing unresolved', () => {
@@ -166,9 +169,38 @@ describe('buildPanelVerdicts', () => {
     expect(out.unresolvedQuotes).toBe(0)
   })
 
-  it('a grade with no per-point lists at all yields empty lists', () => {
+  it('a grade with no per-point lists at all yields empty lists — and every key point unjudged', () => {
     const out = buildPanelVerdicts({} as unknown as ShortAnswerGrade, ctx)
-    expect(out).toEqual({ verdicts: [], relationVerdicts: [], formVerdicts: [], unresolvedQuotes: 0, warnings: [] })
+    expect(out).toEqual({
+      verdicts: [],
+      relationVerdicts: [],
+      formVerdicts: [],
+      unresolvedQuotes: 0,
+      judgedOf: 2,
+      unjudged: [
+        { klpId: 'k0', weight: 3 },
+        { klpId: 'k1', weight: 1 },
+      ],
+      warnings: [
+        { reason: 'klp_unjudged', value: 'k0' },
+        { reason: 'klp_unjudged', value: 'k1' },
+      ],
+    })
+  })
+
+  it('records the key points the grader said nothing about, with their weight, and warns once each', () => {
+    // FINAL REVIEW finding (5): the result row must carry what it was graded
+    // AGAINST, or `coverageScore` cannot count the silent points at 0.
+    const out = buildPanelVerdicts(
+      { klpResults: [{ klpRef: 1, status: 'correct', quote: 'RAISES equity value' }] } as unknown as ShortAnswerGrade,
+      ctx,
+    )
+    expect(out.judgedOf).toBe(2)
+    expect(out.unjudged).toEqual([{ klpId: 'k0', weight: 3 }])
+    expect(out.warnings).toEqual([{ reason: 'klp_unjudged', value: 'k0' }])
+    // A full grade has nothing unjudged.
+    expect(buildPanelVerdicts(grade, ctx).unjudged).toEqual([])
+    expect(buildPanelVerdicts(grade, ctx).judgedOf).toBe(2)
   })
 })
 

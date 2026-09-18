@@ -408,7 +408,7 @@ async function main() {
           cardsTouched.add(b.cardId)
           console.log(
             `    ${answerId} — graded on ${r.model}: ${r.verdicts} key point(s), ${r.relationVerdicts} relation(s), ` +
-              `${r.formVerdicts} form, ${r.unresolvedQuotes} unresolved quote(s)` +
+              `${r.formVerdicts} form, ${r.unresolvedQuotes} unresolved quote(s), ${r.unjudged} unjudged` +
               (r.warnings.length > 0 ? `; warnings: ${r.warnings.map((w) => `${w.reason}:${w.value}`).join(' ')}` : ''),
           )
         } catch (err) {
