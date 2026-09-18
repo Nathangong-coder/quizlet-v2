@@ -24,8 +24,14 @@ import { join, relative } from 'path'
  * not generation-scoped reads and are not scanned.
  */
 
-const ROOT = join(__dirname, '../../src')
-const SCANNED_DIRS = ['lib/metrics', 'lib/analysis', 'lib/staff', 'lib/memory', 'lib/klp', 'lib/diagnostic', 'actions']
+const ROOT = join(__dirname, '../..')
+const SCANNED_DIRS = [
+  'src/lib/metrics', 'src/lib/analysis', 'src/lib/staff', 'src/lib/memory', 'src/lib/klp', 'src/lib/diagnostic',
+  'src/actions',
+  // Operator scripts count evidence too — an integrity check that counts every
+  // generation reports a regraded posterior as over-claiming its observations.
+  'scripts',
+]
 
 const DELEGATES = [
   'answerKlpResult',
@@ -34,7 +40,7 @@ const DELEGATES = [
   'answerFormResult',
   'answerUnwarrantedClaim',
 ]
-const READ_METHODS = ['findMany', 'findFirst', 'findUnique', 'groupBy', 'aggregate']
+const READ_METHODS = ['findMany', 'findFirst', 'findUnique', 'groupBy', 'aggregate', 'count']
 const NESTED_KEYS = ['klpResults', 'errorTags', 'relationResults', 'formResults', 'unwarranted']
 
 function walk(dir: string): string[] {
@@ -69,13 +75,47 @@ interface Site {
   text: string
 }
 
+/** `block` with every nested `{...}` below its own top level blanked out. */
+function topLevelOnly(block: string): string {
+  let depth = 0
+  let out = ''
+  for (const ch of block) {
+    if (ch === '{') {
+      depth += 1
+      out += depth === 1 ? ch : ' '
+    } else if (ch === '}') {
+      out += depth === 1 ? ch : ' '
+      depth -= 1
+    } else {
+      out += depth <= 1 ? ch : ' '
+    }
+  }
+  return out
+}
+
+/**
+ * Does `block` (a Prisma argument or nested-relation block) filter the ROW
+ * to the live generation? The filter must sit at the top level of the
+ * block's own `where:` (or `some:`/`every:`/`none:` predicate) — a nested
+ * `klp: { supersededAt: null }` is a filter on the KEY POINT, not the row,
+ * and must not satisfy this.
+ */
+function filtersLiveRows(block: string): boolean {
+  const re = /\b(where|some|every|none):\s*\{/g
+  for (const m of block.matchAll(re)) {
+    const pred = balancedBlock(block, m.index + m[0].length - 1)
+    if (/supersededAt:\s*null/.test(topLevelOnly(pred))) return true
+  }
+  return false
+}
+
 function delegateReads(file: string, src: string): Site[] {
   const sites: Site[] = []
   const re = new RegExp(`\\.(${DELEGATES.join('|')})\\.(${READ_METHODS.join('|')})\\(`, 'g')
   for (const m of src.matchAll(re)) {
     const openAt = m.index + m[0].length - 1
     const block = balancedBlock(src, openAt)
-    if (!/supersededAt:\s*null/.test(block)) {
+    if (!filtersLiveRows(block)) {
       sites.push({ file, line: src.slice(0, m.index).split('\n').length, text: m[0] })
     }
   }
@@ -92,7 +132,7 @@ function nestedReads(file: string, src: string): Site[] {
     // declaration or an object literal of drafts carries neither and is not
     // a read.
     if (!/\b(select|include|some|every|none):/.test(block)) continue
-    if (!/supersededAt:\s*null/.test(block)) {
+    if (!filtersLiveRows(block)) {
       sites.push({ file, line: src.slice(0, m.index).split('\n').length, text: m[0] })
     }
   }
@@ -102,8 +142,9 @@ function nestedReads(file: string, src: string): Site[] {
 describe('readers of analysis rows see the live generation only', () => {
   const files = SCANNED_DIRS.flatMap((d) => walk(join(ROOT, d)))
 
-  it('scans a non-trivial corpus', () => {
+  it('scans a non-trivial corpus, scripts included', () => {
     expect(files.length).toBeGreaterThan(20)
+    expect(files.some((f) => relative(ROOT, f).startsWith('scripts'))).toBe(true)
   })
 
   it('every delegate read of an analysis table filters supersededAt: null', () => {
@@ -122,6 +163,9 @@ describe('readers of analysis rows see the live generation only', () => {
     const nestedHits = [...all.matchAll(new RegExp(`\\b(${NESTED_KEYS.join('|')}):\\s*\\{\\s*(select|include|where)`, 'g'))]
     expect(delegateHits.length).toBeGreaterThanOrEqual(5)
     expect(nestedHits.length).toBeGreaterThanOrEqual(3)
+    // `count` is a read: an integrity check that counts every generation is
+    // exactly the over-claiming this filter prevents.
+    expect(all).toMatch(/\.answerKlpResult\.count\(/)
   })
 
   it('flags a read that forgets the filter', () => {
@@ -135,5 +179,29 @@ describe('readers of analysis rows see the live generation only', () => {
     expect(nestedReads('x.ts', nestedGood)).toHaveLength(0)
     const notARead = `errorTags: {\n  dimension: Dimension\n  type: string\n}[]`
     expect(nestedReads('x.ts', notARead)).toHaveLength(0)
+  })
+
+  it('treats count as a read', () => {
+    const bad = `const n = await prisma.answerKlpResult.count({ where: { klpId: 'k' } })`
+    expect(delegateReads('x.ts', bad)).toHaveLength(1)
+    const bare = `const n = await prisma.answerErrorTag.count()`
+    expect(delegateReads('x.ts', bare)).toHaveLength(1)
+    const good = `const n = await prisma.answerKlpResult.count({ where: { klpId: 'k', supersededAt: null } })`
+    expect(delegateReads('x.ts', good)).toHaveLength(0)
+  })
+
+  it('requires the filter on the ROW, not on a nested relation', () => {
+    // `klp: { supersededAt: null }` filters the KEY POINT (its own
+    // `supersededAt` is the KLP-version test). It says nothing about which
+    // generation of RESULT rows is read, and must not pass.
+    const nestedOnly = `const rows = await prisma.answerKlpResult.findMany({ where: { quizAnswer: { userId }, klp: { supersededAt: null } } })`
+    expect(delegateReads('x.ts', nestedOnly)).toHaveLength(1)
+    const nestedRelationOnly = `select: { klpResults: { where: { klp: { supersededAt: null } }, select: { klpId: true } } }`
+    expect(nestedReads('x.ts', nestedRelationOnly)).toHaveLength(1)
+    // And the regrade-run shape — the ROW filter beside a KLP filter — passes.
+    const both = `where: { cardId, klpResults: { some: { supersededAt: null, klp: { supersededAt: { not: null } } } } }`
+    expect(nestedReads('x.ts', both)).toHaveLength(0)
+    const rowAndKlp = `await prisma.answerKlpResult.findMany({ where: { supersededAt: null, klp: { supersededAt: { not: null } } } })`
+    expect(delegateReads('x.ts', rowAndKlp)).toHaveLength(0)
   })
 })

@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { KLP_STATUSES, STATUS_CREDIT } from '@/lib/errors/klp-credit'
 import type { HistoryScope } from '@/lib/memory/scope'
 import { buildCardScopeWhere } from '@/lib/memory/scope'
 import { shapeMissedWork, type MissedTopic, type ShapeMissedWorkInput } from '@/lib/metrics/missed'
@@ -18,8 +19,14 @@ import type { MetricThresholds } from '@/lib/tuning/schema'
  * visibility pass closed ten of.
  */
 
-/** The statuses `shapeMissedWork` treats as a miss. Kept in sync with it. */
-const MISS_STATUSES = ['failed', 'partial']
+/**
+ * The statuses `shapeMissedWork` treats as a miss — anything under full
+ * credit — DERIVED from the credit table rather than listed by hand. The hand
+ * list this used to be (`['failed', 'partial']`) predated Spec 5's runtime
+ * vocabulary and silently dropped every new label: an `omission` or an
+ * `inversion` never reached the missed-work panel at all.
+ */
+const MISS_STATUSES: string[] = KLP_STATUSES.filter((s) => STATUS_CREDIT[s] < 1)
 
 function cardWhere(userId: string, scope: HistoryScope, categoryIds: string[]) {
   const scopeWhere = scope.cardId ? { id: scope.cardId } : buildCardScopeWhere(scope, categoryIds)
@@ -29,7 +36,7 @@ function cardWhere(userId: string, scope: HistoryScope, categoryIds: string[]) {
 /**
  * What the learner actually got wrong, grouped by topic.
  *
- * Reads only misses (`failed` / `partial`) — a passed result is not something
+ * Reads only misses (any status under full credit) — a passed result is not something
  * to show on a panel about being wrong. The aggregate `pKnown` still comes
  * from `KlpState`, which was built from ALL evidence, so a KLP the learner has
  * since mastered can appear here with a high knowledge figure. That is

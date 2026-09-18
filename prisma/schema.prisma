@@ -1520,7 +1520,9 @@ model AnswerKlpResult {
   /// unique index in migration 20260917103000_regrade_generations —
   /// `WHERE "supersededAt" IS NULL` — which Prisma cannot declare, so it is
   /// invisible to `migrate diff`. The plain index below is for the cascade
-  /// and for generation-agnostic reads.
+  /// and for generation-agnostic reads. NEVER re-add `@@unique([quizAnswerId,
+  /// klpId])` here: the first regrade would violate it and roll back.
+  /// Guarded by tests/schema/regrade-generations.test.ts.
   supersededAt DateTime?
   quizAnswer   QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
   klp          CardKlp    @relation(fields: [klpId], references: [id], onDelete: Cascade)
@@ -1589,7 +1591,8 @@ model AnswerRelationResult {
   spanEnd      Int?
   createdAt    DateTime    @default(now())
   /// See AnswerKlpResult.supersededAt. Live uniqueness on
-  /// (quizAnswerId, relationId) is a partial unique index in SQL.
+  /// (quizAnswerId, relationId) is a partial unique index in SQL only —
+  /// never a `@@unique` here. Guarded by tests/schema/regrade-generations.test.ts.
   supersededAt DateTime?
   quizAnswer   QuizAnswer  @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
   relation     KlpRelation @relation(fields: [relationId], references: [id], onDelete: Cascade)
@@ -1610,7 +1613,8 @@ model AnswerFormResult {
   spanEnd           Int?
   createdAt         DateTime            @default(now())
   /// See AnswerKlpResult.supersededAt. Live uniqueness on
-  /// (quizAnswerId, formRequirementId) is a partial unique index in SQL.
+  /// (quizAnswerId, formRequirementId) is a partial unique index in SQL only —
+  /// never a `@@unique` here. Guarded by tests/schema/regrade-generations.test.ts.
   supersededAt      DateTime?
   quizAnswer        QuizAnswer          @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
   formRequirement   CardFormRequirement @relation(fields: [formRequirementId], references: [id], onDelete: Cascade)

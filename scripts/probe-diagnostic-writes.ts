@@ -160,10 +160,10 @@ async function main() {
 
     const answers = await prisma.quizAnswer.count({ where: { attemptId: created.quizAttempt.id } })
     const results = await prisma.answerKlpResult.count({
-      where: { quizAnswer: { attemptId: created.quizAttempt.id } },
+      where: { quizAnswer: { attemptId: created.quizAttempt.id }, supersededAt: null },
     })
     const tags = await prisma.answerErrorTag.count({
-      where: { quizAnswer: { attemptId: created.quizAttempt.id } },
+      where: { quizAnswer: { attemptId: created.quizAttempt.id }, supersededAt: null },
     })
     const states = await prisma.klpState.count({ where: { userId: user.id } })
     const events = await prisma.studyEvent.findMany({

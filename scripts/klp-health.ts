@@ -22,8 +22,10 @@ async function main() {
   }
 
   const liveKlps = await prisma.cardKlp.count({ where: { supersededAt: null } })
-  const klpResults = await prisma.answerKlpResult.count()
-  const tags = await prisma.answerErrorTag.count()
+  // Live generation only — a regraded answer's superseded rows are history,
+  // not evidence (Spec 5 Phase A §6).
+  const klpResults = await prisma.answerKlpResult.count({ where: { supersededAt: null } })
+  const tags = await prisma.answerErrorTag.count({ where: { supersededAt: null } })
 
   const answersByAnalysis = await prisma.quizAnswer.groupBy({
     by: ['analysisStatus'],

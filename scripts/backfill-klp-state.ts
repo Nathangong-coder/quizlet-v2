@@ -53,7 +53,7 @@ async function main() {
   // rows are fetched, replayed, and (if not a dry run) written before moving
   // to the next user, bounding memory to one user's history at a time.
   const userRows = await prisma.quizAnswer.findMany({
-    where: { klpResults: { some: {} } },
+    where: { klpResults: { some: { supersededAt: null } } },
     select: { userId: true },
     distinct: ['userId'],
   })

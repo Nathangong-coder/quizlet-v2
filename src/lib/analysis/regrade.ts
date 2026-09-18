@@ -54,6 +54,13 @@ export interface RegradeCandidate {
    * worse verdict than the one it already has.
    */
   hasMediaPrompt?: boolean
+  /**
+   * At least one LIVE row of this answer points at a superseded `CardKlp` —
+   * the answer is stranded on an old key-point version. That is the KLP-edit
+   * regrade's job (`npm run regrade-klps`), not this tool's: see
+   * `klps_superseded`.
+   */
+  liveRowsPointAtSupersededKlp?: boolean
 }
 
 export type RegradeSkipReason =
@@ -62,6 +69,17 @@ export type RegradeSkipReason =
   | 'no_live_klps'
   | 'not_short_answer'
   | 'media_prompt'
+  | 'klps_superseded'
+
+export interface PlanRegradeOptions {
+  graderVersion: number
+  /**
+   * `--include-stranded`: grade an answer whose rows point at a superseded
+   * key-point version anyway, against the LIVE version. Off by default —
+   * see `klps_superseded`.
+   */
+  includeStranded?: boolean
+}
 
 export interface RegradePlan {
   toGrade: string[]
@@ -71,7 +89,7 @@ export interface RegradePlan {
 /** The one reason an answer is skipped, or null when it should be graded. */
 export function skipReasonFor(
   a: RegradeCandidate,
-  opts: { graderVersion: number },
+  opts: PlanRegradeOptions,
 ): RegradeSkipReason | null {
   // Order is the order of cheapness to explain: a current row is the
   // resumability gate and the most common skip on a second run.
@@ -80,6 +98,7 @@ export function skipReasonFor(
   if (!a.answerText || a.answerText.trim().length === 0) return 'no_answer_text'
   if (a.liveKlpCount === 0) return 'no_live_klps'
   if (a.hasMediaPrompt) return 'media_prompt'
+  if (a.liveRowsPointAtSupersededKlp && !opts.includeStranded) return 'klps_superseded'
   return null
 }
 
@@ -94,10 +113,16 @@ export function skipReasonFor(
  * - `no_answer_text`: nothing to grade.
  * - `no_live_klps`: nothing to grade AGAINST — the content pass is per point.
  * - `media_prompt`: see `RegradeCandidate.hasMediaPrompt`.
+ * - `klps_superseded`: the answer's live rows point at a superseded key-point
+ *   version. This tool re-measures the SAME key points under a new
+ *   instrument; re-attaching evidence to a NEW version is the KLP-edit
+ *   regrade's job, and folding the two into one run would make one number
+ *   carry two different changes. `includeStranded` overrides (the script's
+ *   `--include-stranded`), grading against the live version.
  */
 export function planRegrade(
   answers: RegradeCandidate[],
-  opts: { graderVersion: number },
+  opts: PlanRegradeOptions,
 ): RegradePlan {
   const toGrade: string[] = []
   const skipped: RegradePlan['skipped'] = []
@@ -161,6 +186,8 @@ const answerSelect = {
       contentBlocks: { select: { side: true, type: true } },
     },
   },
+  // The live generation's key points, for the `klps_superseded` rule.
+  klpResults: { where: { supersededAt: null }, select: { klp: { select: { supersededAt: true } } } },
 } satisfies Prisma.QuizAnswerSelect
 
 /**
@@ -174,11 +201,13 @@ const answerSelect = {
  * `promptViewOf`. Nothing about the learner rides in: the grader is a
  * stateless instrument (Spec 5, "The boundary").
  *
- * Against the LIVE key points, deliberately. An answer whose rows still point
- * at a superseded `CardKlp` version is what `regrade-klps` (the KLP-edit
- * tool) repairs, and for short answer that tool's own remedy IS a re-grade
- * against the live points — so grading here against them is the same verdict
- * that tool would have produced, one run earlier.
+ * Against the card's LIVE key points — and ONLY when the answer's live rows
+ * already point at them. An answer stranded on a superseded `CardKlp`
+ * version is skipped (`klps_superseded`): re-attaching evidence to a new
+ * version is `regrade-klps`'s job, and this tool's whole claim is that it
+ * changes the instrument and nothing else. `includeStranded` (the script's
+ * `--include-stranded`) overrides, grading against the live version — the
+ * same verdict `regrade-klps` would produce for short answer, one run earlier.
  *
  * Then, in ONE transaction: every live row of this answer in all five
  * analysis tables is marked `supersededAt = now`, the new generation is
@@ -198,7 +227,7 @@ const answerSelect = {
 export async function regradeAnswer(
   answerId: string,
   gen: RegradeGenerator,
-  opts: { now?: () => Date } = {},
+  opts: { now?: () => Date; includeStranded?: boolean } = {},
 ): Promise<RegradeAnswerResult> {
   const answer = await prisma.quizAnswer.findUnique({ where: { id: answerId }, select: answerSelect })
   if (!answer) throw new Error(`regrade: answer ${answerId} not found`)
@@ -217,8 +246,9 @@ export async function regradeAnswer(
       answerText: answer.answer,
       liveKlpCount: klps.length,
       hasMediaPrompt: answer.card.contentBlocks.some((b) => b.side === 'term' && b.type !== 'text'),
+      liveRowsPointAtSupersededKlp: answer.klpResults.some((r) => r.klp.supersededAt !== null),
     },
-    { graderVersion: GRADER_VERSION },
+    { graderVersion: GRADER_VERSION, includeStranded: opts.includeStranded },
   )
   if (reason) return { answerId, outcome: 'skipped', reason }
   const answerText = answer.answer as string
@@ -228,11 +258,23 @@ export async function regradeAnswer(
   const card = await prisma.card.findUnique({ where: { id: answer.cardId } })
   if (!card) throw new Error(`regrade: card ${answer.cardId} not found`)
 
-  const progress = await prisma.cardProgress.findUnique({
-    where: { userId_cardId: { userId: answer.userId, cardId: answer.cardId } },
+  // `starred` is an input to significance. It is copied from the superseded
+  // generation's tags when there are any — `AnswerErrorTag.starred` is
+  // "starred AT ANSWER TIME" — so a regrade measures the grader alone: a card
+  // the learner starred since must not move every tag's significance for a
+  // reason that has nothing to do with the instrument. Only an answer whose
+  // prior generation carried no tags falls back to current progress.
+  const priorTag = await prisma.answerErrorTag.findFirst({
+    where: { quizAnswerId: answerId, supersededAt: null },
     select: { starred: true },
   })
-  const starred = progress?.starred ?? false
+  const progress = priorTag
+    ? null
+    : await prisma.cardProgress.findUnique({
+        where: { userId_cardId: { userId: answer.userId, cardId: answer.cardId } },
+        select: { starred: true },
+      })
+  const starred = priorTag?.starred ?? progress?.starred ?? false
 
   const promptKlps = klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind }))
   const context = await loadGradingContext(answer.cardId, klps)
@@ -359,6 +401,7 @@ export async function loadRegradeCandidates(
           contentBlocks: { select: { side: true, type: true } },
         },
       },
+      klpResults: { where: { supersededAt: null }, select: { klp: { select: { supersededAt: true } } } },
     },
   })
   return rows.map((r) => ({
@@ -368,5 +411,6 @@ export async function loadRegradeCandidates(
     answerText: r.answer,
     liveKlpCount: r.card.klps.length,
     hasMediaPrompt: r.card.contentBlocks.some((b) => b.side === 'term' && b.type !== 'text'),
+    liveRowsPointAtSupersededKlp: r.klpResults.some((x) => x.klp.supersededAt !== null),
   }))
 }

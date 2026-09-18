@@ -79,6 +79,7 @@ const { tx, prisma, calls, answerCreatedAt } = vi.hoisted(() => {
     klpRelation: { findMany: vi.fn().mockResolvedValue([]) },
     cardFormRequirement: { findMany: vi.fn().mockResolvedValue([]) },
     cardAuthoring: { findFirst: vi.fn().mockResolvedValue({ referenceAnswer: 'A reference answer.' }) },
+    answerErrorTag: { findFirst: vi.fn().mockResolvedValue(null) },
   }
   return { tx, prisma, calls, answerCreatedAt }
 })
@@ -147,6 +148,22 @@ describe('planRegrade (pure)', () => {
       .toEqual([{ id: 'a1', reason: 'current_version' }])
   })
 
+  it('skips an answer whose live rows point at a superseded key point (klps_superseded)', () => {
+    // Controller ruling: the grader-version regrade re-measures the SAME key
+    // points. An answer stranded on a superseded CardKlp version is the
+    // KLP-edit regrade's job (`npm run regrade-klps`); grading it here against
+    // the live version would fold two different repairs into one number.
+    expect(planRegrade([candidate({ liveRowsPointAtSupersededKlp: true })], { graderVersion: 2 }).skipped)
+      .toEqual([{ id: 'a1', reason: 'klps_superseded' }])
+  })
+
+  it('--include-stranded overrides the klps_superseded skip and nothing else', () => {
+    expect(planRegrade([candidate({ liveRowsPointAtSupersededKlp: true })], { graderVersion: 2, includeStranded: true }))
+      .toEqual({ toGrade: ['a1'], skipped: [] })
+    expect(planRegrade([candidate({ liveRowsPointAtSupersededKlp: true, answerText: null })], { graderVersion: 2, includeStranded: true }).skipped)
+      .toEqual([{ id: 'a1', reason: 'no_answer_text' }])
+  })
+
   it('keeps input order and reports both lists', () => {
     const plan = planRegrade(
       [candidate({ id: 'x' }), candidate({ id: 'y', answerText: null }), candidate({ id: 'z' })],
@@ -190,7 +207,10 @@ function primeLoads() {
       definition: 'D&A is added back because it is non-cash.',
       contentBlocks: [{ side: 'term', type: 'text' }],
     },
+    // The live generation's rows all point at live key points.
+    klpResults: [{ klp: { supersededAt: null } }],
   })
+  prisma.answerErrorTag.findFirst.mockResolvedValue(null)
   prisma.card.findUnique.mockResolvedValue({
     id: 'c1',
     term: 'FCF and D&A',
@@ -351,6 +371,7 @@ describe('regradeAnswer', () => {
       id: 'a1', userId: 'u1', cardId: 'c1', mode: 'short-answer', answer: null,
       createdAt: answerCreatedAt, graderVersion: null,
       card: { id: 'c1', term: 't', definition: 'd', contentBlocks: [] },
+      klpResults: [],
     })
     const gen = vi.fn()
     const out = await regradeAnswer('a1', gen)
@@ -363,6 +384,51 @@ describe('regradeAnswer', () => {
     const gen = vi.fn().mockRejectedValue(new Error('provider down'))
     await expect(regradeAnswer('a1', gen)).rejects.toThrow('provider down')
     expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('skips an answer stranded on a superseded key point unless told to include it', async () => {
+    prisma.quizAnswer.findUnique.mockResolvedValue({
+      id: 'a1', userId: 'u1', cardId: 'c1', mode: 'short-answer', answer: 'FCF rises because D&A is non-cash.',
+      createdAt: answerCreatedAt, graderVersion: null,
+      card: { id: 'c1', term: 't', definition: 'd', contentBlocks: [] },
+      klpResults: [{ klp: { supersededAt: null } }, { klp: { supersededAt: new Date('2026-09-10') } }],
+    })
+    const gen = vi.fn().mockResolvedValue({ value: fakeGrade, model: 'm' })
+    const out = await regradeAnswer('a1', gen)
+    expect(out).toEqual({ answerId: 'a1', outcome: 'skipped', reason: 'klps_superseded' })
+    expect(gen).not.toHaveBeenCalled()
+
+    // The executor honours the override the script passes for --include-stranded.
+    const forced = await regradeAnswer('a1', gen, { includeStranded: true })
+    expect(forced.outcome).toBe('regraded')
+    expect(gen).toHaveBeenCalledTimes(1)
+  })
+
+  it('copies starred from the superseded generation\'s tags so the regrade measures the grader alone', async () => {
+    // Significance takes `starred` as an input. The learner starred the card
+    // AFTER the original grade; a regrade that read today's progress would
+    // move every tag's significance for a reason that has nothing to do with
+    // the instrument being re-measured.
+    prisma.cardProgress.findUnique.mockResolvedValue({ starred: true })
+    prisma.answerErrorTag.findFirst.mockResolvedValue({ starred: false })
+    const withTag = { ...fakeGrade, errorTags: [{ dimension: 'accuracy', type: 'omission', klpRef: 1, magnitude: 5 }] }
+    await regradeAnswer('a1', vi.fn().mockResolvedValue({ value: withTag, model: 'm' }))
+    expect(prisma.answerErrorTag.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { quizAnswerId: 'a1', supersededAt: null } }),
+    )
+    expect(tx.answerErrorTag.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ type: 'omission', starred: false })],
+    })
+  })
+
+  it('falls back to current progress for starred when the superseded generation had no tags', async () => {
+    prisma.cardProgress.findUnique.mockResolvedValue({ starred: true })
+    prisma.answerErrorTag.findFirst.mockResolvedValue(null)
+    const withTag = { ...fakeGrade, errorTags: [{ dimension: 'accuracy', type: 'omission', klpRef: 1, magnitude: 5 }] }
+    await regradeAnswer('a1', vi.fn().mockResolvedValue({ value: withTag, model: 'm' }))
+    expect(tx.answerErrorTag.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ type: 'omission', starred: true })],
+    })
   })
 
   it('reports the model that graded and the row counts', async () => {

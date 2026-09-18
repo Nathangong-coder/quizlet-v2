@@ -61,6 +61,10 @@ import {
  *                         the encrypted credential pool — needed locally, where
  *                         `.env` carries no GOOGLE_KEY_ENCRYPTION_SECRET
  *   --limit <n>           cap the answers graded this run
+ *   --include-stranded    also grade answers whose rows point at a superseded
+ *                         key-point version (skipped as `klps_superseded` by
+ *                         default — that is `regrade-klps`'s job); grades them
+ *                         against the live version
  *
  * Without --direct the grading call runs on the SET OWNER's stored
  * credentials, never the answering learner's: a re-measurement is the
@@ -168,11 +172,19 @@ async function main() {
   const attemptId = opt(args, '--attempt')
   const dryRun = flag(args, '--dry-run')
   const direct = flag(args, '--direct')
+  const includeStranded = flag(args, '--include-stranded')
   const limitRaw = opt(args, '--limit')
   const limit = limitRaw !== undefined ? Number.parseInt(limitRaw, 10) : undefined
 
   if ((!setId && !attemptId) || (setId && attemptId)) {
     console.error('[regrade] exactly one of --set <setId> or --attempt <attemptId> is required.')
+    process.exitCode = 1
+    return
+  }
+  if (limitRaw !== undefined && (!/^\d+$/.test(limitRaw) || limit === undefined || limit < 1)) {
+    // `Number.parseInt('abc')` is NaN, and `.slice(0, NaN)` is an empty slice
+    // — a typo would have silently graded nothing and reported "done".
+    console.error(`[regrade] --limit needs a positive integer, got "${limitRaw}".`)
     process.exitCode = 1
     return
   }
@@ -190,7 +202,7 @@ async function main() {
   }
 
   const candidates = await loadRegradeCandidates(setId ? { setId } : { attemptId: attemptId! })
-  const plan = planRegrade(candidates, { graderVersion: GRADER_VERSION })
+  const plan = planRegrade(candidates, { graderVersion: GRADER_VERSION, includeStranded })
   const toGrade = limit !== undefined ? plan.toGrade.slice(0, limit) : plan.toGrade
 
   const byReason = new Map<string, number>()
@@ -228,7 +240,7 @@ async function main() {
   const failed: { id: string; error: string }[] = []
   for (const id of toGrade) {
     try {
-      const r = await regradeAnswer(id, gen)
+      const r = await regradeAnswer(id, gen, { includeStranded })
       results.push(r)
       if (r.outcome === 'skipped') {
         console.log(`  ${id} — skipped (${r.reason})`)

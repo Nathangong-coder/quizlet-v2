@@ -35,6 +35,15 @@ import {
  * dead ones asserting knowledge from observations no longer attached to them.
  * The rebuild's delete branch removes a state whose evidence is gone, which is
  * exactly the needed behaviour — but only if the id is passed in.
+ *
+ * **It rewrites the LIVE generation only.** The grader-version regrade
+ * (`src/lib/analysis/regrade.ts`, Spec 5 Phase A §6) supersedes rather than
+ * deletes, so an answer may carry a superseded generation of rows beside its
+ * live one. Every delete below is scoped `supersededAt: null`: a KLP edit
+ * rewrites what is live and never takes a grader regrade's history with it.
+ * This tool still DELETES the live rows it rewrites rather than superseding
+ * them — supersede adoption deferred (queue); when it lands, the carry path
+ * should write through `writeAnalysisGeneration` too.
  */
 
 /** Everything a card's re-grade needs, read once. */
@@ -192,11 +201,13 @@ export async function applyRegradePlan(
   await prisma.$transaction(async (tx) => {
     await lockKlpStates(tx, userId, affected)
 
-    // Every prior result goes, then survivors are re-created on live ids. A
-    // delete-and-recreate rather than an UPDATE of `klpId`: the unique
-    // constraint is (quizAnswerId, klpId), and updating rows one at a time can
-    // transiently collide with a row not yet moved.
-    await tx.answerKlpResult.deleteMany({ where: { quizAnswerId: plan.answerId } })
+    // Every LIVE prior result goes, then survivors are re-created on live ids.
+    // A delete-and-recreate rather than an UPDATE of `klpId`: the live-key
+    // unique is (quizAnswerId, klpId) WHERE supersededAt IS NULL, and updating
+    // rows one at a time can transiently collide with a row not yet moved.
+    // `supersededAt: null` spares a grader regrade's superseded generation —
+    // see the header; supersede adoption deferred (queue).
+    await tx.answerKlpResult.deleteMany({ where: { quizAnswerId: plan.answerId, supersededAt: null } })
 
     const toWrite =
       plan.action === 'regrade' && fresh
@@ -221,7 +232,8 @@ export async function applyRegradePlan(
     // "about the whole answer", so the tag stays real while its now-unresolvable
     // specificity is dropped rather than reassigned to a neighbouring point.
     if (plan.action === 'regrade' && fresh) {
-      await tx.answerErrorTag.deleteMany({ where: { quizAnswerId: plan.answerId } })
+      // Live generation only, as above.
+      await tx.answerErrorTag.deleteMany({ where: { quizAnswerId: plan.answerId, supersededAt: null } })
       if (fresh.errorTags.length > 0) {
         await tx.answerErrorTag.createMany({
           data: fresh.errorTags.map((t) => ({ ...t, quizAnswerId: plan.answerId })),
