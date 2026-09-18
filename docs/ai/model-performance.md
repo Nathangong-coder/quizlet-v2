@@ -1268,6 +1268,52 @@ fitted line, p95, and the recommended pair.
 
 ### Spec 5 — grader benchmark baseline (`npm run bench-grader`)
 
+**RUN 2026-09-18 — grader v2, `deepseek-flash` grading, 10/10 LBO cards, artifact
+https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg (every answer, verdict, quote and rationale).**
+
+| | |
+| --- | --- |
+| Rank agreement | **54/60 (90.0%)**, 5/10 cards at 6/6 |
+| Mean adjacent gap | 0.22 (expert→competent 0.11, competent→weak 0.41, weak→wrong 0.15) |
+| Unjudged points | 0/284 |
+| Quotes unresolved | 17/484 (3.5%) — all on relation verdicts; the grader paraphrases links |
+| Cost | 28 grades: 88k in / 31k out on DeepSeek ≈ $0.022; panels ≈ $0.006 |
+| Panels | 7 on `glm-5.3-flash` (`high`), 3 on `deepseek-flash` (GLM failed the panel schema on those three even after the 32k ceiling — a writer-compliance question, not a ceiling one) |
+
+**The first run (grader v1) found two instrument defects and was discarded — this is what the
+benchmark is for.** (1) On the 9-point "walk me through an LBO" card DeepSeek returned the rubric
+and omitted `klpResults` on three of four answers; the field was optional so the reply parsed as
+zero verdicts and the card scored 0/6 with 27/36 unjudged. The KLP-path prompt had shown the
+rubric's own `JSON Schema: {...}` first and asked for the analysis afterwards. Fixed as
+grade-short-answer **v6** (one schema listing, rubric + analysis fields, right before the answer)
+and `ShortAnswerGradeWithAnalysisSchema` (`klpResults` required wherever key points are listed);
+`GRADER_VERSION` 2. (2) GLM at `high` reasoning spent the provider's default 8,192 output tokens
+entirely on reasoning and emitted nothing on 5 of 10 panel writes (`finishReason: length`, text
+length 0); `authorPanel` now passes `PANEL_MAX_OUTPUT_TOKENS` 32768.
+
+**Every one of the six inversions is one of two shapes, and neither is a mis-grade:**
+
+- **expert ties competent at 1.00** (3 cards: "What is an LBO", "walk me through", "how long
+  does a PE firm hold"). The adversary's competent answer names ONE gap each — "never states that
+  deleveraging grows the sponsor's equity stake", "never mentions the sponsor's return hurdle",
+  "never states the roughly ten-year fund life, only 'the fund's life'" — and the grader credited
+  that point `correct` all three times. **This is the "harsh enough?" question for the owner:** on
+  the expert/competent margin the strict clause is not biting on a point that is gestured at
+  rather than stated. On the weak answers the same grader hands out `partial`/`incomplete`
+  freely, so it is not blanket leniency — it is leniency when the surrounding answer is fluent.
+- **wrong outscores weak** (3 cards). The wrong answer is caught exactly where the adversary put
+  the error (`contradicted` on [5],[7] and five relations; `contradicted` on [2],[3],[4]) but
+  states every other point, so its coverage beats a weak answer with three holes. Coverage and
+  verdict composition are separate axes by design (the owner's grader doc: never a composite).
+  Whether a contradicted point should sink an answer below any answer with only holes is a
+  ranking-rule decision for the owner, not a grader defect.
+
+**Provisional ceiling check from this run:** the largest grade reply was 1,178 output tokens on a
+5-point/4-relation card against a ceiling of 7,448 (2048 + 600 × 9); the placeholder constants
+are generous by ~6×. `npm run probe-grade-tokens` cannot run yet (one stored short-answer row).
+
+**The section below is the pre-run text, kept for the commands.**
+
 **NOT YET RUN — the LBO baseline is OWED.** The script, the persisted panel/result tables, the
 scoring (`src/lib/analysis/benchmark.ts`) and the report (`src/lib/analysis/benchmark-report.ts`)
 are built, type-check, and boot against the live database (`--dry-run` on the LBO set plans a

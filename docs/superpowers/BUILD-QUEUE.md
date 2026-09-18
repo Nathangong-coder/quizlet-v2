@@ -10,6 +10,19 @@ its reference answer — never the learner — and returns categorical verdicts 
 with verbatim quotes that TypeScript resolves to spans; `ANALYSIS_VERSION` 4, `GRADER_VERSION` 1,
 rows carry `supersededAt` and readers filter on it; the regrade tool writes generations; the grader
 benchmark is the acceptance test. Suite **4,277** tests, `tsc` clean, lint **171** (ceiling 175).
+**UPDATE 2026-09-18 (afternoon, owner present, keys in `.env`): the runtime probe and the LBO
+benchmark baseline RAN.** Probe on DeepSeek: reference all `correct`, blank all `omission`, the
+hand-inverted causal point `inversion` (and its relation), 8/9 quotes resolved. Benchmark, grader
+**v2**: rank agreement **54/60 (90.0%)**, 5/10 cards perfect, mean adjacent gap 0.22, 0 unjudged;
+artifact https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg; record in `docs/ai/model-performance.md`.
+The FIRST run (grader v1) exposed two instrument defects, both fixed in `6dea6cb`: DeepSeek dropped
+the optional `klpResults` on a long card (→ prompt v6 with one output schema + the required
+`ShortAnswerGradeWithAnalysisSchema`), and GLM at `high` effort burned the default output budget on
+reasoning and wrote nothing on 5/10 panels (→ `PANEL_MAX_OUTPUT_TOKENS` 32768). GLM still fails the
+panel schema on 3/10 cards (written on DeepSeek instead) — writer compliance, open. **Owner's read
+owed:** the three expert/competent ties are the grader crediting a point the adversary says was only
+gestured at ("harsh enough?"); the three wrong-over-weak inversions are coverage vs composition — a
+ranking-rule decision. `graderVersion` is now **2**; the row check below expects 2.
 **OWED to the owner (keys/browser), in this order:** (1) `npm run probe-grade-tokens -- --models
 deepseek-flash` → paste the printed pair into `src/lib/analysis/output-cap.ts` (2048/600 are
 placeholders); (2) `npm run probe-runtime-grade -- --model deepseek-flash`, then `--model
@@ -18,7 +31,7 @@ gemini-3.1-flash-lite`, record in `docs/ai/model-performance.md` "Spec 5 — the
 scripts/bench-grader.ts --set cmtj7pxfc000005l4rv4krxxy --author --direct --model deepseek-flash`
 (then `--kind modes --author`); (4) one real short-answer quiz on the LBO set in the app, then the
 row check `npm run verify:grade-rows -- <attemptId>` (read-only: `analysisVersion 4`,
-`graderVersion 1`, statuses in vocabulary and none `passed`, `spanStart` on non-`correct` rows,
+`graderVersion 2`, statuses in vocabulary and none `passed`, `spanStart` on non-`correct` rows,
 relation rows `passive`, `KlpState.pKnown` finite); (5) `npm run author-form-reqs -- --set <id>` once per
 authored set (~$0.30 corpus-wide) — **until it runs, every authored set reads `ready: false` and the
 build banner reappears.** The deferred list (regrade-run supersede adoption, the cron's form-reqs
@@ -1496,7 +1509,7 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
      not run**), then the row check, one command, read-only:
      `npm run verify:grade-rows -- <attemptId>` (`scripts/verify-grade-rows.ts`, the shape of
      `verify-diagnostic.ts`; the attempt id is in the results URL). It prints and checks, per
-     short-answer answer: `analysisVersion 4` and `graderVersion 1`; every live
+     short-answer answer: `analysisVersion 4` and `graderVersion 2`; every live
      `AnswerKlpResult.status` in `KLP_STATUSES` and none `passed`; `spanStart` set on every live
      non-`correct` row; every live `AnswerRelationResult` `provenance 'passive'`; and
      `KlpState.pKnown` finite for every touched key point. Exit 1 on any FAIL. Type-checked and
