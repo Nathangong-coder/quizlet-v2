@@ -24,6 +24,12 @@ fixed with one schema per panel kind (`graderPanelSchemaFor`). **Owner's read
 owed:** the two expert/competent ties are the grader crediting the trailing clause of a compound key point
 ("harsh enough?" — the causal one should have been `incomplete`); the two wrong-over-weak inversions are coverage vs composition — a
 ranking-rule decision. `graderVersion` is now **2**; the row check below expects 2.
+**UPDATE 2026-09-18 (evening): scoring rules + blind panel.** `src/lib/analysis/scoring-rules.ts`
+adds the contradiction term (a wrong point subtracts its weight; a wrong relation half the mean
+weight) — the owner's read of a 0.75 "egregiously wrong" answer, now 0.17. Baseline of record, all-GLM
+panels, DeepSeek grading: rubric-aware **57/60**, blind **58/60** (`docs/ai/model-performance.md`).
+`--kind blind` is the panel to hold the grader to. `GraderPanelResult.expression` carries the legacy
+rubric until Phase B. Still owed: the compound-point strict clause (grader v3), `--kind modes`.
 **OWED to the owner (keys/browser), in this order:** (1) `npm run probe-grade-tokens -- --models
 deepseek-flash` → paste the printed pair into `src/lib/analysis/output-cap.ts` (2048/600 are
 placeholders); (2) `npm run probe-runtime-grade -- --model deepseek-flash`, then `--model

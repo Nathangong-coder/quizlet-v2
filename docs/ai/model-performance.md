@@ -1268,6 +1268,38 @@ fitted line, p95, and the recommended pair.
 
 ### Spec 5 — grader benchmark baseline (`npm run bench-grader`)
 
+**BASELINE OF RECORD, 2026-09-18 (evening) — grader v2, scoring rules v1 (contradiction term), every
+panel written by GLM `glm-5.3-flash` at `high`, every answer graded by `deepseek-flash`. Two panels
+per card: the rubric-aware adversary (saw the key points) and the BLIND adversary (question + reference
+only). Artifact https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg.**
+
+| | rubric-aware panel | blind panel |
+| --- | --- | --- |
+| Rank agreement | **57/60 (95.0%)**, 7/10 cards at 6/6 | **58/60 (96.7%)**, 8/10 cards at 6/6 |
+| Mean adjacent gap | 0.32 | 0.32 |
+| Wrong-over-weak inversions | 0 | 0 |
+| Remaining inversions | expert=competent ×2, competent=weak ×1 (adversary wrote both alike) | expert=competent ×2 |
+| Unjudged points | 0/284 | 0/284 |
+
+**What changed since the morning run (56/60 on coverage alone):** `answerScore` replaced coverage as
+the rank metric — a contradicted / inverted / conflated / misapplied point SUBTRACTS its weight
+(`contradictionPenalty` 1.0) and a contradicted relation subtracts half the card's mean weight
+(`relationContradictionPenalty` 0.5), floored at 0 (`src/lib/analysis/scoring-rules.ts`). The
+owner's "egregiously wrong" walk-me-through answer went **0.75 → 0.17** (coverage stays 0.75 and is
+reported beside it; composition reads 7✓ 2 WRONG R5 wrong; the legacy rubric gave correctness 3/10).
+Chosen by re-scoring the stored results, not by re-grading: every non-zero penalty removed both
+wrong-over-weak inversions; relation penalties at 1.0 zeroed every wrong answer (no gradation left).
+
+**The blind panel separates BETTER than the rubric-aware one.** An adversary that cannot see the
+points writes a "competent" answer with a real gap instead of an engineered one, so the grader has
+something to catch. This is the panel to hold the grader to; the rubric-aware panel stays as the
+easier, rationale-in-[n]-terms diagnostic.
+
+**Open for the owner:** the expert/competent ties are the grader crediting the trailing clause of a
+compound key point (a causal point should have been `incomplete`); a strict-clause sentence for
+compound points is the candidate grader v3, testable in one bench run. The two panel writers'
+residual: GLM at `high` still needs the retry-once on ~1 in 4 panel calls.
+
 **RUN 2026-09-18 — grader v2, `deepseek-flash` grading, 10/10 LBO cards, every panel written by a DIFFERENT family from the grader (7 GLM, 3 Gemini), artifact
 https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg (every answer, verdict, quote and rationale).**
 
