@@ -17,8 +17,9 @@ gemini-3.1-flash-lite`, record in `docs/ai/model-performance.md` "Spec 5 — the
 (3) the LBO benchmark baseline, `npx tsx --conditions=react-server --env-file=.env
 scripts/bench-grader.ts --set cmtj7pxfc000005l4rv4krxxy --author --direct --model deepseek-flash`
 (then `--kind modes --author`); (4) one real short-answer quiz on the LBO set in the app, then the
-row check (`analysisVersion 4`, `graderVersion 1`, statuses in vocabulary, `spanStart` on
-non-`correct` rows, `KlpState.pKnown` finite); (5) `npm run author-form-reqs -- --set <id>` once per
+row check `npm run verify:grade-rows -- <attemptId>` (read-only: `analysisVersion 4`,
+`graderVersion 1`, statuses in vocabulary and none `passed`, `spanStart` on non-`correct` rows,
+relation rows `passive`, `KlpState.pKnown` finite); (5) `npm run author-form-reqs -- --set <id>` once per
 authored set (~$0.30 corpus-wide) — **until it runs, every authored set reads `ready: false` and the
 build banner reappears.** The deferred list (regrade-run supersede adoption, the cron's form-reqs
 phase, three pre-existing `DROP INDEX` drifts, and the per-task minors) is in the item 5 entry.
@@ -1492,11 +1493,15 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
      `npx tsx --conditions=react-server --env-file=.env scripts/bench-grader.ts --set cmtj7pxfc000005l4rv4krxxy --author --direct --model deepseek-flash`,
      then `--kind modes --author`; record per "Spec 5 — grader benchmark baseline".
    - **One real short-answer quiz on the LBO set** in the running app (Step 3 of Task 12 — **did
-     not run**), then read the rows with a one-off `npx tsx --env-file=.env -e` query: the
-     `QuizAnswer` has `analysisVersion 4` and `graderVersion 1`; every `AnswerKlpResult.status` is
-     in `KLP_STATUSES` and none is `passed`; `spanStart` is set on every non-`correct` row whose
-     grader quoted; `AnswerRelationResult` rows exist with `provenance 'passive'`; `KlpState.pKnown`
-     is finite. (`GOOGLE_KEY_ENCRYPTION_SECRET` is absent locally, so this is the owner's.)
+     not run**), then the row check, one command, read-only:
+     `npm run verify:grade-rows -- <attemptId>` (`scripts/verify-grade-rows.ts`, the shape of
+     `verify-diagnostic.ts`; the attempt id is in the results URL). It prints and checks, per
+     short-answer answer: `analysisVersion 4` and `graderVersion 1`; every live
+     `AnswerKlpResult.status` in `KLP_STATUSES` and none `passed`; `spanStart` set on every live
+     non-`correct` row; every live `AnswerRelationResult` `provenance 'passive'`; and
+     `KlpState.pKnown` finite for every touched key point. Exit 1 on any FAIL. Type-checked and
+     booted (usage / unknown attempt) here; never run on a real attempt, because none exists yet
+     (`GOOGLE_KEY_ENCRYPTION_SECRET` is absent locally, so the quiz is the owner's).
    - **`npm run author-form-reqs -- --set <id>` once per authored set** (~$0.30 corpus-wide). Until
      it runs, `setBuildStatus` (`src/lib/klp/build-set.ts`) reads `needFormReqs > 0` / `ready: false` on
      every authored set and the key-points build banner reappears (Task 6 product note). Reviewer's recommendation:
@@ -1506,6 +1511,16 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
    - `src/lib/klp/regrade-run.ts` (the KLP-edit regrade) keeps its own writer and its `deleteMany`
      was narrowed to `supersededAt: null`; it should adopt supersede + `writeAnalysisGeneration`
      so a KLP-edit regrade never leaves a mixed live generation (Task 9 ruling).
+   - **Same file, the other half (Task 5 finding):** `regrade-run.ts:341,350` regrades with
+     `errorTags: []` and `unwarranted: []`, and `applyRegradePlan` (`regrade-run.ts:179`)
+     rewrites key-point rows only — it never touches `AnswerUnwarrantedClaim`. So after a KLP-edit
+     regrade the prior generation's claim rows survive, live, beside fresh key-point rows whose
+     contamination factor was computed from an empty `unwarranted[]`: **factor-1 credits beside
+     persisted claims**, and the contamination dock (`src/lib/errors/contamination.ts`) reads those
+     stale claims on the next read. Fix direction: when the KLP-edit regrade adopts
+     `writeAnalysisGeneration`, it must either re-emit `unwarranted[]` from a full v5 grade
+     (the prompt already returns it) or supersede the old claim rows with the old key-point rows —
+     never leave a generation half-superseded.
    - The cron's phase 3 should include sets with `needFormReqs > 0` (Task 6).
    - Three **pre-existing** `DROP INDEX` drifts in `prisma migrate diff` (`AiCallLog`, `Folder`,
      `SetKltNode`) — not ours; exclude them from any migration this branch creates. Also: the shared

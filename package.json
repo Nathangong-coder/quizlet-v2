@@ -32,6 +32,7 @@
     "reuse-klps": "tsx --conditions=react-server --env-file=.env scripts/reuse-klps.ts",
     "author-form-reqs": "tsx --conditions=react-server --env-file=.env scripts/author-form-reqs.ts",
     "verify:diagnostic": "tsx --env-file=.env scripts/verify-diagnostic.ts",
+    "verify:grade-rows": "tsx --env-file=.env scripts/verify-grade-rows.ts",
     "probe-models": "tsx --env-file=.env scripts/probe-model-policy.ts",
     "bench-models": "tsx --conditions=react-server --env-file=.env scripts/bench-models.ts",
     "bench-grader": "tsx --conditions=react-server --env-file=.env scripts/bench-grader.ts",
