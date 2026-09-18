@@ -40,6 +40,9 @@ import { createAnswerWithAnalysis } from '@/lib/analysis/write-answer';
 import type { StudySource } from '@/lib/memory/scoring';
 import { toStoredTags, deriveTagScores, REPEAT_WINDOW_ATTEMPTS, type RawTagRow } from '@/lib/errors/derive';
 import { loadAnsweredAttemptIds } from '@/lib/quiz/history';
+import { loadGradingContext, promptViewOf } from '@/lib/quiz/grading-context';
+import { shouldRetryGradeInPlace, unknownValueOf } from '@/lib/quiz/grade-retry';
+import { gradeMaxOutputTokens } from '@/lib/analysis/output-cap';
 import { getUserTuning } from '@/lib/tuning/store';
 import { MC_TF_MAGNITUDE } from '@/lib/errors/bands';
 import { readableSetWhere } from '@/lib/sets/visibility';
@@ -835,6 +838,13 @@ async function recordFailedShortAnswerAnalysis(input: {
   klps: { id: string; weight: number }[];
   starred: boolean;
   latencyMs?: number;
+  /**
+   * D6: the out-of-vocabulary label the strict verdict enum rejected, when
+   * that is why grading failed. Recorded on the row as
+   * `{ reason: 'unknown_status', value }` so the word the model invented is
+   * visible beside the failure it caused, not only in the AI call log.
+   */
+  unknownStatus?: string;
 }): Promise<void> {
   try {
     const writes = buildAnalysisWrites({
@@ -851,6 +861,9 @@ async function recordFailedShortAnswerAnalysis(input: {
       unwarranted: [],
       forcedStatus: 'failed',
     });
+    if (input.unknownStatus) {
+      writes.warnings.push({ reason: 'unknown_status', value: input.unknownStatus });
+    }
     await createAnswerWithAnalysis(
       {
         attemptId: input.attemptId,
@@ -876,6 +889,23 @@ async function recordFailedShortAnswerAnalysis(input: {
   }
 }
 
+/**
+ * D6 (Spec 5 §4): the grading call, retried ONCE in place when the reply
+ * failed the strict schema. `shouldRetryGradeInPlace` decides — a
+ * `schema_invalid` is retried, an `output_truncated` (the ceiling was hit)
+ * is not, nothing else is. The second failure propagates to the caller,
+ * which records the failed row.
+ */
+async function gradeWithOneRetry<T>(call: () => Promise<T>): Promise<T> {
+  try {
+    return await call();
+  } catch (err) {
+    if (!shouldRetryGradeInPlace(err)) throw err;
+    console.warn('Short-answer grade failed the schema; retrying once in place (D6).');
+    return call();
+  }
+}
+
 export async function submitShortAnswer(input: {
   attemptId: string;
   cardId: string;
@@ -884,6 +914,9 @@ export async function submitShortAnswer(input: {
 }): Promise<ActionResult<{ grade: any; score: number }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
+  // Captured once so the closures below (the grading call and the failed-row
+  // input) carry the narrowed string without a non-null assertion.
+  const userId = session.user.id;
 
   try {
     const attempt = await prisma.quizAttempt.findFirst({
@@ -911,7 +944,12 @@ export async function submitShortAnswer(input: {
     });
     if (!card) return { success: false, error: 'Card not found' };
 
-    const profileBlock = await safeProfileBlock(session.user.id, card.setId, 'short-answer grading');
+    // Spec 5, "The boundary": no learner profile is fetched here. The grader
+    // is a stateless instrument — it answers "what does this answer
+    // contain?", never "what does this person know?" — so its inputs are the
+    // card, its key points, relations and form requirements, the reference
+    // answer, and the learner's text. (The profile still steers MC distractor
+    // GENERATION above; that is a different job.)
 
     // Live KLPs (empty when extraction is impossible) and starred state,
     // resolved once and shared by both branches below: both the prompt (so
@@ -927,6 +965,34 @@ export async function submitShortAnswer(input: {
     const starred = progress?.starred ?? false;
     const promptKlps = klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind }));
 
+    // The rest of the grader's inputs, from the same live version as `klps`.
+    // `promptViewOf` renders them by ref; `context.relations` / `formReqs`
+    // are handed to the writer in the same order so a verdict on [R1] lands
+    // on relations[1].
+    const context = await loadGradingContext(input.cardId, klps);
+    const { promptRelations, promptFormReqs } = promptViewOf(klps, context);
+    const gradeInputs = {
+      klps: promptKlps.length > 0 ? promptKlps : undefined,
+      relations: promptRelations.length > 0 ? promptRelations : undefined,
+      formReqs: promptFormReqs.length > 0 ? promptFormReqs : undefined,
+      referenceAnswer: context.referenceAnswer ?? undefined,
+    };
+    // Fluid ceiling (§4): base + one slope step per graded item.
+    const maxOutputTokens = gradeMaxOutputTokens(
+      promptKlps.length + promptRelations.length + promptFormReqs.length,
+    );
+    const failedAnalysisInput = (gradingErr: unknown) => ({
+      attemptId: input.attemptId,
+      userId,
+      cardId: input.cardId,
+      answer: input.answer,
+      correctAnswer: card.definition,
+      klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
+      starred,
+      latencyMs: input.latencyMs,
+      unknownStatus: unknownValueOf(gradingErr),
+    });
+
     // Get content blocks for the term side (what the user was asked about)
     const termBlocks = card.contentBlocks
       .filter(b => b.side === 'term')
@@ -937,36 +1003,30 @@ export async function submitShortAnswer(input: {
       const prompt = GRADE_SHORT_ANSWER_PROMPT.build({
         card,
         answer: input.answer,
-        klps: promptKlps.length > 0 ? promptKlps : undefined,
+        ...gradeInputs,
       });
       let grade;
       let gradedByModel: string | null = null;
       try {
-        const graded = await generateJsonWithMeta({
-          userId: session.user.id,
-          task: 'grade',
-          prompt,
-          schema: ShortAnswerGradeSchema,
-        });
+        const graded = await gradeWithOneRetry(() =>
+          generateJsonWithMeta({
+            userId,
+            task: 'grade',
+            prompt,
+            schema: ShortAnswerGradeSchema,
+            maxOutputTokens,
+          }),
+        );
         grade = graded.value;
         gradedByModel = graded.meta.model;
       } catch (gradingErr) {
-        await recordFailedShortAnswerAnalysis({
-          attemptId: input.attemptId,
-          userId: session.user.id,
-          cardId: input.cardId,
-          answer: input.answer,
-          correctAnswer: card.definition,
-          klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
-          starred,
-          latencyMs: input.latencyMs,
-        });
+        await recordFailedShortAnswerAnalysis(failedAnalysisInput(gradingErr));
         throw gradingErr;
       }
 
       let annotations: any[] = [];
       try {
-        const annPrompt = ANNOTATION_PROMPT.build({ card, answer: input.answer, correct: card.definition, profileBlock });
+        const annPrompt = ANNOTATION_PROMPT.build({ card, answer: input.answer, correct: card.definition });
         // ATTRIBUTION: the grade's model is what matters and is recorded on
         // QuizAnswer.model. Annotations are a display embellishment merged
         // into the same blob; a second model column for highlight spans would
@@ -1002,11 +1062,10 @@ export async function submitShortAnswer(input: {
         klpResults: grade.klpResults ?? [],
         errorTags: (grade.errorTags ?? []) as ErrorTagDraft[],
         answerText: input.answer,
-        // Task 8 passes the card's relation and form-requirement ids; until
-        // then every relation/form ref the grader returns is an
-        // `unresolved_*` warning, never a row.
-        relations: [],
-        formReqs: [],
+        // The same arrays `promptViewOf` numbered, so the grader's refs
+        // resolve to these ids by position.
+        relations: context.relations,
+        formReqs: context.formReqs,
         relationResults: grade.relationResults ?? [],
         formResults: grade.formResults ?? [],
         unwarranted: grade.unwarranted ?? [],
@@ -1070,7 +1129,7 @@ export async function submitShortAnswer(input: {
       card,
       promptBlocks: contentBlocks,
       answer: input.answer,
-      klps: promptKlps.length > 0 ? promptKlps : undefined,
+      ...gradeInputs,
     });
 
     // In a full implementation, assetToPart would be called here to add inlineData
@@ -1078,31 +1137,25 @@ export async function submitShortAnswer(input: {
     let grade;
     let gradedByModel: string | null = null;
     try {
-      const graded = await generateJsonWithMeta({
-        userId: session.user.id,
-        task: 'grade',
-        parts,
-        schema: ShortAnswerGradeSchema,
-      });
+      const graded = await gradeWithOneRetry(() =>
+        generateJsonWithMeta({
+          userId,
+          task: 'grade',
+          parts,
+          schema: ShortAnswerGradeSchema,
+          maxOutputTokens,
+        }),
+      );
       grade = graded.value;
       gradedByModel = graded.meta.model;
     } catch (gradingErr) {
-      await recordFailedShortAnswerAnalysis({
-        attemptId: input.attemptId,
-        userId: session.user.id,
-        cardId: input.cardId,
-        answer: input.answer,
-        correctAnswer: card.definition,
-        klps: klps.map((k) => ({ id: k.id, weight: k.weight })),
-        starred,
-        latencyMs: input.latencyMs,
-      });
+      await recordFailedShortAnswerAnalysis(failedAnalysisInput(gradingErr));
       throw gradingErr;
     }
 
     let annotations: any[] = [];
     try {
-      const annPrompt = ANNOTATION_PROMPT.build({ card, answer: input.answer, correct: card.definition, profileBlock });
+      const annPrompt = ANNOTATION_PROMPT.build({ card, answer: input.answer, correct: card.definition });
       // ATTRIBUTION: as above — the grade carries the model that matters.
       const annResult = await generateJson({
         userId: session.user.id,
@@ -1130,9 +1183,9 @@ export async function submitShortAnswer(input: {
       klpResults: grade.klpResults ?? [],
       errorTags: (grade.errorTags ?? []) as ErrorTagDraft[],
       answerText: input.answer,
-      // See the text-only path: relation/form ids arrive with Task 8.
-      relations: [],
-      formReqs: [],
+      // See the text-only path: the arrays `promptViewOf` numbered.
+      relations: context.relations,
+      formReqs: context.formReqs,
       relationResults: grade.relationResults ?? [],
       formResults: grade.formResults ?? [],
       unwarranted: grade.unwarranted ?? [],

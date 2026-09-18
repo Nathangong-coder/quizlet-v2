@@ -648,8 +648,10 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
           klpResults: item.grade?.klpResults ?? [],
           errorTags: (item.grade?.errorTags ?? []) as ErrorTagDraft[],
           // Spec 5 Phase A: quotes are located in the submitted answer. The
-          // diagnostic asks one key point per question, so it carries no
-          // relation or form verdicts; Task 8 revisits what it forwards.
+          // diagnostic asks ONE key point per question (`select.ts` is where
+          // targeting lives), so there is no link between two points to judge
+          // and no card-level shape to check: the relation and form arrays
+          // are empty by design, not because the ids were never wired.
           answerText: item.answer,
           relations: [],
           formReqs: [],

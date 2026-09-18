@@ -32,6 +32,14 @@ const h = vi.hoisted(() => ({
   txPriorFindMany: vi.fn(),
   txKlpResultFindMany: vi.fn(),
   klpStateDeleteMany: vi.fn(),
+  // Task 8: the grading context — relations, form requirements and the
+  // reference answer — loaded beside the live KLPs.
+  relationFindMany: vi.fn(),
+  formReqFindMany: vi.fn(),
+  authoringFindFirst: vi.fn(),
+  // Spec 5 "The boundary": the grader never sees the learner. Held here so a
+  // test can assert the profile fetch is gone from the grading path.
+  safeProfileBlock: vi.fn(),
 }))
 
 vi.mock('@/auth', () => ({ auth: h.auth }))
@@ -41,6 +49,9 @@ vi.mock('@/lib/db', () => ({
     quizAnswer: { deleteMany: h.answerDeleteMany, findMany: h.answerFindMany },
     card: { findUnique: h.cardFindUnique },
     cardProgress: { findUnique: h.progressFindUnique },
+    klpRelation: { findMany: h.relationFindMany },
+    cardFormRequirement: { findMany: h.formReqFindMany },
+    cardAuthoring: { findFirst: h.authoringFindFirst },
     // The transaction callback receives a tx object exposing just the three
     // models createAnswerWithAnalysis writes through.
     $transaction: h.transaction,
@@ -64,11 +75,12 @@ vi.mock('@/lib/ai/generate', () => ({
   },
 }))
 vi.mock('@/actions/klp', () => ({ ensureKlpsReady: h.ensureKlpsReady }))
-vi.mock('@/lib/ai/context', () => ({ safeProfileBlock: vi.fn() }))
+vi.mock('@/lib/ai/context', () => ({ safeProfileBlock: h.safeProfileBlock }))
 vi.mock('@/lib/memory/record', () => ({ recordStudyEvent: vi.fn() }))
 
 import { submitShortAnswer } from '@/actions/quiz'
 import { GRADER_VERSION } from '@/lib/analysis/version'
+import { gradeMaxOutputTokens } from '@/lib/analysis/output-cap'
 
 const OWNER = 'user-owner'
 const ATTEMPT_ID = 'a1'
@@ -84,7 +96,23 @@ const card = {
   contentBlocks: [],
 }
 
-const klps = [{ id: 'klp-a', index: 0, text: 'x', weight: 5, kind: 'definition' }]
+const klps = [{ id: 'klp-a', index: 0, text: 'x', weight: 5, kind: 'definition', label: null, version: 2 }]
+
+/** An AiGenerationError-shaped failure: the retry path reads `detail.attempts[].kind`. */
+function aiFailure(kind: string, value?: string) {
+  return Object.assign(new Error(kind), { detail: { title: kind, attempts: [{ kind }], value } })
+}
+
+/** A card with one relation and one form requirement authored at the live version. */
+function mockGradingContext() {
+  h.ensureKlpsReady.mockResolvedValue([
+    { id: 'klp-a', index: 0, text: 'x', weight: 5, kind: 'definition', label: null, version: 2 },
+    { id: 'klp-b', index: 1, text: 'y', weight: 3, kind: 'mechanism', label: null, version: 2 },
+  ])
+  h.relationFindMany.mockResolvedValue([{ id: 'rel-1', type: 'causes', fromKlpId: 'klp-a', toKlpId: 'klp-b' }])
+  h.formReqFindMany.mockResolvedValue([{ id: 'form-1', index: 0, text: 'Names the formula' }])
+  h.authoringFindFirst.mockResolvedValue({ referenceAnswer: 'The strong reference answer.' })
+}
 
 // A valid ShortAnswerGradeSchema object. Each test overrides only the fields
 // (klpResults/errorTags) it exercises.
@@ -99,6 +127,10 @@ const gradeShape = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // `clearAllMocks` keeps a queued `mockRejectedValueOnce` alive across tests;
+  // the retry tests below queue several, and a leftover would leak into the
+  // next test's first grading call.
+  h.generateJson.mockReset()
   h.auth.mockResolvedValue({ user: { id: OWNER } })
   h.attemptFindFirst.mockResolvedValue({ sessionId: 'sess1' })
   h.answerDeleteMany.mockResolvedValue({ count: 0 })
@@ -119,6 +151,9 @@ beforeEach(() => {
   h.txPriorFindMany.mockResolvedValue([])
   h.txKlpResultFindMany.mockResolvedValue([])
   h.klpStateDeleteMany.mockResolvedValue({ count: 0 })
+  h.relationFindMany.mockResolvedValue([])
+  h.formReqFindMany.mockResolvedValue([])
+  h.authoringFindFirst.mockResolvedValue(null)
   h.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
       quizAnswer: {
@@ -426,10 +461,10 @@ describe('submitShortAnswer analysis capture', () => {
     expect(h.errorTagCreateMany).not.toHaveBeenCalled()
   })
 
-  it('forwards relation and form verdicts, which are warnings (not rows) until Task 8 wires the ids', async () => {
-    // The grader's arrays reach buildAnalysisWrites; with no relation / form
-    // requirement ids passed yet, every ref is unresolvable — recorded as a
-    // warning on the answer, never fabricated into a row.
+  it('records a relation or form verdict the card cannot resolve as a warning, never a row', async () => {
+    // The grader's arrays reach buildAnalysisWrites; on a card with no
+    // relations / form requirements every such ref is unresolvable —
+    // recorded as a warning on the answer, never fabricated into a row.
     h.generateJson.mockResolvedValue({
       ...gradeShape,
       klpResults: [{ klpRef: 0, status: 'correct' }],
@@ -457,5 +492,157 @@ describe('submitShortAnswer analysis capture', () => {
 
     expect(result.success).toBe(false)
     expect(h.answerCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('submitShortAnswer grades through the content pass (Spec 5 Phase A, Task 8)', () => {
+  const gradeWithContext = {
+    ...gradeShape,
+    klpResults: [
+      { klpRef: 0, status: 'correct' },
+      { klpRef: 1, status: 'omission', quote: 'x' },
+    ],
+    errorTags: [],
+    relationResults: [{ relationRef: 0, status: 'correct', quote: 'WACC drives' }],
+    formResults: [{ formRef: 0, status: 'met', quote: 'WACC' }],
+    unwarranted: [{ text: 'invents a tax shield', quote: 'tax shield', magnitude: 4 }],
+  }
+  const ANSWER = 'WACC drives the tax shield'
+
+  it('shows the grader the card relations, form requirements and reference answer by ref', async () => {
+    mockGradingContext()
+    h.generateJson.mockResolvedValue(gradeWithContext)
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: ANSWER })
+
+    const prompt: string = h.generateJson.mock.calls[0][0].prompt
+    expect(prompt).toContain('[R0] (causes) [0] → [1]')
+    expect(prompt).toContain('[F0] Names the formula')
+    expect(prompt).toContain('The strong reference answer.')
+    // Refs, never ids: a cuid in the prompt is a cuid the grader can echo back.
+    expect(prompt).not.toContain('rel-1')
+    expect(prompt).not.toContain('form-1')
+  })
+
+  it('sizes the output ceiling to key points + relations + form requirements', async () => {
+    mockGradingContext()
+    h.generateJson.mockResolvedValue(gradeWithContext)
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: ANSWER })
+
+    expect(h.generateJson.mock.calls[0][0].maxOutputTokens).toBe(gradeMaxOutputTokens(2 + 1 + 1))
+  })
+
+  it('sizes the ceiling to the key points alone on a card with no relations or form requirements', async () => {
+    h.generateJson.mockResolvedValue({ ...gradeShape, klpResults: [{ klpRef: 0, status: 'correct' }], errorTags: [] })
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
+
+    expect(h.generateJson.mock.calls[0][0].maxOutputTokens).toBe(gradeMaxOutputTokens(1))
+  })
+
+  it('persists relation, form and unwarranted rows against the real ids', async () => {
+    mockGradingContext()
+    h.generateJson.mockResolvedValue(gradeWithContext)
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: ANSWER })
+
+    expect(h.relationResultCreateMany.mock.calls[0][0].data).toEqual([
+      expect.objectContaining({
+        quizAnswerId: 'answer-1', relationId: 'rel-1', status: 'correct', provenance: 'passive', spanStart: 0, spanEnd: 11,
+      }),
+    ])
+    expect(h.formResultCreateMany.mock.calls[0][0].data).toEqual([
+      expect.objectContaining({ quizAnswerId: 'answer-1', formRequirementId: 'form-1', status: 'met', spanStart: 0, spanEnd: 4 }),
+    ])
+    expect(h.unwarrantedCreateMany.mock.calls[0][0].data).toEqual([
+      expect.objectContaining({ quizAnswerId: 'answer-1', text: 'invents a tax shield', magnitude: 4 }),
+    ])
+    const data = h.answerCreate.mock.calls[0][0].data
+    expect(data.analysisStatus).toBe('analyzed')
+    expect(data.analysisWarnings ?? []).not.toContainEqual(expect.objectContaining({ reason: 'unresolved_relation_ref' }))
+    expect(data.analysisWarnings ?? []).not.toContainEqual(expect.objectContaining({ reason: 'unresolved_form_ref' }))
+  })
+
+  it('never fetches the learner profile for grading (Spec 5, "The boundary")', async () => {
+    mockGradingContext()
+    h.generateJson.mockResolvedValue(gradeWithContext)
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: ANSWER })
+
+    expect(h.safeProfileBlock).not.toHaveBeenCalled()
+  })
+
+  it('wires the multimodal branch through the same context', async () => {
+    mockGradingContext()
+    h.cardFindUnique.mockResolvedValue({
+      ...card,
+      contentBlocks: [{ side: 'term', type: 'image', text: null, assetId: 'asset1', position: 0 }],
+    })
+    h.generateJson.mockResolvedValue(gradeWithContext)
+
+    await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: ANSWER })
+
+    const sent = JSON.stringify(h.generateJson.mock.calls[0][0].parts)
+    expect(sent).toContain('[R0] (causes) [0] → [1]')
+    expect(sent).toContain('[F0] Names the formula')
+    expect(h.generateJson.mock.calls[0][0].maxOutputTokens).toBe(gradeMaxOutputTokens(2 + 1 + 1))
+    expect(h.relationResultCreateMany.mock.calls[0][0].data[0]).toMatchObject({ relationId: 'rel-1' })
+    expect(h.formResultCreateMany.mock.calls[0][0].data[0]).toMatchObject({ formRequirementId: 'form-1' })
+    expect(h.safeProfileBlock).not.toHaveBeenCalled()
+  })
+
+  it('retries a schema_invalid grade ONCE in place and uses the second reply (D6)', async () => {
+    mockGradingContext()
+    h.generateJson
+      .mockRejectedValueOnce(aiFailure('schema_invalid', 'bogus_label'))
+      .mockResolvedValueOnce(gradeWithContext)
+
+    const result = await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: ANSWER })
+
+    expect(result.success).toBe(true)
+    // Two grading calls, then the annotation call.
+    expect(h.generateJson.mock.calls[0][0].schema).toBe(h.generateJson.mock.calls[1][0].schema)
+    expect(h.generateJson.mock.calls[0][0].prompt).toBe(h.generateJson.mock.calls[1][0].prompt)
+    expect(h.answerCreate).toHaveBeenCalledTimes(1)
+    expect(h.answerCreate.mock.calls[0][0].data.analysisStatus).toBe('analyzed')
+    expect(h.relationResultCreateMany).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails loudly after the second schema_invalid: a failed row naming the unknown label, no third try', async () => {
+    mockGradingContext()
+    h.generateJson
+      .mockRejectedValueOnce(aiFailure('schema_invalid', 'bogus_label'))
+      .mockRejectedValueOnce(aiFailure('schema_invalid', 'bogus_label'))
+
+    const result = await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: ANSWER })
+
+    expect(result.success).toBe(false)
+    // Exactly two grading attempts; the annotation call never runs because
+    // grading threw.
+    expect(h.generateJson).toHaveBeenCalledTimes(2)
+    const data = h.answerCreate.mock.calls[0][0].data
+    expect(data.analysisStatus).toBe('failed')
+    expect(data.analysisWarnings).toContainEqual({ reason: 'unknown_status', value: 'bogus_label' })
+  })
+
+  it('does NOT retry an output_truncated grade in place — that is the ceiling, not compliance', async () => {
+    mockGradingContext()
+    h.generateJson.mockRejectedValueOnce(aiFailure('output_truncated'))
+
+    const result = await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: ANSWER })
+
+    expect(result.success).toBe(false)
+    expect(h.generateJson).toHaveBeenCalledTimes(1)
+    expect(h.answerCreate.mock.calls[0][0].data.analysisStatus).toBe('failed')
+  })
+
+  it('does not retry any other grading failure', async () => {
+    h.generateJson.mockRejectedValueOnce(aiFailure('quota_exhausted'))
+
+    const result = await submitShortAnswer({ attemptId: 'a1', cardId: 'c1', answer: 'text' })
+
+    expect(result.success).toBe(false)
+    expect(h.generateJson).toHaveBeenCalledTimes(1)
   })
 })
