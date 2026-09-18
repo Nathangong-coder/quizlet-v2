@@ -28,6 +28,7 @@ import { REVIEW_REFERENCE_PROMPT, REVISE_REFERENCE_PROMPT, REVIEW_REBUILT_PROMPT
 import { CLASSIFY_ROLES_PROMPT } from '../src/lib/ai/prompts/classify-roles'
 import { CardTopicProposalV2Schema } from '../src/lib/klp/topic-minting-v2'
 import { RoundTripSchema } from '../src/lib/ai/prompts/roundtrip-assign'
+import type { FormReqGen } from '../src/lib/klp/form-requirements'
 
 function opt(name: string): string | undefined {
   const i = process.argv.indexOf(name)
@@ -62,6 +63,9 @@ function directGenerators(): BuildGenerators {
     gradeCoverage: (input) => judge(GRADE_COVERAGE_PROMPT.build({ ...input, strict: true }), GRADE_COVERAGE_PROMPT.schema),
     gradeParity: (input) => judge(GRADE_PARITY_PROMPT.build({ ...input, strict: true }), GRADE_PARITY_PROMPT.schema),
   }
+  // Form requirements (Spec 5 §5) are grader-family work: the judge combo, and
+  // its model is what every row records.
+  const formReqs: FormReqGen = async (p, s) => ({ value: await judge(p, s), model: judgeCombo.model })
   return {
     authoring,
     topic: {
@@ -69,6 +73,7 @@ function directGenerators(): BuildGenerators {
       assign: (p) => judge(p, RoundTripSchema),
       revise: (p) => judge(p, CardTopicProposalV2Schema),
     },
+    formReqs,
   }
 }
 
@@ -84,7 +89,7 @@ async function main() {
   for (let i = 0; i < maxSteps; i++) {
     const t = Date.now()
     const s = await buildSetStep(set.userId, setId, { budgetMs: 240_000, generators })
-    console.log(`  step ${i + 1}: ${s.did} · ${s.cards.length} card${s.cards.length === 1 ? '' : 's'} · ${((Date.now() - t) / 1000).toFixed(0)}s${s.errors.length ? ' · errors ' + JSON.stringify(s.errors) : ''} → need ${s.status.needAuthoring} / ${s.status.needMinting} / ${s.status.needRebuild}`)
+    console.log(`  step ${i + 1}: ${s.did} · ${s.cards.length} card${s.cards.length === 1 ? '' : 's'} · ${((Date.now() - t) / 1000).toFixed(0)}s${s.errors.length ? ' · errors ' + JSON.stringify(s.errors) : ''} → need ${s.status.needAuthoring} / ${s.status.needFormReqs} / ${s.status.needMinting} / ${s.status.needRebuild}`)
     if (s.did === 'nothing' || s.status.ready) break
     if (s.cards.length === 0 && s.errors.length) break
   }

@@ -28,7 +28,9 @@ describe('task defaults (set from the 2026-09-15 benchmark)', () => {
   })
 
   it('judgment goes to DeepSeek, writing goes to GLM, Google last at runtime', () => {
-    for (const t of ['grade', 'diagnostic', 'concept-tree', 'klp-extract'] as const) expect(TASK_PROVIDER_PREFERENCE[t][0]).toBe('deepseek')
+    for (const t of ['grade', 'diagnostic', 'concept-tree', 'klp-extract', 'form-reqs'] as const) expect(TASK_PROVIDER_PREFERENCE[t][0]).toBe('deepseek')
+    // form requirements are judgments about the question, not writing (spec 5 §5): grader family
+    expect(TASK_PROVIDER_PREFERENCE['form-reqs']).toEqual(['deepseek', 'zai', 'google'])
     for (const t of ['distractors', 'game-pieces', 'hot-seat', 'author'] as const) expect(TASK_PROVIDER_PREFERENCE[t][0]).toBe('zai')
     // Google's free tier is hourly-rate-limited, so it is the last resort on every task a
     // learner waits on. Authoring runs in the background and Gemini 3.6 is its quality

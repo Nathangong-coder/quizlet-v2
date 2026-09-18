@@ -727,3 +727,17 @@ export const HotSeatProbeSchema = z.object({
 });
 
 export type HotSeatProbe = z.infer<typeof HotSeatProbeSchema>;
+
+/**
+ * Spec 5 §5: the form requirements of one card — 3-5 SHAPE rules an answer
+ * must satisfy (answers the question asked, direction and magnitude, causal
+ * order, closes the loop), as distinct from the CONTENT the key points
+ * require. Bounded on both ends: fewer than three is not a shape, more than
+ * five is a second KLP list. Each is one sentence a grader can check reading
+ * the answer alone; 160 characters is the same cap the prompt states.
+ */
+export const FormRequirementsSchema = z.object({
+  requirements: z.array(z.object({ text: z.string().min(8).max(160) })).min(3).max(5),
+});
+
+export type FormRequirements = z.infer<typeof FormRequirementsSchema>;

@@ -39,6 +39,8 @@ const TASK_TEMPERATURE: Record<AiTask, number> = {
   'klp-extract': 0,
   author: 0,
   'note-analysis': 0,
+  // Shape rules over a fixed reference: a judgment with a right answer.
+  'form-reqs': 0,
   // Placement and summarising in a SHARED tree, where an edit moves everyone's
   // topic mastery. Determinism matters more here than anywhere.
   'concept-tree': 0,

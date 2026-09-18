@@ -21,6 +21,7 @@
 import { generateJson, generateJsonWithMeta } from '@/lib/ai/generate'
 import type { AuthoringGenerator } from '@/lib/klp/authoring'
 import type { TopicGenerator } from '@/lib/klp/topic-loop'
+import type { FormReqGen } from '@/lib/klp/form-requirements'
 import { AUTHOR_KLPS_PROMPT } from '@/lib/ai/prompts/author-klps'
 import { GRADE_CANDIDATE_PROMPT } from '@/lib/ai/prompts/grade-candidate'
 import { REVISE_KLPS_PROMPT } from '@/lib/ai/prompts/revise-klps'
@@ -37,6 +38,7 @@ import { RoundTripSchema } from '@/lib/ai/prompts/roundtrip-assign'
 const WRITER = 'author' as const
 const JUDGE = 'klp-extract' as const
 const MINTER = 'concept-tree' as const
+const FORM_REQS = 'form-reqs' as const
 
 export function authoringGenerator(userId: string, onModel?: (model: string) => void): AuthoringGenerator {
   // ATTRIBUTION: only the WRITER's model is recorded (`CardAuthoring.model`,
@@ -84,5 +86,21 @@ export function topicGenerator(userId: string): TopicGenerator {
     mint: (prompt) => generateJson({ userId, task: MINTER, prompt, schema: CardTopicProposalV2Schema }),
     assign: (prompt) => generateJson({ userId, task: MINTER, prompt, schema: RoundTripSchema }),
     revise: (prompt) => generateJson({ userId, task: MINTER, prompt, schema: CardTopicProposalV2Schema }),
+  }
+}
+
+/**
+ * The form-requirements pass (Spec 5 §5) — both its calls, the write and the
+ * weak check's grade, go out as task `form-reqs` (DeepSeek-first, the grader
+ * family: these are judgments about the question, not writing).
+ *
+ * ATTRIBUTION: `generateJsonWithMeta`, because every `CardFormRequirement`
+ * row persists the model that wrote it — the same rule `CardAuthoring.model`
+ * follows. The weak check's model is reported too and simply unused.
+ */
+export function formReqsGenerator(userId: string): FormReqGen {
+  return async (prompt, schema) => {
+    const { value, meta } = await generateJsonWithMeta({ userId, task: FORM_REQS, prompt, schema })
+    return { value, model: meta.model }
   }
 }

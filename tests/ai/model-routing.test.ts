@@ -19,9 +19,13 @@ import { AI_TASKS } from '@/lib/ai/model-routing'
  * `author` (Stage 8 rebuild, Spec 2) is the seventh: authoring is
  * judgment-heavy and runs rarely, runtime grading is latency-sensitive and
  * runs constantly, so they get separate routing decisions.
+ *
+ * `form-reqs` (Spec 5 §5) is the twelfth: the form-requirements pass is one
+ * judgment call per card over an already-authored reference, and it must not
+ * ride on `author` (Z.ai-first, `high` effort) — it is grader-family work.
  */
 describe('AI_TASKS', () => {
-  it('contains exactly the eleven expected task names', () => {
+  it('contains exactly the twelve expected task names', () => {
     expect(AI_TASKS).toEqual([
       'grade',
       'plan',
@@ -34,6 +38,7 @@ describe('AI_TASKS', () => {
       'author',
       'game-pieces',
       'hot-seat',
+      'form-reqs',
     ])
   })
 

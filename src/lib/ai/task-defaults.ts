@@ -30,6 +30,8 @@ export const TASK_PROVIDER_PREFERENCE: Record<AiTask, readonly string[]> = {
   'note-analysis': ['deepseek', 'zai', 'google'],
   plan: ['deepseek', 'zai', 'google'],
   'concept-tree': ['deepseek', 'zai', 'google'],
+  // Form requirements are judgments about the question, not writing (spec 5 §5).
+  'form-reqs': ['deepseek', 'zai', 'google'],
   author: ['zai', 'google', 'deepseek'],
   distractors: ['zai', 'deepseek', 'google'],
   'game-pieces': ['zai', 'deepseek', 'google'],

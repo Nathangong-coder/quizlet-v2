@@ -49,6 +49,17 @@ export const AI_TASKS = [
    */
   'game-pieces',
   'hot-seat',
+  /**
+   * The form-requirements pass (Spec 5 §5, 2026-09-17): one call per card
+   * that writes 3-5 SHAPE rules over an already-authored reference answer and
+   * the live key points, plus one grading call that checks the stored
+   * memorised-template trap against them. Its own task because it is
+   * grader-family work — a judgment about the question, not writing — and
+   * riding on `author` would send it Z.ai-first at `high` effort, while
+   * riding on `klp-extract` would hide its cost inside background extraction
+   * on the usage page.
+   */
+  'form-reqs',
 ] as const;
 
 export type AiTask = (typeof AI_TASKS)[number];
@@ -70,4 +81,5 @@ export const AI_TASK_LABELS: Record<AiTask, string> = {
   author: 'KLP authoring (reference answers & discrimination test)',
   'game-pieces': 'Game pieces (Blitz, Crossword, Match)',
   'hot-seat': 'Hot Seat interviewer (follow-up questions)',
+  'form-reqs': 'Form requirements (answer-shape rules, background)',
 };
