@@ -234,6 +234,28 @@ describe('extractUnknownEnumValue', () => {
     expect(extractUnknownEnumValue(err)).toBe('bogus_status');
   });
 
+  it('reads `.input` off a v4-shaped issue before falling back to the path-walk', () => {
+    // Some Zod v4 builds DO carry the rejected value on the issue itself, just
+    // renamed from v3's `.received` to `.input` — cheaper and more direct than
+    // walking `TypeValidationError.value` by path, so it is tried first. The
+    // `value` object here deliberately does NOT contain a matching `status`
+    // key, so a pass that fell through to the path-walk would return
+    // `undefined` instead — this proves `.input` was actually used.
+    const zodError = Object.assign(new Error('Invalid enum value'), {
+      issues: [{ code: 'invalid_value', values: ['correct', 'partial', 'failed'], path: ['status'], input: 'bogus_v4_input' }],
+    });
+    const typeValidationError = Object.assign(new Error('Type validation failed'), {
+      name: 'AI_TypeValidationError',
+      value: {},
+      cause: zodError,
+    });
+    const err = Object.assign(new Error('No object generated'), {
+      name: 'AI_NoObjectGeneratedError',
+      cause: typeValidationError,
+    });
+    expect(extractUnknownEnumValue(err)).toBe('bogus_v4_input');
+  });
+
   it('is undefined for an unrelated error, or a schema failure with no enum issue', () => {
     expect(extractUnknownEnumValue(new Error('network blip'))).toBeUndefined();
     expect(extractUnknownEnumValue(null)).toBeUndefined();

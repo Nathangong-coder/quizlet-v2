@@ -12,6 +12,9 @@ const h = vi.hoisted(() => ({
   learnerIndex: vi.fn(),
   learnerRecord: vi.fn(),
   userFindMany: vi.fn(),
+  aiTaskHistory: vi.fn(),
+  aiTaskCounts: vi.fn(),
+  authoringByModel: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -28,6 +31,9 @@ vi.mock('@/lib/staff/queries', () => ({
   loadStaffCoverage: h.coverage,
   loadLearnerIndex: h.learnerIndex,
   loadLearnerRecord: h.learnerRecord,
+  loadAiTaskHistory: h.aiTaskHistory,
+  loadAiTaskCounts: h.aiTaskCounts,
+  loadAuthoringByModel: h.authoringByModel,
 }))
 vi.mock('@/lib/db', () => ({
   prisma: { set: { findMany: h.setFindMany }, user: { findMany: h.userFindMany } },
@@ -39,6 +45,7 @@ import StaffCoveragePage from '@/app/(app)/staff/coverage/page'
 import StaffLearnersPage from '@/app/(app)/staff/learners/page'
 import StaffLearnerPage from '@/app/(app)/staff/learners/[id]/page'
 import StaffRolesPage from '@/app/(app)/staff/roles/page'
+import StaffAiHistoryPage from '@/app/(app)/staff/ai-history/page'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -235,5 +242,104 @@ describe('/staff/roles', () => {
     render(await StaffRolesPage())
     expect(h.notFound).not.toHaveBeenCalled()
     expect(screen.getByText('nathan')).toBeInTheDocument()
+  })
+})
+
+/**
+ * D6's fail-loud path (Spec 5 Phase A, review fix): the controller ruling was
+ * that `AiCallLog.error` must actually be VISIBLE on this page, not just
+ * queryable — this is the render test that makes that true.
+ */
+describe('/staff/ai-history', () => {
+  beforeEach(() => {
+    h.aiTaskCounts.mockResolvedValue({})
+    h.authoringByModel.mockResolvedValue([])
+  })
+
+  it('404s for staff — ADMIN ONLY, reading the engine is not benchmarking it', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'u1', role: 'staff' } })
+    await expect(
+      StaffAiHistoryPage({ searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(h.aiTaskHistory).not.toHaveBeenCalled()
+  })
+
+  it('404s for a signed-out visitor', async () => {
+    h.auth.mockResolvedValue(null)
+    await expect(
+      StaffAiHistoryPage({ searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND')
+    expect(h.aiTaskHistory).not.toHaveBeenCalled()
+  })
+
+  it('shows the unknown-value line under a failed attempt, and nothing under a successful one', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } })
+    h.aiTaskHistory.mockResolvedValue({
+      task: 'grade',
+      totalCalls: 2,
+      totalFailures: 1,
+      byModel: [],
+      recent: [
+        {
+          id: 'call-1',
+          model: 'deepseek-flash',
+          provider: 'deepseek',
+          credentialLabel: 'DeepSeek',
+          ok: false,
+          failureKind: 'schema_invalid',
+          error: 'No object generated: response did not match schema.\nunknown value: bogus_label',
+          latencyMs: 1200,
+          createdAt: new Date('2026-09-17T12:00:00Z'),
+          userLabel: 'nathan',
+        },
+        {
+          id: 'call-2',
+          model: 'deepseek-flash',
+          provider: 'deepseek',
+          credentialLabel: 'DeepSeek',
+          ok: true,
+          failureKind: null,
+          error: null,
+          latencyMs: 900,
+          createdAt: new Date('2026-09-17T12:01:00Z'),
+          userLabel: 'nathan',
+        },
+      ],
+    })
+
+    render(await StaffAiHistoryPage({ searchParams: Promise.resolve({}) }))
+    expect(h.notFound).not.toHaveBeenCalled()
+    // Only the LAST line — the "unknown value" one — not the whole message.
+    expect(screen.getByText('unknown value: bogus_label')).toBeInTheDocument()
+    expect(
+      screen.queryByText(/response did not match schema\./),
+    ).not.toBeInTheDocument()
+  })
+
+  it('falls back to a short excerpt of a single-line error with no unknown-value line', async () => {
+    h.auth.mockResolvedValue({ user: { id: 'admin-1', role: 'admin' } })
+    h.aiTaskHistory.mockResolvedValue({
+      task: 'grade',
+      totalCalls: 1,
+      totalFailures: 1,
+      byModel: [],
+      recent: [
+        {
+          id: 'call-1',
+          model: 'deepseek-flash',
+          provider: 'deepseek',
+          credentialLabel: 'DeepSeek',
+          ok: false,
+          failureKind: 'rate_limited',
+          error: '[429 Too Many Requests] rate limit exceeded',
+          latencyMs: 400,
+          createdAt: new Date('2026-09-17T12:00:00Z'),
+          userLabel: 'nathan',
+        },
+      ],
+    })
+
+    render(await StaffAiHistoryPage({ searchParams: Promise.resolve({}) }))
+    expect(screen.getByText('[429 Too Many Requests] rate limit exceeded')).toBeInTheDocument()
   })
 })

@@ -263,6 +263,8 @@ interface EnumIssueLike {
   path?: PropertyKey[];
   /** Zod v3 only — v3 issues carry the rejected value directly. */
   received?: unknown;
+  /** Zod v4's own name for the same thing — the issue carries the rejected value as `input`. */
+  input?: unknown;
 }
 
 function issuesOf(err: unknown): EnumIssueLike[] | undefined {
@@ -282,11 +284,13 @@ function issuesOf(err: unknown): EnumIssueLike[] | undefined {
  * response shape" message.
  *
  * Zod v3's `invalid_enum_value` issue carries the rejected value directly as
- * `.received`. Zod v4 (what this project ships) does not — its `invalid_value`
- * issue carries only `code`, `values`, `path` and `message` (verified against
- * a real `ZodError` here, not assumed from docs) — so the value is instead
- * read off `TypeValidationError.value` (the full object that failed
- * validation) by walking the issue's `path`.
+ * `.received`. Zod v4's `invalid_value` issue renames that to `.input` — the
+ * value is carried ON THE ISSUE either way, just under a different key — so
+ * `.input` is tried right after `.received`, before falling back to the
+ * path-walk. The path-walk stays as the LAST resort for a `TypeValidationError`
+ * whose issue carries neither (an older/partial Zod v4 shape this was
+ * originally verified against): `.value` (the whole object that failed
+ * validation) walked by the issue's `path`.
  */
 export function extractUnknownEnumValue(err: unknown): string | undefined {
   if (!(err instanceof Error)) return undefined;
@@ -301,6 +305,7 @@ export function extractUnknownEnumValue(err: unknown): string | undefined {
   if (!badIssue) return undefined;
 
   if (badIssue.received !== undefined) return String(badIssue.received);
+  if (badIssue.input !== undefined) return String(badIssue.input);
 
   const validatedValue = (typeValidationError as { value?: unknown }).value;
   const path = badIssue.path ?? [];

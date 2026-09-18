@@ -494,9 +494,9 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
         servedBy = meta.model
       } catch (gradingError) {
         // Swallowed ON PURPOSE, and only here. A model that rambles past its
-        // output ceiling surfaces as `schema_invalid`, which is
-        // indistinguishable from a real schema problem and must not cost the
-        // learner the sitting.
+        // output ceiling surfaces as `output_truncated` (a `finishReason:
+        // 'length'` NoObjectGeneratedError) — distinct from a real schema
+        // problem, but either way must not cost the learner the sitting.
         //
         // But WHY it failed decides what happens next. A smaller call fixes an
         // oversized response; it does nothing for an exhausted daily quota, and

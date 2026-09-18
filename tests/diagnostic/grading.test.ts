@@ -11,6 +11,7 @@ import {
   failureKindsOf,
 } from '@/lib/diagnostic/grading'
 import { DiagnosticGradeSetSchema, DiagnosticReportSchema, REPORT_LIST_MAX } from '@/lib/ai/schemas'
+import { classifyProviderError } from '@/lib/errors/classify'
 
 describe('isBlankAnswer', () => {
   it('treats empty and whitespace-only answers as blank', () => {
@@ -203,6 +204,24 @@ describe('shouldRetryPerQuestion', () => {
 
   it('does not retry an unclassifiable error', () => {
     expect(shouldRetryPerQuestion([])).toBe(false)
+  })
+
+  it('retries the REAL output-ceiling failure: a NoObjectGeneratedError with finishReason length', () => {
+    // Regression: classify.ts carved `finishReason: 'length'` out of the
+    // `schema_invalid` bucket into its own `output_truncated` kind — this is
+    // the exact failure `isBlankAnswer`'s doc describes (a degenerate
+    // repetition loop that ran out of room) and the one this retry path
+    // exists for. Built the way tests/errors/classify.test.ts does, and
+    // classified through the real function, not a string literal, so a future
+    // reclassification of `NoObjectGeneratedError` cannot silently disable
+    // this retry path again without failing here.
+    const truncated = new Error('No object generated: response did not match schema.')
+    truncated.name = 'AI_NoObjectGeneratedError'
+    ;(truncated as { finishReason?: string }).finishReason = 'length'
+
+    const kind = classifyProviderError(truncated)
+    expect(kind).toBe('output_truncated')
+    expect(shouldRetryPerQuestion([kind])).toBe(true)
   })
 })
 

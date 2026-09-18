@@ -501,6 +501,13 @@ export interface AiTaskHistory {
     credentialLabel: string
     ok: boolean
     failureKind: string | null
+    /**
+     * D6's fail-loud path (Spec 5 Phase A): the attempt's raw error message on
+     * a failure, carrying `unknown value: <received>` on the end when the
+     * failure was a strict-enum rejection. NULL on success or on a call logged
+     * before the column existed.
+     */
+    error: string | null
     latencyMs: number
     createdAt: Date
     userLabel: string
@@ -528,7 +535,7 @@ export async function loadAiTaskHistory(task: string, limit = 50): Promise<AiTas
     take: 2000,
     select: {
       id: true, model: true, provider: true, credentialLabel: true, ok: true,
-      failureKind: true, latencyMs: true, createdAt: true,
+      failureKind: true, error: true, latencyMs: true, createdAt: true,
       inputTokens: true, outputTokens: true, reasoningTokens: true, cachedTokens: true,
       user: { select: { handle: true, name: true, email: true } },
     },
@@ -601,6 +608,7 @@ export async function loadAiTaskHistory(task: string, limit = 50): Promise<AiTas
       credentialLabel: r.credentialLabel,
       ok: r.ok,
       failureKind: r.failureKind,
+      error: r.error,
       latencyMs: r.latencyMs,
       createdAt: r.createdAt,
       userLabel: r.user.handle ?? r.user.name ?? r.user.email ?? 'unknown',
