@@ -30,3 +30,24 @@ describe('AnswerKlpResult / AnswerErrorTag cascade from QuizAnswer', () => {
     expect(relationBlock('AnswerErrorTag', 'quizAnswer')).toContain('onDelete: Cascade')
   })
 })
+
+// Spec 5 Phase A: the same golden-vector pattern for the new answer-child
+// tables and CardFormRequirement — each must cascade from its parent so
+// resubmission (or card/set deletion) never orphans a diagnostic row.
+describe('Spec 5 Phase A tables cascade from their parents', () => {
+  it('AnswerRelationResult.quizAnswer cascades on delete', () => {
+    expect(relationBlock('AnswerRelationResult', 'quizAnswer')).toContain('onDelete: Cascade')
+  })
+
+  it('AnswerFormResult.quizAnswer cascades on delete', () => {
+    expect(relationBlock('AnswerFormResult', 'quizAnswer')).toContain('onDelete: Cascade')
+  })
+
+  it('AnswerUnwarrantedClaim.quizAnswer cascades on delete', () => {
+    expect(relationBlock('AnswerUnwarrantedClaim', 'quizAnswer')).toContain('onDelete: Cascade')
+  })
+
+  it('CardFormRequirement.card cascades on delete', () => {
+    expect(relationBlock('CardFormRequirement', 'card')).toContain('onDelete: Cascade')
+  })
+})

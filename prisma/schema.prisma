@@ -56,7 +56,7 @@ model User {
   /// Public profile bio (2026-09-13). Shown on /u/<handle> only, so it is
   /// meaningless without a handle; the account page hides the field until one
   /// is set. Single line, capped by BIO_MAX_LENGTH in src/lib/users/bio.ts.
-  bio              String?
+  bio String?
 
   /// Install-wide capability. Vocabulary: USER_ROLES in src/lib/auth/roles.ts
   /// (learner|staff|admin). Import that const rather than writing a literal —
@@ -67,9 +67,9 @@ model User {
   /// a claim is written at sign-in and lives until the token expires, so
   /// revoking staff would leave the person staff for days — the exact failure
   /// sessionVersion exists to prevent, reintroduced one field over.
-  role             String  @default("learner")
-  roleGrants       RoleGrant[] @relation("RoleGrantSubject")
-  rolesGranted     RoleGrant[] @relation("RoleGrantActor")
+  role         String      @default("learner")
+  roleGrants   RoleGrant[] @relation("RoleGrantSubject")
+  rolesGranted RoleGrant[] @relation("RoleGrantActor")
 
   /// Optional "write to me here" address, separate from `email` above.
   /// Separate BECAUSE it is safe to change: a contact address cannot be used to
@@ -110,40 +110,40 @@ model User {
   invitedByCodeId String?
   invitedByCode   InviteCode? @relation(fields: [invitedByCodeId], references: [id], onDelete: SetNull)
 
-  accounts         Account[]
-  sessions         Session[]
-  userTokens       UserToken[]
-  sets             Set[]
-  cardProgress     CardProgress[]
-  confidenceEvents ConfidenceEvent[]
-  studyEvents      StudyEvent[]
-  aiCredentials    AiCredential[]
-  aiCallLogs       AiCallLog[]
-  aiTaskRoutings   AiTaskRouting[]
-  quizAttempts     QuizAttempt[]
-  quizAnswers      QuizAnswer[]
-  trainingPlans    TrainingPlan[]
-  assets           CardAsset[]
-  studySessions    StudySession[]
-  postmortems      PostmortemSession[]
-  folders          Folder[]
-  studyNotes       StudyNote[]
+  accounts           Account[]
+  sessions           Session[]
+  userTokens         UserToken[]
+  sets               Set[]
+  cardProgress       CardProgress[]
+  confidenceEvents   ConfidenceEvent[]
+  studyEvents        StudyEvent[]
+  aiCredentials      AiCredential[]
+  aiCallLogs         AiCallLog[]
+  aiTaskRoutings     AiTaskRouting[]
+  quizAttempts       QuizAttempt[]
+  quizAnswers        QuizAnswer[]
+  trainingPlans      TrainingPlan[]
+  assets             CardAsset[]
+  studySessions      StudySession[]
+  postmortems        PostmortemSession[]
+  folders            Folder[]
+  studyNotes         StudyNote[]
   diagnosticAttempts DiagnosticAttempt[]
-  klpStates        KlpState[]
-  learnerTuning    LearnerTuning?
-  setViews         SetView[]
-  setReports       SetReport[]
-  groupsOwned      StudyGroup[]
-  groupMemberships StudyGroupMember[]
-  groupSetsAdded   StudyGroupSet[]
-  gameScores       GameScore[]
-  groupJoinRequests StudyGroupJoinRequest[]
-  groupInvites      StudyGroupInvite[]       @relation("GroupInviteInvitee")
-  groupInvitesSent  StudyGroupInvite[]       @relation("GroupInviteInviter")
-  notifications     Notification[]
-  feedback         Feedback[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  klpStates          KlpState[]
+  learnerTuning      LearnerTuning?
+  setViews           SetView[]
+  setReports         SetReport[]
+  groupsOwned        StudyGroup[]
+  groupMemberships   StudyGroupMember[]
+  groupSetsAdded     StudyGroupSet[]
+  gameScores         GameScore[]
+  groupJoinRequests  StudyGroupJoinRequest[]
+  groupInvites       StudyGroupInvite[]      @relation("GroupInviteInvitee")
+  groupInvitesSent   StudyGroupInvite[]      @relation("GroupInviteInviter")
+  notifications      Notification[]
+  feedback           Feedback[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
 }
 
 /// How a User.role got to be what it is.
@@ -230,7 +230,7 @@ model Set {
   /// column holds the LEAF and the group is derived. Nullable: nothing forces
   /// a subject. Slugs are persisted, so a slug rename strands rows; add a leaf
   /// and migrate instead. Owner-set only; validated against the tree on write.
-  subject        String?
+  subject String?
 
   /// Fork attribution. `forkedFromId` is the LIVE link and may go dark
   /// (SetNull on source delete); the two denormalized fields are captured AT
@@ -244,29 +244,29 @@ model Set {
   views            SetView[]
   reports          SetReport[]
 
-  userId        String
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cards         Card[]
-  quizAttempts  QuizAttempt[]
-  categories    CardCategory[]
-  assets        CardAsset[]
-  studySessions StudySession[]
-  postmortems   PostmortemSession[]
-  diagnosticAttempts DiagnosticAttempt[]
-  folderLinks   FolderSet[]
-  groupLinks    StudyGroupSet[]
-  gamePieces    GamePiece[]
-  gameScores    GameScore[]
+  userId              String
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards               Card[]
+  quizAttempts        QuizAttempt[]
+  categories          CardCategory[]
+  assets              CardAsset[]
+  studySessions       StudySession[]
+  postmortems         PostmortemSession[]
+  diagnosticAttempts  DiagnosticAttempt[]
+  folderLinks         FolderSet[]
+  groupLinks          StudyGroupSet[]
+  gamePieces          GamePiece[]
+  gameScores          GameScore[]
   /// Learning games (2026-09-13, docs/superpowers/specs/2026-09-13-learning-games-design.md).
   /// The last "Prepare games" run: when, and its per-card summary
   /// ({ made, copied, generated, skipped: [{cardId, reason}], failed: [...] })
   /// so the hub can say "Prepared 12 Sep · 41 pieces · 3 skipped" without
   /// recomputing. Null until the owner has prepared once.
-  gamesPreparedAt      DateTime?
-  gamesPrepareSummary  Json?
-  kltNodes      SetKltNode[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  gamesPreparedAt     DateTime?
+  gamesPrepareSummary Json?
+  kltNodes            SetKltNode[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
   @@index([userId])
   @@index([visibility, listingBlocked, publishedAt])
@@ -359,6 +359,7 @@ model Card {
   klps                CardKlp[]
   quizQuestions       QuizQuestion[]
   diagnosticQuestions DiagnosticQuestion[]
+  formRequirements    CardFormRequirement[]
 
   @@index([setId])
 }
@@ -371,13 +372,13 @@ model Card {
 /// pointing at the version that was actually asked, so a July session summary
 /// renders July's KLPs. Live reads filter `supersededAt: null`.
 model CardKlp {
-  id                 String            @id @default(cuid())
-  cardId             String
-  version            Int
-  index              Int
-  text               String            @db.Text
-  weight             Int // 1-5 centrality -> significance.relevance
-  kind               String // definition|mechanism|causal|condition|quantitative|contrast|example
+  id                  String               @id @default(cuid())
+  cardId              String
+  version             Int
+  index               Int
+  text                String               @db.Text
+  weight              Int // 1-5 centrality -> significance.relevance
+  kind                String // definition|mechanism|causal|condition|quantitative|contrast|example
   /// framing | substance (2026-09-12, src/lib/klp/framing.ts). A framing point is
   /// a definition/contrast the memorized-template trap was credited on: kept,
   /// mapped to topics, excluded from the substance separation, and the
@@ -385,10 +386,10 @@ model CardKlp {
   /// row authored before the column existed and on legacy extraction, which
   /// never ran the traps that decide it — never a default, because "substance"
   /// on an untested row would be a claim nobody tested.
-  role               String?
-  sourceHash         String
-  promptVersion      Int
-  source             String            @default("ai") // ai | user
+  role                String?
+  sourceHash          String
+  promptVersion       Int
+  source              String               @default("ai") // ai | user
   /// Stage 8 item 9: a 3-6 word rendering of `text`, for reading in a list.
   ///
   /// NULLABLE and staying that way — a KLP whose topic pass has not run,
@@ -398,7 +399,7 @@ model CardKlp {
   ///
   /// The ONE column a writer other than `writeKlpVersion` may update in place;
   /// see that function's doc comment and spec section 6.1.
-  label              String?           @db.Text
+  label               String?              @db.Text
   /// The AI model that produced this row's generated content.
   ///
   /// NULL means it was written before attribution existed (everything before
@@ -411,17 +412,17 @@ model CardKlp {
   /// `AnswerErrorTag.relevance`. `AiCallLog` records every attempt including
   /// failures, but it is not linked to the artifact and calls run concurrently,
   /// so joining a row back to its model by user and timestamp is guesswork.
-  model String?
-  supersededAt       DateTime?
-  createdAt          DateTime          @default(now())
-  card               Card              @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  answerResults      AnswerKlpResult[]
-  errorTags          AnswerErrorTag[]  @relation("ErrorTagKlp")
-  secondaryErrorTags AnswerErrorTag[]  @relation("ErrorTagSecondaryKlp")
-  states             KlpState[]
-  topics             KlpTopic[]
-  relationsFrom      KlpRelation[]     @relation("RelationFrom")
-  relationsTo        KlpRelation[]     @relation("RelationTo")
+  model               String?
+  supersededAt        DateTime?
+  createdAt           DateTime             @default(now())
+  card                Card                 @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  answerResults       AnswerKlpResult[]
+  errorTags           AnswerErrorTag[]     @relation("ErrorTagKlp")
+  secondaryErrorTags  AnswerErrorTag[]     @relation("ErrorTagSecondaryKlp")
+  states              KlpState[]
+  topics              KlpTopic[]
+  relationsFrom       KlpRelation[]        @relation("RelationFrom")
+  relationsTo         KlpRelation[]        @relation("RelationTo")
   diagnosticQuestions DiagnosticQuestion[]
 
   @@unique([cardId, version, index])
@@ -467,9 +468,9 @@ model KlpState {
 /// displayed; deleting it would churn ids that history points at, for no
 /// storage saving worth naming.
 model Klt {
-  id             String       @id @default(cuid())
+  id             String        @id @default(cuid())
   name           String
-  normalizedName String       @unique
+  normalizedName String        @unique
   /// candidate | active | merged | retired (2026-09-14, the recurrence status
   /// machine). A MINTED topic starts `candidate`: it carries `KlpTopic` links
   /// like any node — nothing is lost — but does not roll up mastery or appear
@@ -478,16 +479,16 @@ model Klt {
   /// keep their name as an alias, so history that named them still resolves.
   /// Every row that existed before this column is `active` — the legacy
   /// summariser and the hand-built tree never had a candidate stage.
-  status         String       @default("active")
+  status         String        @default("active")
   /// concept | skill | calculation (2026-09-15). What KIND of node this is,
   /// derived from the cards that mint it (`card-mode.ts`): an applied
   /// scenario card mints one `skill` node, a calculate card a `calculation`.
   /// Rendering and, later, mastery treat them differently — a skill needs
   /// several worked examples before it counts as known. Never a concept axis.
-  nature         String       @default("concept")
+  nature         String        @default("concept")
   mergedIntoId   String?
-  mergedInto     Klt?         @relation("KltMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
-  mergedFrom     Klt[]        @relation("KltMerge")
+  mergedInto     Klt?          @relation("KltMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom     Klt[]         @relation("KltMerge")
   aliases        KltAlias[]
   /// DEPRECATED (2026-08-26, KLT per-set structure spec): structure is moving
   /// to `SetKltNode`, one row per (set, concept), because 0 concepts in the
@@ -497,12 +498,12 @@ model Klt {
   /// Task 1-5 (thirteen source files still read them) and dropped in Task 6
   /// once every reader has moved to `SetKltNode`. Do not add new readers.
   parentKltId    String?
-  parent         Klt?         @relation("KltTree", fields: [parentKltId], references: [id], onDelete: Restrict)
-  children       Klt[]        @relation("KltTree")
+  parent         Klt?          @relation("KltTree", fields: [parentKltId], references: [id], onDelete: Restrict)
+  children       Klt[]         @relation("KltTree")
   /// DEPRECATED — see `parentKltId`. Dropped in Task 6.
   /// 0 at a subject root. Denormalized; `child.depth = parent.depth + 1` is a
   /// TESTED invariant, not an assumption — see src/lib/klt/invariants.ts.
-  depth          Int          @default(0)
+  depth          Int           @default(0)
   /// DEPRECATED — see `parentKltId`. Dropped in Task 6.
   /// Every ancestor id, root-first, EXCLUDING self.
   ///
@@ -511,7 +512,7 @@ model Klt {
   /// dashboard load. A stale array silently changes which key points roll up
   /// where, so an invariant test asserts it matches a real parent walk.
   ancestorIds    String[]
-  createdAt      DateTime     @default(now())
+  createdAt      DateTime      @default(now())
   links          KlpTopic[]
   /// Per-set structure over this concept. See `SetKltNode`.
   nodes          SetKltNode[]
@@ -636,9 +637,9 @@ model CardContentBlock {
   text      String?    @db.Text
   assetId   String?
   position  Int
-  listType  String?    // "bullet" | "numbered" for text blocks
+  listType  String? // "bullet" | "numbered" for text blocks
   indent    Int        @default(0)
-  marks     Json?      // inline text marks: bold, italic, underline, highlight
+  marks     Json? // inline text marks: bold, italic, underline, highlight
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
   card      Card       @relation(fields: [cardId], references: [id], onDelete: Cascade)
@@ -757,25 +758,25 @@ model ConfidenceEvent {
 ///
 /// Private only: a group is reached by its invite code, never listed.
 model StudyGroup {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  ownerId     String
-  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  id           String                  @id @default(cuid())
+  name         String
+  description  String?
+  ownerId      String
+  owner        User                    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   /// Bearer code in the join link. Rotated by the owner; the old link then
   /// 404s. Rules in src/lib/groups/invite.ts.
-  inviteCode  String   @unique
+  inviteCode   String                  @unique
   /// private | public (2026-09-14). A PUBLIC group is listed in the groups
   /// directory and anyone signed in may REQUEST to join; the owner accepts or
   /// declines. Private groups are reachable only by invite link or an owner's
   /// invitation. Vocabulary: GROUP_VISIBILITIES in src/lib/groups/roles.ts.
-  visibility  String   @default("private")
-  members     StudyGroupMember[]
-  sets        StudyGroupSet[]
+  visibility   String                  @default("private")
+  members      StudyGroupMember[]
+  sets         StudyGroupSet[]
   joinRequests StudyGroupJoinRequest[]
   invites      StudyGroupInvite[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
 
   @@index([ownerId])
   @@index([visibility, createdAt])
@@ -914,18 +915,18 @@ model StudyEvent {
 /// standalone matching game, review/confidence ranking) opens one of these so
 /// the history feed can present them as comparable, timed activities.
 model StudySession {
-  id          String       @id @default(cuid())
-  userId      String
-  setId       String
-  kind        String // "quiz" | "matching" | "confidence" | "diagnostic"
-  startedAt   DateTime     @default(now())
-  endedAt     DateTime?
+  id                String             @id @default(cuid())
+  userId            String
+  setId             String
+  kind              String // "quiz" | "matching" | "confidence" | "diagnostic"
+  startedAt         DateTime           @default(now())
+  endedAt           DateTime?
   // Denormalized rather than derived from endedAt - startedAt: the activity
   // feed sorts and aggregates on duration, and computing it per row blocks
   // index use and is undefined for a session that was never closed.
-  durationMs  Int?
-  itemCount   Int          @default(0)
-  categoryIds Json? // what the session was scoped to at launch
+  durationMs        Int?
+  itemCount         Int                @default(0)
+  categoryIds       Json? // what the session was scoped to at launch
   /// The AI model that produced this row's generated content.
   ///
   /// NULL means it was written before attribution existed (everything before
@@ -938,14 +939,14 @@ model StudySession {
   /// `AnswerErrorTag.relevance`. `AiCallLog` records every attempt including
   /// failures, but it is not linked to the artifact and calls run concurrently,
   /// so joining a row back to its model by user and timestamp is guesswork.
-  model String?
-  insight     Json? // persisted SessionInsight (src/lib/memory/insight.ts)
-  insightAt   DateTime?
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  set         Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
-  attempt     QuizAttempt?
+  model             String?
+  insight           Json? // persisted SessionInsight (src/lib/memory/insight.ts)
+  insightAt         DateTime?
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  set               Set                @relation(fields: [setId], references: [id], onDelete: Cascade)
+  attempt           QuizAttempt?
   diagnosticAttempt DiagnosticAttempt?
-  events      StudyEvent[]
+  events            StudyEvent[]
 
   @@index([userId, startedAt])
   @@index([userId, kind, startedAt])
@@ -976,8 +977,8 @@ model PostmortemSession {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  set  Set?  @relation(fields: [setId], references: [id], onDelete: SetNull)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  set         Set?               @relation(fields: [setId], references: [id], onDelete: SetNull)
   folderLinks FolderPostmortem[]
 
   @@index([userId, occurredAt])
@@ -997,7 +998,7 @@ model Folder {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   sets        FolderSet[]
   postmortems FolderPostmortem[]
   notes       FolderNote[]
@@ -1065,13 +1066,13 @@ model FolderFolder {
 /// summary line, highlight it, and attach their own comment without losing the
 /// original text or the fact that the summary came from AI.
 model StudyNote {
-  id         String   @id @default(cuid())
-  userId     String
-  title      String
-  body       String   @db.Text
+  id           String    @id @default(cuid())
+  userId       String
+  title        String
+  body         String    @db.Text
   // Immutable first draft retained so AI-assisted editing can never erase the
   // learner's original source, even when the working body is edited later.
-  originalBody String? @db.Text
+  originalBody String?   @db.Text
   /// The AI model that produced this row's generated content.
   ///
   /// NULL means it was written before attribution existed (everything before
@@ -1084,11 +1085,11 @@ model StudyNote {
   /// `AnswerErrorTag.relevance`. `AiCallLog` records every attempt including
   /// failures, but it is not linked to the artifact and calls run concurrently,
   /// so joining a row back to its model by user and timestamp is guesswork.
-  model String?
-  analysis   Json?
-  analyzedAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  model        String?
+  analysis     Json?
+  analyzedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   folderLinks FolderNote[]
@@ -1100,11 +1101,11 @@ model StudyNote {
 /// diagnostic deliberately spans the set's learning points and includes
 /// follow-up questions so the first result can seed recommendations.
 model DiagnosticAttempt {
-  id          String   @id @default(cuid())
-  userId      String
-  setId       String
-  sessionId   String   @unique
-  status      String   @default("in_progress") // in_progress | completed | abandoned
+  id            String    @id @default(cuid())
+  userId        String
+  setId         String
+  sessionId     String    @unique
+  status        String    @default("in_progress") // in_progress | completed | abandoned
   /// Which generation of the diagnostic produced this attempt.
   ///
   /// 1 = pre-key-point: questions carried a free-text `learningPoint` with no
@@ -1116,44 +1117,44 @@ model DiagnosticAttempt {
   /// `questions.some(q => q.klpId)`: the results view needs one field to
   /// decide whether to show the legacy banner, and that derivation would
   /// mislabel a NEW attempt on a set whose cards happen to have no key points.
-  engineVersion Int    @default(1)
+  engineVersion Int       @default(1)
   questionCount Int
-  score       Int?
-  report      Json?
-  reportAt    DateTime?
+  score         Int?
+  report        Json?
+  reportAt      DateTime?
   /// The AI model that wrote `report`. NULL when the report came from
   /// `fallbackReport` (composed in TypeScript from grades already in hand) or
   /// predates attribution.
-  reportModel String?
-  createdAt   DateTime @default(now())
-  completedAt DateTime?
+  reportModel   String?
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
 
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  set         Set          @relation(fields: [setId], references: [id], onDelete: Cascade)
-  session     StudySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  questions   DiagnosticQuestion[]
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  set       Set                  @relation(fields: [setId], references: [id], onDelete: Cascade)
+  session   StudySession         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questions DiagnosticQuestion[]
 
   @@index([userId, createdAt])
   @@index([setId, createdAt])
 }
 
 model DiagnosticQuestion {
-  id            String   @id @default(cuid())
-  attemptId     String
-  cardId        String
-  position      Int
-  kind          String   // core | follow-up
-  learningPoint String   @db.Text
-  prompt        String   @db.Text
-  expectedAnswer String  @db.Text
-  answer        String?  @db.Text
-  score         Int?
-  status        String?  // mastered | partial | missed
-  feedback      String?  @db.Text
-  mistake       String?  @db.Text
-  latencyMs     Int?
-  answeredAt    DateTime?
-  createdAt     DateTime @default(now())
+  id             String    @id @default(cuid())
+  attemptId      String
+  cardId         String
+  position       Int
+  kind           String // core | follow-up
+  learningPoint  String    @db.Text
+  prompt         String    @db.Text
+  expectedAnswer String    @db.Text
+  answer         String?   @db.Text
+  score          Int?
+  status         String? // mastered | partial | missed
+  feedback       String?   @db.Text
+  mistake        String?   @db.Text
+  latencyMs      Int?
+  answeredAt     DateTime?
+  createdAt      DateTime  @default(now())
 
   /// The key point this question probes — exactly one, so "only what it asked
   /// was credited" is true by construction rather than a rule the grader has
@@ -1174,12 +1175,12 @@ model DiagnosticQuestion {
   /// mid-run. A single per-attempt field would quietly report one of them.
   ///
   /// NULL for anything written before attribution existed.
-  model String?
-  klpId         String?
+  model        String?
+  klpId        String?
   /// The QuizAnswer this question's grade was written to: the row that carries
   /// AnswerKlpResult/AnswerErrorTag and steps KlpState. SetNull for the same
   /// reason as klpId — erasing the answer must not erase the question asked.
-  quizAnswerId  String?  @unique
+  quizAnswerId String? @unique
 
   attempt    DiagnosticAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   card       Card              @relation(fields: [cardId], references: [id], onDelete: Cascade)
@@ -1243,15 +1244,15 @@ model AiCallLog {
 }
 
 model AiCredential {
-  id              String          @id @default(cuid())
-  userId          String
-  provider        String          @default("google") // google|anthropic|openai|openrouter|custom
-  label           String          @default("Default")
-  encryptedApiKey String          @db.Text
-  keyHint         String
-  baseUrl         String? // required for openrouter + custom
-  defaultModel    String          @default("gemini-3.6-flash")
-  role            String          @default("primary") // primary|backup
+  id                String          @id @default(cuid())
+  userId            String
+  provider          String          @default("google") // google|anthropic|openai|openrouter|custom
+  label             String          @default("Default")
+  encryptedApiKey   String          @db.Text
+  keyHint           String
+  baseUrl           String? // required for openrouter + custom
+  defaultModel      String          @default("gemini-3.6-flash")
+  role              String          @default("primary") // primary|backup
   /// Whether this key is billed (`paid`) or on a provider free tier (`free`).
   ///
   /// It changes ROTATION, not permission. A free key is subject to a daily cap
@@ -1264,14 +1265,14 @@ model AiCredential {
   /// marked free is merely rotated more widely than it needed to be, while a
   /// free key wrongly marked paid gets hammered into its daily cap — which is
   /// exactly the failure this column exists to prevent.
-  tier            String          @default("free") // free|paid
+  tier              String          @default("free") // free|paid
   /// Offered to EVERY user of this install, not just its owner.
   ///
   /// This is how somebody studies without holding an API key of their own,
   /// which was the single biggest complaint from non-technical users. It also
   /// means the owner is billed for other people's requests, so it is opt-in,
   /// off by default, and always paired with `sharedTokenBudget`.
-  shared          Boolean         @default(false)
+  shared            Boolean         @default(false)
   /// Tokens ONE borrower may spend on this credential PER WEEK. NULL means
   /// unlimited, which is only sane on a key that is not shared.
   ///
@@ -1286,15 +1287,15 @@ model AiCredential {
   /// log rather than counted into a column, changing the window length is a
   /// one-line change here and needs no migration or backfill.
   sharedTokenBudget Int?
-  enabled         Boolean         @default(true)
-  lastUsedAt      DateTime? // last ATTEMPT (stamped before the call, not after success); drives LRU rotation in lib/ai/key-pool.ts
-  lastErrorAt     DateTime?
-  lastErrorKind   String?
-  verifiedAt      DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  taskRoutings    AiTaskRouting[]
+  enabled           Boolean         @default(true)
+  lastUsedAt        DateTime? // last ATTEMPT (stamped before the call, not after success); drives LRU rotation in lib/ai/key-pool.ts
+  lastErrorAt       DateTime?
+  lastErrorKind     String?
+  verifiedAt        DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskRoutings      AiTaskRouting[]
 
   @@index([userId])
   @@index([userId, provider])
@@ -1451,7 +1452,7 @@ model QuizAnswer {
   /// `AnswerErrorTag.relevance`. `AiCallLog` records every attempt including
   /// failures, but it is not linked to the artifact and calls run concurrently,
   /// so joining a row back to its model by user and timestamp is guesswork.
-  model String?
+  model          String?
   createdAt      DateTime     @default(now())
   attempt        QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1460,12 +1461,18 @@ model QuizAnswer {
   // Why this answer has the tags it has — or has none. A relational tag table
   // cannot distinguish "analyzed and clean" from "could not analyze": both are
   // zero rows. Spec 3's rate denominators filter on 'analyzed'.
-  analysisStatus   String? // analyzed | no_provenance | no_klps | failed
-  analysisVersion  Int? // which analysis contract produced these rows
-  analysisWarnings Json? // [{ reason, value }] — non-fatal losses
-  klpResults       AnswerKlpResult[]
-  errorTags        AnswerErrorTag[]
-  studyEvent       StudyEvent?
+  analysisStatus     String? // analyzed | no_provenance | no_klps | failed
+  analysisVersion    Int? // which analysis contract produced these rows
+  analysisWarnings   Json? // [{ reason, value }] — non-fatal losses
+  /// Spec 5 Phase A §6: which GRADER_VERSION produced this answer's Phase A
+  /// rows (relation/form/unwarranted-claim results). Null predates Phase A.
+  graderVersion      Int?
+  klpResults         AnswerKlpResult[]
+  errorTags          AnswerErrorTag[]
+  relationResults    AnswerRelationResult[]
+  formResults        AnswerFormResult[]
+  unwarranted        AnswerUnwarrantedClaim[]
+  studyEvent         StudyEvent?
   diagnosticQuestion DiagnosticQuestion?
 
   @@index([userId, cardId])
@@ -1488,6 +1495,11 @@ model AnswerKlpResult {
   credit       Float // 0-1, computed: status credit x evidence strength
   mode         String // StudySource form: quiz-mc | quiz-sa | quiz-tf
   evidence     String?    @db.Text
+  /// Spec 5 Phase A §3: character offsets into QuizAnswer.answer for the
+  /// verbatim quote the grader cited as evidence. Null means the grader
+  /// paraphrased instead of quoting, or predates this column.
+  spanStart    Int?
+  spanEnd      Int?
   createdAt    DateTime   @default(now())
   quizAnswer   QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
   klp          CardKlp    @relation(fields: [klpId], references: [id], onDelete: Cascade)
@@ -1536,6 +1548,80 @@ model AnswerErrorTag {
   @@index([klpId, secondaryKlpId, type])
 }
 
+/// Spec 5 Phase A §3/§6: whether an answer honored one KLP relation edge
+/// (e.g. "you got both endpoints right but not the causal link between
+/// them"). `provenance` distinguishes an edge the question actively probed
+/// from one merely inferred from what the learner wrote unprompted.
+model AnswerRelationResult {
+  id           String      @id @default(cuid())
+  quizAnswerId String
+  relationId   String
+  status       String
+  credit       Float
+  provenance   String // passive | active
+  evidence     String?     @db.Text
+  spanStart    Int?
+  spanEnd      Int?
+  createdAt    DateTime    @default(now())
+  quizAnswer   QuizAnswer  @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
+  relation     KlpRelation @relation(fields: [relationId], references: [id], onDelete: Cascade)
+
+  @@unique([quizAnswerId, relationId])
+}
+
+/// Spec 5 Phase A §3/§6: whether an answer met one of a card's authored form
+/// requirements (structure/completeness expectations independent of any
+/// single KLP's substance).
+model AnswerFormResult {
+  id                String              @id @default(cuid())
+  quizAnswerId      String
+  formRequirementId String
+  status            String // met | not_met
+  evidence          String?             @db.Text
+  spanStart         Int?
+  spanEnd           Int?
+  createdAt         DateTime            @default(now())
+  quizAnswer        QuizAnswer          @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
+  formRequirement   CardFormRequirement @relation(fields: [formRequirementId], references: [id], onDelete: Cascade)
+
+  @@unique([quizAnswerId, formRequirementId])
+}
+
+/// Spec 5 Phase A §3/§6: a claim the answer made that the grader could not
+/// ground in the card's KLPs — "unwarranted claims carry a magnitude"
+/// (spec5, 2026-09-17). Whole-answer, not tied to a single KLP.
+model AnswerUnwarrantedClaim {
+  id           String     @id @default(cuid())
+  quizAnswerId String
+  text         String     @db.Text
+  magnitude    Int
+  evidence     String?    @db.Text
+  spanStart    Int?
+  spanEnd      Int?
+  createdAt    DateTime   @default(now())
+  quizAnswer   QuizAnswer @relation(fields: [quizAnswerId], references: [id], onDelete: Cascade)
+}
+
+/// Spec 5 Phase A §5/§6: an authored, versioned structural/completeness
+/// requirement for a card's answers (e.g. "names the formula, not just the
+/// definition"), independent of any single KLP's substance. Versioned on
+/// `klpVersion` like CardKlp, so an edited card's stale requirements don't
+/// silently keep grading new answers.
+model CardFormRequirement {
+  id            String             @id @default(cuid())
+  cardId        String
+  klpVersion    Int
+  index         Int
+  text          String             @db.Text
+  promptVersion Int
+  model         String?
+  createdAt     DateTime           @default(now())
+  card          Card               @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  answerResults AnswerFormResult[]
+
+  @@index([cardId, klpVersion])
+}
+
 /// Stage 8: one asked question, frozen at the moment it was asked.
 ///
 /// Exists for two reasons. (1) True/false is otherwise unanswerable
@@ -1567,7 +1653,7 @@ model QuizQuestion {
   /// `AnswerErrorTag.relevance`. `AiCallLog` records every attempt including
   /// failures, but it is not linked to the artifact and calls run concurrently,
   /// so joining a row back to its model by user and timestamp is guesswork.
-  model String?
+  model        String?
   targetKlpIds Json
   klpVersion   Int
   createdAt    DateTime    @default(now())
@@ -1610,7 +1696,7 @@ model TrainingPlan {
   /// `AnswerErrorTag.relevance`. `AiCallLog` records every attempt including
   /// failures, but it is not linked to the artifact and calls run concurrently,
   /// so joining a row back to its model by user and timestamp is guesswork.
-  model String?
+  model              String?
   promptVersion      Int?
   createdAt          DateTime @default(now())
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1727,16 +1813,16 @@ model InviteCode {
 /// One authoring RUN for one card version. The audit trail for why a card's
 /// KLPs are what they are.
 model CardAuthoring {
-  id              String   @id @default(cuid())
-  cardId          String
-  klpVersion      Int
-  promptVersion   Int
+  id                  String           @id @default(cuid())
+  cardId              String
+  klpVersion          Int
+  promptVersion       Int
   /// The strong-candidate answer the KLPs were derived from. Also improves
   /// short-answer grading, which today compares against `card.definition` —
   /// often a terse personal note — and can be shown to the learner after they
   /// answer.
-  referenceAnswer String   @db.Text
-  separationScore Float
+  referenceAnswer     String           @db.Text
+  separationScore     Float
   /// Separation over the SUBSTANCE points only (framing points excluded, see
   /// CardKlp.role). This is what the quality bar and `status` read from
   /// 2026-09-12; `separationScore` stays on the full set so every stored score
@@ -1755,7 +1841,7 @@ model CardAuthoring {
   /// cannot be recovered; a per-KLP information measure is therefore
   /// forward-looking only, which is the honest state rather than a
   /// backfilled guess.
-  referenceVerdicts Json?
+  referenceVerdicts   Json?
   /// THE REBUILD TEST (spec 2026-09-12-rebuild-test-design.md). `cardCoverage`
   /// replaces `separationScore`'s companion `referenceScore` as the
   /// completeness number: the share of the CARD's own definition points an
@@ -1765,43 +1851,43 @@ model CardAuthoring {
   /// answer judged right and the card wrong on a point - surfaced to the set
   /// owner as a warning, never applied. All nullable, no backfill: rows
   /// authored before 2026-09-12 have no rebuild and say so.
-  rebuiltAnswer   String?  @db.Text
-  cardCoverage    Float?
-  referenceParity Float?
-  cardDisputes    Json?
+  rebuiltAnswer       String?          @db.Text
+  cardCoverage        Float?
+  referenceParity     Float?
+  cardDisputes        Json?
   /// `{ coverage: [...], parity: [...], definitionPoints: [...] }` so a
   /// formula change can recompute history - the same rule AnswerKlpResult follows.
-  rebuildVerdicts Json?
-  revisions       Int
+  rebuildVerdicts     Json?
+  revisions           Int
   /// The model id that authored this run, e.g. "gemini-3.6-flash".
   ///
   /// NULLABLE because rows written before this column existed have no honest
   /// value — the pilot rotated across three models and the only record was the
   /// script's console output. NULL means "not recorded", never "unknown model".
-  model           String?
+  model               String?
   /// separated | low_discrimination | failed
-  status          String
+  status              String
   /// The writer's step-0 classification of the QUESTION (`QUESTION_TYPES`:
   /// define | enumerate | walkthrough | why | compare | scenario | calculate).
   /// Persisted from 2026-09-15 so the topic tree can read it — a scenario card
   /// exercises a SKILL on a case and its specifics must not become topics.
   /// Backfilled from the run files for everything authored before; NULL
   /// means the writer did not return one.
-  questionType    String?
-  createdAt       DateTime @default(now())
-  card            Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  probes          AuthoringProbe[]
+  questionType        String?
+  createdAt           DateTime         @default(now())
+  card                Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  probes              AuthoringProbe[]
 
   @@index([cardId, createdAt])
 }
 
 /// A deliberately wrong answer, written to fail specific KLPs.
 model AuthoringProbe {
-  id          String @id @default(cuid())
+  id          String        @id @default(cuid())
   authoringId String
   /// confident_wrong | vague | memorized_template
   kind        String
-  text        String @db.Text
+  text        String        @db.Text
   /// Fraction of KLPs this answer satisfied, 0-1.
   score       Float
   /// Per-KLP verdicts for THIS answer, keyed by the KLP's index within the
@@ -1821,23 +1907,24 @@ model AuthoringProbe {
 
 /// A link between two KLPs on the same card. Extracted here; SERVED in Spec 3.
 model KlpRelation {
-  id         String   @id @default(cuid())
-  fromKlpId  String
-  toKlpId    String
+  id            String                 @id @default(cuid())
+  fromKlpId     String
+  toKlpId       String
   /// causes | requires | precedes | confused_with | applies_within | analogous_to
-  type       String
+  type          String
   /// perturbation | order_violation | substitution | entailment
-  provenance String
-  rationale  String   @db.Text
+  provenance    String
+  rationale     String                 @db.Text
   /// The adversarial artifact that proved this edge informative: an answer
   /// getting BOTH endpoints right and the link wrong. Spec 3 serves this as
   /// the probe — proving the edge worth keeping manufactures the instrument
   /// that tests it, the same economy as generating a distractor from a named
   /// corruption.
-  probe      String   @db.Text
-  createdAt  DateTime @default(now())
-  from       CardKlp  @relation("RelationFrom", fields: [fromKlpId], references: [id], onDelete: Cascade)
-  to         CardKlp  @relation("RelationTo", fields: [toKlpId], references: [id], onDelete: Cascade)
+  probe         String                 @db.Text
+  createdAt     DateTime               @default(now())
+  from          CardKlp                @relation("RelationFrom", fields: [fromKlpId], references: [id], onDelete: Cascade)
+  to            CardKlp                @relation("RelationTo", fields: [toKlpId], references: [id], onDelete: Cascade)
+  answerResults AnswerRelationResult[]
 
   @@unique([fromKlpId, toKlpId, type])
   @@index([fromKlpId])
