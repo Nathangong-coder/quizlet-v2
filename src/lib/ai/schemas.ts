@@ -506,6 +506,7 @@ export type KltSkeleton = z.infer<typeof KltSkeletonSchema>;
  * is auditable; the closed list is what lets a later spec group cards by it.
  */
 export const QUESTION_TYPES = ['define', 'enumerate', 'walkthrough', 'why', 'compare', 'scenario', 'calculate'] as const;
+export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 export const AuthorDraftSchema = z.object({
   questionType: z.enum(QUESTION_TYPES).optional(),
