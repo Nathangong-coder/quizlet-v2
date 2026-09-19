@@ -843,12 +843,42 @@ export const GraderPanelModesSchema = z.object({
   }
 });
 
+/**
+ * The BLIND kinds (2026-09-19): the adversary sees the QUESTION ONLY and
+ * writes one panel-level `differences` paragraph instead of a rationale per
+ * answer — one explanation of how the answers descend is what the
+ * reconciliation reads, and five fewer paragraphs is most of the panel's
+ * output cost. `rationale` is absent on the answers.
+ */
+const blindAnswerBase = {
+  text: z.string().min(1),
+};
+export const GraderPanelBlindSchema = z.object({
+  answers: z.array(z.object({ level: z.enum(GRADER_PANEL_LEVELS), ...blindAnswerBase, intendedRank: z.number().int().min(1).max(4) })).length(4),
+  differences: z.string().min(1),
+}).superRefine((panel, ctx) => {
+  if (new Set(panel.answers.map((a) => a.intendedRank)).size !== 4) ctx.addIssue({ code: 'custom', path: ['answers'], message: 'intendedRank must be 1-4, each once' });
+  if (new Set(panel.answers.map((a) => a.level)).size !== 4) ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a blind panel carries each level exactly once' });
+});
+export const GraderPanelBlindBandsSchema = z.object({
+  answers: z.array(z.object({ level: z.enum(GRADER_PANEL_BAND_IDS), ...blindAnswerBase, intendedRank: z.number().int().min(1).max(GRADER_PANEL_BANDS.length) })).length(GRADER_PANEL_BANDS.length),
+  differences: z.string().min(1),
+}).superRefine((panel, ctx) => {
+  const { answers } = panel;
+  if (new Set(answers.map((a) => a.intendedRank)).size !== answers.length) ctx.addIssue({ code: 'custom', path: ['answers'], message: `intendedRank must be 1-${GRADER_PANEL_BANDS.length}, each once` });
+  if (new Set(answers.map((a) => a.level)).size !== GRADER_PANEL_BANDS.length) ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a bands panel carries each band exactly once' });
+  for (const [i, a] of answers.entries()) {
+    const expected = GRADER_PANEL_BANDS.find((b) => b.id === a.level)?.rank;
+    if (expected !== undefined && a.intendedRank !== expected) ctx.addIssue({ code: 'custom', path: ['answers', i, 'intendedRank'], message: `"${a.level}" is rank ${expected}` });
+  }
+});
+
 export const GraderPanelBandsSchema = z.object({
-  answers: z.array(z.object({ level: z.enum(GRADER_PANEL_BAND_IDS), ...panelAnswerBase, intendedRank: z.number().int().min(1).max(6) })).length(6),
+  answers: z.array(z.object({ level: z.enum(GRADER_PANEL_BAND_IDS), ...panelAnswerBase, intendedRank: z.number().int().min(1).max(GRADER_PANEL_BANDS.length) })).length(GRADER_PANEL_BANDS.length),
 }).superRefine((panel, ctx) => {
   const { answers } = panel;
   if (new Set(answers.map((a) => a.intendedRank)).size !== answers.length) {
-    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'intendedRank must be 1-6, each once' });
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: `intendedRank must be 1-${GRADER_PANEL_BANDS.length}, each once` });
   }
   if (new Set(answers.map((a) => a.level)).size !== GRADER_PANEL_BANDS.length) {
     ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a bands panel carries each band exactly once' });
@@ -865,7 +895,8 @@ export const GraderPanelBandsSchema = z.object({
 export const PanelGradeReviewSchema = z.object({
   points: z.array(z.object({
     klpRef: z.number().int().min(0),
-    stance: z.enum(['accept', 'hold']),
+    /** v2 adds `klp_defect`: the POINT is at fault — ambiguous, compound, or asking more than the question does. */
+    stance: z.enum(['accept', 'hold', 'klp_defect']),
     verdict: z.string().min(1),
     firm: z.boolean(),
     reason: z.string().min(1),
@@ -892,11 +923,13 @@ export const DefinitionSupervisionSchema = z.object({
 export type DefinitionSupervision = z.infer<typeof DefinitionSupervisionSchema>;
 
 /** Either kind — what a reader that stores or displays a panel holds. */
-export const GraderPanelSchema = z.union([GraderPanelLevelsSchema, GraderPanelModesSchema, GraderPanelBandsSchema]);
+export const GraderPanelSchema = z.union([GraderPanelLevelsSchema, GraderPanelModesSchema, GraderPanelBandsSchema, GraderPanelBlindSchema, GraderPanelBlindBandsSchema]);
 
-export function graderPanelSchemaFor(kind: 'levels' | 'modes' | 'blind' | 'bands' | 'blind-bands'): typeof GraderPanelLevelsSchema | typeof GraderPanelModesSchema | typeof GraderPanelBandsSchema {
+export function graderPanelSchemaFor(kind: 'levels' | 'modes' | 'blind' | 'bands' | 'blind-bands'): typeof GraderPanelLevelsSchema | typeof GraderPanelModesSchema | typeof GraderPanelBandsSchema | typeof GraderPanelBlindSchema | typeof GraderPanelBlindBandsSchema {
   if (kind === 'modes') return GraderPanelModesSchema;
-  if (kind === 'bands' || kind === 'blind-bands') return GraderPanelBandsSchema;
+  if (kind === 'bands') return GraderPanelBandsSchema;
+  if (kind === 'blind') return GraderPanelBlindSchema;
+  if (kind === 'blind-bands') return GraderPanelBlindBandsSchema;
   return GraderPanelLevelsSchema;
 }
 

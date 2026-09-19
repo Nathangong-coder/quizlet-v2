@@ -36,7 +36,10 @@ export interface ReviewPanelGradeBuildInput {
  */
 export const REVIEW_PANEL_GRADE_PROMPT = {
   id: 'review-panel-grade',
-  version: 1,
+  // v2 (2026-09-19): a third stance, "klp_defect" — the point itself is the
+  // problem. Routed to the authoring loop and, where the card lacks what the
+  // point needs, to the owner (see src/lib/analysis/benchmark-review.ts).
+  version: 2,
   schema: PanelGradeReviewSchema,
   build(input: ReviewPanelGradeBuildInput): string {
     const klps = input.klps.map((k) => `[${k.ref}] (${k.kind}) ${k.text}`).join('\n');
@@ -58,7 +61,11 @@ The second reader wrote this answer to be "${input.intendedLabel}" and explains:
 
 The disagreement: ${input.disagreement}
 
-For EVERY key point the second reader's account bears on, return { "klpRef": number, "stance": "accept" | "hold", "verdict": the verdict you now give (your original one when holding), "firm": true|false, "reason": one sentence citing the answer's words }. "firm" is true when you would defend the verdict to a third reader — an unclear text is not firm. Then return "summary": one sentence on where the second reader was right and where not.
+For EVERY key point the second reader's account bears on, return { "klpRef": number, "stance": "accept" | "hold" | "klp_defect", "verdict": the verdict you now give (your original one when holding or naming a defect), "firm": true|false, "reason": one sentence citing the answer's words }. "firm" is true when you would defend the verdict to a third reader — an unclear text is not firm.
+
+Use "klp_defect" when NEITHER of you is wrong because the KEY POINT is: it is ambiguous (two readings, and the answer satisfies one), compound (two claims joined so that stating one still fails it), or it asks for something the QUESTION does not — a competent candidate answering this question as asked would not say it. In "reason", say which of the three and, if the card should carry a different or additional point, state that point in one sentence starting "The card needs:". Do not use "klp_defect" for a point that is merely hard; a hard point a strong answer states is a good point.
+
+Then return "summary": one sentence on where the second reader was right and where not.
 
 Output JSON: { "points": [ { "klpRef": number, "stance": string, "verdict": string, "firm": boolean, "reason": string } ], "summary": string }`;
   },

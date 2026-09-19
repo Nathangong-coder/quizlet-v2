@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { prisma } from '../src/lib/db'
 import { generateText, Output, NoObjectGeneratedError } from 'ai'
 import type { z } from 'zod'
@@ -445,6 +448,7 @@ async function main() {
   // grader reconsidering, not a second opinion from another family.
   let reviewed = 0
   let strong = 0
+  const klpDefects: { cardId: string; klpRef: number; klpId: string; text: string; reason: string; term: string }[] = []
   if (review && !dryRun && planModel) {
     const gradeCombo = direct ? gradePool.find((c) => c.model === planModel) : undefined
     const reviewGen: ReviewGen = async (input) => {
@@ -463,11 +467,30 @@ async function main() {
         onProgress: (o) => {
           reviewed++
           if (o.reviewOutcome === 'strong') strong++
-          console.log(`  review  ${o.term.slice(0, 48)} / ${o.label}: ${o.reviewOutcome} (accepted ${o.accepted}, held ${o.held}) — ${o.summary}`)
+          for (const d of o.klpDefects ?? []) klpDefects.push({ ...d, term: o.term })
+          console.log(`  review  ${o.term.slice(0, 48)} / ${o.label}: ${o.reviewOutcome} (accepted ${o.accepted}, held ${o.held}${o.klpDefects?.length ? `, point defects ${o.klpDefects.map((d) => `[${d.klpRef}]`).join('')}` : ''}) — ${o.summary}`)
         },
       })
       const skipped = outcomes.filter((o) => o.outcome === 'skipped' && o.reason !== 'no_dispute').length
-      console.log(`[bench-grader] review: ${reviewed} disputed answer(s) reviewed, ${strong} strong (manual queue), ${skipped} skipped`)
+      console.log(`[bench-grader] review: ${reviewed} disputed answer(s) reviewed, ${strong} strong (manual queue), ${klpDefects.length} point defect(s), ${skipped} skipped`)
+      if (klpDefects.length) {
+        // The panel as a KEY-POINT test: defects go to the authoring loop as a
+        // `--findings` file (the same shape `probe-definitions --revise` writes),
+        // and the ones that say "The card needs:" are printed for the owner.
+        const byCard: Record<string, { index: number; text: string; issue: string; fix: string }[]> = {}
+        for (const d of klpDefects) (byCard[d.cardId] ??= []).push({ index: d.klpRef, text: d.text, issue: 'klp_defect', fix: d.reason })
+        const dir = mkdtempSync(join(tmpdir(), 'bench-findings-'))
+        const file = join(dir, 'findings.json')
+        writeFileSync(file, JSON.stringify(byCard, null, 2))
+        console.log(`\n=== POINT DEFECTS (${klpDefects.length}) — the reconciliation named the key point, not the grader ===`)
+        for (const d of klpDefects) console.log(`  ${d.term.slice(0, 50)} [${d.klpRef}] ${d.text}\n      — ${d.reason}`)
+        const needs = klpDefects.filter((d) => /The card needs:/i.test(d.reason))
+        if (needs.length) {
+          console.log(`\n=== FOR THE CARD OWNER (${needs.length}) — add to the card, or accept the point as it stands ===`)
+          for (const d of needs) console.log(`  ${d.term.slice(0, 50)}: ${d.reason.slice(d.reason.search(/The card needs:/i))}`)
+        }
+        console.log(`\n[bench-grader] findings for the authoring loop: ${file}\n  → npx tsx --conditions=react-server --env-file=.env scripts/author-klps.ts --set ${set.id} --cards ${[...new Set(klpDefects.map((d) => d.cardId))].join(',')} --force --keep-better --direct --findings ${file}`)
+      }
     } catch (err) {
       console.error(`[bench-grader] review failed: ${err instanceof Error ? err.message : String(err)}`)
     }

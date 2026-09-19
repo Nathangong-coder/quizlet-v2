@@ -81,7 +81,8 @@ export interface AuthorInput {
 export interface PriorFinding {
   index: number
   text: string
-  issue: 'over_reach' | 'not_on_card'
+  /** `klp_defect` (2026-09-19): named by the benchmark's reconciliation — ambiguous, compound, or beyond the question. */
+  issue: 'over_reach' | 'not_on_card' | 'klp_defect'
   fix: string
 }
 

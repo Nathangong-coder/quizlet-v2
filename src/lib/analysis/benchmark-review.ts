@@ -9,12 +9,21 @@ import { bandOf, bandHit, isBandsKind, type GraderPanelKind } from '@/lib/analys
  * calling the model, persisting the row) lives in `benchmark-run.ts`; this
  * module never touches Prisma or a provider so every rule here is testable.
  */
-export type ReviewOutcome = 'agree' | 'disagree' | 'strong'
+/**
+ * `klp_defect` (2026-09-19, owner's ask): the reconciliation names the KEY
+ * POINT, not the grader or the adversary, as the problem — a competent
+ * answer written to this band fails it because it is ambiguous, compound,
+ * or asks for more than the question does. It routes to the authoring loop
+ * (a `--findings` file for `author-klps`) and, where the card itself lacks
+ * what the point needs, to the owner — the panel is then a test of the key
+ * points as well as of the grader.
+ */
+export type ReviewOutcome = 'agree' | 'disagree' | 'strong' | 'klp_defect'
 
 export interface ReviewPoint {
   klpRef: number
   klpId: string
-  stance: 'accept' | 'hold'
+  stance: 'accept' | 'hold' | 'klp_defect'
   before: string
   after: string
   firm: boolean
@@ -28,8 +37,11 @@ export interface ReviewPoint {
  * An empty review (the model named no points) is `disagree`: it neither
  * accepted nor defended, and that is worth a look, not a pass.
  */
-export function reviewOutcome(points: readonly { stance: 'accept' | 'hold'; firm: boolean }[]): ReviewOutcome {
+export function reviewOutcome(points: readonly { stance: 'accept' | 'hold' | 'klp_defect'; firm: boolean }[]): ReviewOutcome {
   if (points.length === 0) return 'disagree'
+  // A named point defect outranks the grader-vs-adversary reading: the card is
+  // what gets fixed, and a grader dispute on a defective point is moot.
+  if (points.some((p) => p.stance === 'klp_defect')) return 'klp_defect'
   if (points.every((p) => p.stance === 'accept')) return 'agree'
   if (points.some((p) => p.stance === 'hold' && p.firm)) return 'strong'
   return 'disagree'
@@ -86,6 +98,7 @@ export function foldReview(
       klpId,
       stance: p.stance,
       before: beforeOf.get(p.klpRef) ?? 'unjudged',
+      // A defect leaves the isolated verdict standing: the point, not the grade, changes.
       after: p.stance === 'accept' ? p.verdict : (beforeOf.get(p.klpRef) ?? p.verdict),
       firm: p.firm,
       reason: p.reason,

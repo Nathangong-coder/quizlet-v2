@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { WRITE_GRADER_PANEL_PROMPT, type WriteGraderPanelBuildInput } from '@/lib/ai/prompts/write-grader-panel'
 import { GraderPanelSchema, graderPanelSchemaFor } from '@/lib/ai/schemas'
 import { PROMPT_REGISTRY } from '@/lib/ai/prompts/registry'
-import { GRADER_PANEL_LEVELS, GRADER_PANEL_MODES } from '@/lib/analysis/benchmark'
+import { GRADER_PANEL_LEVELS, GRADER_PANEL_MODES, GRADER_PANEL_BANDS } from '@/lib/analysis/benchmark'
 
 /**
  * Spec 5 §8: the adversary writes the panel with a STATED intent per answer
@@ -153,40 +153,60 @@ describe('GraderPanelSchema', () => {
 })
 
 describe('the blind panel prompt', () => {
-  it('shows the adversary the question and the reference only — never a key point, relation or form requirement', () => {
+  it('QUESTION ONLY (2026-09-19): never the reference, the definition, a key point, a relation or a form requirement; one panel-level differences paragraph', () => {
     const p = WRITE_GRADER_PANEL_PROMPT.build({
-      question: 'Q?', definition: 'D', referenceAnswer: 'THE REFERENCE', kind: 'blind',
+      question: 'Q?', definition: 'SECRET DEFINITION', referenceAnswer: 'THE REFERENCE', kind: 'blind',
       klps: [{ ref: 0, text: 'SECRET KEY POINT', kind: 'causal' }],
       relations: [{ ref: 0, type: 'causes', fromRef: 0, toRef: 0 }],
       formReqs: [{ ref: 0, text: 'SECRET FORM RULE' }],
     })
-    expect(p).toContain('THE REFERENCE')
+    expect(p).toContain('Question: Q?')
+    expect(p).not.toContain('THE REFERENCE')
+    expect(p).not.toContain('SECRET DEFINITION')
     expect(p).not.toContain('SECRET KEY POINT')
     expect(p).not.toContain('SECRET FORM RULE')
     expect(p).not.toContain('[R0]')
     expect(p).not.toMatch(/Key points/)
     for (const l of ['expert', 'competent', 'weak', 'wrong']) expect(p).toContain(`"${l}"`)
-    expect(p).toContain('"level": string')
+    expect(p).toContain('"differences": string')
+    expect(p).not.toContain('"rationale": string')
+  })
+  it('the blind schemas want the answers without rationale and one differences paragraph', () => {
+    const four = ['expert', 'competent', 'weak', 'wrong'].map((level, i) => ({ level, intendedRank: i + 1, text: 't' }))
+    expect(graderPanelSchemaFor('blind').safeParse({ answers: four, differences: 'd' }).success).toBe(true)
+    expect(graderPanelSchemaFor('blind').safeParse({ answers: four }).success).toBe(false)
+    const five = GRADER_PANEL_BANDS.map((b) => ({ level: b.id, intendedRank: b.rank, text: 't' }))
+    expect(graderPanelSchemaFor('blind-bands').safeParse({ answers: five, differences: 'd' }).success).toBe(true)
+    expect(graderPanelSchemaFor('blind-bands').safeParse({ answers: five.map((a) => ({ ...a, intendedRank: 6 - a.intendedRank })), differences: 'd' }).success).toBe(false)
   })
 })
 
-describe('the six-band panels', () => {
+describe('the five-band panels', () => {
   const base = { question: 'Q?', definition: 'D', referenceAnswer: 'REF', klps: [{ ref: 0, text: 'K0', kind: 'causal', weight: 4 }], relations: [], formReqs: [] }
-  it('bands shows weights and the scoring formula; blind-bands shows neither the points nor weights', () => {
+  it('five bands, one failing: ranking first', () => {
+    expect(GRADER_PANEL_BANDS).toHaveLength(5)
+    expect(GRADER_PANEL_BANDS.filter((b) => b.high < 50)).toHaveLength(1)
+    expect(GRADER_PANEL_BANDS.map((b) => b.rank)).toEqual([1, 2, 3, 4, 5])
+    // contiguous, no gap, no overlap
+    for (let i = 1; i < GRADER_PANEL_BANDS.length; i++) expect(GRADER_PANEL_BANDS[i].high + 1).toBe(GRADER_PANEL_BANDS[i - 1].low)
+  })
+  it('bands shows weights and the scoring formula; blind-bands shows neither the points, weights, reference nor definition', () => {
     const p = WRITE_GRADER_PANEL_PROMPT.build({ ...base, kind: 'bands' })
     expect(p).toContain('weight 4')
     expect(p).toContain('SUBTRACTS')
-    for (const b of ['full', 'strong', 'good', 'fair', 'marginal', 'failing']) expect(p).toContain(`"${b}"`)
-    expect(p).toContain('exactly six entries')
+    for (const b of GRADER_PANEL_BANDS) expect(p).toContain(`"${b.id}"`)
+    expect(p).toContain('exactly five entries')
     const bp = WRITE_GRADER_PANEL_PROMPT.build({ ...base, kind: 'blind-bands' })
     expect(bp).not.toContain('K0')
     expect(bp).not.toContain('weight 4')
+    expect(bp).not.toContain('REF')
     expect(bp).toContain('"failing"')
+    expect(bp).toContain('THE ORDER MATTERS MORE THAN THE EXACT NUMBER')
   })
-  it('the bands schema wants six answers, each band once, ranks matching the band order', () => {
-    const six = ['full', 'strong', 'good', 'fair', 'marginal', 'failing'].map((level, i) => ({ level, intendedRank: i + 1, text: 't', rationale: 'r' }))
-    expect(graderPanelSchemaFor('bands').safeParse({ answers: six }).success).toBe(true)
-    expect(graderPanelSchemaFor('bands').safeParse({ answers: six.slice(0, 4) }).success).toBe(false)
-    expect(graderPanelSchemaFor('bands').safeParse({ answers: six.map((a) => ({ ...a, intendedRank: 7 - a.intendedRank })) }).success).toBe(false)
+  it('the bands schema wants five answers, each band once, ranks matching the band order', () => {
+    const five = GRADER_PANEL_BANDS.map((b) => ({ level: b.id, intendedRank: b.rank, text: 't', rationale: 'r' }))
+    expect(graderPanelSchemaFor('bands').safeParse({ answers: five }).success).toBe(true)
+    expect(graderPanelSchemaFor('bands').safeParse({ answers: five.slice(0, 4) }).success).toBe(false)
+    expect(graderPanelSchemaFor('bands').safeParse({ answers: five.map((a) => ({ ...a, intendedRank: 6 - a.intendedRank })) }).success).toBe(false)
   })
 })

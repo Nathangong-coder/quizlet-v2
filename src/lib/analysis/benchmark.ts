@@ -50,13 +50,20 @@ export type GraderPanelMode = (typeof GRADER_PANEL_MODES)[number]
  * (a String column), ranks 1-6. `bands` shows the adversary the key points
  * and weights so it can aim; `blind-bands` does not.
  */
+/**
+ * FIVE bands (2026-09-19, owner: "ranking is more important; 1 failing and
+ * the rest passing"). The six 10-point bands of 09-18 sat inside the
+ * adversary's aim noise (band hit 57-67% while rank agreement ran 87-90%);
+ * these are wide enough to be hit and ordered enough to rank. Rows written
+ * under the six-band ids (`fair`) stay readable: `bandOf` returns undefined
+ * for a retired id and every reader treats that as "no band".
+ */
 export const GRADER_PANEL_BANDS = [
   { id: 'full', low: 100, high: 100, rank: 1 },
-  { id: 'strong', low: 90, high: 99, rank: 2 },
-  { id: 'good', low: 80, high: 89, rank: 3 },
-  { id: 'fair', low: 70, high: 79, rank: 4 },
-  { id: 'marginal', low: 50, high: 69, rank: 5 },
-  { id: 'failing', low: 0, high: 49, rank: 6 },
+  { id: 'strong', low: 85, high: 99, rank: 2 },
+  { id: 'good', low: 70, high: 84, rank: 3 },
+  { id: 'marginal', low: 50, high: 69, rank: 4 },
+  { id: 'failing', low: 0, high: 49, rank: 5 },
 ] as const
 export type GraderPanelBand = (typeof GRADER_PANEL_BANDS)[number]['id']
 export const GRADER_PANEL_BAND_IDS = GRADER_PANEL_BANDS.map((b) => b.id) as unknown as readonly [GraderPanelBand, ...GraderPanelBand[]]

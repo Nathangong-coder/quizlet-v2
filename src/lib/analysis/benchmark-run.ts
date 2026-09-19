@@ -162,12 +162,15 @@ export async function authorPanel(cardId: string, kind: GraderPanelKind, gen: Pa
       promptVersion: WRITE_GRADER_PANEL_PROMPT.version,
       model,
       answers: {
+        // A blind panel carries one `differences` paragraph for the whole
+        // panel; it is stored as every answer's rationale so the review
+        // prompt and every reader keep one shape.
         create: value.answers.map((a) => ({
           level: 'level' in a ? a.level : null,
           mode: 'mode' in a ? a.mode : null,
           intendedRank: a.intendedRank,
           text: a.text,
-          rationale: a.rationale,
+          rationale: 'rationale' in a ? a.rationale : (value as { differences: string }).differences,
         })),
       },
     },
@@ -435,6 +438,8 @@ export interface ReviewPanelOutcome {
   accepted?: number
   held?: number
   summary?: string
+  /** The points named `klp_defect`, with the reviewer's reason — the authoring loop's input. */
+  klpDefects?: { cardId: string; klpRef: number; klpId: string; text: string; reason: string }[]
 }
 
 /**
@@ -517,6 +522,9 @@ export async function reviewDisputedResults(
         accepted: folded.points.filter((p) => p.stance === 'accept').length,
         held: folded.points.filter((p) => p.stance === 'hold').length,
         summary: value.summary,
+        klpDefects: folded.points
+          .filter((p) => p.stance === 'klp_defect')
+          .map((p) => ({ cardId: resultRow.answer.panel.cardId, klpRef: p.klpRef, klpId: p.klpId, text: klps[p.klpRef]?.text ?? '', reason: p.reason })),
       }
       opts.onProgress?.(o)
       out.push(o)

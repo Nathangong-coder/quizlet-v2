@@ -18,7 +18,7 @@ export interface AuthorKlpsBuildInput {
    * (`src/lib/klp/definition-probe.ts`) — points that outgrew the card, by
    * the previous set's index and text. Set only on a probe-driven re-author.
    */
-  priorFindings?: { index: number; text: string; issue: 'over_reach' | 'not_on_card'; fix: string }[];
+  priorFindings?: { index: number; text: string; issue: 'over_reach' | 'not_on_card' | 'klp_defect'; fix: string }[];
 }
 
 /**
@@ -121,10 +121,11 @@ ${DRAFT_JSON_NOTES}`;
  */
 function priorFindingsBlock(findings: AuthorKlpsBuildInput['priorFindings']): string {
   if (!findings || findings.length === 0) return '';
-  const lines = findings.map((f) => `  [${f.index}] ${f.issue === 'not_on_card' ? 'NOT ON THE CARD' : 'OVER-REACHES THE CARD'} — "${f.text}" — ${f.fix}`).join('\n');
-  return `A PREVIOUS SET OF KEY POINTS FOR THIS CARD WAS TESTED AGAINST THE OWNER'S OWN DEFINITION AND FAILED IT. These points outgrew the card:
+  const label = (issue: string) => (issue === 'not_on_card' ? 'NOT ON THE CARD' : issue === 'klp_defect' ? 'DEFECTIVE POINT' : 'OVER-REACHES THE CARD');
+  const lines = findings.map((f) => `  [${f.index}] ${label(f.issue)} — "${f.text}" — ${f.fix}`).join('\n');
+  return `A PREVIOUS SET OF KEY POINTS FOR THIS CARD WAS TESTED — against the owner's own definition, and against deliberately written answers — AND THESE POINTS FAILED:
 ${lines}
-Do not write those points again as they were. A point marked NOT ON THE CARD is not authored; a point marked OVER-REACHES is authored only at the grain the definition states it.
+Do not write those points again as they were. A point marked NOT ON THE CARD is not authored; a point marked OVER-REACHES is authored only at the grain the definition states it; a point marked DEFECTIVE is rewritten so the named defect is gone — one claim, one reading, and only what the question asks.
 
 `;
 }

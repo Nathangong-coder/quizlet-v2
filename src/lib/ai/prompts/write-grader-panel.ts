@@ -32,11 +32,11 @@ const LEVELS_TASK = `Write four answers at four LEVELS of competence, each level
  * parts of the reference's substance are stated, fudged, omitted or wrong)
  * because it has no [n] to cite.
  */
-const BLIND_TASK = `Write four answers at four LEVELS of competence, each level exactly once. You have the question and a strong reference answer and nothing else; judge substance against the reference, in your own reading of what it teaches:
-- "expert": a complete, correct answer covering everything the reference establishes — every claim, every cause-and-effect, every condition — in a different candidate's words and order. It must not copy the reference verbatim.
-- "competent": a good answer with ONE real gap or ONE imprecise claim. It covers most of the substance correctly and contradicts nothing; it reads as a strong candidate on a normal day, not as a shorter expert answer. Name the gap in the rationale.
-- "weak": an answer that leaves out at least two substantive things the reference establishes but contradicts none — thin and partly right, never wrong. It may fudge something it half-remembers.
-- "wrong": an answer that is confidently wrong on at least one cause-and-effect or mechanism — it asserts the opposite of, or a false version of, something the reference teaches, and reads as sure of itself. It may still get other things right.`;
+const BLIND_TASK = `Write four answers at four LEVELS of competence, each level exactly once. You have the QUESTION and nothing else — no reference, no card, no rubric. Decide for yourself, from what you know, what a strong interviewer expects a complete answer to this question to contain; that is your yardstick:
+- "expert": a complete, correct answer — every claim, every cause-and-effect, every condition a strong interviewer expects — in a candidate's own words and order.
+- "competent": a good answer with ONE real gap or ONE imprecise claim. It covers most of the substance correctly and contradicts nothing; it reads as a strong candidate on a normal day, not as a shorter expert answer.
+- "weak": an answer that leaves out at least two substantive things a complete answer has but contradicts none — thin and partly right, never wrong. It may fudge something it half-remembers.
+- "wrong": an answer that is confidently wrong on at least one cause-and-effect or mechanism — it asserts the opposite of, or a false version of, something a complete answer establishes, and reads as sure of itself. It may still get other things right.`;
 
 const BAND_LIST = GRADER_PANEL_BANDS.map((b) => `- "${b.id}" (rank ${b.rank}): content score ${b.low === b.high ? b.low : `${b.low}-${b.high}`}`).join('\n');
 
@@ -53,9 +53,9 @@ const BANDS_TASK = `Write SIX answers, one per BAND, each band exactly once. Eac
 ${BAND_LIST}
 Bands are about content, not prose: a "failing" answer can be beautifully written and still contradict the core mechanism. Never copy the reference verbatim; every answer is a different candidate's words and order.`;
 
-const BLIND_BANDS_TASK = `Write SIX answers, one per BAND, each band exactly once. You have the question and a strong reference answer and nothing else; the content score you are aiming at is, roughly, the share of the reference's substance the answer states (a half-stated claim counts half) MINUS a penalty for anything asserted that contradicts the reference — a contradicted mechanism costs as much as a stated one earns, so a confidently wrong answer sinks fast. Aim by choosing what to state, half-state, omit or get wrong. Keep every answer equally fluent so only content moves the score.
+const BLIND_BANDS_TASK = `Write ${GRADER_PANEL_BANDS.length === 5 ? 'FIVE' : String(GRADER_PANEL_BANDS.length)} answers, one per BAND, each band exactly once. You have the QUESTION and nothing else — no reference, no card, no rubric. Decide for yourself, from what you know, what a strong interviewer expects a complete answer to contain; the content score you are aiming at is, roughly, the share of that substance the answer states (a half-stated claim counts half) MINUS a penalty for anything asserted that is wrong — a contradicted mechanism costs as much as a stated one earns, so a confidently wrong answer sinks fast. Aim by choosing what to state, half-state, omit or get wrong. Keep every answer equally fluent so only content moves the score. THE ORDER MATTERS MORE THAN THE EXACT NUMBER: each answer must be clearly better than the one below it.
 ${BAND_LIST}
-What each band looks like: "full" states everything the reference establishes; "strong" leaves out one minor detail or figure; "good" has one substantive gap; "fair" has two gaps or one gap and one imprecision; "marginal" states about half the substance, contradicting nothing; "failing" is mostly missing, or confidently contradicts a central mechanism. Never copy the reference verbatim.`;
+What each band looks like: "full" states everything a complete answer has; "strong" leaves out one minor detail or figure; "good" has one substantive gap; "marginal" states about half the substance, contradicting nothing; "failing" is mostly missing, or confidently contradicts a central mechanism.`;
 
 const MODES_TASK = `Write four answers, one per FAILURE SHAPE, each shape exactly once. Each is a plausible candidate's answer that fails in exactly the named way — the shapes must not bleed into each other:
 - "gap": omits at least two key points and never contradicts one. Everything it says is right; it is what it does not say. No wrong direction, no false version, no invented claim.
@@ -114,9 +114,9 @@ export const WRITE_GRADER_PANEL_PROMPT = {
     const labelKey = input.kind === 'modes' ? 'mode' : 'level';
     const levelsShaped = input.kind !== 'modes';
     const bands = input.kind === 'bands' || input.kind === 'blind-bands';
-    const count = bands ? 'SIX' : 'four';
+    const count = bands ? (GRADER_PANEL_BANDS.length === 5 ? 'FIVE' : String(GRADER_PANEL_BANDS.length)) : 'four';
     const rankRule = bands
-      ? 'the band\'s rank — "full" is 1, "strong" 2, "good" 3, "fair" 4, "marginal" 5, "failing" 6.'
+      ? `the band's rank — ${GRADER_PANEL_BANDS.map((b) => `"${b.id}" is ${b.rank}`).join(', ')}.`
       : 'the level\'s rank — "expert" is 1, "competent" 2, "weak" 3, "wrong" 4.';
 
     if (input.kind === 'blind' || input.kind === 'blind-bands') {
@@ -127,13 +127,11 @@ ${task}
 For EVERY answer:
 - "text": 60-200 words, in the voice of a candidate answering in an interview. Self-contained.
 - "intendedRank": ${rankRule}
-- "rationale": ONE paragraph saying why the answer sits where it does — which parts of the reference's substance it states, fudges, leaves out or gets wrong, in your own words. Be specific: the rationale is what a reviewer reads when the grader disagrees with you.
+Then ONE "differences" paragraph for the whole panel: what a complete answer to this question contains, in your reading, and what each answer below the top one states, fudges, leaves out or gets wrong relative to that — by ${bands ? 'band' : 'level'} name. Be specific: this paragraph is what a reviewer reads when the grader disagrees with you.
 
 Question: ${input.question}
-Definition on the card: ${input.definition}
-Reference answer: ${input.referenceAnswer}
 
-Output JSON: { "answers": [ { "level": string, "intendedRank": number, "text": string, "rationale": string } ] } — exactly ${count.toLowerCase()} entries, one per ${bands ? 'band' : 'level'}.`;
+Output JSON: { "answers": [ { "level": string, "intendedRank": number, "text": string } ], "differences": string } — exactly ${count.toLowerCase()} entries, one per ${bands ? 'band' : 'level'}.`;
     }
 
     return `You are writing a BENCHMARK PANEL for one interview question: ${count} candidate answers, each written to a stated intent, that will be used to test whether an automated grader reads answers the way a knowledgeable interviewer would. You are the adversary. The grader will see each answer's text ALONE — one at a time, never two together, and never your labels, ranks or rationale — so every answer must be self-contained: it must read as one candidate's complete reply to the question, with nothing that refers to another answer or to this task.

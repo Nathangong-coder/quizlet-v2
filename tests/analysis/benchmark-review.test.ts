@@ -13,8 +13,10 @@ describe('reviewOutcome', () => {
 
 describe('describeDispute', () => {
   it('bands: a band miss is a dispute, a hit is not', () => {
-    expect(describeDispute({ kind: 'bands', level: 'good', intendedRank: 3, score: 0.85, siblings: [] })).toBeNull()
-    expect(describeDispute({ kind: 'blind-bands', level: 'good', intendedRank: 3, score: 0.62, siblings: [] })).toMatch(/62\/100 .*"good" \(80-89\)/)
+    expect(describeDispute({ kind: 'bands', level: 'good', intendedRank: 3, score: 0.75, siblings: [] })).toBeNull()
+    expect(describeDispute({ kind: 'blind-bands', level: 'good', intendedRank: 3, score: 0.62, siblings: [] })).toMatch(/62\/100 .*"good" \(70-84\)/)
+    // a retired six-band id is "no band": no dispute, no crash
+    expect(describeDispute({ kind: 'bands', level: 'fair', intendedRank: 4, score: 0.1, siblings: [] })).toBeNull()
   })
   it('levels: a rank inversion is a dispute, a clean order is not', () => {
     const sib = [{ intendedRank: 1, score: 1 }, { intendedRank: 2, score: 0.8 }, { intendedRank: 3, score: 0.5 }, { intendedRank: 4, score: 0.2 }]
@@ -28,6 +30,18 @@ describe('describeDispute', () => {
       expect(bandHit(b.id, b.high / 100)).toBe(true)
       if (b.high < 100) expect(bandHit(b.id, (b.high + 1) / 100)).toBe(false)
     }
+  })
+})
+
+describe('reviewOutcome with klp_defect', () => {
+  it('a named point defect outranks agree/strong', () => {
+    expect(reviewOutcome([{ stance: 'accept', firm: true }, { stance: 'klp_defect', firm: true }])).toBe('klp_defect')
+    expect(reviewOutcome([{ stance: 'hold', firm: true }, { stance: 'klp_defect', firm: false }])).toBe('klp_defect')
+  })
+  it('a defect leaves the isolated verdict standing in the fold', () => {
+    const f = foldReview({ points: [{ klpRef: 0, stance: 'klp_defect', verdict: 'omission', firm: true, reason: 'compound; The card needs: X' }], summary: 's' }, ['k0'], [{ klpRef: 0, status: 'incomplete' }])
+    expect(f.points[0]).toMatchObject({ stance: 'klp_defect', before: 'incomplete', after: 'incomplete' })
+    expect(f.outcome).toBe('klp_defect')
   })
 })
 
