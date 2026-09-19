@@ -119,3 +119,44 @@ describe('formatProbeLine', () => {
     expect(formatProbeLine({ term: 't', score, definitionWords: 1, referenceWords: null, outcome: 'pass' })).toContain('ref   -w')
   })
 })
+
+describe('the revision veto', () => {
+  it('refuses a version that falls below the floor when the old one was at or above it; allows everything else', async () => {
+    const { revisionVeto, carriedSeparation } = await import('@/lib/klp/definition-probe')
+    const { SEPARATION_FLOOR } = await import('@/lib/klp/authoring-config')
+    expect(revisionVeto({ combinedSeparation: 0.86 }, { combinedSeparation: 0.0 }).veto).toBe(true)
+    expect(revisionVeto({ combinedSeparation: 0.86 }, { combinedSeparation: SEPARATION_FLOOR }).veto).toBe(false)
+    // an old version already below the floor cannot be made worse by the rule — the re-author is the fix
+    expect(revisionVeto({ combinedSeparation: 0.1 }, { combinedSeparation: 0.0 }).veto).toBe(false)
+    expect(revisionVeto(null, { combinedSeparation: 0.0 }).veto).toBe(false)
+    // combined wins over substance when the pass ran; substance stands in otherwise
+    expect(carriedSeparation({ combinedSeparation: 0.7, substanceSeparation: 0.1 })).toBe(0.7)
+    expect(carriedSeparation({ combinedSeparation: null, substanceSeparation: 0.3 })).toBe(0.3)
+    expect(revisionVeto({ combinedSeparation: null, substanceSeparation: 0.5 }, { combinedSeparation: null, substanceSeparation: 0.2 }).veto).toBe(true)
+  })
+})
+
+describe('discrimination-aware supervision', () => {
+  it('a point the reference passes and some trap fails is load-bearing', async () => {
+    const { loadBearingIndexes } = await import('@/lib/klp/definition-probe')
+    const lb = loadBearingIndexes(['correct', 'correct', 'omission', 'correct'], [{ '0': 'omission', '1': 'correct', '2': 'omission', '3': 'correct' }, { '0': 'correct', '1': 'correct', '2': 'omission', '3': 'partial' }])
+    expect([...lb]).toEqual([0]) // [1] nobody fails; [2] reference fails; [3] partial is credit, not a failure
+  })
+  it('narrow/cut on a load-bearing point reads as keep, recorded; other points untouched', async () => {
+    const { applyLoadBearing, supervisionDecision } = await import('@/lib/klp/definition-probe')
+    const pts = [
+      { klpRef: 0, verdict: 'narrow' as const, reason: 'r0', wording: 'w' },
+      { klpRef: 1, verdict: 'cut' as const, reason: 'r1' },
+      { klpRef: 2, verdict: 'grader_wrong' as const, reason: 'r2' },
+    ]
+    const { points, overridden } = applyLoadBearing(pts, new Set([0, 2]))
+    expect(overridden).toEqual([0])
+    expect(points[0]).toMatchObject({ verdict: 'keep', wording: undefined })
+    expect(points[0].reason).toMatch(/^\[load-bearing: separates a wrong answer; supervisor said narrow\] r0/)
+    expect(points[1].verdict).toBe('cut')
+    expect(points[2].verdict).toBe('grader_wrong')
+    // once every narrow is load-bearing, the decision is a second pass, not a revision
+    const allLb = applyLoadBearing(pts.slice(0, 2), new Set([0, 1])).points
+    expect(supervisionDecision([allLb])).toBe('second_pass')
+  })
+})

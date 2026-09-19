@@ -33,6 +33,7 @@ import {
 } from '../src/lib/klp/histogram'
 import { PROBE_KINDS } from '../src/lib/klp/authoring-config'
 import { GRADER_VERSION } from '../src/lib/analysis/version'
+import { revisionVeto } from '../src/lib/klp/definition-probe'
 import { loadBenchmarkRows } from '../src/lib/analysis/benchmark-run'
 import { formatBenchmarkReport } from '../src/lib/analysis/benchmark-report'
 import { formatPanelCurve } from '../src/lib/klp/panel'
@@ -409,6 +410,7 @@ interface RunStats {
   combinedSeparations: number[]
   relationSeparations: number[]
   droppedForReference: number
+  vetoed: number
   rebuiltTight: number
   rebuiltReviewed: number
   /**
@@ -557,6 +559,10 @@ async function main() {
   }
   const dryRun = flag(args, '--dry-run')
   const force = flag(args, '--force')
+  // `--keep-better`: THE REVISION VETO (2026-09-19). Refuse to persist a
+  // version whose carried separation falls below the floor when the version
+  // it would replace was at or above it. Set by `probe-definitions --revise`.
+  const keepBetter = flag(args, '--keep-better')
   const limitRaw = opt(args, '--limit')
   const limit = limitRaw !== undefined ? Number.parseInt(limitRaw, 10) : undefined
   // `--skip N` starts N cards into the set, so the SAME cards can be authored
@@ -683,6 +689,7 @@ async function main() {
     combinedSeparations: [],
     relationSeparations: [],
     droppedForReference: 0,
+    vetoed: 0,
     rebuiltTight: 0,
     rebuiltReviewed: 0,
     weights: [],
@@ -929,6 +936,20 @@ async function main() {
       continue
     }
 
+    if (keepBetter && !dryRun) {
+      const previous = await prisma.cardAuthoring.findFirst({
+        where: { cardId: card.id, klpVersion: card.klpVersion },
+        orderBy: { createdAt: 'desc' },
+        select: { combinedSeparation: true, substanceSeparation: true, separationScore: true },
+      })
+      const v = revisionVeto(previous, outcome)
+      if (v.veto) {
+        console.log(`${tag} — VETOED, not persisted: ${v.reason}`)
+        stats.vetoed += 1
+        continue
+      }
+    }
+
     try {
       if (!dryRun) {
         await persistAuthoring(
@@ -1024,6 +1045,7 @@ async function main() {
       (stats.authored > 0 && stats.revised / stats.authored < 0.2 ? ' (UNDER A FIFTH — the bar found little to fix on this run)' : '') +
       `, mean separation ${meanSeparation.toFixed(2)}` +
       (stats.framingPoints > 0 ? ` (substance ${meanSubstance.toFixed(2)}; ${stats.framingPoints} framing points excluded)` : '') +
+      (stats.vetoed ? `, ${stats.vetoed} VETOED (kept the previous version)` : '') +
       (stats.combinedSeparations.length ? `, LINKS on ${stats.combinedSeparations.length} card(s): mean combined ${(stats.combinedSeparations.reduce((a, b) => a + b, 0) / stats.combinedSeparations.length).toFixed(2)}, mean relation ${stats.relationSeparations.length ? (stats.relationSeparations.reduce((a, b) => a + b, 0) / stats.relationSeparations.length).toFixed(2) : 'n/a'}, ${stats.droppedForReference} edge(s) dropped for failing the reference` : '') +
       `, ${stats.referenceRewritten} reference(s) rewritten by the communication check, ${stats.parityBelowBar} still below the ${REBUILD_PARITY_BAR} parity bar` +
       (stats.wordRatios.length ? `, rebuilt/ref words mean ${(stats.wordRatios.reduce((a, b) => a + b, 0) / stats.wordRatios.length).toFixed(2)}, rebuilt tight ${stats.rebuiltTight}/${stats.rebuiltReviewed}` : '') +

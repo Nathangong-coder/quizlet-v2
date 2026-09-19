@@ -22,9 +22,9 @@ const input = {
 describe('SUPERVISE_DEFINITION_PROMPT', () => {
   const built = SUPERVISE_DEFINITION_PROMPT.build(input)
 
-  it('is registered, version 2, on the supervision schema', () => {
+  it('is registered, version 3, on the supervision schema', () => {
     expect(PROMPT_REGISTRY['supervise-definition']).toBe(SUPERVISE_DEFINITION_PROMPT)
-    expect(SUPERVISE_DEFINITION_PROMPT.version).toBe(2)
+    expect(SUPERVISE_DEFINITION_PROMPT.version).toBe(3)
     // The worked example must not be one of the cards the probe grades: build
     // on a neutral fixture and check the TEMPLATE text, not the card's.
     const neutral = SUPERVISE_DEFINITION_PROMPT.build({ ...input, question: 'Q', definition: 'D', referenceAnswer: null })
@@ -46,6 +46,14 @@ describe('SUPERVISE_DEFINITION_PROMPT', () => {
     for (const v of SUPERVISION_VERDICTS) expect(built).toContain(`"${v}"`)
     expect(built).not.toMatch(/"revise"|"escalate"/)
     expect(built).toContain('"wording": string | null')
+  })
+
+  it('v3: a load-bearing point is marked and the supervisor is told narrow/cut will read as keep; no marker, no paragraph', () => {
+    expect(built).not.toContain('LOAD-BEARING')
+    const lb = SUPERVISE_DEFINITION_PROMPT.build({ ...input, klps: input.klps.map((k, i) => ({ ...k, loadBearing: i === 1 })) })
+    expect(lb).toContain('[5] (causal, weight 3, LOAD-BEARING) Repaying debt')
+    expect(lb).toContain('[0] (definition, weight 1) Debt paydown')
+    expect(lb).toContain('will be read as "keep" whatever you say')
   })
 
   it('the schema takes the four verdicts only and wants at least one point', () => {

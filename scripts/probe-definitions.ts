@@ -31,6 +31,8 @@ import {
   findingsFromSupervision,
   findingsFromHardFail,
   formatProbeLine,
+  loadBearingIndexes,
+  applyLoadBearing,
   type DefinitionScore,
   type RevisionFinding,
   type SupervisionPoint,
@@ -228,24 +230,36 @@ function readRow(r: { id: string; cardId: string; klpVersion: number; score: num
   }
 }
 
-/** One supervising pass; returns the points and persists them on the row. */
-async function supervise(row: ProbeRow, card: CardRow, klps: Awaited<ReturnType<typeof liveKlps>>, referenceAnswer: string | null, call: Call, pass: number): Promise<SupervisionPoint[]> {
+/**
+ * Which points on the live version SEPARATE a wrong answer (the reference
+ * passes them, some trap fails them), read off the stored authoring — the
+ * supervisor is told, and TypeScript refuses to narrow or cut them.
+ */
+async function loadBearingFor(cardId: string, klpVersion: number): Promise<Set<number>> {
+  const a = await prisma.cardAuthoring.findFirst({ where: { cardId, klpVersion }, orderBy: { createdAt: 'desc' }, include: { probes: { select: { verdicts: true } } } })
+  if (!a || !a.referenceVerdicts) return new Set()
+  return loadBearingIndexes(a.referenceVerdicts as string[], a.probes.map((p) => p.verdicts as Record<string, string>))
+}
+
+/** One supervising pass; returns the points (load-bearing narrow/cut read as keep) and persists them on the row. */
+async function supervise(row: ProbeRow, card: CardRow, klps: Awaited<ReturnType<typeof liveKlps>>, referenceAnswer: string | null, call: Call, pass: number, loadBearing: ReadonlySet<number>): Promise<SupervisionPoint[]> {
   const prompt = SUPERVISE_DEFINITION_PROMPT.build({
     question: card.term,
     definition: card.definition,
     referenceAnswer,
-    klps: klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind, weight: k.weight })),
+    klps: klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind, weight: k.weight, loadBearing: loadBearing.has(ref) })),
     graderVerdicts: row.verdicts.map((v) => ({ ref: v.klpRef, status: v.status, quote: v.quote })),
     score: Math.round(row.score * 100),
   })
   const { value, model } = await call({ prompt, schema: SUPERVISE_DEFINITION_PROMPT.schema, maxOutputTokens: 4096, step: `supervise-${pass}`, task: 'klp-extract' })
   const reply = value as DefinitionSupervision
-  const points: SupervisionPoint[] = reply.points
+  const raw: SupervisionPoint[] = reply.points
     .filter((p) => p.klpRef >= 0 && p.klpRef < klps.length)
     .map((p) => ({ klpRef: p.klpRef, verdict: p.verdict, reason: p.reason, wording: p.wording ?? undefined }))
+  const { points, overridden } = applyLoadBearing(raw, loadBearing)
   row.supervision = [...row.supervision, { pass, model, promptVersion: SUPERVISE_DEFINITION_PROMPT.version, points, summary: reply.summary }]
   await prisma.definitionProbe.update({ where: { id: row.id }, data: { supervision: row.supervision as unknown as Prisma.InputJsonValue } })
-  console.log(`  supervise #${pass} (${model}) ${card.term.slice(0, 50)} — ${points.map((p) => `[${p.klpRef}] ${p.verdict}`).join(' · ')}\n    ${reply.summary}`)
+  console.log(`  supervise #${pass} (${model}) ${card.term.slice(0, 50)} — ${points.map((p) => `[${p.klpRef}] ${p.verdict}`).join(' · ')}${overridden.length ? `  (load-bearing, held: ${overridden.map((i) => `[${i}]`).join('')})` : ''}\n    ${reply.summary}`)
   return points
 }
 
@@ -360,12 +374,13 @@ async function main() {
         continue
       }
       const context = await loadGradingContext(card.id, klps)
+      const loadBearing = await loadBearingFor(card.id, card.klpVersion)
       const passes: SupervisionPoint[][] = row.supervision.map((s) => s.points)
       let decision = row.decision && row.decision !== 'none' ? row.decision : supervisionDecision(passes)
       const supervisors = [supervisor1, supervisor2]
       while (decision === 'second_pass' && passes.length < SUPERVISION_PASSES) {
         const call = supervisors[passes.length] ?? supervisor2
-        passes.push(await supervise(row, card, klps, context.referenceAnswer, call, passes.length + 1))
+        passes.push(await supervise(row, card, klps, context.referenceAnswer, call, passes.length + 1, loadBearing))
         decision = supervisionDecision(passes)
       }
       const findings = decision === 'revise' ? findingsFromSupervision(passes.flat()) : null
@@ -401,7 +416,7 @@ async function main() {
     writeFileSync(file, JSON.stringify(byCard, null, 2))
     const ids = toRevise.map((x) => x.card.id)
     console.log(`\n[probe-definitions] re-authoring ${ids.length} card(s) with findings (${file})…`)
-    const authorArgs = ['tsx', '--conditions=react-server', '--env-file=.env', 'scripts/author-klps.ts', '--set', setId, '--cards', ids.join(','), '--force', '--findings', file, ...(direct ? ['--direct'] : []), '--rpm', String(rpm)]
+    const authorArgs = ['tsx', '--conditions=react-server', '--env-file=.env', 'scripts/author-klps.ts', '--set', setId, '--cards', ids.join(','), '--force', '--keep-better', '--findings', file, ...(direct ? ['--direct'] : []), '--rpm', String(rpm)]
     const res = spawnSync('npx', authorArgs, { stdio: 'inherit', shell: true, env: process.env })
     if (res.status !== 0) {
       console.error(`[probe-definitions] author-klps exited ${res.status}; stopping after round ${round}.`)
@@ -414,9 +429,11 @@ async function main() {
   if (escalated.length) {
     console.log(`\n=== ESCALATED TO THE SET AUTHOR (${escalated.length}) — ${SUPERVISION_PASSES} supervising passes held the card, not the points, at fault ===`)
     for (const { card, row } of escalated) {
+      const klps = await liveKlps(card.id)
       const last = row.supervision[row.supervision.length - 1]
       const keep = last ? last.points.filter((p) => p.verdict === 'keep') : []
-      console.log(`  ${card.term}\n    scored ${Math.round(row.score * 100)}/100 — the definition omits: ${keep.map((p) => `[${p.klpRef}] ${p.reason}`).join('; ') || '(see the row)'}`)
+      console.log(`  ${card.term}\n    your definition: "${card.definition}"\n    scored ${Math.round(row.score * 100)}/100. The points it does not make, which separate a template answer — enrich the card, or accept them as they stand:`)
+      for (const p of keep) console.log(`      [${p.klpRef}] ${klps[p.klpRef]?.text ?? ''}\n          — ${p.reason}`)
     }
   }
   if (graderWrong.length) {

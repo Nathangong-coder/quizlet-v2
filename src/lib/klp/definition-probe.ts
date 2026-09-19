@@ -1,4 +1,5 @@
 import { STATUS_CREDIT, type KlpStatus } from '@/lib/errors/klp-credit'
+import { SEPARATION_FLOOR } from '@/lib/klp/authoring-config'
 
 /**
  * THE DEFINITION PROBE — the pure half (2026-09-18, owner's ask).
@@ -179,4 +180,58 @@ export function formatProbeLine(input: { term: string; score: DefinitionScore; d
     s.unjudged.length ? `unjudged ${s.unjudged.length}` : '',
   ].filter(Boolean)
   return `${bits.join('  ')}  ${input.term.slice(0, 70)}`
+}
+
+/**
+ * THE REVISION VETO (2026-09-19). A probe-driven re-author exists to make the
+ * owner's definition pass; it must never buy that by flattening the card. The
+ * separation a card carries is `combinedSeparation` when the relation pass ran
+ * and `substanceSeparation` otherwise. A new version that falls below the
+ * floor while the version it would replace was at or above it is REFUSED —
+ * the old version stands and the card is reported, not superseded. Measured
+ * before this existed: the narrowing round took two LBO cards from 0.86 to
+ * 0.00 and persisted the worse version.
+ */
+export function carriedSeparation(a: { combinedSeparation?: number | null; substanceSeparation?: number | null; separationScore?: number | null }): number {
+  return a.combinedSeparation ?? a.substanceSeparation ?? a.separationScore ?? 0
+}
+
+export function revisionVeto(previous: { combinedSeparation?: number | null; substanceSeparation?: number | null } | null, next: { combinedSeparation?: number | null; substanceSeparation?: number | null }): { veto: boolean; reason: string } {
+  const before = previous ? carriedSeparation(previous) : null
+  const after = carriedSeparation(next)
+  if (before !== null && before >= SEPARATION_FLOOR && after < SEPARATION_FLOOR) {
+    return { veto: true, reason: `separation ${after.toFixed(2)} would replace ${before.toFixed(2)} (floor ${SEPARATION_FLOOR}) — the old version stands` }
+  }
+  return { veto: false, reason: '' }
+}
+
+/**
+ * DISCRIMINATION-AWARE SUPERVISION (2026-09-19). A point that separates a
+ * wrong answer from the reference is LOAD-BEARING; narrowing or cutting it
+ * is what flattened the keyword-list cards. A supervisor's `narrow`/`cut` on
+ * one reads as `keep` — the card, not the point, is at fault — so a card
+ * whose definition omits the mechanisms that separate a template escalates
+ * to its author instead of being flattened. The override is recorded in the
+ * reason so the row says what happened.
+ */
+export function loadBearingIndexes(referenceVerdicts: readonly string[], probeVerdicts: readonly Record<string, string>[]): Set<number> {
+  const out = new Set<number>()
+  referenceVerdicts.forEach((rv, i) => {
+    const passes = (STATUS_CREDIT[rv as KlpStatus] ?? 0) > 0
+    const failsSome = probeVerdicts.some((p) => p[String(i)] !== undefined && (STATUS_CREDIT[p[String(i)] as KlpStatus] ?? 0) === 0)
+    if (passes && failsSome) out.add(i)
+  })
+  return out
+}
+
+export function applyLoadBearing(points: readonly SupervisionPoint[], loadBearing: ReadonlySet<number>): { points: SupervisionPoint[]; overridden: number[] } {
+  const overridden: number[] = []
+  const out = points.map((p) => {
+    if ((p.verdict === 'narrow' || p.verdict === 'cut') && loadBearing.has(p.klpRef)) {
+      overridden.push(p.klpRef)
+      return { klpRef: p.klpRef, verdict: 'keep' as const, reason: `[load-bearing: separates a wrong answer; supervisor said ${p.verdict}] ${p.reason}`, wording: undefined }
+    }
+    return p
+  })
+  return { points: out, overridden }
 }
