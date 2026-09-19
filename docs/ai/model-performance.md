@@ -1268,6 +1268,76 @@ fitted line, p95, and the recommended pair.
 
 ### Spec 5 — grader benchmark baseline (`npm run bench-grader`)
 
+**BASELINE OF RECORD, 2026-09-18 (night) — grader v3 (substance floor + mechanical rubric v1 +
+reconciliation pass), scoring rules v1, every panel written by GLM `glm-5.3-flash` at `high`, every
+answer graded by `deepseek-flash`, four panel kinds per card. Artifact
+https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg (every answer, verdict, quote, rubric item,
+reconciliation and the manual-review queue).**
+
+| kind | what the adversary saw | rank agreement | perfect cards | band hit | reconciliations |
+| --- | --- | --- | --- | --- | --- |
+| `levels` (4) | key points + relations | **58/60 (96.7%)** | 8/10 | — | 4 disputed → 4 agree, 0 strong |
+| `blind` (4) | question + reference only | **57/60 (95.0%)** | 7/10 | — | 6 disputed → 2 agree, 4 strong |
+| `bands` (6) | key points + weights + formula | **135/150 (90.0%)** | 4/10 | **40/60 (66.7%)** | 19 disputed → 7 agree, 1 held softly, 11 strong |
+| `blind-bands` (6) | question + reference only | **130/150 (86.7%)** | 0/10 | **34/60 (56.7%)** | 26 disputed → 1 agree, 25 strong |
+
+Unjudged points 0 on every kind; unresolved quotes 3.4% (bands), all but a handful on relation
+verdicts. Cost of the whole four-kind run with reconciliation, at list: **≈ $0.20** (levels $0.037,
+blind $0.030, bands $0.082 — 60 grades $0.043 + 10 GLM panels $0.030 + 19 reviews $0.009 — blind-bands $0.068 — 60 grades, 10 panels, 26 reviews). Today's whole session, including the discarded v2
+runs and the network re-runs, ≈ $0.40. A single grade is ≈ $0.0008 on DeepSeek off-peak; a GLM six-answer panel ≈ $0.003.
+
+**What v3 changed and what it bought.** (1) `SUBSTANCE_FLOOR_CLAUSE` in the shared verdict block:
+a point is `correct` only when the answer STATES its specific claim; a gesture, an adjacent idea or
+one half of a compound point is `incomplete`; an implied opposite is `contradicted`; "a fluent
+answer earns nothing for fluency". On the levels panel this took the owner's competent=weak tie
+("Why do LBOs use leverage") from 5/6 to 6/6 and the panel from 57/60 to 58/60; the two residual
+inversions are expert=competent ties at 1.00 where the grader, asked to reconsider, ACCEPTED the
+adversary's account both times (the 100 was too generous — see the reviews) — i.e. they are
+leniency the reconciliation pass now catches, not a scoring-rule gap. (2) The mechanical rubric
+(`src/lib/analysis/rubric.ts`): the grader answers seven yes/no items with a quote, TypeScript applies
+the weight table (clarity: lede 30 / followable 25 / terms 20 / coherent 25; conciseness: no_restatement
+30 / no_padding 30 / no_hedging 20 / proportionate 20, the last computed from word counts at ≤1.5×
+the reference). A missing item scores as not met and is warned, never silently passed. (3) The
+reconciliation pass (`review-panel-grade` v1, `benchmark-review.ts`): only where the isolated grade
+disagrees with the adversary's intent, the grader sees the adversary's rationale and accepts or holds
+each point with a stated firmness; `strong` (held firmly) is the owner's manual queue. The isolated
+grade is never overwritten.
+
+**The six-band finding: 10-point bands are inside the adversary's aim noise, not the grader's.** The
+band hit rate is 66.7% while rank agreement is 90%: the grader orders the answers correctly far more
+often than it lands them in the 10-point window the adversary named. Read the misses: on three cards
+("Why do LBOs use leverage", "walk me through", "project debt paydown") the adversary's `strong`,
+`good` and `fair` answers ALL graded 1.00 on content, and in the reconciliation the grader HELD FIRMLY
+on 4-7 points each, citing the answer's own sentence — the adversary claimed a point was "omitted"
+that the answer states outright. Those 11 strong holds are the queue; on first reading the owner
+should expect to side with the grader on most of them (the adversary under-aimed) and with the
+adversary on a few (where "states outright" is a gesture). Either way the bands panel is a test of
+the ADVERSARY's calibration as much as the grader's; treat band hit rate as a diagnostic, and rank
+agreement as the acceptance number. The blind-bands panel is the honest version of the same test.
+
+**Blind-bands is where the two readings collide hardest.** 86.7% rank agreement, 0/10 cards perfect,
+56.7% band hit, and 25 of 26 reconciliations held FIRMLY. Every inversion is a TIE at the top: the
+blind adversary, writing to "strong" or "good" without the points in front of it, writes an answer that
+states every point (the grader scores 1.00 and, shown the rationale, says so sentence by sentence).
+An adversary that cannot see the rubric cannot aim a 10-point band — it can only aim an ORDER. So:
+blind-bands measures the floor of the six-band idea (order holds, bands do not), and the honest
+calibration test for the SCORE needs either bands the adversary can hit blind (three: pass / partial /
+fail, say) or a rubric-aware adversary whose aim is itself audited by the queue. That is an owner
+decision for grader v4, not a prompt fix.
+
+**The mechanical expression axis, first reading (all three finished kinds, 140 grades).** The grader
+answered every rubric item on every grade (0 `rubric_unanswered` warnings). Clarity /100 by intended
+level, levels panel: expert 100 · competent 100 · weak 100 · wrong 74.5; conciseness: 98 · 100 · 72 · 94
+(the legacy 1-10 rubric read 9.9/9.4/8.1/6.5 clarity beside it). The items that fire on wrong answers
+are `terms` (called by the wrong name) and `coherent` (undoes itself) — the right ones; `no_padding`
+and `no_hedging` fire on weak answers. The mechanical axis moves in the same direction as the legacy
+one but is coarser (mostly 100 above `weak`): the weights are tunable per version, and the
+per-item agreement printed here is the evidence to tune from.
+
+**Interpretation rule for the four kinds, from here on:** `blind` is the panel the grader is held to
+(the realistic test); `levels` is the rationale-in-[n]-terms diagnostic; `bands`/`blind-bands`
+measure calibration of the SCORE, not just the order, and are read together with the queue.
+
 **BASELINE OF RECORD, 2026-09-18 (evening) — grader v2, scoring rules v1 (contradiction term), every
 panel written by GLM `glm-5.3-flash` at `high`, every answer graded by `deepseek-flash`. Two panels
 per card: the rubric-aware adversary (saw the key points) and the BLIND adversary (question + reference

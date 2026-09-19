@@ -186,6 +186,8 @@ Frozen reference: `docs/ai/error-taxonomy.md`. **Supersedes Stage 7's plan once 
 
 **Updated 2026-08-20:** `.env` may now optionally carry `RESEND_API_KEY` and `MAIL_FROM` (see `.env.example`). Absent, `src/lib/mail/` falls back to a console transport — verification and reset links print to the server log instead of being emailed, which is what makes the invite/verify/reset flow agent-runnable end to end with no real inbox.
 
+**Updated 2026-09-18:** the local `.env` now also carries raw provider keys for the operator scripts (`DEEPSEEK_API_KEY`, `ZAI_API_KEY`, `GOOGLE_API_KEYS`) — the "only `DATABASE_URL`" line above is historical. `--direct` runs (`author-klps`, `bench-grader`, the probes) read them; never print a key's value, and never assume a key is absent before checking `.env` for the variable NAME.
+
 `GOOGLE_KEY_ENCRYPTION_SECRET` now encrypts `AiCredential` rows for **every** provider, not just Google — the name is kept deliberately. Renaming it, or changing the `v1:<iv>:<tag>:<ciphertext>` payload format, makes every already-stored credential permanently undecryptable. A golden-vector test (`tests/security/api-key.test.ts`) pins the current format against a fixed plaintext/secret/output; if it fails, either revert or ship a re-encryption migration before deploying.
 
 ## Future Considerations

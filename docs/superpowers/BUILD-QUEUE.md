@@ -30,6 +30,22 @@ weight) — the owner's read of a 0.75 "egregiously wrong" answer, now 0.17. Bas
 panels, DeepSeek grading: rubric-aware **57/60**, blind **58/60** (`docs/ai/model-performance.md`).
 `--kind blind` is the panel to hold the grader to. `GraderPanelResult.expression` carries the legacy
 rubric until Phase B. Still owed: the compound-point strict clause (grader v3), `--kind modes`.
+**UPDATE 2026-09-18 (night): grader v3 — substance floor, mechanical rubric, reconciliation, six bands.**
+`SUBSTANCE_FLOOR_CLAUSE` (`verdict-block.ts`, under strict) makes a gesture `incomplete` and an
+implied opposite `contradicted`; `src/lib/analysis/rubric.ts` (`RUBRIC_VERSION` 1) scores clarity and
+conciseness /100 from the grader's seven yes/no checklist answers × a weight table (tunable without
+a prompt edit; `proportionate` is a word count); `GraderPanelResult.expression` is now the mechanical
+score with the legacy 1-10 rubric as `legacy`. Two new panel kinds, `bands` and `blind-bands` (six
+answers at full 100 / strong 90-99 / good 80-89 / fair 70-79 / marginal 50-69 / failing 0-49, ranks
+1-6), and `--review`: the reconciliation pass (`review-panel-grade` v1, `benchmark-review.ts`,
+`GraderPanelReview` table) runs only on disputed answers and files `strong` holds for the owner. v3
+baseline: levels **58/60**, bands **135/150** with band hit **40/60 (66.7%)** — the band misses are
+mostly the adversary under-aiming (three cards' strong/good/fair all graded 100 and the grader held
+firmly, quoting the text), so band hit is a diagnostic, rank agreement the acceptance number. Blind **57/60**; blind-bands **130/150** with band hit **34/60
+(56.7%)**, 0/10 perfect, 25/26 reconciliations held firmly — a blind adversary can aim an ORDER, not
+a 10-point band (`docs/ai/model-performance.md` has the reading). Owner's
+manual queue: the `strong` rows on the artifact page. `graderVersion` is **3**; the row check reads
+the constant. Still owed: `--kind modes`; the owner's ruling on the queue → grader v4 prompt/weights.
 **OWED to the owner (keys/browser), in this order:** (1) `npm run probe-grade-tokens -- --models
 deepseek-flash` → paste the printed pair into `src/lib/analysis/output-cap.ts` (2048/600 are
 placeholders); (2) `npm run probe-runtime-grade -- --model deepseek-flash`, then `--model
@@ -38,7 +54,7 @@ gemini-3.1-flash-lite`, record in `docs/ai/model-performance.md` "Spec 5 — the
 scripts/bench-grader.ts --set cmtj7pxfc000005l4rv4krxxy --author --direct --model deepseek-flash`
 (then `--kind modes --author`); (4) one real short-answer quiz on the LBO set in the app, then the
 row check `npm run verify:grade-rows -- <attemptId>` (read-only: `analysisVersion 4`,
-`graderVersion 2`, statuses in vocabulary and none `passed`, `spanStart` on non-`correct` rows,
+`graderVersion 3`, statuses in vocabulary and none `passed`, `spanStart` on non-`correct` rows,
 relation rows `passive`, `KlpState.pKnown` finite); (5) `npm run author-form-reqs -- --set <id>` once per
 authored set (~$0.30 corpus-wide) — **until it runs, every authored set reads `ready: false` and the
 build banner reappears.** The deferred list (regrade-run supersede adoption, the cron's form-reqs
@@ -1491,7 +1507,7 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
        **Erratum to spec §8, noted in the spec:** `GraderPanelResult` stores three Json lists
        (`verdicts` / `relationVerdicts` / `formVerdicts`) with the span and weight inside each
        entry — not `verdicts + spans`.
-   11. `npm run bench-grader -- --set <id> [--author] [--kind levels|modes] [--direct] [--model <id>]`
+   11. `npm run bench-grader -- --set <id> [--author] [--kind levels|modes|blind|bands|blind-bands] [--review] [--direct] [--model <id>]`
        and its report; on `--direct` the grader is **pinned per card** (`benchmark-pin.ts`) for the
        same reason authoring pins.
    12. `scripts/probe-runtime-grade.ts` (`npm run probe-runtime-grade -- --model <id>`), this entry,
@@ -1516,7 +1532,7 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
      not run**), then the row check, one command, read-only:
      `npm run verify:grade-rows -- <attemptId>` (`scripts/verify-grade-rows.ts`, the shape of
      `verify-diagnostic.ts`; the attempt id is in the results URL). It prints and checks, per
-     short-answer answer: `analysisVersion 4` and `graderVersion 2`; every live
+     short-answer answer: `analysisVersion 4` and `graderVersion 3`; every live
      `AnswerKlpResult.status` in `KLP_STATUSES` and none `passed`; `spanStart` set on every live
      non-`correct` row; every live `AnswerRelationResult` `provenance 'passive'`; and
      `KlpState.pKnown` finite for every touched key point. Exit 1 on any FAIL. Type-checked and
