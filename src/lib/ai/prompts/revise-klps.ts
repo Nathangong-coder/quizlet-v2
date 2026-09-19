@@ -3,6 +3,12 @@ import { MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
 
 export interface ReviseKlpsBuildInput {
   question: string;
+  /**
+   * v6: the card owner's definition — the CEILING every revised point must
+   * respect, as in author-klps v7. Optional so a caller without it gets v5's
+   * text; the authoring loop always passes it.
+   */
+  definition?: string;
   klps: { text: string; kind: string }[];
   /** Call B's discrimination result, per KLP, in the KLPs' own order. */
   discrimination: {
@@ -59,7 +65,12 @@ export const REVISE_KLPS_PROMPT = {
   id: 'revise-klps',
   // v4 (2026-09-13): the compression precedence rule.
   // v5 (2026-09-14): instructions first, card last (prefix cache).
-  version: 5,
+  // v6 (2026-09-19): the definition ceiling. The loop revised 7/10 LBO cards
+  // on a run where the author prompt bound points to the card and this one
+  // did not — a split "into the specific claims it was hiding" re-inflated
+  // what the ceiling had held. A revised point is a claim the definition
+  // makes; a split that needs a claim the card does not make is not a split.
+  version: 6,
   schema: ReviseKlpsSchema,
 
   build(input: ReviseKlpsBuildInput): string {
@@ -102,7 +113,7 @@ Output JSON:
 Return the FULL revised set, not only the changed entries.
 
 Question: ${input.question}
-${reason}
+${input.definition ? `Definition on the card (the owner's own words): ${input.definition}\nTHE DEFINITION IS THE CEILING. Every revised point must be a claim the definition itself makes, at the grain it makes it, or one of the points already marked as beyond the card. Splitting a point "into the specific claims it was hiding" is allowed only when the definition makes those claims; if separating a template would need a mechanism the card does not state, leave the point at the card's grain — the card's links, not extra points, carry that separation.\n` : ''}${reason}
 Aim for ${input.targetCount}-${MAX_KLPS_AUTHORED} KLPs total after revision — the same target this card was sized for, not a quota. If splitting a useless point into its specific claims takes you above it, that is the right outcome; if honestly cutting one takes you below it, say the fewer true things rather than padding.
 
 Current KLPs, each with its findings:

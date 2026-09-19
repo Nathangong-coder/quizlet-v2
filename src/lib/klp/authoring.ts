@@ -111,6 +111,8 @@ export interface GradeResult {
 
 export interface ReviseInput {
   question: string
+  /** v6 of the revise prompt: the owner's definition, the ceiling. */
+  definition?: string
   klps: { text: string; kind: string }[]
   discrimination: KlpDiscrimination[]
   findings?: { index: number | null; issue: string; fix: string }[]
@@ -848,6 +850,7 @@ export async function authorCard(
     const mustKeep = compresses && rebuild ? rebuild.parityVerdicts.map((v) => v.claim) : undefined
     const revised = await gen.revise({
       question: input.question,
+      definition: input.definition,
       klps: klps.map((k) => ({ text: k.text, kind: k.kind })),
       discrimination: substance.perKlp,
       roles,
