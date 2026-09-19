@@ -1,5 +1,5 @@
 import { prisma } from '../src/lib/db'
-import { readPanelResult, coverageScore, rankAgreement, adjacentGaps, toBenchKlpVerdicts, toBenchRelationVerdicts } from '../src/lib/analysis/benchmark'
+import { readPanelResult, coverageScore, rankAgreement, adjacentGaps, toBenchKlpVerdicts, toBenchRelationVerdicts, bandHit, bandOf, isBandsKind, GRADER_PANEL_KINDS, type GraderPanelKind } from '../src/lib/analysis/benchmark'
 import { answerScore, compositionOf, GRADER_SCORING } from '../src/lib/analysis/scoring-rules'
 import { GRADER_VERSION } from '../src/lib/analysis/version'
 
@@ -7,8 +7,8 @@ import { GRADER_VERSION } from '../src/lib/analysis/version'
  * `npx tsx --conditions=react-server --env-file=.env scripts/bench-review.ts --set <setId> [--model <id>] [--kind levels|modes|blind|bands|blind-bands]`
  *
  * READ-ONLY. Dumps one JSON document for a human review of the grader
- * benchmark: every card's key points, the adversary's four answers with the
- * rank and rationale it INTENDED, and the grader's per-point verdicts with
+ * benchmark: every card's key points, the adversary's answers (four levels or
+ * six bands) with the rank and rationale it INTENDED, and the grader's per-point verdicts with
  * the quotes it cited — so an owner can judge, answer by answer, whether the
  * instrument graded the right way and harshly enough. Nothing here is a
  * score the model gave; the scores are TypeScript's.
@@ -26,7 +26,12 @@ async function main() {
     process.exit(2)
   }
   const model = opt(args, '--model')
-  const kind = opt(args, '--kind') ?? 'levels'
+  const kind = (opt(args, '--kind') ?? 'levels') as GraderPanelKind
+  if (!GRADER_PANEL_KINDS.includes(kind)) {
+    console.error(`--kind must be one of ${GRADER_PANEL_KINDS.join('|')}`)
+    process.exit(2)
+  }
+  const bands = isBandsKind(kind)
 
   const rules = GRADER_SCORING
   const cards = await prisma.card.findMany({
@@ -82,17 +87,20 @@ async function main() {
       const score = answerScore(bk, br, r.unjudged)
       const coverage = coverageScore(bk, r.unjudged)
       const composition = compositionOf(bk, br, r.unjudged)
+      const band = bands && a.level ? bandOf(a.level) : undefined
       return {
         level: a.level,
         mode: a.mode,
         intendedRank: a.intendedRank,
         text: a.text,
         rationale: a.rationale,
+        band: band ? { low: band.low, high: band.high } : null,
         result: {
           model: row.model,
           score,
           coverage,
           composition,
+          bandHit: bands && a.level ? bandHit(a.level, score) : null,
           expression: (row as { expression?: unknown }).expression ?? null,
           review: row.reviews[0]
             ? { outcome: row.reviews[0].outcome, disagreement: row.reviews[0].disagreement, summary: row.reviews[0].summary, points: row.reviews[0].points, manualVerdict: row.reviews[0].manualVerdict }
@@ -122,14 +130,16 @@ async function main() {
       }
     })
     const ranked = answers.filter((a) => a.result).map((a) => ({ intendedRank: a.intendedRank, score: a.result!.score }))
+    const complete = ranked.length === panel.answers.length && ranked.length >= 2
     out.push({
       card: { id: card.id, term: card.term, definition: card.definition },
       referenceAnswer: authoring?.referenceAnswer ?? null,
       klps: klps.map((k) => ({ index: k.index, text: k.text, kind: k.kind, role: k.role, weight: k.weight })),
       relations: relations.map((r) => ({ type: r.type, from: byId.get(r.fromKlpId)?.index ?? null, to: byId.get(r.toKlpId)?.index ?? null })),
       panel: { kind: panel.kind, model: panel.model, promptVersion: panel.promptVersion },
-      rank: ranked.length === 4 ? rankAgreement(ranked) : null,
-      gaps: ranked.length === 4 ? adjacentGaps(ranked) : null,
+      rank: complete ? rankAgreement(ranked) : null,
+      gaps: complete ? adjacentGaps(ranked) : null,
+      bandHits: bands ? { hit: answers.filter((a) => a.result?.bandHit).length, of: ranked.length } : null,
       answers,
     })
   }
