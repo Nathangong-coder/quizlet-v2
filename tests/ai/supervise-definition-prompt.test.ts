@@ -25,8 +25,11 @@ describe('SUPERVISE_DEFINITION_PROMPT', () => {
   it('is registered, version 2, on the supervision schema', () => {
     expect(PROMPT_REGISTRY['supervise-definition']).toBe(SUPERVISE_DEFINITION_PROMPT)
     expect(SUPERVISE_DEFINITION_PROMPT.version).toBe(2)
-    // The worked example must not be one of the cards the probe grades.
-    expect(built).not.toMatch(/after interest|free cash flow/i)
+    // The worked example must not be one of the cards the probe grades: build
+    // on a neutral fixture and check the TEMPLATE text, not the card's.
+    const neutral = SUPERVISE_DEFINITION_PROMPT.build({ ...input, question: 'Q', definition: 'D', referenceAnswer: null })
+    expect(neutral).not.toMatch(/after interest|free cash flow/i)
+    expect(neutral).toContain('depreciation is added back')
     expect(SUPERVISE_DEFINITION_PROMPT.schema).toBe(DefinitionSupervisionSchema)
   })
 

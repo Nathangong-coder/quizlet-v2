@@ -46,6 +46,20 @@ firmly, quoting the text), so band hit is a diagnostic, rank agreement the accep
 a 10-point band (`docs/ai/model-performance.md` has the reading). Owner's
 manual queue: the `strong` rows on the artifact page. `graderVersion` is **3**; the row check reads
 the constant. Still owed: `--kind modes`; the owner's ruling on the queue → grader v4 prompt/weights.
+**UPDATE 2026-09-19 (early): THE DEFINITION PROBE — the owner's own answers were failing their cards.**
+Graded as a learner, every LBO definition scored 19-56/100 against its authored key points: the
+author prompt had said "add what a strong answer needs that the card omits" and the references ran
+3-11x the definitions, so the points outgrew the card and the conciseness rubric (measured against
+that reference) could not see it. Built: `npm run probe-definitions -- --set <id> --direct --model
+deepseek-flash [--supervise] [--revise]` (`scripts/probe-definitions.ts`, `src/lib/klp/definition-probe.ts`,
+`DefinitionProbe` table, migration `20260918230000_definition_probe`); grade-short-answer **v8**
+(`noteForm` clause — knowledge not prose; byte-identical without it, so the benchmark rows stand);
+rubric **v2** (proportionate vs the definition); author-klps **v6** (the definition is the CEILING;
+`priorFindings` block; `--findings <file>` on the script); `supervise-definition` v2 prompt +
+`DefinitionSupervisionSchema`. Thresholds pass 0.65 / hard fail 0.30; supervisors `deepseek-v4-pro`
+then GLM `high`; decisions in TS (`supervisionDecision`). Results: round 1 (note-form grading, old points) 2/10 pass — 69 · 37 · 63 · 24 · 95 · 56 · 42 · 63 · 17 · 22; 5 supervised, every one decided `revise` (the supervisor also called `grader_wrong` on several points the grader had marked partial); 3 hard fails. Re-author of 8 cards on v6 (~$0.03 GLM+DeepSeek, ~35 min at `high`): round 2 **7/10 pass**, none under 30 — 69 · 50 · 73 · 100 · 95 · 91 · 90 · 100 · 63 · 52; 3 still `revise` after the 2-round cap ("What is an LBO" 50, "floor valuation" 63, "leverage reduces IRR" 52). **The cost of the ceiling is discrimination:** the re-authored 8 read mean separation 0.43 (substance 0.51) with 27 of 45 points FRAMING, 2 `low_discrimination`, 3 `memorizable` — on a terse card, points bound to the card are points a template answer passes. `docs/ai/model-performance.md` has the per-card table; the v7 question (bounded expansion inside the 0.65 headroom vs. escalating thin cards to the author) is the owner's. Owed: surface
+`decision: 'escalate'` rows on the set page (printed only today); re-run `--kind blind` after the
+re-author to confirm the grader still separates on ceiling-bound points.
 **OWED to the owner (keys/browser), in this order:** (1) `npm run probe-grade-tokens -- --models
 deepseek-flash` → paste the printed pair into `src/lib/analysis/output-cap.ts` (2048/600 are
 placeholders); (2) `npm run probe-runtime-grade -- --model deepseek-flash`, then `--model

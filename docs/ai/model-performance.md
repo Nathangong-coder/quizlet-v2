@@ -1266,6 +1266,43 @@ sample's mean item count.
 this paragraph with the real run's numbers — sample size, per-model finishReason counts, the
 fitted line, p95, and the recommended pair.
 
+### The definition probe — the owner's own answers vs. their key points (`npm run probe-definitions`)
+
+**2026-09-19 (early), LBO set, DeepSeek `deepseek-flash` grading (grader v3, prompt v8 `noteForm`), supervisor
+`deepseek-v4-pro`, re-author GLM `glm-5.3-flash` at `high` on author-klps v6.**
+
+| card | before (v7 prompt, old points) | round 1 (note-form) | after re-author (v6 points) | separation after |
+| --- | --- | --- | --- | --- |
+| Why do LBOs use leverage | 47 | **69 pass** | — | (unchanged) |
+| What is an LBO | 50 | 37 → revise | 50 → revise (cap) | 0.50, memorizable |
+| Walk me through an LBO | 28 | 63 → revise | **73 pass** | 0.21, low_discrimination |
+| Sources of value creation | 31 | 24 hard fail | **100 pass** | 0.17, memorizable |
+| Good LBO candidate | 50 | **95 pass** | — | (unchanged) |
+| How much debt | 56 | 56 → revise | **91 pass** | 0.00, low_discrimination |
+| Hold period / exit | 37 | 42 → revise | **90 pass** | 0.60, memorizable |
+| Project debt paydown | 53 | 63 → revise | **100 pass** | 0.40 |
+| Floor valuation | 19 | 17 hard fail | 63 → revise (cap) | 0.67 |
+| Leverage reduces IRR | 22 | 22 hard fail | 52 → revise (cap) | 0.92 |
+
+**Reading.** (1) The note-form clause alone moved the mean from 39 to 45 and passed two cards; it is
+grading knowledge, not prose, as asked. (2) The supervisor found `narrow`/`cut` on every card it saw
+and `grader_wrong` on several points ("(after interest)" marked partial) — the points HAD outgrown
+the card; no card was escalated to the author. (3) After one re-author on the ceiling prompt, 7/10
+owner definitions pass and none is under 30 — the owner's two bars are met. (4) **The price is
+discrimination**: mean separation on the eight re-authored cards is 0.43 (substance 0.51) against
+the corpus's earlier 0.81, with 27/45 points classified framing and five cards flagged
+`low_discrimination`/`memorizable`. A point bound to a terse card is a point a memorized template
+passes. The two acceptance tests — "the owner's note passes" and "a template fails" — pull against
+each other exactly on terse cards, and v6 resolves it entirely toward the owner. Cost of the whole
+loop: probe $0.018, re-author $0.034, re-probe $0.012 ≈ **$0.065**.
+
+**For the owner (v7).** Two honest options, not a prompt tweak: (a) BOUNDED EXPANSION — allow the
+writer at most one or two points beyond the card, only where a strong spoken answer cannot be
+given without them, named in `concerns`; the 0.65 pass line leaves 35% of weight for exactly this,
+and the discrimination those points buy is the discrimination the ceiling lost. (b) KEEP THE
+CEILING and let the loop escalate: a card whose points cannot separate a template is a card the
+owner should enrich — the `memorizable` flag already says so, and the escalation path is built.
+
 ### Spec 5 — grader benchmark baseline (`npm run bench-grader`)
 
 **BASELINE OF RECORD, 2026-09-18 (night) — grader v3 (substance floor + mechanical rubric v1 +
