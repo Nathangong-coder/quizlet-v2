@@ -275,6 +275,8 @@ export interface RelationStats {
    * same rule a point obeys. Undefined when the pass did not run.
    */
   droppedForReference?: number
+  /** The dropped edges themselves, with the reference's verdict — for reading whether the prune is right. */
+  droppedEdges?: { from: number; to: number; type: string; referenceVerdict: string }[]
 }
 
 export interface RebuildOutcome {
@@ -953,6 +955,9 @@ export async function authorCard(
   const keptIdx = relationPassResult ? relationPassResult.kept : accepted.map((_, i) => i)
   const keptRelations = keptIdx.map((i) => accepted[i])
   const droppedForReference = relationPassResult ? relationPassResult.droppedForReference.length : undefined
+  const droppedEdges = relationPassResult && referenceRelationVerdicts
+    ? relationPassResult.droppedForReference.map((i) => ({ from: accepted[i].from, to: accepted[i].to, type: accepted[i].type, referenceVerdict: referenceRelationVerdicts![i] }))
+    : undefined
   const reindex = (v: KlpVerdict[] | undefined): Record<string, KlpVerdict> | undefined => (v ? Object.fromEntries(keptIdx.map((i, j) => [String(j), v[i]])) : undefined)
 
   // Weight from BOTH signals (increment A §1). The graph term carries
@@ -1009,6 +1014,7 @@ export async function authorCard(
       droppedForCycles,
       droppedOutOfRange,
       ...(droppedForReference !== undefined ? { droppedForReference } : {}),
+      ...(droppedEdges ? { droppedEdges } : {}),
     },
     separationScore: separation.separation,
     substanceSeparation: substance.separation,

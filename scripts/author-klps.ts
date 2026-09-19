@@ -978,7 +978,7 @@ async function main() {
         `${outcome.relations.length} relations (candidates ${outcome.relationStats.candidates}, ` +
         `cycles-dropped ${outcome.relationStats.droppedForCycles}, ` +
         `out-of-range-dropped ${outcome.relationStats.droppedOutOfRange}` +
-        (outcome.relationStats.droppedForReference !== undefined ? `, reference-dropped ${outcome.relationStats.droppedForReference}` : '') +
+        (outcome.relationStats.droppedForReference !== undefined ? `, reference-dropped ${outcome.relationStats.droppedForReference}${outcome.relationStats.droppedEdges?.length ? ` {${outcome.relationStats.droppedEdges.map((e) => `[${e.from}]${e.type}[${e.to}]:${e.referenceVerdict}`).join(' ')}}` : ''}` : '') +
         `)` +
         (outcome.combinedSeparation !== undefined ? `, LINKS: relation sep ${(outcome.relationSeparation ?? 0).toFixed(2)}, combined ${outcome.combinedSeparation.toFixed(2)}` : '') +
         `${flagSuffix}`,

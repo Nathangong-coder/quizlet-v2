@@ -1266,6 +1266,99 @@ sample's mean item count.
 this paragraph with the real run's numbers — sample size, per-model finishReason counts, the
 fitted line, p95, and the recommended pair.
 
+### Relations as a discrimination axis — the spike and the relation pass (2026-09-19)
+
+**The spike (30 grades, ≈ $0.02).** Every LBO card's stored reference and both traps graded on the
+runtime prompt against the live key points AND the card's relations; separation = reference − best
+trap, three ways:
+
+| card | points | relations | combined |
+| --- | --- | --- | --- |
+| Why do LBOs use leverage | 0.90 | 1.00 | 0.94 |
+| What is an LBO | 0.60 | 1.00 | 0.80 |
+| Walk me through | 0.21 | 0.50 | 0.35 |
+| Sources of value creation | 0.17 | 0.00 ⚠ | 0.10 |
+| Good LBO candidate | 0.71 | 0.75 | 0.73 |
+| How much debt | 0.00 | 0.33 | 0.18 |
+| Hold period | 0.60 | 0.70 | 0.65 |
+| Project debt paydown | 0.40 | 0.75 | 0.56 |
+| Floor valuation | 0.67 | 1.00 | 0.80 |
+| Leverage reduces IRR | 0.92 | 1.00 | 0.96 |
+| **mean** | **0.52** | **0.70** | **0.61** |
+
+The vague trap omitted every link on every card; the template trap contradicted or omitted most
+links on cards whose ceiling-bound points it passed; ⚠ the reference itself failed all four of its
+relations on the value-creation card — the relate call had written edges the reference never
+asserts, and nothing checked. Built on that: the RELATION PASS (`src/lib/klp/relation-separation.ts`,
+grade-candidate v5, relate v3, author v7 bounded expansion; CLAUDE.md "Relations are a
+discrimination axis").
+
+**Full re-author on v7 + the pass, 10 cards, ≈ $0.06, 45 min at GLM `high`:**
+
+| | v6 (ceiling only) | v7 + relation pass |
+| --- | --- | --- |
+| mean separation (points, substance) | 0.43 (0.51) | 0.47 (0.59) |
+| mean COMBINED (points + links) | — | **0.71** (relations alone 0.77) |
+| low_discrimination / memorizable | 2 / 3 | **0 / 1** |
+| points / links | 45 / 40 | 61 / 56 |
+| edges dropped for failing the reference | not checked | **29** |
+| owner definitions passing the probe | 7/10 | **4/10** (3 hard fails) |
+
+Per card, combined: 0.95 · 0.75 · 0.10 (walk-through, memorizable) · 0.50 · 0.90 · (debt) · 0.86 ·
+0.42 (paydown: points 0.00, links 0.50 — separated on links alone) · 0.85 · 0.89.
+
+**The probe went the other way, and the reason is structural, not a prompt slip.** Re-scored from
+the stored rows with no AI: the owner's definitions score on FRAMING points (definitional) and miss
+the MECHANISM points — substance-only scoring drops the pass count to 2/10. The mechanisms are what
+separate a template; a 30-word note does not state three of them. The bounded-expansion cap was
+honored (12 `BEYOND THE CARD` declarations across 10 cards); the excess came from the ceiling-bound
+points being written at mechanism grain and from the in-loop REVISE prompt, which had never seen
+the definition (fixed: revise v6 carries the ceiling). Also visible: the step-0 "define the term"
+framing point on a WHY question carries weight 5 (blast radius) and the card never states it.
+The loop's answer is the narrowing revision (`--revise`): supervisor `narrow`/`cut` → re-author →
+re-probe, with links carrying the separation the narrowed points give up. 
+
+**The narrowing round on v7 (6 cards re-authored with the supervisor's narrow/cut findings, revise v6, ≈ $0.05, 35 min), then re-probed — the current state of the LBO set:**
+
+| card | pts / links | substance | combined | status | owner def |
+| --- | --- | --- | --- | --- | --- |
+| Why do LBOs use leverage | 6 / 6 | 0.67 | **0.89** | separated | **76** |
+| What is an LBO | 6 / 7 | 1.00 | **0.90** | separated | **80** |
+| Walk me through | 6 / 3 | 0.25 | 0.10 | memorizable | **88** |
+| Sources of value creation | 6 / 1 | 0.50 | 0.50 | separated | **85** |
+| Good LBO candidate | 6 / 5 | 0.90 | **0.90** | separated | **95** |
+| How much debt | 8 / 3 | 0.00 | 0.00 | memorizable | 65 |
+| Hold period | 6 / 4 | 0.00 | 0.00 | memorizable | **88** |
+| Project debt paydown | 4 / 5 | 0.00 | 0.42 | separated (on links alone) | **100** |
+| Floor valuation | 5 / 10 | 0.67 | **0.73** | separated | 43 |
+| Leverage reduces IRR | 6 / 7 | 0.67 | **0.90** | separated | 40 |
+| **mean / count** | | | **0.53** | 3 memorizable | **7/10 pass, 0 under 30** |
+
+**The three states side by side** (owner pass / mean combined separation / flagged): v6 ceiling
+7/10 · n/a (substance 0.51) · 5 → v7 + relation pass 4/10 · **0.71** · 1 → v7 narrowed 7/10 ·
+0.53 · 3. **Narrowing is card-dependent, and the dependence is readable from the definition.** Where
+the owner's definition carries a mechanism ("smaller equity outlay can boost returns if the company's
+value grows and the debt is paid down"), narrowing the points to it costs nothing — leverage held
+0.89, What-is-an-LBO went to 0.90 — because the links between mechanism-grain points are still
+there for a template to miss. Where the definition is a KEYWORD LIST ("leverage ratios, coverage
+ratios, comparables…"; "3-7 years, IPO or sale…"), narrowing the points to card grain hands the
+template the links too: How-much-debt went 0.86 → 0.00 and Hold-period 0.86 → 0.00, both
+`memorizable`, and the owner's definition passed (65, 88) on points that separate nobody.
+
+**What this decides.** (1) The probe-driven revision must be VETOED when it drops a card's combined
+separation below the floor — today it supersedes the better version (How-much-debt and Hold-period
+are now worse in the database than one version ago). (2) The supervisor's `narrow` must not land on a
+LOAD-BEARING point: TypeScript knows which points discriminate a trap (`AuthoringProbe.verdicts` +
+`referenceVerdicts`); a `narrow`/`cut` on one of those should read as `keep`, so the two-pass rule
+escalates the card to the owner instead of flattening it. That is the case the escalation path was
+designed for — "your definition for 'how much debt' is a list; the points that separate a template
+are mechanisms it does not state; enrich the card or accept the points" — and on this run it never
+fired because the supervisor always found something to narrow. (3) The relate pass's prune rate
+(29 of 85 candidate edges failed the reference across the v7 run; 9/12 on How-much-debt) needs
+reading against the dropped edges themselves, now printed by `author-klps` as
+`{[from]type[to]:verdict}` — a `precedes` edge a narrated walkthrough "does not assert" may be a
+grading-rule problem rather than a fabricated edge.
+
 ### The definition probe — the owner's own answers vs. their key points (`npm run probe-definitions`)
 
 **2026-09-19 (early), LBO set, DeepSeek `deepseek-flash` grading (grader v3, prompt v8 `noteForm`), supervisor
