@@ -4,7 +4,7 @@ import { answerScore, compositionOf, GRADER_SCORING } from '../src/lib/analysis/
 import { GRADER_VERSION } from '../src/lib/analysis/version'
 
 /**
- * `npx tsx --conditions=react-server --env-file=.env scripts/bench-review.ts --set <setId> [--model <id>] [--kind levels|modes]`
+ * `npx tsx --conditions=react-server --env-file=.env scripts/bench-review.ts --set <setId> [--model <id>] [--kind levels|modes|blind|bands|blind-bands]`
  *
  * READ-ONLY. Dumps one JSON document for a human review of the grader
  * benchmark: every card's key points, the adversary's four answers with the
@@ -48,6 +48,7 @@ async function main() {
               where: { graderVersion: GRADER_VERSION, ...(model ? { model } : {}) },
               orderBy: { createdAt: 'desc' },
               take: 1,
+              include: { reviews: { orderBy: { createdAt: 'desc' }, take: 1 } },
             },
           },
         },
@@ -93,6 +94,9 @@ async function main() {
           coverage,
           composition,
           expression: (row as { expression?: unknown }).expression ?? null,
+          review: row.reviews[0]
+            ? { outcome: row.reviews[0].outcome, disagreement: row.reviews[0].disagreement, summary: row.reviews[0].summary, points: row.reviews[0].points, manualVerdict: row.reviews[0].manualVerdict }
+            : null,
           unresolvedQuotes: r.unresolvedQuotes,
           unjudged: r.unjudged.map((u) => ({ index: byId.get(u.klpId)?.index ?? null, weight: u.weight })),
           verdicts: r.verdicts.map((v) => ({
