@@ -71,11 +71,13 @@ combinedSeparation / referenceRelationVerdicts`, `AuthoringProbe.relationVerdict
 too; edges the reference fails are pruned and printed). LBO on v7: **combined 0.71, 0
 low_discrimination, 1 memorizable**, but owner definitions **4/10**; the narrowing round then gave
 **7/10 pass at combined 0.53, 3 memorizable** — narrowing flattens KEYWORD-LIST cards (How-much-debt,
-Hold-period 0.86 → 0.00) and is free on mechanism cards. **NEXT (not built): (1) veto a
-probe-driven re-author that drops combined separation below the floor — it currently supersedes
-the better version; (2) discrimination-aware supervision: `narrow`/`cut` on a load-bearing point
-reads as `keep` so keyword-list cards ESCALATE to the owner instead of flattening; (3) read the
-dropped edges (`precedes` on walkthroughs) before trusting the prune rate.** Full tables in
+Hold-period 0.86 → 0.00) and is free on mechanism cards. **BUILT the same evening:** (1) the veto — `author-klps --keep-better` refuses a version whose carried separation
+falls below the floor when the old one was above it (`revisionVeto`); (2) discrimination-aware supervision —
+`loadBearingIndexes`/`applyLoadBearing`: a `narrow`/`cut` on a point that separates a trap reads as `keep`
+(supervisor v3 marks them); (3) dropped edges printed with the reference verdict, and symmetric
+(`confused_with`) edges exempt from the prune. **LBO now: 8/10 owner pass, 0 under 30, mean combined
+0.70, 1 memorizable** (`scripts/probe-state.ts` dumps the loop; artifact updated). Owed: grade-short-answer
+v9 from the 14 `grader_wrong` points (compressed list items read as incomplete); the walk-through card. Full tables in
 `docs/ai/model-performance.md` "Relations as a discrimination axis".
 **OWED to the owner (keys/browser), in this order:** (1) `npm run probe-grade-tokens -- --models
 deepseek-flash` → paste the printed pair into `src/lib/analysis/output-cap.ts` (2048/600 are

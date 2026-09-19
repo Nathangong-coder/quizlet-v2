@@ -1359,6 +1359,23 @@ reading against the dropped edges themselves, now printed by `author-klps` as
 `{[from]type[to]:verdict}` — a `precedes` edge a narrated walkthrough "does not assert" may be a
 grading-rule problem rather than a fabricated edge.
 
+**With the veto and discrimination-aware supervision (2026-09-19, evening; ≈ $0.06):** the two flattened
+cards re-authored from scratch under `--keep-better` (How-much-debt: 11 of 11 candidate edges failed
+the reference — the enumeration shape, pruned instead of persisted; Hold-period 0.92), then the probe
+with load-bearing points held. **Current LBO state: 8/10 owner definitions pass, 0 under 30, mean
+combined separation 0.70, 9/10 at or above the bar, 1 memorizable (the walk-through).** The two
+misses: How-much-debt 52 (supervisor: 5 of 9 points `grader_wrong`, 3 load-bearing held — decided
+`revise` on the one framing point; combined 0.85) and Leverage-reduces-IRR 53 (`grader_wrong` on 3 of
+5, both load-bearing held — the instrument, not the card; combined 0.94). Zero escalations: on this
+set the supervisor never found a card thin on a load-bearing point without also finding the grader
+harsh. **Two carry-overs:** (1) `grader_wrong` was called on 14 points across the run — the note-form
+grader still marks compressed list items (`"debt-to-EBITDA ratios"`) `incomplete`; that is the
+calibration corpus for grade-short-answer v9. (2) `confused_with` edges were being pruned on every
+card because a reference cannot assert a symmetric relation — symmetric edges are now exempt from
+the pass (kept ungraded, after the directed ones). The artifact
+https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg now carries the loop's state per card (definition,
+load-bearing points, links, separations, supervision, probe history) above the bench.
+
 ### The definition probe — the owner's own answers vs. their key points (`npm run probe-definitions`)
 
 **2026-09-19 (early), LBO set, DeepSeek `deepseek-flash` grading (grader v3, prompt v8 `noteForm`), supervisor
