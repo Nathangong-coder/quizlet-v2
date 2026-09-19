@@ -20,6 +20,12 @@ export interface KlpRowInput {
   kind: string;
   /** framing | substance; undefined where the traps never ran (extraction, user edits). */
   role?: string;
+  /** Slot templates (2026-09-19): the template slot this point fills; null = overflow / unslotted. */
+  slot?: string | null;
+  /** Structured points: { subject, claim, qualifier }. Null where the writer gave none. */
+  structured?: { subject: string; claim: string; qualifier: string | null } | null;
+  /** Index of the card-definition point this point is derived from; null = beyond the card. */
+  definitionRef?: number | null;
   /** 'ai' for extraction, 'user' for a hand-corrected point. */
   source: string;
   promptVersion: number;
@@ -90,6 +96,9 @@ export async function writeKlpVersion(
           weight: k.weight,
           kind: k.kind,
           role: k.role ?? null,
+          slot: k.slot ?? null,
+          structured: k.structured ?? undefined,
+          definitionRef: k.definitionRef ?? null,
           sourceHash: hash,
           promptVersion: k.promptVersion,
           source: k.source,

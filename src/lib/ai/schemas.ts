@@ -528,6 +528,9 @@ export const AuthorDraftSchema = z.object({
   definitionPoints: z.array(z.object({
     point: z.string().min(1),
     klpsNeeded: z.number(),
+    /** v8: the point as a structured claim, so a key point can be MAPPED to it in TypeScript. */
+    subject: z.string().nullable().optional(),
+    claim: z.string().nullable().optional(),
   })).optional(),
   referenceAnswer: z.string().min(1),
   /**
@@ -545,6 +548,18 @@ export const AuthorDraftSchema = z.object({
   klps: z.array(z.object({
     text: z.string().min(1),
     kind: z.enum(KLP_KINDS),
+    /**
+     * v8 (slot templates): the slot of the question type's template this
+     * point fills, or null for an overflow point. TypeScript validates the
+     * form (`validateTemplate`). Optional so a v7 reply still parses.
+     */
+    slot: z.string().nullable().optional(),
+    /** v8 (structured points): the claim decomposed — what it is about, what it says, under what condition. */
+    subject: z.string().nullable().optional(),
+    claim: z.string().nullable().optional(),
+    qualifier: z.string().nullable().optional(),
+    /** v8: index into `definitionPoints` this point is derived from; null = beyond the card. */
+    fromDefinition: z.number().int().min(0).nullable().optional(),
   })).min(1).max(MAX_KLPS_AUTHORED),
   /**
    * EXACTLY `PROBE_KINDS.length`, one per archetype, no duplicates. `.min(1)`
@@ -601,10 +616,20 @@ export const CandidateGradeSchema = z.object({
 export type CandidateGrade = z.infer<typeof CandidateGradeSchema>;
 
 /** Call C's output: a revised KLP set, same shape as call A's `klps`. */
+/** The structured fields a revision reply may carry (v8 of the author prompt); all optional. */
+const structuredKlpFields = {
+  slot: z.string().nullable().optional(),
+  subject: z.string().nullable().optional(),
+  claim: z.string().nullable().optional(),
+  qualifier: z.string().nullable().optional(),
+  fromDefinition: z.number().int().min(0).nullable().optional(),
+};
+
 export const ReviseKlpsSchema = z.object({
   klps: z.array(z.object({
     text: z.string().min(1),
     kind: z.enum(KLP_KINDS),
+    ...structuredKlpFields,
   })).min(1).max(MAX_KLPS_AUTHORED),
 });
 

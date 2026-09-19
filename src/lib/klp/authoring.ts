@@ -25,6 +25,8 @@ import {
 import { FRAMING_PROBE, classifyPointRoles, substanceSeparation, applyRoleOverride, isMemorizable, type PointRole } from '@/lib/klp/framing'
 import { relationPass, combinedSeparation, type RelationGrade } from '@/lib/klp/relation-separation'
 import { SYMMETRIC_TYPES } from '@/lib/klp/relations'
+import { templateFor, validateTemplate, templateEdges, type TemplateDefect } from '@/lib/klp/templates'
+import { countDefinitionClauses } from '@/lib/klp/sizing'
 import type { RoleClassification } from '@/lib/ai/prompts/classify-roles'
 import { carryVerdicts, mergePartial, trapsToReplace } from '@/lib/klp/regrade-plan'
 import { referenceNeedsRewrite, type ReferenceReview } from '@/lib/ai/prompts/review-reference'
@@ -86,9 +88,27 @@ export interface PriorFinding {
   fix: string
 }
 
+/**
+ * A key point as the writer returns it from v8 on: the text and kind every
+ * reader uses, plus the template slot it fills, its structured claim, and
+ * the definition point it comes from. Every optional field is absent on a
+ * pre-v8 reply and on a revision reply that did not carry it.
+ */
+export interface StructuredKlpDraft {
+  text: string
+  kind: string
+  slot?: string | null
+  subject?: string | null
+  claim?: string | null
+  qualifier?: string | null
+  fromDefinition?: number | null
+}
+
 export interface AuthorResult {
   referenceAnswer: string
-  klps: { text: string; kind: string }[]
+  /** The writer's step-0 classification (v3+); chooses the slot template. */
+  questionType?: string
+  klps: StructuredKlpDraft[]
   wrongAnswers: { kind: ProbeKind; text: string }[]
   /** The judgment half of adaptive sizing; absent means the prior alone sizes the card. */
   definitionPoints?: DefinitionPointAssessment[]
@@ -128,7 +148,7 @@ export interface ReviseInput {
 }
 
 export interface ReviseResult {
-  klps: { text: string; kind: string }[]
+  klps: StructuredKlpDraft[]
 }
 
 export interface RelateInput {
@@ -230,9 +250,9 @@ export interface AuthoringGenerator {
     question: string
     definition: string
     referenceAnswer: string
-    klps: { text: string; kind: string }[]
+    klps: StructuredKlpDraft[]
     review: ReferenceReview
-  }): Promise<{ referenceAnswer: string; klps: { text: string; kind: string }[] }>
+  }): Promise<{ referenceAnswer: string; klps: StructuredKlpDraft[] }>
   /**
    * The rebuild test (spec 2026-09-12-rebuild-test-design.md). All three
    * optional together: a generator without them produces an outcome without
@@ -318,7 +338,9 @@ export interface AuthoringOutcome {
    * memorized-template trap was credited on — kept, mapped to topics, but
    * outside `substanceSeparation` and the quality bar. See `src/lib/klp/framing.ts`.
    */
-  klps: { text: string; kind: string; weight: number; role: PointRole }[]
+  klps: { text: string; kind: string; weight: number; role: PointRole; slot?: string | null; structured?: { subject: string; claim: string; qualifier: string | null } | null; definitionRef?: number | null }[]
+  /** Slot-template defects on the FINAL set (`validateTemplate`); empty when the type has no template or the form is filled. */
+  templateDefects?: TemplateDefect[]
   probes: { kind: ProbeKind; text: string; score: number; verdicts: Record<string, KlpVerdict>; relationVerdicts?: Record<string, KlpVerdict> }[]
   relations: AuthoredRelationDraft[]
   relationStats: RelationStats
@@ -410,6 +432,55 @@ export interface AuthoringOutcome {
    * these and increment A adds no migration.
    */
   concerns: string[]
+}
+
+/**
+ * A rewrite or revision returns points by text and kind; the slot, structure
+ * and definition mapping ride along where the claim is unchanged (same text)
+ * or where the reply carried them itself. A rewritten point with neither is
+ * unslotted until the template check sends it back.
+ */
+function carryStructure(previous: readonly StructuredKlpDraft[], next: readonly StructuredKlpDraft[]): StructuredKlpDraft[] {
+  const byText = new Map(previous.map((k) => [k.text, k]))
+  return next.map((k) => {
+    const prev = byText.get(k.text)
+    return {
+      text: k.text,
+      kind: k.kind,
+      slot: k.slot ?? prev?.slot ?? null,
+      subject: k.subject ?? prev?.subject ?? null,
+      claim: k.claim ?? prev?.claim ?? null,
+      qualifier: k.qualifier ?? prev?.qualifier ?? null,
+      fromDefinition: k.fromDefinition ?? prev?.fromDefinition ?? null,
+    }
+  })
+}
+
+/** The enumerate template's item count: the number in the question ("(5)", "5 ways"), else the definition's clause count. */
+function listCountFor(questionType: string | undefined, definition: string, question?: string): number | undefined {
+  if (questionType !== 'enumerate') return undefined
+  const m = question?.match(/\((\d+)\)|\b(\d+)\s+(?:ways|sources|types|reasons|steps|methods|kinds|factors)/i)
+  const n = m ? Number(m[1] ?? m[2]) : NaN
+  if (Number.isFinite(n) && n > 0) return n
+  const clauses = countDefinitionClauses(definition)
+  return clauses > 1 ? clauses : undefined
+}
+
+/** Template defects as revision findings, in the revise prompt's own shape. */
+function templateFindings(questionType: string | undefined, klps: readonly StructuredKlpDraft[], definition: string, question?: string): { index: number | null; issue: string; fix: string }[] {
+  const t = templateFor(questionType)
+  if (!t) return []
+  const defects = validateTemplate(t, klps.map((k, i) => ({ index: i, slot: k.slot ?? null, kind: k.kind })), { listCount: listCountFor(questionType, definition, question) })
+  return defects.flatMap((d): { index: number | null; issue: string; fix: string }[] => {
+    switch (d.rule) {
+      case 'slot_unfilled': return [{ index: null, issue: 'slot_unfilled', fix: `Fill the ${t.type} template's "${d.slot}" slot — ${d.detail} — with a point the definition supports; if the card gives nothing for it, leave it unfilled and name it in concerns.` }]
+      case 'slot_overfull': return [{ index: null, issue: 'slot_overfull', fix: `${d.detail}: merge or cut so the slot holds at most its maximum.` }]
+      case 'over_ceiling': return [{ index: null, issue: 'over_ceiling', fix: `${d.detail}: cut overflow points first, never a filled slot.` }]
+      case 'slot_kind': return [{ index: d.index, issue: 'slot_kind', fix: `${d.detail}: change the kind or move the point to the slot its kind belongs in.` }]
+      case 'slot_unknown': return [{ index: d.index, issue: 'slot_unknown', fix: `${d.detail}: use one of the template's slots, or null for an overflow point.` }]
+      case 'unslotted': return [] // allowed, up to the ceiling
+    }
+  })
 }
 
 /** Re-index a per-edge list onto the kept edges. */
@@ -568,7 +639,7 @@ export async function authorCard(
           })
           if (fixed.klps.length > 0) {
             draft.referenceAnswer = fixed.referenceAnswer
-            draft.klps = fixed.klps as typeof draft.klps
+            draft.klps = carryStructure(draft.klps, fixed.klps)
             rewritten = true
           }
         } catch {
@@ -798,6 +869,10 @@ export async function authorCard(
       wrong,
       defects: validateKlpSet(klps.map((k) => ({ text: k.text })), input.question, { targetCount: target }),
     })
+    // THE TEMPLATE (2026-09-19): an unfilled slot, an over-full slot, a point in
+    // the wrong slot or a set over the ceiling is a finding for the same revise
+    // call — the form is checked every round, on the writer's own questionType.
+    for (const d of templateFindings(draft.questionType, klps, input.definition, input.question)) findings.push(d)
     if (rebuild) {
       findings.push(
         ...rebuildFindings({
@@ -829,6 +904,7 @@ export async function authorCard(
         clearsCoverageBar: rebuild?.clearsBar ?? null,
         rebuiltTight: rebuild?.review?.conciseness === 'tight',
         wordRatio: rebuild?.wordRatio ?? null,
+        ...(templateFor(draft.questionType) ? { templateFilled: !findings.some((f) => f.issue.startsWith('slot_') || f.issue === 'over_ceiling') } : {}),
       },
     })
     if (findings.length === 0 || revisions >= MAX_REVISIONS) break
@@ -863,7 +939,7 @@ export async function authorCard(
       targetCount: target,
       ...(mustKeep ? { mustKeep } : {}),
     })
-    klps = revised.klps
+    klps = carryStructure(klps, revised.klps)
     revisions += 1
   }
 
@@ -897,8 +973,18 @@ export async function authorCard(
   // `extractKlpsForCards` (`src/actions/klp.ts`) takes toward a hallucinated
   // batch ref: "a hallucinated ref must not write another card's KLPs onto
   // this one" — silently dropping beats throwing mid-run.
-  const candidateCount = relateResult.relations.length
-  const inRange = relateResult.relations.filter((r) => r.from < klps.length && r.to < klps.length)
+  // The links the question type's shape implies (`templateEdges`) join the
+  // relate call's candidates with provenance `template`: a walkthrough's steps
+  // precede each other, a why's mechanism causes its consequence. They go
+  // through the same cycle and reference checks as any other edge.
+  const tmpl = templateFor(draft.questionType)
+  const implied = tmpl
+    ? templateEdges(tmpl, klps.map((k, i) => ({ index: i, slot: k.slot ?? null, kind: k.kind }))).map((e) => ({ from: e.from, to: e.to, type: e.type, provenance: 'template' as const, rationale: `implied by the ${tmpl.type} template`, probe: '' }))
+    : []
+  const withImplied: AuthoredRelationDraft[] = [...relateResult.relations]
+  for (const e of implied) if (!withImplied.some((r) => r.from === e.from && r.to === e.to && r.type === e.type)) withImplied.push(e)
+  const candidateCount = withImplied.length
+  const inRange = withImplied.filter((r) => r.from < klps.length && r.to < klps.length)
   const droppedOutOfRange = candidateCount - inRange.length
 
   // Add edges ONE AT A TIME and drop any whose addition introduces a cycle,
@@ -1019,7 +1105,16 @@ export async function authorCard(
 
   return {
     referenceAnswer: draft.referenceAnswer,
-    klps: klps.map((k, i) => ({ text: k.text, kind: k.kind, weight: weights[i], role: roles[i] ?? 'substance' })),
+    klps: klps.map((k, i) => ({
+      text: k.text,
+      kind: k.kind,
+      weight: weights[i],
+      role: roles[i] ?? 'substance',
+      slot: k.slot ?? null,
+      structured: k.subject && k.claim ? { subject: k.subject, claim: k.claim, qualifier: k.qualifier ?? null } : null,
+      definitionRef: k.fromDefinition ?? null,
+    })),
+    templateDefects: tmpl ? validateTemplate(tmpl, klps.map((k, i) => ({ index: i, slot: k.slot ?? null, kind: k.kind })), { listCount: listCountFor(draft.questionType, input.definition, input.question) }) : [],
     probes,
     relations: keptRelations,
     relationStats: {

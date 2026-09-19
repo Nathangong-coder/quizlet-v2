@@ -389,6 +389,15 @@ model CardKlp {
   /// never ran the traps that decide it — never a default, because "substance"
   /// on an untested row would be a claim nobody tested.
   role                String?
+  /// SLOT TEMPLATES + STRUCTURED POINTS (2026-09-19, `src/lib/klp/templates.ts`).
+  /// `slot`: the question-type template's slot this point fills (null = an
+  /// overflow point, or authored before templates). `structured`:
+  /// { subject, claim, qualifier } — the claim decomposed. `definitionRef`: the
+  /// index of the card-definition point this point is derived from; null =
+  /// beyond the card (declared in concerns). All nullable, no backfill.
+  slot                String?
+  structured          Json?
+  definitionRef       Int?
   sourceHash          String
   promptVersion       Int
   source              String               @default("ai") // ai | user

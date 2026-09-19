@@ -55,7 +55,7 @@ describe('revisionFindings — the quality bar', () => {
     expect(prompt).toContain('Why this revision: separation 0.52')
     expect(prompt).toContain('Whole-set findings')
     expect(prompt).toContain('Leave a KLP with no finding alone')
-    expect(REVISE_KLPS_PROMPT.version).toBe(6)
+    expect(REVISE_KLPS_PROMPT.version).toBe(7)
     expect(prompt).toContain('CUT WORDS, NEVER DISTINCT CLAIMS')
     // v6: the ceiling rides along only when the definition is given.
     expect(prompt).not.toContain('THE DEFINITION IS THE CEILING')

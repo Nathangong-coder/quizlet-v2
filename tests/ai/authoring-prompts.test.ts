@@ -88,8 +88,8 @@ describe('AUTHOR_KLPS_PROMPT', () => {
     expect(built.toLowerCase()).toContain('not a total to hit')
   })
 
-  it('is version 7 — promptVersion is persisted, so the change must be visible', () => {
-    expect(AUTHOR_KLPS_PROMPT.version).toBe(7)
+  it('is version 8 — promptVersion is persisted, so the change must be visible', () => {
+    expect(AUTHOR_KLPS_PROMPT.version).toBe(8)
   })
 
   it('v7: bounded expansion — at most two points beyond the card, each named BEYOND THE CARD in concerns', () => {
@@ -114,11 +114,20 @@ describe('AUTHOR_KLPS_PROMPT', () => {
         { index: 1, text: 'FCF after opex, capex and taxes', issue: 'over_reach', fix: 'Narrow to "free cash flow".' },
       ],
     })
-    expect(p).toContain("PREVIOUS SET OF KEY POINTS FOR THIS CARD WAS TESTED AGAINST THE OWNER'S OWN DEFINITION AND FAILED IT")
+    expect(p).toContain('PREVIOUS SET OF KEY POINTS FOR THIS CARD WAS TESTED')
     expect(p).toContain(`[5] NOT ON THE CARD — "Repaying debt lowers next year's interest" — Cut.`)
     expect(p).toContain('[1] OVER-REACHES THE CARD — "FCF after opex, capex and taxes" — Narrow to "free cash flow".')
     expect(p.indexOf('PREVIOUS SET OF KEY POINTS')).toBeLessThan(p.indexOf('THE DEFINITION IS YOUR SKELETON'))
     expect(AUTHOR_KLPS_PROMPT.build({ setTitle: 'S', term: 'T', definition: 'D', minKlps: 3, priorFindings: [] })).not.toContain('PREVIOUS SET OF KEY POINTS')
+  })
+
+  it('v8: the seven slot templates are in the prompt, each point names a slot and is structured and mapped to a definition point', () => {
+    expect(built).toContain('THE WHY TEMPLATE')
+    expect(built).toContain('THE ENUMERATE TEMPLATE')
+    expect(built).toContain('"slot": string | null')
+    expect(built).toContain('"fromDefinition": number | null')
+    expect(built).toContain('EVERY KEY POINT IS ALSO STRUCTURED')
+    expect(built).toContain('"subject": string, "claim": string')
   })
 
   it('v3 classifies the question first, defines the term as key point [0], keeps an enumeration as items, and leans the count to floor+1..floor+3', () => {

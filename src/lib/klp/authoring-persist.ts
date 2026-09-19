@@ -87,6 +87,9 @@ export async function persistAuthoring(
     weight: k.weight,
     kind: k.kind,
     role: k.role,
+    slot: k.slot ?? null,
+    structured: k.structured ?? null,
+    definitionRef: k.definitionRef ?? null,
     source: 'ai',
     promptVersion,
     // The same model that `CardAuthoring.model` records, now on the KLP rows
