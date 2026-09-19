@@ -405,6 +405,10 @@ interface RunStats {
   parityBelowBar: number
   /** Word ratios (rebuilt / reference) and the reviewer's verdict on the rebuilt answer — the compression acceptance numbers. */
   wordRatios: number[]
+  /** The relation pass (2026-09-19): per-card combined / relation separations, where the pass ran. */
+  combinedSeparations: number[]
+  relationSeparations: number[]
+  droppedForReference: number
   rebuiltTight: number
   rebuiltReviewed: number
   /**
@@ -676,6 +680,9 @@ async function main() {
     referenceRewritten: 0,
     parityBelowBar: 0,
     wordRatios: [],
+    combinedSeparations: [],
+    relationSeparations: [],
+    droppedForReference: 0,
     rebuiltTight: 0,
     rebuiltReviewed: 0,
     weights: [],
@@ -970,13 +977,20 @@ async function main() {
           : '') +
         `${outcome.relations.length} relations (candidates ${outcome.relationStats.candidates}, ` +
         `cycles-dropped ${outcome.relationStats.droppedForCycles}, ` +
-        `out-of-range-dropped ${outcome.relationStats.droppedOutOfRange})${flagSuffix}`,
+        `out-of-range-dropped ${outcome.relationStats.droppedOutOfRange}` +
+        (outcome.relationStats.droppedForReference !== undefined ? `, reference-dropped ${outcome.relationStats.droppedForReference}` : '') +
+        `)` +
+        (outcome.combinedSeparation !== undefined ? `, LINKS: relation sep ${(outcome.relationSeparation ?? 0).toFixed(2)}, combined ${outcome.combinedSeparation.toFixed(2)}` : '') +
+        `${flagSuffix}`,
     )
 
     stats.authored += 1
     stats.separationSum += outcome.separationScore
     stats.substanceSum += outcome.substanceSeparation
     stats.framingPoints += outcome.klps.filter((k) => k.role === 'framing').length
+    if (outcome.combinedSeparation !== undefined) stats.combinedSeparations.push(outcome.combinedSeparation)
+    if (outcome.relationSeparation !== undefined) stats.relationSeparations.push(outcome.relationSeparation)
+    stats.droppedForReference += outcome.relationStats.droppedForReference ?? 0
     if (outcome.referenceReview?.rewritten) stats.referenceRewritten += 1
     if (outcome.rebuild?.clearsParityBar === false) stats.parityBelowBar += 1
     if (outcome.rebuild?.wordRatio != null) stats.wordRatios.push(outcome.rebuild.wordRatio)
@@ -1010,6 +1024,7 @@ async function main() {
       (stats.authored > 0 && stats.revised / stats.authored < 0.2 ? ' (UNDER A FIFTH — the bar found little to fix on this run)' : '') +
       `, mean separation ${meanSeparation.toFixed(2)}` +
       (stats.framingPoints > 0 ? ` (substance ${meanSubstance.toFixed(2)}; ${stats.framingPoints} framing points excluded)` : '') +
+      (stats.combinedSeparations.length ? `, LINKS on ${stats.combinedSeparations.length} card(s): mean combined ${(stats.combinedSeparations.reduce((a, b) => a + b, 0) / stats.combinedSeparations.length).toFixed(2)}, mean relation ${stats.relationSeparations.length ? (stats.relationSeparations.reduce((a, b) => a + b, 0) / stats.relationSeparations.length).toFixed(2) : 'n/a'}, ${stats.droppedForReference} edge(s) dropped for failing the reference` : '') +
       `, ${stats.referenceRewritten} reference(s) rewritten by the communication check, ${stats.parityBelowBar} still below the ${REBUILD_PARITY_BAR} parity bar` +
       (stats.wordRatios.length ? `, rebuilt/ref words mean ${(stats.wordRatios.reduce((a, b) => a + b, 0) / stats.wordRatios.length).toFixed(2)}, rebuilt tight ${stats.rebuiltTight}/${stats.rebuiltReviewed}` : '') +
       `, ${stats.lowDiscrimination} low_discrimination, ${stats.memorizable} memorizable, ${stats.totalKlps} total KLPs, ` +

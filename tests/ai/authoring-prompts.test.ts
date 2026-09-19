@@ -88,8 +88,14 @@ describe('AUTHOR_KLPS_PROMPT', () => {
     expect(built.toLowerCase()).toContain('not a total to hit')
   })
 
-  it('is version 6 — promptVersion is persisted, so the change must be visible', () => {
-    expect(AUTHOR_KLPS_PROMPT.version).toBe(6)
+  it('is version 7 — promptVersion is persisted, so the change must be visible', () => {
+    expect(AUTHOR_KLPS_PROMPT.version).toBe(7)
+  })
+
+  it('v7: bounded expansion — at most two points beyond the card, each named BEYOND THE CARD in concerns', () => {
+    expect(built).toContain('AT MOST TWO points beyond the card')
+    expect(built).toContain('"BEYOND THE CARD: <the point>"')
+    expect(built).toContain('an unnamed extension is a defect')
   })
 
   it('v6: the definition is the CEILING — no point the card does not make; a gap goes to concerns, never into the set', () => {
@@ -227,6 +233,17 @@ describe('RELATE_KLPS_PROMPT', () => {
 
   it('demands the adversarial artifact that proves an edge informative', () => {
     expect(built.toLowerCase()).toContain('both endpoints')
+  })
+
+  it('v3: no edge cap, the probe test decides; the definition is shown when given and its stated links are always candidates', () => {
+    expect(RELATE_KLPS_PROMPT.version).toBe(3)
+    expect(built).not.toContain('Prune hard')
+    expect(built).not.toContain('perhaps four edges')
+    expect(built).toContain('Do not ration')
+    expect(built).toContain("An edge the card's own definition states outright")
+    expect(built).not.toContain('Definition on the card')
+    const withDef = RELATE_KLPS_PROMPT.build({ question: 'Q', klps: [{ text: 'a' }], definition: 'FCF, then mandatory, then optional' })
+    expect(withDef).toContain("Definition on the card (the owner's own words): FCF, then mandatory, then optional")
   })
 
   it('does not offer part_of — that is the concept tree', () => {

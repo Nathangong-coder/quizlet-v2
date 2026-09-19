@@ -19,6 +19,12 @@ export interface GradeCandidateBuildInput {
   klps: { text: string; kind?: string }[];
   candidateAnswer: string;
   /**
+   * v5: the card's accepted relations, by KLP index. When present the grader
+   * also returns one verdict per link (`relationVerdicts`). Absent, the text
+   * is byte-identical to v4 so every stored score stays comparable.
+   */
+  relations?: { type: string; from: number; to: number }[];
+  /**
    * Adds the strict clause (2026-09-12, owner): credit a point only when the
    * answer states it explicitly; when in doubt, the lower verdict. Off by
    * default so every stored score stays comparable; a run that turns it on
@@ -92,9 +98,18 @@ export interface GradeCandidateBuildInput {
  * random); `CandidateGradeSchema` bridges a `quote` key into `evidence`
  * either way, so a model that followed the block's word loses nothing.
  */
+/**
+ * v5 (2026-09-19, relations as a discrimination axis): with `relations` the
+ * prompt lists the card's links `[Rn] (type) [from] → [to]` and asks for a
+ * verdict per link on the runtime's rule — `correct` = the answer asserts
+ * the link itself, `omission` = both ends present and the link never made,
+ * `inversion` = backwards, `contradicted` = denied. The relation pass in
+ * `src/lib/klp/authoring.ts` reads these; `src/lib/klp/relation-separation.ts`
+ * turns them into numbers.
+ */
 export const GRADE_CANDIDATE_PROMPT = {
   id: 'grade-candidate',
-  version: 4,
+  version: 5,
   schema: CandidateGradeSchema,
 
   build(input: GradeCandidateBuildInput): string {
@@ -116,19 +131,33 @@ ${input.referenceAnswer}
     // format, strictness — then the card, then the candidate. DeepSeek's
     // cache is a prefix cache in 64-token blocks, so this block now hits on
     // every grading call of every card, not only within one card.
+    const rels = input.relations ?? [];
+    const relationRule = rels.length
+      ? `\n\nThe card also teaches LINKS between key points, listed below as [Rn]. For each link, decide whether the candidate's answer ASSERTS THE LINK ITSELF, with the same vocabulary: "correct" = the answer makes the link; "omission" = both ends are present but the link is never made; "inversion" = the link is asserted backwards; "contradicted" = the answer denies it. Stating both endpoints is not making the link.`
+      : '';
+    const relationOutput = rels.length
+      ? ', "relationVerdicts": [ { "relationIndex": number, "verdict": string, "evidence": string } ]'
+      : '';
+    const relationOutputNote = rels.length
+      ? `\nOne "relationVerdicts" entry per link, referencing it by its [Rn] index; "evidence" is a verbatim excerpt on every link verdict, "correct" included — it is the only record of where the link was made.`
+      : '';
+    const relationBlock = rels.length
+      ? `\n\nLinks between key points:\n${rels.map((r, i) => `[R${i}] (${r.type}) [${r.from}] → [${r.to}]`).join('\n')}\n`
+      : '';
+
     return `You are grading a candidate's answer to one interview question against a fixed list of Key Learning Points (KLPs). Judge only what this answer itself claims — you have no information about how it was produced.
 
-For each KLP, decide whether the candidate's answer supports it. ${verdictInstructionBlock({ strict: !!input.strict, showKinds })}
+For each KLP, decide whether the candidate's answer supports it. ${verdictInstructionBlock({ strict: !!input.strict, showKinds })}${relationRule}
 
 Output JSON:
-{ "verdicts": [ { "klpIndex": number, "verdict": string, "evidence": string } ] }
-One entry per KLP, referencing it by its [index]. "evidence" carries the quote asked for above: a VERBATIM excerpt (at most 20 words, copied exactly) of what in the answer decided the verdict; OMIT it entirely when the verdict is "correct".
+{ "verdicts": [ { "klpIndex": number, "verdict": string, "evidence": string } ]${relationOutput} }
+One entry per KLP, referencing it by its [index]. "evidence" carries the quote asked for above: a VERBATIM excerpt (at most 20 words, copied exactly) of what in the answer decided the verdict; OMIT it entirely when the verdict is "correct".${relationOutputNote}
 
 Question: ${input.question}
 
 Key Learning Points:
 ${klps}
-
+${relationBlock}
 ${referenceBlock}Candidate's answer:
 ${input.candidateAnswer}`;
   },

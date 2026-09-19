@@ -1969,6 +1969,14 @@ model CardAuthoring {
   /// 2026-09-12; `separationScore` stays on the full set so every stored score
   /// remains on one scale. NULL before that date.
   substanceSeparation Float?
+  /// THE RELATION PASS (2026-09-19): separation over the kept relations
+  /// alone, and over substance points + kept relations together — the number
+  /// the bar reads when a card has relations. NULL when the card has none or
+  /// the pass did not run (rows before this date). The reference's per-link
+  /// verdicts, in KlpRelation order for this version.
+  relationSeparation  Float?
+  combinedSeparation  Float?
+  referenceRelationVerdicts Json?
   /// How the REFERENCE answer scored on each final KLP, in KLP order.
   ///
   /// Added 2026-09-07 because the evidence was one-sided without it:
@@ -2031,6 +2039,10 @@ model AuthoringProbe {
   text        String        @db.Text
   /// Fraction of KLPs this answer satisfied, 0-1.
   score       Float
+  /// Per-link verdicts for THIS answer from the relation pass (2026-09-19),
+  /// keyed by the kept relation's index: { "0": "correct", "1": "omission" }.
+  /// NULL before the pass existed or when the card has no relations.
+  relationVerdicts Json?
   /// Per-KLP verdicts for THIS answer, keyed by the KLP's index within the
   /// card: { "0": "passed", "1": "omission", ... }.
   ///

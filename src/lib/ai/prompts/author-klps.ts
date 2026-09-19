@@ -84,7 +84,13 @@ export const AUTHOR_KLPS_PROMPT = {
   // not make is not authored; a gap goes in "concerns" for the owner. The
   // definition probe (`npm run probe-definitions`) is the acceptance test,
   // and `priorFindings` carries its verdicts into a re-author.
-  version: 6,
+  // v7 (2026-09-19): BOUNDED EXPANSION. The ceiling alone cost discrimination
+  // (LBO: separation 0.81 → 0.43, 27/45 points framing). At most TWO points
+  // beyond the card, only where a strong spoken answer cannot be given
+  // without them, each named in "concerns" as "BEYOND THE CARD: …" so the
+  // owner sees exactly what was added. The probe's 0.65 pass line leaves the
+  // headroom for them; the relation pass supplies the rest of the separation.
+  version: 7,
   schema: AuthorDraftSchema,
 
   build(input: AuthorKlpsBuildInput): string {
@@ -124,7 +130,7 @@ Do not write those points again as they were. A point marked NOT ON THE CARD is 
 }
 
 function authorBody(opts: { floor: string }): string {
-  return `THE DEFINITION IS YOUR SKELETON AND YOUR CEILING. It is terse by nature and it is the content the owner has already vetted. Your reference answer expands each point it makes to the depth a strong spoken answer would give — and STOPS THERE. Do not add a point the definition does not make: not a mechanism it does not name, not a consequence it does not draw, not an item it does not list. A strong answer that says more than the card is welcome in the reference's PROSE, but every KEY POINT must be a claim the owner's definition itself makes, at the grain the definition makes it (a definition that says "free cash flow" supports a point about free cash flow, not a point about "cash after opex, capex and taxes"). The one exception is the opening definition of the term (step 0). Do not contradict the card. Where you believe it OMITS something a strong answer needs, or is actually WRONG, say so in "concerns" — do not silently extend it, and do not silently correct it. A card the owner never learns is thin or wrong stays thin or wrong; the owner reads "concerns".
+  return `THE DEFINITION IS YOUR SKELETON AND YOUR CEILING. It is terse by nature and it is the content the owner has already vetted. Your reference answer expands each point it makes to the depth a strong spoken answer would give — and STOPS THERE. Do not add a point the definition does not make: not a mechanism it does not name, not a consequence it does not draw, not an item it does not list. A strong answer that says more than the card is welcome in the reference's PROSE, but every KEY POINT must be a claim the owner's definition itself makes, at the grain the definition makes it (a definition that says "free cash flow" supports a point about free cash flow, not a point about "cash after opex, capex and taxes"). Two exceptions: the opening definition of the term (step 0), and AT MOST TWO points beyond the card, allowed ONLY where a strong spoken answer to this question genuinely cannot be given without them — a mechanism the question turns on, a consequence the question asks for. Every such point is named in "concerns" as "BEYOND THE CARD: <the point>" so the owner sees exactly what was added; an unnamed extension is a defect. Do not contradict the card. Where you believe it OMITS something a strong answer needs beyond those two, or is actually WRONG, say so in "concerns" — do not silently extend it, and do not silently correct it. A card the owner never learns is thin or wrong stays thin or wrong; the owner reads "concerns".
 
 Do this in order.
 
@@ -197,7 +203,8 @@ export interface AuthorKlpsBatchBuildInput {
 export const AUTHOR_KLPS_BATCH_PROMPT = {
   id: 'author-klps-batch',
   // v2 (2026-09-18): shares the v6 body — the definition is the ceiling.
-  version: 2,
+  // v3 (2026-09-19): shares the v7 body — bounded expansion.
+  version: 3,
   schema: AuthorDraftBatchSchema,
 
   build(input: AuthorKlpsBatchBuildInput): string {

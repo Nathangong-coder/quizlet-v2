@@ -588,6 +588,13 @@ export const CandidateGradeSchema = z.object({
     evidence: z.string().optional(),
     quote: z.string().optional(),
   }).transform(bridgeQuoteToEvidence)),
+  /** v5: one verdict per link, only when the prompt listed links. */
+  relationVerdicts: z.array(z.object({
+    relationIndex: z.number().int().min(0),
+    verdict: z.enum(KLP_VERDICTS),
+    evidence: z.string().optional(),
+    quote: z.string().optional(),
+  }).transform(bridgeQuoteToEvidence)).optional(),
 });
 
 export type CandidateGrade = z.infer<typeof CandidateGradeSchema>;
