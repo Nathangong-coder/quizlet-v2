@@ -20,7 +20,7 @@
  * no taste words ("clear", "well written"), only things a reader could point
  * at. `computed: true` items are answered by TypeScript, never the model.
  */
-export const RUBRIC_VERSION = 1
+export const RUBRIC_VERSION = 2
 
 export interface RubricItem {
   id: string
@@ -49,8 +49,17 @@ export const CONCISENESS_ITEMS: readonly RubricItem[] = [
 export const RUBRIC_ITEMS: readonly RubricItem[] = [...CLARITY_ITEMS, ...CONCISENESS_ITEMS]
 export const MODEL_RUBRIC_ITEMS: readonly RubricItem[] = RUBRIC_ITEMS.filter((i) => !i.computed)
 
-/** Ratio of answer words to reference words above which `proportionate` fails. */
-export const PROPORTIONATE_MAX_RATIO = 1.5
+/**
+ * Ratio of answer words to the YARDSTICK's words above which `proportionate`
+ * fails. RUBRIC v2 (2026-09-18): the yardstick is the card's own definition —
+ * a spoken answer to a terse note runs a few times its length and no more.
+ * v1 measured against the authored reference, and the reference was the
+ * bloat: on the LBO set references ran 3-11x the definitions, so a 130-word
+ * answer to a 38-word card scored conciseness 100 and the owner's 38-word
+ * answer earned nothing for being the right length. The reference is the
+ * fallback only when a card has no definition text.
+ */
+export const PROPORTIONATE_MAX_RATIO = 2.5
 
 export interface RubricAnswer {
   id: string
@@ -86,18 +95,22 @@ export function scoreExpression(input: {
   contentScore: number
   modelAnswers: readonly RubricAnswer[]
   answerText: string
+  /** The card's own definition — the length yardstick from rubric v2. */
+  definitionText?: string | null
+  /** Fallback yardstick when the card has no definition text. */
   referenceText: string | null
 }): ExpressionScores {
+  const yardstick = input.definitionText?.trim() ? { text: input.definitionText, name: 'the definition' } : input.referenceText ? { text: input.referenceText, name: 'the reference' } : null
   const byId = new Map(input.modelAnswers.map((a) => [a.id, a]))
   const warnings: string[] = []
   const items: ExpressionScores['items'] = []
   const evaluate = (item: RubricItem): boolean => {
     if (item.computed) {
       if (item.id === 'proportionate') {
-        if (!input.referenceText) { items.push({ id: item.id, met: true, answered: true }); return true }
-        const ratio = wordCount(input.answerText) / Math.max(1, wordCount(input.referenceText))
+        if (!yardstick) { items.push({ id: item.id, met: true, answered: true }); return true }
+        const ratio = wordCount(input.answerText) / Math.max(1, wordCount(yardstick.text))
         const met = ratio <= PROPORTIONATE_MAX_RATIO
-        items.push({ id: item.id, met, answered: true, quote: met ? undefined : `${wordCount(input.answerText)} words vs ${wordCount(input.referenceText)} in the reference` })
+        items.push({ id: item.id, met, answered: true, quote: met ? undefined : `${wordCount(input.answerText)} words vs ${wordCount(yardstick.text)} in ${yardstick.name}` })
         return met
       }
       throw new Error(`rubric: no computation for item ${item.id}`)

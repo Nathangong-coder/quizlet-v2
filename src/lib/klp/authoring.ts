@@ -71,6 +71,16 @@ export interface AuthorInput {
    * floor the model may exceed, never a quota — see `src/lib/klp/sizing.ts`.
    */
   minKlps: number
+  /** Definition-probe findings on the previous set (a probe-driven re-author only). */
+  priorFindings?: PriorFinding[]
+}
+
+/** One point of the previous set that the definition probe found outgrew the card. */
+export interface PriorFinding {
+  index: number
+  text: string
+  issue: 'over_reach' | 'not_on_card'
+  fix: string
 }
 
 export interface AuthorResult {
@@ -489,6 +499,8 @@ export async function authorCard(
      * measurement.
      */
     existingPanel?: { level: PanelLevel; text: string }[]
+    /** Carried into the author call verbatim; see `PriorFinding`. */
+    priorFindings?: PriorFinding[]
   },
   gen: AuthoringGenerator,
 ): Promise<AuthoringOutcome> {
@@ -498,7 +510,7 @@ export async function authorCard(
   // only raise the target. Both are combined in TypeScript — the model never
   // states a total, for the same reason it never states a weight.
   const prior = mechanicalKlpPrior({ question: input.question, definition: input.definition })
-  const draft = await gen.author({ ...input, minKlps: authorMinKlps(input) })
+  const draft = await gen.author({ question: input.question, definition: input.definition, setTitle: input.setTitle, minKlps: authorMinKlps(input), priorFindings: input.priorFindings })
   const target = targetKlpCount({ prior, points: draft.definitionPoints })
   const concerns = draft.concerns ?? []
 

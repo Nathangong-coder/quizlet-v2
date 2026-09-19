@@ -36,6 +36,7 @@
     "probe-models": "tsx --env-file=.env scripts/probe-model-policy.ts",
     "bench-models": "tsx --conditions=react-server --env-file=.env scripts/bench-models.ts",
     "bench-grader": "tsx --conditions=react-server --env-file=.env scripts/bench-grader.ts",
+    "probe-definitions": "tsx --conditions=react-server --env-file=.env scripts/probe-definitions.ts",
     "probe-grading": "tsx --env-file=.env scripts/probe-grading-matrix.ts",
     "probe-grade-tokens": "tsx --conditions=react-server --env-file=.env scripts/probe-grade-tokens.ts",
     "probe-runtime-grade": "tsx --conditions=react-server --env-file=.env scripts/probe-runtime-grade.ts"

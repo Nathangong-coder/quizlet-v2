@@ -281,6 +281,7 @@ export async function gradePanelAnswer(answerId: string, gen: BenchGrader): Prom
     contentScore: answerScore(benchVerdicts, benchRelations, built.unjudged),
     modelAnswers: grade.communication ?? [],
     answerText: answer.text,
+    definitionText: card.definition,
     referenceText: context.referenceAnswer ?? null,
   })
 

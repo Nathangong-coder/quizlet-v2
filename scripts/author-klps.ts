@@ -3,8 +3,8 @@ import { generateText, Output, NoObjectGeneratedError } from 'ai'
 import type { z } from 'zod'
 import { prisma } from '../src/lib/db'
 import { generateJson, generateJsonWithMeta } from '../src/lib/ai/generate'
-import { authorCard, authorMinKlps, type AuthoringGenerator, type AuthoringOutcome, type AuthorResult } from '../src/lib/klp/authoring'
-import { writeFileSync } from 'node:fs'
+import { authorCard, authorMinKlps, type AuthoringGenerator, type AuthoringOutcome, type AuthorResult, type PriorFinding } from '../src/lib/klp/authoring'
+import { writeFileSync, readFileSync } from 'node:fs'
 import { persistAuthoring } from '../src/lib/klp/authoring-persist'
 import { AUTHOR_KLPS_PROMPT, AUTHOR_KLPS_BATCH_PROMPT } from '../src/lib/ai/prompts/author-klps'
 import { isDeepSeekPeak } from '../src/lib/klp/token-meter'
@@ -91,6 +91,7 @@ function defaultGenerator(userId: string, onModel?: (model: string) => void): Au
           term: input.question,
           definition: input.definition,
           minKlps: input.minKlps,
+          priorFindings: input.priorFindings,
         }),
         schema: AUTHOR_KLPS_PROMPT.schema,
       })
@@ -313,6 +314,7 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
           term: input.question,
           definition: input.definition,
           minKlps: input.minKlps,
+          priorFindings: input.priorFindings,
         }),
         AUTHOR_KLPS_PROMPT.schema,
         'writer',
@@ -614,6 +616,12 @@ async function main() {
 
   // `--cards id,id,...` picks specific cards from the set (a spread run); wins over --skip/--limit.
   const onlyIds = (opt(args, '--cards') ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  // `--findings <file>`: the definition probe's per-card findings on the PREVIOUS
+  // set ({ [cardId]: [{ index, text, issue, fix }] }), carried into the v6
+  // author prompt verbatim. Written by `scripts/probe-definitions.ts --revise`.
+  const findingsFile = opt(args, '--findings')
+  const findingsByCard: Record<string, PriorFinding[]> = findingsFile ? (JSON.parse(readFileSync(findingsFile, 'utf8')) as Record<string, PriorFinding[]>) : {}
+  if (findingsFile) console.log(`[author-klps] --findings: prior definition-probe findings for ${Object.keys(findingsByCard).length} card(s)`)
   const cards = onlyIds.length
     ? onlyIds.map((id) => allCards.find((c) => c.id === id)).filter((c): c is (typeof allCards)[number] => !!c)
     : limit !== undefined ? allCards.slice(skip, skip + limit) : allCards.slice(skip)
@@ -833,6 +841,7 @@ async function main() {
             // Reuse this card's existing panel so this run's separation score is
             // comparable with the last one's.
             existingPanel: (await findExistingPanel(card.id))?.members,
+            priorFindings: findingsByCard[card.id],
           },
           gen,
         )

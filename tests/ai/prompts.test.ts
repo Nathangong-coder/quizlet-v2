@@ -105,7 +105,7 @@ describe('GRADE_SHORT_ANSWER_PROMPT v2 (KLP-aware)', () => {
   ]
 
   it('is version 7', () => {
-    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(7)
+    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(8)
   })
 
   it('lists each KLP by ref and asks for a per-KLP status', () => {

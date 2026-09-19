@@ -13,6 +13,12 @@ export interface AuthorKlpsBuildInput {
    * their place, and a padded KLP fires identically on every answer.
    */
   minKlps: number;
+  /**
+   * v6: findings from the DEFINITION PROBE on this card's previous key points
+   * (`src/lib/klp/definition-probe.ts`) — points that outgrew the card, by
+   * the previous set's index and text. Set only on a probe-driven re-author.
+   */
+  priorFindings?: { index: number; text: string; issue: 'over_reach' | 'not_on_card'; fix: string }[];
 }
 
 /**
@@ -71,7 +77,14 @@ export const AUTHOR_KLPS_PROMPT = {
   // v4 (2026-09-13): two wrong answers — `confident_wrong` cut, see PROBE_KINDS.
   // v5 (2026-09-13): short points — ~25 words, a context clause only where
   // the bare claim is ambiguous, no conclusion stated twice (compression plan, step E).
-  version: 5,
+  // v6 (2026-09-18): THE DEFINITION IS THE CEILING, not the floor. v2-v5 said
+  // "THEN add what a strong answer needs that the card omits", and on the LBO
+  // set the references ran 3-11x the definitions and every owner definition
+  // failed its own key points (19-56/100). Now a point the definition does
+  // not make is not authored; a gap goes in "concerns" for the owner. The
+  // definition probe (`npm run probe-definitions`) is the acceptance test,
+  // and `priorFindings` carries its verdicts into a re-author.
+  version: 6,
   schema: AuthorDraftSchema,
 
   build(input: AuthorKlpsBuildInput): string {
@@ -81,7 +94,7 @@ Study set: ${input.setTitle}
 Term: ${input.term}
 Definition (written by the card's owner): ${input.definition}
 
-${authorBody({
+${priorFindingsBlock(input.priorFindings)}${authorBody({
   floor: `Write AT LEAST ${input.minKlps} KLPs, up to ${MAX_KLPS_AUTHORED}; the usual right number is ${input.minKlps + 1} to ${Math.min(MAX_KLPS_AUTHORED, input.minKlps + 3)}.`,
 })}
 
@@ -96,8 +109,22 @@ ${DRAFT_JSON_NOTES}`;
  * the batch prompt below except for the sizing sentence, which names a number
  * for one card and "the floor given for that card" for a batch.
  */
+/**
+ * v6: the previous set's probe findings, verbatim, ahead of the body — the
+ * writer reads what outgrew the card before it writes.
+ */
+function priorFindingsBlock(findings: AuthorKlpsBuildInput['priorFindings']): string {
+  if (!findings || findings.length === 0) return '';
+  const lines = findings.map((f) => `  [${f.index}] ${f.issue === 'not_on_card' ? 'NOT ON THE CARD' : 'OVER-REACHES THE CARD'} — "${f.text}" — ${f.fix}`).join('\n');
+  return `A PREVIOUS SET OF KEY POINTS FOR THIS CARD WAS TESTED AGAINST THE OWNER'S OWN DEFINITION AND FAILED IT. These points outgrew the card:
+${lines}
+Do not write those points again as they were. A point marked NOT ON THE CARD is not authored; a point marked OVER-REACHES is authored only at the grain the definition states it.
+
+`;
+}
+
 function authorBody(opts: { floor: string }): string {
-  return `THE DEFINITION IS YOUR SKELETON, NOT A HINT. It is terse by nature and it is the content the owner has already vetted. Your reference answer must follow it: expand each point it makes to the depth a strong spoken answer would give, THEN add what a strong answer needs that the card omits. Do not contradict it. Where it is incomplete, extend it. Where you believe it is actually WRONG, say so in "concerns" — do not silently correct it. A card the owner never learns is wrong stays wrong.
+  return `THE DEFINITION IS YOUR SKELETON AND YOUR CEILING. It is terse by nature and it is the content the owner has already vetted. Your reference answer expands each point it makes to the depth a strong spoken answer would give — and STOPS THERE. Do not add a point the definition does not make: not a mechanism it does not name, not a consequence it does not draw, not an item it does not list. A strong answer that says more than the card is welcome in the reference's PROSE, but every KEY POINT must be a claim the owner's definition itself makes, at the grain the definition makes it (a definition that says "free cash flow" supports a point about free cash flow, not a point about "cash after opex, capex and taxes"). The one exception is the opening definition of the term (step 0). Do not contradict the card. Where you believe it OMITS something a strong answer needs, or is actually WRONG, say so in "concerns" — do not silently extend it, and do not silently correct it. A card the owner never learns is thin or wrong stays thin or wrong; the owner reads "concerns".
 
 Do this in order.
 
@@ -169,7 +196,8 @@ export interface AuthorKlpsBatchBuildInput {
  */
 export const AUTHOR_KLPS_BATCH_PROMPT = {
   id: 'author-klps-batch',
-  version: 1,
+  // v2 (2026-09-18): shares the v6 body — the definition is the ceiling.
+  version: 2,
   schema: AuthorDraftBatchSchema,
 
   build(input: AuthorKlpsBatchBuildInput): string {

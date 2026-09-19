@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { GRADE_SHORT_ANSWER_PROMPT } from '@/lib/ai/prompts/grade-short-answer'
+import { GRADE_SHORT_ANSWER_PROMPT, NOTE_FORM_CLAUSE } from '@/lib/ai/prompts/grade-short-answer'
 import { ShortAnswerGradeSchema } from '@/lib/ai/schemas'
 import { RUNTIME_VERDICTS } from '@/lib/klp/verdicts'
 import { verdictInstructionBlock } from '@/lib/ai/prompts/verdict-block'
@@ -122,8 +122,22 @@ describe('GRADE_SHORT_ANSWER_PROMPT v5 (shared verdict block)', () => {
     expect(promptText.indexOf('THE REFERENCE')).toBeLessThan(promptText.indexOf('THE ANSWER'))
   })
 
-  it('is version 7 — promptVersion is persisted on every grade', () => {
-    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(7)
+  it('is version 8 — promptVersion is persisted on every grade', () => {
+    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(8)
+  })
+
+  it('v8: noteForm appends the note-form clause after the shared verdict block; unset, the text is byte-identical to v7', () => {
+    const plain = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'A', klps, referenceAnswer: 'R' })
+    const note = GRADE_SHORT_ANSWER_PROMPT.build({ card, answer: 'A', klps, referenceAnswer: 'R', noteForm: true })
+    expect(plain).not.toContain(NOTE_FORM_CLAUSE)
+    expect(plain).not.toContain('THE ANSWER IS A NOTE')
+    expect(note).toContain(NOTE_FORM_CLAUSE)
+    const block = verdictInstructionBlock({ strict: true, showKinds: true, vocabulary: RUNTIME_VERDICTS })
+    expect(note.indexOf(NOTE_FORM_CLAUSE)).toBeGreaterThan(note.indexOf(block))
+    expect(note.indexOf(NOTE_FORM_CLAUSE)).toBeLessThan(note.indexOf('User Answer:'))
+    // The clause grades the claim, not the prose: brevity is never a hole.
+    expect(NOTE_FORM_CLAUSE).toMatch(/Do not mark a point down for brevity/)
+    expect(NOTE_FORM_CLAUSE).toMatch(/one half of a two-part point, is "incomplete"/)
   })
 })
 

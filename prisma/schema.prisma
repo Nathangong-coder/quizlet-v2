@@ -361,6 +361,7 @@ model Card {
   diagnosticQuestions DiagnosticQuestion[]
   formRequirements    CardFormRequirement[]
   graderPanels        GraderPanel[]
+  definitionProbes    DefinitionProbe[]
 
   @@index([setId])
 }
@@ -2159,5 +2160,39 @@ model GraderPanelReview {
   result        GraderPanelResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
 
   @@index([resultId])
+  @@index([outcome])
+}
+
+/// THE DEFINITION PROBE (2026-09-18, `npm run probe-definitions`). One row per
+/// probe of a card's OWN definition against its key points at one
+/// (klpVersion, graderVersion): the score TypeScript computed, the grader's
+/// per-point verdicts, and what the supervising passes said. The forward
+/// acceptance test for authored key points — `CardAuthoring.cardCoverage` is
+/// the inverse (rebuild covers the card). Nothing here is overwritten; a
+/// re-probe after a revision is a new row at the new klpVersion.
+model DefinitionProbe {
+  id            String   @id @default(cuid())
+  cardId        String
+  klpVersion    Int
+  graderVersion Int
+  promptVersion Int
+  rubricVersion Int
+  model         String
+  /// Weighted STATUS_CREDIT over the card's key points, 0-1 (`scoreDefinition`).
+  score         Float
+  /// [{ klpRef, klpId, status, quote?, weight }] — the grader's verdicts on the definition.
+  verdicts      Json
+  /// pass | supervise | hard_fail — `probeOutcome(score)` at the thresholds of the day.
+  outcome       String
+  /// [{ pass, model, promptVersion, points: [{ klpRef, verdict, reason, wording }], summary }] — empty until supervised.
+  supervision   Json?
+  /// revise | grader_wrong | escalate | none — `supervisionDecision`, or `revise` straight from a hard fail. NULL until decided.
+  decision      String?
+  /// The findings handed to the re-author, when `decision` is `revise`.
+  findings      Json?
+  createdAt     DateTime @default(now())
+  card          Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId, klpVersion])
   @@index([outcome])
 }

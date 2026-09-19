@@ -867,6 +867,23 @@ export const PanelGradeReviewSchema = z.object({
 });
 export type PanelGradeReview = z.infer<typeof PanelGradeReviewSchema>;
 
+/**
+ * The definition-probe supervisor's reply (`supervise-definition`). One closed
+ * verdict per key point; `wording` is the narrowed point and is only read on
+ * `narrow`. TypeScript (`src/lib/klp/definition-probe.ts`) decides what the
+ * verdicts add up to — the supervisor never says "revise" or "escalate".
+ */
+export const DefinitionSupervisionSchema = z.object({
+  points: z.array(z.object({
+    klpRef: z.number().int().min(0),
+    verdict: z.enum(['keep', 'narrow', 'cut', 'grader_wrong']),
+    reason: z.string().min(1),
+    wording: z.string().nullable(),
+  })).min(1),
+  summary: z.string().min(1),
+});
+export type DefinitionSupervision = z.infer<typeof DefinitionSupervisionSchema>;
+
 /** Either kind — what a reader that stores or displays a panel holds. */
 export const GraderPanelSchema = z.union([GraderPanelLevelsSchema, GraderPanelModesSchema, GraderPanelBandsSchema]);
 

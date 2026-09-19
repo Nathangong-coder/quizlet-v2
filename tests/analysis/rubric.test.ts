@@ -23,13 +23,19 @@ describe('the mechanical communication rubric', () => {
     expect(s.warnings).toContain('rubric_unanswered:no_padding')
     expect(s.items.find((i) => i.id === 'no_padding')).toMatchObject({ met: false, answered: false })
   })
-  it('proportionate is computed from word counts against the reference', () => {
+  it('v2: proportionate is computed from word counts against the DEFINITION, the reference only as a fallback', () => {
+    expect(RUBRIC_VERSION).toBe(2)
     const all = MODEL_RUBRIC_ITEMS.map((i) => ({ id: i.id, met: true }))
-    const ref = Array(20).fill('w').join(' ')
+    const def = Array(20).fill('w').join(' ')
+    const ref = Array(200).fill('w').join(' ') // the bloated reference must not rescue a long answer
     const ok = Array(Math.floor(20 * PROPORTIONATE_MAX_RATIO)).fill('w').join(' ')
     const long = Array(Math.floor(20 * PROPORTIONATE_MAX_RATIO) + 1).fill('w').join(' ')
-    expect(scoreExpression({ contentScore: 1, modelAnswers: all, answerText: ok, referenceText: ref }).conciseness).toBe(100)
-    expect(scoreExpression({ contentScore: 1, modelAnswers: all, answerText: long, referenceText: ref }).conciseness).toBe(80)
+    expect(scoreExpression({ contentScore: 1, modelAnswers: all, answerText: ok, definitionText: def, referenceText: ref }).conciseness).toBe(100)
+    const s = scoreExpression({ contentScore: 1, modelAnswers: all, answerText: long, definitionText: def, referenceText: ref })
+    expect(s.conciseness).toBe(80)
+    expect(s.items.find((i) => i.id === 'proportionate')?.quote).toMatch(/in the definition$/)
+    // No definition text: the reference is the yardstick; neither: always met.
+    expect(scoreExpression({ contentScore: 1, modelAnswers: all, answerText: long, definitionText: '', referenceText: def }).items.find((i) => i.id === 'proportionate')?.quote).toMatch(/in the reference$/)
     expect(scoreExpression({ contentScore: 1, modelAnswers: all, answerText: long, referenceText: null }).conciseness).toBe(100)
   })
   it('an unknown item id is warned', () => {

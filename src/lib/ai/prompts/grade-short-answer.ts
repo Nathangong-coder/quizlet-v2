@@ -35,6 +35,12 @@ export interface GradeShortAnswerBuildInput {
   formReqs?: PromptFormReq[];
   /** CardAuthoring.referenceAnswer when the card has one. */
   referenceAnswer?: string;
+  /**
+   * v8: the answer is a NOTE (the card's own definition on the definition
+   * probe), graded on the knowledge present however compressed. Never set by
+   * the quiz.
+   */
+  noteForm?: boolean;
 }
 
 export interface GradeShortAnswerBuildPartsInput {
@@ -85,6 +91,13 @@ ${RUBRIC_SCHEMA_FIELDS}
  * shows ONE schema listing, rubric and analysis fields together, placed right
  * before the learner's answer, and says `klpResults` is required. The
  * no-KLP path is byte-identical to v5.
+ *
+ * v7 (2026-09-18): the communication checklist (`rubricPromptBlock`) joins
+ * the KLP path; TypeScript scores it (`src/lib/analysis/rubric.ts`).
+ *
+ * v8 (2026-09-18): `noteForm` appends `NOTE_FORM_CLAUSE` for the definition
+ * probe. With `noteForm` unset the text is byte-identical to v7, so every
+ * quiz grade and every benchmark row stays on the same instrument.
  */
 const OUTPUT_SCHEMA = (input: { relations?: PromptRelation[]; formReqs?: PromptFormReq[] }) => `Output ONE JSON object containing ALL of the following fields — the rubric fields AND the analysis fields together. "klpResults" is REQUIRED and must contain exactly one entry per key point listed above; never omit it.
 
@@ -125,7 +138,18 @@ ${RUBRIC_SCHEMA_FIELDS},
  */
 const QUOTE_EVERY_RELATION_FORM = 'For relations and form requirements, include "quote" on EVERY verdict, including "correct" and "met".';
 
-const ANALYSIS_BODY = (input: { klps: PromptKlp[]; relations?: PromptRelation[]; formReqs?: PromptFormReq[]; referenceAnswer?: string }) => {
+/**
+ * NOTE-FORM GRADING (v8, 2026-09-18, owner's ask). On the definition probe the
+ * "answer" is the card's own definition — bullet points and keyword phrases,
+ * not a spoken answer. The knowledge is graded, not the prose: a point whose
+ * claim is unmistakably present in three words is `correct`. The substance
+ * floor still governs the CLAIM (an adjacent idea or one half of a compound
+ * point is still `incomplete`); it no longer governs the FORM. The quiz never
+ * sets this.
+ */
+export const NOTE_FORM_CLAUSE = `THE ANSWER IS A NOTE, NOT A SPOKEN ANSWER. It is the card owner's own compressed definition: bullet points, keyword phrases, parentheticals, no full sentences. Grade the KNOWLEDGE it contains, not its prose. A key point is "correct" when its specific claim is unmistakably present in the note's words, however compressed — "(after interest)" states that interest is deducted first; "mandatory repayments, then optional" states the order. Do not mark a point down for brevity, missing connectives, missing mechanism WORDS when the mechanism is named, or for not being a sentence. The substance rule still applies to the CLAIM: an adjacent or more general idea, or one half of a two-part point, is "incomplete"; a point the note never touches is "omission".`;
+
+const ANALYSIS_BODY = (input: { klps: PromptKlp[]; relations?: PromptRelation[]; formReqs?: PromptFormReq[]; referenceAnswer?: string; noteForm?: boolean }) => {
   const rel = input.relations?.length
     ? `\nRelations between key points (a link the card teaches):\n${input.relations.map((r) => `[R${r.ref}] (${r.type}) [${r.fromRef}] → [${r.toRef}]`).join('\n')}\n`
     : '';
@@ -139,7 +163,7 @@ const ANALYSIS_BODY = (input: { klps: PromptKlp[]; relations?: PromptRelation[];
 Key Learning Points this card teaches:
 ${input.klps.map((k) => `[${k.ref}] (${k.kind}) ${k.text}`).join('\n')}
 ${rel}${form}${reference}
-${verdictInstructionBlock({ strict: true, showKinds: true, vocabulary: RUNTIME_VERDICTS })}
+${verdictInstructionBlock({ strict: true, showKinds: true, vocabulary: RUNTIME_VERDICTS })}${input.noteForm ? `\n\n${NOTE_FORM_CLAUSE}` : ''}
 
 The analysis fields, explained (the JSON schema for the whole reply follows below):
 
@@ -208,7 +232,7 @@ Rank by what matters most. Do not pad to the cap.
  */
 export const GRADE_SHORT_ANSWER_PROMPT = {
   id: 'grade-short-answer',
-  version: 7,
+  version: 8,
   schema: ShortAnswerGradeSchema,
 
   build(input: GradeShortAnswerBuildInput): string {

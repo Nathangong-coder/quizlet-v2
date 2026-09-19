@@ -88,8 +88,31 @@ describe('AUTHOR_KLPS_PROMPT', () => {
     expect(built.toLowerCase()).toContain('not a total to hit')
   })
 
-  it('is version 5 — promptVersion is persisted, so the change must be visible', () => {
-    expect(AUTHOR_KLPS_PROMPT.version).toBe(5)
+  it('is version 6 — promptVersion is persisted, so the change must be visible', () => {
+    expect(AUTHOR_KLPS_PROMPT.version).toBe(6)
+  })
+
+  it('v6: the definition is the CEILING — no point the card does not make; a gap goes to concerns, never into the set', () => {
+    expect(built).toContain('SKELETON AND YOUR CEILING')
+    expect(built).toContain('Do not add a point the definition does not make')
+    expect(built).not.toContain('add what a strong answer needs that the card omits')
+    expect(built).toMatch(/OMITS something a strong answer needs.*say so in "concerns"/)
+    expect(built).not.toContain('PREVIOUS SET OF KEY POINTS')
+  })
+
+  it('v6: priorFindings are listed verbatim, by previous index and text, ahead of the body', () => {
+    const p = AUTHOR_KLPS_PROMPT.build({
+      setTitle: 'S', term: 'T', definition: 'D', minKlps: 3,
+      priorFindings: [
+        { index: 5, text: "Repaying debt lowers next year's interest", issue: 'not_on_card', fix: 'Cut.' },
+        { index: 1, text: 'FCF after opex, capex and taxes', issue: 'over_reach', fix: 'Narrow to "free cash flow".' },
+      ],
+    })
+    expect(p).toContain("PREVIOUS SET OF KEY POINTS FOR THIS CARD WAS TESTED AGAINST THE OWNER'S OWN DEFINITION AND FAILED IT")
+    expect(p).toContain(`[5] NOT ON THE CARD — "Repaying debt lowers next year's interest" — Cut.`)
+    expect(p).toContain('[1] OVER-REACHES THE CARD — "FCF after opex, capex and taxes" — Narrow to "free cash flow".')
+    expect(p.indexOf('PREVIOUS SET OF KEY POINTS')).toBeLessThan(p.indexOf('THE DEFINITION IS YOUR SKELETON'))
+    expect(AUTHOR_KLPS_PROMPT.build({ setTitle: 'S', term: 'T', definition: 'D', minKlps: 3, priorFindings: [] })).not.toContain('PREVIOUS SET OF KEY POINTS')
   })
 
   it('v3 classifies the question first, defines the term as key point [0], keeps an enumeration as items, and leans the count to floor+1..floor+3', () => {

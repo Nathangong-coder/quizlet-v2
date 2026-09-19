@@ -52,7 +52,7 @@ export function authoringGenerator(userId: string, onModel?: (model: string) => 
       const { value, meta } = await generateJsonWithMeta({
         userId,
         task: WRITER,
-        prompt: AUTHOR_KLPS_PROMPT.build({ setTitle: input.setTitle, term: input.question, definition: input.definition, minKlps: input.minKlps }),
+        prompt: AUTHOR_KLPS_PROMPT.build({ setTitle: input.setTitle, term: input.question, definition: input.definition, minKlps: input.minKlps, priorFindings: input.priorFindings }),
         schema: AUTHOR_KLPS_PROMPT.schema,
       })
       onModel?.(meta.model)
