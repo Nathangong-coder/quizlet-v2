@@ -31,7 +31,9 @@ export interface SuperviseDefinitionBuildInput {
  */
 export const SUPERVISE_DEFINITION_PROMPT = {
   id: 'supervise-definition',
-  version: 1,
+  // v2 (2026-09-18): the worked example moved off an LBO card that the probe
+  // itself grades — a prompt must not carry the answer to one of its cases.
+  version: 2,
   schema: DefinitionSupervisionSchema,
   build(input: SuperviseDefinitionBuildInput): string {
     const klps = input.klps.map((k) => `[${k.ref}] (${k.kind}, weight ${k.weight}) ${k.text}`).join('\n');
@@ -55,7 +57,7 @@ For EVERY key point, return { "klpRef": number, "verdict": one of the four below
 - "cut" — the point is not on the card at all and a strong answer does not need it. "wording" null.
 - "grader_wrong" — the definition DOES make this point, in its own compressed way, and the verdict was too harsh. "wording" null.
 
-Do not soften: a definition that says "free cash flow" does not make a point about "cash after opex, capex and taxes" (that is "narrow"); a definition that says "(after interest)" DOES make a point that interest is deducted first (that is "grader_wrong" if the grader marked it partial). Then "summary": one sentence on whether the points outgrew the card, the grader misread it, or the card is thin.
+Do not soften: a definition that says "depreciation is added back" does not make a point about "straight-line depreciation over the asset's useful life" (that is "narrow"); a definition that says "(non-cash)" DOES make the point that the charge involves no cash outflow (that is "grader_wrong" if the grader marked it partial). Then "summary": one sentence on whether the points outgrew the card, the grader misread it, or the card is thin.
 
 Output JSON: { "points": [ { "klpRef": number, "verdict": string, "reason": string, "wording": string | null } ], "summary": string }`;
   },
