@@ -13,6 +13,8 @@ import {
   type PanelResultLists,
   type UnresolvedQuoteRate,
   isLevelsKind,
+  isBandsKind,
+  bandHit,
   type GraderPanelKind,
 } from '@/lib/analysis/benchmark'
 
@@ -75,6 +77,9 @@ export interface BenchmarkSummary {
   rankTotal: number
   /** Fully graded `levels` cards at 6/6. */
   perfectCards: number
+  /** Bands kinds only: answers whose score landed in the adversary's intended band. */
+  bandHits: number
+  bandTotal: number
   /** Mean of every adjacent gap over every fully graded `levels` card; null with none. */
   meanAdjacentGap: number | null
   adjacentInversions: number
@@ -159,6 +164,8 @@ export function summarizeBenchmark(rows: readonly BenchmarkCardRow[]): Benchmark
     rankAgreed: 0,
     rankTotal: 0,
     perfectCards: 0,
+    bandHits: 0,
+    bandTotal: 0,
     meanAdjacentGap: null,
     adjacentInversions: 0,
     shapeAgreed: 0,
@@ -202,6 +209,12 @@ export function summarizeBenchmark(rows: readonly BenchmarkCardRow[]): Benchmark
       s.rankAgreed += ra.agreed
       s.rankTotal += ra.total
       if (ra.total > 0 && ra.agreed === ra.total) s.perfectCards++
+      if (isBandsKind(row.kind)) {
+        for (const a of answers) {
+          s.bandTotal++
+          if (a.level && bandHit(a.level, a.score)) s.bandHits++
+        }
+      }
       for (const g of adjacentGaps(answers)) {
         gapSum += g
         gapCount++
@@ -312,7 +325,7 @@ export function formatBenchmarkReport(rows: readonly BenchmarkCardRow[], opts: F
         `${head}  rank agreement ${ra.agreed}/${ra.total}  gaps ${gaps.map(f2).join(' / ')} (mean ${f2(meanGap)})  ` +
           `quotes ${unresolved}/${quotes} unresolved  unjudged ${unjudged}/${judgedOf}`,
       )
-      lines.push(`  ${byRank.map((a) => `${labelOf(a)} ${f2(a.score)} (cov ${f2(a.coverage)}; ${compositionLine(a.composition)})`).join(' · ')}`)
+      lines.push(`  ${byRank.map((a) => `${labelOf(a)} ${f2(a.score)}${isBandsKind(row.kind) && a.level ? (bandHit(a.level, a.score) ? ' ✓band' : ' ✗band') : ''} (cov ${f2(a.coverage)}; ${compositionLine(a.composition)})`).join(' · ')}`)
       for (const [better, worse] of ra.inversions) {
         const b = byRank.find((a) => a.intendedRank === better)!
         const w = byRank.find((a) => a.intendedRank === worse)!
@@ -349,10 +362,11 @@ export function formatBenchmarkReport(rows: readonly BenchmarkCardRow[], opts: F
     const gradedLevels = rows.filter((r) => isLevelsKind(r.kind) && !r.mixed && scored(r) !== null).length
     lines.push(
       `rank agreement ${s.rankAgreed}/${s.rankTotal} (${pct(s.rankAgreed, s.rankTotal)}); ` +
-        `${s.perfectCards}/${gradedLevels} card(s) at 6/6; ` +
+        `${s.perfectCards}/${gradedLevels} card(s) perfect; ` +
         `mean adjacent gap ${s.meanAdjacentGap === null ? 'n/a' : f2(s.meanAdjacentGap)}; ` +
         `adjacent inversions ${s.adjacentInversions}`,
     )
+    if (s.bandTotal > 0) lines.push(`band hit rate ${s.bandHits}/${s.bandTotal} (${pct(s.bandHits, s.bandTotal)}) — answers whose score landed in the adversary's intended band`)
   }
   if (s.modesCards > 0) {
     lines.push(`shape agreement ${s.shapeAgreed}/${s.shapeTotal} (${pct(s.shapeAgreed, s.shapeTotal)})`)

@@ -7,7 +7,7 @@ import { RELATABLE_TYPES, RELATION_PROVENANCES } from '@/lib/klp/relations';
 import { EXPLOIT_STRATEGIES } from '@/lib/klp/exploit';
 import { ABSTRACTION_LEVELS } from '@/lib/klp/abstraction';
 import { PANEL_LEVELS } from '@/lib/klp/panel';
-import { GRADER_PANEL_LEVELS, GRADER_PANEL_MODES } from '@/lib/analysis/benchmark';
+import { GRADER_PANEL_LEVELS, GRADER_PANEL_MODES, GRADER_PANEL_BANDS, GRADER_PANEL_BAND_IDS } from '@/lib/analysis/benchmark';
 
 /**
  * The per-key-point verdict a RUNTIME grader may return (Spec 5 D6: a strict
@@ -108,6 +108,17 @@ export const ShortAnswerGradeSchema = z.object({
   relationResults: RelationResultsSchema,
   formResults: FormResultsSchema,
   unwarranted: UnwarrantedSchema,
+  /**
+   * The mechanical communication checklist (grader v3, `src/lib/analysis/rubric.ts`):
+   * the model answers each item true/false with a quote; TypeScript scores it.
+   * Optional so the no-KLP rubric-only reply and pre-v7 fixtures still parse;
+   * a missing item scores as not met and is warned.
+   */
+  communication: z.array(z.object({
+    id: z.string().min(1),
+    met: z.boolean(),
+    quote: z.string().optional(),
+  })).optional(),
   /**
    * `type` is z.string(), not an enum: it is validated against its OWN
    * dimension in TS (buildAnalysisWrites), which a flat enum cannot express.
@@ -825,11 +836,44 @@ export const GraderPanelModesSchema = z.object({
   }
 });
 
-/** Either kind — what a reader that stores or displays a panel holds. */
-export const GraderPanelSchema = z.union([GraderPanelLevelsSchema, GraderPanelModesSchema]);
+export const GraderPanelBandsSchema = z.object({
+  answers: z.array(z.object({ level: z.enum(GRADER_PANEL_BAND_IDS), ...panelAnswerBase, intendedRank: z.number().int().min(1).max(6) })).length(6),
+}).superRefine((panel, ctx) => {
+  const { answers } = panel;
+  if (new Set(answers.map((a) => a.intendedRank)).size !== answers.length) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'intendedRank must be 1-6, each once' });
+  }
+  if (new Set(answers.map((a) => a.level)).size !== GRADER_PANEL_BANDS.length) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a bands panel carries each band exactly once' });
+  }
+  for (const [i, a] of answers.entries()) {
+    const expected = GRADER_PANEL_BANDS.find((b) => b.id === a.level)?.rank;
+    if (expected !== undefined && a.intendedRank !== expected) {
+      ctx.addIssue({ code: 'custom', path: ['answers', i, 'intendedRank'], message: `"${a.level}" is rank ${expected}` });
+    }
+  }
+});
 
-export function graderPanelSchemaFor(kind: 'levels' | 'modes' | 'blind'): typeof GraderPanelLevelsSchema | typeof GraderPanelModesSchema {
-  return kind === 'modes' ? GraderPanelModesSchema : GraderPanelLevelsSchema;
+/** The reconciliation pass reply (`review-panel-grade`). Stances per point; TS derives the outcome. */
+export const PanelGradeReviewSchema = z.object({
+  points: z.array(z.object({
+    klpRef: z.number().int().min(0),
+    stance: z.enum(['accept', 'hold']),
+    verdict: z.string().min(1),
+    firm: z.boolean(),
+    reason: z.string().min(1),
+  })),
+  summary: z.string().min(1),
+});
+export type PanelGradeReview = z.infer<typeof PanelGradeReviewSchema>;
+
+/** Either kind — what a reader that stores or displays a panel holds. */
+export const GraderPanelSchema = z.union([GraderPanelLevelsSchema, GraderPanelModesSchema, GraderPanelBandsSchema]);
+
+export function graderPanelSchemaFor(kind: 'levels' | 'modes' | 'blind' | 'bands' | 'blind-bands'): typeof GraderPanelLevelsSchema | typeof GraderPanelModesSchema | typeof GraderPanelBandsSchema {
+  if (kind === 'modes') return GraderPanelModesSchema;
+  if (kind === 'bands' || kind === 'blind-bands') return GraderPanelBandsSchema;
+  return GraderPanelLevelsSchema;
 }
 
 export type GraderPanelDraft = z.infer<typeof GraderPanelSchema>;

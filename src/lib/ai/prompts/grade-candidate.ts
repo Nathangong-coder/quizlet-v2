@@ -7,7 +7,7 @@ import { verdictInstructionBlock } from './verdict-block';
  * without importing this module back. Re-exported here so every existing
  * importer keeps working.
  */
-export { STRICT_GRADING_CLAUSE, RELAXED_KINDS, KIND_STRICTNESS_CLAUSE } from './verdict-block';
+export { STRICT_GRADING_CLAUSE, RELAXED_KINDS, KIND_STRICTNESS_CLAUSE, SUBSTANCE_FLOOR_CLAUSE } from './verdict-block';
 
 export interface GradeCandidateBuildInput {
   question: string;

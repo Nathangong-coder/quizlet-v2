@@ -169,3 +169,24 @@ describe('the blind panel prompt', () => {
     expect(p).toContain('"level": string')
   })
 })
+
+describe('the six-band panels', () => {
+  const base = { question: 'Q?', definition: 'D', referenceAnswer: 'REF', klps: [{ ref: 0, text: 'K0', kind: 'causal', weight: 4 }], relations: [], formReqs: [] }
+  it('bands shows weights and the scoring formula; blind-bands shows neither the points nor weights', () => {
+    const p = WRITE_GRADER_PANEL_PROMPT.build({ ...base, kind: 'bands' })
+    expect(p).toContain('weight 4')
+    expect(p).toContain('SUBTRACTS')
+    for (const b of ['full', 'strong', 'good', 'fair', 'marginal', 'failing']) expect(p).toContain(`"${b}"`)
+    expect(p).toContain('exactly six entries')
+    const bp = WRITE_GRADER_PANEL_PROMPT.build({ ...base, kind: 'blind-bands' })
+    expect(bp).not.toContain('K0')
+    expect(bp).not.toContain('weight 4')
+    expect(bp).toContain('"failing"')
+  })
+  it('the bands schema wants six answers, each band once, ranks matching the band order', () => {
+    const six = ['full', 'strong', 'good', 'fair', 'marginal', 'failing'].map((level, i) => ({ level, intendedRank: i + 1, text: 't', rationale: 'r' }))
+    expect(graderPanelSchemaFor('bands').safeParse({ answers: six }).success).toBe(true)
+    expect(graderPanelSchemaFor('bands').safeParse({ answers: six.slice(0, 4) }).success).toBe(false)
+    expect(graderPanelSchemaFor('bands').safeParse({ answers: six.map((a) => ({ ...a, intendedRank: 7 - a.intendedRank })) }).success).toBe(false)
+  })
+})

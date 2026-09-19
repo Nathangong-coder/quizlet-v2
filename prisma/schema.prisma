@@ -1754,6 +1754,7 @@ model GraderPanelResult {
   /// Phase B replaces the shape; readers treat it as opaque.
   expression       Json?
   createdAt        DateTime          @default(now())
+  reviews          GraderPanelReview[]
   answer           GraderPanelAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
 
   /// One result per (answer, grader, model): the planner's idempotency key, enforced.
@@ -2128,4 +2129,35 @@ model KltRelation {
 
   @@unique([fromKltId, toKltId, type])
   @@index([toKltId])
+}
+
+/// Spec 5 benchmark — THE RECONCILIATION PASS (2026-09-18). A second row per
+/// disputed result: the grader, shown the adversary's rationale, reconsiders
+/// each disputed point. `outcome` is computed in TypeScript from the per-point
+/// stances — `agree` (accepted every disputed point), `disagree` (held some,
+/// not firmly), `strong` (held at least one firmly: the owner's MANUAL-REVIEW
+/// queue). The isolated verdict on `GraderPanelResult` is never overwritten;
+/// this row is the record of the disagreement and what the grader did with it.
+/// The accepted corrections are the calibration corpus for the next grader
+/// version. `manualVerdict` is the owner's ruling when they review a `strong`.
+model GraderPanelReview {
+  id            String            @id @default(cuid())
+  resultId      String
+  graderVersion Int
+  promptVersion Int
+  model         String
+  /// What the pass was asked to reconcile, in plain words (a band miss, a rank inversion).
+  disagreement  String            @db.Text
+  /// [{ klpRef, klpId, stance, before, after, firm, reason }]
+  points        Json
+  summary       String            @db.Text
+  outcome       String            // agree | disagree | strong
+  /// Owner's ruling on a `strong`: grader_right | adversary_right | both_wrong — NULL until reviewed.
+  manualVerdict String?
+  manualNote    String?           @db.Text
+  createdAt     DateTime          @default(now())
+  result        GraderPanelResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+
+  @@index([resultId])
+  @@index([outcome])
 }

@@ -25,10 +25,10 @@ import {
  * hand-built inputs.
  */
 describe('grader-panel vocabulary', () => {
-  it('names the four levels in rank order, the four failure shapes and the three panel kinds', () => {
+  it('names the four levels in rank order, the four failure shapes and the five panel kinds', () => {
     expect(GRADER_PANEL_LEVELS).toEqual(['expert', 'competent', 'weak', 'wrong'])
     expect(GRADER_PANEL_MODES).toEqual(['gap', 'misconception', 'connectivity', 'template'])
-    expect(GRADER_PANEL_KINDS).toEqual(['levels', 'modes', 'blind'])
+    expect(GRADER_PANEL_KINDS).toEqual(['levels', 'modes', 'blind', 'bands', 'blind-bands'])
   })
 })
 

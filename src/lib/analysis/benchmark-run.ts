@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { GRADE_SHORT_ANSWER_PROMPT } from '@/lib/ai/prompts/grade-short-answer'
 import { WRITE_GRADER_PANEL_PROMPT } from '@/lib/ai/prompts/write-grader-panel'
+import { REVIEW_PANEL_GRADE_PROMPT } from '@/lib/ai/prompts/review-panel-grade'
+import { describeDispute, foldReview, type ReviewOutcome } from '@/lib/analysis/benchmark-review'
 import {
   GraderPanelSchema,
   graderPanelSchemaFor,
@@ -10,11 +12,15 @@ import {
   ShortAnswerGradeWithAnalysisSchema,
   type GraderPanelDraft,
   type ShortAnswerGrade,
+  PanelGradeReviewSchema,
+  type PanelGradeReview,
 } from '@/lib/ai/schemas'
 import { GRADER_VERSION } from '@/lib/analysis/version'
 import { gradeMaxOutputTokens } from '@/lib/analysis/output-cap'
 import { loadGradingContext, promptViewOf } from '@/lib/quiz/grading-context'
-import { readPanelResult, type GraderPanelKind } from '@/lib/analysis/benchmark'
+import { readPanelResult, toBenchKlpVerdicts, toBenchRelationVerdicts, type GraderPanelKind } from '@/lib/analysis/benchmark'
+import { answerScore } from '@/lib/analysis/scoring-rules'
+import { scoreExpression } from '@/lib/analysis/rubric'
 import {
   buildPanelVerdicts,
   selectCardResults,
@@ -141,7 +147,7 @@ export async function authorPanel(cardId: string, kind: GraderPanelKind, gen: Pa
     question: card.term,
     definition: card.definition,
     referenceAnswer: context.referenceAnswer,
-    klps: card.klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind })),
+    klps: card.klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind, weight: k.weight })),
     relations: promptRelations,
     formReqs: promptFormReqs,
     kind,
@@ -271,6 +277,15 @@ export async function gradePanelAnswer(answerId: string, gen: BenchGrader): Prom
     formReqs: context.formReqs,
   })
 
+  const benchVerdicts = toBenchKlpVerdicts(built.verdicts)
+  const benchRelations = toBenchRelationVerdicts(built.relationVerdicts)
+  const expression = scoreExpression({
+    contentScore: answerScore(benchVerdicts, benchRelations, built.unjudged),
+    modelAnswers: grade.communication ?? [],
+    answerText: answer.text,
+    referenceText: context.referenceAnswer ?? null,
+  })
+
   const result = await prisma.graderPanelResult.create({
     data: {
       answerId,
@@ -283,13 +298,19 @@ export async function gradePanelAnswer(answerId: string, gen: BenchGrader): Prom
       unresolvedQuotes: built.unresolvedQuotes,
       judgedOf: built.judgedOf,
       unjudged: built.unjudged as unknown as Prisma.InputJsonValue,
-      // The expression axis, legacy rubric until Phase B — see the column's doc.
+      // The expression axis: MECHANICAL from grader v3 — the model's checklist
+      // answers scored by the weight table (`src/lib/analysis/rubric.ts`);
+      // `accuracy` is the content score on the same 0-100 scale. The legacy
+      // 1-10 rubric rides along as `legacy` for the cross-check until Phase B.
       expression: {
-        clarity: grade.clarity.score,
-        conciseness: grade.conciseness.score,
-        correctness: grade.correctness.score,
-        overall: grade.overall,
-      } as Prisma.InputJsonValue,
+        ...expression,
+        legacy: {
+          clarity: grade.clarity.score,
+          conciseness: grade.conciseness.score,
+          correctness: grade.correctness.score,
+          overall: grade.overall,
+        },
+      } as unknown as Prisma.InputJsonValue,
     },
     select: { id: true },
   })
@@ -304,7 +325,13 @@ export async function gradePanelAnswer(answerId: string, gen: BenchGrader): Prom
     formVerdicts: built.formVerdicts.length,
     unresolvedQuotes: built.unresolvedQuotes,
     unjudged: built.unjudged.length,
-    warnings: built.warnings,
+    warnings: [
+      ...built.warnings,
+      ...expression.warnings.map((w) => {
+        const [reason, value] = w.split(':') as ['rubric_unanswered' | 'rubric_unknown_item', string]
+        return { reason, value: value ?? '' }
+      }),
+    ],
   }
 }
 
@@ -383,4 +410,118 @@ export async function loadBenchmarkRows(
         ...(selection.kind === 'mixed' ? { mixed: selection.models } : {}),
       }
     })
+}
+
+// ---------------------------------------------------------------------------
+// The reconciliation pass (2026-09-18). Benchmark-only. See
+// `src/lib/analysis/benchmark-review.ts` for the pure rules and
+// `src/lib/ai/prompts/review-panel-grade.ts` for what the grader is shown.
+
+export type ReviewGen = (input: {
+  prompt: string
+  schema: typeof PanelGradeReviewSchema
+  maxOutputTokens: number
+}) => Promise<{ value: PanelGradeReview; model: string }>
+
+export const REVIEW_MAX_OUTPUT_TOKENS = 4096
+
+export interface ReviewPanelOutcome {
+  resultId: string
+  answerId: string
+  term: string
+  label: string | null
+  outcome: 'skipped' | 'reviewed'
+  reason?: 'no_dispute' | 'already_reviewed' | 'no_result'
+  reviewOutcome?: ReviewOutcome
+  accepted?: number
+  held?: number
+  summary?: string
+}
+
+/**
+ * Review every DISPUTED result on a set: an answer whose isolated grade
+ * misses the adversary's band (bands kinds) or inverts its rank (levels
+ * kinds). One call per disputed answer; idempotent per
+ * `(resultId, graderVersion, promptVersion)`. Never touches the isolated row.
+ */
+export async function reviewDisputedResults(
+  setId: string,
+  gen: ReviewGen,
+  opts: { graderVersion: number; model: string; kind?: GraderPanelKind; onProgress?: (o: ReviewPanelOutcome) => void },
+): Promise<ReviewPanelOutcome[]> {
+  const rows = await loadBenchmarkRows(setId, { graderVersion: opts.graderVersion, model: opts.model, kind: opts.kind })
+  const out: ReviewPanelOutcome[] = []
+  for (const row of rows) {
+    if (row.mixed) continue
+    const scoredAnswers = row.answers.map((a) => ({
+      ...a,
+      score: a.result ? answerScore(toBenchKlpVerdicts(a.result.verdicts), toBenchRelationVerdicts(a.result.relationVerdicts), a.result.unjudged) : null,
+    }))
+    const siblings = scoredAnswers.filter((a) => a.score !== null).map((a) => ({ intendedRank: a.intendedRank, score: a.score as number }))
+    for (const a of scoredAnswers) {
+      if (!a.result || a.score === null) { out.push({ resultId: '', answerId: a.id, term: row.term, label: a.level, outcome: 'skipped', reason: 'no_result' }); continue }
+      const disagreement = describeDispute({ kind: row.kind, level: a.level, intendedRank: a.intendedRank, score: a.score, siblings })
+      if (!disagreement) { out.push({ resultId: '', answerId: a.id, term: row.term, label: a.level, outcome: 'skipped', reason: 'no_dispute' }); continue }
+
+      // The result row id and the answer text — loadBenchmarkRows keeps neither.
+      const resultRow = await prisma.graderPanelResult.findFirst({
+        where: { answerId: a.id, graderVersion: opts.graderVersion, model: opts.model },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, answer: { select: { text: true, panel: { select: { cardId: true, klpVersion: true } } } } },
+      })
+      if (!resultRow) { out.push({ resultId: '', answerId: a.id, term: row.term, label: a.level, outcome: 'skipped', reason: 'no_result' }); continue }
+      const existing = await prisma.graderPanelReview.findFirst({
+        where: { resultId: resultRow.id, graderVersion: opts.graderVersion, promptVersion: REVIEW_PANEL_GRADE_PROMPT.version },
+        select: { id: true },
+      })
+      if (existing) { out.push({ resultId: resultRow.id, answerId: a.id, term: row.term, label: a.level, outcome: 'skipped', reason: 'already_reviewed' }); continue }
+
+      const card = await prisma.card.findUniqueOrThrow({ where: { id: resultRow.answer.panel.cardId }, select: { term: true } })
+      const klps = await prisma.cardKlp.findMany({
+        where: { cardId: resultRow.answer.panel.cardId, supersededAt: null },
+        orderBy: { index: 'asc' },
+        select: { id: true, text: true, kind: true, version: true },
+      })
+      const context = await loadGradingContext(resultRow.answer.panel.cardId, klps)
+      const verdicts = a.result.verdicts.map((v) => ({ ref: v.klpRef, status: v.status, quote: v.quote }))
+      const prompt = REVIEW_PANEL_GRADE_PROMPT.build({
+        question: card.term,
+        referenceAnswer: context.referenceAnswer,
+        klps: klps.map((k, ref) => ({ ref, text: k.text, kind: k.kind })),
+        answerText: resultRow.answer.text,
+        graderVerdicts: verdicts,
+        intendedLabel: a.level ?? `rank ${a.intendedRank}`,
+        intendedRationale: a.rationale,
+        disagreement,
+      })
+      const { value, model } = await gen({ prompt, schema: PanelGradeReviewSchema, maxOutputTokens: REVIEW_MAX_OUTPUT_TOKENS })
+      const folded = foldReview(value, klps.map((k) => k.id), a.result.verdicts.map((v) => ({ klpRef: v.klpRef, status: v.status })))
+      await prisma.graderPanelReview.create({
+        data: {
+          resultId: resultRow.id,
+          graderVersion: opts.graderVersion,
+          promptVersion: REVIEW_PANEL_GRADE_PROMPT.version,
+          model,
+          disagreement,
+          points: folded.points as unknown as Prisma.InputJsonValue,
+          summary: value.summary,
+          outcome: folded.outcome,
+        },
+      })
+      const o: ReviewPanelOutcome = {
+        resultId: resultRow.id,
+        answerId: a.id,
+        term: row.term,
+        label: a.level,
+        outcome: 'reviewed',
+        reviewOutcome: folded.outcome,
+        accepted: folded.points.filter((p) => p.stance === 'accept').length,
+        held: folded.points.filter((p) => p.stance === 'hold').length,
+        summary: value.summary,
+      }
+      opts.onProgress?.(o)
+      out.push(o)
+    }
+  }
+  return out
 }

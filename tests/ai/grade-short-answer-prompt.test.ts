@@ -122,8 +122,8 @@ describe('GRADE_SHORT_ANSWER_PROMPT v5 (shared verdict block)', () => {
     expect(promptText.indexOf('THE REFERENCE')).toBeLessThan(promptText.indexOf('THE ANSWER'))
   })
 
-  it('is version 6 — promptVersion is persisted on every grade', () => {
-    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(6)
+  it('is version 7 — promptVersion is persisted on every grade', () => {
+    expect(GRADE_SHORT_ANSWER_PROMPT.version).toBe(7)
   })
 })
 

@@ -5,6 +5,7 @@ import { ACCURACY_TYPES, CLARITY_TYPES, CONCISENESS_TYPES, MAX_TAGS_PER_ANSWER }
 import { RUNTIME_VERDICTS } from '@/lib/klp/verdicts';
 import { PromptKlp } from './multiple-choice';
 import { verdictInstructionBlock } from './verdict-block';
+import { rubricPromptBlock } from '@/lib/analysis/rubric';
 
 /** One `KlpRelation` edge of the card, by prompt ref. Never a cuid. */
 export interface PromptRelation {
@@ -94,7 +95,8 @@ ${RUBRIC_SCHEMA_FIELDS},
   "relationResults": [ { "relationRef": number, "status": string, "quote": string } ],` : ''}${input.formReqs?.length ? `
   "formResults": [ { "formRef": number, "status": "met" | "not_met", "quote": string } ],` : ''}
   "unwarranted": [ { "text": string, "quote": string, "magnitude": number } ],
-  "errorTags": [ { "dimension": string, "type": string, "klpRef"?: number, "secondaryKlpRef"?: number, "magnitude": number, "quote"?: string } ]
+  "errorTags": [ { "dimension": string, "type": string, "klpRef"?: number, "secondaryKlpRef"?: number, "magnitude": number, "quote"?: string } ],
+  "communication": [ { "id": string, "met": boolean, "quote"?: string } ]
 }`;
 
 /**
@@ -151,7 +153,9 @@ ${input.relations?.length ? `"relationResults": one entry per relation above —
   dimension "conciseness"  — types: ${CONCISENESS_TYPES.join(', ')}
   Each tag: "type" from that dimension's list and NO other word; "klpRef" when about one point (omit for the whole answer); "secondaryKlpRef" for "conflation" only; "magnitude" 1-10 within the type; "quote".
   Every "unwarranted" claim above is ALSO tagged here, with klpRef OMITTED — it is about the whole answer, not about any one point. Do not skip it because the listed points were covered.
-Rank by what matters most. Do not pad to the cap.`;
+Rank by what matters most. Do not pad to the cap.
+
+"communication": ${rubricPromptBlock().replace(/^Communication checklist\. /, '')}`;
 };
 
 /**
@@ -204,7 +208,7 @@ Rank by what matters most. Do not pad to the cap.`;
  */
 export const GRADE_SHORT_ANSWER_PROMPT = {
   id: 'grade-short-answer',
-  version: 6,
+  version: 7,
   schema: ShortAnswerGradeSchema,
 
   build(input: GradeShortAnswerBuildInput): string {

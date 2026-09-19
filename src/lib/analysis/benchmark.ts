@@ -41,7 +41,39 @@ export type GraderPanelLevel = (typeof GRADER_PANEL_LEVELS)[number]
 export const GRADER_PANEL_MODES = ['gap', 'misconception', 'connectivity', 'template'] as const
 export type GraderPanelMode = (typeof GRADER_PANEL_MODES)[number]
 
-export const GRADER_PANEL_KINDS = ['levels', 'modes', 'blind'] as const
+/**
+ * SIX BANDS (2026-09-18, owner's ask): a finer panel than the four levels,
+ * each answer written to land in a target CONTENT-SCORE band (coverage minus
+ * the contradiction term, × 100). Beside rank agreement the bands give a
+ * second, stricter check — BAND HIT RATE: did the grader's score land where
+ * the adversary aimed. The band labels are stored in `GraderPanelAnswer.level`
+ * (a String column), ranks 1-6. `bands` shows the adversary the key points
+ * and weights so it can aim; `blind-bands` does not.
+ */
+export const GRADER_PANEL_BANDS = [
+  { id: 'full', low: 100, high: 100, rank: 1 },
+  { id: 'strong', low: 90, high: 99, rank: 2 },
+  { id: 'good', low: 80, high: 89, rank: 3 },
+  { id: 'fair', low: 70, high: 79, rank: 4 },
+  { id: 'marginal', low: 50, high: 69, rank: 5 },
+  { id: 'failing', low: 0, high: 49, rank: 6 },
+] as const
+export type GraderPanelBand = (typeof GRADER_PANEL_BANDS)[number]['id']
+export const GRADER_PANEL_BAND_IDS = GRADER_PANEL_BANDS.map((b) => b.id) as unknown as readonly [GraderPanelBand, ...GraderPanelBand[]]
+
+export function bandOf(id: string): (typeof GRADER_PANEL_BANDS)[number] | undefined {
+  return GRADER_PANEL_BANDS.find((b) => b.id === id)
+}
+
+/** Did a 0-1 score land in the band the adversary aimed at? */
+export function bandHit(bandId: string, score: number): boolean {
+  const b = bandOf(bandId)
+  if (!b) return false
+  const pct = Math.round(score * 100)
+  return pct >= b.low && pct <= b.high
+}
+
+export const GRADER_PANEL_KINDS = ['levels', 'modes', 'blind', 'bands', 'blind-bands'] as const
 export type GraderPanelKind = (typeof GRADER_PANEL_KINDS)[number]
 
 /**
@@ -54,7 +86,15 @@ export type GraderPanelKind = (typeof GRADER_PANEL_KINDS)[number]
  * either kind.
  */
 export function isLevelsKind(kind: GraderPanelKind): boolean {
-  return kind === 'levels' || kind === 'blind'
+  return kind === 'levels' || kind === 'blind' || kind === 'bands' || kind === 'blind-bands'
+}
+
+export function isBandsKind(kind: GraderPanelKind): boolean {
+  return kind === 'bands' || kind === 'blind-bands'
+}
+
+export function isBlindKind(kind: GraderPanelKind): boolean {
+  return kind === 'blind' || kind === 'blind-bands'
 }
 
 /** The shape the scoring rule reads off a graded answer; `none` when no rule fires. */

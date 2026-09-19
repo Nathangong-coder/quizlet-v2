@@ -25,6 +25,8 @@ import {
 import { TokenMeter } from '../src/lib/klp/token-meter'
 import { GRADER_VERSION } from '../src/lib/analysis/version'
 import { GRADER_PANEL_KINDS, type GraderPanelKind } from '../src/lib/analysis/benchmark'
+import { reviewDisputedResults, type ReviewGen } from '../src/lib/analysis/benchmark-run'
+import type { PanelGradeReview } from '../src/lib/ai/schemas'
 import { groupByCard, planBench, planPanels } from '../src/lib/analysis/benchmark-plan'
 import { pinPerCard, CardAbandonedError, type PinnedGrader } from '../src/lib/analysis/benchmark-pin'
 import {
@@ -102,11 +104,14 @@ function opt(args: string[], name: string): string | undefined {
   return i >= 0 ? args[i + 1] : undefined
 }
 
-const USAGE = `usage: npm run bench-grader -- --set <setId> [--author] [--kind levels|modes] [--direct] [--model <id>] [--dry-run] [--limit <n>] [--rpm <n>]
+const USAGE = `usage: npm run bench-grader -- --set <setId> [--author] [--kind levels|modes|blind|bands|blind-bands] [--review] [--direct] [--model <id>] [--dry-run] [--limit <n>] [--rpm <n>]
 
   --set <setId>        required
   --author             write a panel for every card lacking one at its live klpVersion
-  --kind levels|modes  panel kind (default levels)
+  --kind <kind>        panel kind: levels | modes | blind | bands | blind-bands (default levels)
+  --review             after grading, run the reconciliation pass on every DISPUTED answer (band miss / rank
+                       inversion): the grader sees the adversary's rationale and accepts or holds each point;
+                       "strong" holds go to the manual-review queue. One call per disputed answer; idempotent.
   --direct             raw env keys via the direct pool (KLP_DIRECT_PROVIDER grades;
                        KLP_AUTHOR_PROVIDER writes the panels when set)
   --model <id>         planning key: skip answers already graded under this model
@@ -245,6 +250,7 @@ async function main() {
   }
   const setId = opt(args, '--set')
   const author = flag(args, '--author')
+  const review = flag(args, '--review')
   const direct = flag(args, '--direct')
   const dryRun = flag(args, '--dry-run')
   const kindRaw = opt(args, '--kind') ?? 'levels'
@@ -431,6 +437,39 @@ async function main() {
           }
         }
       }
+    }
+  }
+
+  // 2b. The reconciliation pass — only where the isolated grade disagrees with
+  // the adversary. Same pinned model as the grader, so the review is the
+  // grader reconsidering, not a second opinion from another family.
+  let reviewed = 0
+  let strong = 0
+  if (review && !dryRun && planModel) {
+    const gradeCombo = direct ? gradePool.find((c) => c.model === planModel) : undefined
+    const reviewGen: ReviewGen = async (input) => {
+      if (direct) {
+        if (!gradeCombo) throw new Error(`--review: no direct combo for model ${planModel}`)
+        const value = await callOnCombo(gradeCombo, pacer, 'grade', 'review', input)
+        return { value, model: gradeCombo.model }
+      }
+      return pooledCall<PanelGradeReview>(set.userId, 'grade', 'review')(input)
+    }
+    try {
+      const outcomes = await reviewDisputedResults(set.id, reviewGen, {
+        graderVersion: GRADER_VERSION,
+        model: planModel,
+        kind,
+        onProgress: (o) => {
+          reviewed++
+          if (o.reviewOutcome === 'strong') strong++
+          console.log(`  review  ${o.term.slice(0, 48)} / ${o.label}: ${o.reviewOutcome} (accepted ${o.accepted}, held ${o.held}) — ${o.summary}`)
+        },
+      })
+      const skipped = outcomes.filter((o) => o.outcome === 'skipped' && o.reason !== 'no_dispute').length
+      console.log(`[bench-grader] review: ${reviewed} disputed answer(s) reviewed, ${strong} strong (manual queue), ${skipped} skipped`)
+    } catch (err) {
+      console.error(`[bench-grader] review failed: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
 

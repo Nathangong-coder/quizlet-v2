@@ -12,5 +12,10 @@
  *      and `klpResults` required (ShortAnswerGradeWithAnalysisSchema). Found
  *      by the first benchmark run: DeepSeek dropped the analysis section on a
  *      9-point card and the optional field let it parse as zero verdicts.
+ *  3 — 2026-09-18 (evening): grade-short-answer v7 — the SUBSTANCE FLOOR in
+ *      the shared strict block (a gestured-at point is `incomplete`, a
+ *      compound point needs both halves, an implied opposite is
+ *      `contradicted`) and the mechanical communication checklist
+ *      (`src/lib/analysis/rubric.ts`, RUBRIC_VERSION 1) scored in TS.
  */
-export const GRADER_VERSION = 2
+export const GRADER_VERSION = 3

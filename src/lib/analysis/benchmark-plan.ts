@@ -214,6 +214,8 @@ export type PanelVerdictWarning = {
     | 'unresolved_form_ref'
     | 'duplicate_form_ref'
     | 'klp_unjudged'
+    | 'rubric_unanswered'
+    | 'rubric_unknown_item'
   value: string
 }
 

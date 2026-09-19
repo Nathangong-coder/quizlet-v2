@@ -83,6 +83,7 @@ export { WRITE_FORM_REQS_PROMPT } from './write-form-reqs';
 export type { WriteFormReqsBuildInput } from './write-form-reqs';
 
 export { WRITE_GRADER_PANEL_PROMPT } from './write-grader-panel';
+export { REVIEW_PANEL_GRADE_PROMPT } from './review-panel-grade';
 export type { WriteGraderPanelBuildInput } from './write-grader-panel';
 
 import { MULTIPLE_CHOICE_PROMPT } from './multiple-choice';
@@ -104,6 +105,7 @@ import { MAKE_GAME_PIECES_PROMPT } from './make-game-pieces';
 import { HOT_SEAT_PROBE_PROMPT } from './hot-seat-probe';
 import { WRITE_FORM_REQS_PROMPT } from './write-form-reqs';
 import { WRITE_GRADER_PANEL_PROMPT } from './write-grader-panel';
+import { REVIEW_PANEL_GRADE_PROMPT } from './review-panel-grade';
 
 /** All registry entries keyed by `id`, for introspection/tooling. */
 export const PROMPT_REGISTRY = {
@@ -128,4 +130,5 @@ export const PROMPT_REGISTRY = {
   [HOT_SEAT_PROBE_PROMPT.id]: HOT_SEAT_PROBE_PROMPT,
   [WRITE_FORM_REQS_PROMPT.id]: WRITE_FORM_REQS_PROMPT,
   [WRITE_GRADER_PANEL_PROMPT.id]: WRITE_GRADER_PANEL_PROMPT,
+  [REVIEW_PANEL_GRADE_PROMPT.id]: REVIEW_PANEL_GRADE_PROMPT,
 } as const;

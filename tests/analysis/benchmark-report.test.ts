@@ -125,7 +125,7 @@ describe('formatBenchmarkReport — levels panels', () => {
 
   it('prints the totals: pooled rank agreement, cards at 6/6, mean adjacent gap, grader version and models', () => {
     expect(report).toMatch(/rank agreement 11\/12 \(91\.7%\)/)
-    expect(report).toMatch(/1\/2 card\(s\) at 6\/6/)
+    expect(report).toMatch(/1\/2 card\(s\) perfect/)
     // gaps: (0.167+0.5+0.333 + 0.333+0+0.667)/6 = 0.333
     expect(report).toMatch(/mean adjacent gap 0\.33/)
     expect(report).toContain('grader v1')
