@@ -24,6 +24,7 @@ import {
 } from '@/lib/klp/separation'
 import { FRAMING_PROBE, classifyPointRoles, substanceSeparation, applyRoleOverride, isMemorizable, type PointRole } from '@/lib/klp/framing'
 import { relationPass, combinedSeparation, type RelationGrade } from '@/lib/klp/relation-separation'
+import { SYMMETRIC_TYPES } from '@/lib/klp/relations'
 import type { RoleClassification } from '@/lib/ai/prompts/classify-roles'
 import { carryVerdicts, mergePartial, trapsToReplace } from '@/lib/klp/regrade-plan'
 import { referenceNeedsRewrite, type ReferenceReview } from '@/lib/ai/prompts/review-reference'
@@ -922,9 +923,19 @@ export async function authorCard(
   let combined: SeparationResult | undefined
   let referenceRelationVerdicts: KlpVerdict[] | undefined
   let wrongRelationGrades: RelationGrade[] = []
-  if (accepted.length > 0) {
+  // Only DIRECTED edges are assertable by an answer. A symmetric edge
+  // (`confused_with`: learners mistake A for B) is a fact about learners, not
+  // a claim a reference makes, so it is never graded and never pruned here —
+  // measured 2026-09-19, every `confused_with` edge on the LBO set read
+  // `omission` on the reference and was being dropped. The graded (directed)
+  // edges come FIRST in the kept list and every verdict list covers exactly
+  // that prefix; the symmetric edges follow it ungraded.
+  const directedIdx = accepted.map((_, i) => i).filter((i) => !(SYMMETRIC_TYPES as readonly string[]).includes(accepted[i].type))
+  const symmetricIdx = accepted.map((_, i) => i).filter((i) => (SYMMETRIC_TYPES as readonly string[]).includes(accepted[i].type))
+  const directed = directedIdx.map((i) => accepted[i])
+  if (directed.length > 0) {
     try {
-      const relInput = accepted.map((r) => ({ type: r.type, from: r.from, to: r.to }))
+      const relInput = directed.map((r) => ({ type: r.type, from: r.from, to: r.to }))
       const gradeLinks = async (text: string): Promise<KlpVerdict[]> => {
         const res = await gen.grade({ question: input.question, referenceAnswer: draft.referenceAnswer, klps: klps.map((k) => ({ text: k.text, kind: k.kind })), candidateAnswer: text, relations: relInput })
         // No link verdicts at all means the grader did not do the pass (an
@@ -932,7 +943,7 @@ export async function authorCard(
         // link failed. Abort the pass rather than prune the whole graph.
         if (!res.relationVerdicts) throw new Error('relation pass: grader returned no relationVerdicts')
         const byIndex = new Map(res.relationVerdicts.map((v) => [v.relationIndex, v.verdict]))
-        return accepted.map((_, i) => byIndex.get(i) ?? 'failed')
+        return directed.map((_, i) => byIndex.get(i) ?? 'failed')
       }
       const refRel: RelationGrade = { kind: 'reference', verdicts: await gradeLinks(draft.referenceAnswer) }
       wrongRelationGrades = []
@@ -952,11 +963,13 @@ export async function authorCard(
   // Keep only the edges the reference asserts; re-index the per-candidate
   // link verdicts onto the kept list so what is persisted lines up with
   // what is persisted as relations.
-  const keptIdx = relationPassResult ? relationPassResult.kept : accepted.map((_, i) => i)
-  const keptRelations = keptIdx.map((i) => accepted[i])
+  // `keptIdx` indexes DIRECTED edges (positions in `directed`); the symmetric
+  // edges are appended after them, ungraded.
+  const keptIdx = relationPassResult ? relationPassResult.kept : directed.map((_, i) => i)
+  const keptRelations = [...keptIdx.map((i) => directed[i]), ...symmetricIdx.map((i) => accepted[i])]
   const droppedForReference = relationPassResult ? relationPassResult.droppedForReference.length : undefined
   const droppedEdges = relationPassResult && referenceRelationVerdicts
-    ? relationPassResult.droppedForReference.map((i) => ({ from: accepted[i].from, to: accepted[i].to, type: accepted[i].type, referenceVerdict: referenceRelationVerdicts![i] }))
+    ? relationPassResult.droppedForReference.map((i) => ({ from: directed[i].from, to: directed[i].to, type: directed[i].type, referenceVerdict: referenceRelationVerdicts![i] }))
     : undefined
   const reindex = (v: KlpVerdict[] | undefined): Record<string, KlpVerdict> | undefined => (v ? Object.fromEntries(keptIdx.map((i, j) => [String(j), v[i]])) : undefined)
 

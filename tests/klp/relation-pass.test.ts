@@ -100,6 +100,23 @@ describe('the relation pass in authorCard', () => {
     expect(out.status).toBe('memorizable')
   })
 
+  it('a symmetric edge (confused_with) is never graded or pruned: it rides after the directed edges, ungraded', async () => {
+    const g = gen({
+      relations: [{ from: 1, to: 3, type: 'confused_with' }, { from: 2, to: 3, type: 'causes' }],
+      linkVerdict: (answer) => (answer === 'ref' ? 'correct' : 'omission'),
+    })
+    const out = await authorCard({ question: 'Q', definition: 'D', setTitle: 'S' }, g as never)
+    // Only the directed edge went to the grader …
+    const relCalls = g.grade.mock.calls.filter((c) => (c[0] as { relations?: unknown[] }).relations?.length)
+    expect(relCalls).toHaveLength(3)
+    expect((relCalls[0][0] as { relations: { type: string }[] }).relations.map((r) => r.type)).toEqual(['causes'])
+    // … and the symmetric edge is kept, after it, with no verdict.
+    expect(out.relations.map((r) => r.type)).toEqual(['causes', 'confused_with'])
+    expect(out.relationStats.droppedForReference).toBe(0)
+    expect(out.referenceRelationVerdicts).toEqual(['correct'])
+    expect(out.relationSeparation).toBe(1)
+  })
+
   it('a pass that throws leaves the point-only verdict standing', async () => {
     const g = gen({ relations: [{ from: 1, to: 3, type: 'causes' }], linkVerdict: () => 'correct' })
     const plain = g.grade.getMockImplementation()!
