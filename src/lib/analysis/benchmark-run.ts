@@ -6,9 +6,7 @@ import { WRITE_GRADER_PANEL_PROMPT } from '@/lib/ai/prompts/write-grader-panel'
 import { REVIEW_PANEL_GRADE_PROMPT } from '@/lib/ai/prompts/review-panel-grade'
 import { describeDispute, foldReview, type ReviewOutcome } from '@/lib/analysis/benchmark-review'
 import {
-  GraderPanelSchema,
   graderPanelSchemaFor,
-  ShortAnswerGradeSchema,
   ShortAnswerGradeWithAnalysisSchema,
   type GraderPanelDraft,
   type ShortAnswerGrade,
