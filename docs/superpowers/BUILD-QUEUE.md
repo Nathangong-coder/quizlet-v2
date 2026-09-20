@@ -1,5 +1,22 @@
 # Build queue & carried-over findings
 
+**HANDOFF 2026-09-20 — SPEC 5 PHASE A AND SPEC 6 ARE MERGED INTO `spec2-klp-authoring`.** `f3df616`
+(spec6-confidence) and `c4b6944` (spec5-phase-a) merged, follow-up `d393adc` (spec6's diagnostic
+self-rating test speaks the Spec 5 vocabulary — `passed` is a read-only alias of `correct`; eslint
+ignores `.claude/**` and `.superpowers/**`, which is why the merged lint count is 178 and not 50k).
+Unpushed. **Baselines of record: 4,449 tests green, `tsc` clean, lint 178** — the union of the two
+branches (spec5 174, spec6 175), zero merge-introduced findings; the ceiling moves to 180. Migrations
+through `20260919170000_klp_slots` are applied to the shared dev DB. The worktrees still exist and
+are stale — do not build on them. The Grading Engine Internals artifact was re-verified against this
+HEAD the same day (Part 1 authoring: templates, relation pass, definition probe; Part 3: Spec 5
+grader, five-band benchmark). **Next, in the owner's order:** (1) route `cardGaps` from the blind
+panel into `author-klps --findings` as declared beyond-the-card points within the template overflow
+(primary) and to the owner queue (secondary), with the gap-quality rule in review-panel-grade — a
+gap is a specific claim plus its reasoning ("debt is *generally* cheaper than equity because
+interest is tax-deductible"), never a bare generalisation; (2) grade-short-answer v9 from the 17
+`grader_wrong` points; (3) the exemplar bank; (4) `precedes` on narrated walkthroughs; (5) the
+escalation queue in the app; (6) Spec 6 browser gate and the key-dependent runs below.
+
 **HANDOFF 2026-09-17 — SPEC 6 (SELF-RATED CONFIDENCE) IS BUILT; BROWSER GATE OWED.** Branch
 `spec6-confidence` (worktree, off `spec2-klp-authoring`), ten commits, unpushed. Design:
 `docs/superpowers/specs/2026-09-17-spec6-self-rated-confidence-design.md`; plan:
