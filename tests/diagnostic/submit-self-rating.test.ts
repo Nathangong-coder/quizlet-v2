@@ -97,7 +97,7 @@ function mockGrading() {
         score: 9,
         status: 'mastered',
         feedback: `Feedback ${position}`,
-        klpResults: [{ klpRef: 0, status: 'passed' }],
+        klpResults: [{ klpRef: 0, status: 'correct' }],
       })),
     })
   }
