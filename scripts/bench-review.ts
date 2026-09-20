@@ -136,7 +136,7 @@ async function main() {
       referenceAnswer: authoring?.referenceAnswer ?? null,
       klps: klps.map((k) => ({ index: k.index, text: k.text, kind: k.kind, role: k.role, weight: k.weight })),
       relations: relations.map((r) => ({ type: r.type, from: byId.get(r.fromKlpId)?.index ?? null, to: byId.get(r.toKlpId)?.index ?? null })),
-      panel: { kind: panel.kind, model: panel.model, promptVersion: panel.promptVersion },
+      panel: { kind: panel.kind, model: panel.model, promptVersion: panel.promptVersion, klpVersion: panel.klpVersion, live: panel.klpVersion === (await prisma.card.findUnique({ where: { id: card.id }, select: { klpVersion: true } }))?.klpVersion },
       rank: complete ? rankAgreement(ranked) : null,
       gaps: complete ? adjacentGaps(ranked) : null,
       bandHits: bands ? { hit: answers.filter((a) => a.result?.bandHit).length, of: ranked.length } : null,

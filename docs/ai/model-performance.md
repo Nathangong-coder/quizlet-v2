@@ -1376,6 +1376,33 @@ the pass (kept ungraded, after the directed ones). The artifact
 https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg now carries the loop's state per card (definition,
 load-bearing points, links, separations, supervision, probe history) above the bench.
 
+### Slot templates, structured points, the question-only blind adversary (2026-09-19, evening)
+
+**Author-klps v8 (slot templates + structured points), full re-author of LBO, ≈ $0.06, 55 min at GLM `high`:**
+mean combined separation **0.79** (relations 0.86), **0 low_discrimination, 0 memorizable** — the first run
+with every card above the bar; 63 points / 67 links; 20 fabricated edges pruned; 10/10 revised by the
+bar, mostly on TEMPLATE findings (`slot_unfilled`, `slot_overfull`, `slot_kind`, `over_ceiling`) — the
+form is doing the work prose used to. Per card, combined: 0.77 · 0.61 · 0.42 (walk-through, separated
+at last) · 0.86 · 0.94 · (debt) · 0.86 · 0.90 · 0.92 · 0.83. Owner definitions on the fresh points:
+2/10 (templates put mechanism-grain points on every card); after one narrowing round with the veto
+and load-bearing supervision: **6/10 pass, 0 under 30, mean combined 0.79, 0 flagged** — the veto
+fired once (walk-through: 0.42 → 0.08 refused), 3 `grader_wrong` (calibration corpus now 17 points),
+1 `revise` left (walk-through, point [0] not on the card).
+
+**The question-only blind adversary** (five bands, one `differences` paragraph; the adversary sees
+the QUESTION and nothing else): rank agreement 75/100, band hit 38%, and — with reconciliation v3 —
+31 disputes → **1 firm grader hold, 1 point defect, 73 card gaps (≈30 distinct)**. The card gaps are
+the "true gaps" the owner asked the blind panel to find, phrased as the key point the card could
+carry: debt is cheaper than equity; the interest tax shield; lender discipline; downside/distress
+risk; the 30-40% equity check; the fund's ~10-year life bounding the hold; dividend recaps; the
+revolver draw on negative FCF; interest circularity in the schedule. Zero of them are grader
+questions. The artifact's queue now shows 10 items — 9 cards with gaps, 1 point defect — and no
+grader disputes about live points.
+
+**Reading.** The blind adversary's rank agreement (75%) is not the grader's number to fix: an answer
+that says what a strong candidate says and skips the card's own points is correctly scored low by
+a grader that grades the card. It is the CARD's number — the gap list is how it moves.
+
 ### The definition probe — the owner's own answers vs. their key points (`npm run probe-definitions`)
 
 **2026-09-19 (early), LBO set, DeepSeek `deepseek-flash` grading (grader v3, prompt v8 `noteForm`), supervisor

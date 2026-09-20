@@ -79,6 +79,20 @@ falls below the floor when the old one was above it (`revisionVeto`); (2) discri
 0.70, 1 memorizable** (`scripts/probe-state.ts` dumps the loop; artifact updated). Owed: grade-short-answer
 v9 from the 14 `grader_wrong` points (compressed list items read as incomplete); the walk-through card. Full tables in
 `docs/ai/model-performance.md` "Relations as a discrimination axis".
+**UPDATE 2026-09-19 (evening): SLOT TEMPLATES, STRUCTURED POINTS, THE QUESTION-ONLY ADVERSARY.**
+`src/lib/klp/templates.ts` (seven forms, fill every slot + overflow 3, count-driven enumerate,
+implied edges); author-klps **v8** (every point names its slot, is `{subject, claim, qualifier}`, maps to a
+definition point via `fromDefinition`); `CardKlp.slot/structured/definitionRef` (migration
+`20260919170000_klp_slots`); template check every round → revise findings + a round-picker bar;
+revise-reference **v3** / revise-klps **v7** carry the structure. Bench: **five bands**, blind kinds see
+the **question only** and write one `differences` paragraph (`GraderPanelBlind*Schema`); reconciliation
+**v3** adds `klp_defect` (→ `--findings` for author-klps) and `cardGaps` (→ the card owner). LBO on v8:
+**combined 0.79, 0 flagged**; after narrowing **6/10 owner pass, 0 under 30**; blind panel: 73 card
+gaps, 1 point defect, 1 grader hold. `scripts/probe-state.ts` carries card gaps; the artifact's queue
+shows 10 items (9 gap cards, 1 point), filtered to LIVE panels. **Owed:** grade-short-answer v9 from
+the 17 `grader_wrong` points; an exemplar bank (cards passing both bars as few-shot for the writer);
+the walk-through template's `precedes` edges read `omission` on a narrated reference — the relation
+grader's "asserts the link" bar for `precedes`; surfacing the queue in the app.
 **OWED to the owner (keys/browser), in this order:** (1) `npm run probe-grade-tokens -- --models
 deepseek-flash` → paste the printed pair into `src/lib/analysis/output-cap.ts` (2048/600 are
 placeholders); (2) `npm run probe-runtime-grade -- --model deepseek-flash`, then `--model
