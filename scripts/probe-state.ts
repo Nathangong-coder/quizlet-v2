@@ -33,6 +33,28 @@ async function main() {
     const byId = new Map(klps.map((k) => [k.id, k.index]))
     const loadBearing = authoring?.referenceVerdicts ? loadBearingIndexes(authoring.referenceVerdicts as string[], authoring.probes.map((p) => p.verdicts as Record<string, string>)) : new Set<number>()
     const probes = await prisma.definitionProbe.findMany({ where: { cardId: card.id }, orderBy: { createdAt: 'asc' } })
+    // Card gaps from the latest question-only blind panel's reconciliations: what
+    // a strong answer says that no key point covers. De-duplicated on the first
+    // six words, because the same gap surfaces from several answers.
+    const blindPanel = await prisma.graderPanel.findFirst({ where: { cardId: card.id, kind: 'blind-bands' }, orderBy: { klpVersion: 'desc' }, select: { id: true, klpVersion: true } })
+    const reviews = blindPanel
+      ? await prisma.graderPanelReview.findMany({ where: { result: { answer: { panelId: blindPanel.id } } }, select: { summary: true, outcome: true, points: true } })
+      : []
+    const gapSeen = new Set<string>()
+    const cardGaps: string[] = []
+    for (const r of reviews) {
+      const m = r.summary.indexOf('CARD GAPS:')
+      if (m < 0) continue
+      for (const line of r.summary.slice(m + 'CARD GAPS:'.length).split('\n')) {
+        const g = line.replace(/^-\s*/, '').trim()
+        if (!g) continue
+        const key = g.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').slice(0, 6).join(' ')
+        if (gapSeen.has(key)) continue
+        gapSeen.add(key)
+        cardGaps.push(g)
+      }
+    }
+    const pointDefects = reviews.flatMap((r) => ((r.points as { klpRef: number; stance: string; reason: string }[]) ?? []).filter((pt) => pt.stance === 'klp_defect').map((pt) => ({ klpRef: pt.klpRef, reason: pt.reason })))
     const latest = probes.filter((p) => p.klpVersion === card.klpVersion).at(-1) ?? null
     const probeScore = latest ? scoreDefinition(latest.verdicts as { klpRef: number; status: string }[], klps.map((k) => ({ index: k.index, text: k.text, weight: k.weight, kind: k.kind }))) : null
     out.push({
@@ -69,6 +91,7 @@ async function main() {
           }
         : null,
       history: probes.map((p) => ({ klpVersion: p.klpVersion, score: Math.round(p.score * 100), outcome: probeOutcome(p.score), decision: p.decision, at: p.createdAt.toISOString() })),
+      blind: blindPanel ? { klpVersion: blindPanel.klpVersion, reviews: reviews.length, cardGaps, pointDefects } : null,
     })
   }
   process.stdout.write(JSON.stringify({ setId, title: set?.title ?? null, floor: SEPARATION_FLOOR, generatedAt: new Date().toISOString(), cards: out }, null, 2))

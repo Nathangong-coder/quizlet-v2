@@ -449,6 +449,7 @@ async function main() {
   let reviewed = 0
   let strong = 0
   const klpDefects: { cardId: string; klpRef: number; klpId: string; text: string; reason: string; term: string }[] = []
+  const cardGaps: { term: string; gap: string }[] = []
   if (review && !dryRun && planModel) {
     const gradeCombo = direct ? gradePool.find((c) => c.model === planModel) : undefined
     const reviewGen: ReviewGen = async (input) => {
@@ -468,11 +469,23 @@ async function main() {
           reviewed++
           if (o.reviewOutcome === 'strong') strong++
           for (const d of o.klpDefects ?? []) klpDefects.push({ ...d, term: o.term })
+          for (const g of o.cardGaps ?? []) cardGaps.push({ term: o.term, gap: g.gap })
           console.log(`  review  ${o.term.slice(0, 48)} / ${o.label}: ${o.reviewOutcome} (accepted ${o.accepted}, held ${o.held}${o.klpDefects?.length ? `, point defects ${o.klpDefects.map((d) => `[${d.klpRef}]`).join('')}` : ''}) — ${o.summary}`)
         },
       })
       const skipped = outcomes.filter((o) => o.outcome === 'skipped' && o.reason !== 'no_dispute').length
-      console.log(`[bench-grader] review: ${reviewed} disputed answer(s) reviewed, ${strong} strong (manual queue), ${klpDefects.length} point defect(s), ${skipped} skipped`)
+      console.log(`[bench-grader] review: ${reviewed} disputed answer(s) reviewed, ${strong} strong (manual queue), ${klpDefects.length} point defect(s), ${cardGaps.length} card gap(s), ${skipped} skipped`)
+      if (cardGaps.length) {
+        // De-duplicated per card: the same gap surfaces from several answers.
+        const seen = new Set<string>()
+        console.log(`\n=== CARD GAPS (${cardGaps.length}) — what a strong answer says that no key point covers; for the card owner ===`)
+        for (const g of cardGaps) {
+          const key = `${g.term}|${g.gap.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').slice(0, 6).join(' ')}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          console.log(`  ${g.term.slice(0, 50)}: ${g.gap}`)
+        }
+      }
       if (klpDefects.length) {
         // The panel as a KEY-POINT test: defects go to the authoring loop as a
         // `--findings` file (the same shape `probe-definitions --revise` writes),
