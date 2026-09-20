@@ -25,7 +25,13 @@ export async function starCard(
 export async function recordReview(
   cardId: string,
   knew: boolean,
-  opts?: { sessionId?: string; latencyMs?: number }
+  opts?: {
+    sessionId?: string
+    latencyMs?: number
+    /** Spec 6 §3.2: the learner's 1-4 belief rated BEFORE the flip.
+     *  Forwarded untouched — `recordStudyEvent` is the gate. */
+    selfRating?: number
+  }
 ): Promise<{ newConfidence: number }> {
   const session = await auth()
   if (!session?.user?.id) throw new Error('Not authenticated')
@@ -36,7 +42,9 @@ export async function recordReview(
     source: 'review',
     outcome: { correct: knew },
     sessionId: opts?.sessionId,
-    meta: { latencyMs: opts?.latencyMs },
+    // Prospective: Review's own answer is a post-flip self-judgment, so the
+    // only uncontaminated moment for a rating is before the flip.
+    meta: { latencyMs: opts?.latencyMs, selfRating: opts?.selfRating, selfRatingMoment: 'before_answer' },
   })
 
   return { newConfidence: result.confidence }

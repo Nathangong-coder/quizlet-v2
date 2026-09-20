@@ -12,6 +12,7 @@ export function QuizClientWrapper({
   categories,
   initialCategoryIds,
   outOfScope,
+  captureSelfRating,
 }: {
   setId: string
   cards: any[]
@@ -19,6 +20,9 @@ export function QuizClientWrapper({
   /** Resolved server-side from the saved study scope — see `resolveScopePrefill`. */
   initialCategoryIds?: string[]
   outOfScope?: boolean
+  /** Spec 6: LearnerTuning.captureSelfRating, read server-side by the page. Required
+   *  so a page that forgets it is a tsc error, not a silently-on picker. */
+  captureSelfRating: boolean
 }) {
   const [setup, setSetup] = useState<any>(null);
 
@@ -36,7 +40,7 @@ export function QuizClientWrapper({
 
   return (
     <div className="space-y-8">
-        <QuizContainer setId={setId} cards={cards} setup={setup} />
+        <QuizContainer setId={setId} cards={cards} setup={setup} captureSelfRating={captureSelfRating} />
         <Separator />
         <TrainingPlanPanel setId={setId} />
     </div>

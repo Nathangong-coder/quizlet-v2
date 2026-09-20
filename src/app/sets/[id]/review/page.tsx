@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { readableSetWhere } from '@/lib/sets/visibility'
 import { normalizeTextMarks } from '@/lib/cards/content'
 import { nowMs, type ReviewCardInput } from '@/lib/review/setup'
+import { getUserTuning } from '@/lib/tuning/store'
 
 /**
  * `/sets/[id]/review` — Review mode, with a setup screen first (owner,
@@ -51,6 +52,9 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
     )
   }
 
+  // Spec 6: whether to show the pre-flip self-rating picker.
+  const tuning = await getUserTuning(session.user.id)
+
   const categories = set.categories.map((c) => ({ id: c.id, name: c.name, color: c.color }))
   const cards: ReviewCardInput[] = set.cards.map((card) => {
     const p = card.progress[0]
@@ -84,7 +88,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
         <h1 className="font-heading text-2xl font-bold">Review</h1>
         <p className="mt-1 text-sm text-muted-foreground">Know it or don&rsquo;t — the deck remembers which.</p>
       </div>
-      <ReviewMode cards={cards} categories={categories} setId={id} now={nowMs()} />
+      <ReviewMode cards={cards} categories={categories} setId={id} now={nowMs()} captureSelfRating={tuning.captureSelfRating} />
     </div>
   )
 }

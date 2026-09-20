@@ -22,6 +22,7 @@ import {
   buildCategoryQuery, buildCardScopeWhere,
 } from '@/lib/memory/scope'
 import { getUserTuning } from '@/lib/tuning/store'
+import { bucketCalibration, type CalibrationBucket } from '@/lib/metrics/calibration'
 import { rankCandidates, toRankCandidates, type RankedCandidate } from '@/lib/metrics/targeting'
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories'
 import { loadAnsweredAttemptIds } from '@/lib/quiz/history'
@@ -32,6 +33,12 @@ export interface LearnerMetrics {
   profile: LearnerProfile
   misconceptions: Misconception[]
   forgetting: ForgettingCurve | null
+  /**
+   * Spec 6 §6: self-rating vs outcome COUNTS per rating, under the same scope
+   * as every other tile. Never a score — the tile says so. Built from the
+   * scoped `events` read below, so it needs no query of its own.
+   */
+  calibration: CalibrationBucket[]
   /**
    * "Correct but not fluent" cards: answered right, but slowly enough
    * relative to the learner's own baseline IN THAT MODE to be worth
@@ -231,7 +238,12 @@ export async function getLearnerMetrics({
     }),
     prisma.studyEvent.findMany({
       where: studyEventWhere,
-      select: { cardId: true, correct: true, score: true, createdAt: true, source: true, latencyMs: true },
+      select: {
+        cardId: true, correct: true, score: true, createdAt: true, source: true, latencyMs: true,
+        // Spec 6: read here for the calibration counts only; nothing below
+        // that computes knowledge, forgetting or pace reads it.
+        selfRating: true,
+      },
     }),
     // The learner's REAL attempt sequence, for `repeatBonus`'s "within the
     // last N attempts" window — answered attempts only, unscoped, oldest
@@ -465,6 +477,9 @@ export async function getLearnerMetrics({
       toTimedEvents(events),
       undefined,
       toTimedEvents(paceBaseline),
+    ),
+    calibration: bucketCalibration(
+      events.map((e) => ({ selfRating: e.selfRating ?? null, correct: e.correct, score: e.score })),
     ),
   }
 }

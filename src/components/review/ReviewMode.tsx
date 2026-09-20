@@ -22,7 +22,7 @@ interface Category {
  * function of the setup (`selectReviewCards`), so the count on the button is
  * the deck you get.
  */
-export function ReviewMode({ cards, categories, setId, now }: { cards: ReviewCardInput[]; categories: Category[]; setId: string; now: number }) {
+export function ReviewMode({ cards, categories, setId, now, captureSelfRating }: { cards: ReviewCardInput[]; categories: Category[]; setId: string; now: number; captureSelfRating: boolean }) {
   const [setup, setSetup] = useState<ReviewSetup>(DEFAULT_REVIEW_SETUP)
   const [deck, setDeck] = useState<{ cards: ReviewCardInput[]; key: number } | null>(null)
 
@@ -40,6 +40,7 @@ export function ReviewMode({ cards, categories, setId, now }: { cards: ReviewCar
         cards={deck.cards}
         setId={setId}
         setup={setup}
+        captureSelfRating={captureSelfRating}
         onRestart={(ids) => {
           const seed = freshSeed()
           const subset = ids ? deck.cards.filter((c) => ids.includes(c.id)) : selectReviewCards(cards, setup, now, seed)

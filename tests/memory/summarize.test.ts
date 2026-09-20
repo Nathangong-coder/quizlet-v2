@@ -10,6 +10,7 @@ const item = (over: Partial<SessionItem> = {}): SessionItem => ({
   confidenceBefore: 5,
   confidenceAfter: 6,
   latencyMs: 1000,
+  selfRating: null,
   categoryNames: ['Valuation'],
   ...over,
 })

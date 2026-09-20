@@ -15,7 +15,7 @@ import { Loader2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
-export function QuizContainer({ setId, cards: allCards, setup }: { setId: string, cards: Card[], setup?: any }) {
+export function QuizContainer({ setId, cards: allCards, setup, captureSelfRating = true }: { setId: string, cards: Card[], setup?: any, captureSelfRating?: boolean }) {
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedCards, setSelectedCards] = useState<Card[]>([]);
@@ -259,6 +259,7 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
                     ref={(el) => registerRef(el, index)}
                     cards={modeCards}
                     attemptId={attemptId!}
+                    captureSelfRating={captureSelfRating}
                   />
                 )}
                 {mode === 'short-answer' && (
@@ -266,6 +267,7 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
                     ref={(el) => registerRef(el, index)}
                     cards={modeCards}
                     attemptId={attemptId!}
+                    captureSelfRating={captureSelfRating}
                   />
                 )}
                 {mode === 'true-false' && (
@@ -273,6 +275,7 @@ export function QuizContainer({ setId, cards: allCards, setup }: { setId: string
                     ref={(el) => registerRef(el, index)}
                     cards={modeCards}
                     attemptId={attemptId!}
+                    captureSelfRating={captureSelfRating}
                   />
                 )}
                 {mode === 'matching' && (

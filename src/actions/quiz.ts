@@ -472,6 +472,9 @@ export async function submitMultipleChoiceAnswer(input: {
   selectedOption: string;
   correctAnswer: string;
   latencyMs?: number;
+  /** Spec 6: the learner's 1-4 belief, rated after choosing and before
+   *  submit. Forwarded untouched — `recordStudyEvent` is the gate. */
+  selfRating?: number;
 }): Promise<ActionResult<{ isCorrect: boolean; score: number; feedback?: string }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
@@ -586,7 +589,8 @@ export async function submitMultipleChoiceAnswer(input: {
         sessionId: attempt?.sessionId ?? undefined,
         quizAnswerId: answer.id,
         outcome: { correct: isCorrect },
-        meta: { latencyMs: input.latencyMs },
+        // Spec 6 §3.1: retrospective — rated after answering, before submit.
+        meta: { latencyMs: input.latencyMs, selfRating: input.selfRating, selfRatingMoment: 'after_answer' },
       });
     } catch (memErr) {
       console.error('recordStudyEvent failed for quiz-mc:', memErr);
@@ -612,6 +616,8 @@ export async function submitTrueFalseAnswer(input: {
   cardId: string;
   selectedOption: string;
   latencyMs?: number;
+  /** Spec 6: see submitMultipleChoiceAnswer. */
+  selfRating?: number;
 }): Promise<ActionResult<{ isCorrect: boolean | null; score: number | null; feedback?: string }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
@@ -770,7 +776,7 @@ export async function submitTrueFalseAnswer(input: {
           sessionId: attempt?.sessionId ?? undefined,
           quizAnswerId: answer.id,
           outcome: { correct: isCorrect },
-          meta: { latencyMs: input.latencyMs },
+          meta: { latencyMs: input.latencyMs, selfRating: input.selfRating, selfRatingMoment: 'after_answer' },
         });
       } catch (memErr) {
         console.error('recordStudyEvent failed for quiz-tf:', memErr);
@@ -856,6 +862,8 @@ export async function submitShortAnswer(input: {
   cardId: string;
   answer: string;
   latencyMs?: number;
+  /** Spec 6: see submitMultipleChoiceAnswer. */
+  selfRating?: number;
 }): Promise<ActionResult<{ grade: any; score: number }>> {
   const session = await auth();
   if (!session?.user?.id) return { success: false, error: 'Unauthorized' };
@@ -1008,7 +1016,7 @@ export async function submitShortAnswer(input: {
           sessionId: attempt?.sessionId ?? undefined,
           quizAnswerId: answer.id,
           outcome: { overall: grade.overall },
-          meta: { latencyMs: input.latencyMs },
+          meta: { latencyMs: input.latencyMs, selfRating: input.selfRating, selfRatingMoment: 'after_answer' },
         });
       } catch (memErr) {
         console.error('recordStudyEvent failed for quiz-sa (text path):', memErr);
@@ -1128,7 +1136,7 @@ export async function submitShortAnswer(input: {
         sessionId: attempt?.sessionId ?? undefined,
         quizAnswerId: answer.id,
         outcome: { overall: grade.overall },
-        meta: { latencyMs: input.latencyMs },
+        meta: { latencyMs: input.latencyMs, selfRating: input.selfRating, selfRatingMoment: 'after_answer' },
       });
     } catch (memErr) {
       console.error('recordStudyEvent failed for quiz-sa (multimodal path):', memErr);

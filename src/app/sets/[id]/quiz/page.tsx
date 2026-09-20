@@ -58,6 +58,7 @@ export default async function QuizPage({ params }: { params: Promise<{ id: strin
           categories={set.categories.map((c) => ({ id: c.id, name: c.name, color: c.color }))}
           initialCategoryIds={prefill.categoryIds}
           outOfScope={prefill.outOfScope}
+          captureSelfRating={tuning.captureSelfRating}
         />
       )}
     </div>

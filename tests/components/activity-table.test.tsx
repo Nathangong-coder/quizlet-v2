@@ -17,6 +17,7 @@ function event(over: Partial<StudyEventHistoryRow> = {}): StudyEventHistoryRow {
     correct: null,
     score: 82,
     latencyMs: 2400,
+    selfRating: null,
     confidenceAfter: 7,
     createdAt: new Date(2026, 7, 14, 9, 30).toISOString(),
     sessionId: 'sess1',

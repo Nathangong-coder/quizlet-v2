@@ -22,6 +22,13 @@ export interface ResolvedTuning {
    * want a default. `resolveStudyScope` runs where that data is already loaded.
    */
   studyScope: StoredStudyScope
+  /**
+   * Spec 6: whether the self-rating picker is shown. A user with no row reads
+   * `true` — the schema default, not a fabricated row. Feeds no computation;
+   * the pages read it to decide whether to render the picker, and
+   * `recordStudyEvent` reads the column itself to gate the write.
+   */
+  captureSelfRating: boolean
 }
 
 /**
@@ -43,7 +50,7 @@ export async function getUserTuning(userId: string): Promise<ResolvedTuning> {
   const { prisma } = await import('@/lib/db')
   const row = await prisma.learnerTuning.findUnique({
     where: { userId },
-    select: { strategy: true, bands: true, thresholds: true, studyScope: true },
+    select: { strategy: true, bands: true, thresholds: true, studyScope: true, captureSelfRating: true },
   })
   const shaped = shapeTuning(row)
   return {
@@ -51,5 +58,6 @@ export async function getUserTuning(userId: string): Promise<ResolvedTuning> {
     thresholds: resolveThresholds(shaped.thresholdOverrides),
     strategy: shaped.strategy,
     studyScope: shaped.studyScope,
+    captureSelfRating: shaped.captureSelfRating,
   }
 }

@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { nextConfidence, masteryScore } from './scoring'
 import { nextDueAt } from './schedule'
 import { normalizeLatency } from './latency'
+import { isSelfRating, isSelfRatingMoment } from './self-rating'
 import type { MasteryEvent, StudyOutcome, StudySource } from './scoring'
 import type { Prisma } from '@prisma/client'
 
@@ -19,9 +20,18 @@ export interface RecordStudyEventInput {
    */
   quizAnswerId?: string
   outcome: StudyOutcome
-  /** Optional per-interaction metadata, persisted onto the StudyEvent row. */
+  /**
+   * Optional per-interaction metadata, persisted onto the StudyEvent row.
+   *
+   * `selfRating`/`selfRatingMoment` (Spec 6) are typed loosely on purpose:
+   * they arrive from a client, and the gate below validates them against the
+   * vocabulary rather than trusting the caller's type. A value that fails is
+   * dropped to NULL, never coerced.
+   */
   meta?: {
     latencyMs?: number
+    selfRating?: number
+    selfRatingMoment?: string
   }
 }
 
@@ -50,7 +60,8 @@ export interface RecordStudyEventResult {
  *  4. Computes the new consecutive-correct streak (`reps`) and the next
  *     `dueAt` via the pure `nextDueAt` (lib/memory/schedule.ts).
  *  5. Upserts `CardProgress` (confidence, mastery, reps, dueAt, lastSeenAt).
- *  6. Inserts the new `StudyEvent` row.
+ *  6. Inserts the new `StudyEvent` row — including the Spec 6 self-rating,
+ *     which this function alone gates (see the gate block in the body).
  *
  * Accepts an optional `tx` (a `Prisma.TransactionClient`) so a caller that
  * needs to compose several `recordStudyEvent` calls with its own guard —
@@ -83,6 +94,27 @@ export async function recordStudyEvent(
 
     const oldConfidence = current?.confidence ?? 5
     const confidence = nextConfidence(oldConfidence, outcome)
+
+    // --- Self-rating gate (Spec 6) -------------------------------------------
+    // The server is the gate, not the client: a stale tab cannot write a
+    // rating against a setting the learner just turned off, and a malformed
+    // value is dropped rather than coerced. A user with no LearnerTuning row
+    // is treated as ON (the schema default, not a fabricated row). NULL is
+    // written for both columns unless the toggle is on AND the rating is in
+    // the 1-4 vocabulary AND the moment is one of the two persisted moments —
+    // so `selfRatingMoment` is NULL iff `selfRating` is NULL, by construction.
+    // Nothing below (confidence, mastery, reps, dueAt) reads the rating.
+    const tuning = await tx.learnerTuning.findUnique({
+      where: { userId },
+      select: { captureSelfRating: true },
+    })
+    const captureSelfRating = tuning?.captureSelfRating ?? true
+    const rating = meta?.selfRating
+    const moment = meta?.selfRatingMoment
+    const accepted = captureSelfRating && isSelfRating(rating) && isSelfRatingMoment(moment)
+    const selfRating = accepted ? rating : null
+    const selfRatingMoment = accepted ? moment : null
+    // ------------------------------------------------------------------------
 
     // Recent history for this card, used to compute mastery alongside the
     // interaction being recorded right now.
@@ -144,6 +176,8 @@ export async function recordStudyEvent(
         confidenceBefore: oldConfidence,
         confidenceAfter: confidence,
         latencyMs: normalizeLatency(meta?.latencyMs),
+        selfRating,
+        selfRatingMoment,
       },
     })
 

@@ -13,6 +13,7 @@ vi.mock('@/lib/db', () => ({
       fn({
         cardProgress: { findUnique: h.findUnique, upsert: h.upsert },
         studyEvent: { findMany: h.findMany, create: h.create },
+        learnerTuning: { findUnique: vi.fn().mockResolvedValue(null) },
       }),
   },
 }))

@@ -5,6 +5,7 @@ import SeverityBandPanel from '@/components/settings/SeverityBandPanel'
 import TargetingStrategyPanel from '@/components/settings/TargetingStrategyPanel'
 import MetricThresholdPanel from '@/components/settings/MetricThresholdPanel'
 import StudyScopePanel from '@/components/settings/StudyScopePanel'
+import SelfRatingPanel from '@/components/settings/SelfRatingPanel'
 import { PageHeader } from '@/components/ui/page-header'
 
 /**
@@ -43,6 +44,7 @@ export default async function StudySettingsPage() {
       <SeverityBandPanel />
       <MetricThresholdPanel />
       <TargetingStrategyPanel />
+      <SelfRatingPanel />
       <StudyScopePanel />
     </div>
   )
