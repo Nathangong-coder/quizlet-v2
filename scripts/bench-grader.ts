@@ -1,4 +1,6 @@
 import { mkdtempSync, writeFileSync } from 'node:fs'
+import { GAP_ROUTE_CAP, gapFindings, routeCardGaps } from '../src/lib/klp/gap-routing'
+import type { PriorFinding } from '../src/lib/klp/authoring'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { prisma } from '../src/lib/db'
@@ -449,7 +451,8 @@ async function main() {
   let reviewed = 0
   let strong = 0
   const klpDefects: { cardId: string; klpRef: number; klpId: string; text: string; reason: string; term: string }[] = []
-  const cardGaps: { term: string; gap: string }[] = []
+  const cardGaps: { cardId: string; term: string; gap: string }[] = []
+  let gapsDropped = 0
   if (review && !dryRun && planModel) {
     const gradeCombo = direct ? gradePool.find((c) => c.model === planModel) : undefined
     const reviewGen: ReviewGen = async (input) => {
@@ -466,43 +469,53 @@ async function main() {
         model: planModel,
         kind,
         onProgress: (o) => {
-          reviewed++
+          if (o.outcome !== 'skipped') reviewed++
           if (o.reviewOutcome === 'strong') strong++
           for (const d of o.klpDefects ?? []) klpDefects.push({ ...d, term: o.term })
-          for (const g of o.cardGaps ?? []) cardGaps.push({ term: o.term, gap: g.gap })
+          for (const g of o.cardGaps ?? []) cardGaps.push({ cardId: g.cardId, term: o.term, gap: g.gap })
+          gapsDropped += o.gapsDropped ?? 0
+          if (o.outcome === 'skipped') return
           console.log(`  review  ${o.term.slice(0, 48)} / ${o.label}: ${o.reviewOutcome} (accepted ${o.accepted}, held ${o.held}${o.klpDefects?.length ? `, point defects ${o.klpDefects.map((d) => `[${d.klpRef}]`).join('')}` : ''}) — ${o.summary}`)
         },
       })
       const skipped = outcomes.filter((o) => o.outcome === 'skipped' && o.reason !== 'no_dispute').length
-      console.log(`[bench-grader] review: ${reviewed} disputed answer(s) reviewed, ${strong} strong (manual queue), ${klpDefects.length} point defect(s), ${cardGaps.length} card gap(s), ${skipped} skipped`)
-      if (cardGaps.length) {
-        // De-duplicated per card: the same gap surfaces from several answers.
-        const seen = new Set<string>()
-        console.log(`\n=== CARD GAPS (${cardGaps.length}) — what a strong answer says that no key point covers; for the card owner ===`)
-        for (const g of cardGaps) {
-          const key = `${g.term}|${g.gap.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').slice(0, 6).join(' ')}`
-          if (seen.has(key)) continue
-          seen.add(key)
-          console.log(`  ${g.term.slice(0, 50)}: ${g.gap}`)
-        }
+      console.log(`[bench-grader] review: ${reviewed} disputed answer(s) reviewed, ${strong} strong (manual queue), ${klpDefects.length} point defect(s), ${cardGaps.length} card gap(s)${gapsDropped ? ` (+${gapsDropped} dropped: no reasoning)` : ''}, ${skipped} skipped`)
+      // Card gaps go PRIMARILY to the key points (owner, 2026-09-20): per card
+      // the best-supported gaps, at most GAP_ROUTE_CAP, become `card_gap`
+      // findings the v9 author prompt writes as BEYOND THE CARD points; the
+      // rest stay on the owner's queue. Support = how many answers raised it.
+      const termOf = new Map(cardGaps.map((g) => [g.cardId, g.term]))
+      const routing = routeCardGaps(cardGaps)
+      const routedCards = Object.keys(routing.routed).filter((id) => routing.routed[id].length > 0)
+      if (routedCards.length) {
+        console.log(`\n=== CARD GAPS → KEY POINTS (${routedCards.reduce((n, id) => n + routing.routed[id].length, 0)}) — routed to author-klps as beyond-the-card points, at most ${GAP_ROUTE_CAP} a card ===`)
+        for (const id of routedCards) for (const r of routing.routed[id]) console.log(`  ${(termOf.get(id) ?? id).slice(0, 50)} (${r.support}×): ${r.gap}`)
       }
-      if (klpDefects.length) {
-        // The panel as a KEY-POINT test: defects go to the authoring loop as a
-        // `--findings` file (the same shape `probe-definitions --revise` writes),
-        // and the ones that say "The card needs:" are printed for the owner.
-        const byCard: Record<string, { index: number; text: string; issue: string; fix: string }[]> = {}
+      if (routing.ownerOnly.length) {
+        console.log(`\n=== CARD GAPS — OWNER ONLY (${routing.ownerOnly.length}) — below the routing cap; add to the card or leave ===`)
+        for (const g of routing.ownerOnly) console.log(`  ${(termOf.get(g.cardId) ?? g.cardId).slice(0, 50)} (${g.support}×): ${g.gap}`)
+      }
+      if (klpDefects.length || routedCards.length) {
+        // The panel as a KEY-POINT test: defects and routed gaps go to the
+        // authoring loop as one `--findings` file (the same shape
+        // `probe-definitions --revise` writes); "The card needs:" defects are
+        // printed for the owner.
+        const byCard: Record<string, PriorFinding[]> = {}
         for (const d of klpDefects) (byCard[d.cardId] ??= []).push({ index: d.klpRef, text: d.text, issue: 'klp_defect', fix: d.reason })
+        for (const id of routedCards) (byCard[id] ??= []).push(...gapFindings(routing.routed[id]))
         const dir = mkdtempSync(join(tmpdir(), 'bench-findings-'))
         const file = join(dir, 'findings.json')
         writeFileSync(file, JSON.stringify(byCard, null, 2))
-        console.log(`\n=== POINT DEFECTS (${klpDefects.length}) — the reconciliation named the key point, not the grader ===`)
-        for (const d of klpDefects) console.log(`  ${d.term.slice(0, 50)} [${d.klpRef}] ${d.text}\n      — ${d.reason}`)
-        const needs = klpDefects.filter((d) => /The card needs:/i.test(d.reason))
-        if (needs.length) {
-          console.log(`\n=== FOR THE CARD OWNER (${needs.length}) — add to the card, or accept the point as it stands ===`)
-          for (const d of needs) console.log(`  ${d.term.slice(0, 50)}: ${d.reason.slice(d.reason.search(/The card needs:/i))}`)
+        if (klpDefects.length) {
+          console.log(`\n=== POINT DEFECTS (${klpDefects.length}) — the reconciliation named the key point, not the grader ===`)
+          for (const d of klpDefects) console.log(`  ${d.term.slice(0, 50)} [${d.klpRef}] ${d.text}\n      — ${d.reason}`)
+          const needs = klpDefects.filter((d) => /The card needs:/i.test(d.reason))
+          if (needs.length) {
+            console.log(`\n=== FOR THE CARD OWNER (${needs.length}) — add to the card, or accept the point as it stands ===`)
+            for (const d of needs) console.log(`  ${d.term.slice(0, 50)}: ${d.reason.slice(d.reason.search(/The card needs:/i))}`)
+          }
         }
-        console.log(`\n[bench-grader] findings for the authoring loop: ${file}\n  → npx tsx --conditions=react-server --env-file=.env scripts/author-klps.ts --set ${set.id} --cards ${[...new Set(klpDefects.map((d) => d.cardId))].join(',')} --force --keep-better --direct --findings ${file}`)
+        console.log(`\n[bench-grader] findings for the authoring loop: ${file}\n  → npx tsx --conditions=react-server --env-file=.env scripts/author-klps.ts --set ${set.id} --cards ${Object.keys(byCard).join(',')} --force --keep-better --direct --findings ${file}`)
       }
     } catch (err) {
       console.error(`[bench-grader] review failed: ${err instanceof Error ? err.message : String(err)}`)

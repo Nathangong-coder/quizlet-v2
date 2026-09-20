@@ -9,11 +9,14 @@ branches (spec5 174, spec6 175), zero merge-introduced findings; the ceiling mov
 through `20260919170000_klp_slots` are applied to the shared dev DB. The worktrees still exist and
 are stale — do not build on them. The Grading Engine Internals artifact was re-verified against this
 HEAD the same day (Part 1 authoring: templates, relation pass, definition probe; Part 3: Spec 5
-grader, five-band benchmark). **Next, in the owner's order:** (1) route `cardGaps` from the blind
-panel into `author-klps --findings` as declared beyond-the-card points within the template overflow
-(primary) and to the owner queue (secondary), with the gap-quality rule in review-panel-grade — a
-gap is a specific claim plus its reasoning ("debt is *generally* cheaper than equity because
-interest is tax-deductible"), never a bare generalisation; (2) grade-short-answer v9 from the 17
+grader, five-band benchmark). **(1) Card-gap routing is BUILT (same day):** `src/lib/klp/gap-routing.ts`,
+review-panel-grade v4 (`{ claim, reasoning }`, bare claims dropped), author-klps v9 (`card_gap`
+findings → BEYOND THE CARD points), loop guards `beyond_card` / `gap_unauthored` / `gap_split` as
+picker bars, `bench-grader --review` re-routes from stored summaries at zero calls. Measured on the
+LBO paydown card over four re-authors — see `docs/ai/model-performance.md` "Card-gap routing".
+Suite **4,467**, lint 178. The paydown card is at klpVersion 9 (one of two routed gaps authored,
+combined 0.58); its blind panel and the other four live panels are now stale — the next
+`bench-grader --author` rewrites them. **Next:** (2) grade-short-answer v9 from the 17
 `grader_wrong` points; (3) the exemplar bank; (4) `precedes` on narrated walkthroughs; (5) the
 escalation queue in the app; (6) Spec 6 browser gate and the key-dependent runs below.
 

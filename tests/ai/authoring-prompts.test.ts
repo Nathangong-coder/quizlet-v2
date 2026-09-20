@@ -88,8 +88,8 @@ describe('AUTHOR_KLPS_PROMPT', () => {
     expect(built.toLowerCase()).toContain('not a total to hit')
   })
 
-  it('is version 8 — promptVersion is persisted, so the change must be visible', () => {
-    expect(AUTHOR_KLPS_PROMPT.version).toBe(8)
+  it('is version 9 — promptVersion is persisted, so the change must be visible', () => {
+    expect(AUTHOR_KLPS_PROMPT.version).toBe(9)
   })
 
   it('v7: bounded expansion — at most two points beyond the card, each named BEYOND THE CARD in concerns', () => {

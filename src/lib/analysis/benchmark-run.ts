@@ -1,3 +1,4 @@
+import { parseCardGaps } from '@/lib/klp/gap-routing'
 import type { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { Prisma } from '@prisma/client'
@@ -440,8 +441,10 @@ export interface ReviewPanelOutcome {
   summary?: string
   /** The points named `klp_defect`, with the reviewer's reason — the authoring loop's input. */
   klpDefects?: { cardId: string; klpRef: number; klpId: string; text: string; reason: string }[]
-  /** What a strong answer says that no key point covers — for the card owner. */
+  /** What a strong answer says that no key point covers — "claim — because reasoning"; routed by `src/lib/klp/gap-routing.ts`. */
   cardGaps?: { cardId: string; gap: string }[]
+  /** Gaps the reviewer returned without reasoning — dropped, never stored (v4). */
+  gapsDropped?: number
 }
 
 /**
@@ -478,9 +481,19 @@ export async function reviewDisputedResults(
       if (!resultRow) { out.push({ resultId: '', answerId: a.id, term: row.term, label: a.level, outcome: 'skipped', reason: 'no_result' }); continue }
       const existing = await prisma.graderPanelReview.findFirst({
         where: { resultId: resultRow.id, graderVersion: opts.graderVersion, promptVersion: REVIEW_PANEL_GRADE_PROMPT.version },
-        select: { id: true },
+        select: { id: true, summary: true },
       })
-      if (existing) { out.push({ resultId: resultRow.id, answerId: a.id, term: row.term, label: a.level, outcome: 'skipped', reason: 'already_reviewed' }); continue }
+      if (existing) {
+        // The gaps are read back off the stored summary so a re-run still
+        // routes them (the findings file is not persisted) without a call.
+        const o: ReviewPanelOutcome = {
+          resultId: resultRow.id, answerId: a.id, term: row.term, label: a.level, outcome: 'skipped' as const, reason: 'already_reviewed',
+          cardGaps: parseCardGaps(existing.summary).map((gap) => ({ cardId: resultRow.answer.panel.cardId, gap })),
+        }
+        opts.onProgress?.(o)
+        out.push(o)
+        continue
+      }
 
       const card = await prisma.card.findUniqueOrThrow({ where: { id: resultRow.answer.panel.cardId }, select: { term: true } })
       const klps = await prisma.cardKlp.findMany({
@@ -530,6 +543,7 @@ export async function reviewDisputedResults(
           .filter((p) => p.stance === 'klp_defect')
           .map((p) => ({ cardId: resultRow.answer.panel.cardId, klpRef: p.klpRef, klpId: p.klpId, text: klps[p.klpRef]?.text ?? '', reason: p.reason })),
         cardGaps: folded.cardGaps.map((gap) => ({ cardId: resultRow.answer.panel.cardId, gap })),
+        gapsDropped: folded.gapsDropped,
       }
       opts.onProgress?.(o)
       out.push(o)

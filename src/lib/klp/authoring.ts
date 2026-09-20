@@ -43,8 +43,10 @@ import {
   type RelationProvenance,
 } from '@/lib/klp/relations'
 import { rebuildFindings, rebuildScores, type RebuildDispute } from './rebuild'
+import { pointCoversGap } from './gap-routing'
 import type { CoverageVerdict, ParityVerdict } from '@/lib/ai/prompts/rebuild'
 import {
+  BEYOND_CARD_CAP,
   MAX_REVISIONS,
   REVISION_BAR,
   SEPARATION_FLOOR,
@@ -79,12 +81,19 @@ export interface AuthorInput {
   priorFindings?: PriorFinding[]
 }
 
-/** One point of the previous set that the definition probe found outgrew the card. */
+/**
+ * One finding on the previous set for the writer to read before it authors:
+ * a point the definition probe found outgrew the card, a point the
+ * benchmark's reconciliation found defective, or — `card_gap`, 2026-09-20 —
+ * a claim no previous point carried at all (`index` null: there is no
+ * previous point to name), routed from the blind panel by
+ * `src/lib/klp/gap-routing.ts`.
+ */
 export interface PriorFinding {
-  index: number
+  index: number | null
   text: string
   /** `klp_defect` (2026-09-19): named by the benchmark's reconciliation — ambiguous, compound, or beyond the question. */
-  issue: 'over_reach' | 'not_on_card' | 'klp_defect'
+  issue: 'over_reach' | 'not_on_card' | 'klp_defect' | 'card_gap'
   fix: string
 }
 
@@ -466,6 +475,57 @@ function listCountFor(questionType: string | undefined, definition: string, ques
   return clauses > 1 ? clauses : undefined
 }
 
+/**
+ * The beyond-the-card cap (2026-09-20). Points with `fromDefinition` null are
+ * beyond the owner's definition; the prompt allows `BEYOND_CARD_CAP` and the
+ * writer, handed routed gaps, split one into three. Pre-v8 drafts (no point
+ * carries `fromDefinition`) are not structured and are not checked.
+ */
+function beyondCardFindings(klps: readonly StructuredKlpDraft[], structuredDraft: boolean): { index: number | null; issue: string; fix: string }[] {
+  // `carryStructure` normalises a missing fromDefinition to null on every
+  // revised set, so "some point carries the field" is not the test — a pre-v8
+  // draft would read as every point beyond the card after round 1.
+  if (!structuredDraft) return []
+  const beyond = klps.map((k, i) => (k.fromDefinition === null ? i : -1)).filter((i) => i >= 0)
+  if (beyond.length <= BEYOND_CARD_CAP) return []
+  return [{
+    index: null,
+    issue: 'beyond_card',
+    fix: `${beyond.length} points are beyond the card (fromDefinition null: ${beyond.map((i) => `[${i}]`).join('')}); at most ${BEYOND_CARD_CAP} are allowed. Merge fragments of one claim back into it (a claim and its own qualifier are one point) or cut the least necessary; keep a point raised by the panel's answers over one you added yourself; a point the definition does support gets its fromDefinition index instead.`,
+  }]
+}
+
+/**
+ * A routed card gap the writer did not author (2026-09-20). The first routed
+ * run's second attempt named both gaps in `concerns` and wrote neither as a
+ * point — "named in concerns" and "authored as a point" read as alternatives.
+ * Every `card_gap` prior finding must be covered by some point
+ * (`pointCoversGap`); one that is not is a finding for the revise call.
+ */
+function gapCoverageFindings(priorFindings: readonly PriorFinding[] | undefined, klps: readonly StructuredKlpDraft[]): { index: number | null; issue: string; fix: string }[] {
+  const out: { index: number | null; issue: string; fix: string }[] = []
+  for (const f of priorFindings ?? []) {
+    if (f.issue !== 'card_gap') continue
+    const covering = klps.map((k, i) => (pointCoversGap(k.text, f.text) ? i : -1)).filter((i) => i >= 0)
+    if (covering.length > 1) {
+      // The first routed run split one gap into three points, twice.
+      out.push({
+        index: null,
+        issue: 'gap_split',
+        fix: `One routed gap is spread over ${covering.length} points (${covering.map((i) => `[${i}]`).join('')}): "${f.text}". A claim and its own qualifier are ONE point — merge them into one, keeping the reasoning; a fragment like "X is often bullet" is not a key point on its own.`,
+      })
+      continue
+    }
+    if (covering.length === 1) continue
+    out.push({
+      index: null,
+      issue: 'gap_unauthored',
+      fix: `A gap the panel's strong answers raised is not among the points: "${f.text}". Naming it in concerns is not authoring it — add it as a BEYOND THE CARD point (fromDefinition null, slot null unless it fills a slot), keeping its claim and its reasoning; it counts toward the ${BEYOND_CARD_CAP}-point limit and outranks any beyond-the-card point you added yourself.`,
+    })
+  }
+  return out
+}
+
 /** Template defects as revision findings, in the revise prompt's own shape. */
 function templateFindings(questionType: string | undefined, klps: readonly StructuredKlpDraft[], definition: string, question?: string): { index: number | null; issue: string; fix: string }[] {
   const t = templateFor(questionType)
@@ -616,6 +676,8 @@ export async function authorCard(
   // states a total, for the same reason it never states a weight.
   const prior = mechanicalKlpPrior({ question: input.question, definition: input.definition })
   const draft = await gen.author({ question: input.question, definition: input.definition, setTitle: input.setTitle, minKlps: authorMinKlps(input), priorFindings: input.priorFindings })
+  /** A v8+ reply: the writer mapped its points (or slotted them). A pre-v8 draft has no mapping to check. */
+  const structuredDraft = draft.klps.some((k) => k.fromDefinition !== undefined || k.slot !== undefined || k.subject !== undefined)
   const target = targetKlpCount({ prior, points: draft.definitionPoints })
   const concerns = draft.concerns ?? []
 
@@ -873,6 +935,8 @@ export async function authorCard(
     // the wrong slot or a set over the ceiling is a finding for the same revise
     // call — the form is checked every round, on the writer's own questionType.
     for (const d of templateFindings(draft.questionType, klps, input.definition, input.question)) findings.push(d)
+    for (const d of beyondCardFindings(klps, structuredDraft)) findings.push(d)
+    for (const d of gapCoverageFindings(input.priorFindings, klps)) findings.push(d)
     if (rebuild) {
       findings.push(
         ...rebuildFindings({
@@ -905,6 +969,7 @@ export async function authorCard(
         rebuiltTight: rebuild?.review?.conciseness === 'tight',
         wordRatio: rebuild?.wordRatio ?? null,
         ...(templateFor(draft.questionType) ? { templateFilled: !findings.some((f) => f.issue.startsWith('slot_') || f.issue === 'over_ceiling') } : {}),
+        gapsHonoured: !findings.some((f) => f.issue === 'gap_unauthored' || f.issue === 'gap_split' || f.issue === 'beyond_card'),
       },
     })
     if (findings.length === 0 || revisions >= MAX_REVISIONS) break

@@ -1,4 +1,5 @@
 import type { PanelGradeReview } from '@/lib/ai/schemas'
+import { formatCardGap } from '@/lib/klp/gap-routing'
 import { bandOf, bandHit, isBandsKind, type GraderPanelKind } from '@/lib/analysis/benchmark'
 
 /**
@@ -93,7 +94,7 @@ export function foldReview(
   reply: PanelGradeReview,
   klpIds: readonly string[],
   isolated: readonly { klpRef: number; status: string }[],
-): { points: ReviewPoint[]; outcome: ReviewOutcome; dropped: number; cardGaps: string[] } {
+): { points: ReviewPoint[]; outcome: ReviewOutcome; dropped: number; cardGaps: string[]; gapsDropped: number } {
   const beforeOf = new Map(isolated.map((v) => [v.klpRef, v.status]))
   const points: ReviewPoint[] = []
   let dropped = 0
@@ -111,8 +112,15 @@ export function foldReview(
       reason: p.reason,
     })
   }
-  const cardGaps = (reply.cardGaps ?? []).map((g) => g.trim()).filter(Boolean)
+  // v4: a gap must carry its reasoning. A bare string is a claim with no
+  // "because" — a generalisation — and is dropped here, counted, never stored.
+  const cardGaps: string[] = []
+  let gapsDropped = 0
+  for (const g of reply.cardGaps ?? []) {
+    if (typeof g === 'string' || !g.claim.trim() || !g.reasoning.trim()) { gapsDropped++; continue }
+    cardGaps.push(formatCardGap(g))
+  }
   const base = reviewOutcome(points)
   const outcome: ReviewOutcome = base === 'klp_defect' ? base : cardGaps.length ? 'card_gap' : base
-  return { points, outcome, dropped, cardGaps }
+  return { points, outcome, dropped, cardGaps, gapsDropped }
 }

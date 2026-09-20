@@ -43,7 +43,11 @@ export const REVIEW_PANEL_GRADE_PROMPT = {
   // covers. The question-only blind panel's first run produced thirty firm
   // holds and zero defects: the grader was right about every point and the
   // disagreement was about points the card does not have.
-  version: 3,
+  // v4 (2026-09-20): a gap is { claim, reasoning } — the owner's rule that a
+  // gap must say WHY ("generally cheaper because of the tax shield"), never a
+  // bare generalisation. Gaps are now routed into the authoring loop
+  // (src/lib/klp/gap-routing.ts), so the bar for one is the bar for a point.
+  version: 4,
   schema: PanelGradeReviewSchema,
   build(input: ReviewPanelGradeBuildInput): string {
     const klps = input.klps.map((k) => `[${k.ref}] (${k.kind}) ${k.text}`).join('\n');
@@ -69,10 +73,10 @@ For EVERY key point the second reader's account bears on, return { "klpRef": num
 
 Use "klp_defect" when NEITHER of you is wrong because the KEY POINT is: it is ambiguous (two readings, and the answer satisfies one), compound (two claims joined so that stating one still fails it), or it asks for something the QUESTION does not — a competent candidate answering this question as asked would not say it. In "reason", say which of the three and, if the card should carry a different or additional point, state that point in one sentence starting "The card needs:". Do not use "klp_defect" for a point that is merely hard; a hard point a strong answer states is a good point.
 
-Then "cardGaps": claims THIS ANSWER makes that a strong answer to this question genuinely needs and that NO key point above covers — one sentence each, written as the key point the card could carry (e.g. "Interest on acquisition debt is tax-deductible, which lowers the effective cost of leverage"). This is not about any existing point; it is what the list is missing. An answer that adds nothing a strong answer needs returns []. Be strict: a strong interviewer would expect it, not merely accept it.
+Then "cardGaps": claims THIS ANSWER makes that a strong answer to this question genuinely needs and that NO key point above covers. Each is { "claim": the specific claim, one clause, scoped honestly ("generally", "when …") rather than absolute, "reasoning": WHY it holds, one clause, the mechanism a candidate would give }. Example: { "claim": "Debt is generally cheaper than equity", "reasoning": "interest is tax-deductible, so the after-tax cost of debt is below the cost of equity" }. A claim with no mechanism behind it — "debt is cheaper than equity", "leverage amplifies returns" — is a generalisation, not a gap; do not list it. This is not about any existing point; it is what the list is missing, and it becomes a key point of the card, so hold it to that bar. An answer that adds nothing a strong answer needs returns []. Be strict: a strong interviewer would expect it, not merely accept it.
 
 Then return "summary": one sentence on where the second reader was right and where not.
 
-Output JSON: { "points": [ { "klpRef": number, "stance": string, "verdict": string, "firm": boolean, "reason": string } ], "cardGaps": [ string ], "summary": string }`;
+Output JSON: { "points": [ { "klpRef": number, "stance": string, "verdict": string, "firm": boolean, "reason": string } ], "cardGaps": [ { "claim": string, "reasoning": string } ], "summary": string }`;
   },
 };

@@ -1403,6 +1403,55 @@ grader disputes about live points.
 that says what a strong candidate says and skips the card's own points is correctly scored low by
 a grader that grades the card. It is the CARD's number — the gap list is how it moves.
 
+### Card-gap routing — gaps into the key points first, the owner second (2026-09-20)
+
+**What was built.** `review-panel-grade` v4 returns each gap as `{ claim, reasoning }`; `foldReview` drops
+a bare string (a claim with no "because" is the generalisation the owner refused) and stores the pair
+as one line, `claim — because reasoning`. `src/lib/klp/gap-routing.ts` groups the stored gaps per card,
+merges near-duplicate wordings (Jaccard ≥ 0.4 on stemmed content words of the claim — measured, below),
+counts SUPPORT (how many panel answers raised the gap), routes the top `GAP_ROUTE_CAP` = `BEYOND_CARD_CAP`
+= 2 per card into the same `--findings` file the probe and the point defects use (issue `card_gap`,
+`index` null), and leaves the rest on the owner's queue. Author-klps **v9** authors a routed gap as a
+BEYOND THE CARD point. Three loop findings guard it in TypeScript — `beyond_card` (more than two points
+with `fromDefinition` null), `gap_unauthored` (a routed gap no point covers; overlap coefficient ≥ 0.5),
+`gap_split` (a routed gap spread over several points) — and each is a bar for the round picker
+(`RoundSummary.gapsHonoured`). A re-run of `bench-grader --review` reads gaps back off the stored
+summaries, so routing is repeatable at zero calls.
+
+**Reconciliation v4 on the 5 live LBO panels (16 disputed answers, 16 DeepSeek calls, $0.0106):** 35 gaps,
+**0 dropped** — the model supplied a mechanism every time. Routed 10 (2 × 5 cards), owner-only 13
+after the merge (21 before it). The six-word key was too brittle: "targets are chosen for stable,
+predictable cash flows and low capex" (2×) and "targets need stable, predictable cash flows and low
+capex so FCF is available" (1×) each took a slot of the same card. Content-word Jaccard on those reads
+0.56; the three "returns come from debt paydown, EBITDA growth and multiple expansion" wordings read
+0.40–0.55 against each other; "capable management team" vs "strong management" reads 0.10 (different
+gaps, correctly). Routed with support: three return drivers 3×, stable cash flows 2×, deleveraging +
+exit path 3×, low existing leverage 2×, revolver on negative FCF 3×, tranche priority 2×, dividend
+recap 2×, exit-route choice 2×.
+
+**The paydown card, four re-authors on the routed findings (GLM 5.3 flash writer, ≈ $0.009 each):**
+1. both gaps authored, but the tranche gap split into three points ("TLB is often bullet", "TLB may
+   have no sweep") — five points beyond the card, nothing to stop it → `beyond_card`;
+2. both gaps named in `concerns` and NEITHER authored — "named in concerns" and "authored as a point"
+   read as alternatives → `gap_unauthored`, and `gapsHonoured` as a picker bar (round 1 had beaten
+   round 2 on the earlier-round rule);
+3. both authored, combined **0.94**, relations 1.00 — and every point mapped `fromDefinition: 0`,
+   including revolver and TLB, on a definition that mentions neither: the cap evaded by a false
+   mapping; the tranche gap split again → `gap_split`;
+4. tranche gap authored as ONE point (`ref` null, reasoning kept — the target shape); the revolver
+   gap not authored within `MAX_REVISIONS`; combined 0.58 (above the floor, so `--keep-better` let it
+   through — the veto is floor-based by design).
+
+**Mapping honesty cannot be checked lexically.** Overlap of a point's content words with the
+definition's, across the whole set: honestly mapped points read 0.09–0.30 routinely ("The first source
+is EBITDA growth" reads 0.09 against a card that lists it), while the false TLB mappings read 0.00. No
+threshold separates them; a `mapping_doubtful` heuristic was measured and NOT added. Whether a point
+is on the card stays the definition probe's question (semantic, graded), which already flags such a
+point `not_on_card`.
+
+**Reading.** The routing and its guards work; the variance is the writer's compliance inside two
+revisions, and that is the exemplar-bank item, not another rule. Do not raise `MAX_REVISIONS` for it.
+
 ### The definition probe — the owner's own answers vs. their key points (`npm run probe-definitions`)
 
 **2026-09-19 (early), LBO set, DeepSeek `deepseek-flash` grading (grader v3, prompt v8 `noteForm`), supervisor

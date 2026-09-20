@@ -36,6 +36,13 @@ export interface RoundSummary {
   wordRatio?: number | null
   /** Slot templates (2026-09-19): true when the form is filled (no template defects). Undefined = no template. */
   templateFilled?: boolean
+  /**
+   * Card-gap routing (2026-09-20): false when a routed gap is unauthored or
+   * the set carries more beyond-the-card points than the cap. A bar, not a
+   * tie-breaker: the first routed run had round 1 (gaps only in concerns)
+   * beat round 2 (gaps authored) on the earlier-round rule.
+   */
+  gapsHonoured?: boolean
 }
 
 export function barsMissed(r: RoundSummary): number {
@@ -44,6 +51,7 @@ export function barsMissed(r: RoundSummary): number {
   if (r.clearsParityBar === false) n += 1
   if (r.templateFilled === false) n += 1
   if (r.clearsCoverageBar === false) n += 1
+  if (r.gapsHonoured === false) n += 1
   return n
 }
 

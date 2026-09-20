@@ -19,7 +19,7 @@ export interface AuthorKlpsBuildInput {
    * (`src/lib/klp/definition-probe.ts`) — points that outgrew the card, by
    * the previous set's index and text. Set only on a probe-driven re-author.
    */
-  priorFindings?: { index: number; text: string; issue: 'over_reach' | 'not_on_card' | 'klp_defect'; fix: string }[];
+  priorFindings?: { index: number | null; text: string; issue: 'over_reach' | 'not_on_card' | 'klp_defect' | 'card_gap'; fix: string }[];
 }
 
 /**
@@ -99,7 +99,10 @@ export const AUTHOR_KLPS_PROMPT = {
   // without them, each named in "concerns" as "BEYOND THE CARD: …" so the
   // owner sees exactly what was added. The probe's 0.65 pass line leaves the
   // headroom for them; the relation pass supplies the rest of the separation.
-  version: 8,
+  // v9 (2026-09-20): `card_gap` findings — the blind panel's routed gaps —
+  // are authored as the card's BEYOND THE CARD points, with their reasoning.
+  // The body is byte-identical to v8 without them.
+  version: 9,
   schema: AuthorDraftSchema,
 
   build(input: AuthorKlpsBuildInput): string {
@@ -130,13 +133,26 @@ ${DRAFT_JSON_NOTES}`;
  */
 function priorFindingsBlock(findings: AuthorKlpsBuildInput['priorFindings']): string {
   if (!findings || findings.length === 0) return '';
-  const label = (issue: string) => (issue === 'not_on_card' ? 'NOT ON THE CARD' : issue === 'klp_defect' ? 'DEFECTIVE POINT' : 'OVER-REACHES THE CARD');
-  const lines = findings.map((f) => `  [${f.index}] ${label(f.issue)} — "${f.text}" — ${f.fix}`).join('\n');
-  return `A PREVIOUS SET OF KEY POINTS FOR THIS CARD WAS TESTED — against the owner's own definition, and against deliberately written answers — AND THESE POINTS FAILED:
-${lines}
+  const label = (issue: string) => (issue === 'not_on_card' ? 'NOT ON THE CARD' : issue === 'klp_defect' ? 'DEFECTIVE POINT' : issue === 'card_gap' ? 'MISSING FROM THE POINTS' : 'OVER-REACHES THE CARD');
+  const failed = findings.filter((f) => f.issue !== 'card_gap');
+  const gaps = findings.filter((f) => f.issue === 'card_gap');
+  const line = (f: NonNullable<AuthorKlpsBuildInput['priorFindings']>[number]) => `  ${f.index === null ? '[+]' : `[${f.index}]`} ${label(f.issue)} — "${f.text}" — ${f.fix}`;
+  const failedBlock = failed.length
+    ? `A PREVIOUS SET OF KEY POINTS FOR THIS CARD WAS TESTED — against the owner's own definition, and against deliberately written answers — AND THESE POINTS FAILED:
+${failed.map(line).join('\n')}
 Do not write those points again as they were. A point marked NOT ON THE CARD is not authored; a point marked OVER-REACHES is authored only at the grain the definition states it; a point marked DEFECTIVE is rewritten so the named defect is gone — one claim, one reading, and only what the question asks.
 
-`;
+`
+    : '';
+  // v9 (2026-09-20): card gaps routed from the blind panel (src/lib/klp/gap-routing.ts).
+  const gapBlock = gaps.length
+    ? `STRONG ANSWERS TO THIS QUESTION, WRITTEN WITHOUT SEEING ANY KEY POINTS, MADE THESE CLAIMS THAT NO PREVIOUS POINT COVERED:
+${gaps.map(line).join('\n')}
+Author each as one of your BEYOND THE CARD points (fromDefinition null, named in concerns as "BEYOND THE CARD: …") — they count toward the at-most-two limit and take priority over any beyond-the-card point you would otherwise add. Keep the claim's scope and its reasoning as given ("generally … because …"); do not widen a qualified claim into an absolute one. If two of them are one claim, author it once.
+
+`
+    : '';
+  return failedBlock + gapBlock;
 }
 
 function authorBody(opts: { floor: string }): string {

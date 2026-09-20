@@ -932,7 +932,17 @@ export const PanelGradeReviewSchema = z.object({
    * this question needs and NO key point covers. Not about any existing point,
    * so a separate list; each is one sentence the card owner could add.
    */
-  cardGaps: z.array(z.string().min(1)).optional(),
+  /**
+   * v4 (2026-09-20): a gap is a `{ claim, reasoning }` pair — "debt is
+   * generally cheaper than equity" / "interest is tax-deductible". A bare
+   * string still PARSES (the reply is not lost) but `foldReview` drops it:
+   * a claim without its reasoning is the bare generalisation the owner
+   * refused to route into the key points.
+   */
+  cardGaps: z.array(z.union([
+    z.object({ claim: z.string().min(1), reasoning: z.string().min(1) }),
+    z.string().min(1),
+  ])).optional(),
   summary: z.string().min(1),
 });
 export type PanelGradeReview = z.infer<typeof PanelGradeReviewSchema>;

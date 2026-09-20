@@ -48,10 +48,10 @@ describe('reviewOutcome with klp_defect', () => {
 describe('card gaps', () => {
   it('a card gap outranks a firm hold but not a point defect; gaps are trimmed and carried', () => {
     const base = { klpRef: 0, verdict: 'omission', firm: true, reason: 'r' }
-    const gapHold = foldReview({ points: [{ ...base, stance: 'hold' }], cardGaps: [' Interest is tax-deductible ', ''], summary: 's' }, ['k0'], [{ klpRef: 0, status: 'omission' }])
+    const gapHold = foldReview({ points: [{ ...base, stance: 'hold' }], cardGaps: [{ claim: ' Interest is tax-deductible ', reasoning: ' it lowers the after-tax cost of debt ' }], summary: 's' }, ['k0'], [{ klpRef: 0, status: 'omission' }])
     expect(gapHold.outcome).toBe('card_gap')
-    expect(gapHold.cardGaps).toEqual(['Interest is tax-deductible'])
-    const gapDefect = foldReview({ points: [{ ...base, stance: 'klp_defect' }], cardGaps: ['x'], summary: 's' }, ['k0'], [{ klpRef: 0, status: 'omission' }])
+    expect(gapHold.cardGaps).toEqual(['Interest is tax-deductible — because it lowers the after-tax cost of debt'])
+    const gapDefect = foldReview({ points: [{ ...base, stance: 'klp_defect' }], cardGaps: [{ claim: 'x', reasoning: 'y' }], summary: 's' }, ['k0'], [{ klpRef: 0, status: 'omission' }])
     expect(gapDefect.outcome).toBe('klp_defect')
     const none = foldReview({ points: [{ ...base, stance: 'hold' }], summary: 's' }, ['k0'], [{ klpRef: 0, status: 'omission' }])
     expect(none.outcome).toBe('strong')

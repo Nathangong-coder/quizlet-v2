@@ -1,6 +1,7 @@
 import { prisma } from '../src/lib/db'
 import { carriedSeparation, loadBearingIndexes, probeOutcome, scoreDefinition } from '../src/lib/klp/definition-probe'
 import { SEPARATION_FLOOR } from '../src/lib/klp/authoring-config'
+import { gapKey, parseCardGaps } from '../src/lib/klp/gap-routing'
 
 /**
  * `npx tsx --conditions=react-server --env-file=.env scripts/probe-state.ts --set <setId>`
@@ -43,12 +44,8 @@ async function main() {
     const gapSeen = new Set<string>()
     const cardGaps: string[] = []
     for (const r of reviews) {
-      const m = r.summary.indexOf('CARD GAPS:')
-      if (m < 0) continue
-      for (const line of r.summary.slice(m + 'CARD GAPS:'.length).split('\n')) {
-        const g = line.replace(/^-\s*/, '').trim()
-        if (!g) continue
-        const key = g.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').slice(0, 6).join(' ')
+      for (const g of parseCardGaps(r.summary)) {
+        const key = gapKey(g)
         if (gapSeen.has(key)) continue
         gapSeen.add(key)
         cardGaps.push(g)
