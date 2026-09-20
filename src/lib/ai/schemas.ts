@@ -927,6 +927,12 @@ export const PanelGradeReviewSchema = z.object({
     firm: z.boolean(),
     reason: z.string().min(1),
   })),
+  /**
+   * v3 (2026-09-19): CARD GAPS — claims the answer makes that a strong answer to
+   * this question needs and NO key point covers. Not about any existing point,
+   * so a separate list; each is one sentence the card owner could add.
+   */
+  cardGaps: z.array(z.string().min(1)).optional(),
   summary: z.string().min(1),
 });
 export type PanelGradeReview = z.infer<typeof PanelGradeReviewSchema>;

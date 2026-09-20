@@ -440,6 +440,8 @@ export interface ReviewPanelOutcome {
   summary?: string
   /** The points named `klp_defect`, with the reviewer's reason — the authoring loop's input. */
   klpDefects?: { cardId: string; klpRef: number; klpId: string; text: string; reason: string }[]
+  /** What a strong answer says that no key point covers — for the card owner. */
+  cardGaps?: { cardId: string; gap: string }[]
 }
 
 /**
@@ -508,7 +510,9 @@ export async function reviewDisputedResults(
           model,
           disagreement,
           points: folded.points as unknown as Prisma.InputJsonValue,
-          summary: value.summary,
+          // Card gaps ride in the summary's row as a suffix list so no
+          // migration is needed; the outcome names them.
+          summary: folded.cardGaps.length ? `${value.summary}\n\nCARD GAPS:\n${folded.cardGaps.map((g) => `- ${g}`).join('\n')}` : value.summary,
           outcome: folded.outcome,
         },
       })
@@ -525,6 +529,7 @@ export async function reviewDisputedResults(
         klpDefects: folded.points
           .filter((p) => p.stance === 'klp_defect')
           .map((p) => ({ cardId: resultRow.answer.panel.cardId, klpRef: p.klpRef, klpId: p.klpId, text: klps[p.klpRef]?.text ?? '', reason: p.reason })),
+        cardGaps: folded.cardGaps.map((gap) => ({ cardId: resultRow.answer.panel.cardId, gap })),
       }
       opts.onProgress?.(o)
       out.push(o)

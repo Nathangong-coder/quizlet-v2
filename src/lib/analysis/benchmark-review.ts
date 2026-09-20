@@ -18,7 +18,7 @@ import { bandOf, bandHit, isBandsKind, type GraderPanelKind } from '@/lib/analys
  * what the point needs, to the owner — the panel is then a test of the key
  * points as well as of the grader.
  */
-export type ReviewOutcome = 'agree' | 'disagree' | 'strong' | 'klp_defect'
+export type ReviewOutcome = 'agree' | 'disagree' | 'strong' | 'klp_defect' | 'card_gap'
 
 export interface ReviewPoint {
   klpRef: number
@@ -82,11 +82,18 @@ export function describeDispute(input: DisputeInput): string | null {
 }
 
 /** Fold the model's reply into persisted points, resolving refs to ids and carrying the isolated verdict as `before`. */
+/**
+ * `card_gap` (2026-09-19, the question-only blind panel's finding): the
+ * adversary's answer carries what a strong candidate says and no key point
+ * covers it. The grader's verdicts on the existing points are RIGHT and the
+ * disagreement is not about them; the card is thin. Outranks `strong` — a
+ * firm hold on a thin card is not a grader question — but not `klp_defect`.
+ */
 export function foldReview(
   reply: PanelGradeReview,
   klpIds: readonly string[],
   isolated: readonly { klpRef: number; status: string }[],
-): { points: ReviewPoint[]; outcome: ReviewOutcome; dropped: number } {
+): { points: ReviewPoint[]; outcome: ReviewOutcome; dropped: number; cardGaps: string[] } {
   const beforeOf = new Map(isolated.map((v) => [v.klpRef, v.status]))
   const points: ReviewPoint[] = []
   let dropped = 0
@@ -104,5 +111,8 @@ export function foldReview(
       reason: p.reason,
     })
   }
-  return { points, outcome: reviewOutcome(points), dropped }
+  const cardGaps = (reply.cardGaps ?? []).map((g) => g.trim()).filter(Boolean)
+  const base = reviewOutcome(points)
+  const outcome: ReviewOutcome = base === 'klp_defect' ? base : cardGaps.length ? 'card_gap' : base
+  return { points, outcome, dropped, cardGaps }
 }
