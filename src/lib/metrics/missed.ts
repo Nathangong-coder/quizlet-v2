@@ -1,3 +1,5 @@
+import { STATUS_CREDIT, type KlpStatus } from '@/lib/errors/klp-credit'
+
 /**
  * Shapes the "What you're getting wrong" panel (spec §8).
  *
@@ -50,16 +52,14 @@ export interface ShapeMissedWorkInput {
   floor: number
 }
 
-/**
- * `partial` counts as a miss: half-right is still not right, and a learner
- * who half-answers a point repeatedly has a gap worth showing them.
- */
-const MISS_STATUSES = new Set(['failed', 'partial'])
-
 export function shapeMissedWork(input: ShapeMissedWorkInput): MissedTopic[] {
   const missesByKlp = new Map<string, MissedAnswer[]>()
   for (const r of input.results) {
-    if (!MISS_STATUSES.has(r.status)) continue
+    // Anything under full credit is a miss — a zero-credit label (`failed`,
+    // `omission`, `inversion`, ...) as much as a half-right `partial` or
+    // `incomplete`. Half-right is still not right, and a learner who
+    // half-answers a point repeatedly has a gap worth showing them.
+    if ((STATUS_CREDIT[r.status as KlpStatus] ?? 0) >= 1) continue
     const list = missesByKlp.get(r.klpId)
     if (list) list.push(r)
     else missesByKlp.set(r.klpId, [r])

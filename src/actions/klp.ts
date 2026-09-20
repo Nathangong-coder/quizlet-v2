@@ -36,6 +36,13 @@ export interface ReadyKlp {
   weight: number;
   kind: string;
   /**
+   * The KLP version these rows belong to. For live rows this is the card's
+   * current `klpVersion` (`writeKlpVersion` stamps both in one transaction),
+   * which is how `loadGradingContext` finds the form requirements and the
+   * reference answer that describe THESE points rather than a superseded set.
+   */
+  version: number;
+  /**
    * The short rendering, null until the KLT pass has run for this card.
    * Callers fall back to `text` — the summarizer is never a hard dependency
    * of anything that displays a KLP.
@@ -244,7 +251,7 @@ export async function ensureKlpsReady(userId: string, cardId: string): Promise<R
     prisma.cardKlp.findMany({
       where: { cardId, supersededAt: null },
       orderBy: { index: 'asc' },
-      select: { id: true, index: true, text: true, weight: true, kind: true, label: true },
+      select: { id: true, index: true, text: true, weight: true, kind: true, version: true, label: true },
     });
 
   const existing = await live();
@@ -317,7 +324,7 @@ export async function getCardKlps(
   const klps = await prisma.cardKlp.findMany({
     where: { cardId, supersededAt: null },
     orderBy: { index: 'asc' },
-    select: { id: true, index: true, text: true, weight: true, kind: true, label: true },
+    select: { id: true, index: true, text: true, weight: true, kind: true, version: true, label: true },
   });
 
   // Both narrowed at the DB boundary, so `KlpEditor`'s status comparisons are

@@ -39,6 +39,8 @@ const TASK_TEMPERATURE: Record<AiTask, number> = {
   'klp-extract': 0,
   author: 0,
   'note-analysis': 0,
+  // Shape rules over a fixed reference: a judgment with a right answer.
+  'form-reqs': 0,
   // Placement and summarising in a SHARED tree, where an edit moves everyone's
   // topic mastery. Determinism matters more here than anywhere.
   'concept-tree': 0,
@@ -53,6 +55,13 @@ const TASK_TEMPERATURE: Record<AiTask, number> = {
    * gives.
    */
   distractors: 0.3,
+  /**
+   * The benchmark panel is writing, re-graded against a FIXED set of answers
+   * (spec 5 §8), so it is not a judgment that must repeat. A "weak" answer
+   * that is a shorter "expert" answer is the collapse to avoid; the same
+   * small spread as distractors.
+   */
+  'grader-panel': 0.3,
   /** Autocomplete offers several suggestions at once; identical ones are useless. */
   autocomplete: 0.4,
   /** A plan is prose over a fixed set of facts. Some phrasing latitude, no invention. */

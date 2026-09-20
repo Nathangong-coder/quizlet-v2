@@ -154,36 +154,47 @@ export function referenceNeedsRewrite(review: ReferenceReview): boolean {
 
 export const ReviseReferenceSchema = z.object({
   referenceAnswer: z.string().min(1),
-  klps: z.array(z.object({ text: z.string().min(1), kind: z.enum(KLP_KINDS) })).min(1),
+  klps: z.array(z.object({
+    text: z.string().min(1),
+    kind: z.enum(KLP_KINDS),
+    // v3: the structured fields ride through the rewrite.
+    slot: z.string().nullable().optional(),
+    subject: z.string().nullable().optional(),
+    claim: z.string().nullable().optional(),
+    qualifier: z.string().nullable().optional(),
+    fromDefinition: z.number().int().min(0).nullable().optional(),
+  })).min(1),
 });
 
 export interface ReviseReferenceBuildInput {
   question: string;
   definition: string;
   referenceAnswer: string;
-  klps: { text: string; kind: string }[];
+  klps: { text: string; kind: string; slot?: string | null; subject?: string | null; claim?: string | null; qualifier?: string | null; fromDefinition?: number | null }[];
   review: ReferenceReview;
 }
 
 export const REVISE_REFERENCE_PROMPT = {
   id: 'revise-reference',
   // v2 (2026-09-14): instructions first, card last (prefix cache).
-  version: 2,
+  // v3 (2026-09-19): each point's slot / subject / claim / qualifier /
+  // fromDefinition ride through the rewrite unchanged where the claim is.
+  version: 3,
   schema: ReviseReferenceSchema,
 
   build(input: ReviseReferenceBuildInput): string {
     const issues = input.review.issues.map((i) => `- ${i.kind.toUpperCase()}: ${i.text}`).join('\n');
     const verdicts = `accuracy ${input.review.accuracy}, conciseness ${input.review.conciseness}, clarity ${input.review.clarity}`;
-    const klps = input.klps.map((k, i) => `[${i}] (${k.kind}) ${k.text}`).join('\n');
+    const klps = input.klps.map((k, i) => `[${i}] (${k.kind}${k.slot ? `, slot ${k.slot}` : ''}${k.fromDefinition != null ? `, from definition point ${k.fromDefinition}` : ''}) ${k.text}`).join('\n');
     return `You wrote a model answer and its Key Learning Points for a finance interview question, and a reviewer read the answer. Do not contradict the card owner's definition; where you think it is wrong, keep your objection out of the answer.
 
 Rewrite the answer so a reviewer would call it sound, tight and clear:
 - ACCURACY: if a conclusion was hedged and the question's facts settle it, STATE it — say which, and say why in one clause. If a claim was wrong, correct it.
 - CONCISENESS: cut repetition and restated conclusions; keep every claim a strong candidate needs. Aim for the length a strong candidate would actually speak.
 - CLARITY: keep the order a strong answer delivers — define the term, develop, land the conclusion.
-Then re-derive the key points FROM the rewritten answer: keep every point the rewrite still supports, word for word where its claim is unchanged; drop a point the rewrite no longer makes; add one only for a claim the rewrite newly commits to. Same kinds: ${KLP_KINDS.join(', ')}.
+Then re-derive the key points FROM the rewritten answer: keep every point the rewrite still supports, word for word where its claim is unchanged; drop a point the rewrite no longer makes; add one only for a claim the rewrite newly commits to. Same kinds: ${KLP_KINDS.join(', ')}. Every point keeps its "slot", "subject", "claim", "qualifier" and "fromDefinition" exactly as given unless its claim changed; a new point gets its own.
 
-Output JSON: { "referenceAnswer": string, "klps": [ { "text": string, "kind": string } ] }
+Output JSON: { "referenceAnswer": string, "klps": [ { "text": string, "kind": string, "slot": string | null, "subject": string, "claim": string, "qualifier": string | null, "fromDefinition": number | null } ] }
 
 Question: ${input.question}
 

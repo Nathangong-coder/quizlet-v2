@@ -14,7 +14,7 @@ import {
   NODE_HEIGHT,
   type PositionOverrides,
 } from '@/lib/klp/graph-layout'
-import { VERDICT_CREDIT, isKlpVerdict } from '@/lib/klp/verdicts'
+import { STATUS_CREDIT, isKlpStatus } from '@/lib/errors/klp-credit'
 import type { KlpNode, KlpEdge } from '@/components/klp/KlpCardPanel'
 
 /**
@@ -48,7 +48,7 @@ export interface KlpGraphCanvasProps {
 type Outcome = 'right' | 'partial' | 'wrong' | 'untested'
 
 /**
- * A status becomes a colour through `VERDICT_CREDIT`, never through its own
+ * A status becomes a colour through `STATUS_CREDIT`, never through its own
  * name.
  *
  * The status vocabulary is thirteen labels today and was three before — and
@@ -56,11 +56,15 @@ type Outcome = 'right' | 'partial' | 'wrong' | 'untested'
  * is differently wrong. Credit is the one axis that IS ordered, so it is what
  * a colour can honestly encode. Reading the label directly would mean this
  * component needing an update every time the vocabulary widens.
+ *
+ * `isKlpStatus` (not `isKlpVerdict`) so a historical `passed` row — the
+ * read-only legacy alias every pre-Spec-5 row holds — renders `right` instead
+ * of `untested`.
  */
 export function outcomeOf(status: string | undefined): Outcome {
   if (status === undefined) return 'untested'
-  if (!isKlpVerdict(status)) return 'untested'
-  const credit = VERDICT_CREDIT[status]
+  if (!isKlpStatus(status)) return 'untested'
+  const credit = STATUS_CREDIT[status]
   if (credit >= 1) return 'right'
   if (credit > 0) return 'partial'
   return 'wrong'

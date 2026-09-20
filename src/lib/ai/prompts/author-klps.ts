@@ -1,5 +1,6 @@
 import { AuthorDraftSchema, AuthorDraftBatchSchema, KLP_KINDS } from '@/lib/ai/schemas';
 import { MAX_KLPS_AUTHORED, PROBE_KINDS } from '@/lib/klp/authoring-config';
+import { QUESTION_TEMPLATES, templatePromptBlock, TEMPLATE_OVERFLOW } from '@/lib/klp/templates';
 
 export interface AuthorKlpsBuildInput {
   setTitle: string;
@@ -13,6 +14,12 @@ export interface AuthorKlpsBuildInput {
    * their place, and a padded KLP fires identically on every answer.
    */
   minKlps: number;
+  /**
+   * v6: findings from the DEFINITION PROBE on this card's previous key points
+   * (`src/lib/klp/definition-probe.ts`) — points that outgrew the card, by
+   * the previous set's index and text. Set only on a probe-driven re-author.
+   */
+  priorFindings?: { index: number; text: string; issue: 'over_reach' | 'not_on_card' | 'klp_defect'; fix: string }[];
 }
 
 /**
@@ -71,7 +78,28 @@ export const AUTHOR_KLPS_PROMPT = {
   // v4 (2026-09-13): two wrong answers — `confident_wrong` cut, see PROBE_KINDS.
   // v5 (2026-09-13): short points — ~25 words, a context clause only where
   // the bare claim is ambiguous, no conclusion stated twice (compression plan, step E).
-  version: 5,
+  // v6 (2026-09-18): THE DEFINITION IS THE CEILING, not the floor. v2-v5 said
+  // "THEN add what a strong answer needs that the card omits", and on the LBO
+  // set the references ran 3-11x the definitions and every owner definition
+  // failed its own key points (19-56/100). Now a point the definition does
+  // not make is not authored; a gap goes in "concerns" for the owner. The
+  // definition probe (`npm run probe-definitions`) is the acceptance test,
+  // and `priorFindings` carries its verdicts into a re-author.
+  // v8 (2026-09-19): SLOT TEMPLATES + STRUCTURED POINTS. The shape rule per
+  // question type is a FORM, not prose: each key point names the slot it
+  // fills, TypeScript validates fill/overflow (`src/lib/klp/templates.ts`),
+  // and the template's implied links are added deterministically. Each point
+  // is also returned decomposed (subject / claim / qualifier) and mapped to
+  // the definition point it comes from (`fromDefinition`, null = beyond the
+  // card) — the owner writes structured notes, and a mapped point passes the
+  // definition probe by construction.
+  // v7 (2026-09-19): BOUNDED EXPANSION. The ceiling alone cost discrimination
+  // (LBO: separation 0.81 → 0.43, 27/45 points framing). At most TWO points
+  // beyond the card, only where a strong spoken answer cannot be given
+  // without them, each named in "concerns" as "BEYOND THE CARD: …" so the
+  // owner sees exactly what was added. The probe's 0.65 pass line leaves the
+  // headroom for them; the relation pass supplies the rest of the separation.
+  version: 8,
   schema: AuthorDraftSchema,
 
   build(input: AuthorKlpsBuildInput): string {
@@ -81,7 +109,7 @@ Study set: ${input.setTitle}
 Term: ${input.term}
 Definition (written by the card's owner): ${input.definition}
 
-${authorBody({
+${priorFindingsBlock(input.priorFindings)}${authorBody({
   floor: `Write AT LEAST ${input.minKlps} KLPs, up to ${MAX_KLPS_AUTHORED}; the usual right number is ${input.minKlps + 1} to ${Math.min(MAX_KLPS_AUTHORED, input.minKlps + 3)}.`,
 })}
 
@@ -96,8 +124,23 @@ ${DRAFT_JSON_NOTES}`;
  * the batch prompt below except for the sizing sentence, which names a number
  * for one card and "the floor given for that card" for a batch.
  */
+/**
+ * v6: the previous set's probe findings, verbatim, ahead of the body — the
+ * writer reads what outgrew the card before it writes.
+ */
+function priorFindingsBlock(findings: AuthorKlpsBuildInput['priorFindings']): string {
+  if (!findings || findings.length === 0) return '';
+  const label = (issue: string) => (issue === 'not_on_card' ? 'NOT ON THE CARD' : issue === 'klp_defect' ? 'DEFECTIVE POINT' : 'OVER-REACHES THE CARD');
+  const lines = findings.map((f) => `  [${f.index}] ${label(f.issue)} — "${f.text}" — ${f.fix}`).join('\n');
+  return `A PREVIOUS SET OF KEY POINTS FOR THIS CARD WAS TESTED — against the owner's own definition, and against deliberately written answers — AND THESE POINTS FAILED:
+${lines}
+Do not write those points again as they were. A point marked NOT ON THE CARD is not authored; a point marked OVER-REACHES is authored only at the grain the definition states it; a point marked DEFECTIVE is rewritten so the named defect is gone — one claim, one reading, and only what the question asks.
+
+`;
+}
+
 function authorBody(opts: { floor: string }): string {
-  return `THE DEFINITION IS YOUR SKELETON, NOT A HINT. It is terse by nature and it is the content the owner has already vetted. Your reference answer must follow it: expand each point it makes to the depth a strong spoken answer would give, THEN add what a strong answer needs that the card omits. Do not contradict it. Where it is incomplete, extend it. Where you believe it is actually WRONG, say so in "concerns" — do not silently correct it. A card the owner never learns is wrong stays wrong.
+  return `THE DEFINITION IS YOUR SKELETON AND YOUR CEILING. It is terse by nature and it is the content the owner has already vetted. Your reference answer expands each point it makes to the depth a strong spoken answer would give — and STOPS THERE. Do not add a point the definition does not make: not a mechanism it does not name, not a consequence it does not draw, not an item it does not list. A strong answer that says more than the card is welcome in the reference's PROSE, but every KEY POINT must be a claim the owner's definition itself makes, at the grain the definition makes it (a definition that says "free cash flow" supports a point about free cash flow, not a point about "cash after opex, capex and taxes"). Two exceptions: the opening definition of the term (step 0), and AT MOST TWO points beyond the card, allowed ONLY where a strong spoken answer to this question genuinely cannot be given without them — a mechanism the question turns on, a consequence the question asks for. Every such point is named in "concerns" as "BEYOND THE CARD: <the point>" so the owner sees exactly what was added; an unnamed extension is a defect. Do not contradict the card. Where you believe it OMITS something a strong answer needs beyond those two, or is actually WRONG, say so in "concerns" — do not silently extend it, and do not silently correct it. A card the owner never learns is thin or wrong stays thin or wrong; the owner reads "concerns".
 
 Do this in order.
 
@@ -111,7 +154,11 @@ Do this in order.
    - scenario: what the situation is, the evidence in the numbers that says so, then the reasoning.
    - calculate: the definition, the formula in words, then what moves it.
 
-1. DEFINITION POINTS — list the distinct points the definition already makes, in the order it makes them. For each, say how many Key Learning Points it takes to cover once expanded ("klpsNeeded", usually 1-3). This is an assessment of DETAIL, not a total to hit; something else adds them up.
+1. DEFINITION POINTS — list the distinct points the definition already makes, in the order it makes them. For each, say how many Key Learning Points it takes to cover once expanded ("klpsNeeded", usually 1-3), and decompose it: "subject" (what it is about, 1-4 words) and "claim" (what it says about the subject, one clause). This is an assessment of DETAIL, not a total to hit; something else adds them up.
+
+   THE TEMPLATE. Your "questionType" chooses a SLOT TEMPLATE, and the key points below FILL IT — every non-optional slot, and at most ${TEMPLATE_OVERFLOW} points beyond the slots. Each key point names its "slot" (or null for an overflow point). The templates:
+
+${Object.values(QUESTION_TEMPLATES).map((t) => templatePromptBlock(t)).join('\n\n')}
 
 2. REFERENCE ANSWER — the answer you would expect from a strong candidate who has fully prepared this card: complete, correct, and at the bar of a real interview response, built on the skeleton above. Every Key Learning Point below must be something THIS answer actually says, not something you separately believe is true about the topic.
 
@@ -131,6 +178,8 @@ Do this in order.
    KEEP EACH POINT SHORT: one claim, about 25 words at most. A context clause — "because ...", "which is why ..." — is allowed ONLY where the bare claim would be ambiguous without it; if the clause is a claim of its own, it is its own point. Do not state the conclusion twice: an opening definition and a closing contrast that both say the same thing is one point, not two — keep whichever a wrong answer is likelier to fail.
    kind: one of ${KLP_KINDS.join(', ')}.
 
+   EVERY KEY POINT IS ALSO STRUCTURED: "subject" (what it is about, 1-4 words), "claim" (what it says, one clause), "qualifier" (the condition or scope it holds under, or null), and "fromDefinition" — the index of the definition point it is derived from, or null when it is beyond the card (then it is also named in "concerns" as BEYOND THE CARD). A point whose subject and claim the definition already states is mapped; a mapped point is what the owner's own definition will be tested on, so the mapping must be honest.
+
 4. EXACTLY TWO WRONG ANSWERS, one for each archetype below. Each must be WRITTEN TO FAIL specific KLPs above — not a random bad answer, but one that deliberately misses particular points while still sounding like a real attempt.
    - vague: refuses to commit to specifics; gestures at the right area without stating the actual claims.
    - memorized_template: has the right shape and vocabulary of a strong answer — the structure a template gives you — but no real substance underneath it.`;
@@ -138,10 +187,10 @@ Do this in order.
 
 const DRAFT_JSON_SHAPE = `{
   "questionType": "define" | "enumerate" | "walkthrough" | "why" | "compare" | "scenario" | "calculate",
-  "definitionPoints": [ { "point": string, "klpsNeeded": number } ],
+  "definitionPoints": [ { "point": string, "klpsNeeded": number, "subject": string, "claim": string } ],
   "referenceAnswer": string,
   "concerns": [ string ],
-  "klps": [ { "text": string, "kind": string } ],
+  "klps": [ { "text": string, "kind": string, "slot": string | null, "subject": string, "claim": string, "qualifier": string | null, "fromDefinition": number | null } ],
   "wrongAnswers": [
     { "kind": "vague" | "memorized_template", "text": string }
   ]
@@ -169,7 +218,10 @@ export interface AuthorKlpsBatchBuildInput {
  */
 export const AUTHOR_KLPS_BATCH_PROMPT = {
   id: 'author-klps-batch',
-  version: 1,
+  // v2 (2026-09-18): shares the v6 body — the definition is the ceiling.
+  // v3 (2026-09-19): shares the v7 body — bounded expansion.
+  // v4 (2026-09-19): shares the v8 body — slot templates + structured points.
+  version: 4,
   schema: AuthorDraftBatchSchema,
 
   build(input: AuthorKlpsBatchBuildInput): string {

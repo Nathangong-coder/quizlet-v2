@@ -3,6 +3,7 @@ import {
   CONTAMINATION_TYPES,
   CONTAMINATION_MAX_DOCK,
   contaminationFactor,
+  contaminationFactorFromTags,
   isContaminated,
   isContaminationType,
   type ContaminationInput,
@@ -48,41 +49,41 @@ describe('CONTAMINATION_TYPES', () => {
   })
 })
 
-describe('contaminationFactor', () => {
+describe('contaminationFactorFromTags — the tag path', () => {
   it('is exactly 1 for a clean answer — credit is byte-identical to before', () => {
-    expect(contaminationFactor([])).toBe(1)
-    expect(isContaminated([])).toBe(false)
+    expect(contaminationFactorFromTags([])).toBe(1)
+    expect(isContaminated({ tags: [], unwarranted: [] })).toBe(false)
   })
 
   it('docks by CONTAMINATION_MAX_DOCK at the top of the severity scale', () => {
-    expect(contaminationFactor([tag({ severity: 5 })])).toBeCloseTo(1 - CONTAMINATION_MAX_DOCK)
+    expect(contaminationFactorFromTags([tag({ severity: 5 })])).toBeCloseTo(1 - CONTAMINATION_MAX_DOCK)
   })
 
   it('docks proportionally below it', () => {
-    expect(contaminationFactor([tag({ severity: 1 })])).toBeCloseTo(1 - CONTAMINATION_MAX_DOCK / 5)
+    expect(contaminationFactorFromTags([tag({ severity: 1 })])).toBeCloseTo(1 - CONTAMINATION_MAX_DOCK / 5)
   })
 
   it('IGNORES a tag already attached to a key point — that point is scored already', () => {
-    expect(contaminationFactor([tag({ klpId: 'k1' })])).toBe(1)
+    expect(contaminationFactorFromTags([tag({ klpId: 'k1' })])).toBe(1)
   })
 
   it('IGNORES clarity and conciseness — delivery is not truth', () => {
     // Docking knowledge credit for verbosity folds two axes into one number.
-    expect(contaminationFactor([tag({ dimension: 'clarity', type: 'rambling' })])).toBe(1)
-    expect(contaminationFactor([tag({ dimension: 'conciseness', type: 'padding' })])).toBe(1)
+    expect(contaminationFactorFromTags([tag({ dimension: 'clarity', type: 'rambling' })])).toBe(1)
+    expect(contaminationFactorFromTags([tag({ dimension: 'conciseness', type: 'padding' })])).toBe(1)
   })
 
   it('IGNORES a whole-answer omission tag', () => {
-    expect(contaminationFactor([tag({ type: 'omission' })])).toBe(1)
+    expect(contaminationFactorFromTags([tag({ type: 'omission' })])).toBe(1)
   })
 
   it('takes the WORST tag, not the sum — two asides are not twice disqualifying', () => {
     const two = [tag({ severity: 2 }), tag({ severity: 4, type: 'fabrication' })]
-    expect(contaminationFactor(two)).toBeCloseTo(contaminationFactor([tag({ severity: 4 })]))
+    expect(contaminationFactorFromTags(two)).toBeCloseTo(contaminationFactorFromTags([tag({ severity: 4 })]))
   })
 
   it('never reaches zero — a contaminated answer is worse evidence, not no evidence', () => {
-    expect(contaminationFactor([tag({ severity: 5 })])).toBeGreaterThan(0)
+    expect(contaminationFactorFromTags([tag({ severity: 5 })])).toBeGreaterThan(0)
   })
 
   it('THE ANCHOR: worst contamination equals the credit of a `partial` answer', () => {
@@ -91,9 +92,62 @@ describe('contaminationFactor', () => {
     // maximally serious falsehood is worth exactly as much as one that only
     // half stated them. If STATUS_CREDIT.partial ever moves, this fails rather
     // than the anchor silently drifting away from the scale it is anchored to.
-    const worstContaminated = klpCredit('passed', 'quiz-sa', contaminationFactor([tag({ severity: 5 })]))
+    const worstContaminated = klpCredit('passed', 'quiz-sa', contaminationFactorFromTags([tag({ severity: 5 })]))
     expect(worstContaminated).toBeCloseTo(klpCredit('partial', 'quiz-sa'))
     expect(CONTAMINATION_MAX_DOCK).toBeCloseTo(STATUS_CREDIT.partial)
+  })
+})
+
+describe('contaminationFactor — unwarranted claims (Spec 5 §3)', () => {
+  // The claim list is the contamination check made first-class: a 1-10
+  // magnitude per instance, mapped onto the same 1-5 band tags resolve to.
+  it('is exactly 1 with no tags and no claims', () => {
+    expect(contaminationFactor({ tags: [], unwarranted: [] })).toBe(1)
+    expect(isContaminated({ tags: [], unwarranted: [] })).toBe(false)
+  })
+
+  it('the object form with only tags equals the tag-only function', () => {
+    const tags = [tag({ severity: 3 })]
+    expect(contaminationFactor({ tags, unwarranted: [] })).toBe(contaminationFactorFromTags(tags))
+  })
+
+  it('a magnitude-10 claim docks exactly as a severity-5 tag does', () => {
+    expect(contaminationFactor({ tags: [], unwarranted: [{ magnitude: 10 }] }))
+      .toBe(contaminationFactorFromTags([tag({ severity: 5 })]))
+    expect(contaminationFactor({ tags: [], unwarranted: [{ magnitude: 10 }] }))
+      .toBeCloseTo(1 - CONTAMINATION_MAX_DOCK)
+  })
+
+  it('maps the 1-10 magnitude onto the 1-5 band by halves, rounding up', () => {
+    const at = (magnitude: number) => contaminationFactor({ tags: [], unwarranted: [{ magnitude }] })
+    expect(at(1)).toBeCloseTo(1 - CONTAMINATION_MAX_DOCK / 5)
+    expect(at(2)).toBeCloseTo(at(1))
+    expect(at(3)).toBeCloseTo(1 - (CONTAMINATION_MAX_DOCK * 2) / 5)
+    expect(at(9)).toBeCloseTo(at(10))
+  })
+
+  it('clamps an out-of-range magnitude into the scale rather than over-docking', () => {
+    const at = (magnitude: number) => contaminationFactor({ tags: [], unwarranted: [{ magnitude }] })
+    expect(at(0)).toBeCloseTo(at(1))
+    expect(at(15)).toBeCloseTo(at(10))
+  })
+
+  it('takes the WORST source across tags and claims, never the sum', () => {
+    const mild = [tag({ severity: 2 })]
+    expect(contaminationFactor({ tags: mild, unwarranted: [{ magnitude: 10 }] }))
+      .toBeCloseTo(contaminationFactor({ tags: [], unwarranted: [{ magnitude: 10 }] }))
+    expect(contaminationFactor({ tags: [tag({ severity: 5 })], unwarranted: [{ magnitude: 1 }] }))
+      .toBeCloseTo(contaminationFactorFromTags([tag({ severity: 5 })]))
+    expect(contaminationFactor({ tags: [], unwarranted: [{ magnitude: 4 }, { magnitude: 8 }] }))
+      .toBeCloseTo(contaminationFactor({ tags: [], unwarranted: [{ magnitude: 8 }] }))
+  })
+
+  it('a claim contaminates even when every tag is ignorable', () => {
+    // A key-point-scoped tag or a clarity tag is not contamination; the claim
+    // list is, on its own.
+    const ignorable = [tag({ klpId: 'k1' }), tag({ dimension: 'clarity', type: 'rambling' })]
+    expect(contaminationFactor({ tags: ignorable, unwarranted: [] })).toBe(1)
+    expect(isContaminated({ tags: ignorable, unwarranted: [{ magnitude: 3 }] })).toBe(true)
   })
 })
 
@@ -108,7 +162,7 @@ describe('klpCredit with the negative check', () => {
     // positive evidence on every point, so the learner's mastery ROSE for
     // having said something wrong.
     const clean = klpCredit('passed', 'quiz-sa')
-    const contaminated = klpCredit('passed', 'quiz-sa', contaminationFactor([tag()]))
+    const contaminated = klpCredit('passed', 'quiz-sa', contaminationFactorFromTags([tag()]))
     expect(contaminated).toBeLessThan(clean)
   })
 
@@ -121,7 +175,7 @@ describe('klpCredit with the negative check', () => {
   })
 
   it('stays inside [0, 1] with no clamp, because the factor multiplies', () => {
-    const c = klpCredit('passed', 'quiz-sa', contaminationFactor([tag()]))
+    const c = klpCredit('passed', 'quiz-sa', contaminationFactorFromTags([tag()]))
     expect(c).toBeGreaterThan(0)
     expect(c).toBeLessThanOrEqual(1)
   })

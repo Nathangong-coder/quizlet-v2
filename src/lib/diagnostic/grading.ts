@@ -24,20 +24,23 @@ export function isBlankAnswer(answer: string): boolean {
  * was provided. No response ...", eventually code-switching mid-sentence),
  * spent **15,001 text tokens**, hit the output ceiling, and returned NO
  * parseable object. The SDK raises `NoObjectGeneratedError` for that, which
- * classifies as `schema_invalid` — so it reads as a model that cannot follow a
- * schema rather than one with nothing to say. Both of the user's credentials
- * failed the same batch, so rotation did not help, and the whole twelve-question
- * sitting was thrown away.
+ * classifies as `output_truncated` (`finishReason: 'length'`) — so it reads as
+ * a model that ran out of room rather than one with nothing to say. Both of
+ * the user's credentials failed the same batch, so rotation did not help, and
+ * the whole twelve-question sitting was thrown away.
  *
  * Prompt-level length limits reduced it (text tokens fell from ~15,000 to 132)
  * but did NOT eliminate it — consecutive identical runs differed. So the input
  * is removed instead of the behaviour being asked away.
  *
  * The values are the same ones the grader is told to use: 1/10 is the bottom of
- * the `missed` band. `failed` on the key point is a real negative observation,
- * not an absence of one — the learner was asked and produced nothing — and
- * `klpCredit` scores `failed` at 0.0 in every mode. No error tags: there is no
- * text to tag, and a fabricated tag is indistinguishable from a real one.
+ * the `missed` band. `omission` on the key point is a real negative
+ * observation, not an absence of one — the learner was asked and produced
+ * nothing, so the point was not addressed, which is exactly what `omission`
+ * NAMES under Spec 5's runtime vocabulary (the legacy `failed` said only
+ * "wrong somehow"). `klpCredit` scores it 0.0 in every mode, the same as
+ * `failed`. No error tags: there is no text to tag, and a fabricated tag is
+ * indistinguishable from a real one.
  */
 export function blankAnswerGrade(questionRef: number): Grade {
   return {
@@ -45,7 +48,7 @@ export function blankAnswerGrade(questionRef: number): Grade {
     score: 1,
     status: 'missed',
     feedback: 'No answer was submitted for this question.',
-    klpResults: [{ klpRef: 0, status: 'failed' }],
+    klpResults: [{ klpRef: 0, status: 'omission' }],
     errorTags: [],
   }
 }
@@ -134,9 +137,14 @@ export function excerptForReport(answer: string): string {
 /**
  * Is a failed grading call worth retrying one question at a time?
  *
- * ONLY when something failed with `schema_invalid`. That is the kind produced
- * by a response too large to parse — the degenerate repetition loop — and it is
- * the one failure a SMALLER call genuinely fixes.
+ * `output_truncated` IS the oversized-response case — a `finishReason:
+ * 'length'` reply that ran out of room before it could be parsed, i.e. the
+ * degenerate repetition loop this module's `isBlankAnswer` doc describes — and
+ * it is the one failure a SMALLER call genuinely fixes. `schema_invalid` stays
+ * in the retryable set too: `classifyProviderError` only carves `length`
+ * finishes out of what used to be a single bucket, so a `schema_invalid` still
+ * covers other malformed-but-not-truncated replies worth the same smaller
+ * retry.
  *
  * Everything else must not be retried, and the reason is not politeness about
  * load. `quota_exhausted` means the daily cap is gone: four per-question
@@ -147,11 +155,11 @@ export function excerptForReport(answer: string): string {
  * asking for less does not make an absent key present.
  *
  * `some`, not `every`: with several credentials in the pool one may hit quota
- * while another returns an unparseable response, and the second is still worth
- * a smaller retry.
+ * while another returns a truncated or unparseable response, and the second is
+ * still worth a smaller retry.
  */
 export function shouldRetryPerQuestion(failureKinds: readonly string[]): boolean {
-  return failureKinds.some((kind) => kind === 'schema_invalid')
+  return failureKinds.some((kind) => kind === 'output_truncated' || kind === 'schema_invalid')
 }
 
 /**

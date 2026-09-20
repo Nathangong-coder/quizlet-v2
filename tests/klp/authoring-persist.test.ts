@@ -91,9 +91,9 @@ describe('persistAuthoring', () => {
   it('writes the KLPs with their COMPUTED weights', async () => {
     await persistAuthoring('c1', outcome, 1, content)
     expect(h.write.mock.calls[0][1]).toEqual([
-      { text: 'p0', kind: 'mechanism', weight: 3, role: 'substance', source: 'ai', promptVersion: 1 },
-      { text: 'p1', kind: 'causal', weight: 2, role: 'substance', source: 'ai', promptVersion: 1 },
-      { text: 'p2', kind: 'definition', weight: 1, role: 'framing', source: 'ai', promptVersion: 1 },
+      { text: 'p0', kind: 'mechanism', weight: 3, role: 'substance', slot: null, structured: null, definitionRef: null, source: 'ai', promptVersion: 1 },
+      { text: 'p1', kind: 'causal', weight: 2, role: 'substance', slot: null, structured: null, definitionRef: null, source: 'ai', promptVersion: 1 },
+      { text: 'p2', kind: 'definition', weight: 1, role: 'framing', slot: null, structured: null, definitionRef: null, source: 'ai', promptVersion: 1 },
     ])
   })
 

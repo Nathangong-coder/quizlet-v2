@@ -161,7 +161,9 @@ describe('planAnswerRegrade — carry forward', () => {
     })
     expect(plan.action).toBe('remap')
     expect(plan.carried).toEqual([
-      expect.objectContaining({ fromKlpId: 'old1', toKlpId: 'new1', status: 'passed', credit: 0.95 }),
+      // A prior `passed` is carried as `correct`: the alias is read-only from
+      // v4 and the carry path re-creates rows (Spec 5 D1). Same credit.
+      expect.objectContaining({ fromKlpId: 'old1', toKlpId: 'new1', status: 'correct', credit: 0.95 }),
       expect.objectContaining({ fromKlpId: 'old2', toKlpId: 'new2', status: 'partial', credit: 0.475 }),
     ])
     expect(plan.droppedKlpIds).toEqual([])
@@ -178,6 +180,34 @@ describe('planAnswerRegrade — carry forward', () => {
       live: live(['new1', 'A']),
     })
     expect(plan.carried[0]).toMatchObject({ status: 'failed', mode: 'quiz-mc', credit: 0 })
+  })
+
+  it('carries a `passed` prior as `correct` and keeps its spans — the answer text did not move', () => {
+    const plan = planAnswerRegrade({
+      answerId: 'a1',
+      mode: 'quiz-sa',
+      answerText: 'EBIT falls by 10, so net income falls by 6',
+      priorResults: [
+        prior({ klpId: 'old1', klpText: 'EBIT falls by 10', status: 'passed', evidence: 'EBIT falls by 10', spanStart: 0, spanEnd: 16 }),
+      ],
+      live: live(['new1', 'EBIT falls by 10']),
+    })
+    expect(plan.action).toBe('remap')
+    expect(plan.carried).toEqual([
+      expect.objectContaining({ toKlpId: 'new1', status: 'correct', credit: 0.95, spanStart: 0, spanEnd: 16 }),
+    ])
+    expect(plan.carried.some((c) => (c.status as string) === 'passed')).toBe(false)
+  })
+
+  it('a prior without spans carries null offsets, not undefined', () => {
+    const plan = planAnswerRegrade({
+      answerId: 'a1',
+      mode: 'quiz-mc',
+      answerText: null,
+      priorResults: [prior({ klpId: 'old1', klpText: 'A', status: 'inversion', mode: 'quiz-mc', credit: 0 })],
+      live: live(['new1', 'A']),
+    })
+    expect(plan.carried[0]).toMatchObject({ status: 'inversion', spanStart: null, spanEnd: null })
   })
 
   it('drops evidence whose proposition is gone, and never reassigns it', () => {

@@ -51,6 +51,10 @@ const TASK_DESCRIPTIONS: Record<Task, string> = {
     'Turns a set’s key learning points into short prompt/answer pieces for Blitz, Crossword and Match, when the set owner presses Prepare games. Stored on the set and reused by every player; identical cards across sets share them.',
   'hot-seat':
     'Writes the interviewer’s follow-up question in Hot Seat when you miss a point. Nothing is stored; the grading itself runs under the grade task.',
+  'form-reqs':
+    'Writes the 3-5 shape rules a complete answer to a card must satisfy — answers the question asked, states direction and magnitude, keeps causal order, closes the loop — from the card’s reference answer and key points, in the background after authoring. A judgment task, not a writing one. Stored and reused.',
+  'grader-panel':
+    'Writes the grader benchmark’s panel for a card: four candidate answers at four intended levels (or one per failure shape), each with the reason it sits there. The grader is then measured against this fixed panel, so the writer must never be the model that grades. A writing task, run once per card by an operator. Stored and reused.',
 };
 
 interface RowState {

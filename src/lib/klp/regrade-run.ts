@@ -35,6 +35,15 @@ import {
  * dead ones asserting knowledge from observations no longer attached to them.
  * The rebuild's delete branch removes a state whose evidence is gone, which is
  * exactly the needed behaviour — but only if the id is passed in.
+ *
+ * **It rewrites the LIVE generation only.** The grader-version regrade
+ * (`src/lib/analysis/regrade.ts`, Spec 5 Phase A §6) supersedes rather than
+ * deletes, so an answer may carry a superseded generation of rows beside its
+ * live one. Every delete below is scoped `supersededAt: null`: a KLP edit
+ * rewrites what is live and never takes a grader regrade's history with it.
+ * This tool still DELETES the live rows it rewrites rather than superseding
+ * them — supersede adoption deferred (queue); when it lands, the carry path
+ * should write through `writeAnalysisGeneration` too.
  */
 
 /** Everything a card's re-grade needs, read once. */
@@ -80,7 +89,11 @@ export async function loadCardRegradeInput(cardId: string): Promise<CardRegradeI
   const answers = await prisma.quizAnswer.findMany({
     // At least one result pointing at a SUPERSEDED key point. This predicate is
     // the work queue — see the planner's header on why no queue table exists.
-    where: { cardId, klpResults: { some: { klp: { supersededAt: { not: null } } } } },
+    // LIVE generation only (`supersededAt: null` on the result row — distinct
+    // from the KEY POINT's `supersededAt`, which is the strandedness test).
+    // A grader-version regrade (src/lib/analysis/regrade.ts) leaves old
+    // generations as history; they are not evidence to carry or drop.
+    where: { cardId, klpResults: { some: { supersededAt: null, klp: { supersededAt: { not: null } } } } },
     orderBy: { createdAt: 'asc' },
     select: {
       id: true,
@@ -88,12 +101,15 @@ export async function loadCardRegradeInput(cardId: string): Promise<CardRegradeI
       mode: true,
       answer: true,
       klpResults: {
+        where: { supersededAt: null },
         select: {
           klpId: true,
           status: true,
           credit: true,
           mode: true,
           evidence: true,
+          spanStart: true,
+          spanEnd: true,
           klp: { select: { text: true, supersededAt: true } },
         },
       },
@@ -139,6 +155,8 @@ export async function loadCardRegradeInput(cardId: string): Promise<CardRegradeI
         mode: r.mode as StudySource,
         credit: r.credit,
         evidence: r.evidence,
+        spanStart: r.spanStart,
+        spanEnd: r.spanEnd,
         isLive: r.klp.supersededAt === null,
       })),
     }] : [])),
@@ -187,21 +205,30 @@ export async function applyRegradePlan(
   await prisma.$transaction(async (tx) => {
     await lockKlpStates(tx, userId, affected)
 
-    // Every prior result goes, then survivors are re-created on live ids. A
-    // delete-and-recreate rather than an UPDATE of `klpId`: the unique
-    // constraint is (quizAnswerId, klpId), and updating rows one at a time can
-    // transiently collide with a row not yet moved.
-    await tx.answerKlpResult.deleteMany({ where: { quizAnswerId: plan.answerId } })
+    // Every LIVE prior result goes, then survivors are re-created on live ids.
+    // A delete-and-recreate rather than an UPDATE of `klpId`: the live-key
+    // unique is (quizAnswerId, klpId) WHERE supersededAt IS NULL, and updating
+    // rows one at a time can transiently collide with a row not yet moved.
+    // `supersededAt: null` spares a grader regrade's superseded generation —
+    // see the header; supersede adoption deferred (queue).
+    await tx.answerKlpResult.deleteMany({ where: { quizAnswerId: plan.answerId, supersededAt: null } })
 
     const toWrite =
       plan.action === 'regrade' && fresh
         ? fresh.klpResults
         : plan.carried.map((c) => ({
             klpId: c.toKlpId,
-            status: c.status,
+            // The planner already normalised the read-only `passed` alias to
+            // `correct`; this is the writer's own guard on the same rule, so
+            // a plan built elsewhere cannot re-introduce the alias under v4.
+            status: c.status === 'passed' ? 'correct' : c.status,
             credit: c.credit,
             mode: c.mode,
             evidence: c.evidence ?? undefined,
+            // The answer text is unchanged by a KLP edit, so the resolved
+            // quote offsets stay valid and travel with the row.
+            spanStart: c.spanStart,
+            spanEnd: c.spanEnd,
           }))
 
     if (toWrite.length > 0) {
@@ -216,7 +243,8 @@ export async function applyRegradePlan(
     // "about the whole answer", so the tag stays real while its now-unresolvable
     // specificity is dropped rather than reassigned to a neighbouring point.
     if (plan.action === 'regrade' && fresh) {
-      await tx.answerErrorTag.deleteMany({ where: { quizAnswerId: plan.answerId } })
+      // Live generation only, as above.
+      await tx.answerErrorTag.deleteMany({ where: { quizAnswerId: plan.answerId, supersededAt: null } })
       if (fresh.errorTags.length > 0) {
         await tx.answerErrorTag.createMany({
           data: fresh.errorTags.map((t) => ({ ...t, quizAnswerId: plan.answerId })),
@@ -225,7 +253,7 @@ export async function applyRegradePlan(
     } else {
       const remap = new Map(plan.carried.map((c) => [c.fromKlpId, c.toKlpId]))
       const tags = await tx.answerErrorTag.findMany({
-        where: { quizAnswerId: plan.answerId },
+        where: { quizAnswerId: plan.answerId, supersededAt: null },
         select: { id: true, klpId: true, secondaryKlpId: true },
       })
       for (const tag of tags) {
@@ -322,6 +350,15 @@ export async function regradeCard(
           starred: answer.starred,
           klpResults: graded.klpResults,
           errorTags: [],
+          // Spec 5 Phase A: spans resolve against the stored answer. This
+          // regrade only rewrites key-point rows (see applyRegradePlan), so
+          // the relation/form/claim arrays stay empty here.
+          answerText: answer.answerText ?? '',
+          relations: [],
+          formReqs: [],
+          relationResults: [],
+          formResults: [],
+          unwarranted: [],
         })
       }
     }
@@ -343,7 +380,7 @@ export async function regradeCard(
  */
 export async function findStrandedCardIds(limit: number): Promise<string[]> {
   const rows = await prisma.card.findMany({
-    where: { quizAnswers: { some: { klpResults: { some: { klp: { supersededAt: { not: null } } } } } } },
+    where: { quizAnswers: { some: { klpResults: { some: { supersededAt: null, klp: { supersededAt: { not: null } } } } } } },
     orderBy: { id: 'asc' },
     take: limit,
     select: { id: true },

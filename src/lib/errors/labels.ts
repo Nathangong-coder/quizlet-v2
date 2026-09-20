@@ -41,9 +41,13 @@ export function labelForErrorType(type: string): string {
 }
 
 const KLP_STATUS_LABELS: Record<KlpStatus, string> = {
-  passed: 'Covered',
-  partial: 'Partially covered',
-  failed: 'Missed',
+  correct: 'Covered', passed: 'Covered',
+  partial: 'Partially covered', incomplete: 'Partially covered',
+  failed: 'Missed', omission: 'Missing', contradicted: 'Contradicted',
+  inversion: 'Inverted', conflation: 'Confused with another point',
+  misapplication: 'Misapplied', factual_error: 'Factually wrong',
+  overgeneralization: 'Overgeneralised', unsupported_leap: 'Unsupported leap',
+  fabrication: 'Invented',
 }
 
 export function labelForKlpStatus(status: KlpStatus): string {

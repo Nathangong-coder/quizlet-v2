@@ -110,6 +110,11 @@ export const POLICED_TASKS: readonly AiTask[] = [
   // but a model that cannot hold a schema is no better at it, so it stays in.
   'game-pieces',
   'hot-seat',
+  // Form requirements are persisted and grade every later answer on the card.
+  'form-reqs',
+  // The benchmark panel is persisted and fixed: every grader change is measured
+  // against it, so a model that cannot hold a schema would fix a bad instrument.
+  'grader-panel',
 ]
 
 export function isPolicedTask(task: AiTask): boolean {

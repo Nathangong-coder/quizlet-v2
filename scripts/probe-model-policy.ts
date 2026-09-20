@@ -5,6 +5,7 @@ import { diagnosticOutputCap } from '../src/lib/diagnostic/grading'
 import { temperatureForTask } from '../src/lib/ai/temperature'
 import { GOOGLE_APPROVED_MODELS } from '../src/lib/ai/model-policy'
 import { parseList } from '../src/lib/klp/direct-pool'
+import { STATUS_CREDIT, type KlpStatus } from '../src/lib/errors/klp-credit'
 import { resolveLanguageModel, PROVIDER_META, type ProviderId } from '../src/lib/ai/providers'
 
 /**
@@ -142,9 +143,12 @@ async function main() {
       const grades = value.grades
       const refs = grades.map((g) => g.questionRef).sort()
       const oneVerdictEach = grades.every((g) => (g.klpResults ?? []).length === 1)
+      // Credit, never the label (Spec 5 §7): the blank answer grades
+      // `omission` now, and the correct one `correct` or the legacy alias.
+      const creditOf = (status: string | undefined) => STATUS_CREDIT[status as KlpStatus]
       const separates =
-        grades.find((g) => g.questionRef === 0)?.klpResults?.[0]?.status === 'passed' &&
-        grades.find((g) => g.questionRef === 1)?.klpResults?.[0]?.status === 'failed'
+        creditOf(grades.find((g) => g.questionRef === 0)?.klpResults?.[0]?.status) === 1 &&
+        creditOf(grades.find((g) => g.questionRef === 1)?.klpResults?.[0]?.status) === 0
 
       const problems: string[] = []
       if (grades.length !== 2 || refs.join(',') !== '0,1') problems.push(`refs ${JSON.stringify(refs)}`)

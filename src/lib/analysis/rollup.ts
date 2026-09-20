@@ -1,5 +1,5 @@
 import type { Dimension } from '@/lib/errors/taxonomy'
-import type { KlpStatus } from '@/lib/errors/klp-credit'
+import { STATUS_CREDIT, type KlpStatus } from '@/lib/errors/klp-credit'
 import type { AnalysisOutcome } from './persist'
 
 const MAX_STRUGGLED_KLPS = 5
@@ -70,7 +70,10 @@ export function rollupSessionAnalysis(answers: RollupAnswer[]): SessionRollup {
     }
 
     for (const r of a.klpResults) {
-      if (r.status !== 'failed') continue
+      // Zero credit is a struggle, not just the literal `failed` label — the
+      // widened vocabulary (`omission`, `inversion`, `contradicted`, ...) all
+      // carry zero credit and must count the same way `failed` always did.
+      if ((STATUS_CREDIT[r.status] ?? 0) > 0) continue
       const s = klpStruggles.get(r.klpId) ?? { failCount: 0, totalSignificance: 0 }
       s.failCount++
       klpStruggles.set(r.klpId, s)

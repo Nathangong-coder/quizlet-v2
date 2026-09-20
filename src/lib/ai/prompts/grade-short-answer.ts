@@ -2,27 +2,60 @@ import { Card } from '@prisma/client';
 import { ContentBlock } from '@/lib/cards/content';
 import { ShortAnswerGradeSchema } from '@/lib/ai/schemas';
 import { ACCURACY_TYPES, CLARITY_TYPES, CONCISENESS_TYPES, MAX_TAGS_PER_ANSWER } from '@/lib/errors/taxonomy';
-import { learnerContextBlock } from './shared';
+import { RUNTIME_VERDICTS } from '@/lib/klp/verdicts';
 import { PromptKlp } from './multiple-choice';
+import { verdictInstructionBlock } from './verdict-block';
+import { rubricPromptBlock } from '@/lib/analysis/rubric';
 
+/** One `KlpRelation` edge of the card, by prompt ref. Never a cuid. */
+export interface PromptRelation {
+  ref: number;
+  type: string;
+  fromRef: number;
+  toRef: number;
+}
+
+/** One `CardFormRequirement` of the card, by prompt ref. Never a cuid. */
+export interface PromptFormReq {
+  ref: number;
+  text: string;
+}
+
+/**
+ * Spec 5, "The boundary": the grader's inputs are the card, its key points,
+ * relations and form requirements, and the learner's text — and NOTHING
+ * about the learner. There is deliberately no learner-profile field here.
+ */
 export interface GradeShortAnswerBuildInput {
   card: Card;
   answer: string;
-  profileBlock?: string;
   /** Live KLPs. Absent or empty falls back to the rubric-only prompt. */
   klps?: PromptKlp[];
+  relations?: PromptRelation[];
+  formReqs?: PromptFormReq[];
+  /** CardAuthoring.referenceAnswer when the card has one. */
+  referenceAnswer?: string;
+  /**
+   * v8: the answer is a NOTE (the card's own definition on the definition
+   * probe), graded on the knowledge present however compressed. Never set by
+   * the quiz.
+   */
+  noteForm?: boolean;
 }
 
 export interface GradeShortAnswerBuildPartsInput {
   card: Card;
   promptBlocks: ContentBlock[];
   answer: string;
-  profileBlock?: string;
   /** Live KLPs. Absent or empty falls back to the rubric-only prompt. */
   klps?: PromptKlp[];
+  relations?: PromptRelation[];
+  formReqs?: PromptFormReq[];
+  /** CardAuthoring.referenceAnswer when the card has one. */
+  referenceAnswer?: string;
 }
 
-const RUBRIC_BODY = `For each of the following categories, provide a score (1-10), a list of pros, and a list of cons:
+const RUBRIC_CRITERIA = `For each of the following categories, provide a score (1-10), a list of pros, and a list of cons:
 1. Clarity: How easy is the answer to understand?
 2. Conciseness: Does the answer avoid unnecessary filler?
 3. Correctness: How accurate is the answer compared to the definition?
@@ -30,72 +63,131 @@ const RUBRIC_BODY = `For each of the following categories, provide a score (1-10
 Additionally, provide:
 - Overall Score: A final weighted grade (1-10).
 - Summary: A concise synthesis of the performance.
-- Suggested Improvement: A specific, actionable tip to make this answer "interview-ready".
+- Suggested Improvement: A specific, actionable tip to make this answer "interview-ready".`;
+
+const RUBRIC_SCHEMA_FIELDS = `  "clarity": { "score": number, "pros": string[], "cons": string[] },
+  "conciseness": { "score": number, "pros": string[], "cons": string[] },
+  "correctness": { "score": number, "pros": string[], "cons": string[] },
+  "overall": number,
+  "summary": string,
+  "suggestedImprovement": string`;
+
+const RUBRIC_BODY = `${RUBRIC_CRITERIA}
 
 Output the result as JSON.
 
 JSON Schema:
 {
-  "clarity": { "score": number, "pros": string[], "cons": string[] },
-  "conciseness": { "score": number, "pros": string[], "cons": string[] },
-  "correctness": { "score": number, "pros": string[], "cons": string[] },
-  "overall": number,
-  "summary": string,
-  "suggestedImprovement": string
+${RUBRIC_SCHEMA_FIELDS}
 }`;
 
 /**
- * Appended when live KLPs are supplied. Asks for per-KLP outcomes and
- * closed-vocabulary error tags in the SAME call as the rubric — no second AI
- * call, no window where a grade exists without its analysis. `severity` is
- * the model's only numeric contribution; significance is computed in TS.
+ * v6 (2026-09-18, found by the grader benchmark's first run): on the KLP path
+ * the rubric's literal `JSON Schema: {...}` listing used to come FIRST, with
+ * the analysis fields asked for afterwards as "Additionally return …". On a
+ * long card (9 points, 8 relations) DeepSeek produced exactly the schema it
+ * had been shown and silently omitted `klpResults` — and because the field
+ * was optional, the reply parsed and yielded zero verdicts. Now the KLP path
+ * shows ONE schema listing, rubric and analysis fields together, placed right
+ * before the learner's answer, and says `klpResults` is required. The
+ * no-KLP path is byte-identical to v5.
+ *
+ * v7 (2026-09-18): the communication checklist (`rubricPromptBlock`) joins
+ * the KLP path; TypeScript scores it (`src/lib/analysis/rubric.ts`).
+ *
+ * v8 (2026-09-18): `noteForm` appends `NOTE_FORM_CLAUSE` for the definition
+ * probe. With `noteForm` unset the text is byte-identical to v7, so every
+ * quiz grade and every benchmark row stays on the same instrument.
  */
-const ANALYSIS_BODY = (klps: PromptKlp[]) => `
+const OUTPUT_SCHEMA = (input: { relations?: PromptRelation[]; formReqs?: PromptFormReq[] }) => `Output ONE JSON object containing ALL of the following fields — the rubric fields AND the analysis fields together. "klpResults" is REQUIRED and must contain exactly one entry per key point listed above; never omit it.
+
+JSON Schema:
+{
+${RUBRIC_SCHEMA_FIELDS},
+  "klpResults": [ { "klpRef": number, "status": string, "quote"?: string } ],${input.relations?.length ? `
+  "relationResults": [ { "relationRef": number, "status": string, "quote": string } ],` : ''}${input.formReqs?.length ? `
+  "formResults": [ { "formRef": number, "status": "met" | "not_met", "quote": string } ],` : ''}
+  "unwarranted": [ { "text": string, "quote": string, "magnitude": number } ],
+  "errorTags": [ { "dimension": string, "type": string, "klpRef"?: number, "secondaryKlpRef"?: number, "magnitude": number, "quote"?: string } ],
+  "communication": [ { "id": string, "met": boolean, "quote"?: string } ]
+}`;
+
+/**
+ * Appended when live KLPs are supplied. Asks for per-KLP verdicts and
+ * closed-vocabulary error tags in the SAME call as the rubric — no second AI
+ * call, no window where a grade exists without its analysis. `magnitude` is
+ * the model's only numeric contribution; significance is computed in TS.
+ *
+ * v5: the verdict paragraph is the shared block (`./verdict-block`), so the
+ * runtime grader, the authoring grader and the diagnostic grader are graded
+ * by ONE measured wording. Relations and form requirements are listed with
+ * their own refs; the reference answer (when the card has one) sits after
+ * the key points and before the learner's answer, in the authoring grader's
+ * prefix order, so a provider prefix cache hits across every answer on the
+ * card.
+ */
+/**
+ * Spec 5 §3: a relation verdict and a form result carry a quote on EVERY
+ * verdict, `correct` and `met` included — the opposite of the key-point rule
+ * in the shared block ("omit quote on correct"). A key point's `correct` needs
+ * no span; a relation's `correct` is the ONLY record of WHERE the learner
+ * asserted the link, and a form requirement's `met` of where the shape was
+ * satisfied, so without the quote the span Task 5 resolves is null on every
+ * met relation (fix round, 2026-09-17). Rendered only when the prompt lists a
+ * relation or a form requirement, so the no-relation prompt is unchanged.
+ */
+const QUOTE_EVERY_RELATION_FORM = 'For relations and form requirements, include "quote" on EVERY verdict, including "correct" and "met".';
+
+/**
+ * NOTE-FORM GRADING (v8, 2026-09-18, owner's ask). On the definition probe the
+ * "answer" is the card's own definition — bullet points and keyword phrases,
+ * not a spoken answer. The knowledge is graded, not the prose: a point whose
+ * claim is unmistakably present in three words is `correct`. The substance
+ * floor still governs the CLAIM (an adjacent idea or one half of a compound
+ * point is still `incomplete`); it no longer governs the FORM. The quiz never
+ * sets this.
+ */
+export const NOTE_FORM_CLAUSE = `THE ANSWER IS A NOTE, NOT A SPOKEN ANSWER. It is the card owner's own compressed definition: bullet points, keyword phrases, parentheticals, no full sentences. Grade the KNOWLEDGE it contains, not its prose. A key point is "correct" when its specific claim is unmistakably present in the note's words, however compressed — "(after interest)" states that interest is deducted first; "mandatory repayments, then optional" states the order. Do not mark a point down for brevity, missing connectives, missing mechanism WORDS when the mechanism is named, or for not being a sentence. The substance rule still applies to the CLAIM: an adjacent or more general idea, or one half of a two-part point, is "incomplete"; a point the note never touches is "omission".`;
+
+const ANALYSIS_BODY = (input: { klps: PromptKlp[]; relations?: PromptRelation[]; formReqs?: PromptFormReq[]; referenceAnswer?: string; noteForm?: boolean }) => {
+  const rel = input.relations?.length
+    ? `\nRelations between key points (a link the card teaches):\n${input.relations.map((r) => `[R${r.ref}] (${r.type}) [${r.fromRef}] → [${r.toRef}]`).join('\n')}\n`
+    : '';
+  const form = input.formReqs?.length
+    ? `\nForm requirements (the SHAPE the answer must have):\n${input.formReqs.map((f) => `[F${f.ref}] ${f.text}`).join('\n')}\n`
+    : '';
+  const reference = input.referenceAnswer
+    ? `\nA strong reference answer, for context on what a complete response looks like (do not compare the learner's WORDING against it — judge only whether the learner's OWN claims satisfy each point):\n${input.referenceAnswer}\n`
+    : '';
+  return `
 Key Learning Points this card teaches:
-${klps.map((k) => `[${k.ref}] (${k.kind}) ${k.text}`).join('\n')}
+${input.klps.map((k) => `[${k.ref}] (${k.kind}) ${k.text}`).join('\n')}
+${rel}${form}${reference}
+${verdictInstructionBlock({ strict: true, showKinds: true, vocabulary: RUNTIME_VERDICTS })}${input.noteForm ? `\n\n${NOTE_FORM_CLAUSE}` : ''}
 
-Additionally return:
+The analysis fields, explained (the JSON schema for the whole reply follows below):
 
-"klpResults": one entry per Key Learning Point above, judging ONLY that point:
-  - "passed"  — the answer covers it correctly
-  - "partial" — mentioned but incomplete or imprecise
-  - "failed"  — absent, or stated wrongly
-  Include a short verbatim "evidence" quote from the answer where one exists.
-  Reference points by their [ref] number.
+"klpResults": one entry per key point above — { "klpRef": number, "status": verdict, "quote"?: string }.
+${input.relations?.length ? `"relationResults": one entry per relation above — { "relationRef": number, "status": verdict, "quote"?: string }. "correct" = the answer asserts the link itself; "omission" = both ends present, link never made; "inversion" = link asserted backwards; "contradicted" = the answer denies it.\n` : ''}${input.formReqs?.length ? `"formResults": one entry per form requirement — { "formRef": number, "status": "met" | "not_met", "quote"?: string }.\n` : ''}${input.relations?.length || input.formReqs?.length ? `${QUOTE_EVERY_RELATION_FORM}\n` : ''}
+"unwarranted": every claim the answer makes that the key points above do NOT make and that is false, misleading or invented — { "text": one sentence naming the claim, "quote": verbatim excerpt, "magnitude": 1-10 how serious this instance is }. AN ANSWER THAT COVERS EVERY KEY POINT CAN STILL BE WRONG: the points above say what must be PRESENT and nothing about what must be ABSENT, and this list is exactly what they cannot see. A clean answer returns [].
 
-"errorTags": at most ${MAX_TAGS_PER_ANSWER} tags, at most 2 per dimension.
-  Tag only what is genuinely wrong; a clean answer returns an empty list.
-
+"errorTags": at most ${MAX_TAGS_PER_ANSWER} tags, at most 2 per dimension. Tag only what is genuinely wrong; a clean answer returns an empty list.
   dimension "accuracy"     — types: ${ACCURACY_TYPES.join(', ')}
   dimension "clarity"      — types: ${CLARITY_TYPES.join(', ')}
   dimension "conciseness"  — types: ${CONCISENESS_TYPES.join(', ')}
+  Each tag: "type" from that dimension's list and NO other word; "klpRef" when about one point (omit for the whole answer); "secondaryKlpRef" for "conflation" only; "magnitude" 1-10 within the type; "quote".
+  Every "unwarranted" claim above is ALSO tagged here, with klpRef OMITTED — it is about the whole answer, not about any one point. Do not skip it because the listed points were covered.
+Rank by what matters most. Do not pad to the cap.
 
-  AN ANSWER THAT COVERS EVERY KEY POINT CAN STILL BE WRONG. The points above
-  say what must be PRESENT; they say nothing about what must be ABSENT. If the
-  answer states all of them and ALSO asserts something false, misleading, or
-  invented, tag that with klpRef OMITTED — it is about the whole answer, not
-  about any one point. Do not skip it because the listed points were covered;
-  that addition is exactly what nothing else in this rubric can see.
-
-  Each tag needs:
-  - "type" from that dimension's list. Use NO other word.
-  - "klpRef" when the error is about a specific point; omit it when the error
-    is about the whole answer.
-  - "secondaryKlpRef" for "conflation" only: the point it was confused WITH.
-  - "magnitude" 1-10, how severe THIS instance of that type is. 1 is a
-    borderline case barely worth tagging; 10 is the most severe form of this
-    error you could see. Judge degree WITHIN the type you chose — do not use
-    it to rank one type against another.
-  - "quote": the span of the answer the tag refers to.
-
-Rank by what matters most. Do not pad to the cap.`;
+"communication": ${rubricPromptBlock().replace(/^Communication checklist\. /, '')}`;
+};
 
 /**
  * Short-answer grading prompt. Registry entry per Stage 6 Task 5 — routed
  * via task 'grade' in generateJson (strongest available flash). The rubric/schema is
  * unchanged from the pre-registry version: still 1-10
- * clarity/conciseness/correctness/overall. `profileBlock` only adds learner
- * context; it does not change what's being graded.
+ * clarity/conciseness/correctness/overall. (A learner-profile field once
+ * prepended learner context here; v5 removed it — see below.)
  *
  * v2 (Stage 8 Spec 2a): when live KLPs are supplied, the SAME call also
  * returns per-KLP outcomes and closed-vocabulary error tags (ANALYSIS_BODY).
@@ -120,35 +212,75 @@ Rank by what matters most. Do not pad to the cap.`;
  * emits is a dock that never happens. Measured beforehand: an answer satisfying
  * every point AND asserting something false scored full positive evidence on
  * every point, and the learner's mastery ROSE for having said something wrong.
+ *
+ * v5 (Spec 5 Phase A): the per-KLP vocabulary is widened from three labels to
+ * RUNTIME_VERDICTS via the shared block (`./verdict-block`), so the runtime
+ * grader, the authoring grader and the diagnostic grader are graded by ONE
+ * measured wording — strict, and kind-aware (mechanism/condition/quantitative
+ * judged on substance). The learner profile is REMOVED: the grader is a
+ * stateless instrument that answers "what does this answer contain?", never
+ * "what does this person know?", so it never sees the learner. The analysis
+ * body now also lists the card's relations (graded with the same vocabulary),
+ * its form requirements (`met | not_met`), asks for `unwarranted[]` — claims
+ * the key points cannot see, each with a 1-10 magnitude — and requires
+ * VERBATIM quotes so TypeScript can resolve spans. With KLPs, the learner's
+ * answer moves to the END of the prompt — shared material (card, rubric, key
+ * points, relations, form requirements, reference, verdict block) first, the
+ * answer last, in the authoring grader's prefix order, so a provider prefix
+ * cache hits across every answer on the card. The rubric block and the no-KLP
+ * path are byte-identical to v4.
  */
 export const GRADE_SHORT_ANSWER_PROMPT = {
   id: 'grade-short-answer',
-  version: 4,
+  version: 8,
   schema: ShortAnswerGradeSchema,
 
   build(input: GradeShortAnswerBuildInput): string {
-    const analysis = input.klps && input.klps.length > 0 ? ANALYSIS_BODY(input.klps) : '';
+    if (input.klps && input.klps.length > 0) {
+      return `You are a finance interview grader. Grade the following short-answer response.
 
-    return `${learnerContextBlock(input.profileBlock)}You are a finance interview grader. Grade the following short-answer response.
+Term: ${input.card.term}
+Expected Definition: ${input.card.definition}
+
+${RUBRIC_CRITERIA}${ANALYSIS_BODY({ ...input, klps: input.klps })}
+
+${OUTPUT_SCHEMA(input)}
+
+User Answer: "${input.answer}"`;
+    }
+
+    return `You are a finance interview grader. Grade the following short-answer response.
 
 Term: ${input.card.term}
 Expected Definition: ${input.card.definition}
 User Answer: "${input.answer}"
 
-${RUBRIC_BODY}${analysis}`;
+${RUBRIC_BODY}`;
   },
 
   buildParts(input: GradeShortAnswerBuildPartsInput): { parts: any[]; promptText: string } {
-    const analysis = input.klps && input.klps.length > 0 ? ANALYSIS_BODY(input.klps) : '';
+    const mediaNote = input.promptBlocks.some((b) => b.type !== 'text') ? '[The question material is shown above/below as images, audio, video, etc.]' : '';
 
-    const promptText = `${learnerContextBlock(input.profileBlock)}You are a finance interview grader. Grade the following short-answer response.
+    const promptText = input.klps && input.klps.length > 0
+      ? `You are a finance interview grader. Grade the following short-answer response.
 
-${input.promptBlocks.some((b) => b.type !== 'text') ? '[The question material is shown above/below as images, audio, video, etc.]' : ''}
+${mediaNote}
+
+Expected Definition: ${input.card.definition}
+
+${RUBRIC_CRITERIA}${ANALYSIS_BODY({ ...input, klps: input.klps })}
+
+${OUTPUT_SCHEMA(input)}
+
+User Answer: "${input.answer}"`
+      : `You are a finance interview grader. Grade the following short-answer response.
+
+${mediaNote}
 
 Expected Definition: ${input.card.definition}
 User Answer: "${input.answer}"
 
-${RUBRIC_BODY}${analysis}`;
+${RUBRIC_BODY}`;
 
     return { parts: [{ text: promptText }], promptText };
   },

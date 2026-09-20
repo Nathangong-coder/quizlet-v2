@@ -87,6 +87,9 @@ export async function persistAuthoring(
     weight: k.weight,
     kind: k.kind,
     role: k.role,
+    slot: k.slot ?? null,
+    structured: k.structured ?? null,
+    definitionRef: k.definitionRef ?? null,
     source: 'ai',
     promptVersion,
     // The same model that `CardAuthoring.model` records, now on the KLP rows
@@ -107,6 +110,9 @@ export async function persistAuthoring(
         referenceAnswer: outcome.referenceAnswer,
         separationScore: outcome.separationScore,
         substanceSeparation: outcome.substanceSeparation,
+        relationSeparation: outcome.relationSeparation ?? null,
+        combinedSeparation: outcome.combinedSeparation ?? null,
+        referenceRelationVerdicts: outcome.referenceRelationVerdicts ?? undefined,
         questionType: outcome.questionType ?? null,
         referenceVerdicts: outcome.referenceVerdicts,
         ...(outcome.rebuild
@@ -138,6 +144,7 @@ export async function persistAuthoring(
           text: p.text,
           score: p.score,
           verdicts: p.verdicts,
+          relationVerdicts: p.relationVerdicts ?? undefined,
         })),
       })
     }

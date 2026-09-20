@@ -3,8 +3,8 @@ import { generateText, Output, NoObjectGeneratedError } from 'ai'
 import type { z } from 'zod'
 import { prisma } from '../src/lib/db'
 import { generateJson, generateJsonWithMeta } from '../src/lib/ai/generate'
-import { authorCard, authorMinKlps, type AuthoringGenerator, type AuthoringOutcome, type AuthorResult } from '../src/lib/klp/authoring'
-import { writeFileSync } from 'node:fs'
+import { authorCard, authorMinKlps, type AuthoringGenerator, type AuthoringOutcome, type AuthorResult, type PriorFinding } from '../src/lib/klp/authoring'
+import { writeFileSync, readFileSync } from 'node:fs'
 import { persistAuthoring } from '../src/lib/klp/authoring-persist'
 import { AUTHOR_KLPS_PROMPT, AUTHOR_KLPS_BATCH_PROMPT } from '../src/lib/ai/prompts/author-klps'
 import { isDeepSeekPeak } from '../src/lib/klp/token-meter'
@@ -32,6 +32,10 @@ import {
   formatBreadthHistogram,
 } from '../src/lib/klp/histogram'
 import { PROBE_KINDS } from '../src/lib/klp/authoring-config'
+import { GRADER_VERSION } from '../src/lib/analysis/version'
+import { revisionVeto } from '../src/lib/klp/definition-probe'
+import { loadBenchmarkRows } from '../src/lib/analysis/benchmark-run'
+import { formatBenchmarkReport } from '../src/lib/analysis/benchmark-report'
 import { formatPanelCurve } from '../src/lib/klp/panel'
 import {
   readDirectPool,
@@ -88,6 +92,7 @@ function defaultGenerator(userId: string, onModel?: (model: string) => void): Au
           term: input.question,
           definition: input.definition,
           minKlps: input.minKlps,
+          priorFindings: input.priorFindings,
         }),
         schema: AUTHOR_KLPS_PROMPT.schema,
       })
@@ -310,6 +315,7 @@ function directGenerator(combo: DirectCombo, pacer: Pacer, authorCombo?: DirectC
           term: input.question,
           definition: input.definition,
           minKlps: input.minKlps,
+          priorFindings: input.priorFindings,
         }),
         AUTHOR_KLPS_PROMPT.schema,
         'writer',
@@ -400,6 +406,11 @@ interface RunStats {
   parityBelowBar: number
   /** Word ratios (rebuilt / reference) and the reviewer's verdict on the rebuilt answer — the compression acceptance numbers. */
   wordRatios: number[]
+  /** The relation pass (2026-09-19): per-card combined / relation separations, where the pass ran. */
+  combinedSeparations: number[]
+  relationSeparations: number[]
+  droppedForReference: number
+  vetoed: number
   rebuiltTight: number
   rebuiltReviewed: number
   /**
@@ -548,6 +559,10 @@ async function main() {
   }
   const dryRun = flag(args, '--dry-run')
   const force = flag(args, '--force')
+  // `--keep-better`: THE REVISION VETO (2026-09-19). Refuse to persist a
+  // version whose carried separation falls below the floor when the version
+  // it would replace was at or above it. Set by `probe-definitions --revise`.
+  const keepBetter = flag(args, '--keep-better')
   const limitRaw = opt(args, '--limit')
   const limit = limitRaw !== undefined ? Number.parseInt(limitRaw, 10) : undefined
   // `--skip N` starts N cards into the set, so the SAME cards can be authored
@@ -611,6 +626,12 @@ async function main() {
 
   // `--cards id,id,...` picks specific cards from the set (a spread run); wins over --skip/--limit.
   const onlyIds = (opt(args, '--cards') ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+  // `--findings <file>`: the definition probe's per-card findings on the PREVIOUS
+  // set ({ [cardId]: [{ index, text, issue, fix }] }), carried into the v6
+  // author prompt verbatim. Written by `scripts/probe-definitions.ts --revise`.
+  const findingsFile = opt(args, '--findings')
+  const findingsByCard: Record<string, PriorFinding[]> = findingsFile ? (JSON.parse(readFileSync(findingsFile, 'utf8')) as Record<string, PriorFinding[]>) : {}
+  if (findingsFile) console.log(`[author-klps] --findings: prior definition-probe findings for ${Object.keys(findingsByCard).length} card(s)`)
   const cards = onlyIds.length
     ? onlyIds.map((id) => allCards.find((c) => c.id === id)).filter((c): c is (typeof allCards)[number] => !!c)
     : limit !== undefined ? allCards.slice(skip, skip + limit) : allCards.slice(skip)
@@ -665,6 +686,10 @@ async function main() {
     referenceRewritten: 0,
     parityBelowBar: 0,
     wordRatios: [],
+    combinedSeparations: [],
+    relationSeparations: [],
+    droppedForReference: 0,
+    vetoed: 0,
     rebuiltTight: 0,
     rebuiltReviewed: 0,
     weights: [],
@@ -830,6 +855,7 @@ async function main() {
             // Reuse this card's existing panel so this run's separation score is
             // comparable with the last one's.
             existingPanel: (await findExistingPanel(card.id))?.members,
+            priorFindings: findingsByCard[card.id],
           },
           gen,
         )
@@ -910,6 +936,20 @@ async function main() {
       continue
     }
 
+    if (keepBetter && !dryRun) {
+      const previous = await prisma.cardAuthoring.findFirst({
+        where: { cardId: card.id, klpVersion: card.klpVersion },
+        orderBy: { createdAt: 'desc' },
+        select: { combinedSeparation: true, substanceSeparation: true, separationScore: true },
+      })
+      const v = revisionVeto(previous, outcome)
+      if (v.veto) {
+        console.log(`${tag} — VETOED, not persisted: ${v.reason}`)
+        stats.vetoed += 1
+        continue
+      }
+    }
+
     try {
       if (!dryRun) {
         await persistAuthoring(
@@ -958,13 +998,20 @@ async function main() {
           : '') +
         `${outcome.relations.length} relations (candidates ${outcome.relationStats.candidates}, ` +
         `cycles-dropped ${outcome.relationStats.droppedForCycles}, ` +
-        `out-of-range-dropped ${outcome.relationStats.droppedOutOfRange})${flagSuffix}`,
+        `out-of-range-dropped ${outcome.relationStats.droppedOutOfRange}` +
+        (outcome.relationStats.droppedForReference !== undefined ? `, reference-dropped ${outcome.relationStats.droppedForReference}${outcome.relationStats.droppedEdges?.length ? ` {${outcome.relationStats.droppedEdges.map((e) => `[${e.from}]${e.type}[${e.to}]:${e.referenceVerdict}`).join(' ')}}` : ''}` : '') +
+        `)` +
+        (outcome.combinedSeparation !== undefined ? `, LINKS: relation sep ${(outcome.relationSeparation ?? 0).toFixed(2)}, combined ${outcome.combinedSeparation.toFixed(2)}` : '') +
+        `${flagSuffix}`,
     )
 
     stats.authored += 1
     stats.separationSum += outcome.separationScore
     stats.substanceSum += outcome.substanceSeparation
     stats.framingPoints += outcome.klps.filter((k) => k.role === 'framing').length
+    if (outcome.combinedSeparation !== undefined) stats.combinedSeparations.push(outcome.combinedSeparation)
+    if (outcome.relationSeparation !== undefined) stats.relationSeparations.push(outcome.relationSeparation)
+    stats.droppedForReference += outcome.relationStats.droppedForReference ?? 0
     if (outcome.referenceReview?.rewritten) stats.referenceRewritten += 1
     if (outcome.rebuild?.clearsParityBar === false) stats.parityBelowBar += 1
     if (outcome.rebuild?.wordRatio != null) stats.wordRatios.push(outcome.rebuild.wordRatio)
@@ -998,6 +1045,8 @@ async function main() {
       (stats.authored > 0 && stats.revised / stats.authored < 0.2 ? ' (UNDER A FIFTH — the bar found little to fix on this run)' : '') +
       `, mean separation ${meanSeparation.toFixed(2)}` +
       (stats.framingPoints > 0 ? ` (substance ${meanSubstance.toFixed(2)}; ${stats.framingPoints} framing points excluded)` : '') +
+      (stats.vetoed ? `, ${stats.vetoed} VETOED (kept the previous version)` : '') +
+      (stats.combinedSeparations.length ? `, LINKS on ${stats.combinedSeparations.length} card(s): mean combined ${(stats.combinedSeparations.reduce((a, b) => a + b, 0) / stats.combinedSeparations.length).toFixed(2)}, mean relation ${stats.relationSeparations.length ? (stats.relationSeparations.reduce((a, b) => a + b, 0) / stats.relationSeparations.length).toFixed(2) : 'n/a'}, ${stats.droppedForReference} edge(s) dropped for failing the reference` : '') +
       `, ${stats.referenceRewritten} reference(s) rewritten by the communication check, ${stats.parityBelowBar} still below the ${REBUILD_PARITY_BAR} parity bar` +
       (stats.wordRatios.length ? `, rebuilt/ref words mean ${(stats.wordRatios.reduce((a, b) => a + b, 0) / stats.wordRatios.length).toFixed(2)}, rebuilt tight ${stats.rebuiltTight}/${stats.rebuiltReviewed}` : '') +
       `, ${stats.lowDiscrimination} low_discrimination, ${stats.memorizable} memorizable, ${stats.totalKlps} total KLPs, ` +
@@ -1032,6 +1081,24 @@ async function main() {
     console.log(formatBreadthHistogram(buildBreadthHistogram(stats.failCounts, stats.probesPerCard)))
     console.log()
     console.log('Corpus-wide distribution (this run plus everything already stored): npm run klp-histogram')
+  }
+
+  // The grader benchmark, beside the histogram (Spec 5 §8, "Re-runnable").
+  // Read-only: the set's stored panels and their results at the current
+  // grader version. A re-authored card's panel is stale and drops out of
+  // this read, so after a run that re-authored cards the report shrinks —
+  // that is the signal to run `npm run bench-grader -- --set <id> --author`.
+  // Nothing is printed when the set has no panels; a benchmark that was
+  // never run is not a number. The read is harmless on a dry run too.
+  try {
+    const benchRows = await loadBenchmarkRows(set.id, { graderVersion: GRADER_VERSION })
+    if (benchRows.length > 0) {
+      console.log()
+      console.log(formatBenchmarkReport(benchRows, { title: set.title, verbose: false }))
+      console.log(`Per-inversion detail and a re-grade: npm run bench-grader -- --set ${set.id}`)
+    }
+  } catch (err) {
+    console.error(`[author-klps] benchmark read failed: ${err instanceof Error ? err.message : String(err)}`)
   }
 
   // Concerns are printed LAST and never persisted: a pipeline that silently

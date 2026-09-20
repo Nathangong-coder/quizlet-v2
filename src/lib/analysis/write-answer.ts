@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { ANALYSIS_VERSION, type AnalysisWrites } from '@/lib/analysis/persist';
+import { GRADER_VERSION } from '@/lib/analysis/version';
 import { persistKlpStates, rebuildKlpStates, lockKlpStates } from '@/lib/metrics/state-writer';
 import { recomputeCardProgress } from '@/lib/memory/recompute';
 
@@ -75,7 +76,10 @@ export async function createAnswerWithAnalysis(
       };
       const prior = await tx.quizAnswer.findMany({
         where,
-        select: { klpResults: { select: { klpId: true } } },
+        // Live rows only: a superseded generation's key points are replayed
+        // from nothing either way, and every reader of these tables filters
+        // the same way (tests/analysis/live-rows-only).
+        select: { klpResults: { where: { supersededAt: null }, select: { klpId: true } } },
       });
       priorAnswerCount = prior.length;
       supersededKlpIds = [
@@ -89,20 +93,15 @@ export async function createAnswerWithAnalysis(
         ...answerData,
         analysisStatus: writes.status,
         analysisVersion: ANALYSIS_VERSION,
+        // Which INSTRUMENT produced the rows, beside which CONTRACT they
+        // follow (Spec 5 §6). A prompt or lexicon edit moves this and not
+        // ANALYSIS_VERSION; a regrade rewrites rows under a new value of it.
+        graderVersion: GRADER_VERSION,
         analysisWarnings:
           writes.warnings.length > 0 ? (writes.warnings as unknown as object) : undefined,
       },
     });
-    if (writes.klpResults.length > 0) {
-      await tx.answerKlpResult.createMany({
-        data: writes.klpResults.map((r) => ({ ...r, quizAnswerId: answer.id })),
-      });
-    }
-    if (writes.errorTags.length > 0) {
-      await tx.answerErrorTag.createMany({
-        data: writes.errorTags.map((t) => ({ ...t, quizAnswerId: answer.id })),
-      });
-    }
+    await writeAnalysisGeneration(tx, answer.id, writes);
 
     // Before ANY posterior read. The step below is read-modify-write with an
     // absolute write, so without this two answers touching one KLP both read
@@ -193,6 +192,64 @@ export async function createAnswerWithAnalysis(
   };
 
   return tx ? run(tx) : prisma.$transaction(run, ANALYSIS_TX_OPTIONS);
+}
+
+/**
+ * Writes ONE generation of an answer's analysis rows: key-point results,
+ * error tags, and Spec 5 Phase A's relation results, form results and
+ * unwarranted claims.
+ *
+ * The single row writer, shared by the live path (`createAnswerWithAnalysis`
+ * above) and the grader-version regrade (`src/lib/analysis/regrade.ts`). One
+ * writer, because a second copy is how the two generations start disagreeing
+ * about which columns a row carries — and the regrade's whole claim is that
+ * its rows are comparable to the quiz's.
+ *
+ * Each table is skipped when empty — an empty createMany is a wasted
+ * round-trip in a transaction that already serialises one lock per key point.
+ * None of the three Phase A tables feeds KlpState: form is not knowledge, a
+ * claim is already folded into every credit via the contamination factor, and
+ * a relation posterior is Phase B's.
+ *
+ * `createdAt`, when given, is stamped on every row. The live path leaves it to
+ * the column default — which inside a transaction is the transaction's own
+ * clock, the same one `QuizAnswer.createdAt` took. The regrade passes the
+ * ANSWER's `createdAt`: it re-measures an observation, it does not make a new
+ * one, and `rebuildKlpStates` replays by `AnswerKlpResult.createdAt`, so a
+ * regraded row dated today would move a months-old observation to today.
+ */
+export async function writeAnalysisGeneration(
+  tx: Prisma.TransactionClient,
+  answerId: string,
+  writes: AnalysisWrites,
+  opts: { createdAt?: Date } = {},
+): Promise<void> {
+  const stamp = opts.createdAt ? { createdAt: opts.createdAt } : {};
+  if (writes.klpResults.length > 0) {
+    await tx.answerKlpResult.createMany({
+      data: writes.klpResults.map((r) => ({ ...r, ...stamp, quizAnswerId: answerId })),
+    });
+  }
+  if (writes.errorTags.length > 0) {
+    await tx.answerErrorTag.createMany({
+      data: writes.errorTags.map((t) => ({ ...t, ...stamp, quizAnswerId: answerId })),
+    });
+  }
+  if (writes.relationResults.length > 0) {
+    await tx.answerRelationResult.createMany({
+      data: writes.relationResults.map((r) => ({ ...r, ...stamp, quizAnswerId: answerId })),
+    });
+  }
+  if (writes.formResults.length > 0) {
+    await tx.answerFormResult.createMany({
+      data: writes.formResults.map((f) => ({ ...f, ...stamp, quizAnswerId: answerId })),
+    });
+  }
+  if (writes.unwarranted.length > 0) {
+    await tx.answerUnwarrantedClaim.createMany({
+      data: writes.unwarranted.map((u) => ({ ...u, ...stamp, quizAnswerId: answerId })),
+    });
+  }
 }
 
 /**

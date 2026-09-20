@@ -10,6 +10,8 @@ import {
   CONCISENESS_TYPES,
   MAX_TAGS_PER_ANSWER,
 } from '@/lib/errors/taxonomy';
+import { RUNTIME_VERDICTS } from '@/lib/klp/verdicts';
+import { verdictInstructionBlock } from './verdict-block';
 
 export interface DiagnosticProbePromptInput {
   probeRef: number;
@@ -31,6 +33,14 @@ export interface DiagnosticGradingBuildInput {
     question: string;
     expectedAnswer: string;
     keyPoint: string;
+    /**
+     * `CardKlp.kind` of the key point. The shared block's kind clause reads
+     * it: mechanism / condition / quantitative are judged on substance,
+     * everything else strictly. `submitDiagnostic` always passes it; a point
+     * rendered WITHOUT a kind is graded at the strict tier — which is what
+     * every diagnostic point silently got in v3 until this field existed.
+     */
+    kind?: string;
     answer: string;
   }>;
 }
@@ -92,9 +102,22 @@ ${input.probes.map((probe) => `[${probe.probeRef}] (${probe.kind})\nKey point: $
  * is the whole reason error types can be aggregated at all; a grader that has
  * not been shown it cannot honour it.
  */
+/**
+ * v3 (Spec 5 Phase A): the three-label paragraph — a second, independent copy
+ * of the runtime grader's wording — is replaced by the shared block
+ * (`./verdict-block`, RUNTIME_VERDICTS, strict and kind-aware), so the
+ * diagnostic differs from the runtime grader only in WHICH key point it chose
+ * to ask (`src/lib/diagnostic/select.ts`). Per-point output is
+ * `{ klpRef: 0, status, quote? }`; `evidence` is accepted for one version.
+ * Each key point is rendered WITH its kind (`Key point [0] (mechanism): …`),
+ * because the block is built with `showKinds: true` and its kind clause is
+ * inert on a point that carries no kind — every diagnostic point was being
+ * graded at the strict tier, a divergence from the quiz grader on the same
+ * proposition (fix round, 2026-09-17).
+ */
 export const DIAGNOSTIC_GRADING_PROMPT = {
   id: 'diagnostic-grading',
-  version: 2,
+  version: 3,
   schema: DiagnosticGradeSetSchema,
   build(input: DiagnosticGradingBuildInput): string {
     return `Grade every diagnostic response against its key point and expected answer.
@@ -110,13 +133,11 @@ These limits are about the length of each field. They are NOT permission to leav
 
 For EACH question also return:
 
-"klpResults": exactly one entry, with klpRef 0, judging the key point that
-  question tested.
-  - "passed"  — the learner holds it
-  - "partial" — mentioned but incomplete or imprecise
-  - "failed"  — absent, or stated wrongly
+${verdictInstructionBlock({ strict: true, showKinds: true, vocabulary: RUNTIME_VERDICTS })}
+
+"klpResults": exactly one entry, with klpRef 0 — { "klpRef": 0, "status": verdict, "quote"?: string }.
   Judge ONLY that key point. You are not being asked about anything else the
-  card teaches. Include a short verbatim "evidence" quote where one exists.
+  card teaches.
 
 "errorTags": at most ${MAX_TAGS_PER_ANSWER} tags, at most 2 per dimension.
   Tag only what is genuinely wrong; a clean answer returns an empty list.
@@ -135,7 +156,7 @@ For EACH question also return:
   - "quote": the span of the answer the tag refers to.
 
 Questions and responses:
-${input.questions.map((item) => `[${item.ref}] Key point [0]: ${item.keyPoint}\nQuestion: ${item.question}\nExpected answer: ${item.expectedAnswer}\nLearner answer: ${item.answer || '[no answer]'}`).join('\n\n')}`;
+${input.questions.map((item) => `[${item.ref}] Key point [0]${item.kind ? ` (${item.kind})` : ''}: ${item.keyPoint}\nQuestion: ${item.question}\nExpected answer: ${item.expectedAnswer}\nLearner answer: ${item.answer || '[no answer]'}`).join('\n\n')}`;
   },
 };
 

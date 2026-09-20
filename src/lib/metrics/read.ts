@@ -222,7 +222,9 @@ export async function getLearnerMetrics({
       // Not restricted to short answer, though the denominator is: MC/TF tags
       // are always `dimension: 'accuracy'`, which `computeArticulation`
       // ignores, and `deriveMisconceptions` below legitimately spans modes.
-      where: { quizAnswer: { ...quizAnswerScopeWhere, analysisStatus: 'analyzed' } },
+      // Live generation only: a regraded answer's old tags stay as history
+      // (Spec 5 §6) and would otherwise count its misconceptions twice.
+      where: { quizAnswer: { ...quizAnswerScopeWhere, analysisStatus: 'analyzed' }, supersededAt: null },
       select: {
         dimension: true, type: true, klpId: true, secondaryKlpId: true,
         relevance: true, starred: true, magnitude: true, mode: true,
@@ -233,7 +235,7 @@ export async function getLearnerMetrics({
       },
     }),
     prisma.answerKlpResult.findMany({
-      where: { quizAnswer: quizAnswerScopeWhere },
+      where: { quizAnswer: quizAnswerScopeWhere, supersededAt: null },
       select: { klpId: true, status: true, createdAt: true },
     }),
     prisma.studyEvent.findMany({
@@ -345,7 +347,7 @@ export async function getLearnerMetrics({
     cleanStreaks: computeCleanStreaks(
       klpOutcomes.map((o) => ({
         klpId: o.klpId,
-        status: o.status as 'passed' | 'partial' | 'failed',
+        status: o.status,
         createdAt: o.createdAt,
       })),
     ),

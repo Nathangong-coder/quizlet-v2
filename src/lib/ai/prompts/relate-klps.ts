@@ -4,6 +4,12 @@ import { RELATABLE_TYPES } from '@/lib/klp/relations';
 export interface RelateKlpsBuildInput {
   question: string;
   klps: { text: string }[];
+  /**
+   * v3: the card owner's definition. Links the definition itself states
+   * ("X, then Y", "because", an arrow, an order) are the card's own and are
+   * always candidates. Optional so a caller without it gets v2's text.
+   */
+  definition?: string;
 }
 
 /**
@@ -33,7 +39,15 @@ export interface RelateKlpsBuildInput {
 export const RELATE_KLPS_PROMPT = {
   id: 'relate-klps',
   // v2 (2026-09-14): instructions first, card last (prefix cache).
-  version: 2,
+  // v3 (2026-09-19, relations as a discrimination axis): the edge CAP is
+  // gone — "perhaps four edges that matter" pruned links on cards whose
+  // ceiling-bound points no longer separate a template; the relation pass
+  // in authoring now grades every edge on the reference and the traps and
+  // prunes the ones the reference does not assert, so the model's job is to
+  // find every informative link, not to ration them. The owner's definition
+  // is shown, and links it states outright are always candidates. The probe
+  // requirement stays: an edge with no failing answer is definitional.
+  version: 3,
   schema: RelationDraftSchema,
 
   build(input: RelateKlpsBuildInput): string {
@@ -51,7 +65,7 @@ Look for edges by three techniques:
 
 For every candidate edge you consider, write a PROBE: an answer that gets BOTH endpoints demonstrably right and the link between them wrong. If you cannot write such an answer, the edge is DEFINITIONAL — it carries no information, costs grading tokens for nothing — and must be DROPPED, not emitted.
 
-Prune hard. Seven KLPs have 21 possible pairs and perhaps four edges that matter. Only keep an edge where a learner could plausibly hold both endpoints and still miss the link.
+Keep EVERY edge that passes the probe test — a learner could plausibly hold both endpoints and still miss the link — and drop every edge that does not. Do not ration: a card with seven points may have two informative links or nine. An edge the card's own definition states outright (an order, a "because", a "then", an arrow) is always a candidate; include it if its probe can be written.
 
 Offer only these relation types: ${RELATABLE_TYPES.join(', ')}. Do not use any other type.
 
@@ -61,7 +75,7 @@ Output JSON:
 "from"/"to" are the [index] numbers of the key points.
 
 Question: ${input.question}
-
+${input.definition ? `Definition on the card (the owner's own words): ${input.definition}\n` : ''}
 Key Learning Points:
 ${klps}`;
   },

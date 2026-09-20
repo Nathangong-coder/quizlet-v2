@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { AI_TASKS } from '@/lib/ai/model-routing'
+import { AI_TASKS, AI_TASK_LABELS } from '@/lib/ai/model-routing'
 
 /**
  * `modelFor`/`MODEL_FALLBACKS`/`DEFAULT_AI_MODEL`/`AiModel` were removed in
@@ -19,9 +19,21 @@ import { AI_TASKS } from '@/lib/ai/model-routing'
  * `author` (Stage 8 rebuild, Spec 2) is the seventh: authoring is
  * judgment-heavy and runs rarely, runtime grading is latency-sensitive and
  * runs constantly, so they get separate routing decisions.
+ *
+ * `form-reqs` (Spec 5 §5) is the twelfth: the form-requirements pass is one
+ * judgment call per card over an already-authored reference, and it must not
+ * ride on `author` (Z.ai-first, `high` effort) — it is grader-family work.
+ *
+ * `grader-panel` (Spec 5 §8) is the thirteenth: the adversary that writes
+ * the benchmark panel — four answers at four intended levels, or one per
+ * failure shape — is writer-family, authoring-grade work. It is not `author`
+ * because a panel is written ONCE per (card, klpVersion) and re-graded on
+ * every grader change, so it wants its own routing decision and its own line
+ * on the usage dashboard; and it is not `grade` because the grader must
+ * never be the model that wrote what it grades.
  */
 describe('AI_TASKS', () => {
-  it('contains exactly the eleven expected task names', () => {
+  it('contains exactly the thirteen expected task names', () => {
     expect(AI_TASKS).toEqual([
       'grade',
       'plan',
@@ -34,7 +46,24 @@ describe('AI_TASKS', () => {
       'author',
       'game-pieces',
       'hot-seat',
+      'form-reqs',
+      'grader-panel',
     ])
+  })
+
+  /**
+   * `AI_TASK_LABELS` is `Record<AiTask, string>`, so a missing label is a type
+   * error — but a label that is an empty string, or a slug pasted as its own
+   * label, compiles. The usage dashboard and the routing panel both render
+   * these, so pin that every task has a real human name.
+   */
+  it('has a non-empty human label for every task, distinct from the slug', () => {
+    for (const task of AI_TASKS) {
+      const label = AI_TASK_LABELS[task]
+      expect(label, task).toBeTruthy()
+      expect(label, task).not.toBe(task)
+    }
+    expect(Object.keys(AI_TASK_LABELS).sort()).toEqual([...AI_TASKS].sort())
   })
 
   /**

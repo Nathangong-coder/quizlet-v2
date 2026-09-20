@@ -28,8 +28,12 @@ describe('task defaults (set from the 2026-09-15 benchmark)', () => {
   })
 
   it('judgment goes to DeepSeek, writing goes to GLM, Google last at runtime', () => {
-    for (const t of ['grade', 'diagnostic', 'concept-tree', 'klp-extract'] as const) expect(TASK_PROVIDER_PREFERENCE[t][0]).toBe('deepseek')
-    for (const t of ['distractors', 'game-pieces', 'hot-seat', 'author'] as const) expect(TASK_PROVIDER_PREFERENCE[t][0]).toBe('zai')
+    for (const t of ['grade', 'diagnostic', 'concept-tree', 'klp-extract', 'form-reqs'] as const) expect(TASK_PROVIDER_PREFERENCE[t][0]).toBe('deepseek')
+    // form requirements are judgments about the question, not writing (spec 5 §5): grader family
+    expect(TASK_PROVIDER_PREFERENCE['form-reqs']).toEqual(['deepseek', 'zai', 'google'])
+    for (const t of ['distractors', 'game-pieces', 'hot-seat', 'author', 'grader-panel'] as const) expect(TASK_PROVIDER_PREFERENCE[t][0]).toBe('zai')
+    // The benchmark adversary WRITES the panel (spec 5 §8): writer family, Z.ai first.
+    expect(TASK_PROVIDER_PREFERENCE['grader-panel']).toEqual(['zai', 'deepseek', 'google'])
     // Google's free tier is hourly-rate-limited, so it is the last resort on every task a
     // learner waits on. Authoring runs in the background and Gemini 3.6 is its quality
     // reference (0.80), so it sits second there.
@@ -45,7 +49,11 @@ describe('task defaults (set from the 2026-09-15 benchmark)', () => {
 
   it('GLM runs low for anything a learner waits on and high for authoring', () => {
     expect(zaiEffortForTask('author')).toBe('high')
-    for (const task of AI_TASKS) if (task !== 'author') expect(zaiEffortForTask(task)).toBe('low')
+    // The benchmark panel is authoring-grade writing that no learner waits on:
+    // four deliberately calibrated answers per card, written once.
+    expect(zaiEffortForTask('grader-panel')).toBe('high')
+    const background = new Set(['author', 'grader-panel'])
+    for (const task of AI_TASKS) if (!background.has(task)) expect(zaiEffortForTask(task)).toBe('low')
   })
 
   it('a shared key defaults to 500K tokens a week', () => {

@@ -59,10 +59,29 @@ describe('loadMissedWork', () => {
     expect(JSON.stringify(arg.where.klp)).toContain(USER)
   })
 
-  it('asks the database only for misses, never for passes', async () => {
+  it('asks the database only for misses, never for passes — by the credit rule, not a hand list', async () => {
+    // A miss is any status under full credit (`shapeMissedWork`'s rule). The
+    // hand-written ['failed', 'partial'] list this used to be silently dropped
+    // every Spec 5 label — an `omission` or an `inversion` never reached the
+    // missed-work panel at all.
     await loadMissedWork(prisma, USER, EMPTY_SCOPE, [], DEFAULT_THRESHOLDS)
     const arg = (prisma.answerKlpResult.findMany as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(arg.where.status).toEqual({ in: ['failed', 'partial'] })
+    const asked: string[] = arg.where.status.in
+    expect(asked).toEqual(expect.arrayContaining(['failed', 'partial', 'omission', 'inversion', 'incomplete', 'fabrication']))
+    expect(asked).not.toContain('correct')
+    expect(asked).not.toContain('passed')
+    // Only live rows.
+    expect(arg.where.supersededAt).toBeNull()
+  })
+
+  it('an omission row is a miss in the shaped output', async () => {
+    prisma = makePrisma({
+      answerKlpResult: { findMany: vi.fn().mockResolvedValue([resultRow({ status: 'omission' })]) },
+    })
+    const out = await loadMissedWork(prisma, USER, EMPTY_SCOPE, [], DEFAULT_THRESHOLDS)
+    expect(out).toHaveLength(1)
+    expect(out[0].klps[0].misses).toHaveLength(1)
+    expect(out[0].klps[0].misses[0].status).toBe('omission')
   })
 
   it('scopes KlpState to this user — a posterior is per-learner', async () => {

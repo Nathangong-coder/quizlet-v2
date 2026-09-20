@@ -15,6 +15,7 @@ import { ExpandableText } from '@/components/ui/expandable-text';
 import { QuizCardPrompt } from './QuizCardPrompt';
 import { SessionInsightView } from '@/components/memory/SessionInsightView';
 import { labelForErrorType, labelForKlpStatus } from '@/lib/errors/labels';
+import { STATUS_CREDIT, type KlpStatus } from '@/lib/errors/klp-credit';
 import { rollupSessionAnalysis } from '@/lib/analysis/rollup';
 import { formatDuration } from '@/lib/memory/activity-labels';
 
@@ -125,21 +126,27 @@ function KlpChecklist({ results }: { results: any[] }) {
     <div className="space-y-1.5">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Key points tested</p>
       <ul className="space-y-1">
-        {results.map((r, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm">
-            {r.status === 'passed' ? (
-              <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
-            ) : r.status === 'partial' ? (
-              <MinusCircle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-            ) : (
-              <XCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-            )}
-            <span>
-              <span className="text-muted-foreground">{labelForKlpStatus(r.status)}:</span>{' '}
-              {r.klp?.text ?? 'this point'}
-            </span>
-          </li>
-        ))}
+        {results.map((r, i) => {
+          // The icon is CREDIT, not the label spelling — see KlpGraphCanvas's
+          // `outcomeOf` for the same rule. `labelForKlpStatus` still renders
+          // the exact word for the text next to it.
+          const credit = STATUS_CREDIT[r.status as KlpStatus] ?? 0;
+          return (
+            <li key={i} className="flex items-start gap-2 text-sm">
+              {credit >= 1 ? (
+                <CheckCircle2 className="w-4 h-4 text-success shrink-0 mt-0.5" />
+              ) : credit > 0 ? (
+                <MinusCircle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+              ) : (
+                <XCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+              )}
+              <span>
+                <span className="text-muted-foreground">{labelForKlpStatus(r.status)}:</span>{' '}
+                {r.klp?.text ?? 'this point'}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

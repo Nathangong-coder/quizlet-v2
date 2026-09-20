@@ -278,7 +278,10 @@ async function loadSnapshot(
             attemptId: true,
             cardId: true,
             score: true,
-            klpResults: { select: { klpId: true } },
+            // Live rows name the key points whose posterior the delete will
+            // change; a superseded generation's are replayed from nothing
+            // either way (tests/analysis/live-rows-only).
+            klpResults: { where: { supersededAt: null }, select: { klpId: true } },
           },
         })
 

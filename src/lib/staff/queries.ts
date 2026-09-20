@@ -96,7 +96,9 @@ export async function loadStaffKlps(q: StaffKlpQuery): Promise<StaffKlpRow[]> {
     }),
     prisma.answerKlpResult.groupBy({
       by: ['klpId', 'status'],
-      where: { klpId: { in: ids } },
+      // Live generation only (Spec 5 §6): a regraded answer's old verdict is
+      // history, not a second vote.
+      where: { klpId: { in: ids }, supersededAt: null },
       _count: { _all: true },
     }),
     // Fetched per-card (not per-KLP-version) and matched in memory below: a
@@ -420,8 +422,11 @@ export async function loadLearnerRecord(userId: string): Promise<LearnerRecord |
         mode: true,
         analysisStatus: true,
         card: { select: { term: true } },
-        klpResults: { select: { status: true, klp: { select: { text: true, label: true } } } },
-        errorTags: { select: { dimension: true, type: true, significance: true } },
+        klpResults: {
+          where: { supersededAt: null },
+          select: { status: true, klp: { select: { text: true, label: true } } },
+        },
+        errorTags: { where: { supersededAt: null }, select: { dimension: true, type: true, significance: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: 30,
@@ -501,6 +506,13 @@ export interface AiTaskHistory {
     credentialLabel: string
     ok: boolean
     failureKind: string | null
+    /**
+     * D6's fail-loud path (Spec 5 Phase A): the attempt's raw error message on
+     * a failure, carrying `unknown value: <received>` on the end when the
+     * failure was a strict-enum rejection. NULL on success or on a call logged
+     * before the column existed.
+     */
+    error: string | null
     latencyMs: number
     createdAt: Date
     userLabel: string
@@ -528,7 +540,7 @@ export async function loadAiTaskHistory(task: string, limit = 50): Promise<AiTas
     take: 2000,
     select: {
       id: true, model: true, provider: true, credentialLabel: true, ok: true,
-      failureKind: true, latencyMs: true, createdAt: true,
+      failureKind: true, error: true, latencyMs: true, createdAt: true,
       inputTokens: true, outputTokens: true, reasoningTokens: true, cachedTokens: true,
       user: { select: { handle: true, name: true, email: true } },
     },
@@ -601,6 +613,7 @@ export async function loadAiTaskHistory(task: string, limit = 50): Promise<AiTas
       credentialLabel: r.credentialLabel,
       ok: r.ok,
       failureKind: r.failureKind,
+      error: r.error,
       latencyMs: r.latencyMs,
       createdAt: r.createdAt,
       userLabel: r.user.handle ?? r.user.name ?? r.user.email ?? 'unknown',

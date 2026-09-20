@@ -6,6 +6,21 @@ import { AI_TASKS } from '@/lib/ai/model-routing'
 import { StaffNav } from '../StaffNav'
 
 /**
+ * D6's fail-loud path (Spec 5 Phase A): the compact line shown under a failed
+ * attempt, from `AiCallLog.error`. When `generate.ts` appended `unknown
+ * value: <received>` after a newline (a strict-enum rejection), that IS the
+ * signal worth surfacing — the rest of the message is the generic "response
+ * did not match schema" text every schema_invalid/output_truncated row
+ * carries. Otherwise there is no such line, so this falls back to a short
+ * excerpt of the raw message.
+ */
+function summarizeCallError(error: string): string {
+  const lines = error.split('\n')
+  if (lines.length > 1) return lines[lines.length - 1]
+  return error.length > 120 ? `${error.slice(0, 120)}…` : error
+}
+
+/**
  * AI task history — which model did what, so performance can be benchmarked.
  *
  * ADMIN ONLY, not staff. The rows name every user whose key served a call and
@@ -180,28 +195,35 @@ export default async function StaffAiHistoryPage({
             <h2 className="text-sm font-medium">Recent attempts</h2>
             <ul className="divide-y rounded-lg border text-sm">
               {history.recent.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
-                  <span
-                    className={`w-16 shrink-0 font-mono text-[11px] ${
-                      r.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                    }`}
-                  >
-                    {r.ok ? 'ok' : 'failed'}
-                  </span>
-                  <span className="font-mono text-xs">{r.model}</span>
-                  <span className="text-xs text-muted-foreground">{r.credentialLabel}</span>
-                  {r.failureKind && (
-                    <span className="rounded border px-1.5 font-mono text-[11px] text-muted-foreground">
-                      {r.failureKind}
+                <li key={r.id} className="flex flex-col gap-1 px-3 py-2">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span
+                      className={`w-16 shrink-0 font-mono text-[11px] ${
+                        r.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                      }`}
+                    >
+                      {r.ok ? 'ok' : 'failed'}
                     </span>
+                    <span className="font-mono text-xs">{r.model}</span>
+                    <span className="text-xs text-muted-foreground">{r.credentialLabel}</span>
+                    {r.failureKind && (
+                      <span className="rounded border px-1.5 font-mono text-[11px] text-muted-foreground">
+                        {r.failureKind}
+                      </span>
+                    )}
+                    <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">
+                      {(r.latencyMs / 1000).toFixed(1)}s
+                    </span>
+                    <span className="font-mono text-[11px] text-muted-foreground">{r.userLabel}</span>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {r.createdAt.toISOString().slice(0, 16).replace('T', ' ')}
+                    </span>
+                  </div>
+                  {!r.ok && r.error && (
+                    <p className="pl-[76px] font-mono text-[11px] text-muted-foreground">
+                      {summarizeCallError(r.error)}
+                    </p>
                   )}
-                  <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground">
-                    {(r.latencyMs / 1000).toFixed(1)}s
-                  </span>
-                  <span className="font-mono text-[11px] text-muted-foreground">{r.userLabel}</span>
-                  <span className="font-mono text-[11px] text-muted-foreground">
-                    {r.createdAt.toISOString().slice(0, 16).replace('T', ' ')}
-                  </span>
                 </li>
               ))}
             </ul>

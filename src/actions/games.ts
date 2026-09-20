@@ -15,6 +15,7 @@ import { personaForSubject, type Persona } from '@/lib/games/personas'
 import { seedFromString, mulberry32, shuffle } from '@/lib/games/rng'
 import { isGameMode, isPlausibleScore } from '@/lib/games/scores'
 import { getSubject } from '@/lib/subjects/taxonomy'
+import { STATUS_CREDIT } from '@/lib/errors/klp-credit'
 import type { GameId } from '@/lib/games/pieces'
 import type { PrepareSummary } from '@/lib/games/load'
 import type { ActionResult } from '@/types/action'
@@ -268,19 +269,19 @@ export async function gauntletOptions(cardId: string, ask: 'term' | 'definition'
 
 // -------------------------------------------------------------- grading
 
-/** Weighted share of the points the answer earned: passed = 1, partial = ½, failed = 0. Computed in TS. */
+/** Weighted share of the points the answer earned, by STATUS_CREDIT (passed/correct = 1, partial/incomplete = ½, everything else = 0). Computed in TS. */
 function accuracyOf(verdicts: KlpVerdict[]): number {
   const total = verdicts.reduce((n, v) => n + v.weight, 0)
   if (total === 0) return 0
-  const earned = verdicts.reduce((n, v) => n + (v.status === 'passed' ? v.weight : v.status === 'partial' ? v.weight / 2 : 0), 0)
+  const earned = verdicts.reduce((n, v) => n + v.weight * (STATUS_CREDIT[v.status] ?? 0), 0)
   return Math.round((earned / total) * 100) / 100
 }
 
-/** Hit = every substance key point with weight ≥ 4 is passed. Computed in TS. */
+/** Hit = every substance key point with weight ≥ 4 is full credit. Computed in TS. */
 function isHit(verdicts: KlpVerdict[], roles: Map<string, string | null>): boolean {
   const heavy = verdicts.filter((v) => v.weight >= 4 && (roles.get(v.klpId) ?? 'substance') !== 'framing')
-  if (heavy.length === 0) return verdicts.every((v) => v.status !== 'failed')
-  return heavy.every((v) => v.status === 'passed')
+  if (heavy.length === 0) return verdicts.every((v) => (STATUS_CREDIT[v.status] ?? 0) > 0)
+  return heavy.every((v) => (STATUS_CREDIT[v.status] ?? 0) >= 1)
 }
 
 /**

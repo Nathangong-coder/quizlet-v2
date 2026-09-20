@@ -30,7 +30,11 @@ export const TASK_PROVIDER_PREFERENCE: Record<AiTask, readonly string[]> = {
   'note-analysis': ['deepseek', 'zai', 'google'],
   plan: ['deepseek', 'zai', 'google'],
   'concept-tree': ['deepseek', 'zai', 'google'],
+  // Form requirements are judgments about the question, not writing (spec 5 §5).
+  'form-reqs': ['deepseek', 'zai', 'google'],
   author: ['zai', 'google', 'deepseek'],
+  // The benchmark adversary WRITES calibrated answers (spec 5 §8): writer family.
+  'grader-panel': ['zai', 'deepseek', 'google'],
   distractors: ['zai', 'deepseek', 'google'],
   'game-pieces': ['zai', 'deepseek', 'google'],
   'hot-seat': ['zai', 'deepseek', 'google'],
@@ -48,7 +52,12 @@ export function providerRank(task: AiTask, provider: string): number {
  * the default effort took 30-40 s a call and spent most of its tokens
  * thinking, for +0.04 separation. Authoring runs in the background and
  * measured 0.70 at `high` against 0.60 at the default, so it gets `high`.
+ * The grader benchmark panel is authoring-grade writing on the same footing
+ * — four deliberately calibrated answers per card, written once, nobody
+ * waiting — so it gets `high` too.
  */
+const HIGH_EFFORT_TASKS: ReadonlySet<AiTask> = new Set<AiTask>(['author', 'grader-panel'])
+
 export function zaiEffortForTask(task: AiTask): ReasoningEffort {
-  return task === 'author' ? 'high' : 'low'
+  return HIGH_EFFORT_TASKS.has(task) ? 'high' : 'low'
 }

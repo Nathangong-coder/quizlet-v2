@@ -23,6 +23,10 @@ import {
   type SeparationResult,
 } from '@/lib/klp/separation'
 import { FRAMING_PROBE, classifyPointRoles, substanceSeparation, applyRoleOverride, isMemorizable, type PointRole } from '@/lib/klp/framing'
+import { relationPass, combinedSeparation, type RelationGrade } from '@/lib/klp/relation-separation'
+import { SYMMETRIC_TYPES } from '@/lib/klp/relations'
+import { templateFor, validateTemplate, templateEdges, type TemplateDefect } from '@/lib/klp/templates'
+import { countDefinitionClauses } from '@/lib/klp/sizing'
 import type { RoleClassification } from '@/lib/ai/prompts/classify-roles'
 import { carryVerdicts, mergePartial, trapsToReplace } from '@/lib/klp/regrade-plan'
 import { referenceNeedsRewrite, type ReferenceReview } from '@/lib/ai/prompts/review-reference'
@@ -71,11 +75,40 @@ export interface AuthorInput {
    * floor the model may exceed, never a quota — see `src/lib/klp/sizing.ts`.
    */
   minKlps: number
+  /** Definition-probe findings on the previous set (a probe-driven re-author only). */
+  priorFindings?: PriorFinding[]
+}
+
+/** One point of the previous set that the definition probe found outgrew the card. */
+export interface PriorFinding {
+  index: number
+  text: string
+  /** `klp_defect` (2026-09-19): named by the benchmark's reconciliation — ambiguous, compound, or beyond the question. */
+  issue: 'over_reach' | 'not_on_card' | 'klp_defect'
+  fix: string
+}
+
+/**
+ * A key point as the writer returns it from v8 on: the text and kind every
+ * reader uses, plus the template slot it fills, its structured claim, and
+ * the definition point it comes from. Every optional field is absent on a
+ * pre-v8 reply and on a revision reply that did not carry it.
+ */
+export interface StructuredKlpDraft {
+  text: string
+  kind: string
+  slot?: string | null
+  subject?: string | null
+  claim?: string | null
+  qualifier?: string | null
+  fromDefinition?: number | null
 }
 
 export interface AuthorResult {
   referenceAnswer: string
-  klps: { text: string; kind: string }[]
+  /** The writer's step-0 classification (v3+); chooses the slot template. */
+  questionType?: string
+  klps: StructuredKlpDraft[]
   wrongAnswers: { kind: ProbeKind; text: string }[]
   /** The judgment half of adaptive sizing; absent means the prior alone sizes the card. */
   definitionPoints?: DefinitionPointAssessment[]
@@ -88,14 +121,20 @@ export interface GradeInput {
   referenceAnswer: string
   klps: { text: string }[]
   candidateAnswer: string
+  /** The relation pass (2026-09-19): the accepted edges, graded alongside the points. */
+  relations?: { type: string; from: number; to: number }[]
 }
 
 export interface GradeResult {
   verdicts: { klpIndex: number; verdict: KlpVerdict; evidence?: string }[]
+  /** One per relation listed in the input, when any were. */
+  relationVerdicts?: { relationIndex: number; verdict: KlpVerdict; evidence?: string }[]
 }
 
 export interface ReviseInput {
   question: string
+  /** v6 of the revise prompt: the owner's definition, the ceiling. */
+  definition?: string
   klps: { text: string; kind: string }[]
   discrimination: KlpDiscrimination[]
   findings?: { index: number | null; issue: string; fix: string }[]
@@ -109,12 +148,14 @@ export interface ReviseInput {
 }
 
 export interface ReviseResult {
-  klps: { text: string; kind: string }[]
+  klps: StructuredKlpDraft[]
 }
 
 export interface RelateInput {
   question: string
   klps: { text: string }[]
+  /** v3 of the relate prompt: the owner's definition, whose stated links are always candidates. */
+  definition?: string
 }
 
 export type AuthoredRelationDraft = RelationEdge & {
@@ -209,9 +250,9 @@ export interface AuthoringGenerator {
     question: string
     definition: string
     referenceAnswer: string
-    klps: { text: string; kind: string }[]
+    klps: StructuredKlpDraft[]
     review: ReferenceReview
-  }): Promise<{ referenceAnswer: string; klps: { text: string; kind: string }[] }>
+  }): Promise<{ referenceAnswer: string; klps: StructuredKlpDraft[] }>
   /**
    * The rebuild test (spec 2026-09-12-rebuild-test-design.md). All three
    * optional together: a generator without them produces an outcome without
@@ -250,6 +291,14 @@ export interface RelationStats {
   droppedForCycles: number
   /** Dropped because an endpoint referenced a KLP index that doesn't exist on this card. */
   droppedOutOfRange: number
+  /**
+   * Dropped by the RELATION PASS (2026-09-19) because the reference answer
+   * does not assert the link — a definitional or fabricated edge, on the
+   * same rule a point obeys. Undefined when the pass did not run.
+   */
+  droppedForReference?: number
+  /** The dropped edges themselves, with the reference's verdict — for reading whether the prune is right. */
+  droppedEdges?: { from: number; to: number; type: string; referenceVerdict: string }[]
 }
 
 export interface RebuildOutcome {
@@ -289,10 +338,22 @@ export interface AuthoringOutcome {
    * memorized-template trap was credited on — kept, mapped to topics, but
    * outside `substanceSeparation` and the quality bar. See `src/lib/klp/framing.ts`.
    */
-  klps: { text: string; kind: string; weight: number; role: PointRole }[]
-  probes: { kind: ProbeKind; text: string; score: number; verdicts: Record<string, KlpVerdict> }[]
+  klps: { text: string; kind: string; weight: number; role: PointRole; slot?: string | null; structured?: { subject: string; claim: string; qualifier: string | null } | null; definitionRef?: number | null }[]
+  /** Slot-template defects on the FINAL set (`validateTemplate`); empty when the type has no template or the form is filled. */
+  templateDefects?: TemplateDefect[]
+  probes: { kind: ProbeKind; text: string; score: number; verdicts: Record<string, KlpVerdict>; relationVerdicts?: Record<string, KlpVerdict> }[]
   relations: AuthoredRelationDraft[]
   relationStats: RelationStats
+  /**
+   * THE RELATION PASS (2026-09-19). Separation over the kept relations alone,
+   * and over substance points + kept relations together (one item each) —
+   * the number the bar reads when a card has relations. Undefined when the
+   * card has no accepted relations or the pass did not run. Per-candidate
+   * link verdicts ride on `probes[].relationVerdicts` / `referenceRelationVerdicts`.
+   */
+  relationSeparation?: number
+  combinedSeparation?: number
+  referenceRelationVerdicts?: KlpVerdict[]
   /** Over every point, exactly as before — every stored score is on this scale. */
   separationScore: number
   /**
@@ -371,6 +432,60 @@ export interface AuthoringOutcome {
    * these and increment A adds no migration.
    */
   concerns: string[]
+}
+
+/**
+ * A rewrite or revision returns points by text and kind; the slot, structure
+ * and definition mapping ride along where the claim is unchanged (same text)
+ * or where the reply carried them itself. A rewritten point with neither is
+ * unslotted until the template check sends it back.
+ */
+function carryStructure(previous: readonly StructuredKlpDraft[], next: readonly StructuredKlpDraft[]): StructuredKlpDraft[] {
+  const byText = new Map(previous.map((k) => [k.text, k]))
+  return next.map((k) => {
+    const prev = byText.get(k.text)
+    return {
+      text: k.text,
+      kind: k.kind,
+      slot: k.slot ?? prev?.slot ?? null,
+      subject: k.subject ?? prev?.subject ?? null,
+      claim: k.claim ?? prev?.claim ?? null,
+      qualifier: k.qualifier ?? prev?.qualifier ?? null,
+      fromDefinition: k.fromDefinition ?? prev?.fromDefinition ?? null,
+    }
+  })
+}
+
+/** The enumerate template's item count: the number in the question ("(5)", "5 ways"), else the definition's clause count. */
+function listCountFor(questionType: string | undefined, definition: string, question?: string): number | undefined {
+  if (questionType !== 'enumerate') return undefined
+  const m = question?.match(/\((\d+)\)|\b(\d+)\s+(?:ways|sources|types|reasons|steps|methods|kinds|factors)/i)
+  const n = m ? Number(m[1] ?? m[2]) : NaN
+  if (Number.isFinite(n) && n > 0) return n
+  const clauses = countDefinitionClauses(definition)
+  return clauses > 1 ? clauses : undefined
+}
+
+/** Template defects as revision findings, in the revise prompt's own shape. */
+function templateFindings(questionType: string | undefined, klps: readonly StructuredKlpDraft[], definition: string, question?: string): { index: number | null; issue: string; fix: string }[] {
+  const t = templateFor(questionType)
+  if (!t) return []
+  const defects = validateTemplate(t, klps.map((k, i) => ({ index: i, slot: k.slot ?? null, kind: k.kind })), { listCount: listCountFor(questionType, definition, question) })
+  return defects.flatMap((d): { index: number | null; issue: string; fix: string }[] => {
+    switch (d.rule) {
+      case 'slot_unfilled': return [{ index: null, issue: 'slot_unfilled', fix: `Fill the ${t.type} template's "${d.slot}" slot — ${d.detail} — with a point the definition supports; if the card gives nothing for it, leave it unfilled and name it in concerns.` }]
+      case 'slot_overfull': return [{ index: null, issue: 'slot_overfull', fix: `${d.detail}: merge or cut so the slot holds at most its maximum.` }]
+      case 'over_ceiling': return [{ index: null, issue: 'over_ceiling', fix: `${d.detail}: cut overflow points first, never a filled slot.` }]
+      case 'slot_kind': return [{ index: d.index, issue: 'slot_kind', fix: `${d.detail}: change the kind or move the point to the slot its kind belongs in.` }]
+      case 'slot_unknown': return [{ index: d.index, issue: 'slot_unknown', fix: `${d.detail}: use one of the template's slots, or null for an overflow point.` }]
+      case 'unslotted': return [] // allowed, up to the ceiling
+    }
+  })
+}
+
+/** Re-index a per-edge list onto the kept edges. */
+function reindexList(v: KlpVerdict[], keptIdx: number[]): KlpVerdict[] {
+  return keptIdx.map((i) => v[i])
 }
 
 /** Fills any klpIndex the grader skipped with the honest 'failed' fallback, never a fabricated pass. */
@@ -489,6 +604,8 @@ export async function authorCard(
      * measurement.
      */
     existingPanel?: { level: PanelLevel; text: string }[]
+    /** Carried into the author call verbatim; see `PriorFinding`. */
+    priorFindings?: PriorFinding[]
   },
   gen: AuthoringGenerator,
 ): Promise<AuthoringOutcome> {
@@ -498,7 +615,7 @@ export async function authorCard(
   // only raise the target. Both are combined in TypeScript — the model never
   // states a total, for the same reason it never states a weight.
   const prior = mechanicalKlpPrior({ question: input.question, definition: input.definition })
-  const draft = await gen.author({ ...input, minKlps: authorMinKlps(input) })
+  const draft = await gen.author({ question: input.question, definition: input.definition, setTitle: input.setTitle, minKlps: authorMinKlps(input), priorFindings: input.priorFindings })
   const target = targetKlpCount({ prior, points: draft.definitionPoints })
   const concerns = draft.concerns ?? []
 
@@ -522,7 +639,7 @@ export async function authorCard(
           })
           if (fixed.klps.length > 0) {
             draft.referenceAnswer = fixed.referenceAnswer
-            draft.klps = fixed.klps as typeof draft.klps
+            draft.klps = carryStructure(draft.klps, fixed.klps)
             rewritten = true
           }
         } catch {
@@ -752,6 +869,10 @@ export async function authorCard(
       wrong,
       defects: validateKlpSet(klps.map((k) => ({ text: k.text })), input.question, { targetCount: target }),
     })
+    // THE TEMPLATE (2026-09-19): an unfilled slot, an over-full slot, a point in
+    // the wrong slot or a set over the ceiling is a finding for the same revise
+    // call — the form is checked every round, on the writer's own questionType.
+    for (const d of templateFindings(draft.questionType, klps, input.definition, input.question)) findings.push(d)
     if (rebuild) {
       findings.push(
         ...rebuildFindings({
@@ -783,6 +904,7 @@ export async function authorCard(
         clearsCoverageBar: rebuild?.clearsBar ?? null,
         rebuiltTight: rebuild?.review?.conciseness === 'tight',
         wordRatio: rebuild?.wordRatio ?? null,
+        ...(templateFor(draft.questionType) ? { templateFilled: !findings.some((f) => f.issue.startsWith('slot_') || f.issue === 'over_ceiling') } : {}),
       },
     })
     if (findings.length === 0 || revisions >= MAX_REVISIONS) break
@@ -808,6 +930,7 @@ export async function authorCard(
     const mustKeep = compresses && rebuild ? rebuild.parityVerdicts.map((v) => v.claim) : undefined
     const revised = await gen.revise({
       question: input.question,
+      definition: input.definition,
       klps: klps.map((k) => ({ text: k.text, kind: k.kind })),
       discrimination: substance.perKlp,
       roles,
@@ -816,7 +939,7 @@ export async function authorCard(
       targetCount: target,
       ...(mustKeep ? { mustKeep } : {}),
     })
-    klps = revised.klps
+    klps = carryStructure(klps, revised.klps)
     revisions += 1
   }
 
@@ -838,6 +961,7 @@ export async function authorCard(
 
   const relateResult = await gen.relate({
     question: input.question,
+    definition: input.definition,
     klps: klps.map((k) => ({ text: k.text })),
   })
 
@@ -849,8 +973,18 @@ export async function authorCard(
   // `extractKlpsForCards` (`src/actions/klp.ts`) takes toward a hallucinated
   // batch ref: "a hallucinated ref must not write another card's KLPs onto
   // this one" — silently dropping beats throwing mid-run.
-  const candidateCount = relateResult.relations.length
-  const inRange = relateResult.relations.filter((r) => r.from < klps.length && r.to < klps.length)
+  // The links the question type's shape implies (`templateEdges`) join the
+  // relate call's candidates with provenance `template`: a walkthrough's steps
+  // precede each other, a why's mechanism causes its consequence. They go
+  // through the same cycle and reference checks as any other edge.
+  const tmpl = templateFor(draft.questionType)
+  const implied = tmpl
+    ? templateEdges(tmpl, klps.map((k, i) => ({ index: i, slot: k.slot ?? null, kind: k.kind }))).map((e) => ({ from: e.from, to: e.to, type: e.type, provenance: 'template' as const, rationale: `implied by the ${tmpl.type} template`, probe: '' }))
+    : []
+  const withImplied: AuthoredRelationDraft[] = [...relateResult.relations]
+  for (const e of implied) if (!withImplied.some((r) => r.from === e.from && r.to === e.to && r.type === e.type)) withImplied.push(e)
+  const candidateCount = withImplied.length
+  const inRange = withImplied.filter((r) => r.from < klps.length && r.to < klps.length)
   const droppedOutOfRange = candidateCount - inRange.length
 
   // Add edges ONE AT A TIME and drop any whose addition introduces a cycle,
@@ -865,13 +999,74 @@ export async function authorCard(
   }
   const droppedForCycles = canonical.length - accepted.length
 
+  // THE RELATION PASS (2026-09-19, owner: "relations are where the
+  // discrimination will really come into play"). Grade the reference and
+  // the final traps ONCE MORE, on the points AND the accepted edges, one
+  // isolated call each. Edges the reference does not assert are pruned;
+  // separation is then computed over links alone and over points + links.
+  // Best-effort: a failed pass leaves the point-only verdict standing and
+  // says so by leaving the fields undefined — never a fabricated number.
+  let relationPassResult: ReturnType<typeof relationPass> | undefined
+  let combined: SeparationResult | undefined
+  let referenceRelationVerdicts: KlpVerdict[] | undefined
+  let wrongRelationGrades: RelationGrade[] = []
+  // Only DIRECTED edges are assertable by an answer. A symmetric edge
+  // (`confused_with`: learners mistake A for B) is a fact about learners, not
+  // a claim a reference makes, so it is never graded and never pruned here —
+  // measured 2026-09-19, every `confused_with` edge on the LBO set read
+  // `omission` on the reference and was being dropped. The graded (directed)
+  // edges come FIRST in the kept list and every verdict list covers exactly
+  // that prefix; the symmetric edges follow it ungraded.
+  const directedIdx = accepted.map((_, i) => i).filter((i) => !(SYMMETRIC_TYPES as readonly string[]).includes(accepted[i].type))
+  const symmetricIdx = accepted.map((_, i) => i).filter((i) => (SYMMETRIC_TYPES as readonly string[]).includes(accepted[i].type))
+  const directed = directedIdx.map((i) => accepted[i])
+  if (directed.length > 0) {
+    try {
+      const relInput = directed.map((r) => ({ type: r.type, from: r.from, to: r.to }))
+      const gradeLinks = async (text: string): Promise<KlpVerdict[]> => {
+        const res = await gen.grade({ question: input.question, referenceAnswer: draft.referenceAnswer, klps: klps.map((k) => ({ text: k.text, kind: k.kind })), candidateAnswer: text, relations: relInput })
+        // No link verdicts at all means the grader did not do the pass (an
+        // older generator, a model that ignored the block) — not that every
+        // link failed. Abort the pass rather than prune the whole graph.
+        if (!res.relationVerdicts) throw new Error('relation pass: grader returned no relationVerdicts')
+        const byIndex = new Map(res.relationVerdicts.map((v) => [v.relationIndex, v.verdict]))
+        return directed.map((_, i) => byIndex.get(i) ?? 'failed')
+      }
+      const refRel: RelationGrade = { kind: 'reference', verdicts: await gradeLinks(draft.referenceAnswer) }
+      wrongRelationGrades = []
+      for (const w of wrong) wrongRelationGrades.push({ kind: w.kind, verdicts: await gradeLinks(w.text) })
+      relationPassResult = relationPass(refRel, wrongRelationGrades)
+      referenceRelationVerdicts = refRel.verdicts
+      combined = combinedSeparation(
+        { reference: { kind: 'reference', verdicts: referenceVerdicts }, wrong: wrong.map((w) => ({ kind: w.kind, verdicts: w.verdicts })), roles },
+        relationPassResult.kept.length ? { reference: refRel, wrong: wrongRelationGrades, kept: relationPassResult.kept } : null,
+      )
+    } catch {
+      relationPassResult = undefined
+      combined = undefined
+      referenceRelationVerdicts = undefined
+    }
+  }
+  // Keep only the edges the reference asserts; re-index the per-candidate
+  // link verdicts onto the kept list so what is persisted lines up with
+  // what is persisted as relations.
+  // `keptIdx` indexes DIRECTED edges (positions in `directed`); the symmetric
+  // edges are appended after them, ungraded.
+  const keptIdx = relationPassResult ? relationPassResult.kept : directed.map((_, i) => i)
+  const keptRelations = [...keptIdx.map((i) => directed[i]), ...symmetricIdx.map((i) => accepted[i])]
+  const droppedForReference = relationPassResult ? relationPassResult.droppedForReference.length : undefined
+  const droppedEdges = relationPassResult && referenceRelationVerdicts
+    ? relationPassResult.droppedForReference.map((i) => ({ from: directed[i].from, to: directed[i].to, type: directed[i].type, referenceVerdict: referenceRelationVerdicts![i] }))
+    : undefined
+  const reindex = (v: KlpVerdict[] | undefined): Record<string, KlpVerdict> | undefined => (v ? Object.fromEntries(keptIdx.map((i, j) => [String(j), v[i]])) : undefined)
+
   // Weight from BOTH signals (increment A §1). The graph term carries
   // derivation chains and the evidence term carries enumerations; a card that
   // is one shape has almost no spread in the other term, which is why the
   // blend exists rather than a choice between them. `wrong` here is the FINAL
   // round's grades — the ones that produced the separation actually reported,
   // not an earlier revision's.
-  const radii = blastRadius(klps.length, accepted)
+  const radii = blastRadius(klps.length, keptRelations)
   const breadths = discriminationBreadth(
     wrong.map((w) => ({ kind: w.kind, verdicts: w.verdicts })),
     klps.length,
@@ -897,34 +1092,55 @@ export async function authorCard(
     }
   }
 
-  const probes = wrong.map((w) => ({
-    kind: w.kind as ProbeKind,
-    text: w.text,
-    score: scoreCandidate(w.verdicts),
-    verdicts: Object.fromEntries(w.verdicts.map((v, i) => [String(i), v])),
-  }))
+  const probes = wrong.map((w) => {
+    const rel = reindex(wrongRelationGrades.find((g) => g.kind === w.kind)?.verdicts)
+    return {
+      kind: w.kind as ProbeKind,
+      text: w.text,
+      score: scoreCandidate(w.verdicts),
+      verdicts: Object.fromEntries(w.verdicts.map((v, i) => [String(i), v])),
+      ...(rel ? { relationVerdicts: rel } : {}),
+    }
+  })
 
   return {
     referenceAnswer: draft.referenceAnswer,
-    klps: klps.map((k, i) => ({ text: k.text, kind: k.kind, weight: weights[i], role: roles[i] ?? 'substance' })),
+    klps: klps.map((k, i) => ({
+      text: k.text,
+      kind: k.kind,
+      weight: weights[i],
+      role: roles[i] ?? 'substance',
+      slot: k.slot ?? null,
+      structured: k.subject && k.claim ? { subject: k.subject, claim: k.claim, qualifier: k.qualifier ?? null } : null,
+      definitionRef: k.fromDefinition ?? null,
+    })),
+    templateDefects: tmpl ? validateTemplate(tmpl, klps.map((k, i) => ({ index: i, slot: k.slot ?? null, kind: k.kind })), { listCount: listCountFor(draft.questionType, input.definition, input.question) }) : [],
     probes,
-    relations: accepted,
+    relations: keptRelations,
     relationStats: {
       candidates: candidateCount,
-      accepted: accepted.length,
+      accepted: keptRelations.length,
       droppedForCycles,
       droppedOutOfRange,
+      ...(droppedForReference !== undefined ? { droppedForReference } : {}),
+      ...(droppedEdges ? { droppedEdges } : {}),
     },
     separationScore: separation.separation,
     substanceSeparation: substance.separation,
+    ...(relationPassResult?.relationSeparation ? { relationSeparation: relationPassResult.relationSeparation.separation } : {}),
+    ...(combined ? { combinedSeparation: combined.separation } : {}),
+    ...(referenceRelationVerdicts ? { referenceRelationVerdicts: reindexList(referenceRelationVerdicts, keptIdx) } : {}),
     referenceVerdicts,
     revisions,
     // The PANEL's verdict wins when a panel ran, because that is the quantity
-    // the run was testing. Otherwise the SUBSTANCE separation decides: a card
-    // whose only unseparated points are framing is not low-discrimination.
-    status: memorizable
+    // the run was testing. Otherwise the COMBINED separation decides when the
+    // card has graded links (2026-09-19) — a card whose points a template
+    // recites but whose links it misses is separated, not memorizable — and
+    // the SUBSTANCE separation when it has none: a card whose only
+    // unseparated points are framing is not low-discrimination.
+    status: memorizable && !(combined && combined.separated)
       ? 'memorizable'
-      : (panelCurve ? panelCurve.separated : substance.separated)
+      : (panelCurve ? panelCurve.separated : combined ? combined.separated : substance.separated)
         ? 'separated'
         : 'low_discrimination',
     panelCurve,
@@ -938,7 +1154,7 @@ export async function authorCard(
     defects: validateKlpSet(
       klps.map((k) => ({ text: k.text })),
       input.question,
-      { edges: accepted, targetCount: target, abstraction },
+      { edges: keptRelations, targetCount: target, abstraction },
     ),
     targetKlpCount: target,
     concerns,
