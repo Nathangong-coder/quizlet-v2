@@ -32,9 +32,13 @@ describe('chapterAt', () => {
 })
 
 describe('isDemoLinkEnabled', () => {
-  it('is true only for exactly "true"', () => {
-    expect(isDemoLinkEnabled({ NEXT_PUBLIC_DEMO_ENABLED: 'true' })).toBe(true)
-    expect(isDemoLinkEnabled({ NEXT_PUBLIC_DEMO_ENABLED: '1' })).toBe(false)
+  const full = { DEMO_ENABLED: 'true', DEMO_SET_ID: 's', DEMO_AI_USER_ID: 'u', AUTH_SECRET: 'x' }
+  it('is true only with the switch exactly "true" and the demo fully configured', () => {
+    expect(isDemoLinkEnabled(full)).toBe(true)
+    expect(isDemoLinkEnabled({ ...full, DEMO_ENABLED: '1' })).toBe(false)
+    expect(isDemoLinkEnabled({ ...full, DEMO_SET_ID: undefined })).toBe(false)
+    expect(isDemoLinkEnabled({ ...full, DEMO_AI_USER_ID: undefined })).toBe(false)
+    expect(isDemoLinkEnabled({ ...full, AUTH_SECRET: undefined })).toBe(false)
     expect(isDemoLinkEnabled({})).toBe(false)
   })
 })

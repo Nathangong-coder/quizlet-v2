@@ -1,3 +1,5 @@
+import { readDemoConfig } from '@/lib/demo/config'
+
 /**
  * The landing demo video's chapters. Timestamps are data, not markup:
  * re-cutting the video means editing this one array (and public/demo/chapters.vtt).
@@ -24,5 +26,5 @@ export function chapterAt(seconds: number): number {
 
 /** "Try it" links are shown only when the guest demo is switched on. */
 export function isDemoLinkEnabled(env: Record<string, string | undefined> = process.env): boolean {
-  return env.NEXT_PUBLIC_DEMO_ENABLED === 'true'
+  return readDemoConfig(env).enabled
 }
