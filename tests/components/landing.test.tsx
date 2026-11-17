@@ -21,6 +21,8 @@ describe('Landing makes no database read', () => {
     'src/components/marketing/MarketingHeader.tsx',
     'src/components/marketing/SiteFooter.tsx',
     'src/lib/marketing/nav.ts',
+    'src/components/marketing/DemoVideo.tsx',
+    'src/lib/marketing/demo-video.ts',
   ]
 
   it.each(files)('%s imports neither the Prisma client nor a server action', (file) => {

@@ -2229,3 +2229,40 @@ model DefinitionProbe {
   @@index([cardId, klpVersion])
   @@index([outcome])
 }
+
+/// One guest's use of one demo feature. `calls` is reserved before each AI call and released on failure.
+model DemoTicket {
+  id        String   @id @default(cuid())
+  guestId   String
+  ipHash    String
+  /// DEMO_FEATURES in src/lib/demo/config.ts
+  feature   String
+  /// Calls currently held; releaseCall refunds one after a provider failure. Bounded by FEATURE_CEILING.
+  calls     Int      @default(0)
+  /// Calls ever reserved, never refunded (a failed call may still bill). The global daily cap sums this.
+  spent     Int      @default(0)
+  /// Set once the ticket passed its IP's per-feature limit; reservations require it.
+  admitted  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([guestId, feature])
+  @@index([ipHash, feature, createdAt])
+  @@index([createdAt])
+}
+
+/// A waitlist request for an invite code, raised from the guest demo.
+model InviteRequest {
+  id              String    @id @default(cuid())
+  /// lower-cased, trimmed
+  email           String    @unique
+  note            String?
+  source          String    @default("demo")
+  ipHash          String
+  createdAt       DateTime  @default(now())
+  lastRequestedAt DateTime  @default(now())
+  invitedAt       DateTime?
+  /// normalised InviteCode.code minted for this request
+  inviteCode      String?
+
+  @@index([invitedAt, createdAt])
+}
