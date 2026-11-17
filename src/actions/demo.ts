@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { generateJson, AiGenerationError, resolveTaskModel } from '@/lib/ai/generate'
 import { AUTOCOMPLETE_PROMPT, EXTRACT_KLPS_PROMPT, GRADE_SHORT_ANSWER_PROMPT, HOT_SEAT_PROBE_PROMPT, MULTIPLE_CHOICE_PROMPT } from '@/lib/ai/prompts/registry'
-import { CardAutocompleteSchema, HotSeatProbeSchema, KlpExtractionSchema, MultipleChoiceKlpSchema, MultipleChoiceOptionsSchema, ShortAnswerGradeSchema, type ShortAnswerGrade } from '@/lib/ai/schemas'
+import { CardAutocompleteSchema, HotSeatProbeSchema, KlpExtractionSchema, MultipleChoiceKlpSchema, MultipleChoiceOptionsSchema, ShortAnswerGradeWithAnalysisSchema, type ShortAnswerGrade } from '@/lib/ai/schemas'
 import { parseOptionCache } from '@/lib/quiz/options'
 import type { DemoConfig, DemoFeature } from '@/lib/demo/config'
 import { guestContext } from '@/lib/demo/guest-context'
@@ -132,7 +132,12 @@ function findDemoCard(set: DemoSet, cardId: string): DemoCard | null {
   return set.cards.find((c) => c.id === cardId) ?? null
 }
 
-/** Per-point verdicts from the grader's reply, by prompt ref; a point it skipped is `failed`. */
+/**
+ * Per-point verdicts from the grader's reply, by prompt ref; a point it skipped is `failed`.
+ * Callers validate with ShortAnswerGradeWithAnalysisSchema, so a reply with NO
+ * verdicts fails inside `spend` (released, `ai_failed`) instead of spending
+ * the guest's grade on an all-failed result.
+ */
 function verdictsFrom(grade: ShortAnswerGrade, points: { id: string; text: string; weight: number }[]): KlpVerdict[] {
   const byRef = new Map((grade.klpResults ?? []).map((r) => [r.klpRef, r.status]))
   return points.map((p, ref) => ({ klpId: p.id, text: p.text, weight: p.weight, status: byRef.get(ref) ?? 'failed' }))
@@ -179,7 +184,7 @@ export async function demoGrade(
     const grade = await generateJson({
       userId: ctx.config.aiUserId,
       task: 'grade',
-      schema: ShortAnswerGradeSchema,
+      schema: ShortAnswerGradeWithAnalysisSchema,
       prompt: GRADE_SHORT_ANSWER_PROMPT.build({
         card: card as never,
         answer: req.answer,
@@ -335,7 +340,7 @@ export async function demoGradeGameAnswer(
     const grade = await generateJson({
       userId: ctx.config.aiUserId,
       task: 'grade',
-      schema: ShortAnswerGradeSchema,
+      schema: ShortAnswerGradeWithAnalysisSchema,
       prompt: GRADE_SHORT_ANSWER_PROMPT.build({
         card: card as never,
         answer: text.data,

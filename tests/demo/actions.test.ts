@@ -68,6 +68,7 @@ import {
 import { loadDemoSet, isDemoCard } from '@/lib/demo/demo-set'
 import { readableSetWhere } from '@/lib/sets/visibility'
 import { personaForSubject } from '@/lib/games/personas'
+import { ShortAnswerGradeWithAnalysisSchema } from '@/lib/ai/schemas'
 
 const SECRET = 'test-secret'
 const DEMO_SET_ID = 'demo-set'
@@ -329,6 +330,44 @@ describe('provider failure hands the reservation back (Review Focus 5)', () => {
     const r = await demoGrade({ kind: 'demo', cardId: 'c1', answer: 'Synergies.' })
     expect(r).toMatchObject({ ok: false, reason: 'ai_failed' })
     log.mockRestore()
+  })
+})
+
+describe('a grade reply without per-point verdicts is a failed call, not an all-failed grade (R20)', () => {
+  const GRADERS: [string, string, () => Promise<{ ok: boolean; reason?: string }>][] = [
+    ['demoGrade', 'grade', () => demoGrade({ kind: 'demo', cardId: 'c1', answer: 'Synergies.' })],
+    ['demoGradeGameAnswer', 'hot-seat', () => demoGradeGameAnswer('c1', 'Synergies.')],
+  ]
+  // A schema-valid rubric with no klpResults: what a grader that drops the analysis section returns.
+  const NO_VERDICTS = {
+    clarity: { score: 7, pros: [], cons: [] },
+    conciseness: { score: 7, pros: [], cons: [] },
+    correctness: { score: 7, pros: [], cons: [] },
+    overall: 7,
+    summary: 'Fine.',
+    suggestedImprovement: 'Say more.',
+  }
+
+  it.each(GRADERS)('%s validates with ShortAnswerGradeWithAnalysisSchema', async (_name, _feature, call) => {
+    await call()
+    expect(h.generateJson.mock.calls[0][0].schema).toBe(ShortAnswerGradeWithAnalysisSchema)
+  })
+
+  it.each(GRADERS)('%s: a reply with no verdicts fails validation → ai_failed, reservation released', async (_name, feature, call) => {
+    // The mock validates with whatever schema the action passed, as generateJson does.
+    h.generateJson.mockImplementation(async ({ schema }: { schema: { parse: (v: unknown) => unknown } }) => schema.parse(NO_VERDICTS))
+    const r = await call()
+    expect(r).toMatchObject({ ok: false, reason: 'ai_failed' })
+    expect(h.releaseCall).toHaveBeenCalledTimes(1)
+    expect(h.releaseCall).toHaveBeenCalledWith('t1', feature)
+  })
+
+  it.each(GRADERS)('%s: generateJson rejecting with a schema failure → ai_failed, released once', async (_name, feature, call) => {
+    h.generateJson.mockRejectedValue(new h.AiGenerationError({ title: 'schema_invalid' }))
+    const r = await call()
+    expect(r).toEqual({ ok: false, reason: 'ai_failed', message: 'The demo is having trouble. Try again.' })
+    expect(h.releaseCall).toHaveBeenCalledTimes(1)
+    expect(h.releaseCall).toHaveBeenCalledWith('t1', feature)
   })
 })
 
