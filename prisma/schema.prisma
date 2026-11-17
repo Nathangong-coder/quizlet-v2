@@ -2237,7 +2237,10 @@ model DemoTicket {
   ipHash    String
   /// DEMO_FEATURES in src/lib/demo/config.ts
   feature   String
+  /// Calls currently held; releaseCall refunds one after a provider failure. Bounded by FEATURE_CEILING.
   calls     Int      @default(0)
+  /// Calls ever reserved, never refunded (a failed call may still bill). The global daily cap sums this.
+  spent     Int      @default(0)
   createdAt DateTime @default(now())
 
   @@unique([guestId, feature])

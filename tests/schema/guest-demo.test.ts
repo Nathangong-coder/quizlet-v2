@@ -18,6 +18,10 @@ describe('guest demo schema', () => {
     expect(b).toMatch(/calls\s+Int\s+@default\(0\)/)
   })
 
+  it('DemoTicket carries spent, the never-refunded count the daily cap sums', () => {
+    expect(body('DemoTicket')).toMatch(/spent\s+Int\s+@default\(0\)/)
+  })
+
   it('InviteRequest.email is unique', () => {
     expect(body('InviteRequest')).toMatch(/email\s+String\s+@unique/)
   })
