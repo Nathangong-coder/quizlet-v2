@@ -50,7 +50,7 @@ export function KeyPointsBuild({ setId }: { setId: string }) {
         if (!res.success) { setLastError(res.error); break }
         const step = res.data
         setStatus(step.status)
-        if (step.cards.length) setLog((l) => [`${step.did === 'author' ? 'Wrote key points for' : step.did === 'mint' ? 'Mapped topics for' : 'Rebuilt the concept tree from'} ${step.cards.length} card${step.cards.length === 1 ? '' : 's'}`, ...l].slice(0, 6))
+        if (step.cards.length) setLog((l) => [`${step.did === 'author' ? 'Wrote key points for' : step.did === 'form-reqs' ? 'Wrote answer-shape rules for' : step.did === 'mint' ? 'Mapped topics for' : 'Rebuilt the concept tree from'} ${step.cards.length} card${step.cards.length === 1 ? '' : 's'}`, ...l].slice(0, 6))
         if (step.errors.length) {
           const kinds = [...new Set(step.errors.map((e) => e.kind))]
           setLastError(`${step.errors.length} card${step.errors.length === 1 ? '' : 's'} failed (${kinds.join(', ')})`)
@@ -77,7 +77,7 @@ export function KeyPointsBuild({ setId }: { setId: string }) {
   }, [auto, status, run])
 
   if (!status) return null
-  const pending = status.needAuthoring + status.needMinting + (status.needRebuild > 0 ? 1 : 0)
+  const pending = status.needAuthoring + status.needFormReqs + status.needMinting + (status.needRebuild > 0 ? 1 : 0)
   if (status.ready && !running && log.length === 0) {
     return (
       <div className="mb-6 flex items-center gap-2 rounded-lg border bg-muted/30 px-4 py-2 text-sm text-muted-foreground">
@@ -97,9 +97,11 @@ export function KeyPointsBuild({ setId }: { setId: string }) {
           ) : (
             <p className="font-medium">
               {status.needAuthoring > 0 && `${status.needAuthoring} card${status.needAuthoring === 1 ? '' : 's'} need key points`}
-              {status.needAuthoring > 0 && status.needMinting > 0 && ', '}
+              {status.needAuthoring > 0 && status.needFormReqs > 0 && ', '}
+              {status.needFormReqs > 0 && `${status.needFormReqs} need answer-shape rules`}
+              {(status.needAuthoring > 0 || status.needFormReqs > 0) && status.needMinting > 0 && ', '}
               {status.needMinting > 0 && `${status.needMinting} need topics`}
-              {status.needAuthoring === 0 && status.needMinting === 0 && status.needRebuild > 0 && 'the concept tree needs rebuilding'}
+              {status.needAuthoring === 0 && status.needFormReqs === 0 && status.needMinting === 0 && status.needRebuild > 0 && 'the concept tree needs rebuilding'}
             </p>
           )}
           <p className="text-muted-foreground">

@@ -21,7 +21,8 @@ async function main() {
     await Promise.all([
       prisma.quizAnswer.count(),
       prisma.studyEvent.count(),
-      prisma.answerKlpResult.count(),
+      // Live generation only (Spec 5 Phase A §6).
+      prisma.answerKlpResult.count({ where: { supersededAt: null } }),
       prisma.klpState.count(),
       prisma.cardProgress.count(),
       prisma.studySession.count(),

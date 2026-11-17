@@ -197,10 +197,13 @@ export async function GET(request: Request) {
 
   // ── PHASE 3: TOPICS FOR THE SETS TOUCHED ──────────────────────────────────
   //
-  // Authoring leaves a card with points and no topic fragment. The same
-  // bounded step the set page runs (mint, then rebuild the set's tree
-  // without moving what the owner placed) drains each touched set while the
-  // wall clock lasts; anything left is picked up next run or by the owner.
+  // Authoring leaves a card with points and no topic fragment, and no form
+  // requirements (Spec 5 §5). The same bounded step the set page runs
+  // (form-reqs, then mint, then rebuild the set's tree without moving what
+  // the owner placed) drains each touched set while the wall clock lasts;
+  // anything left is picked up next run or by the owner. The loop continues
+  // on `form-reqs` exactly as on `mint`; only `author` (a card this phase's
+  // own loop should have handled) and `nothing` stop it.
   const touchedSets = [...new Set(candidates.filter((c) => authored.some((a) => a.cardId === c.id)).map((c) => c.setId))]
   const topics: { setId: string; did: string; cards: number }[] = []
   for (const setId of touchedSets) {

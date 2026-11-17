@@ -1,4 +1,5 @@
 import { mulberry32, shuffle } from './rng'
+import { STATUS_CREDIT, type KlpStatus } from '@/lib/errors/klp-credit'
 
 /**
  * Hot Seat — the short-answer game. Pure mood arithmetic and the
@@ -41,7 +42,7 @@ export interface KlpVerdict {
   klpId: string
   text: string
   weight: number
-  status: 'passed' | 'partial' | 'failed'
+  status: KlpStatus
 }
 
 export interface HotSeatTurn {
@@ -109,13 +110,21 @@ export function createHotSeat(cards: HotSeatCard[], mode: HotSeatMode = 'normal'
 
 const clamp = (n: number) => Math.max(0, Math.min(100, n))
 
-/** + Σ weight of passed, − Σ weight of failed; partial counts half each way. */
+/**
+ * + Σ weight of full-credit verdicts, − Σ weight of zero-credit verdicts;
+ * anything in between (`partial`, `incomplete`) counts half each way.
+ *
+ * Credit, not the label spelling, so the wide thirteen-label vocabulary
+ * (`correct`, `omission`, `inversion`, ...) scores exactly like the original
+ * `passed`/`partial`/`failed` three did.
+ */
 export function moodDelta(verdicts: readonly KlpVerdict[]): { gained: number; lost: number } {
   let gained = 0
   let lost = 0
   for (const v of verdicts) {
-    if (v.status === 'passed') gained += v.weight
-    else if (v.status === 'failed') lost += v.weight
+    const credit = STATUS_CREDIT[v.status] ?? 0
+    if (credit >= 1) gained += v.weight
+    else if (credit === 0) lost += v.weight
     else {
       gained += v.weight / 2
       lost += v.weight / 2
@@ -124,12 +133,21 @@ export function moodDelta(verdicts: readonly KlpVerdict[]): { gained: number; lo
   return { gained, lost }
 }
 
-/** The heaviest failed point, or the heaviest partial if nothing failed — what the probe targets. */
+/**
+ * The heaviest zero-credit point, or the heaviest half-credit point if
+ * nothing is zero-credit — what the probe targets. A zero-credit row always
+ * outranks a half-credit row regardless of weight.
+ */
 export function probeTarget(verdicts: readonly KlpVerdict[]): KlpVerdict | null {
-  const failed = verdicts.filter((v) => v.status === 'failed').sort((a, b) => b.weight - a.weight)
-  if (failed[0]) return failed[0]
-  const partial = verdicts.filter((v) => v.status === 'partial').sort((a, b) => b.weight - a.weight)
-  return partial[0] ?? null
+  const zero = verdicts.filter((v) => (STATUS_CREDIT[v.status] ?? 0) === 0).sort((a, b) => b.weight - a.weight)
+  if (zero[0]) return zero[0]
+  const half = verdicts
+    .filter((v) => {
+      const credit = STATUS_CREDIT[v.status] ?? 0
+      return credit > 0 && credit < 1
+    })
+    .sort((a, b) => b.weight - a.weight)
+  return half[0] ?? null
 }
 
 export type HotSeatAction =
@@ -208,7 +226,11 @@ export function transcript(s: HotSeatState, persona: { name: string }): string {
     const card = s.cards[i]
     lines.push(`Q${i + 1}. ${persona.name}: ${card.term}`)
     lines.push(`You: ${t.answer ?? '(no answer)'}${t.timedOut ? ' [time]' : ''}`)
-    for (const v of t.verdicts ?? []) lines.push(`  ${v.status === 'passed' ? '✓' : v.status === 'partial' ? '½' : '✗'} ${v.text}`)
+    for (const v of t.verdicts ?? []) {
+      const credit = STATUS_CREDIT[v.status] ?? 0
+      const mark = credit >= 1 ? '✓' : credit > 0 ? '½' : '✗'
+      lines.push(`  ${mark} ${v.text}`)
+    }
     if (t.probeQuestion) {
       lines.push(`${persona.name}: ${t.probeQuestion}`)
       lines.push(`You: ${t.probeAnswer ?? '(no reply)'}${t.probeRecovered === null ? '' : t.probeRecovered ? ' [recovered]' : ' [still missing]'}`)

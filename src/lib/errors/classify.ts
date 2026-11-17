@@ -11,6 +11,7 @@ export type FailureKind =
   | 'unknown_model'
   | 'provider_down'
   | 'schema_invalid'
+  | 'output_truncated'
   | 'config_invalid'
   | 'internal';
 
@@ -24,6 +25,12 @@ export interface AttemptRow {
   model: string;
   kind: FailureKind;
   message: string;
+  /**
+   * D6's fail-loud path: the out-of-vocabulary value a strict enum rejected,
+   * when `message` came from exactly that (see `extractUnknownEnumValue`).
+   * Undefined for every other failure kind.
+   */
+  value?: string;
 }
 
 export interface ErrorDetail {
@@ -33,6 +40,8 @@ export interface ErrorDetail {
   attribution: FailureAttribution;
   attempts?: AttemptRow[];
   technical?: string;
+  /** Carried up from the attempt(s) that rejected an out-of-vocabulary enum value. */
+  value?: string;
 }
 
 function messageOf(err: unknown): string {
@@ -111,11 +120,20 @@ export function classifyProviderError(err: unknown): FailureKind {
   // (`AISDKError` assigns `name` from its marker) for the same no-import
   // reason as above; `TypeValidationError`/`JSONParseError` are the causes it
   // wraps and can also surface directly from other SDK entry points.
+  //
+  // `NoObjectGeneratedError` carries `finishReason`, and it must be read
+  // BEFORE the blanket schema_invalid mapping below: a `'length'` finish means
+  // the model ran out of its output budget (reasoning tokens are invisible in
+  // the text and can eat the whole ceiling — see `src/lib/analysis/output-cap.ts`)
+  // and never got to produce a parseable reply. Reporting that as "cannot
+  // follow a schema" sends whoever reads it to fix the wrong thing.
+  if (err instanceof Error && err.name === 'AI_NoObjectGeneratedError') {
+    if ((err as { finishReason?: unknown }).finishReason === 'length') return 'output_truncated';
+    return 'schema_invalid';
+  }
   if (
     err instanceof Error &&
-    (err.name === 'AI_NoObjectGeneratedError' ||
-      err.name === 'AI_TypeValidationError' ||
-      err.name === 'AI_JSONParseError')
+    (err.name === 'AI_TypeValidationError' || err.name === 'AI_JSONParseError')
   ) {
     return 'schema_invalid';
   }
@@ -212,6 +230,11 @@ const DESCRIPTIONS: Record<FailureKind, Pick<ErrorDetail, 'title' | 'why' | 'fix
     why: 'The model replied with data that did not match what this feature expects. This is a problem with the app, not your setup.',
     attribution: 'system',
   },
+  output_truncated: {
+    title: 'Response cut off before it finished',
+    why: 'The model ran out of room to answer before it could produce a complete reply. This is a problem with the app\'s output limit, not your setup.',
+    attribution: 'system',
+  },
   config_invalid: {
     title: 'Credential not fully configured',
     why: 'This credential is missing a field it needs to make requests, such as a base URL for a provider that requires one.',
@@ -232,4 +255,63 @@ export function describeFailure(kind: FailureKind) {
 /** Transient kinds worth trying another credential for. */
 export function isRetryable(kind: FailureKind): boolean {
   return kind === 'rate_limited' || kind === 'provider_down';
+}
+
+/** A Zod issue shaped like the ones a strict enum rejection produces. */
+interface EnumIssueLike {
+  code?: string;
+  path?: PropertyKey[];
+  /** Zod v3 only — v3 issues carry the rejected value directly. */
+  received?: unknown;
+  /** Zod v4's own name for the same thing — the issue carries the rejected value as `input`. */
+  input?: unknown;
+}
+
+function issuesOf(err: unknown): EnumIssueLike[] | undefined {
+  if (typeof err === 'object' && err !== null && Array.isArray((err as { issues?: unknown }).issues)) {
+    return (err as { issues: EnumIssueLike[] }).issues;
+  }
+  return undefined;
+}
+
+/**
+ * D6's fail-loud path: when a strict `z.enum(...)` rejects the model's reply
+ * (an out-of-vocabulary verdict label, most often), this walks the AI SDK's
+ * structured-output error chain — `NoObjectGeneratedError.cause` is a
+ * `TypeValidationError` whose own `.cause` is the real `ZodError` — and reads
+ * back the value that was actually rejected, so it can be logged and shown
+ * on `/staff/ai-history` instead of vanishing into a generic "unexpected
+ * response shape" message.
+ *
+ * Zod v3's `invalid_enum_value` issue carries the rejected value directly as
+ * `.received`. Zod v4's `invalid_value` issue renames that to `.input` — the
+ * value is carried ON THE ISSUE either way, just under a different key — so
+ * `.input` is tried right after `.received`, before falling back to the
+ * path-walk. The path-walk stays as the LAST resort for a `TypeValidationError`
+ * whose issue carries neither (an older/partial Zod v4 shape this was
+ * originally verified against): `.value` (the whole object that failed
+ * validation) walked by the issue's `path`.
+ */
+export function extractUnknownEnumValue(err: unknown): string | undefined {
+  if (!(err instanceof Error)) return undefined;
+  const typeValidationError = (err as { cause?: unknown }).cause;
+  if (typeof typeValidationError !== 'object' || typeValidationError === null) return undefined;
+
+  const zodError = (typeValidationError as { cause?: unknown }).cause;
+  const issues = issuesOf(zodError);
+  if (!issues) return undefined;
+
+  const badIssue = issues.find((i) => i.code === 'invalid_enum_value' || i.code === 'invalid_value');
+  if (!badIssue) return undefined;
+
+  if (badIssue.received !== undefined) return String(badIssue.received);
+  if (badIssue.input !== undefined) return String(badIssue.input);
+
+  const validatedValue = (typeValidationError as { value?: unknown }).value;
+  const path = badIssue.path ?? [];
+  const received = path.reduce<unknown>(
+    (acc, key) => (acc == null ? acc : (acc as Record<PropertyKey, unknown>)[key]),
+    validatedValue,
+  );
+  return received === undefined ? undefined : String(received);
 }

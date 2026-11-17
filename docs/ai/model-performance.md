@@ -1245,3 +1245,482 @@ and half a cent per card, as the panel says. The stored-credential path could no
 on this machine — `GOOGLE_KEY_ENCRYPTION_SECRET` is not in the local `.env`, so every stored key
 fails to decrypt locally ("All 5 AI attempts failed": the aggregate error's `detail.attempts`
 says why per credential); it is set in production.
+
+### Spec 5 — the grading ceiling (`scripts/probe-grade-tokens.ts`)
+
+**NOT YET RUN.** The grading output ceiling (`src/lib/analysis/output-cap.ts`,
+`gradeMaxOutputTokens`) ships with the controller-ruled placeholders
+`GRADE_TOKENS_BASE = 2048` / `GRADE_TOKENS_PER_ITEM = 600` because this build pass ran
+in an environment with no raw provider keys available to it (`npm run probe-grade-tokens`
+needs `GOOGLE_API_KEY`/`GOOGLE_API_KEYS`, `DEEPSEEK_API_KEY`, or `ZAI_API_KEY` in a bare
+`.env`, and was explicitly not run here). The script itself is built and type-checks: it
+samples up to 20 stored short-answer `QuizAnswer` rows on cards with 4-9 live KLPs, rebuilds
+the exact v5 grading prompt (key points, plus relations and form requirements where the card
+has them) per row, calls each `--models` entry at a generous 16384-token cap, fits
+`outputTokens ~ intercept + slope * items` by least squares, and prints `p95` plus a
+recommended `GRADE_TOKENS_BASE`/`GRADE_TOKENS_PER_ITEM` pair sized to ~2x that p95 at the
+sample's mean item count.
+
+**Next operator with keys:** run `npm run probe-grade-tokens -- --models deepseek-flash` (add
+`,gemini-3.1-flash-lite` to compare), paste the printed pair into `output-cap.ts`, and replace
+this paragraph with the real run's numbers — sample size, per-model finishReason counts, the
+fitted line, p95, and the recommended pair.
+
+### Relations as a discrimination axis — the spike and the relation pass (2026-09-19)
+
+**The spike (30 grades, ≈ $0.02).** Every LBO card's stored reference and both traps graded on the
+runtime prompt against the live key points AND the card's relations; separation = reference − best
+trap, three ways:
+
+| card | points | relations | combined |
+| --- | --- | --- | --- |
+| Why do LBOs use leverage | 0.90 | 1.00 | 0.94 |
+| What is an LBO | 0.60 | 1.00 | 0.80 |
+| Walk me through | 0.21 | 0.50 | 0.35 |
+| Sources of value creation | 0.17 | 0.00 ⚠ | 0.10 |
+| Good LBO candidate | 0.71 | 0.75 | 0.73 |
+| How much debt | 0.00 | 0.33 | 0.18 |
+| Hold period | 0.60 | 0.70 | 0.65 |
+| Project debt paydown | 0.40 | 0.75 | 0.56 |
+| Floor valuation | 0.67 | 1.00 | 0.80 |
+| Leverage reduces IRR | 0.92 | 1.00 | 0.96 |
+| **mean** | **0.52** | **0.70** | **0.61** |
+
+The vague trap omitted every link on every card; the template trap contradicted or omitted most
+links on cards whose ceiling-bound points it passed; ⚠ the reference itself failed all four of its
+relations on the value-creation card — the relate call had written edges the reference never
+asserts, and nothing checked. Built on that: the RELATION PASS (`src/lib/klp/relation-separation.ts`,
+grade-candidate v5, relate v3, author v7 bounded expansion; CLAUDE.md "Relations are a
+discrimination axis").
+
+**Full re-author on v7 + the pass, 10 cards, ≈ $0.06, 45 min at GLM `high`:**
+
+| | v6 (ceiling only) | v7 + relation pass |
+| --- | --- | --- |
+| mean separation (points, substance) | 0.43 (0.51) | 0.47 (0.59) |
+| mean COMBINED (points + links) | — | **0.71** (relations alone 0.77) |
+| low_discrimination / memorizable | 2 / 3 | **0 / 1** |
+| points / links | 45 / 40 | 61 / 56 |
+| edges dropped for failing the reference | not checked | **29** |
+| owner definitions passing the probe | 7/10 | **4/10** (3 hard fails) |
+
+Per card, combined: 0.95 · 0.75 · 0.10 (walk-through, memorizable) · 0.50 · 0.90 · (debt) · 0.86 ·
+0.42 (paydown: points 0.00, links 0.50 — separated on links alone) · 0.85 · 0.89.
+
+**The probe went the other way, and the reason is structural, not a prompt slip.** Re-scored from
+the stored rows with no AI: the owner's definitions score on FRAMING points (definitional) and miss
+the MECHANISM points — substance-only scoring drops the pass count to 2/10. The mechanisms are what
+separate a template; a 30-word note does not state three of them. The bounded-expansion cap was
+honored (12 `BEYOND THE CARD` declarations across 10 cards); the excess came from the ceiling-bound
+points being written at mechanism grain and from the in-loop REVISE prompt, which had never seen
+the definition (fixed: revise v6 carries the ceiling). Also visible: the step-0 "define the term"
+framing point on a WHY question carries weight 5 (blast radius) and the card never states it.
+The loop's answer is the narrowing revision (`--revise`): supervisor `narrow`/`cut` → re-author →
+re-probe, with links carrying the separation the narrowed points give up. 
+
+**The narrowing round on v7 (6 cards re-authored with the supervisor's narrow/cut findings, revise v6, ≈ $0.05, 35 min), then re-probed — the current state of the LBO set:**
+
+| card | pts / links | substance | combined | status | owner def |
+| --- | --- | --- | --- | --- | --- |
+| Why do LBOs use leverage | 6 / 6 | 0.67 | **0.89** | separated | **76** |
+| What is an LBO | 6 / 7 | 1.00 | **0.90** | separated | **80** |
+| Walk me through | 6 / 3 | 0.25 | 0.10 | memorizable | **88** |
+| Sources of value creation | 6 / 1 | 0.50 | 0.50 | separated | **85** |
+| Good LBO candidate | 6 / 5 | 0.90 | **0.90** | separated | **95** |
+| How much debt | 8 / 3 | 0.00 | 0.00 | memorizable | 65 |
+| Hold period | 6 / 4 | 0.00 | 0.00 | memorizable | **88** |
+| Project debt paydown | 4 / 5 | 0.00 | 0.42 | separated (on links alone) | **100** |
+| Floor valuation | 5 / 10 | 0.67 | **0.73** | separated | 43 |
+| Leverage reduces IRR | 6 / 7 | 0.67 | **0.90** | separated | 40 |
+| **mean / count** | | | **0.53** | 3 memorizable | **7/10 pass, 0 under 30** |
+
+**The three states side by side** (owner pass / mean combined separation / flagged): v6 ceiling
+7/10 · n/a (substance 0.51) · 5 → v7 + relation pass 4/10 · **0.71** · 1 → v7 narrowed 7/10 ·
+0.53 · 3. **Narrowing is card-dependent, and the dependence is readable from the definition.** Where
+the owner's definition carries a mechanism ("smaller equity outlay can boost returns if the company's
+value grows and the debt is paid down"), narrowing the points to it costs nothing — leverage held
+0.89, What-is-an-LBO went to 0.90 — because the links between mechanism-grain points are still
+there for a template to miss. Where the definition is a KEYWORD LIST ("leverage ratios, coverage
+ratios, comparables…"; "3-7 years, IPO or sale…"), narrowing the points to card grain hands the
+template the links too: How-much-debt went 0.86 → 0.00 and Hold-period 0.86 → 0.00, both
+`memorizable`, and the owner's definition passed (65, 88) on points that separate nobody.
+
+**What this decides.** (1) The probe-driven revision must be VETOED when it drops a card's combined
+separation below the floor — today it supersedes the better version (How-much-debt and Hold-period
+are now worse in the database than one version ago). (2) The supervisor's `narrow` must not land on a
+LOAD-BEARING point: TypeScript knows which points discriminate a trap (`AuthoringProbe.verdicts` +
+`referenceVerdicts`); a `narrow`/`cut` on one of those should read as `keep`, so the two-pass rule
+escalates the card to the owner instead of flattening it. That is the case the escalation path was
+designed for — "your definition for 'how much debt' is a list; the points that separate a template
+are mechanisms it does not state; enrich the card or accept the points" — and on this run it never
+fired because the supervisor always found something to narrow. (3) The relate pass's prune rate
+(29 of 85 candidate edges failed the reference across the v7 run; 9/12 on How-much-debt) needs
+reading against the dropped edges themselves, now printed by `author-klps` as
+`{[from]type[to]:verdict}` — a `precedes` edge a narrated walkthrough "does not assert" may be a
+grading-rule problem rather than a fabricated edge.
+
+**With the veto and discrimination-aware supervision (2026-09-19, evening; ≈ $0.06):** the two flattened
+cards re-authored from scratch under `--keep-better` (How-much-debt: 11 of 11 candidate edges failed
+the reference — the enumeration shape, pruned instead of persisted; Hold-period 0.92), then the probe
+with load-bearing points held. **Current LBO state: 8/10 owner definitions pass, 0 under 30, mean
+combined separation 0.70, 9/10 at or above the bar, 1 memorizable (the walk-through).** The two
+misses: How-much-debt 52 (supervisor: 5 of 9 points `grader_wrong`, 3 load-bearing held — decided
+`revise` on the one framing point; combined 0.85) and Leverage-reduces-IRR 53 (`grader_wrong` on 3 of
+5, both load-bearing held — the instrument, not the card; combined 0.94). Zero escalations: on this
+set the supervisor never found a card thin on a load-bearing point without also finding the grader
+harsh. **Two carry-overs:** (1) `grader_wrong` was called on 14 points across the run — the note-form
+grader still marks compressed list items (`"debt-to-EBITDA ratios"`) `incomplete`; that is the
+calibration corpus for grade-short-answer v9. (2) `confused_with` edges were being pruned on every
+card because a reference cannot assert a symmetric relation — symmetric edges are now exempt from
+the pass (kept ungraded, after the directed ones). The artifact
+https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg now carries the loop's state per card (definition,
+load-bearing points, links, separations, supervision, probe history) above the bench.
+
+### Slot templates, structured points, the question-only blind adversary (2026-09-19, evening)
+
+**Author-klps v8 (slot templates + structured points), full re-author of LBO, ≈ $0.06, 55 min at GLM `high`:**
+mean combined separation **0.79** (relations 0.86), **0 low_discrimination, 0 memorizable** — the first run
+with every card above the bar; 63 points / 67 links; 20 fabricated edges pruned; 10/10 revised by the
+bar, mostly on TEMPLATE findings (`slot_unfilled`, `slot_overfull`, `slot_kind`, `over_ceiling`) — the
+form is doing the work prose used to. Per card, combined: 0.77 · 0.61 · 0.42 (walk-through, separated
+at last) · 0.86 · 0.94 · (debt) · 0.86 · 0.90 · 0.92 · 0.83. Owner definitions on the fresh points:
+2/10 (templates put mechanism-grain points on every card); after one narrowing round with the veto
+and load-bearing supervision: **6/10 pass, 0 under 30, mean combined 0.79, 0 flagged** — the veto
+fired once (walk-through: 0.42 → 0.08 refused), 3 `grader_wrong` (calibration corpus now 17 points),
+1 `revise` left (walk-through, point [0] not on the card).
+
+**The question-only blind adversary** (five bands, one `differences` paragraph; the adversary sees
+the QUESTION and nothing else): rank agreement 75/100, band hit 38%, and — with reconciliation v3 —
+31 disputes → **1 firm grader hold, 1 point defect, 73 card gaps (≈30 distinct)**. The card gaps are
+the "true gaps" the owner asked the blind panel to find, phrased as the key point the card could
+carry: debt is cheaper than equity; the interest tax shield; lender discipline; downside/distress
+risk; the 30-40% equity check; the fund's ~10-year life bounding the hold; dividend recaps; the
+revolver draw on negative FCF; interest circularity in the schedule. Zero of them are grader
+questions. The artifact's queue now shows 10 items — 9 cards with gaps, 1 point defect — and no
+grader disputes about live points.
+
+**Reading.** The blind adversary's rank agreement (75%) is not the grader's number to fix: an answer
+that says what a strong candidate says and skips the card's own points is correctly scored low by
+a grader that grades the card. It is the CARD's number — the gap list is how it moves.
+
+### Card-gap routing — gaps into the key points first, the owner second (2026-09-20)
+
+**What was built.** `review-panel-grade` v4 returns each gap as `{ claim, reasoning }`; `foldReview` drops
+a bare string (a claim with no "because" is the generalisation the owner refused) and stores the pair
+as one line, `claim — because reasoning`. `src/lib/klp/gap-routing.ts` groups the stored gaps per card,
+merges near-duplicate wordings (Jaccard ≥ 0.4 on stemmed content words of the claim — measured, below),
+counts SUPPORT (how many panel answers raised the gap), routes the top `GAP_ROUTE_CAP` = `BEYOND_CARD_CAP`
+= 2 per card into the same `--findings` file the probe and the point defects use (issue `card_gap`,
+`index` null), and leaves the rest on the owner's queue. Author-klps **v9** authors a routed gap as a
+BEYOND THE CARD point. Three loop findings guard it in TypeScript — `beyond_card` (more than two points
+with `fromDefinition` null), `gap_unauthored` (a routed gap no point covers; overlap coefficient ≥ 0.5),
+`gap_split` (a routed gap spread over several points) — and each is a bar for the round picker
+(`RoundSummary.gapsHonoured`). A re-run of `bench-grader --review` reads gaps back off the stored
+summaries, so routing is repeatable at zero calls.
+
+**Reconciliation v4 on the 5 live LBO panels (16 disputed answers, 16 DeepSeek calls, $0.0106):** 35 gaps,
+**0 dropped** — the model supplied a mechanism every time. Routed 10 (2 × 5 cards), owner-only 13
+after the merge (21 before it). The six-word key was too brittle: "targets are chosen for stable,
+predictable cash flows and low capex" (2×) and "targets need stable, predictable cash flows and low
+capex so FCF is available" (1×) each took a slot of the same card. Content-word Jaccard on those reads
+0.56; the three "returns come from debt paydown, EBITDA growth and multiple expansion" wordings read
+0.40–0.55 against each other; "capable management team" vs "strong management" reads 0.10 (different
+gaps, correctly). Routed with support: three return drivers 3×, stable cash flows 2×, deleveraging +
+exit path 3×, low existing leverage 2×, revolver on negative FCF 3×, tranche priority 2×, dividend
+recap 2×, exit-route choice 2×.
+
+**The paydown card, four re-authors on the routed findings (GLM 5.3 flash writer, ≈ $0.009 each):**
+1. both gaps authored, but the tranche gap split into three points ("TLB is often bullet", "TLB may
+   have no sweep") — five points beyond the card, nothing to stop it → `beyond_card`;
+2. both gaps named in `concerns` and NEITHER authored — "named in concerns" and "authored as a point"
+   read as alternatives → `gap_unauthored`, and `gapsHonoured` as a picker bar (round 1 had beaten
+   round 2 on the earlier-round rule);
+3. both authored, combined **0.94**, relations 1.00 — and every point mapped `fromDefinition: 0`,
+   including revolver and TLB, on a definition that mentions neither: the cap evaded by a false
+   mapping; the tranche gap split again → `gap_split`;
+4. tranche gap authored as ONE point (`ref` null, reasoning kept — the target shape); the revolver
+   gap not authored within `MAX_REVISIONS`; combined 0.58 (above the floor, so `--keep-better` let it
+   through — the veto is floor-based by design).
+
+**Mapping honesty cannot be checked lexically.** Overlap of a point's content words with the
+definition's, across the whole set: honestly mapped points read 0.09–0.30 routinely ("The first source
+is EBITDA growth" reads 0.09 against a card that lists it), while the false TLB mappings read 0.00. No
+threshold separates them; a `mapping_doubtful` heuristic was measured and NOT added. Whether a point
+is on the card stays the definition probe's question (semantic, graded), which already flags such a
+point `not_on_card`.
+
+**Reading.** The routing and its guards work; the variance is the writer's compliance inside two
+revisions, and that is the exemplar-bank item, not another rule. Do not raise `MAX_REVISIONS` for it.
+
+### The definition probe — the owner's own answers vs. their key points (`npm run probe-definitions`)
+
+**2026-09-19 (early), LBO set, DeepSeek `deepseek-flash` grading (grader v3, prompt v8 `noteForm`), supervisor
+`deepseek-v4-pro`, re-author GLM `glm-5.3-flash` at `high` on author-klps v6.**
+
+| card | before (v7 prompt, old points) | round 1 (note-form) | after re-author (v6 points) | separation after |
+| --- | --- | --- | --- | --- |
+| Why do LBOs use leverage | 47 | **69 pass** | — | (unchanged) |
+| What is an LBO | 50 | 37 → revise | 50 → revise (cap) | 0.50, memorizable |
+| Walk me through an LBO | 28 | 63 → revise | **73 pass** | 0.21, low_discrimination |
+| Sources of value creation | 31 | 24 hard fail | **100 pass** | 0.17, memorizable |
+| Good LBO candidate | 50 | **95 pass** | — | (unchanged) |
+| How much debt | 56 | 56 → revise | **91 pass** | 0.00, low_discrimination |
+| Hold period / exit | 37 | 42 → revise | **90 pass** | 0.60, memorizable |
+| Project debt paydown | 53 | 63 → revise | **100 pass** | 0.40 |
+| Floor valuation | 19 | 17 hard fail | 63 → revise (cap) | 0.67 |
+| Leverage reduces IRR | 22 | 22 hard fail | 52 → revise (cap) | 0.92 |
+
+**Reading.** (1) The note-form clause alone moved the mean from 39 to 45 and passed two cards; it is
+grading knowledge, not prose, as asked. (2) The supervisor found `narrow`/`cut` on every card it saw
+and `grader_wrong` on several points ("(after interest)" marked partial) — the points HAD outgrown
+the card; no card was escalated to the author. (3) After one re-author on the ceiling prompt, 7/10
+owner definitions pass and none is under 30 — the owner's two bars are met. (4) **The price is
+discrimination**: mean separation on the eight re-authored cards is 0.43 (substance 0.51) against
+the corpus's earlier 0.81, with 27/45 points classified framing and five cards flagged
+`low_discrimination`/`memorizable`. A point bound to a terse card is a point a memorized template
+passes. The two acceptance tests — "the owner's note passes" and "a template fails" — pull against
+each other exactly on terse cards, and v6 resolves it entirely toward the owner. Cost of the whole
+loop: probe $0.018, re-author $0.034, re-probe $0.012 ≈ **$0.065**.
+
+**For the owner (v7).** Two honest options, not a prompt tweak: (a) BOUNDED EXPANSION — allow the
+writer at most one or two points beyond the card, only where a strong spoken answer cannot be
+given without them, named in `concerns`; the 0.65 pass line leaves 35% of weight for exactly this,
+and the discrimination those points buy is the discrimination the ceiling lost. (b) KEEP THE
+CEILING and let the loop escalate: a card whose points cannot separate a template is a card the
+owner should enrich — the `memorizable` flag already says so, and the escalation path is built.
+
+### Spec 5 — grader benchmark baseline (`npm run bench-grader`)
+
+**BASELINE OF RECORD, 2026-09-18 (night) — grader v3 (substance floor + mechanical rubric v1 +
+reconciliation pass), scoring rules v1, every panel written by GLM `glm-5.3-flash` at `high`, every
+answer graded by `deepseek-flash`, four panel kinds per card. Artifact
+https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg (every answer, verdict, quote, rubric item,
+reconciliation and the manual-review queue).**
+
+| kind | what the adversary saw | rank agreement | perfect cards | band hit | reconciliations |
+| --- | --- | --- | --- | --- | --- |
+| `levels` (4) | key points + relations | **58/60 (96.7%)** | 8/10 | — | 4 disputed → 4 agree, 0 strong |
+| `blind` (4) | question + reference only | **57/60 (95.0%)** | 7/10 | — | 6 disputed → 2 agree, 4 strong |
+| `bands` (6) | key points + weights + formula | **135/150 (90.0%)** | 4/10 | **40/60 (66.7%)** | 19 disputed → 7 agree, 1 held softly, 11 strong |
+| `blind-bands` (6) | question + reference only | **130/150 (86.7%)** | 0/10 | **34/60 (56.7%)** | 26 disputed → 1 agree, 25 strong |
+
+Unjudged points 0 on every kind; unresolved quotes 3.4% (bands), all but a handful on relation
+verdicts. Cost of the whole four-kind run with reconciliation, at list: **≈ $0.20** (levels $0.037,
+blind $0.030, bands $0.082 — 60 grades $0.043 + 10 GLM panels $0.030 + 19 reviews $0.009 — blind-bands $0.068 — 60 grades, 10 panels, 26 reviews). Today's whole session, including the discarded v2
+runs and the network re-runs, ≈ $0.40. A single grade is ≈ $0.0008 on DeepSeek off-peak; a GLM six-answer panel ≈ $0.003.
+
+**What v3 changed and what it bought.** (1) `SUBSTANCE_FLOOR_CLAUSE` in the shared verdict block:
+a point is `correct` only when the answer STATES its specific claim; a gesture, an adjacent idea or
+one half of a compound point is `incomplete`; an implied opposite is `contradicted`; "a fluent
+answer earns nothing for fluency". On the levels panel this took the owner's competent=weak tie
+("Why do LBOs use leverage") from 5/6 to 6/6 and the panel from 57/60 to 58/60; the two residual
+inversions are expert=competent ties at 1.00 where the grader, asked to reconsider, ACCEPTED the
+adversary's account both times (the 100 was too generous — see the reviews) — i.e. they are
+leniency the reconciliation pass now catches, not a scoring-rule gap. (2) The mechanical rubric
+(`src/lib/analysis/rubric.ts`): the grader answers seven yes/no items with a quote, TypeScript applies
+the weight table (clarity: lede 30 / followable 25 / terms 20 / coherent 25; conciseness: no_restatement
+30 / no_padding 30 / no_hedging 20 / proportionate 20, the last computed from word counts at ≤1.5×
+the reference). A missing item scores as not met and is warned, never silently passed. (3) The
+reconciliation pass (`review-panel-grade` v1, `benchmark-review.ts`): only where the isolated grade
+disagrees with the adversary's intent, the grader sees the adversary's rationale and accepts or holds
+each point with a stated firmness; `strong` (held firmly) is the owner's manual queue. The isolated
+grade is never overwritten.
+
+**The six-band finding: 10-point bands are inside the adversary's aim noise, not the grader's.** The
+band hit rate is 66.7% while rank agreement is 90%: the grader orders the answers correctly far more
+often than it lands them in the 10-point window the adversary named. Read the misses: on three cards
+("Why do LBOs use leverage", "walk me through", "project debt paydown") the adversary's `strong`,
+`good` and `fair` answers ALL graded 1.00 on content, and in the reconciliation the grader HELD FIRMLY
+on 4-7 points each, citing the answer's own sentence — the adversary claimed a point was "omitted"
+that the answer states outright. Those 11 strong holds are the queue; on first reading the owner
+should expect to side with the grader on most of them (the adversary under-aimed) and with the
+adversary on a few (where "states outright" is a gesture). Either way the bands panel is a test of
+the ADVERSARY's calibration as much as the grader's; treat band hit rate as a diagnostic, and rank
+agreement as the acceptance number. The blind-bands panel is the honest version of the same test.
+
+**Blind-bands is where the two readings collide hardest.** 86.7% rank agreement, 0/10 cards perfect,
+56.7% band hit, and 25 of 26 reconciliations held FIRMLY. Every inversion is a TIE at the top: the
+blind adversary, writing to "strong" or "good" without the points in front of it, writes an answer that
+states every point (the grader scores 1.00 and, shown the rationale, says so sentence by sentence).
+An adversary that cannot see the rubric cannot aim a 10-point band — it can only aim an ORDER. So:
+blind-bands measures the floor of the six-band idea (order holds, bands do not), and the honest
+calibration test for the SCORE needs either bands the adversary can hit blind (three: pass / partial /
+fail, say) or a rubric-aware adversary whose aim is itself audited by the queue. That is an owner
+decision for grader v4, not a prompt fix.
+
+**The mechanical expression axis, first reading (all three finished kinds, 140 grades).** The grader
+answered every rubric item on every grade (0 `rubric_unanswered` warnings). Clarity /100 by intended
+level, levels panel: expert 100 · competent 100 · weak 100 · wrong 74.5; conciseness: 98 · 100 · 72 · 94
+(the legacy 1-10 rubric read 9.9/9.4/8.1/6.5 clarity beside it). The items that fire on wrong answers
+are `terms` (called by the wrong name) and `coherent` (undoes itself) — the right ones; `no_padding`
+and `no_hedging` fire on weak answers. The mechanical axis moves in the same direction as the legacy
+one but is coarser (mostly 100 above `weak`): the weights are tunable per version, and the
+per-item agreement printed here is the evidence to tune from.
+
+**Interpretation rule for the four kinds, from here on:** `blind` is the panel the grader is held to
+(the realistic test); `levels` is the rationale-in-[n]-terms diagnostic; `bands`/`blind-bands`
+measure calibration of the SCORE, not just the order, and are read together with the queue.
+
+**BASELINE OF RECORD, 2026-09-18 (evening) — grader v2, scoring rules v1 (contradiction term), every
+panel written by GLM `glm-5.3-flash` at `high`, every answer graded by `deepseek-flash`. Two panels
+per card: the rubric-aware adversary (saw the key points) and the BLIND adversary (question + reference
+only). Artifact https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg.**
+
+| | rubric-aware panel | blind panel |
+| --- | --- | --- |
+| Rank agreement | **57/60 (95.0%)**, 7/10 cards at 6/6 | **58/60 (96.7%)**, 8/10 cards at 6/6 |
+| Mean adjacent gap | 0.32 | 0.32 |
+| Wrong-over-weak inversions | 0 | 0 |
+| Remaining inversions | expert=competent ×2, competent=weak ×1 (adversary wrote both alike) | expert=competent ×2 |
+| Unjudged points | 0/284 | 0/284 |
+
+**What changed since the morning run (56/60 on coverage alone):** `answerScore` replaced coverage as
+the rank metric — a contradicted / inverted / conflated / misapplied point SUBTRACTS its weight
+(`contradictionPenalty` 1.0) and a contradicted relation subtracts half the card's mean weight
+(`relationContradictionPenalty` 0.5), floored at 0 (`src/lib/analysis/scoring-rules.ts`). The
+owner's "egregiously wrong" walk-me-through answer went **0.75 → 0.17** (coverage stays 0.75 and is
+reported beside it; composition reads 7✓ 2 WRONG R5 wrong; the legacy rubric gave correctness 3/10).
+Chosen by re-scoring the stored results, not by re-grading: every non-zero penalty removed both
+wrong-over-weak inversions; relation penalties at 1.0 zeroed every wrong answer (no gradation left).
+
+**The blind panel separates BETTER than the rubric-aware one.** An adversary that cannot see the
+points writes a "competent" answer with a real gap instead of an engineered one, so the grader has
+something to catch. This is the panel to hold the grader to; the rubric-aware panel stays as the
+easier, rationale-in-[n]-terms diagnostic.
+
+**Open for the owner:** the expert/competent ties are the grader crediting the trailing clause of a
+compound key point (a causal point should have been `incomplete`); a strict-clause sentence for
+compound points is the candidate grader v3, testable in one bench run. The two panel writers'
+residual: GLM at `high` still needs the retry-once on ~1 in 4 panel calls.
+
+**RUN 2026-09-18 — grader v2, `deepseek-flash` grading, 10/10 LBO cards, every panel written by a DIFFERENT family from the grader (7 GLM, 3 Gemini), artifact
+https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg (every answer, verdict, quote and rationale).**
+
+| | |
+| --- | --- |
+| Rank agreement | **56/60 (93.3%)**, 7/10 cards at 6/6 |
+| Mean adjacent gap | 0.24 |
+| Unjudged points | 0/284 |
+| Quotes unresolved | 16/303 (5%) — all on relation verdicts; the grader paraphrases links |
+| Cost | 28 grades: 88k in / 31k out on DeepSeek ≈ $0.022; panels ≈ $0.006 |
+| Panels | 7 on `glm-5.3-flash` (`high`), 3 on `gemini-3.1-flash-lite`. A first pass wrote those three on DeepSeek — the grader's own family, a softer test — and was discarded. |
+
+**The first run (grader v1) found two instrument defects and was discarded — this is what the
+benchmark is for.** (1) On the 9-point "walk me through an LBO" card DeepSeek returned the rubric
+and omitted `klpResults` on three of four answers; the field was optional so the reply parsed as
+zero verdicts and the card scored 0/6 with 27/36 unjudged. The KLP-path prompt had shown the
+rubric's own `JSON Schema: {...}` first and asked for the analysis afterwards. Fixed as
+grade-short-answer **v6** (one schema listing, rubric + analysis fields, right before the answer)
+and `ShortAnswerGradeWithAnalysisSchema` (`klpResults` required wherever key points are listed);
+`GRADER_VERSION` 2. (2) GLM at `high` reasoning spent the provider's default 8,192 output tokens
+entirely on reasoning and emitted nothing on 5 of 10 panel writes (`finishReason: length`, text
+length 0); `authorPanel` now passes `PANEL_MAX_OUTPUT_TOKENS` 32768.
+
+**A THIRD instrument defect surfaced on the re-author: both GLM and Gemini filled `level` AND `mode` under constrained decoding because both were optional fields of one schema, and the "exactly one" refinement rejected otherwise-perfect panels (3/10 cards, both writers; DeepSeek, schema-in-prompt, did not). Fixed: one schema per panel kind (`graderPanelSchemaFor`), a levels panel has no `mode` field to fill.**
+
+**Every one of the four inversions is one of two shapes, and neither is a mis-grade:**
+
+- **expert ties competent at 1.00** (2 cards: "What is an LBO", "walk me through"; a third,
+  "how long does a PE firm hold", tied on the DeepSeek-written panel and separated cleanly on the
+  Gemini one). The adversary's competent answer names ONE gap each — "never states that
+  deleveraging grows the sponsor's equity stake" ([3], mechanism), "never mentions the sponsor's
+  return hurdle" ([8], causal) — and the grader credited that point `correct` both times. Both are
+  the TRAILING CLAUSE of a compound key point; on the mechanism point the kind-aware relaxation
+  credits it by design, on the causal point strict should have bitten and did not. **This is the "harsh enough?" question for the owner:** on
+  the expert/competent margin the strict clause is not biting on a point that is gestured at
+  rather than stated. On the weak answers the same grader hands out `partial`/`incomplete`
+  freely, so it is not blanket leniency — it is leniency when the surrounding answer is fluent.
+- **wrong outscores weak** (2 cards). The wrong answer is caught exactly where the adversary put
+  the error (`contradicted` on [5],[7] and five relations; `contradicted` on [2],[3],[4]) but
+  states every other point, so its coverage beats a weak answer with three holes. Coverage and
+  verdict composition are separate axes by design (the owner's grader doc: never a composite).
+  Whether a contradicted point should sink an answer below any answer with only holes is a
+  ranking-rule decision for the owner, not a grader defect.
+
+**Provisional ceiling check from this run:** the largest grade reply was 1,178 output tokens on a
+5-point/4-relation card against a ceiling of 7,448 (2048 + 600 × 9); the placeholder constants
+are generous by ~6×. `npm run probe-grade-tokens` cannot run yet (one stored short-answer row).
+
+**The section below is the pre-run text, kept for the commands.**
+
+**NOT YET RUN — the LBO baseline is OWED.** The script, the persisted panel/result tables, the
+scoring (`src/lib/analysis/benchmark.ts`) and the report (`src/lib/analysis/benchmark-report.ts`)
+are built, type-check, and boot against the live database (`--dry-run` on the LBO set plans a
+`levels` panel for all 10 cards: every card has live key points and a reference answer at its
+current `klpVersion`). This build pass ran in an environment with no raw provider keys, so nothing
+was called. **This is the baseline the v5 grading prompt is held to from now on; until it is
+recorded, no grader change can claim it did not regress.**
+
+**Next operator with keys** — one command, ~50 calls (one adversary call + four grading calls
+per card), about $0.05 on DeepSeek. `--model` is not optional for a baseline: it pins the planning
+key and the report to ONE grader, so the recorded number is one model's and never a mix:
+
+```
+npx tsx --conditions=react-server --env-file=.env scripts/bench-grader.ts --set cmtj7pxfc000005l4rv4krxxy --author --direct --model deepseek-flash
+```
+
+With `KLP_DIRECT_PROVIDER=deepseek` (the grader — the same role split as authoring) and
+`KLP_AUTHOR_PROVIDER=zai` / `KLP_AUTHOR_MODELS=glm-5.3-flash` (the adversary: the `grader-panel`
+task is writer-family, Z.ai first at `high` effort). Without an author pool the adversary writes on
+the grader's model, which is legal but weaker: a grader reading answers its own family wrote is a
+softer test. On `--direct` the grader is PINNED PER CARD (`src/lib/analysis/benchmark-pin.ts`):
+one combo is taken when a card starts and all four answers are graded on it, because rank
+agreement subtracts coverage scores and two graders on one card fold the gap between graders
+into the gap between levels. A quota hit mid-card abandons that card for the run; a card whose
+stored results end up split across models is reported `MIXED` and excluded from the totals, and
+`--model <id>` completes it on one model.
+
+**Record here, from the printed report:** per card, rank agreement as `n/6` and the three
+adjacent gaps; the pooled rank agreement and cards at 6/6; the mean adjacent gap; every inversion
+with the adversary's first line beside the grader's verdicts (that pairing is what a prompt fix is
+written from); the unresolved-quote rate (grader quality — a paraphrase where a verbatim quote was
+asked for); the model that graded and `graderVersion` (`src/lib/analysis/version.ts`, 1 at
+build). Then run once more with `--kind modes --author` for the shape matrix (gap /
+misconception / connectivity / template; expected → observed), and record which cells miss.
+
+The run is idempotent per `(answer, graderVersion, model)` and per `(card, klpVersion, kind)`: a
+halt on quota resumes where it stopped, a re-authored card gets a new panel and its old one
+stays as history, and a grader change (`GRADER_VERSION` bump) is a re-grade against the fixed
+panel — the fixed-card-set rule from `bench-models`. `author-klps` prints the compact form of
+this report beside its weight histogram whenever the set has panels.
+
+### Spec 5 — the content pass, live (`npm run probe-runtime-grade`)
+
+**NOT YET RUN — OWED, on two models.** Phase A shipped its live probe (`scripts/probe-runtime-grade.ts`,
+built and type-checked; it boots read-only against the live database and refuses to grade until a
+raw key is present) but this build pass had no provider keys, so no grading call was made. Booted
+with a bogus key it loads the default card correctly — LBO card 1, "Why do LBOs use leverage?",
+`klpVersion 4`: 5 key points, 4 relations (`causes [1]→[2]`, `requires [2]→[4]`, `requires [3]→[4]`,
+`precedes [1]→[3]`), 0 form requirements (none authored yet), 9 items → ceiling 7448 tokens — and
+the documented inversion edit still matches the stored reference.
+
+What it does: three fixed answers on that card — the reference answer, a blank, and the reference
+with ONE causal point reversed by a documented string edit (key point [3]: "each dollar of debt paid
+down converts into equity value, so the sponsor's ownership grows" → "erodes equity value, so the
+sponsor's ownership shrinks"; nothing else changes) — each graded through `GRADE_SHORT_ANSWER_PROMPT`
+v5 with the real `loadGradingContext` and the real `gradeMaxOutputTokens`. PASS/FAIL per answer:
+one verdict per key point / relation / form requirement; every label in `RUNTIME_VERDICTS`;
+reference all `correct`; blank all `omission`; inverted point `inversion` or `contradicted`; every
+quote resolves via `resolveSpan`; output tokens under the ceiling with `finishReason` not `length`.
+Then the same three answers through `GRADE_CANDIDATE_PROMPT` strict — the authoring grader the
+runtime wording was ported from — with per-point agreement printed. Exit 1 on any FAIL.
+
+**Next operator with keys — two runs, ~12 calls total, cents:**
+
+```
+npm run probe-runtime-grade -- --model deepseek-flash
+npm run probe-runtime-grade -- --model gemini-3.1-flash-lite
+```
+
+(`DEEPSEEK_API_KEY` for the first; `GOOGLE_API_KEY` or `GOOGLE_API_KEYS` for the second — any
+Google id in the script's `MODEL_PROVIDER` table works, and the Google run spends 6 of that model's
+20 free-tier requests for the day.) **Record here, per model:** every PASS/FAIL line; the verdict
+line for each of the three answers (and the relation line — on the inverted answer `requires [3]→[4]`
+and `precedes [1]→[3]` are the edges that lean on the reversed point, so they are the ones expected
+to move); the unresolved-quote count; `outputTokens / 7448` and `finishReason` per call (an
+`output_truncated` here says the placeholder ceiling constants are too low for a 9-item card and
+`probe-grade-tokens` has to run first); and the per-point agreement `k/n` per answer plus the pooled
+number. That pooled agreement is the figure that says the port preserved the measured grader; a
+disagreement on `fabrication` / `unsupported_leap` is the vocabulary split (the runtime routes
+those to `unwarranted[]`), not the port. A reference read as anything but all-`correct` on DeepSeek
+is a prompt finding, not a model finding — DeepSeek is the grader the strict clause was tuned on.

@@ -183,4 +183,10 @@ describe('computeCleanStreaks', () => {
     expect(streaks.a).toBe(1)
     expect(streaks.b).toBe(0)
   })
+
+  it('a correct row is a clean answer; an inversion breaks the streak', () => {
+    const t = (status: string, ms: number) => ({ klpId: 'k', status, createdAt: new Date(ms) })
+    expect(computeCleanStreaks([t('correct', 3), t('passed', 2), t('inversion', 1)] as never)).toEqual({ k: 2 })
+    expect(computeCleanStreaks([t('inversion', 3), t('correct', 2)] as never)).toEqual({ k: 0 })
+  })
 })

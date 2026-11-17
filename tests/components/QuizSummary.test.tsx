@@ -70,6 +70,32 @@ describe('QuizSummary — analysis display', () => {
     expect(screen.queryByText('klp-a')).not.toBeInTheDocument()
   })
 
+  it('renders an MC wrong pick whose status is the corruption as "Inverted:", not the raw token', async () => {
+    // Spec 5 §2: binaryModeDrafts writes the distractor's corruption as the
+    // KLP status. The learner must read the label, never `inversion`.
+    vi.mocked(getQuizAttemptSummary).mockResolvedValue({
+      success: true,
+      data: {
+        attempt: {
+          mode: 'multiple-choice',
+          answers: [
+            baseAnswer({
+              klpResults: [
+                { klpId: 'klp-a', status: 'inversion', klp: { text: 'Higher leverage raises equity IRR' } },
+              ],
+            }),
+          ],
+        },
+        insight: null,
+      },
+    } as unknown as Awaited<ReturnType<typeof getQuizAttemptSummary>>)
+
+    render(<QuizSummary setId="s1" attemptId="a1" />)
+    await waitFor(() => screen.getByText(/Higher leverage raises equity IRR/))
+    expect(screen.getByText(/Inverted:/)).toBeInTheDocument()
+    expect(screen.queryByText(/inversion/)).not.toBeInTheDocument()
+  })
+
   it('renders an error tag with a humanized label, not the raw type string', async () => {
     (getQuizAttemptSummary as any).mockResolvedValue({
       success: true,

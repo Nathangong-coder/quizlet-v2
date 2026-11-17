@@ -171,4 +171,51 @@ describe('HotSeatGame', () => {
     // The end-screen transcript may name points; the interview itself never did.
     expect(within(document.body).getByText(/nothing here was saved to your memory/i)).toBeTruthy()
   })
+
+  /**
+   * Task 3 fix round. A runtime grade says `correct` (Spec 5), never `passed`;
+   * the component compared the word, so the pleased face, "They nod." and the
+   * transcript's ✓ were unreachable on every live grade. It reads credit now.
+   */
+  it('a `correct` verdict on the probe reply renders the recovered state, and ✓ in the transcript', async () => {
+    h.startHotSeat.mockResolvedValue({ success: true, data: { cards: cards.slice(0, 4), persona: DEFAULT_PERSONA, costume: 'default' } })
+    h.probeHotSeat.mockResolvedValue({ success: true, data: { question: 'And why is that?' } })
+    // Round 1: the main answer misses the point (a probe follows); the reply recovers it.
+    h.gradeGameAnswer
+      .mockResolvedValueOnce({ success: true, data: { hit: false, accuracy: 0, verdicts: [{ klpId: 'k1', text: 'the mechanism point', weight: 5, status: 'omission' }] } })
+      .mockResolvedValueOnce({ success: true, data: { hit: true, accuracy: 1, verdicts: [{ klpId: 'k1', text: 'the mechanism point', weight: 5, status: 'correct' }] } })
+      // Rounds 2-4: clean answers, graded `correct`, no probe.
+      .mockResolvedValue({ success: true, data: { hit: true, accuracy: 1, verdicts: [{ klpId: 'k2', text: 'a clean point', weight: 1, status: 'correct' }] } })
+    render(<HotSeatGame setId="s1" signedIn />)
+    fireEvent.click(screen.getByRole('radio', { name: /easy/i }))
+    fireEvent.click(screen.getByRole('button', { name: /take the hot seat/i }))
+    await tick()
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'a weak answer' } })
+    fireEvent.submit(screen.getByRole('textbox').closest('form')!)
+    await tick()
+    expect(screen.getByText(/and why is that/i)).toBeTruthy()
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'the recovery' } })
+    fireEvent.submit(screen.getByRole('textbox').closest('form')!)
+    await tick()
+    expect(h.gradeGameAnswer).toHaveBeenLastCalledWith('c0', 'the recovery', { klpIds: ['k1'] })
+    // `correct` is full credit: the interviewer is pleased and nods.
+    expect(screen.getByRole('img', { name: /pleased/i })).toBeTruthy()
+    expect(screen.getByText(/they nod\./i)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /next question/i }))
+    await tick()
+
+    for (let i = 1; i < 4; i++) {
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'an answer' } })
+      fireEvent.submit(screen.getByRole('textbox').closest('form')!)
+      await tick()
+      fireEvent.click(screen.getByRole('button', { name: i === 3 ? /see the verdict/i : /next question/i }))
+      await tick()
+    }
+    // The transcript reads credit too: the three `correct` points are ✓, round
+    // 1's `omission` is ✗, and its probe line is marked recovered.
+    expect(screen.getByText(/· recovered/)).toBeTruthy()
+    expect(screen.getAllByText('✓').length).toBe(3)
+    expect(screen.getAllByText('✗').length).toBe(1)
+  })
 })

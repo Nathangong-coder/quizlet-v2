@@ -340,7 +340,9 @@ describe('submitTrueFalseAnswer', () => {
       sessionId: SESSION_ID,
       quizAnswerId: 'answer1',
       outcome: { correct: false },
-      meta: { latencyMs: 1234 },
+      // Spec 6: the retrospective moment rides every quiz write; the rating
+      // itself is absent here because none was passed.
+      meta: { latencyMs: 1234, selfRating: undefined, selfRatingMoment: 'after_answer' },
     })
   })
 })

@@ -90,6 +90,22 @@ describe('rollupSessionAnalysis', () => {
     expect(r.struggledKlps).toEqual([])
   })
 
+  it('counts every zero-credit verdict as a struggle, not just the literal "failed" label', () => {
+    const r = rollupSessionAnalysis([
+      answer({
+        klpResults: [
+          { klpId: 'klp-a', status: 'omission' },
+          { klpId: 'klp-b', status: 'contradicted' },
+          { klpId: 'klp-c', status: 'partial' },
+          { klpId: 'klp-d', status: 'correct' },
+        ],
+      }),
+    ])
+    const totalFails = r.struggledKlps.reduce((n, k) => n + k.failCount, 0)
+    expect(totalFails).toBe(2)
+    expect(r.struggledKlps.map((k) => k.klpId).sort()).toEqual(['klp-a', 'klp-b'])
+  })
+
   it('caps struggledKlps at 5, keeping the highest failCount', () => {
     const answers = Array.from({ length: 7 }, (_, i) =>
       answer({ klpResults: [{ klpId: `klp-${i}`, status: 'failed' }] }),

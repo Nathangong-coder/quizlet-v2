@@ -1,13 +1,78 @@
 import { z } from 'zod';
 import { CORRUPTIONS } from '@/lib/quiz/options';
 import { DIMENSIONS, MAX_TAGS_PER_ANSWER } from '@/lib/errors/taxonomy';
-import { KLP_STATUSES } from '@/lib/errors/klp-credit';
 import { PROBE_KINDS, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
-import { KLP_VERDICTS } from '@/lib/klp/verdicts';
+import { KLP_VERDICTS, RUNTIME_VERDICTS } from '@/lib/klp/verdicts';
 import { RELATABLE_TYPES, RELATION_PROVENANCES } from '@/lib/klp/relations';
 import { EXPLOIT_STRATEGIES } from '@/lib/klp/exploit';
 import { ABSTRACTION_LEVELS } from '@/lib/klp/abstraction';
 import { PANEL_LEVELS } from '@/lib/klp/panel';
+import { GRADER_PANEL_LEVELS, GRADER_PANEL_MODES, GRADER_PANEL_BANDS, GRADER_PANEL_BAND_IDS } from '@/lib/analysis/benchmark';
+
+/**
+ * The per-key-point verdict a RUNTIME grader may return (Spec 5 D6: a strict
+ * enum — an out-of-vocabulary label is a parse failure, never a dropped row).
+ * `passed` is a read-only alias on historical rows and is never accepted
+ * here; `fabrication` / `unsupported_leap` describe what an answer ADDS and
+ * belong to `unwarranted[]`, so they are not offered either. The cast keeps
+ * the inferred type at the runtime subset of `KlpStatus`, which is what
+ * `buildAnalysisWrites` and the games are typed against.
+ */
+type RuntimeVerdict = (typeof RUNTIME_VERDICTS)[number];
+const RuntimeVerdictEnum = z.enum(RUNTIME_VERDICTS as unknown as [RuntimeVerdict, ...RuntimeVerdict[]]);
+
+/**
+ * The shared verdict block asks the grader for `quote` (a VERBATIM excerpt);
+ * every consumer downstream (`buildAnalysisWrites` -> `AnswerKlpResult.evidence`,
+ * `regrade-run`, the authoring separation loop) reads `evidence`. Both keys
+ * are accepted, and this bridge fills `evidence` from `quote` when the grader
+ * used the block's word — so the excerpt is persisted no matter which key the
+ * model chose. Without it the schema accepted both, nothing failed, and every
+ * runtime row's `evidence` was null (fix round, 2026-09-17). An explicit
+ * `evidence` wins, so a reply carrying both is never silently overwritten.
+ * The output type is the input type on purpose: `evidence` stays optional so
+ * a grade built by hand (`blankAnswerGrade`) needs no placeholder key.
+ */
+const bridgeQuoteToEvidence = <T extends { evidence?: string; quote?: string }>(r: T): T =>
+  ({ ...r, evidence: r.evidence ?? r.quote });
+
+/**
+ * Shared by `ShortAnswerGradeSchema` and `DiagnosticGradeSetSchema` — one
+ * per-answer analysis contract. `quote` is what the shared verdict block asks
+ * for (a VERBATIM excerpt, resolved to a span in TS); `evidence` is accepted
+ * as an alias for one version so a grader still on the old wording parses,
+ * and is always populated on the parsed value (see `bridgeQuoteToEvidence`).
+ */
+const KlpResultsSchema = z.array(z.object({
+  klpRef: z.number().int().min(0),
+  status: RuntimeVerdictEnum,
+  quote: z.string().optional(),
+  evidence: z.string().optional(),
+}).transform(bridgeQuoteToEvidence)).optional();
+
+const RelationResultsSchema = z.array(z.object({
+  relationRef: z.number().int().min(0),
+  status: RuntimeVerdictEnum,
+  quote: z.string().optional(),
+})).optional();
+
+const FormResultsSchema = z.array(z.object({
+  formRef: z.number().int().min(0),
+  status: z.enum(['met', 'not_met']),
+  quote: z.string().optional(),
+})).optional();
+
+/**
+ * Claims the answer makes that the key points do NOT make and that are false,
+ * misleading or invented — exactly what a per-point verdict cannot see. The
+ * 1-10 magnitude is the model's judgment of THIS instance; nothing ranks one
+ * claim against another in TS.
+ */
+const UnwarrantedSchema = z.array(z.object({
+  text: z.string().min(1),
+  quote: z.string().optional(),
+  magnitude: z.number().int().min(1).max(10),
+})).optional();
 
 export const MultipleChoiceOptionsSchema = z.object({
   options: z.array(z.string().min(1)).length(4),
@@ -39,10 +104,20 @@ export const ShortAnswerGradeSchema = z.object({
    * Per-KLP outcomes. `klpRef` is an index into the prompt's KLP list, never a
    * cuid. Optional so the no-KLP path parses today's shape unchanged.
    */
-  klpResults: z.array(z.object({
-    klpRef: z.number().int().min(0),
-    status: z.enum(KLP_STATUSES),
-    evidence: z.string().optional(),
+  klpResults: KlpResultsSchema,
+  relationResults: RelationResultsSchema,
+  formResults: FormResultsSchema,
+  unwarranted: UnwarrantedSchema,
+  /**
+   * The mechanical communication checklist (grader v3, `src/lib/analysis/rubric.ts`):
+   * the model answers each item true/false with a quote; TypeScript scores it.
+   * Optional so the no-KLP rubric-only reply and pre-v7 fixtures still parse;
+   * a missing item scores as not met and is warned.
+   */
+  communication: z.array(z.object({
+    id: z.string().min(1),
+    met: z.boolean(),
+    quote: z.string().optional(),
   })).optional(),
   /**
    * `type` is z.string(), not an enum: it is validated against its OWN
@@ -62,6 +137,20 @@ export const ShortAnswerGradeSchema = z.object({
 });
 
 export type ShortAnswerGrade = z.infer<typeof ShortAnswerGradeSchema>;
+
+/**
+ * The grade schema WHEN LIVE KEY POINTS WERE SUPPLIED (v6, 2026-09-18). The
+ * base schema keeps `klpResults` optional so the no-KLP rubric-only reply
+ * parses; here it is REQUIRED and non-empty, so a model that returns the
+ * rubric and silently drops the analysis section — DeepSeek did, on a 9-point
+ * card, on the benchmark's first run — fails Zod, is retried once in place
+ * (D6), and then fails loud instead of producing zero verdicts that read as
+ * "no evidence". Every grading path that lists key points uses this one.
+ */
+export const ShortAnswerGradeWithAnalysisSchema = ShortAnswerGradeSchema.extend({
+  klpResults: KlpResultsSchema.unwrap().min(1),
+});
+export type ShortAnswerGradeWithAnalysis = z.infer<typeof ShortAnswerGradeWithAnalysisSchema>;
 
 export const AnnotationSchema = z.object({
   annotations: z.array(z.object({
@@ -204,11 +293,7 @@ export const DiagnosticGradeSetSchema = z.object({
     status: z.enum(['mastered', 'partial', 'missed']),
     feedback: cappedText(1200),
     mistake: optionalCappedText(800),
-    klpResults: z.array(z.object({
-      klpRef: z.number().int().min(0),
-      status: z.enum(KLP_STATUSES),
-      evidence: z.string().optional(),
-    })).optional(),
+    klpResults: KlpResultsSchema,
     errorTags: z.array(z.object({
       dimension: z.enum(DIMENSIONS),
       type: z.string().min(1),
@@ -421,6 +506,7 @@ export type KltSkeleton = z.infer<typeof KltSkeletonSchema>;
  * is auditable; the closed list is what lets a later spec group cards by it.
  */
 export const QUESTION_TYPES = ['define', 'enumerate', 'walkthrough', 'why', 'compare', 'scenario', 'calculate'] as const;
+export type QuestionType = (typeof QUESTION_TYPES)[number];
 
 export const AuthorDraftSchema = z.object({
   questionType: z.enum(QUESTION_TYPES).optional(),
@@ -442,6 +528,9 @@ export const AuthorDraftSchema = z.object({
   definitionPoints: z.array(z.object({
     point: z.string().min(1),
     klpsNeeded: z.number(),
+    /** v8: the point as a structured claim, so a key point can be MAPPED to it in TypeScript. */
+    subject: z.string().nullable().optional(),
+    claim: z.string().nullable().optional(),
   })).optional(),
   referenceAnswer: z.string().min(1),
   /**
@@ -459,6 +548,18 @@ export const AuthorDraftSchema = z.object({
   klps: z.array(z.object({
     text: z.string().min(1),
     kind: z.enum(KLP_KINDS),
+    /**
+     * v8 (slot templates): the slot of the question type's template this
+     * point fills, or null for an overflow point. TypeScript validates the
+     * form (`validateTemplate`). Optional so a v7 reply still parses.
+     */
+    slot: z.string().nullable().optional(),
+    /** v8 (structured points): the claim decomposed — what it is about, what it says, under what condition. */
+    subject: z.string().nullable().optional(),
+    claim: z.string().nullable().optional(),
+    qualifier: z.string().nullable().optional(),
+    /** v8: index into `definitionPoints` this point is derived from; null = beyond the card. */
+    fromDefinition: z.number().int().min(0).nullable().optional(),
   })).min(1).max(MAX_KLPS_AUTHORED),
   /**
    * EXACTLY `PROBE_KINDS.length`, one per archetype, no duplicates. `.min(1)`
@@ -497,17 +598,38 @@ export const CandidateGradeSchema = z.object({
   verdicts: z.array(z.object({
     klpIndex: z.number().int().min(0),
     verdict: z.enum(KLP_VERDICTS),
+    // The prompt's output line names `evidence`; the shared verdict block it
+    // embeds says `quote`. Both parse, and the bridge fills `evidence` either
+    // way — the twin of the runtime bridge above.
     evidence: z.string().optional(),
-  })),
+    quote: z.string().optional(),
+  }).transform(bridgeQuoteToEvidence)),
+  /** v5: one verdict per link, only when the prompt listed links. */
+  relationVerdicts: z.array(z.object({
+    relationIndex: z.number().int().min(0),
+    verdict: z.enum(KLP_VERDICTS),
+    evidence: z.string().optional(),
+    quote: z.string().optional(),
+  }).transform(bridgeQuoteToEvidence)).optional(),
 });
 
 export type CandidateGrade = z.infer<typeof CandidateGradeSchema>;
 
 /** Call C's output: a revised KLP set, same shape as call A's `klps`. */
+/** The structured fields a revision reply may carry (v8 of the author prompt); all optional. */
+const structuredKlpFields = {
+  slot: z.string().nullable().optional(),
+  subject: z.string().nullable().optional(),
+  claim: z.string().nullable().optional(),
+  qualifier: z.string().nullable().optional(),
+  fromDefinition: z.number().int().min(0).nullable().optional(),
+};
+
 export const ReviseKlpsSchema = z.object({
   klps: z.array(z.object({
     text: z.string().min(1),
     kind: z.enum(KLP_KINDS),
+    ...structuredKlpFields,
   })).min(1).max(MAX_KLPS_AUTHORED),
 });
 
@@ -664,3 +786,193 @@ export const HotSeatProbeSchema = z.object({
 });
 
 export type HotSeatProbe = z.infer<typeof HotSeatProbeSchema>;
+
+/**
+ * Spec 5 §5: the form requirements of one card — 3-5 SHAPE rules an answer
+ * must satisfy (answers the question asked, direction and magnitude, causal
+ * order, closes the loop), as distinct from the CONTENT the key points
+ * require. Bounded on both ends: fewer than three is not a shape, more than
+ * five is a second KLP list. Each is one sentence a grader can check reading
+ * the answer alone; 160 characters is the same cap the prompt states.
+ */
+export const FormRequirementsSchema = z.object({
+  requirements: z.array(z.object({ text: z.string().min(8).max(160) })).min(3).max(5),
+});
+
+export type FormRequirements = z.infer<typeof FormRequirementsSchema>;
+
+/**
+ * Spec 5 §8 — the grader benchmark panel (`WRITE_GRADER_PANEL_PROMPT`).
+ *
+ * Exactly four answers, and the four must be ONE panel: all carrying a
+ * `level` (a `levels` panel — each of expert / competent / weak / wrong
+ * once, `intendedRank` equal to the level's position, because the adversary
+ * calling its "wrong" answer rank 1 is contradicting itself) or all carrying
+ * a `mode` (a `modes` panel — each of gap / misconception / connectivity /
+ * template once, ranks 1-4 distinct in whatever order the adversary
+ * defends). `.length(4)` alone would pass four "expert" answers, and a
+ * mixed panel would score half a curve against half a confusion matrix, so
+ * the refinements pin the design rather than the count. A partial panel is
+ * useless, not reduced — better to fail the call than score a curve with a
+ * hole in it (the same reasoning as `PanelSchema`).
+ *
+ * Word counts (60-200) are asked for in the prompt and not enforced here: a
+ * hard bound on a length the model estimates would fail more good panels
+ * than it catches, and the benchmark reads the grader, not the adversary's
+ * word discipline.
+ */
+/**
+ * ONE SCHEMA PER PANEL KIND (2026-09-18). The first version offered `level`
+ * and `mode` as two optional fields on one schema and refined "exactly one
+ * of them". Under a provider's constrained decoding every field in the JSON
+ * schema is a field the model may fill, and it filled BOTH — Gemini and GLM
+ * wrote `"level": "expert", "mode": "template"` on 3 of 10 LBO cards and the
+ * refinement rejected a panel that was otherwise perfect. A levels panel now
+ * has no `mode` field to fill and a modes panel no `level`; the shared
+ * refinements (four distinct ranks; each label once; on a levels panel the
+ * rank the level implies) stay. `GraderPanelSchema` remains the union for
+ * readers that hold either.
+ */
+const panelAnswerBase = {
+  intendedRank: z.number().int().min(1).max(4),
+  text: z.string().min(1),
+  rationale: z.string().min(1),
+};
+
+export const GraderPanelLevelsSchema = z.object({
+  answers: z.array(z.object({ level: z.enum(GRADER_PANEL_LEVELS), ...panelAnswerBase })).length(4),
+}).superRefine((panel, ctx) => {
+  const { answers } = panel;
+  if (new Set(answers.map((a) => a.intendedRank)).size !== answers.length) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'intendedRank must be 1-4, each once' });
+  }
+  if (new Set(answers.map((a) => a.level)).size !== GRADER_PANEL_LEVELS.length) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a levels panel carries each level exactly once' });
+  }
+  for (const [i, a] of answers.entries()) {
+    const expected = GRADER_PANEL_LEVELS.indexOf(a.level) + 1;
+    if (a.intendedRank !== expected) {
+      ctx.addIssue({ code: 'custom', path: ['answers', i, 'intendedRank'], message: `"${a.level}" is rank ${expected}` });
+    }
+  }
+});
+
+export const GraderPanelModesSchema = z.object({
+  answers: z.array(z.object({ mode: z.enum(GRADER_PANEL_MODES), ...panelAnswerBase })).length(4),
+}).superRefine((panel, ctx) => {
+  const { answers } = panel;
+  if (new Set(answers.map((a) => a.intendedRank)).size !== answers.length) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'intendedRank must be 1-4, each once' });
+  }
+  if (new Set(answers.map((a) => a.mode)).size !== GRADER_PANEL_MODES.length) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a modes panel carries each failure shape exactly once' });
+  }
+});
+
+/**
+ * The BLIND kinds (2026-09-19): the adversary sees the QUESTION ONLY and
+ * writes one panel-level `differences` paragraph instead of a rationale per
+ * answer — one explanation of how the answers descend is what the
+ * reconciliation reads, and five fewer paragraphs is most of the panel's
+ * output cost. `rationale` is absent on the answers.
+ */
+const blindAnswerBase = {
+  text: z.string().min(1),
+};
+export const GraderPanelBlindSchema = z.object({
+  answers: z.array(z.object({ level: z.enum(GRADER_PANEL_LEVELS), ...blindAnswerBase, intendedRank: z.number().int().min(1).max(4) })).length(4),
+  differences: z.string().min(1),
+}).superRefine((panel, ctx) => {
+  if (new Set(panel.answers.map((a) => a.intendedRank)).size !== 4) ctx.addIssue({ code: 'custom', path: ['answers'], message: 'intendedRank must be 1-4, each once' });
+  if (new Set(panel.answers.map((a) => a.level)).size !== 4) ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a blind panel carries each level exactly once' });
+});
+export const GraderPanelBlindBandsSchema = z.object({
+  answers: z.array(z.object({ level: z.enum(GRADER_PANEL_BAND_IDS), ...blindAnswerBase, intendedRank: z.number().int().min(1).max(GRADER_PANEL_BANDS.length) })).length(GRADER_PANEL_BANDS.length),
+  differences: z.string().min(1),
+}).superRefine((panel, ctx) => {
+  const { answers } = panel;
+  if (new Set(answers.map((a) => a.intendedRank)).size !== answers.length) ctx.addIssue({ code: 'custom', path: ['answers'], message: `intendedRank must be 1-${GRADER_PANEL_BANDS.length}, each once` });
+  if (new Set(answers.map((a) => a.level)).size !== GRADER_PANEL_BANDS.length) ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a bands panel carries each band exactly once' });
+  for (const [i, a] of answers.entries()) {
+    const expected = GRADER_PANEL_BANDS.find((b) => b.id === a.level)?.rank;
+    if (expected !== undefined && a.intendedRank !== expected) ctx.addIssue({ code: 'custom', path: ['answers', i, 'intendedRank'], message: `"${a.level}" is rank ${expected}` });
+  }
+});
+
+export const GraderPanelBandsSchema = z.object({
+  answers: z.array(z.object({ level: z.enum(GRADER_PANEL_BAND_IDS), ...panelAnswerBase, intendedRank: z.number().int().min(1).max(GRADER_PANEL_BANDS.length) })).length(GRADER_PANEL_BANDS.length),
+}).superRefine((panel, ctx) => {
+  const { answers } = panel;
+  if (new Set(answers.map((a) => a.intendedRank)).size !== answers.length) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: `intendedRank must be 1-${GRADER_PANEL_BANDS.length}, each once` });
+  }
+  if (new Set(answers.map((a) => a.level)).size !== GRADER_PANEL_BANDS.length) {
+    ctx.addIssue({ code: 'custom', path: ['answers'], message: 'a bands panel carries each band exactly once' });
+  }
+  for (const [i, a] of answers.entries()) {
+    const expected = GRADER_PANEL_BANDS.find((b) => b.id === a.level)?.rank;
+    if (expected !== undefined && a.intendedRank !== expected) {
+      ctx.addIssue({ code: 'custom', path: ['answers', i, 'intendedRank'], message: `"${a.level}" is rank ${expected}` });
+    }
+  }
+});
+
+/** The reconciliation pass reply (`review-panel-grade`). Stances per point; TS derives the outcome. */
+export const PanelGradeReviewSchema = z.object({
+  points: z.array(z.object({
+    klpRef: z.number().int().min(0),
+    /** v2 adds `klp_defect`: the POINT is at fault — ambiguous, compound, or asking more than the question does. */
+    stance: z.enum(['accept', 'hold', 'klp_defect']),
+    verdict: z.string().min(1),
+    firm: z.boolean(),
+    reason: z.string().min(1),
+  })),
+  /**
+   * v3 (2026-09-19): CARD GAPS — claims the answer makes that a strong answer to
+   * this question needs and NO key point covers. Not about any existing point,
+   * so a separate list; each is one sentence the card owner could add.
+   */
+  /**
+   * v4 (2026-09-20): a gap is a `{ claim, reasoning }` pair — "debt is
+   * generally cheaper than equity" / "interest is tax-deductible". A bare
+   * string still PARSES (the reply is not lost) but `foldReview` drops it:
+   * a claim without its reasoning is the bare generalisation the owner
+   * refused to route into the key points.
+   */
+  cardGaps: z.array(z.union([
+    z.object({ claim: z.string().min(1), reasoning: z.string().min(1) }),
+    z.string().min(1),
+  ])).optional(),
+  summary: z.string().min(1),
+});
+export type PanelGradeReview = z.infer<typeof PanelGradeReviewSchema>;
+
+/**
+ * The definition-probe supervisor's reply (`supervise-definition`). One closed
+ * verdict per key point; `wording` is the narrowed point and is only read on
+ * `narrow`. TypeScript (`src/lib/klp/definition-probe.ts`) decides what the
+ * verdicts add up to — the supervisor never says "revise" or "escalate".
+ */
+export const DefinitionSupervisionSchema = z.object({
+  points: z.array(z.object({
+    klpRef: z.number().int().min(0),
+    verdict: z.enum(['keep', 'narrow', 'cut', 'grader_wrong']),
+    reason: z.string().min(1),
+    wording: z.string().nullable(),
+  })).min(1),
+  summary: z.string().min(1),
+});
+export type DefinitionSupervision = z.infer<typeof DefinitionSupervisionSchema>;
+
+/** Either kind — what a reader that stores or displays a panel holds. */
+export const GraderPanelSchema = z.union([GraderPanelLevelsSchema, GraderPanelModesSchema, GraderPanelBandsSchema, GraderPanelBlindSchema, GraderPanelBlindBandsSchema]);
+
+export function graderPanelSchemaFor(kind: 'levels' | 'modes' | 'blind' | 'bands' | 'blind-bands'): typeof GraderPanelLevelsSchema | typeof GraderPanelModesSchema | typeof GraderPanelBandsSchema | typeof GraderPanelBlindSchema | typeof GraderPanelBlindBandsSchema {
+  if (kind === 'modes') return GraderPanelModesSchema;
+  if (kind === 'bands') return GraderPanelBandsSchema;
+  if (kind === 'blind') return GraderPanelBlindSchema;
+  if (kind === 'blind-bands') return GraderPanelBlindBandsSchema;
+  return GraderPanelLevelsSchema;
+}
+
+export type GraderPanelDraft = z.infer<typeof GraderPanelSchema>;

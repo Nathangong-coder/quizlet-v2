@@ -208,12 +208,19 @@ export interface TuningRow {
    * `resolveStudyScope` does it where that data is already in hand.
    */
   studyScope: StoredStudyScope
+  /**
+   * Spec 6: whether the self-rating picker is shown and the server accepts a
+   * rating. A missing row (or a row read without the column) is `true` — the
+   * schema default, not a fabricated row. Not a threshold: it feeds no
+   * computation, which is why it is a column and not a `thresholds` key.
+   */
+  captureSelfRating: boolean
 }
 
 /**
  * Pure: every decision the load/save actions make happens here so it is tested
  * without a database. Each field degrades INDEPENDENTLY — one corrupt blob must
- * not discard a perfectly good strategy or any of the other three.
+ * not discard a perfectly good strategy or any of the other four.
  */
 export function shapeTuning(
   row: {
@@ -221,6 +228,7 @@ export function shapeTuning(
     bands: unknown
     thresholds: unknown
     studyScope: unknown
+    captureSelfRating?: boolean
   } | null,
 ): TuningRow {
   if (!row) {
@@ -229,6 +237,7 @@ export function shapeTuning(
       bandOverrides: {},
       thresholdOverrides: {},
       studyScope: { setIds: [], categoryKeys: [] },
+      captureSelfRating: true,
     }
   }
   return {
@@ -236,5 +245,6 @@ export function shapeTuning(
     bandOverrides: parseBandOverrides(row.bands),
     thresholdOverrides: parseThresholds(row.thresholds),
     studyScope: parseStudyScope(row.studyScope),
+    captureSelfRating: typeof row.captureSelfRating === 'boolean' ? row.captureSelfRating : true,
   }
 }

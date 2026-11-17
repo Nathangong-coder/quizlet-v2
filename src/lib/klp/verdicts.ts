@@ -57,3 +57,13 @@ export const VERDICT_CREDIT: Record<KlpVerdict, number> = {
   unsupported_leap: 0,
   fabrication: 0,
 }
+
+/**
+ * The labels the RUNTIME grader is offered. `fabrication` and
+ * `unsupported_leap` describe what an answer ADDS, not how it fails a point —
+ * that is `unwarranted[]`'s job (Spec 5 §3). They remain in KLP_VERDICTS for
+ * the authoring grader and for rows that hold them.
+ */
+export const RUNTIME_VERDICTS = KLP_VERDICTS.filter(
+  (v) => v !== 'fabrication' && v !== 'unsupported_leap',
+) as readonly Exclude<KlpVerdict, 'fabrication' | 'unsupported_leap'>[]

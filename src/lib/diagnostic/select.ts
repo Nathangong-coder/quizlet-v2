@@ -26,7 +26,8 @@ export const MIN_DIAGNOSTIC_KLPS = 12
  * per question. Grading a whole 12-question sitting in one call therefore needs
  * ~11k output tokens and a 30-question one ~27k; on gemini-3.6-flash a
  * four-question grading call already came back with NO output at all
- * (`NoOutputGeneratedError`, which classifies as `schema_invalid`).
+ * (`NoObjectGeneratedError` with `finishReason: 'length'`, which classifies as
+ * `output_truncated`).
  *
  * That failure is the worst kind available here: it happens at SUBMIT, after
  * the learner has spent twenty minutes answering, and it throws the whole

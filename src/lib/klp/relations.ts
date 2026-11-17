@@ -59,6 +59,8 @@ export const RELATION_PROVENANCES = [
   'order_violation',
   'substitution',
   'entailment',
+  /** Implied by the question type's slot template (`src/lib/klp/templates.ts`), added by TypeScript. */
+  'template',
 ] as const
 export type RelationProvenance = (typeof RELATION_PROVENANCES)[number]
 

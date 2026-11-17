@@ -3,7 +3,13 @@ import { MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config';
 
 export interface ReviseKlpsBuildInput {
   question: string;
-  klps: { text: string; kind: string }[];
+  /**
+   * v6: the card owner's definition — the CEILING every revised point must
+   * respect, as in author-klps v7. Optional so a caller without it gets v5's
+   * text; the authoring loop always passes it.
+   */
+  definition?: string;
+  klps: { text: string; kind: string; slot?: string | null; fromDefinition?: number | null }[];
   /** Call B's discrimination result, per KLP, in the KLPs' own order. */
   discrimination: {
     index: number;
@@ -59,7 +65,14 @@ export const REVISE_KLPS_PROMPT = {
   id: 'revise-klps',
   // v4 (2026-09-13): the compression precedence rule.
   // v5 (2026-09-14): instructions first, card last (prefix cache).
-  version: 5,
+  // v7 (2026-09-19): slots ride through — each point returns its slot,
+  // subject, claim, qualifier and fromDefinition, unchanged where the claim is.
+  // v6 (2026-09-19): the definition ceiling. The loop revised 7/10 LBO cards
+  // on a run where the author prompt bound points to the card and this one
+  // did not — a split "into the specific claims it was hiding" re-inflated
+  // what the ceiling had held. A revised point is a claim the definition
+  // makes; a split that needs a claim the card does not make is not a split.
+  version: 7,
   schema: ReviseKlpsSchema,
 
   build(input: ReviseKlpsBuildInput): string {
@@ -75,7 +88,7 @@ export const REVISE_KLPS_PROMPT = {
           lines.push('FAILS ON THE REFERENCE — the reference answer itself does not support this claim; it may be hallucinated, or too specific to what the reference happens to say');
         else lines.push('CARRIES NO INFORMATION — every wrong answer also satisfies it');
         for (const f of findingsFor(i)) lines.push(`${f.issue.toUpperCase()} — ${f.fix}`);
-        return `[${i}] (${k.kind}) ${k.text}\n    ${lines.join('\n    ')}`;
+        return `[${i}] (${k.kind}${k.slot ? `, slot ${k.slot}` : ''}) ${k.text}\n    ${lines.join('\n    ')}`;
       })
       .join('\n');
     const setLevel = (input.findings ?? []).filter((f) => f.index === null);
@@ -98,11 +111,11 @@ CUT WORDS, NEVER DISTINCT CLAIMS. A RESTATEMENT, CLAUSE BLOAT or VERBOSE finding
 kind: one of ${KLP_KINDS.join(', ')}.
 
 Output JSON:
-{ "klps": [ { "text": string, "kind": string } ] }
-Return the FULL revised set, not only the changed entries.
+{ "klps": [ { "text": string, "kind": string, "slot": string | null, "subject": string, "claim": string, "qualifier": string | null, "fromDefinition": number | null } ] }
+Return the FULL revised set, not only the changed entries. Every point keeps its slot, subject, claim, qualifier and fromDefinition unless its claim changed; a point that fills a template slot named in a finding names that slot.
 
 Question: ${input.question}
-${reason}
+${input.definition ? `Definition on the card (the owner's own words): ${input.definition}\nTHE DEFINITION IS THE CEILING. Every revised point must be a claim the definition itself makes, at the grain it makes it, or one of the points already marked as beyond the card. Splitting a point "into the specific claims it was hiding" is allowed only when the definition makes those claims; if separating a template would need a mechanism the card does not state, leave the point at the card's grain — the card's links, not extra points, carry that separation.\n` : ''}${reason}
 Aim for ${input.targetCount}-${MAX_KLPS_AUTHORED} KLPs total after revision — the same target this card was sized for, not a quota. If splitting a useless point into its specific claims takes you above it, that is the right outcome; if honestly cutting one takes you below it, say the fewer true things rather than padding.
 
 Current KLPs, each with its findings:

@@ -36,6 +36,14 @@ describe('temperatureForTask', () => {
     }
   })
 
+  it('writes the benchmark panel with the writing tasks’ spread, not the graders’ zero', () => {
+    // The panel is re-graded against a FIXED set of answers (spec 5 §8), so
+    // authoring it is not a judgment that must repeat — it is writing, and a
+    // "weak" answer that is a shorter "expert" answer is the collapse to avoid.
+    expect(temperatureForTask('grader-panel')).toBe(temperatureForTask('distractors'))
+    expect(temperatureForTask('grader-panel')).toBeGreaterThan(temperatureForTask('grade'))
+  })
+
   it('gives the two variety tasks more room than the judgment ones', () => {
     expect(temperatureForTask('autocomplete')).toBeGreaterThan(temperatureForTask('grade'))
     expect(temperatureForTask('distractors')).toBeGreaterThan(temperatureForTask('grade'))

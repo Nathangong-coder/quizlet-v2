@@ -79,6 +79,14 @@ export { HOT_SEAT_PROBE_PROMPT } from './hot-seat-probe';
 export type { HotSeatProbeBuildInput } from './hot-seat-probe';
 export type { SuggestSkeletonBuildInput } from './suggest-skeleton';
 
+export { WRITE_FORM_REQS_PROMPT } from './write-form-reqs';
+export type { WriteFormReqsBuildInput } from './write-form-reqs';
+
+export { WRITE_GRADER_PANEL_PROMPT } from './write-grader-panel';
+export { REVIEW_PANEL_GRADE_PROMPT } from './review-panel-grade';
+export { SUPERVISE_DEFINITION_PROMPT } from './supervise-definition';
+export type { WriteGraderPanelBuildInput } from './write-grader-panel';
+
 import { MULTIPLE_CHOICE_PROMPT } from './multiple-choice';
 import { GRADE_SHORT_ANSWER_PROMPT } from './grade-short-answer';
 import { ANNOTATION_PROMPT } from './annotation';
@@ -96,6 +104,10 @@ import { PLACE_KLTS_PROMPT } from './place-klts';
 import { SUGGEST_SKELETON_PROMPT } from './suggest-skeleton';
 import { MAKE_GAME_PIECES_PROMPT } from './make-game-pieces';
 import { HOT_SEAT_PROBE_PROMPT } from './hot-seat-probe';
+import { WRITE_FORM_REQS_PROMPT } from './write-form-reqs';
+import { WRITE_GRADER_PANEL_PROMPT } from './write-grader-panel';
+import { REVIEW_PANEL_GRADE_PROMPT } from './review-panel-grade';
+import { SUPERVISE_DEFINITION_PROMPT } from './supervise-definition';
 
 /** All registry entries keyed by `id`, for introspection/tooling. */
 export const PROMPT_REGISTRY = {
@@ -118,4 +130,8 @@ export const PROMPT_REGISTRY = {
   [SUGGEST_SKELETON_PROMPT.id]: SUGGEST_SKELETON_PROMPT,
   [MAKE_GAME_PIECES_PROMPT.id]: MAKE_GAME_PIECES_PROMPT,
   [HOT_SEAT_PROBE_PROMPT.id]: HOT_SEAT_PROBE_PROMPT,
+  [WRITE_FORM_REQS_PROMPT.id]: WRITE_FORM_REQS_PROMPT,
+  [WRITE_GRADER_PANEL_PROMPT.id]: WRITE_GRADER_PANEL_PROMPT,
+  [REVIEW_PANEL_GRADE_PROMPT.id]: REVIEW_PANEL_GRADE_PROMPT,
+  [SUPERVISE_DEFINITION_PROMPT.id]: SUPERVISE_DEFINITION_PROMPT,
 } as const;

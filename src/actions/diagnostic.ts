@@ -50,6 +50,9 @@ const DiagnosticAnswerSchema = z.object({
   questionId: z.string().trim().min(1).max(80),
   answer: z.string().max(10000),
   latencyMs: z.number().int().min(0).max(60 * 60 * 1000).optional(),
+  /** Spec 6: the learner's 1-4 belief, rated after typing and before submit.
+   *  Absent = skipped. Out of range is refused with the rest of the form. */
+  selfRating: z.number().int().min(1).max(4).optional(),
 })
 
 const DiagnosticSubmitSchema = z.object({
@@ -395,15 +398,16 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
     if (attempt.status !== 'in_progress') return { success: false, error: 'This diagnostic has already been submitted' }
 
     // The key point behind each question, for the weight that feeds
-    // significance. Read now rather than inside the write transaction, which
-    // is already doing a lock-read-write per key point.
+    // significance and the kind the grader's strictness clause reads. Read
+    // now rather than inside the write transaction, which is already doing a
+    // lock-read-write per key point.
     const anchorIds = attempt.questions
       .map((question) => question.klpId)
       .filter((klpId): klpId is string => klpId !== null)
     const anchors = new Map(
       (await prisma.cardKlp.findMany({
         where: { id: { in: anchorIds } },
-        select: { id: true, weight: true },
+        select: { id: true, weight: true, kind: true },
       })).map((klp) => [klp.id, klp]),
     )
 
@@ -479,6 +483,10 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
               question: question.prompt,
               expectedAnswer: question.expectedAnswer,
               keyPoint: question.learningPoint,
+              // Without the kind, the shared block's kind clause is inert and
+              // the point is graded at the strict tier — a divergence from
+              // the quiz grader on the same proposition.
+              kind: question.klpId ? anchors.get(question.klpId)?.kind : undefined,
               answer: answerFor(question),
             })),
           }),
@@ -489,9 +497,9 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
         servedBy = meta.model
       } catch (gradingError) {
         // Swallowed ON PURPOSE, and only here. A model that rambles past its
-        // output ceiling surfaces as `schema_invalid`, which is
-        // indistinguishable from a real schema problem and must not cost the
-        // learner the sitting.
+        // output ceiling surfaces as `output_truncated` (a `finishReason:
+        // 'length'` NoObjectGeneratedError) — distinct from a real schema
+        // problem, but either way must not cost the learner the sitting.
         //
         // But WHY it failed decides what happens next. A smaller call fixes an
         // oversized response; it does nothing for an exhausted daily quota, and
@@ -561,6 +569,7 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
         grade,
         answer: answerFor(question),
         latencyMs: answers.get(question.id)?.latencyMs,
+        selfRating: answers.get(question.id)?.selfRating,
         score: grade?.score ?? null,
         status: grade ? statusForScore(grade.score) : null,
         feedback: grade?.feedback ?? 'This answer could not be graded. It has been left out of your score.',
@@ -642,6 +651,17 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
           starred: starredByCard.get(item.question.cardId) ?? false,
           klpResults: item.grade?.klpResults ?? [],
           errorTags: (item.grade?.errorTags ?? []) as ErrorTagDraft[],
+          // Spec 5 Phase A: quotes are located in the submitted answer. The
+          // diagnostic asks ONE key point per question (`select.ts` is where
+          // targeting lives), so there is no link between two points to judge
+          // and no card-level shape to check: the relation and form arrays
+          // are empty by design, not because the ids were never wired.
+          answerText: item.answer,
+          relations: [],
+          formReqs: [],
+          relationResults: [],
+          formResults: [],
+          unwarranted: [],
           // An ungraded question writes its raw record with `failed` — the
           // spec's own degradation status for "grading did not produce a
           // grade". Zero rows alone cannot be told apart from a clean answer.
@@ -700,7 +720,8 @@ export async function submitDiagnosticTest(input: DiagnosticSubmitInput): Promis
             // happened.
             quizAnswerId: answer.id,
             outcome: { overall: item.score },
-            meta: { latencyMs: item.latencyMs },
+            // Spec 6 §3.3: retrospective — rated after typing, before submit.
+            meta: { latencyMs: item.latencyMs, selfRating: item.selfRating, selfRatingMoment: 'after_answer' },
           }, tx)
         }
       }

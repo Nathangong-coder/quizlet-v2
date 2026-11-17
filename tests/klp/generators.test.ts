@@ -8,7 +8,8 @@ vi.mock('@/lib/ai/generate', () => ({
 
 vi.mock('@/lib/db', () => ({ prisma: {} }))
 
-import { authoringGenerator, topicGenerator } from '@/lib/klp/generators'
+import { authoringGenerator, topicGenerator, formReqsGenerator } from '@/lib/klp/generators'
+import { FormRequirementsSchema } from '@/lib/ai/schemas'
 
 describe('in-app generators route by task, so the measured role split holds without naming a model', () => {
   beforeEach(() => { calls.length = 0 })
@@ -30,5 +31,11 @@ describe('in-app generators route by task, so the measured role split holds with
     const t = topicGenerator('u')
     await t.mint('p'); await t.assign('p'); await t.revise('p')
     expect(calls.map((c) => c.task)).toEqual(['concept-tree', 'concept-tree', 'concept-tree'])
+  })
+  it('form requirements go out as `form-reqs` and report the served model, so every row is attributed', async () => {
+    const g = formReqsGenerator('u')
+    const out = await g('p', FormRequirementsSchema)
+    expect(calls.map((c) => c.task)).toEqual(['form-reqs'])
+    expect(out).toEqual({ value: { ok: true }, model: 'm' })
   })
 })

@@ -150,6 +150,14 @@ export interface PriorResult {
   mode: StudySource
   credit: number
   evidence?: string | null
+  /**
+   * Spec 5 Phase A: the grader's quote, resolved against the stored answer
+   * text. Carried verbatim — the answer text does not change on a KLP edit,
+   * so the offsets stay valid. Optional because older callers and rows
+   * predating the migration have none.
+   */
+  spanStart?: number | null
+  spanEnd?: number | null
   /** Whether its key point is still live (not superseded). */
   isLive: boolean
 }
@@ -157,11 +165,19 @@ export interface PriorResult {
 export interface CarriedResult {
   fromKlpId: string
   toKlpId: string
+  /**
+   * Never `passed`: the alias is read-only from ANALYSIS_VERSION 4, so a prior
+   * `passed` is carried as `correct` (same credit, same meaning). The carry
+   * path re-CREATES rows, which makes it a writer, and every writer funnels
+   * through the same rule `buildAnalysisWrites` applies.
+   */
   status: KlpStatus
   mode: StudySource
   /** Unchanged: `credit` is statusCredit x evidenceStrength(mode), and neither moved. */
   credit: number
   evidence?: string | null
+  spanStart: number | null
+  spanEnd: number | null
 }
 
 export type RegradeAction =
@@ -278,10 +294,14 @@ export function planAnswerRegrade(input: PlanInput): RegradePlan {
     carried.push({
       fromKlpId: prior.klpId,
       toKlpId: target,
-      status: prior.status,
+      // Read-only alias normalised on the way OUT (Spec 5 D1): a carried row is
+      // a new row, and no path writes `passed` from v4 on.
+      status: prior.status === 'passed' ? 'correct' : prior.status,
       mode: prior.mode,
       credit: prior.credit,
       evidence: prior.evidence ?? null,
+      spanStart: prior.spanStart ?? null,
+      spanEnd: prior.spanEnd ?? null,
     })
   }
 

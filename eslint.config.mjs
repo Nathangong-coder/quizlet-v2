@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Git worktrees live under .claude/worktrees; each carries a full checkout.
+    ".claude/**",
+    ".superpowers/**",
   ]),
 ]);
 

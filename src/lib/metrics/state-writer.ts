@@ -146,7 +146,10 @@ export async function rebuildKlpStates(
   if (klpIds.length === 0) return
 
   const rows = await tx.answerKlpResult.findMany({
-    where: { klpId: { in: klpIds }, quizAnswer: { userId } },
+    // Live generation only: a regrade (src/lib/analysis/regrade.ts) leaves the
+    // superseded rows in place as history, and replaying them too would step
+    // the posterior once per grader that ever looked at the answer.
+    where: { klpId: { in: klpIds }, quizAnswer: { userId }, supersededAt: null },
     select: { klpId: true, status: true, mode: true, createdAt: true },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   })

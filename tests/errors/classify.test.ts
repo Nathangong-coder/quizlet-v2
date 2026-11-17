@@ -3,6 +3,7 @@ import {
   classifyProviderError,
   describeFailure,
   isRetryable,
+  extractUnknownEnumValue,
   type FailureKind,
 } from '@/lib/errors/classify';
 
@@ -88,6 +89,22 @@ describe('classifyProviderError', () => {
     expect(classifyProviderError(parseError)).toBe('schema_invalid');
   });
 
+  it('classifies a truncated structured-output reply as output_truncated, not schema_invalid', () => {
+    // The output-ceiling bug this exists to fix: reasoning tokens exhausted
+    // the default budget, so `Output.object` never got a complete reply to
+    // parse. `NoObjectGeneratedError` carries `finishReason` for exactly this.
+    const truncated = new Error('No object generated: response did not match schema.');
+    truncated.name = 'AI_NoObjectGeneratedError';
+    (truncated as { finishReason?: string }).finishReason = 'length';
+    expect(classifyProviderError(truncated)).toBe('output_truncated');
+
+    // A genuine schema mismatch that finished normally is unaffected.
+    const genuine = new Error('No object generated: response did not match schema.');
+    genuine.name = 'AI_NoObjectGeneratedError';
+    (genuine as { finishReason?: string }).finishReason = 'stop';
+    expect(classifyProviderError(genuine)).toBe('schema_invalid');
+  });
+
   it('falls back to internal for anything unrecognised', () => {
     expect(classifyProviderError(new Error('something bizarre'))).toBe('internal');
     expect(classifyProviderError(null)).toBe('internal');
@@ -120,7 +137,7 @@ describe('describeFailure', () => {
   });
 
   it('attributes provider and program faults to the system with no fix to offer', () => {
-    for (const kind of ['provider_down', 'schema_invalid', 'internal'] as FailureKind[]) {
+    for (const kind of ['provider_down', 'schema_invalid', 'output_truncated', 'internal'] as FailureKind[]) {
       const d = describeFailure(kind);
       expect(d.attribution).toBe('system');
       expect(d.fix).toBeUndefined();
@@ -165,6 +182,97 @@ describe('isRetryable', () => {
 
   it('does not retry an unusable credential pool — nothing changes on its own', () => {
     expect(isRetryable('credentials_unavailable')).toBe(false);
+  });
+
+  it('does not retry a truncated reply — a bigger cap fixes it, not a second attempt', () => {
+    expect(isRetryable('output_truncated')).toBe(false);
+  });
+});
+
+describe('extractUnknownEnumValue', () => {
+  /**
+   * The real AI SDK v7 chain: `NoObjectGeneratedError.cause` is a
+   * `TypeValidationError` (name `AI_TypeValidationError`, carrying `.value`,
+   * the full object that failed validation) whose own `.cause` is the real
+   * `ZodError`. Verified against a live `zod@^4` parse in this repo: an enum
+   * issue's code is `invalid_value` and it carries `values`/`path`/`message`
+   * but NOT `received` — that field is Zod v3 only.
+   */
+  function noObjectError(value: unknown, path: PropertyKey[]) {
+    const zodError = Object.assign(new Error('Invalid enum value'), {
+      issues: [{ code: 'invalid_value', values: ['correct', 'partial', 'failed'], path }],
+    });
+    const typeValidationError = Object.assign(new Error('Type validation failed'), {
+      name: 'AI_TypeValidationError',
+      value,
+      cause: zodError,
+    });
+    return Object.assign(new Error('No object generated: response did not match schema.'), {
+      name: 'AI_NoObjectGeneratedError',
+      cause: typeValidationError,
+    });
+  }
+
+  it('reads the rejected value off the validated object at the issue path (zod v4 shape)', () => {
+    const err = noObjectError({ klpResults: [{ status: 'kinda_right' }] }, ['klpResults', 0, 'status']);
+    expect(extractUnknownEnumValue(err)).toBe('kinda_right');
+  });
+
+  it('prefers a v3-style `.received` when present', () => {
+    const zodError = Object.assign(new Error('Invalid enum value'), {
+      issues: [{ code: 'invalid_enum_value', received: 'bogus_status', path: ['status'] }],
+    });
+    const typeValidationError = Object.assign(new Error('Type validation failed'), {
+      name: 'AI_TypeValidationError',
+      value: { status: 'bogus_status' },
+      cause: zodError,
+    });
+    const err = Object.assign(new Error('No object generated'), {
+      name: 'AI_NoObjectGeneratedError',
+      cause: typeValidationError,
+    });
+    expect(extractUnknownEnumValue(err)).toBe('bogus_status');
+  });
+
+  it('reads `.input` off a v4-shaped issue before falling back to the path-walk', () => {
+    // Some Zod v4 builds DO carry the rejected value on the issue itself, just
+    // renamed from v3's `.received` to `.input` — cheaper and more direct than
+    // walking `TypeValidationError.value` by path, so it is tried first. The
+    // `value` object here deliberately does NOT contain a matching `status`
+    // key, so a pass that fell through to the path-walk would return
+    // `undefined` instead — this proves `.input` was actually used.
+    const zodError = Object.assign(new Error('Invalid enum value'), {
+      issues: [{ code: 'invalid_value', values: ['correct', 'partial', 'failed'], path: ['status'], input: 'bogus_v4_input' }],
+    });
+    const typeValidationError = Object.assign(new Error('Type validation failed'), {
+      name: 'AI_TypeValidationError',
+      value: {},
+      cause: zodError,
+    });
+    const err = Object.assign(new Error('No object generated'), {
+      name: 'AI_NoObjectGeneratedError',
+      cause: typeValidationError,
+    });
+    expect(extractUnknownEnumValue(err)).toBe('bogus_v4_input');
+  });
+
+  it('is undefined for an unrelated error, or a schema failure with no enum issue', () => {
+    expect(extractUnknownEnumValue(new Error('network blip'))).toBeUndefined();
+    expect(extractUnknownEnumValue(null)).toBeUndefined();
+
+    const zodError = Object.assign(new Error('missing field'), {
+      issues: [{ code: 'invalid_type', path: ['status'] }],
+    });
+    const typeValidationError = Object.assign(new Error('Type validation failed'), {
+      name: 'AI_TypeValidationError',
+      value: {},
+      cause: zodError,
+    });
+    const err = Object.assign(new Error('No object generated'), {
+      name: 'AI_NoObjectGeneratedError',
+      cause: typeValidationError,
+    });
+    expect(extractUnknownEnumValue(err)).toBeUndefined();
   });
 });
 

@@ -63,10 +63,10 @@ async function main() {
     : []
 
   const klpResults = await prisma.answerKlpResult.count({
-    where: { quizAnswerId: { in: quizAnswers.map((a) => a.id) } },
+    where: { quizAnswerId: { in: quizAnswers.map((a) => a.id) }, supersededAt: null },
   })
   const errorTags = await prisma.answerErrorTag.count({
-    where: { quizAnswerId: { in: quizAnswers.map((a) => a.id) } },
+    where: { quizAnswerId: { in: quizAnswers.map((a) => a.id) }, supersededAt: null },
   })
   const studyEvents = await prisma.studyEvent.findMany({
     where: { sessionId: attempt.sessionId },

@@ -1,5 +1,163 @@
 # Build queue & carried-over findings
 
+**HANDOFF 2026-09-20 — SPEC 5 PHASE A AND SPEC 6 ARE MERGED INTO `spec2-klp-authoring`.** `f3df616`
+(spec6-confidence) and `c4b6944` (spec5-phase-a) merged, follow-up `d393adc` (spec6's diagnostic
+self-rating test speaks the Spec 5 vocabulary — `passed` is a read-only alias of `correct`; eslint
+ignores `.claude/**` and `.superpowers/**`, which is why the merged lint count is 178 and not 50k).
+Unpushed. **Baselines of record: 4,449 tests green, `tsc` clean, lint 178** — the union of the two
+branches (spec5 174, spec6 175), zero merge-introduced findings; the ceiling moves to 180. Migrations
+through `20260919170000_klp_slots` are applied to the shared dev DB. The worktrees still exist and
+are stale — do not build on them. The Grading Engine Internals artifact was re-verified against this
+HEAD the same day (Part 1 authoring: templates, relation pass, definition probe; Part 3: Spec 5
+grader, five-band benchmark). **(1) Card-gap routing is BUILT (same day):** `src/lib/klp/gap-routing.ts`,
+review-panel-grade v4 (`{ claim, reasoning }`, bare claims dropped), author-klps v9 (`card_gap`
+findings → BEYOND THE CARD points), loop guards `beyond_card` / `gap_unauthored` / `gap_split` as
+picker bars, `bench-grader --review` re-routes from stored summaries at zero calls. Measured on the
+LBO paydown card over four re-authors — see `docs/ai/model-performance.md` "Card-gap routing".
+Suite **4,467**, lint 178. The paydown card is at klpVersion 9 (one of two routed gaps authored,
+combined 0.58); its blind panel and the other four live panels are now stale — the next
+`bench-grader --author` rewrites them. **Next:** (2) grade-short-answer v9 from the 17
+`grader_wrong` points; (3) the exemplar bank; (4) `precedes` on narrated walkthroughs; (5) the
+escalation queue in the app; (6) Spec 6 browser gate and the key-dependent runs below.
+
+**HANDOFF 2026-09-17 — SPEC 6 (SELF-RATED CONFIDENCE) IS BUILT; BROWSER GATE OWED.** Branch
+`spec6-confidence` (worktree, off `spec2-klp-authoring`), ten commits, unpushed. Design:
+`docs/superpowers/specs/2026-09-17-spec6-self-rated-confidence-design.md`; plan:
+`docs/superpowers/plans/2026-09-17-spec6-self-rated-confidence.md`. What landed: the 1-4 vocabulary
+(`src/lib/memory/self-rating.ts`, Prisma-free), two nullable columns on `StudyEvent`
+(`selfRating`, `selfRatingMoment`) and `LearnerTuning.captureSelfRating @default(true)` (migration
+`20260917120000_self_rating_capture`, additive, applied to the shared dev DB), the gate in
+`recordStudyEvent` (toggle off / bad value / missing moment ⇒ NULL, NULL; no tuning row ⇒ on),
+`SelfRatingPicker` (`src/components/study/`), capture in quiz MC/SA/TF and the diagnostic
+(retrospective, `after_answer`) and in Review (prospective, `before_answer`, keys 1-4 pre-flip,
+frozen after; the answer-key hints render only post-flip so the two meanings of `2` never share the
+screen), `SelfRatingPanel` on `/settings/study` (the fifth partial field on `saveTuning`), and the
+readout: `bucketCalibration` (`src/lib/metrics/calibration.ts`, counts only, floor 20),
+`CalibrationTile` on `/profile/learner`, `selfRating` on every `/profile/memory` row with a chip.
+**Guards:** `tests/memory/self-rating-home.test.ts` (the rating lives on `StudyEvent` and nowhere
+else), `tests/memory/record-self-rating.test.ts` (the gate, with a mutation check), one forwarding
+assertion per write site (four in `quiz.ts`, one each in `confidence.ts` and `diagnostic.ts`).
+Games files import nothing new; `tests/games/*` and `erase-coverage` untouched and green. Suite
+4,042 / tsc clean / lint 171 (unchanged). **Two rulings worth knowing:** keyboard `1-4` binds in
+Review only — the quiz renders every section stacked on one page, so a window-level key would rate
+the current card in every section at once; and the picker appears only once a question has an
+answer, which is what makes the moment retrospective. **Owed (spec §10, signed in):** one MC, one
+SA, one TF answer each rated and visible as a chip on `/profile/memory`; a Review card rated
+pre-flip with `2` then answered *Know It* with `2` and the row showing rating 2 / `before_answer`;
+a diagnostic sitting; the toggle off and a subsequent answer with no chip; the tile appearing at the
+twentieth rated answer; **from the whole-branch review:** a Review card flipped, un-flipped, re-rated
+(keys and clicks both inert), flipped again and answered — the row carries the ORIGINAL pre-reveal
+rating; and a quiz MC card rated, then re-answered with another option — the picker is cleared and
+the submitted row has no rating unless re-rated. Also owed: `prisma migrate diff` shows three pre-existing index drifts
+(`AiCallLog_credentialId_userId_idx`, `Folder_userId_pinned_updatedAt_idx`,
+`SetKltNode_ancestorIds_idx`) that are NOT this spec's — whoever owns those migrations should
+reconcile them.
+**HANDOFF 2026-09-17/18 — SPEC 5 PHASE A (THE CONTENT PASS) IS BUILT; FIVE LIVE ITEMS ARE OWED.**
+Branch `spec5-phase-a` (worktree, off `spec2-klp-authoring` @ `673dbdd`, **unmerged, unpushed**;
+Spec 6 built concurrently in `spec6-confidence` on disjoint files — the shared dev DB carries both
+sets of migrations). Twelve tasks, one commit each plus fix rounds; full entry under item 5 of the
+re-cut build order. The runtime grader is a stateless instrument: `GRADE_SHORT_ANSWER_PROMPT` v5
+grades a short answer against the live key points, the card's relations, its form requirements and
+its reference answer — never the learner — and returns categorical verdicts (`RUNTIME_VERDICTS`)
+with verbatim quotes that TypeScript resolves to spans; `ANALYSIS_VERSION` 4, `GRADER_VERSION` 1,
+rows carry `supersededAt` and readers filter on it; the regrade tool writes generations; the grader
+benchmark is the acceptance test. Suite **4,277** tests, `tsc` clean, lint **171** (ceiling 175).
+**UPDATE 2026-09-18 (afternoon, owner present, keys in `.env`): the runtime probe and the LBO
+benchmark baseline RAN.** Probe on DeepSeek: reference all `correct`, blank all `omission`, the
+hand-inverted causal point `inversion` (and its relation), 8/9 quotes resolved. Benchmark, grader
+**v2**, every panel cross-family (7 GLM + 3 Gemini, DeepSeek grading): rank agreement **56/60 (93.3%)**, 7/10 cards perfect, mean adjacent gap 0.24, 0 unjudged;
+artifact https://claude.ai/artifact/EARxGyMjqFd2cLLELch6Jg; record in `docs/ai/model-performance.md`.
+The FIRST run (grader v1) exposed two instrument defects, both fixed in `6dea6cb`: DeepSeek dropped
+the optional `klpResults` on a long card (→ prompt v6 with one output schema + the required
+`ShortAnswerGradeWithAnalysisSchema`), and GLM at `high` effort burned the default output budget on
+reasoning and wrote nothing on 5/10 panels (→ `PANEL_MAX_OUTPUT_TOKENS` 32768). A third defect: both
+writers filled `level` AND `mode` under constrained decoding (one schema, two optional fields) —
+fixed with one schema per panel kind (`graderPanelSchemaFor`). **Owner's read
+owed:** the two expert/competent ties are the grader crediting the trailing clause of a compound key point
+("harsh enough?" — the causal one should have been `incomplete`); the two wrong-over-weak inversions are coverage vs composition — a
+ranking-rule decision. `graderVersion` is now **2**; the row check below expects 2.
+**UPDATE 2026-09-18 (evening): scoring rules + blind panel.** `src/lib/analysis/scoring-rules.ts`
+adds the contradiction term (a wrong point subtracts its weight; a wrong relation half the mean
+weight) — the owner's read of a 0.75 "egregiously wrong" answer, now 0.17. Baseline of record, all-GLM
+panels, DeepSeek grading: rubric-aware **57/60**, blind **58/60** (`docs/ai/model-performance.md`).
+`--kind blind` is the panel to hold the grader to. `GraderPanelResult.expression` carries the legacy
+rubric until Phase B. Still owed: the compound-point strict clause (grader v3), `--kind modes`.
+**UPDATE 2026-09-18 (night): grader v3 — substance floor, mechanical rubric, reconciliation, six bands.**
+`SUBSTANCE_FLOOR_CLAUSE` (`verdict-block.ts`, under strict) makes a gesture `incomplete` and an
+implied opposite `contradicted`; `src/lib/analysis/rubric.ts` (`RUBRIC_VERSION` 1) scores clarity and
+conciseness /100 from the grader's seven yes/no checklist answers × a weight table (tunable without
+a prompt edit; `proportionate` is a word count); `GraderPanelResult.expression` is now the mechanical
+score with the legacy 1-10 rubric as `legacy`. Two new panel kinds, `bands` and `blind-bands` (six
+answers at full 100 / strong 90-99 / good 80-89 / fair 70-79 / marginal 50-69 / failing 0-49, ranks
+1-6), and `--review`: the reconciliation pass (`review-panel-grade` v1, `benchmark-review.ts`,
+`GraderPanelReview` table) runs only on disputed answers and files `strong` holds for the owner. v3
+baseline: levels **58/60**, bands **135/150** with band hit **40/60 (66.7%)** — the band misses are
+mostly the adversary under-aiming (three cards' strong/good/fair all graded 100 and the grader held
+firmly, quoting the text), so band hit is a diagnostic, rank agreement the acceptance number. Blind **57/60**; blind-bands **130/150** with band hit **34/60
+(56.7%)**, 0/10 perfect, 25/26 reconciliations held firmly — a blind adversary can aim an ORDER, not
+a 10-point band (`docs/ai/model-performance.md` has the reading). Owner's
+manual queue: the `strong` rows on the artifact page. `graderVersion` is **3**; the row check reads
+the constant. Still owed: `--kind modes`; the owner's ruling on the queue → grader v4 prompt/weights.
+**UPDATE 2026-09-19 (early): THE DEFINITION PROBE — the owner's own answers were failing their cards.**
+Graded as a learner, every LBO definition scored 19-56/100 against its authored key points: the
+author prompt had said "add what a strong answer needs that the card omits" and the references ran
+3-11x the definitions, so the points outgrew the card and the conciseness rubric (measured against
+that reference) could not see it. Built: `npm run probe-definitions -- --set <id> --direct --model
+deepseek-flash [--supervise] [--revise]` (`scripts/probe-definitions.ts`, `src/lib/klp/definition-probe.ts`,
+`DefinitionProbe` table, migration `20260918230000_definition_probe`); grade-short-answer **v8**
+(`noteForm` clause — knowledge not prose; byte-identical without it, so the benchmark rows stand);
+rubric **v2** (proportionate vs the definition); author-klps **v6** (the definition is the CEILING;
+`priorFindings` block; `--findings <file>` on the script); `supervise-definition` v2 prompt +
+`DefinitionSupervisionSchema`. Thresholds pass 0.65 / hard fail 0.30; supervisors `deepseek-v4-pro`
+then GLM `high`; decisions in TS (`supervisionDecision`). Results: round 1 (note-form grading, old points) 2/10 pass — 69 · 37 · 63 · 24 · 95 · 56 · 42 · 63 · 17 · 22; 5 supervised, every one decided `revise` (the supervisor also called `grader_wrong` on several points the grader had marked partial); 3 hard fails. Re-author of 8 cards on v6 (~$0.03 GLM+DeepSeek, ~35 min at `high`): round 2 **7/10 pass**, none under 30 — 69 · 50 · 73 · 100 · 95 · 91 · 90 · 100 · 63 · 52; 3 still `revise` after the 2-round cap ("What is an LBO" 50, "floor valuation" 63, "leverage reduces IRR" 52). **The cost of the ceiling is discrimination:** the re-authored 8 read mean separation 0.43 (substance 0.51) with 27 of 45 points FRAMING, 2 `low_discrimination`, 3 `memorizable` — on a terse card, points bound to the card are points a template answer passes. `docs/ai/model-performance.md` has the per-card table; the v7 question (bounded expansion inside the 0.65 headroom vs. escalating thin cards to the author) is the owner's. Owed: surface
+`decision: 'escalate'` rows on the set page (printed only today); re-run `--kind blind` after the
+re-author to confirm the grader still separates on ceiling-bound points.
+**UPDATE 2026-09-19 (midday): RELATIONS AS A DISCRIMINATION AXIS + the narrowing loop's limit.**
+Spike (30 grades): the traps fail LINKS where ceiling-bound POINTS let them through (points 0.52 /
+relations 0.70 mean separation); one card's reference failed all its own relations. Built: the
+**relation pass** (`src/lib/klp/relation-separation.ts`; grade-candidate **v5** optional relations;
+relate **v3** no edge cap + the definition; author-klps **v7** bounded expansion ≤2 points named
+`BEYOND THE CARD`; revise-klps **v6** carries the ceiling; `CardAuthoring.relationSeparation /
+combinedSeparation / referenceRelationVerdicts`, `AuthoringProbe.relationVerdicts`, migration
+`20260919120000_relation_pass`; the bar reads points + links, `memorizable` only when links fail
+too; edges the reference fails are pruned and printed). LBO on v7: **combined 0.71, 0
+low_discrimination, 1 memorizable**, but owner definitions **4/10**; the narrowing round then gave
+**7/10 pass at combined 0.53, 3 memorizable** — narrowing flattens KEYWORD-LIST cards (How-much-debt,
+Hold-period 0.86 → 0.00) and is free on mechanism cards. **BUILT the same evening:** (1) the veto — `author-klps --keep-better` refuses a version whose carried separation
+falls below the floor when the old one was above it (`revisionVeto`); (2) discrimination-aware supervision —
+`loadBearingIndexes`/`applyLoadBearing`: a `narrow`/`cut` on a point that separates a trap reads as `keep`
+(supervisor v3 marks them); (3) dropped edges printed with the reference verdict, and symmetric
+(`confused_with`) edges exempt from the prune. **LBO now: 8/10 owner pass, 0 under 30, mean combined
+0.70, 1 memorizable** (`scripts/probe-state.ts` dumps the loop; artifact updated). Owed: grade-short-answer
+v9 from the 14 `grader_wrong` points (compressed list items read as incomplete); the walk-through card. Full tables in
+`docs/ai/model-performance.md` "Relations as a discrimination axis".
+**UPDATE 2026-09-19 (evening): SLOT TEMPLATES, STRUCTURED POINTS, THE QUESTION-ONLY ADVERSARY.**
+`src/lib/klp/templates.ts` (seven forms, fill every slot + overflow 3, count-driven enumerate,
+implied edges); author-klps **v8** (every point names its slot, is `{subject, claim, qualifier}`, maps to a
+definition point via `fromDefinition`); `CardKlp.slot/structured/definitionRef` (migration
+`20260919170000_klp_slots`); template check every round → revise findings + a round-picker bar;
+revise-reference **v3** / revise-klps **v7** carry the structure. Bench: **five bands**, blind kinds see
+the **question only** and write one `differences` paragraph (`GraderPanelBlind*Schema`); reconciliation
+**v3** adds `klp_defect` (→ `--findings` for author-klps) and `cardGaps` (→ the card owner). LBO on v8:
+**combined 0.79, 0 flagged**; after narrowing **6/10 owner pass, 0 under 30**; blind panel: 73 card
+gaps, 1 point defect, 1 grader hold. `scripts/probe-state.ts` carries card gaps; the artifact's queue
+shows 10 items (9 gap cards, 1 point), filtered to LIVE panels. **Owed:** grade-short-answer v9 from
+the 17 `grader_wrong` points; an exemplar bank (cards passing both bars as few-shot for the writer);
+the walk-through template's `precedes` edges read `omission` on a narrated reference — the relation
+grader's "asserts the link" bar for `precedes`; surfacing the queue in the app.
+**OWED to the owner (keys/browser), in this order:** (1) `npm run probe-grade-tokens -- --models
+deepseek-flash` → paste the printed pair into `src/lib/analysis/output-cap.ts` (2048/600 are
+placeholders); (2) `npm run probe-runtime-grade -- --model deepseek-flash`, then `--model
+gemini-3.1-flash-lite`, record in `docs/ai/model-performance.md` "Spec 5 — the content pass, live";
+(3) the LBO benchmark baseline, `npx tsx --conditions=react-server --env-file=.env
+scripts/bench-grader.ts --set cmtj7pxfc000005l4rv4krxxy --author --direct --model deepseek-flash`
+(then `--kind modes --author`); (4) one real short-answer quiz on the LBO set in the app, then the
+row check `npm run verify:grade-rows -- <attemptId>` (read-only: `analysisVersion 4`,
+`graderVersion 3`, statuses in vocabulary and none `passed`, `spanStart` on non-`correct` rows,
+relation rows `passive`, `KlpState.pKnown` finite); (5) `npm run author-form-reqs -- --set <id>` once per
+authored set (~$0.30 corpus-wide) — **until it runs, every authored set reads `ready: false` and the
+build banner reappears.** The deferred list (regrade-run supersede adoption, the cron's form-reqs
+phase, three pre-existing `DROP INDEX` drifts, and the per-task minors) is in the item 5 entry.
 **HANDOFF 2026-09-16 — OWNERS CAN BUILD; MAIN IS MERGED IN.** `origin/main` (study-platform PRs
 #56–#62) is merged into this branch (two docs-only conflicts, kept both sides; 3,98x tests green).
 Every set with authored key points is minted and written (the five). The owner's build path exists:
@@ -1396,9 +1554,150 @@ engine rebuild ships against a pilot set reviewed in that view before it touches
    `/staff/klps` (Spec 1) already has a status-agnostic `Verdicts` column — it reads whatever
    statuses actually exist rather than a hardcoded three, so the widening to 13 labels needs no
    change there.
-6. **Spec 6 — Self-rated confidence capture.** One tap before the answer is revealed. Changes no
-   formula, blocks nothing, nothing blocks it — **pull it forward into any gap.** Every week it
-   waits is a week of history that can never be calibrated. **Closes G3.**
+
+   **PHASE A — THE CONTENT PASS — ✅ BUILT 2026-09-17/18.** The spec grew past the paragraph above:
+   design of record `docs/superpowers/specs/2026-09-17-spec5-runtime-verdict-labels-design.md`
+   (Phase A = §1–§8; Phase B — expression metrics, the timing split, retiring the rubric, the
+   prediction log — is not built), plan `docs/superpowers/plans/2026-09-17-spec5-phase-a-content-pass.md`,
+   ledger `.superpowers/sdd/2026-09-17-spec5-phase-a-content-pass/progress.md`. Branch
+   `spec5-phase-a` off `spec2-klp-authoring` @ `673dbdd`, **unmerged**. Suite **4,277** tests
+   (3,982 at the base), `tsc --noEmit` clean, lint **171** (ceiling 175). What shipped, by task:
+   1. One total credit table (`KLP_STATUSES`, `STATUS_CREDIT`, `isKlpStatus`); `passed` is a
+      read-only alias of `correct` forever (D1). Regression tests restored verbatim.
+   2. Every reader compares **credit, never labels** — clean streaks, missed work, the session
+      rollup, the KLP graph, games and Hot Seat; `klt-read.ts` too (a Task 2 omission, caught in
+      Task 9's review).
+   3. One shared verdict block (`src/lib/ai/prompts/verdict-block.ts`): the runtime grader (v5),
+      the authoring grader (v4) and the diagnostic grader are graded by ONE wording — strict,
+      kind-aware, offering `RUNTIME_VERDICTS`, and **never shown the learner** (the profile block
+      is gone from grading; a source scan guards it). Quotes on every relation/form verdict.
+   4. `resolveSpan` (`src/lib/analysis/spans.ts`: the model quotes, TypeScript locates),
+      `GRADER_VERSION` (`src/lib/analysis/version.ts`), migration `20260917100000_spec5_phase_a`
+      (span columns, `AnswerRelationResult`, `AnswerFormResult`, `AnswerUnwarrantedClaim`,
+      `CardFormRequirement`, `QuizAnswer.graderVersion`) — all additive.
+   5. `buildAnalysisWrites` carries spans, **passive** relation verdicts (`provenance: 'passive'`),
+      form results and `unwarranted[]`; `ANALYSIS_VERSION` 4; no row says `passed` from v4 on
+      (normalised inside the writer, so every caller is covered); an empty quote is not a
+      paraphrase; one contamination signature.
+   6. Form requirements are authored in a **separate one-call pass** over the stored reference and
+      live KLPs (`npm run author-form-reqs -- --set <id>`, task `form-reqs`), never a re-author;
+      the memorised-template trap is checked against them and a `weak` set is logged, not persisted.
+   7. The grading output ceiling is **fluid** (`gradeMaxOutputTokens`, `src/lib/analysis/output-cap.ts`
+      — base + slope × items); `finishReason: 'length'` classifies `output_truncated`, never
+      `schema_invalid`; an out-of-vocabulary label retries once then fails loud, and the unknown
+      word is written to `AiCallLog.error` (migration `20260917130000_ai_call_log_error`) and
+      shown on `/staff/ai-history`.
+   8. The quiz and the diagnostic grade through the content pass: `loadGradingContext`
+      (`src/lib/quiz/grading-context.ts` — relations with both endpoints live, form requirements
+      at the live `klpVersion`, the reference answer) + `promptViewOf` (refs, never ids), the
+      fluid ceiling, no profile.
+   9. The regrade tool (`npm run regrade -- --set <id> [--attempt <id>] [--dry-run]`) writes a
+      **new generation** and stamps the old `supersededAt` (migration
+      `20260917103000_regrade_generations`: `supersededAt` on every answer-child table, partial
+      unique `_live_key` indexes `WHERE supersededAt IS NULL` — SQL-only, guarded by a test);
+      every reader filters `supersededAt: null`; answers whose rows point at a superseded `CardKlp`
+      are skipped (`klps_superseded`; `--include-stranded` overrides) because grading them against
+      new KLPs would fold a KLP change into a grader-change measurement; a blank diagnostic
+      answer is `omission`; the annotation prompt is learner-blind.
+   10. The grader benchmark: `GraderPanel` / `GraderPanelAnswer` / `GraderPanelResult` (migration
+       `20260917110000_grader_panel`), `WRITE_GRADER_PANEL_PROMPT` (levels and modes), rank
+       agreement / gaps / shape agreement scored in TypeScript (`src/lib/analysis/benchmark.ts`).
+       **Erratum to spec §8, noted in the spec:** `GraderPanelResult` stores three Json lists
+       (`verdicts` / `relationVerdicts` / `formVerdicts`) with the span and weight inside each
+       entry — not `verdicts + spans`.
+   11. `npm run bench-grader -- --set <id> [--author] [--kind levels|modes|blind|bands|blind-bands] [--review] [--direct] [--model <id>]`
+       and its report; on `--direct` the grader is **pinned per card** (`benchmark-pin.ts`) for the
+       same reason authoring pins.
+   12. `scripts/probe-runtime-grade.ts` (`npm run probe-runtime-grade -- --model <id>`), this entry,
+       the `model-performance.md` record, the CLAUDE.md grader paragraph and `AI_TASKS` list.
+
+   **OWED — every one needs a raw provider key or a signed-in browser, which this pass had neither
+   of. Nothing below was run; each is stated as owed in the doc it belongs to.**
+   - **The token-ceiling probe.** `npm run probe-grade-tokens -- --models deepseek-flash` (add
+     `,gemini-3.1-flash-lite` to compare) → paste the printed `GRADE_TOKENS_BASE` /
+     `GRADE_TOKENS_PER_ITEM` pair into `src/lib/analysis/output-cap.ts` (2048 / 600 are
+     controller-ruled placeholders) and record the run in `model-performance.md` "Spec 5 — the
+     grading ceiling". Until then a 9-item card gets 7,448 tokens; if that truncates, the failure
+     is loud (`output_truncated`), not silent.
+   - **The runtime probe.** `npm run probe-runtime-grade -- --model deepseek-flash` and once on a
+     Google key (`--model gemini-3.1-flash-lite`; 6 free-tier requests). Verified here only to boot
+     read-only and load LBO card 1's real context (5 KLPs, 4 relations, 0 form reqs, ceiling 7448).
+     Record both under "Spec 5 — the content pass, live".
+   - **The LBO benchmark baseline** — the number every later grader change is held to:
+     `npx tsx --conditions=react-server --env-file=.env scripts/bench-grader.ts --set cmtj7pxfc000005l4rv4krxxy --author --direct --model deepseek-flash`,
+     then `--kind modes --author`; record per "Spec 5 — grader benchmark baseline".
+   - **One real short-answer quiz on the LBO set** in the running app (Step 3 of Task 12 — **did
+     not run**), then the row check, one command, read-only:
+     `npm run verify:grade-rows -- <attemptId>` (`scripts/verify-grade-rows.ts`, the shape of
+     `verify-diagnostic.ts`; the attempt id is in the results URL). It prints and checks, per
+     short-answer answer: `analysisVersion 4` and `graderVersion 3`; every live
+     `AnswerKlpResult.status` in `KLP_STATUSES` and none `passed`; `spanStart` set on every live
+     non-`correct` row; every live `AnswerRelationResult` `provenance 'passive'`; and
+     `KlpState.pKnown` finite for every touched key point. Exit 1 on any FAIL. Type-checked and
+     booted (usage / unknown attempt) here; never run on a real attempt, because none exists yet
+     (`GOOGLE_KEY_ENCRYPTION_SECRET` is absent locally, so the quiz is the owner's).
+   - **`npm run author-form-reqs -- --set <id>` once per authored set** (~$0.30 corpus-wide). Until
+     it runs, `setBuildStatus` (`src/lib/klp/build-set.ts`) reads `needFormReqs > 0` / `ready: false` on
+     every authored set and the key-points build banner reappears (Task 6 product note). Reviewer's recommendation:
+     run it corpus-wide at deploy, and widen the cron's phase 3 to sets with `needFormReqs > 0`.
+
+   **DEFERRED — from the ledger's `minor (deferred)` and `QUEUE` lines, none blocking:**
+   - `src/lib/klp/regrade-run.ts` (the KLP-edit regrade) keeps its own writer and its `deleteMany`
+     was narrowed to `supersededAt: null`; it should adopt supersede + `writeAnalysisGeneration`
+     so a KLP-edit regrade never leaves a mixed live generation (Task 9 ruling).
+   - **Same file, the other half (Task 5 finding):** `regrade-run.ts:341,350` regrades with
+     `errorTags: []` and `unwarranted: []`, and `applyRegradePlan` (`regrade-run.ts:179`)
+     rewrites key-point rows only — it never touches `AnswerUnwarrantedClaim`. So after a KLP-edit
+     regrade the prior generation's claim rows survive, live, beside fresh key-point rows whose
+     contamination factor was computed from an empty `unwarranted[]`: **factor-1 credits beside
+     persisted claims**, and the contamination dock (`src/lib/errors/contamination.ts`) reads those
+     stale claims on the next read. Fix direction: when the KLP-edit regrade adopts
+     `writeAnalysisGeneration`, it must either re-emit `unwarranted[]` from a full v5 grade
+     (the prompt already returns it) or supersede the old claim rows with the old key-point rows —
+     never leave a generation half-superseded.
+   - The cron's phase 3 should include sets with `needFormReqs > 0` (Task 6).
+   - Three **pre-existing** `DROP INDEX` drifts in `prisma migrate diff` (`AiCallLog`, `Folder`,
+     `SetKltNode`) — not ours; exclude them from any migration this branch creates. Also: the shared
+     dev DB carries Spec 6's `20260917120000_self_rating_capture`; use `migrate dev --create-only`
+     then `migrate deploy`, never bare `migrate dev`, never reset. `prisma format` re-aligned the
+     whole schema in Task 4 (87 semantic lines of 539); the Spec 6 hunks are >25 lines clear, so the
+     merge should be clean — re-check if anyone runs `prisma format` again.
+   - `GraderPanelResult` uniqueness on `(answerId, graderVersion, model)` IS enforced (migration
+     `20260917140000_grader_panel_result_unique`, Task 11 fix round); the stored-pool path of
+     `bench-grader` cannot pin per card (use one credential or an `AiTaskRouting` pin on `grade`);
+     its exhaustion log names the AUTHOR pool when the grade pool is the fallback.
+   - Form-reqs pass: a failure is not recorded on the card (`build-set.ts`) nor counted in
+     `summarize.failed`; a weak-check throw after the write reports the card failed (catch inside
+     the module, return `checkError`); a `--direct` quota halt mid weak-check loses that check; the
+     `weak` flag is logged, not persisted (one nullable column if the owner wants it on the card);
+     `KeyPointsBuild` "built" copy wording; the module test lacks a probe-kind assertion.
+   - Prompt minors (Task 3): the non-strict "correct" wording now includes entailment (a strict-mode
+     no-op); the "every unwarranted claim is ALSO tagged" bridge sentence in `ANALYSIS_BODY`
+     contradicts the tag cap now that the contamination dock reads `unwarranted[]` — remove it;
+     the errorTags magnitude anchors (1 borderline / 10 most severe) were dropped from the
+     compressed line; the mutation-check tests are only load-bearing paired with the
+     verbatim-vocabulary tests (add a comment saying so).
+   - `extractUnknownEnumValue`'s Zod v4 `issue.input` branch is dead in this repo (zod 4.4.3 sets
+     it only with `reportInput: true`, which provider-utils never passes) — the path-walk fallback
+     is what runs; soften the comment.
+   - Regrade: a superseded generation's `analysisStatus` is overwritten on regrade; the
+     `live-rows-only.test.ts` header sentence still says count is not scanned.
+   - Tests to add: spans — promote the curly-quote and over-length-quote cases into
+     `spans.test.ts`, assert zero-width span coverage; benchmark — the precedence case
+     "template-shaped + one inversion → misconception" (60–200 words is prompt-only, not
+     Zod-enforced, documented); games — `accuracyOf`/`isHit` have no direct wide-vocabulary test
+     (unexported; the Hot Seat cases live in `tests/games/reducers.test.ts`); a duplicate
+     `labelForKlpStatus is total` test in `tests/errors/labels.test.ts`; `persist.ts` has three
+     near-identical resolve loops.
+   - `tests/components/landing.test.tsx` timed out once under full-suite load (Task 2), passes
+     standalone — watch for recurrence.
+   - Phase B owes: the expression call and the five span-derived metrics, the client timing split
+     (`firstInputMs`), retiring the 1–10 rubric and the `overall >= 8` `isCorrect` rule for a
+     TypeScript rule over verdicts (§10), completing the prediction log (§12).
+6. **Spec 6 — Self-rated confidence capture. BUILT 2026-09-17** (branch `spec6-confidence`; see
+   the handoff at the top — browser gate owed). One tap before the answer is revealed. Changes no
+   formula, blocks nothing, nothing blocks it. Every week it waited was a week of history that can
+   never be calibrated; capture now runs by default. **Closes G3** the moment rated rows accumulate.
 7. **Spec 7 — Mastery engine rework.** Speed as a SECOND AXIS, not a multiplier (latency is
    untrusted by construction; a multiplier propagates noise into the knowledge estimate — model
    fluency separately, degrade to no-signal below 3 timed observations, gate `mastered` on both).

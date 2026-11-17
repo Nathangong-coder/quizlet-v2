@@ -41,6 +41,11 @@ vi.mock('@/lib/db', () => ({
     quizAnswer: { deleteMany: h.answerDeleteMany, findMany: h.answerFindMany },
     card: { findUnique: h.cardFindUnique },
     cardProgress: { findUnique: h.progressFindUnique },
+    // Task 8's grading context, loaded beside the live KLPs. This card has
+    // none of it — the file is about state replay, not the prompt.
+    klpRelation: { findMany: vi.fn().mockResolvedValue([]) },
+    cardFormRequirement: { findMany: vi.fn().mockResolvedValue([]) },
+    cardAuthoring: { findFirst: vi.fn().mockResolvedValue(null) },
     $transaction: h.transaction,
   },
 }))

@@ -49,6 +49,29 @@ export const AI_TASKS = [
    */
   'game-pieces',
   'hot-seat',
+  /**
+   * The form-requirements pass (Spec 5 §5, 2026-09-17): one call per card
+   * that writes 3-5 SHAPE rules over an already-authored reference answer and
+   * the live key points, plus one grading call that checks the stored
+   * memorised-template trap against them. Its own task because it is
+   * grader-family work — a judgment about the question, not writing — and
+   * riding on `author` would send it Z.ai-first at `high` effort, while
+   * riding on `klp-extract` would hide its cost inside background extraction
+   * on the usage page.
+   */
+  'form-reqs',
+  /**
+   * The grader benchmark's adversary (Spec 5 §8, 2026-09-17): one call per
+   * card that writes the fixed panel — four answers at four intended levels,
+   * or one per failure shape — the runtime grader is then measured against.
+   * Writer-family, authoring-grade work. Not `author`, because a panel is
+   * written once per (card, klpVersion) and re-graded on every grader change,
+   * so it wants its own routing decision and its own line on the usage page;
+   * not `grade`, because the grader must never be the model that wrote what
+   * it grades. The grading half of the benchmark runs under `grade` — the
+   * runtime grader exactly as shipped is the point.
+   */
+  'grader-panel',
 ] as const;
 
 export type AiTask = (typeof AI_TASKS)[number];
@@ -70,4 +93,6 @@ export const AI_TASK_LABELS: Record<AiTask, string> = {
   author: 'KLP authoring (reference answers & discrimination test)',
   'game-pieces': 'Game pieces (Blitz, Crossword, Match)',
   'hot-seat': 'Hot Seat interviewer (follow-up questions)',
+  'form-reqs': 'Form requirements (answer-shape rules, background)',
+  'grader-panel': 'Grader benchmark panel (adversary answers, background)',
 };

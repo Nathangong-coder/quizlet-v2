@@ -66,7 +66,7 @@ async function main() {
           id: true,
           userId: true,
           cardId: true,
-          klpResults: { select: { klpId: true } },
+          klpResults: { where: { supersededAt: null }, select: { klpId: true } },
         },
       },
     },

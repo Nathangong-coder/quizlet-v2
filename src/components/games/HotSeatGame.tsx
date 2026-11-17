@@ -23,6 +23,7 @@ import type { Persona } from '@/lib/games/personas'
 import { HOST_BASE, FACES, COSTUMES } from '@/lib/games/sprites'
 import { PixelSprite } from '@/components/games/PixelSprite'
 import { betterOf } from '@/lib/games/best'
+import { STATUS_CREDIT, type KlpStatus } from '@/lib/errors/klp-credit'
 import { useBest } from '@/lib/games/use-best'
 import { CredentialNote } from '@/components/games/GameFrame'
 import { cn } from '@/lib/utils'
@@ -36,6 +37,11 @@ import { cn } from '@/lib/utils'
  * an interview, where nobody hands you the rubric). The transcript at the
  * end shows the points, once the interview is over.
  */
+/** Readers compare credit, never labels (Spec 5): `correct` and legacy `passed` are both 1. */
+const creditOf = (status: string) => STATUS_CREDIT[status as KlpStatus] ?? 0
+const fullCredit = (status: string) => creditOf(status) >= 1
+const halfCredit = (status: string) => creditOf(status) > 0 && creditOf(status) < 1
+
 export function HotSeatGame({ setId, signedIn }: { setId: string; signedIn: boolean }) {
   const [mode, setMode] = useState<HotSeatMode>('normal')
   const [persona, setPersona] = useState<Persona | null>(null)
@@ -128,7 +134,10 @@ export function HotSeatGame({ setId, signedIn }: { setId: string; signedIn: bool
     setReply('')
     startTransition(async () => {
       const res = await gradeGameAnswer(card.id, text, { klpIds: [turn.probeKlpId!] })
-      const recovered = res.success && res.data.verdicts.every((v) => v.status === 'passed')
+      // Credit, never the label: a runtime grade says `correct` (Spec 5) and
+      // a historical one `passed`; both are full credit. Comparing the word
+      // left the recovered face unreachable (fix round, 2026-09-17).
+      const recovered = res.success && res.data.verdicts.every((v) => fullCredit(v.status))
       if (!res.success) toast.error(res.error)
       setFace(recovered ? 'pleased' : 'skeptical')
       setState((s) => (s ? reduceHotSeat(s, { type: 'probe-graded', recovered }) : s))
@@ -222,8 +231,8 @@ export function HotSeatGame({ setId, signedIn }: { setId: string; signedIn: bool
               {/* The points, shown only now that the interview is over. */}
               <ul className="mt-2 space-y-1">
                 {(t.verdicts ?? []).map((vd) => (
-                  <li key={vd.klpId} className={cn('flex gap-2', vd.status === 'passed' ? 'text-success' : vd.status === 'partial' ? 'text-warning' : 'text-muted-foreground')}>
-                    <span aria-hidden="true">{vd.status === 'passed' ? '✓' : vd.status === 'partial' ? '½' : '✗'}</span>{vd.text}
+                  <li key={vd.klpId} className={cn('flex gap-2', fullCredit(vd.status) ? 'text-success' : halfCredit(vd.status) ? 'text-warning' : 'text-muted-foreground')}>
+                    <span aria-hidden="true">{fullCredit(vd.status) ? '✓' : halfCredit(vd.status) ? '½' : '✗'}</span>{vd.text}
                   </li>
                 ))}
               </ul>

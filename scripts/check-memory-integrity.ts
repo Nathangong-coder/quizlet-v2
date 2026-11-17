@@ -34,7 +34,10 @@ async function main() {
   })
   for (const s of states) {
     const evidence = await prisma.answerKlpResult.count({
-      where: { klpId: s.klpId, quizAnswer: { userId: s.userId } },
+      // Live generation only: `rebuildKlpStates` replays live rows, so a
+      // regraded answer's superseded generation must not count as evidence
+      // here either — or every regraded posterior reads as under-claiming.
+      where: { klpId: s.klpId, quizAnswer: { userId: s.userId }, supersededAt: null },
     })
     if (evidence === 0) {
       problems.push(`KlpState ${s.userId}/${s.klpId} has zero surviving evidence`)

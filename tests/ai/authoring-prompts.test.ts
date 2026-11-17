@@ -4,6 +4,8 @@ import { GRADE_CANDIDATE_PROMPT } from '@/lib/ai/prompts/grade-candidate'
 import { RELATE_KLPS_PROMPT } from '@/lib/ai/prompts/relate-klps'
 import { AI_TASKS } from '@/lib/ai/model-routing'
 import { KLP_VERDICTS } from '@/lib/klp/verdicts'
+import { verdictInstructionBlock, STRICT_GRADING_CLAUSE, KIND_STRICTNESS_CLAUSE } from '@/lib/ai/prompts/verdict-block'
+import { STRICT_GRADING_CLAUSE as REEXPORTED_STRICT, KIND_STRICTNESS_CLAUSE as REEXPORTED_KIND, RELAXED_KINDS } from '@/lib/ai/prompts/grade-candidate'
 import { AuthorDraftSchema, RelationDraftSchema } from '@/lib/ai/schemas'
 import { PROBE_KINDS, MAX_KLPS_AUTHORED } from '@/lib/klp/authoring-config'
 
@@ -86,8 +88,46 @@ describe('AUTHOR_KLPS_PROMPT', () => {
     expect(built.toLowerCase()).toContain('not a total to hit')
   })
 
-  it('is version 5 — promptVersion is persisted, so the change must be visible', () => {
-    expect(AUTHOR_KLPS_PROMPT.version).toBe(5)
+  it('is version 9 — promptVersion is persisted, so the change must be visible', () => {
+    expect(AUTHOR_KLPS_PROMPT.version).toBe(9)
+  })
+
+  it('v7: bounded expansion — at most two points beyond the card, each named BEYOND THE CARD in concerns', () => {
+    expect(built).toContain('AT MOST TWO points beyond the card')
+    expect(built).toContain('"BEYOND THE CARD: <the point>"')
+    expect(built).toContain('an unnamed extension is a defect')
+  })
+
+  it('v6: the definition is the CEILING — no point the card does not make; a gap goes to concerns, never into the set', () => {
+    expect(built).toContain('SKELETON AND YOUR CEILING')
+    expect(built).toContain('Do not add a point the definition does not make')
+    expect(built).not.toContain('add what a strong answer needs that the card omits')
+    expect(built).toMatch(/OMITS something a strong answer needs.*say so in "concerns"/)
+    expect(built).not.toContain('PREVIOUS SET OF KEY POINTS')
+  })
+
+  it('v6: priorFindings are listed verbatim, by previous index and text, ahead of the body', () => {
+    const p = AUTHOR_KLPS_PROMPT.build({
+      setTitle: 'S', term: 'T', definition: 'D', minKlps: 3,
+      priorFindings: [
+        { index: 5, text: "Repaying debt lowers next year's interest", issue: 'not_on_card', fix: 'Cut.' },
+        { index: 1, text: 'FCF after opex, capex and taxes', issue: 'over_reach', fix: 'Narrow to "free cash flow".' },
+      ],
+    })
+    expect(p).toContain('PREVIOUS SET OF KEY POINTS FOR THIS CARD WAS TESTED')
+    expect(p).toContain(`[5] NOT ON THE CARD — "Repaying debt lowers next year's interest" — Cut.`)
+    expect(p).toContain('[1] OVER-REACHES THE CARD — "FCF after opex, capex and taxes" — Narrow to "free cash flow".')
+    expect(p.indexOf('PREVIOUS SET OF KEY POINTS')).toBeLessThan(p.indexOf('THE DEFINITION IS YOUR SKELETON'))
+    expect(AUTHOR_KLPS_PROMPT.build({ setTitle: 'S', term: 'T', definition: 'D', minKlps: 3, priorFindings: [] })).not.toContain('PREVIOUS SET OF KEY POINTS')
+  })
+
+  it('v8: the seven slot templates are in the prompt, each point names a slot and is structured and mapped to a definition point', () => {
+    expect(built).toContain('THE WHY TEMPLATE')
+    expect(built).toContain('THE ENUMERATE TEMPLATE')
+    expect(built).toContain('"slot": string | null')
+    expect(built).toContain('"fromDefinition": number | null')
+    expect(built).toContain('EVERY KEY POINT IS ALSO STRUCTURED')
+    expect(built).toContain('"subject": string, "claim": string')
   })
 
   it('v3 classifies the question first, defines the term as key point [0], keeps an enumeration as items, and leans the count to floor+1..floor+3', () => {
@@ -132,6 +172,36 @@ describe('GRADE_CANDIDATE_PROMPT', () => {
   })
 
   /**
+   * Spec 5 Phase A, Task 3: the measured wording now lives in ONE shared
+   * block (`verdict-block.ts`), which the authoring grader, the runtime
+   * grader and the diagnostic grader all call. The authoring grader offers
+   * the FULL vocabulary, quoted, and keeps its own `evidence` output line.
+   */
+  it('is written against the shared verdict block and offers every label quoted', () => {
+    expect(built).toContain(verdictInstructionBlock({ strict: false, showKinds: false }))
+    for (const v of KLP_VERDICTS) expect(built).toContain(`"${v}"`)
+    expect(built).toContain('"verdicts": [ { "klpIndex": number, "verdict": string, "evidence": string } ]')
+  })
+
+  it('in strict mode with kinds, carries the strict and kind clauses through the block', () => {
+    const strict = GRADE_CANDIDATE_PROMPT.build({
+      question: 'q', referenceAnswer: 'r',
+      klps: [{ text: 'a', kind: 'mechanism' }],
+      candidateAnswer: 'c', strict: true,
+    })
+    expect(strict).toContain(verdictInstructionBlock({ strict: true, showKinds: true }))
+    expect(strict).toContain(STRICT_GRADING_CLAUSE)
+    expect(strict).toContain(KIND_STRICTNESS_CLAUSE)
+    expect(built).not.toContain(STRICT_GRADING_CLAUSE)
+  })
+
+  it('re-exports the clauses so existing importers keep working', () => {
+    expect(REEXPORTED_STRICT).toBe(STRICT_GRADING_CLAUSE)
+    expect(REEXPORTED_KIND).toBe(KIND_STRICTNESS_CLAUSE)
+    expect(RELAXED_KINDS).toEqual(['mechanism', 'condition', 'quantitative'])
+  })
+
+  /**
    * Review Fix 1: `authorCard` grades the reference candidate too, in its
    * own call, with `candidateAnswer === referenceAnswer`. Showing the
    * reference block unconditionally would put the identical text in the
@@ -172,6 +242,17 @@ describe('RELATE_KLPS_PROMPT', () => {
 
   it('demands the adversarial artifact that proves an edge informative', () => {
     expect(built.toLowerCase()).toContain('both endpoints')
+  })
+
+  it('v3: no edge cap, the probe test decides; the definition is shown when given and its stated links are always candidates', () => {
+    expect(RELATE_KLPS_PROMPT.version).toBe(3)
+    expect(built).not.toContain('Prune hard')
+    expect(built).not.toContain('perhaps four edges')
+    expect(built).toContain('Do not ration')
+    expect(built).toContain("An edge the card's own definition states outright")
+    expect(built).not.toContain('Definition on the card')
+    const withDef = RELATE_KLPS_PROMPT.build({ question: 'Q', klps: [{ text: 'a' }], definition: 'FCF, then mandatory, then optional' })
+    expect(withDef).toContain("Definition on the card (the owner's own words): FCF, then mandatory, then optional")
   })
 
   it('does not offer part_of — that is the concept tree', () => {

@@ -26,6 +26,8 @@ export interface SessionItem {
   confidenceAfter: number
   /** Already normalized; null means "not measured", never "instant". */
   latencyMs: number | null
+  /** Spec 6: the learner's 1-4 belief before feedback; null = not captured. */
+  selfRating: number | null
   categoryNames: string[]
 }
 

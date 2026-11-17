@@ -30,3 +30,86 @@ describe('AnswerKlpResult / AnswerErrorTag cascade from QuizAnswer', () => {
     expect(relationBlock('AnswerErrorTag', 'quizAnswer')).toContain('onDelete: Cascade')
   })
 })
+
+// Spec 5 Phase A: the same golden-vector pattern for the new answer-child
+// tables and CardFormRequirement — each must cascade from its parent so
+// resubmission (or card/set deletion) never orphans a diagnostic row.
+describe('Spec 5 Phase A tables cascade from their parents', () => {
+  it('AnswerRelationResult.quizAnswer cascades on delete', () => {
+    expect(relationBlock('AnswerRelationResult', 'quizAnswer')).toContain('onDelete: Cascade')
+  })
+
+  it('AnswerFormResult.quizAnswer cascades on delete', () => {
+    expect(relationBlock('AnswerFormResult', 'quizAnswer')).toContain('onDelete: Cascade')
+  })
+
+  it('AnswerUnwarrantedClaim.quizAnswer cascades on delete', () => {
+    expect(relationBlock('AnswerUnwarrantedClaim', 'quizAnswer')).toContain('onDelete: Cascade')
+  })
+
+  it('CardFormRequirement.card cascades on delete', () => {
+    expect(relationBlock('CardFormRequirement', 'card')).toContain('onDelete: Cascade')
+  })
+})
+
+// Spec 5 §8: the grader benchmark's three tables. A re-authored card
+// invalidates its panel (the panel is keyed on klpVersion and a deleted card
+// must take its panels with it); a deleted panel must take its answers, and
+// an answer its grader results — otherwise a benchmark re-run reads verdicts
+// on answers no longer on any panel.
+describe('Spec 5 §8 grader-panel tables cascade from their parents', () => {
+  it('GraderPanel.card cascades on delete', () => {
+    expect(relationBlock('GraderPanel', 'card')).toContain('onDelete: Cascade')
+  })
+
+  it('GraderPanelAnswer.panel cascades on delete', () => {
+    expect(relationBlock('GraderPanelAnswer', 'panel')).toContain('onDelete: Cascade')
+  })
+
+  it('GraderPanelResult.answer cascades on delete', () => {
+    expect(relationBlock('GraderPanelResult', 'answer')).toContain('onDelete: Cascade')
+  })
+
+  it('one panel per (card, klpVersion, kind), and every persisted AI artifact records its model', () => {
+    const panel = schema.match(/model GraderPanel \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(panel).toMatch(/@@unique\(\[cardId, klpVersion, kind\]\)/)
+    expect(panel).toMatch(/^\s*model\s+String\s*$/m)
+    expect(panel).toMatch(/^\s*promptVersion\s+Int\s*$/m)
+    const result = schema.match(/model GraderPanelResult \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(result).toMatch(/^\s*model\s+String\s*$/m)
+    expect(result).toMatch(/^\s*graderVersion\s+Int\s*$/m)
+    expect(result).toMatch(/^\s*promptVersion\s+Int\s*$/m)
+    for (const col of ['verdicts', 'relationVerdicts', 'formVerdicts']) {
+      expect(result).toMatch(new RegExp(`^\\s*${col}\\s+Json\\s*$`, 'm'))
+    }
+    expect(result).toMatch(/^\s*unresolvedQuotes\s+Int\s*$/m)
+  })
+
+  it('one result per (answer, graderVersion, model) — the bench planner\'s idempotency key, enforced', () => {
+    const result = schema.match(/model GraderPanelResult \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(result).toMatch(/@@unique\(\[answerId, graderVersion, model\]\)/)
+    const migration = readFileSync(
+      join(process.cwd(), 'prisma/migrations/20260917140000_grader_panel_result_unique/migration.sql'),
+      'utf8',
+    )
+    expect(migration).toMatch(/CREATE UNIQUE INDEX "GraderPanelResult_answerId_graderVersion_model_key"/)
+    // Additive only: one statement, nothing dropped or altered.
+    expect(migration.match(/^(CREATE|ALTER|DROP)\b/gm)).toEqual(['CREATE'])
+  })
+
+  it('a result records what it was graded AGAINST (judgedOf, unjudged) so unjudged key points score 0', () => {
+    // FINAL REVIEW finding (5). Both columns default so a row that predates
+    // them reads as "nothing unjudged" (none existed at deploy).
+    const result = schema.match(/model GraderPanelResult \{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(result).toMatch(/^\s*judgedOf\s+Int\s+@default\(0\)\s*$/m)
+    expect(result).toMatch(/^\s*unjudged\s+Json\s+@default\("\[\]"\)\s*$/m)
+    const migration = readFileSync(
+      join(process.cwd(), 'prisma/migrations/20260917150000_grader_panel_unjudged/migration.sql'),
+      'utf8',
+    )
+    expect(migration).toMatch(/ALTER TABLE "GraderPanelResult" ADD COLUMN\s+"judgedOf" INTEGER NOT NULL DEFAULT 0/)
+    expect(migration).toMatch(/ADD COLUMN\s+"unjudged" JSONB NOT NULL DEFAULT '\[\]'/)
+    // Additive only: one ALTER, no DROP — the drift lines were trimmed.
+    expect(migration.match(/^(CREATE|ALTER|DROP)\b/gm)).toEqual(['ALTER'])
+  })
+})

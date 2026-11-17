@@ -1,3 +1,5 @@
+import { STATUS_CREDIT, type KlpStatus } from '@/lib/errors/klp-credit'
+
 /** Frozen reference docs/ai/error-taxonomy.md §5. */
 export const PROMOTE_MIN_OCCURRENCES = 2
 export const PROMOTE_MIN_SESSIONS = 2
@@ -72,15 +74,20 @@ export function toConflationTags(rows: RawConflationRow[]): ConflationTag[] {
 /** One per-KLP outcome, for streak counting. */
 export interface KlpOutcome {
   klpId: string
-  status: 'passed' | 'partial' | 'failed'
+  /** A `KlpStatus`, but typed `string` since callers read it off Prisma. */
+  status: string
   createdAt: Date
 }
 
 /**
- * Consecutive `passed` outcomes per KLP, counted back from the most recent.
+ * Consecutive CLEAN outcomes per KLP, counted back from the most recent.
  *
- * `partial` breaks a streak: retirement means the confusion is gone, and a
- * half-right answer is not evidence of that.
+ * "Clean" is credit `>= 1` — `correct` or the legacy `passed` alias — not the
+ * literal label, so the streak reads the widened thirteen-label vocabulary
+ * the same way it always read the original three. Anything under full credit
+ * (a `partial`/`incomplete` half-right, or any zero-credit label) breaks the
+ * streak: retirement means the confusion is gone, and a half-right answer is
+ * not evidence of that.
  */
 export function computeCleanStreaks(outcomes: KlpOutcome[]): Record<string, number> {
   const byKlp = new Map<string, KlpOutcome[]>()
@@ -97,7 +104,7 @@ export function computeCleanStreaks(outcomes: KlpOutcome[]): Record<string, numb
     )
     let streak = 0
     for (const o of newestFirst) {
-      if (o.status !== 'passed') break
+      if ((STATUS_CREDIT[o.status as KlpStatus] ?? 0) < 1) break
       streak++
     }
     streaks[klpId] = streak

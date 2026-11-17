@@ -62,6 +62,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 import { startDiagnosticTest, submitDiagnosticTest } from '@/actions/diagnostic'
 import { DIAGNOSTIC_BATCH_SIZE, batched } from '@/lib/diagnostic/select'
 import { diagnosticOutputCap } from '@/lib/diagnostic/grading'
+import { RUNTIME_VERDICTS } from '@/lib/klp/verdicts'
 
 const OWNER = 'user-owner'
 const SET = { id: 'set-1', title: 'M&A basics' }
@@ -335,13 +336,14 @@ function mockGradingFor(positions: number[], score = 9) {
       score,
       status: score >= 8 ? 'mastered' : 'partial',
       feedback: `Feedback ${position}`,
-      klpResults: [{ klpRef: 0, status: score >= 8 ? 'passed' : 'partial' }],
+      klpResults: [{ klpRef: 0, status: score >= 8 ? 'correct' : 'partial' }],
     })),
   })
 }
 
-function mockGrading(options: { withKlpResults?: boolean } = {}) {
+function mockGrading(options: { withKlpResults?: boolean; quote?: string } = {}) {
   const withKlpResults = options.withKlpResults ?? true
+  const quote = options.quote === undefined ? {} : { quote: options.quote }
   const batches = batched(
     Array.from({ length: QUESTION_COUNT }, (_, i) => i),
     DIAGNOSTIC_BATCH_SIZE,
@@ -355,7 +357,7 @@ function mockGrading(options: { withKlpResults?: boolean } = {}) {
         feedback: `Feedback ${position}`,
         mistake: position === 0 ? 'Missed the mechanism.' : undefined,
         ...(withKlpResults
-          ? { klpResults: [{ klpRef: 0, status: position === 0 ? 'failed' : 'passed' }] }
+          ? { klpResults: [{ klpRef: 0, status: position === 0 ? 'failed' : 'correct', ...quote }] }
           : {}),
       })),
     })
@@ -383,7 +385,11 @@ describe('submitDiagnosticTest', () => {
       questions: attemptQuestions(),
     })
     h.cardKlpFindMany.mockResolvedValue(
-      Array.from({ length: QUESTION_COUNT }, (_, i) => ({ id: `klp-${i}`, weight: 4 })),
+      Array.from({ length: QUESTION_COUNT }, (_, i) => ({
+        id: `klp-${i}`,
+        weight: 4,
+        kind: i % 2 === 0 ? 'mechanism' : 'definition',
+      })),
     )
     h.createAnswerWithAnalysis.mockImplementation(async () => ({
       id: `answer-${h.createAnswerWithAnalysis.mock.calls.length - 1}`,
@@ -597,7 +603,9 @@ describe('submitDiagnosticTest', () => {
     expect(h.createAnswerWithAnalysis).toHaveBeenCalledTimes(QUESTION_COUNT)
     for (const call of h.createAnswerWithAnalysis.mock.calls) {
       expect(call[1].klpResults).toHaveLength(1)
-      expect(call[1].klpResults[0].status).toBe('failed')
+      // Spec 5: a blank answer is an `omission` (the point was not addressed),
+      // not the legacy catch-all `failed`. Credit is 0 either way.
+      expect(call[1].klpResults[0].status).toBe('omission')
       expect(call[1].klpResults[0].credit).toBe(0)
     }
   })
@@ -817,6 +825,61 @@ describe('submitDiagnosticTest', () => {
     for (const call of h.createAnswerWithAnalysis.mock.calls) {
       expect(call[1].status).toBe('no_klps')
       expect(call[1].klpResults).toHaveLength(0)
+    }
+  })
+
+  // Spec 5 Phase A (Task 8): the diagnostic grades through the same content
+  // pass as the quiz — one shared verdict wording, spans resolved in TS.
+  it('offers the grader every runtime verdict on every grading call', async () => {
+    submitTx()
+    mockGrading()
+
+    await submitDiagnosticTest({
+      attemptId: 'attempt-1',
+      answers: attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' })),
+    })
+
+    const gradingCalls = h.generateJson.mock.calls.slice(0, -1) // last one is the report
+    expect(gradingCalls.length).toBeGreaterThan(0)
+    for (const call of gradingCalls) {
+      const prompt: string = call[0].prompt
+      for (const verdict of RUNTIME_VERDICTS) expect(prompt).toContain(`"${verdict}"`)
+      // The key point is shown with its kind, so the block's kind clause is live.
+      expect(prompt).toMatch(/\(mechanism\)|\(definition\)/)
+    }
+  })
+
+  it('resolves the grader quote to a span over the submitted answer', async () => {
+    submitTx()
+    mockGrading({ quote: 'debt' })
+    const answer = 'WACC is the cost of debt only'
+
+    await submitDiagnosticTest({
+      attemptId: 'attempt-1',
+      answers: attemptQuestions().map((question) => ({ questionId: question.id, answer })),
+    })
+
+    expect(h.createAnswerWithAnalysis).toHaveBeenCalledTimes(QUESTION_COUNT)
+    for (const call of h.createAnswerWithAnalysis.mock.calls) {
+      expect(call[1].klpResults[0]).toMatchObject({ evidence: 'debt', spanStart: 20, spanEnd: 24 })
+    }
+  })
+
+  it('carries no relation or form verdicts — the diagnostic asks one key point per question', async () => {
+    // One question probes one proposition, so there is no link between two
+    // points to judge and no card-level shape to check. The arrays are empty
+    // by design, not because the ids were never wired.
+    submitTx()
+    mockGrading()
+
+    await submitDiagnosticTest({
+      attemptId: 'attempt-1',
+      answers: attemptQuestions().map((question) => ({ questionId: question.id, answer: 'x' })),
+    })
+
+    for (const call of h.createAnswerWithAnalysis.mock.calls) {
+      expect(call[1].relationResults).toEqual([])
+      expect(call[1].formResults).toEqual([])
     }
   })
 })

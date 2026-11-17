@@ -93,6 +93,7 @@ export async function finishStudySession(input: {
       confidenceBefore: e.confidenceBefore,
       confidenceAfter: e.confidenceAfter,
       latencyMs: e.latencyMs,
+      selfRating: e.selfRating,
       categoryNames: e.card.categoryAssignments.map((a) => a.category.name),
     }));
 

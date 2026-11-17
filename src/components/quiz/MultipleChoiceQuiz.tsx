@@ -14,18 +14,27 @@ import { QuizSectionHandle, SectionNav } from './section';
 import { useErrorToast } from '@/components/errors/useErrorToast';
 import { useQuestionTimer } from './useQuestionTimer';
 import { QuestionTimerDisplay } from './QuestionTimer';
+import { SelfRatingPicker } from '@/components/study/SelfRatingPicker';
+import type { SelfRating } from '@/lib/memory/self-rating';
 
 type QuizCard = Card & { contentBlocks?: ContentBlock[] };
 
 interface MultipleChoiceQuizProps {
   cards: QuizCard[];
   attemptId: string;
+  /** Spec 6: show the self-rating picker. Read server-side from
+   *  LearnerTuning.captureSelfRating; the server nulls a rating regardless. */
+  captureSelfRating?: boolean;
 }
 
 export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQuizProps>(
-  function MultipleChoiceQuiz({ cards, attemptId }, ref) {
+  function MultipleChoiceQuiz({ cards, attemptId, captureSelfRating = true }, ref) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectedAnswers, setSelectedAnswers] = useState<{ [cardId: string]: string }>({});
+    // Spec 6 §3.1: the retrospective rating, editable until submit. Kept
+    // beside selectedAnswers, never merged into it — an unrated answer is
+    // still an answer, and a rating without an answer is never sent.
+    const [ratings, setRatings] = useState<{ [cardId: string]: SelfRating }>({});
     const [optionsState, setOptionsState] = useState<{ [cardId: string]: { options: string[]; correctAnswer: string } }>({});
     const [loadingCards, setLoadingCards] = useState<Set<string>>(new Set());
     const { show: showError, dialog: errorDialog } = useErrorToast();
@@ -80,6 +89,7 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
           selectedOption: selected,
           correctAnswer: data.correctAnswer,
           latencyMs: timer.elapsed(card.id),
+          selfRating: ratings[card.id],
         });
         if (!res.success) showError(res.error || 'Failed to save answer', res.detail);
       }
@@ -97,7 +107,7 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
     // `selectedAnswers` is in the dep array, so the handle is rebuilt on every
     // pick and never reports a stale count. Verified deliberately: a stale 0
     // here would let the container discard an attempt the learner really took.
-    useImperativeHandle(ref, () => ({ commitAll, answeredCount }), [cards, selectedAnswers, optionsState, attemptId]);
+    useImperativeHandle(ref, () => ({ commitAll, answeredCount }), [cards, selectedAnswers, optionsState, attemptId, ratings]);
 
     function goNext() {
       setCurrentIndex(i => Math.min(i + 1, cards.length - 1));
@@ -135,6 +145,9 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
                 onValueChange={(val) => {
                   timer.stop(card.id);
                   setSelectedAnswers(prev => ({ ...prev, [card.id]: val }));
+                  // The rating was about the previous option; a new option
+                  // needs a new judgment, so it is dropped rather than carried.
+                  setRatings(({ [card.id]: _dropped, ...rest }) => rest);
                 }}
                 className="space-y-3"
               >
@@ -153,6 +166,13 @@ export const MultipleChoiceQuiz = forwardRef<QuizSectionHandle, MultipleChoiceQu
                   </div>
                 ))}
               </RadioGroup>
+            )}
+            {captureSelfRating && data && !isLoading && selectedAnswers[card.id] && (
+              <SelfRatingPicker
+                className="mt-6 border-t pt-4"
+                value={ratings[card.id] ?? null}
+                onChange={(v) => setRatings(prev => ({ ...prev, [card.id]: v }))}
+              />
             )}
           </CardContent>
         </CardComponent>

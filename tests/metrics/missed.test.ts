@@ -143,4 +143,31 @@ describe('shapeMissedWork', () => {
     const misses = shapeMissedWork(base).find((t) => t.key === 'wacc')!.klps[0].misses
     expect(misses.some((m) => m.errorTypes.includes('negated'))).toBe(true)
   })
+
+  it('every zero- and half-credit label is a miss; correct and passed are not', () => {
+    const statuses = ['omission', 'inversion', 'partial', 'incomplete', 'correct', 'passed']
+    const klps = statuses.map((_, i) => ({
+      klpId: `k${i}`,
+      label: null,
+      text: `KLP ${i}`,
+      term: `Term ${i}`,
+      topicKeys: [],
+    }))
+    const results = statuses.map((status, i) => ({
+      klpId: `k${i}`,
+      mode: 'quiz-sa',
+      status,
+      createdAt: new Date(),
+      errorTypes: [],
+    }))
+    const out = shapeMissedWork({
+      klps,
+      topicNames: {},
+      knowledge: {},
+      results: results as never,
+      floor: 3,
+    })
+    const missed = new Set(out.flatMap((t) => t.klps.map((k) => k.klpId)))
+    expect(missed).toEqual(new Set(['k0', 'k1', 'k2', 'k3']))
+  })
 })

@@ -23,6 +23,12 @@ describe('pickBestRound', () => {
     expect(pickBestRound([R({ round: 0, rebuiltTight: false, wordRatio: 1.1 }), R({ round: 1, rebuiltTight: true, wordRatio: 0.8 })])).toBe(1)
     expect(pickBestRound([R({ round: 0, rebuiltTight: true, wordRatio: 1.0 }), R({ round: 1, rebuiltTight: true, wordRatio: 0.8 })])).toBe(1)
   })
+  it('a routed gap left unauthored (or an over-split set) is a bar: the round that honours the gaps beats an earlier equal one', () => {
+    // Measured 2026-09-20: round 1 named both gaps in concerns only and won on the earlier-round rule.
+    expect(pickBestRound([R({ round: 0, gapsHonoured: false }), R({ round: 1, gapsHonoured: true })])).toBe(1)
+    expect(barsMissed(R({ round: 0, gapsHonoured: false }))).toBe(1)
+    expect(barsMissed(R({ round: 0 }))).toBe(0)
+  })
   it('with no round clearing every bar, the fewest misses wins', () => {
     expect(pickBestRound([R({ round: 0, separated: false, clearsParityBar: false, referenceParity: 0.4 }), R({ round: 1, separated: false, substanceSeparation: 0.2 })])).toBe(1)
   })

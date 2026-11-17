@@ -172,6 +172,13 @@ describe('Hot Seat', () => {
     expect(s.phase).toBe('probing')
   })
 
+  it('credits the wide verdict vocabulary like its legacy counterparts: correct/omission for mood, inversion over partial for the probe', () => {
+    const w = (klpId: string, weight: number, status: string) => ({ klpId, text: klpId, weight, status })
+    expect(moodDelta([w('a', 5, 'correct'), w('b', 3, 'omission')] as never)).toEqual({ gained: 5, lost: 3 })
+    // A zero-credit row always outranks a half-credit row, even when lighter.
+    expect(probeTarget([w('a', 2, 'inversion'), w('b', 5, 'partial')] as never)!.klpId).toBe('a')
+  })
+
   it('probes the heaviest failed point, once, and a recovery restores half the loss', () => {
     expect(probeTarget([v('a', 2, 'failed'), v('b', 5, 'failed'), v('c', 5, 'partial')])!.klpId).toBe('b')
     expect(probeTarget([v('c', 5, 'partial')])!.klpId).toBe('c')

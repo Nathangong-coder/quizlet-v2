@@ -1,13 +1,21 @@
 import type { StudySource } from '@/lib/memory/scoring'
+import { KLP_VERDICTS, VERDICT_CREDIT, type KlpVerdict } from '@/lib/klp/verdicts'
 
-export const KLP_STATUSES = ['passed', 'partial', 'failed'] as const
-export type KlpStatus = (typeof KLP_STATUSES)[number]
+/** Read-only alias of `correct`: every row written before Spec 5. Never written again. */
+export const LEGACY_KLP_STATUSES = ['passed'] as const
+export const KLP_STATUSES = [...KLP_VERDICTS, ...LEGACY_KLP_STATUSES] as const
+export type KlpStatus = KlpVerdict | (typeof LEGACY_KLP_STATUSES)[number]
 
-/** The categorical judgment, as a fraction. The AI supplies the category. */
-export const STATUS_CREDIT: Record<KlpStatus, number> = {
-  passed: 1,
-  partial: 0.5,
-  failed: 0,
+/**
+ * ONE table. Three values (1 / 0.5 / 0). This is a GUARD, not a formula:
+ * `stepBkt` indexes it with no fallback, so a status outside it is a NaN
+ * posterior written to KlpState. `tests/errors/klp-credit.test.ts` asserts
+ * totality; Spec 7 may replace the engine and discard this.
+ */
+export const STATUS_CREDIT: Record<KlpStatus, number> = { ...VERDICT_CREDIT, passed: 1 }
+
+export function isKlpStatus(value: unknown): value is KlpStatus {
+  return typeof value === 'string' && (KLP_STATUSES as readonly string[]).includes(value)
 }
 
 /**

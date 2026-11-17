@@ -90,6 +90,18 @@ export const MIN_KLPS_PER_CARD = MIN_KLPS_FLOOR
 export const MAX_KLPS_AUTHORED = 9
 
 /**
+ * At most this many points BEYOND THE CARD (`fromDefinition` null) — the
+ * author prompt's "AT MOST TWO" since v7, enforced in TypeScript since
+ * 2026-09-20: the first routed card-gap run had the writer split one routed
+ * gap into three points ("TLB is often bullet", "TLB may have no sweep")
+ * and persist five beyond-the-card points with nothing to stop it. Over the
+ * cap is a `beyond_card` finding for the revise call. `GAP_ROUTE_CAP`
+ * (gap-routing.ts) is this same number: routing more gaps than the writer
+ * may author would only queue findings it cannot honour.
+ */
+export const BEYOND_CARD_CAP = 2
+
+/**
  * One grading call per candidate answer.
  *
  * TRUE is not merely the careful setting. A grader shown all four candidates

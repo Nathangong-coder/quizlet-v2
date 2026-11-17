@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { MissedTopic, MissedKlp, MissedAnswer } from '@/lib/metrics/missed';
+import { STATUS_CREDIT, isKlpStatus } from '@/lib/errors/klp-credit';
+import { labelForKlpStatus } from '@/lib/errors/labels';
 
 const MODE_LABELS: Record<string, string> = {
   'quiz-sa': 'Short answer',
@@ -119,12 +121,27 @@ function KlpRow({ klp }: { klp: MissedKlp }) {
   );
 }
 
+/**
+ * Colour by CREDIT, text by label (Spec 5 §7): a status is a token from a
+ * 13-label vocabulary, not a display string. Comparing the label made every
+ * `omission`/`inversion` row render grey and raw, as if it were a half-miss.
+ */
+function StatusBadge({ status }: { status: string }) {
+  const known = isKlpStatus(status);
+  const credit = known ? STATUS_CREDIT[status] : 0;
+  return (
+    <Badge variant={credit === 0 ? 'destructive' : 'secondary'}>
+      {known ? labelForKlpStatus(status) : status.replace(/_/g, ' ')}
+    </Badge>
+  );
+}
+
 function MissRow({ miss }: { miss: MissedAnswer }) {
   return (
     <li className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       <span>{formatDate(miss.createdAt)}</span>
       <span>{MODE_LABELS[miss.mode] ?? miss.mode}</span>
-      <Badge variant={miss.status === 'failed' ? 'destructive' : 'secondary'}>{miss.status}</Badge>
+      <StatusBadge status={miss.status} />
       {miss.errorTypes.map((type) => (
         <Badge key={type} variant="outline">
           {type.replace(/_/g, ' ')}

@@ -133,10 +133,18 @@ async function main() {
       starred: false,
       klpResults: (grade.klpResults ?? []) as { klpRef: number; status: KlpStatus }[],
       errorTags: grade.errorTags ?? [],
+      answerText: c.answer,
+      relations: [],
+      formReqs: [],
+      relationResults: [],
+      formResults: [],
+      unwarranted: grade.unwarranted ?? [],
     })
 
-    const factor = contaminationFactor(writes.errorTags)
-    const hit = isContaminated(writes.errorTags)
+    // Both sources, as the write path reads them: the whole-answer tags this
+    // probe was written to measure, and Spec 5's unwarranted claims.
+    const factor = contaminationFactor({ tags: writes.errorTags, unwarranted: writes.unwarranted })
+    const hit = isContaminated({ tags: writes.errorTags, unwarranted: writes.unwarranted })
     if (hit) caught += 1
     else missed += 1
 

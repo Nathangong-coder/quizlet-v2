@@ -15,12 +15,21 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { SelfRatingPicker } from '@/components/study/SelfRatingPicker'
+import type { SelfRating } from '@/lib/memory/self-rating'
 
 type Phase = 'setup' | 'generating' | 'testing' | 'submitting' | 'results'
 
 const QUESTION_COUNTS = [12, 20, 30]
 
-export function DiagnosticClient({ sets, history, initialSetId }: { sets: DiagnosticSetOption[]; history: DiagnosticHistoryItem[]; initialSetId?: string }) {
+export function DiagnosticClient({ sets, history, initialSetId, captureSelfRating }: {
+  sets: DiagnosticSetOption[]
+  history: DiagnosticHistoryItem[]
+  initialSetId?: string
+  /** Spec 6: LearnerTuning.captureSelfRating, read server-side by the page. Required
+   *  so a page that forgets it is a tsc error, not a silently-on picker. */
+  captureSelfRating: boolean
+}) {
   const [phase, setPhase] = useState<Phase>('setup')
   const [setId, setSetId] = useState(initialSetId ?? sets[0]?.id ?? '')
   const [questionCount, setQuestionCount] = useState(12)
@@ -28,6 +37,8 @@ export function DiagnosticClient({ sets, history, initialSetId }: { sets: Diagno
   const [attemptId, setAttemptId] = useState('')
   const [questions, setQuestions] = useState<DiagnosticQuestionView[]>([])
   const [answers, setAnswers] = useState<Record<string, string>>({})
+  // Spec 6 §3.3: the retrospective rating per question, editable until submit.
+  const [ratings, setRatings] = useState<Record<string, SelfRating>>({})
   const [startedAt, setStartedAt] = useState<Record<string, number>>({})
   const [currentIndex, setCurrentIndex] = useState(0)
   const [result, setResult] = useState<DiagnosticResult | null>(null)
@@ -44,6 +55,7 @@ export function DiagnosticClient({ sets, history, initialSetId }: { sets: Diagno
     setSetTitle('')
     setQuestions([])
     setAnswers({})
+    setRatings({})
     setStartedAt({})
     setCurrentIndex(0)
     setResult(null)
@@ -75,6 +87,8 @@ export function DiagnosticClient({ sets, history, initialSetId }: { sets: Diagno
   function updateAnswer(value: string) {
     if (!currentQuestion) return
     setAnswers((current) => ({ ...current, [currentQuestion.id]: value }))
+    // The picker hides when the box goes blank; the rating goes with it.
+    if (value.trim() === '') setRatings(({ [currentQuestion.id]: _dropped, ...rest }) => rest)
     setStartedAt((current) => current[currentQuestion.id] ? current : { ...current, [currentQuestion.id]: Date.now() })
   }
 
@@ -98,6 +112,7 @@ export function DiagnosticClient({ sets, history, initialSetId }: { sets: Diagno
           questionId: question.id,
           answer: answers[question.id] ?? '',
           latencyMs: startedAt[question.id] ? Date.now() - startedAt[question.id] : undefined,
+          selfRating: ratings[question.id],
         })),
       })
       if (!response.success) {
@@ -152,6 +167,12 @@ export function DiagnosticClient({ sets, history, initialSetId }: { sets: Diagno
                 className="resize-y text-base leading-7"
               />
             </div>
+            {captureSelfRating && currentAnswer.trim() !== '' && (
+              <SelfRatingPicker
+                value={ratings[currentQuestion.id] ?? null}
+                onChange={(v) => setRatings((current) => ({ ...current, [currentQuestion.id]: v }))}
+              />
+            )}
             {message && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{message}</p>}
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5">
               <Button type="button" variant="ghost" onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))} disabled={currentIndex === 0}>

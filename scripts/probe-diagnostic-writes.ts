@@ -111,6 +111,12 @@ async function main() {
           errorTags: question.position === 0
             ? [{ dimension: 'accuracy', type: 'omission', klpRef: 0, magnitude: 6 }]
             : [],
+          answerText: '',
+          relations: [],
+          formReqs: [],
+          relationResults: [],
+          formResults: [],
+          unwarranted: [],
         })
 
         const answer = await createAnswerWithAnalysis(
@@ -154,10 +160,10 @@ async function main() {
 
     const answers = await prisma.quizAnswer.count({ where: { attemptId: created.quizAttempt.id } })
     const results = await prisma.answerKlpResult.count({
-      where: { quizAnswer: { attemptId: created.quizAttempt.id } },
+      where: { quizAnswer: { attemptId: created.quizAttempt.id }, supersededAt: null },
     })
     const tags = await prisma.answerErrorTag.count({
-      where: { quizAnswer: { attemptId: created.quizAttempt.id } },
+      where: { quizAnswer: { attemptId: created.quizAttempt.id }, supersededAt: null },
     })
     const states = await prisma.klpState.count({ where: { userId: user.id } })
     const events = await prisma.studyEvent.findMany({

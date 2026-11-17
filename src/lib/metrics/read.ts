@@ -22,6 +22,7 @@ import {
   buildCategoryQuery, buildCardScopeWhere,
 } from '@/lib/memory/scope'
 import { getUserTuning } from '@/lib/tuning/store'
+import { bucketCalibration, type CalibrationBucket } from '@/lib/metrics/calibration'
 import { rankCandidates, toRankCandidates, type RankedCandidate } from '@/lib/metrics/targeting'
 import { UNCATEGORIZED_ID } from '@/lib/cards/categories'
 import { loadAnsweredAttemptIds } from '@/lib/quiz/history'
@@ -32,6 +33,12 @@ export interface LearnerMetrics {
   profile: LearnerProfile
   misconceptions: Misconception[]
   forgetting: ForgettingCurve | null
+  /**
+   * Spec 6 §6: self-rating vs outcome COUNTS per rating, under the same scope
+   * as every other tile. Never a score — the tile says so. Built from the
+   * scoped `events` read below, so it needs no query of its own.
+   */
+  calibration: CalibrationBucket[]
   /**
    * "Correct but not fluent" cards: answered right, but slowly enough
    * relative to the learner's own baseline IN THAT MODE to be worth
@@ -215,7 +222,9 @@ export async function getLearnerMetrics({
       // Not restricted to short answer, though the denominator is: MC/TF tags
       // are always `dimension: 'accuracy'`, which `computeArticulation`
       // ignores, and `deriveMisconceptions` below legitimately spans modes.
-      where: { quizAnswer: { ...quizAnswerScopeWhere, analysisStatus: 'analyzed' } },
+      // Live generation only: a regraded answer's old tags stay as history
+      // (Spec 5 §6) and would otherwise count its misconceptions twice.
+      where: { quizAnswer: { ...quizAnswerScopeWhere, analysisStatus: 'analyzed' }, supersededAt: null },
       select: {
         dimension: true, type: true, klpId: true, secondaryKlpId: true,
         relevance: true, starred: true, magnitude: true, mode: true,
@@ -226,12 +235,17 @@ export async function getLearnerMetrics({
       },
     }),
     prisma.answerKlpResult.findMany({
-      where: { quizAnswer: quizAnswerScopeWhere },
+      where: { quizAnswer: quizAnswerScopeWhere, supersededAt: null },
       select: { klpId: true, status: true, createdAt: true },
     }),
     prisma.studyEvent.findMany({
       where: studyEventWhere,
-      select: { cardId: true, correct: true, score: true, createdAt: true, source: true, latencyMs: true },
+      select: {
+        cardId: true, correct: true, score: true, createdAt: true, source: true, latencyMs: true,
+        // Spec 6: read here for the calibration counts only; nothing below
+        // that computes knowledge, forgetting or pace reads it.
+        selfRating: true,
+      },
     }),
     // The learner's REAL attempt sequence, for `repeatBonus`'s "within the
     // last N attempts" window — answered attempts only, unscoped, oldest
@@ -333,7 +347,7 @@ export async function getLearnerMetrics({
     cleanStreaks: computeCleanStreaks(
       klpOutcomes.map((o) => ({
         klpId: o.klpId,
-        status: o.status as 'passed' | 'partial' | 'failed',
+        status: o.status,
         createdAt: o.createdAt,
       })),
     ),
@@ -465,6 +479,9 @@ export async function getLearnerMetrics({
       toTimedEvents(events),
       undefined,
       toTimedEvents(paceBaseline),
+    ),
+    calibration: bucketCalibration(
+      events.map((e) => ({ selfRating: e.selfRating ?? null, correct: e.correct, score: e.score })),
     ),
   }
 }

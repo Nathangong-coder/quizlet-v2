@@ -1,5 +1,13 @@
 import { CandidateGradeSchema } from '@/lib/ai/schemas';
-import { KLP_VERDICTS } from '@/lib/klp/verdicts';
+import { verdictInstructionBlock } from './verdict-block';
+
+/**
+ * The strict clause, the relaxed kinds and the kind clause moved INTO
+ * `verdict-block.ts` (Spec 5 Phase A) so the shared block can carry them
+ * without importing this module back. Re-exported here so every existing
+ * importer keeps working.
+ */
+export { STRICT_GRADING_CLAUSE, RELAXED_KINDS, KIND_STRICTNESS_CLAUSE, SUBSTANCE_FLOOR_CLAUSE } from './verdict-block';
 
 export interface GradeCandidateBuildInput {
   question: string;
@@ -11,6 +19,12 @@ export interface GradeCandidateBuildInput {
   klps: { text: string; kind?: string }[];
   candidateAnswer: string;
   /**
+   * v5: the card's accepted relations, by KLP index. When present the grader
+   * also returns one verdict per link (`relationVerdicts`). Absent, the text
+   * is byte-identical to v4 so every stored score stays comparable.
+   */
+  relations?: { type: string; from: number; to: number }[];
+  /**
    * Adds the strict clause (2026-09-12, owner): credit a point only when the
    * answer states it explicitly; when in doubt, the lower verdict. Off by
    * default so every stored score stays comparable; a run that turns it on
@@ -18,24 +32,6 @@ export interface GradeCandidateBuildInput {
    */
   strict?: boolean;
 }
-
-export const STRICT_GRADING_CLAUSE =
-  'GRADE STRICTLY. Credit a key point only when the answer states it explicitly or entails it unmistakably. When in doubt between two verdicts, give the lower one. Do not infer what the candidate probably meant.';
-
-/**
- * Kinds graded on SUBSTANCE rather than statement under strict mode
- * (2026-09-12, owner, read off the definition-length spread). A mechanism,
- * a condition or a number is established when the answer gets the steps, the
- * trigger and its consequence, or the figure and its direction right, however
- * it is phrased; a strict grader that wanted the point's wording failed
- * answers that plainly had the substance. Causal points stay strict: "because"
- * is exactly what a template answer fakes, and the spread showed the relaxed
- * reading credits it. Definition, contrast and example are strict too — a
- * definition that is only gestured at is not a definition.
- */
-export const RELAXED_KINDS = ['mechanism', 'condition', 'quantitative'] as const;
-
-export const KIND_STRICTNESS_CLAUSE = `Strictness by kind. Each key point is tagged with its kind. For a point tagged ${RELAXED_KINDS.join(', ')}: judge the SUBSTANCE — credit it when the answer establishes the same steps, the same condition and its consequence, or the same figure and direction, in its own words; withhold credit only when that substance is genuinely absent or wrong. For a point tagged causal: the answer must state the cause-and-effect link itself, not merely name both ends; naming a cause without saying what it does is at most "incomplete". Every other kind is graded strictly as above.`;
 
 /**
  * Call B of the authoring pipeline. ONE candidate answer per call — this is
@@ -90,9 +86,30 @@ export const KIND_STRICTNESS_CLAUSE = `Strictness by kind. Each key point is tag
  *    computation reads them. A `correct` verdict now carries no evidence; the
  *    others carry one clause.
  */
+/**
+ * v4 (Spec 5 Phase A, 2026-09-17): the verdict paragraph — vocabulary, per-
+ * label guidance, quote rule, strict and kind clauses — is now
+ * `verdictInstructionBlock` in `./verdict-block`, ONE wording shared with the
+ * runtime and diagnostic graders. The vocabulary is listed quoted, and the
+ * label guidance names omission vs contradicted as different failures. The
+ * output line keeps its `evidence` field: authoring rows store `evidence`.
+ * Its word cap is the block's 20 words (fix round: the line said 15 while
+ * the block it points at said 20, and a grader given two caps picks one at
+ * random); `CandidateGradeSchema` bridges a `quote` key into `evidence`
+ * either way, so a model that followed the block's word loses nothing.
+ */
+/**
+ * v5 (2026-09-19, relations as a discrimination axis): with `relations` the
+ * prompt lists the card's links `[Rn] (type) [from] → [to]` and asks for a
+ * verdict per link on the runtime's rule — `correct` = the answer asserts
+ * the link itself, `omission` = both ends present and the link never made,
+ * `inversion` = backwards, `contradicted` = denied. The relation pass in
+ * `src/lib/klp/authoring.ts` reads these; `src/lib/klp/relation-separation.ts`
+ * turns them into numbers.
+ */
 export const GRADE_CANDIDATE_PROMPT = {
   id: 'grade-candidate',
-  version: 3,
+  version: 5,
   schema: CandidateGradeSchema,
 
   build(input: GradeCandidateBuildInput): string {
@@ -114,22 +131,33 @@ ${input.referenceAnswer}
     // format, strictness — then the card, then the candidate. DeepSeek's
     // cache is a prefix cache in 64-token blocks, so this block now hits on
     // every grading call of every card, not only within one card.
+    const rels = input.relations ?? [];
+    const relationRule = rels.length
+      ? `\n\nThe card also teaches LINKS between key points, listed below as [Rn]. For each link, decide whether the candidate's answer ASSERTS THE LINK ITSELF, with the same vocabulary: "correct" = the answer makes the link; "omission" = both ends are present but the link is never made; "inversion" = the link is asserted backwards; "contradicted" = the answer denies it. Stating both endpoints is not making the link.`
+      : '';
+    const relationOutput = rels.length
+      ? ', "relationVerdicts": [ { "relationIndex": number, "verdict": string, "evidence": string } ]'
+      : '';
+    const relationOutputNote = rels.length
+      ? `\nOne "relationVerdicts" entry per link, referencing it by its [Rn] index; "evidence" is a verbatim excerpt on every link verdict, "correct" included — it is the only record of where the link was made.`
+      : '';
+    const relationBlock = rels.length
+      ? `\n\nLinks between key points:\n${rels.map((r, i) => `[R${i}] (${r.type}) [${r.from}] → [${r.to}]`).join('\n')}\n`
+      : '';
+
     return `You are grading a candidate's answer to one interview question against a fixed list of Key Learning Points (KLPs). Judge only what this answer itself claims — you have no information about how it was produced.
 
-For each KLP, decide whether the candidate's answer supports it. Choose exactly one verdict per KLP from this vocabulary:
-${KLP_VERDICTS.join(', ')}
-
-Use "correct" when the answer clearly states the point. Use "omission" when the point is never mentioned at all. Use "incomplete" when it is named but not actually explained. Use "contradicted" or one of the other specific labels above when the answer actively gets the point wrong in that particular way. When nothing more specific applies, "partial" or "failed" are honest fallbacks — do not force a specific label that does not fit.
+For each KLP, decide whether the candidate's answer supports it. ${verdictInstructionBlock({ strict: !!input.strict, showKinds })}${relationRule}
 
 Output JSON:
-{ "verdicts": [ { "klpIndex": number, "verdict": string, "evidence": string } ] }
-One entry per KLP, referencing it by its [index]. "evidence" is ONE short clause (at most 15 words) quoting or naming what in the answer decided the verdict; OMIT it entirely when the verdict is "correct".${input.strict ? `\n\n${STRICT_GRADING_CLAUSE}${showKinds ? `\n\n${KIND_STRICTNESS_CLAUSE}` : ''}` : ''}
+{ "verdicts": [ { "klpIndex": number, "verdict": string, "evidence": string } ]${relationOutput} }
+One entry per KLP, referencing it by its [index]. "evidence" carries the quote asked for above: a VERBATIM excerpt (at most 20 words, copied exactly) of what in the answer decided the verdict; OMIT it entirely when the verdict is "correct".${relationOutputNote}
 
 Question: ${input.question}
 
 Key Learning Points:
 ${klps}
-
+${relationBlock}
 ${referenceBlock}Candidate's answer:
 ${input.candidateAnswer}`;
   },

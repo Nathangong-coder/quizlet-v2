@@ -98,6 +98,22 @@ describe('GRADE_CANDIDATE_PROMPT v2 layout', () => {
     expect(iCand).toBeGreaterThan(iRef)
     expect(p.lastIndexOf('GRADE STRICTLY')).toBeLessThan(iRef)
     expect(p).toContain('OMIT it entirely when the verdict is "correct"')
-    expect(GRADE_CANDIDATE_PROMPT.version).toBe(3)
+    // v4 (Spec 5 Phase A): the verdict paragraph became the shared block.
+    // v5 (2026-09-19): optional relations; byte-identical without them.
+    expect(GRADE_CANDIDATE_PROMPT.version).toBe(5)
+  })
+
+  it('v5: relations are listed as [Rn] and asked for one verdict each; without them the prompt has no link text', () => {
+    const base = { question: 'Q', referenceAnswer: 'REF', klps: [{ text: 'A' }, { text: 'B' }], candidateAnswer: 'C', strict: true }
+    const plain = GRADE_CANDIDATE_PROMPT.build(base)
+    expect(plain).not.toContain('Links between key points')
+    expect(plain).not.toContain('relationVerdicts')
+    const withRels = GRADE_CANDIDATE_PROMPT.build({ ...base, relations: [{ type: 'causes', from: 0, to: 1 }] })
+    expect(withRels).toContain('[R0] (causes) [0] → [1]')
+    expect(withRels).toContain('"relationVerdicts": [ { "relationIndex": number, "verdict": string, "evidence": string } ]')
+    expect(withRels).toContain('Stating both endpoints is not making the link')
+    // Links sit after the key points and before the reference, so the cached prefix is unchanged.
+    expect(withRels.indexOf('Links between key points')).toBeGreaterThan(withRels.indexOf('Key Learning Points:'))
+    expect(withRels.indexOf('Links between key points')).toBeLessThan(withRels.indexOf("Candidate's answer:"))
   })
 })

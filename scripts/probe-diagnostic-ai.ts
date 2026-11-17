@@ -12,6 +12,7 @@ import {
   batched,
 } from '../src/lib/diagnostic/select'
 import { buildAnalysisWrites } from '../src/lib/analysis/persist'
+import { STATUS_CREDIT, type KlpStatus } from '../src/lib/errors/klp-credit'
 import { parseList } from '../src/lib/klp/direct-pool'
 
 /**
@@ -177,9 +178,13 @@ async function main() {
     JSON.stringify(gradeSet.grades.map((g) => (g.klpResults ?? []).length)))
   check('every klpResult targets klpRef 0 — only the point that was asked',
     gradeSet.grades.every((g) => (g.klpResults ?? []).every((r) => r.klpRef === 0)))
+  // Credit, never the label (Spec 5 §7): a blank answer grades `omission`
+  // under the widened vocabulary, and a correct one may read `correct` or
+  // the legacy `passed`. Both sit at 0 / 1 in STATUS_CREDIT.
+  const creditOf = (status: string | undefined) => STATUS_CREDIT[status as KlpStatus]
   check('verdicts differentiate a correct answer from a blank one',
-    gradeSet.grades[0]?.klpResults?.[0]?.status === 'passed' &&
-      gradeSet.grades[1]?.klpResults?.[0]?.status === 'failed',
+    creditOf(gradeSet.grades[0]?.klpResults?.[0]?.status) === 1 &&
+      creditOf(gradeSet.grades[1]?.klpResults?.[0]?.status) === 0,
     `got ${gradeSet.grades[0]?.klpResults?.[0]?.status} / ${gradeSet.grades[1]?.klpResults?.[0]?.status}`)
   console.log(`  grading output tokens: ${gradeOutputTokens} total, ${maxGradeOutput} worst batch`)
 
@@ -193,6 +198,12 @@ async function main() {
       starred: false,
       klpResults: grade.klpResults ?? [],
       errorTags: (grade.errorTags ?? []) as never,
+      answerText: '',
+      relations: [],
+      formReqs: [],
+      relationResults: [],
+      formResults: [],
+      unwarranted: [],
       forcedStatus: (grade.klpResults ?? []).length === 0 ? 'no_provenance' : undefined,
     })
     const credit = writes.klpResults[0]?.credit
@@ -210,10 +221,16 @@ async function main() {
       starred: false,
       klpResults: g.klpResults ?? [],
       errorTags: [],
+      answerText: '',
+      relations: [],
+      formReqs: [],
+      relationResults: [],
+      formResults: [],
+      unwarranted: [],
     }).klpResults)
-    .find((r) => r.status === 'passed')
+    .find((r) => STATUS_CREDIT[r.status as KlpStatus] >= 1)
   console.log('')
-  check('a passed diagnostic verdict is credited at 0.95, not the 0.75 fallback (G8)',
+  check('a full-credit diagnostic verdict is credited at 0.95, not the 0.75 fallback (G8)',
     passedCredit === undefined || Math.abs(passedCredit.credit - 0.95) < 1e-9,
     passedCredit ? `credit ${passedCredit.credit}` : 'no passed verdict in this run')
 

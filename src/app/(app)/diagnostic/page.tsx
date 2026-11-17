@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { getDiagnosticSetOptions, getDiagnosticHistory } from '@/actions/diagnostic'
 import { DiagnosticClient } from '@/components/diagnostic/DiagnosticClient'
+import { getUserTuning } from '@/lib/tuning/store'
 
 /**
  * Open to everyone as of 2026-09-06.
@@ -24,14 +25,22 @@ export default async function DiagnosticPage({ searchParams }: { searchParams: P
   const session = await auth()
   if (!session?.user?.id) redirect('/login?callbackUrl=%2Fdiagnostic')
 
-  const [sets, history] = await Promise.all([
+  const [sets, history, tuning] = await Promise.all([
     getDiagnosticSetOptions(),
     getDiagnosticHistory(),
+    getUserTuning(session.user.id),
   ])
   if (!sets.success) redirect('/login?callbackUrl=%2Fdiagnostic')
 
   // A failed history read must not block starting a new diagnostic — it is a
   // convenience list, not a precondition.
   // `?set=` preselects (a set page's prompt, the Tests hub); an id not in the list is ignored.
-  return <DiagnosticClient sets={sets.data} history={history.success ? history.data : []} initialSetId={set && sets.data.some((s) => s.id === set) ? set : undefined} />
+  return (
+    <DiagnosticClient
+      sets={sets.data}
+      history={history.success ? history.data : []}
+      initialSetId={set && sets.data.some((s) => s.id === set) ? set : undefined}
+      captureSelfRating={tuning.captureSelfRating}
+    />
+  )
 }

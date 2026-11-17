@@ -12,9 +12,14 @@
  *      pipeline (`klpStatus` pending, or no `CardAuthoring` at its
  *      `klpVersion`) goes through `authorCard` on the owner's credentials
  *      (`generators.ts`) and is persisted; its topic fragment is now stale.
- *   2. MINT — a card whose `topicKlpVersion` is not its `klpVersion` goes
+ *   2. FORM-REQS — a card authored at its version but with no
+ *      `CardFormRequirement` rows there gets the Spec 5 §5 pass
+ *      (`form-requirements.ts`): one call writes 3-5 shape rules over the
+ *      stored reference answer and live points, one grades the stored
+ *      template trap against them and logs `weak`. Never a re-author.
+ *   3. MINT — a card whose `topicKlpVersion` is not its `klpVersion` goes
  *      through the minting loop; the fragment is stored on the card.
- *   3. REBUILD — when every card is authored and minted, the set's tree is
+ *   4. REBUILD — when every card is authored and minted, the set's tree is
  *      re-planned from the stored fragments (`rebuildTree`) and written
  *      (`persistTreePlan`) WITHOUT resetting placement: a node the owner has
  *      already placed keeps its place; new nodes land where the votes put
@@ -39,7 +44,8 @@ import type { KlpLink } from '@/lib/klp/topic-enforcement'
 import { rebuildTree, type CardFragment } from '@/lib/klt/rebuild'
 import { persistTreePlan } from '@/lib/klt/rebuild-write'
 import type { VocabEntry } from '@/lib/klt/match'
-import { authoringGenerator, topicGenerator } from '@/lib/klp/generators'
+import { authoringGenerator, topicGenerator, formReqsGenerator } from '@/lib/klp/generators'
+import { authorFormRequirements, type FormReqGen } from '@/lib/klp/form-requirements'
 import type { AuthoringGenerator } from '@/lib/klp/authoring'
 import type { TopicGenerator } from '@/lib/klp/topic-loop'
 import type { CardTopicProposalV2 } from '@/lib/klp/topic-minting-v2'
@@ -49,6 +55,8 @@ export interface SetBuildStatus {
   cards: number
   /** Cards whose points are not from the current pipeline at their current version. */
   needAuthoring: number
+  /** Cards authored at their version with no form requirements there (Spec 5 §5). */
+  needFormReqs: number
   /** Cards authored but whose topic fragment is missing or from older points. */
   needMinting: number
   /** Cards authored and minted whose set tree has not been rebuilt since. */
@@ -60,7 +68,7 @@ export interface SetBuildStatus {
 }
 
 export interface SetBuildStep {
-  did: 'author' | 'mint' | 'rebuild' | 'nothing'
+  did: 'author' | 'form-reqs' | 'mint' | 'rebuild' | 'nothing'
   /** Cards processed by this step. */
   cards: string[]
   errors: { cardId: string; kind: string }[]
@@ -68,10 +76,12 @@ export interface SetBuildStep {
 }
 
 export const AUTHOR_PER_STEP = 2
+/** Two short calls a card (write + the weak check's grade), so more per step than authoring. */
+export const FORM_REQS_PER_STEP = 4
 export const MINT_PER_STEP = 3
 export const STEP_BUDGET_MS = 120_000
 
-type CardRow = { id: string; term: string; definition: string; klpStatus: string; kltStatus: string; klpVersion: number; topicKlpVersion: number | null; kltError: string | null; klpError: string | null; authoredVersion: number | null; klpCount: number }
+type CardRow = { id: string; term: string; definition: string; klpStatus: string; kltStatus: string; klpVersion: number; topicKlpVersion: number | null; kltError: string | null; klpError: string | null; authoredVersion: number | null; klpCount: number; hasFormReqs: boolean }
 
 async function loadCards(setId: string): Promise<CardRow[]> {
   const rows = await prisma.card.findMany({
@@ -81,21 +91,27 @@ async function loadCards(setId: string): Promise<CardRow[]> {
       id: true, term: true, definition: true, klpStatus: true, kltStatus: true, klpVersion: true, topicKlpVersion: true, kltError: true, klpError: true,
       authorings: { orderBy: { createdAt: 'desc' }, take: 1, select: { klpVersion: true } },
       _count: { select: { klps: { where: { supersededAt: null } } } },
+      // every version's rows: a nested `where` cannot name the parent's `klpVersion`
+      formRequirements: { select: { klpVersion: true } },
     },
   })
-  return rows.map((r) => ({ id: r.id, term: r.term, definition: r.definition, klpStatus: r.klpStatus, kltStatus: r.kltStatus, klpVersion: r.klpVersion, topicKlpVersion: r.topicKlpVersion, kltError: r.kltError, klpError: r.klpError, authoredVersion: r.authorings[0]?.klpVersion ?? null, klpCount: r._count.klps }))
+  return rows.map((r) => ({ id: r.id, term: r.term, definition: r.definition, klpStatus: r.klpStatus, kltStatus: r.kltStatus, klpVersion: r.klpVersion, topicKlpVersion: r.topicKlpVersion, kltError: r.kltError, klpError: r.klpError, authoredVersion: r.authorings[0]?.klpVersion ?? null, klpCount: r._count.klps, hasFormReqs: r.formRequirements.some((f) => f.klpVersion === r.klpVersion) }))
 }
 
 const needsAuthoring = (c: CardRow) => c.klpStatus === 'pending' || c.authoredVersion === null || c.authoredVersion !== c.klpVersion || c.klpCount === 0
+// Form rules need the authoring at this version (its reference answer); topics
+// do not need the form rules, so the two are independent needs on one card.
+const needsFormReqs = (c: CardRow) => !needsAuthoring(c) && !c.hasFormReqs
 const needsMinting = (c: CardRow) => !needsAuthoring(c) && c.topicKlpVersion !== c.klpVersion
 const needsRebuild = (c: CardRow) => !needsAuthoring(c) && !needsMinting(c) && c.kltStatus !== 'ready'
 
 export function summarize(cards: CardRow[]): SetBuildStatus {
   const needAuthoring = cards.filter(needsAuthoring).length
+  const needFormReqs = cards.filter(needsFormReqs).length
   const needMinting = cards.filter(needsMinting).length
   const needRebuild = cards.filter(needsRebuild).length
   const failed = cards.filter((c) => (c.klpError && needsAuthoring(c)) || (c.kltError && (needsMinting(c) || needsRebuild(c)))).length
-  return { cards: cards.length, needAuthoring, needMinting, needRebuild, failed, ready: needAuthoring + needMinting + needRebuild === 0 }
+  return { cards: cards.length, needAuthoring, needFormReqs, needMinting, needRebuild, failed, ready: needAuthoring + needFormReqs + needMinting + needRebuild === 0 }
 }
 
 export async function setBuildStatus(setId: string): Promise<SetBuildStatus> {
@@ -105,6 +121,8 @@ export async function setBuildStatus(setId: string): Promise<SetBuildStatus> {
 export interface BuildGenerators {
   authoring: AuthoringGenerator
   topic: TopicGenerator
+  /** Absent, the owner's `form-reqs` pool generator is used. */
+  formReqs?: FormReqGen
 }
 
 /**
@@ -118,7 +136,7 @@ export async function buildSetStep(userId: string, setId: string, opts: { budget
   const budget = opts.budgetMs ?? STEP_BUDGET_MS
   const outOfTime = () => now() - startedAt > budget
   const set = await prisma.set.findUnique({ where: { id: setId }, select: { title: true } })
-  if (!set) return { did: 'nothing', cards: [], errors: [], status: { cards: 0, needAuthoring: 0, needMinting: 0, needRebuild: 0, failed: 0, ready: true } }
+  if (!set) return { did: 'nothing', cards: [], errors: [], status: { cards: 0, needAuthoring: 0, needFormReqs: 0, needMinting: 0, needRebuild: 0, failed: 0, ready: true } }
   let cards = await loadCards(setId)
   const errors: { cardId: string; kind: string }[] = []
 
@@ -149,7 +167,30 @@ export async function buildSetStep(userId: string, setId: string, opts: { budget
     return { did: 'author', cards: done, errors, status: summarize(await loadCards(setId)) }
   }
 
-  // 2. mint
+  // 2. form requirements (Spec 5 §5) — over the authoring just persisted, never a re-author
+  const toFormReqs = cards.filter(needsFormReqs).slice(0, FORM_REQS_PER_STEP)
+  if (toFormReqs.length) {
+    const done: string[] = []
+    const gen = opts.generators?.formReqs ?? formReqsGenerator(userId)
+    for (const card of toFormReqs) {
+      if (done.length && outOfTime()) break
+      try {
+        const out = await authorFormRequirements(card.id, gen, { log: (line) => console.log(line) })
+        // `needsFormReqs` and the module's own skip rules agree by construction;
+        // a skip here means they did not, and reporting it (rather than counting
+        // the card done) is what keeps the caller's loop from spinning on it.
+        if (out.skipped) errors.push({ cardId: card.id, kind: `skipped_${out.skipped}` })
+        else done.push(card.id)
+      } catch (error) {
+        const kind = classifyProviderError(error)
+        errors.push({ cardId: card.id, kind })
+        if (kind === 'quota_exhausted' || kind === 'no_credentials' || kind === 'credentials_unavailable') break
+      }
+    }
+    return { did: 'form-reqs', cards: done, errors, status: summarize(await loadCards(setId)) }
+  }
+
+  // 3. mint
   const toMint = cards.filter(needsMinting).slice(0, MINT_PER_STEP)
   if (toMint.length) {
     const done: string[] = []
@@ -175,7 +216,7 @@ export async function buildSetStep(userId: string, setId: string, opts: { budget
     return { did: 'mint', cards: done, errors, status: summarize(await loadCards(setId)) }
   }
 
-  // 3. rebuild
+  // 4. rebuild
   cards = await loadCards(setId)
   if (cards.some(needsRebuild)) {
     const r = await rebuildSetTree(setId)
