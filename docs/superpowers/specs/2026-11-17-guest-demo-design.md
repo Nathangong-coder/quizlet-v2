@@ -214,7 +214,19 @@ secondary "Already have an invite? Sign up · Sign in" text link goes to the exi
   `npm run invite -- --uses 1 --days 14 --for <email>` mints a code and stamps `invitedAt`.
   *(Builder's call: email the code through `src/lib/mail/` when `RESEND_API_KEY` is set;
   otherwise print it for the owner to send.)*
+- **Admin waitlist page (owner, 2026-11-17):** `/staff/waitlist`, gated by `requireAdmin`
+  (`src/lib/staff/access.ts`), linked from the `/staff` dashboard with a pending count. A
+  table of every request, newest first: email, note, requested at, status (pending /
+  invited + when), filterable by status. *(My call:)* each pending row has an **"Invite"**
+  button, an admin-only server action that mints a single-use, 14-day `InviteCode` through
+  the same code path as `npm run invite`, stamps `invitedAt`, and shows the code to copy
+  (and emails it when `RESEND_API_KEY` is set). The terminal commands above stay as the
+  fallback.
 - Optional: notify `FEEDBACK_TO` of each new request through the existing mail path.
+- **Later, not this pass:** WhatsApp notifications through CallMeBot for new waitlist requests
+  and other events worth the owner's attention (owner, 2026-11-17: "at some point"). Design
+  any notification hook here as one function (`notifyOwner(event)`) so CallMeBot can be
+  plugged in behind it later without touching call sites.
 - After submitting, the guest sees "You're on the list. We'll email an invite." Their demo
   cards stay in their browser.
 
