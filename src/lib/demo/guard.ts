@@ -7,12 +7,14 @@
 // - The per-feature ceiling is ONE conditional `updateMany`
 //   (`calls < ceiling` → increment), so a double click on a one-shot feature
 //   reserves exactly once.
-// - The per-IP limit is write-first: the ticket is created, then RANKED among
-//   the IP's tickets for that feature that day (`createdAt <=` its own). A
-//   ticket ranked past the limit is never served — by any request, not only the
-//   one that created it — and its creator deletes it. Ranking (rather than a
-//   plain count) means a later burst can never displace an earlier guest; a
-//   burst sharing one instant is refused as a whole (fails closed).
+// - The per-IP limit is write-first with an admission flag: a new ticket is
+//   inserted with `admitted = false`, then the IP's tickets for that feature
+//   today are counted (a plain count, which includes every committed insert,
+//   so the k-th insert sees at least k — it can over-refuse under a race,
+//   never over-admit). Within the limit the ticket is admitted; past it, its
+//   creator discards it. The increment requires `admitted = true`, so no
+//   request — not even a concurrent one from the same guest — can spend a
+//   ticket before it is admitted. An admitted ticket is never re-checked.
 // - The global cap is pre-checked, then re-checked after the increment; a
 //   reservation that took the day past the cap is handed back in full and
 //   refused. Concurrent callers near the cap may all be refused (fails closed),
@@ -52,7 +54,7 @@ function findTicket(ctx: GuestCtx, feature: DemoFeature) {
 async function createTicket(ctx: GuestCtx, feature: DemoFeature, now: Date): Promise<Ticket | null> {
   try {
     return await prisma.demoTicket.create({
-      data: { guestId: ctx.guestId, ipHash: ctx.ipHash, feature, calls: 0, spent: 0, createdAt: now },
+      data: { guestId: ctx.guestId, ipHash: ctx.ipHash, feature, calls: 0, spent: 0, admitted: false, createdAt: now },
     })
   } catch (e) {
     if (isUniqueViolation(e)) return null
@@ -61,24 +63,21 @@ async function createTicket(ctx: GuestCtx, feature: DemoFeature, now: Date): Pro
 }
 
 /**
- * Is this ticket among the first `perIpFeatureLimit` its IP opened for this
- * feature on the ticket's own UTC day? Earlier tickets decide; later ones
- * cannot change the answer.
+ * Admits a ticket this request just inserted if its IP has opened no more than
+ * `perIpFeatureLimit` tickets for this feature today (this one included);
+ * otherwise discards it. Never called on a ticket another request created.
  */
-async function withinIpLimit(ticket: Ticket, ctx: GuestCtx): Promise<boolean> {
-  const rank = await prisma.demoTicket.count({
-    where: {
-      ipHash: ticket.ipHash,
-      feature: ticket.feature,
-      createdAt: { gte: utcDayStart(ticket.createdAt), lte: ticket.createdAt },
-    },
+async function admitOrDiscard(ticket: Ticket, ctx: GuestCtx, now: Date): Promise<boolean> {
+  const opened = await prisma.demoTicket.count({
+    where: { ipHash: ticket.ipHash, feature: ticket.feature, createdAt: { gte: utcDayStart(now) } },
   })
-  return rank <= ctx.config.perIpFeatureLimit
-}
-
-/** Removes a ticket this request created that ranked past the IP limit — only if nothing was ever reserved on it. */
-async function discard(ticket: Ticket): Promise<void> {
-  await prisma.demoTicket.deleteMany({ where: { id: ticket.id, spent: 0 } })
+  if (opened > ctx.config.perIpFeatureLimit) {
+    // Guarded: an unadmitted ticket can never have been reserved on.
+    await prisma.demoTicket.deleteMany({ where: { id: ticket.id, admitted: false, spent: 0 } })
+    return false
+  }
+  await prisma.demoTicket.updateMany({ where: { id: ticket.id }, data: { admitted: true } })
+  return true
 }
 
 async function spentToday(now: Date): Promise<number> {
@@ -100,10 +99,7 @@ export async function startRun(
   if (await findTicket(ctx, feature)) return refuse('quota_used')
   const ticket = await createTicket(ctx, feature, now)
   if (!ticket) return refuse('quota_used')
-  if (!(await withinIpLimit(ticket, ctx))) {
-    await discard(ticket)
-    return refuse('quota_used')
-  }
+  if (!(await admitOrDiscard(ticket, ctx, now))) return refuse('quota_used')
   return { ok: true }
 }
 
@@ -119,30 +115,28 @@ export async function reserveCall(
   // 2. The guest's ticket for this feature.
   const isRun = RUN_FEATURES.has(feature)
   let ticket: Ticket | null = await findTicket(ctx, feature)
-  let created = false
 
-  // 3. No ticket: a run must be started first; anything else opens one here.
+  // 3. No ticket: a run must be started first; anything else opens one here,
+  //    admitted only within the per-IP limit.
   if (!ticket) {
     if (isRun) return refuse('run_not_started')
     ticket = await createTicket(ctx, feature, now)
-    if (ticket) created = true
-    // A concurrent request created it first: use theirs.
-    else ticket = await findTicket(ctx, feature)
-    if (!ticket) return refuse('quota_used')
-  }
-
-  // Per-IP limit, on every reservation: a ticket ranked past the limit is never served.
-  if (!(await withinIpLimit(ticket, ctx))) {
-    if (created) await discard(ticket)
-    return refuse('quota_used')
+    if (ticket) {
+      if (!(await admitOrDiscard(ticket, ctx, now))) return refuse('quota_used')
+    } else {
+      // A concurrent request created it first: use theirs. If it isn't
+      // admitted yet, step 5 refuses.
+      ticket = await findTicket(ctx, feature)
+      if (!ticket) return refuse('quota_used')
+    }
   }
 
   // 4. Run window.
   if (isRun && now.getTime() - ticket.createdAt.getTime() > RUN_WINDOW_MS) return refuse('quota_used')
 
-  // 5. Atomic increment: succeeds only while under the ceiling.
+  // 5. Atomic increment: succeeds only on an admitted ticket under the ceiling.
   const { count } = await prisma.demoTicket.updateMany({
-    where: { id: ticket.id, calls: { lt: FEATURE_CEILING[feature] } },
+    where: { id: ticket.id, admitted: true, calls: { lt: FEATURE_CEILING[feature] } },
     data: { calls: { increment: 1 }, spent: { increment: 1 } },
   })
   if (count === 0) return refuse('quota_used')

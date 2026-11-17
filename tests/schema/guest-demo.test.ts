@@ -22,6 +22,10 @@ describe('guest demo schema', () => {
     expect(body('DemoTicket')).toMatch(/spent\s+Int\s+@default\(0\)/)
   })
 
+  it('DemoTicket carries admitted, false until the ticket passes the per-IP limit', () => {
+    expect(body('DemoTicket')).toMatch(/admitted\s+Boolean\s+@default\(false\)/)
+  })
+
   it('InviteRequest.email is unique', () => {
     expect(body('InviteRequest')).toMatch(/email\s+String\s+@unique/)
   })

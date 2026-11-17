@@ -2241,6 +2241,8 @@ model DemoTicket {
   calls     Int      @default(0)
   /// Calls ever reserved, never refunded (a failed call may still bill). The global daily cap sums this.
   spent     Int      @default(0)
+  /// Set once the ticket passed its IP's per-feature limit; reservations require it.
+  admitted  Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@unique([guestId, feature])

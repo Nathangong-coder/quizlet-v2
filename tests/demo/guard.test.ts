@@ -13,6 +13,7 @@ type Row = {
   feature: string
   calls: number
   spent: number
+  admitted: boolean
   createdAt: Date
 }
 
@@ -30,6 +31,7 @@ const { table, demoTicket, nextId } = vi.hoisted(() => {
     feature?: string
     calls?: Num
     spent?: Num
+    admitted?: boolean
     createdAt?: { gte?: Date; lte?: Date }
   }
   type Step = { increment?: number; decrement?: number }
@@ -48,6 +50,7 @@ const { table, demoTicket, nextId } = vi.hoisted(() => {
     if (w.ipHash !== undefined && r.ipHash !== w.ipHash) return false
     if (w.feature !== undefined && r.feature !== w.feature) return false
     if (!num(r.calls, w.calls) || !num(r.spent, w.spent)) return false
+    if (w.admitted !== undefined && r.admitted !== w.admitted) return false
     if (w.createdAt?.gte !== undefined && r.createdAt < w.createdAt.gte) return false
     if (w.createdAt?.lte !== undefined && r.createdAt > w.createdAt.lte) return false
     return true
@@ -69,7 +72,7 @@ const { table, demoTicket, nextId } = vi.hoisted(() => {
       if (table.some((r) => r.guestId === data.guestId && r.feature === data.feature)) {
         throw Object.assign(new Error('Unique constraint failed'), { code: 'P2002' })
       }
-      const row: Row = { id: nextId('t'), calls: 0, spent: 0, createdAt: new Date(), ...data }
+      const row: Row = { id: nextId('t'), calls: 0, spent: 0, admitted: false, createdAt: new Date(), ...data }
       table.push(row)
       return { ...row }
     },
@@ -82,12 +85,13 @@ const { table, demoTicket, nextId } = vi.hoisted(() => {
       const rows = table.filter((r) => matches(r, where))
       return { _sum: { spent: rows.length ? rows.reduce((s, r) => s + r.spent, 0) : null } }
     },
-    async updateMany({ where, data }: { where: Where; data: { calls?: Step; spent?: Step } }) {
+    async updateMany({ where, data }: { where: Where; data: { calls?: Step; spent?: Step; admitted?: boolean } }) {
       await tick()
       const rows = table.filter((r) => matches(r, where))
       for (const r of rows) {
         r.calls += step(data.calls)
         r.spent += step(data.spent)
+        if (data.admitted !== undefined) r.admitted = data.admitted
       }
       return { count: rows.length }
     },
@@ -124,8 +128,9 @@ function ctx(guestId = 'guest-a', ipHash = 'ip-1', overrides: Partial<GuestCtx['
   return { guestId, ipHash, config }
 }
 
+// Seeded tickets default to admitted: they passed the per-IP limit when they opened.
 function seed(row: Partial<Row> & Pick<Row, 'guestId' | 'feature'>) {
-  table.push({ id: nextId('seed'), ipHash: 'ip-seed', calls: 0, spent: 0, createdAt: NOW, ...row })
+  table.push({ id: nextId('seed'), ipHash: 'ip-seed', calls: 0, spent: 0, admitted: true, createdAt: NOW, ...row })
 }
 
 const ticketOf = (guestId: string, feature: string) => table.find((r) => r.guestId === guestId && r.feature === feature)
@@ -247,6 +252,7 @@ describe('per-IP limit', () => {
     }
     expect(await reserveCall(ctx('g4', 'ip-shared'), 'grade', NOW)).toEqual(QUOTA)
     expect(ticketOf('g4', 'grade')).toBeUndefined()
+    expect(table.every((r) => r.admitted)).toBe(true)
     // A different IP is unaffected.
     expect(await reserveCall(ctx('g5', 'ip-other'), 'grade', NOW)).toMatchObject({ ok: true })
   })
@@ -260,21 +266,49 @@ describe('per-IP limit', () => {
     expect(table.reduce((s, r) => s + r.spent, 0)).toBeLessThanOrEqual(3)
   })
 
-  it('a concurrent burst is decided by arrival order: the first three in are served', async () => {
+  it('a concurrent burst with distinct entry stamps also gets at most three calls', async () => {
+    // A plain count may over-refuse a race (here every insert lands before any
+    // count, so all four see 4); it never over-admits.
     const results = await Promise.all(
       ['g1', 'g2', 'g3', 'g4'].map((g, i) => reserveCall(ctx(g, 'ip-shared'), 'grade', at(i))),
     )
-    expect(results.map((r) => r.ok)).toEqual([true, true, true, false])
-    expect(results[3]).toEqual(QUOTA)
-    expect(table.map((r) => r.guestId).sort()).toEqual(['g1', 'g2', 'g3'])
+    expect(results.filter((r) => r.ok).length).toBeLessThanOrEqual(3)
+    expect(table.reduce((s, r) => s + r.spent, 0)).toBeLessThanOrEqual(3)
   })
 
-  it('never serves a ticket that ranks past the limit, even one it did not create', async () => {
-    // Another request from g4 has created g4's ticket, but it is the IP's fourth today.
-    for (const g of ['g1', 'g2', 'g3']) seed({ guestId: g, ipHash: 'ip-shared', feature: 'grade', calls: 1, spent: 1 })
-    seed({ guestId: 'g4', ipHash: 'ip-shared', feature: 'grade', createdAt: at(1) })
-    expect(await reserveCall(ctx('g4', 'ip-shared'), 'grade', at(2))).toEqual(QUOTA)
-    expect(ticketOf('g4', 'grade')).toMatchObject({ calls: 0, spent: 0 })
+  it('out-of-order arrivals (entry stamps decreasing) still serve at most three', async () => {
+    // Each request entered earlier than the last but inserted later: a rank by
+    // entry stamp sees every one of them as first.
+    const results = []
+    for (let i = 0; i < 6; i++) results.push(await reserveCall(ctx(`g${i}`, 'ip-shared'), 'grade', at(10 - i)))
+    expect(results.filter((r) => r.ok).length).toBeLessThanOrEqual(3)
+    expect(table.reduce((s, r) => s + r.spent, 0)).toBeLessThanOrEqual(3)
+  })
+
+  it('never spends a ticket that is not admitted yet, even for its own guest', async () => {
+    // Another request from g4 has inserted g4's ticket but not yet admitted it.
+    seed({ guestId: 'g4', ipHash: 'ip-shared', feature: 'grade', admitted: false })
+    expect(await reserveCall(ctx('g4', 'ip-shared'), 'grade', NOW)).toEqual(QUOTA)
+    expect(ticketOf('g4', 'grade')).toMatchObject({ calls: 0, spent: 0, admitted: false })
+  })
+
+  it('a concurrent same-guest request cannot spend a ticket whose opener is refused', async () => {
+    // The IP is at its limit, so g4's opener will discard g4's new ticket; the
+    // second request (which finds or collides with that ticket) must not spend it.
+    for (const g of ['g1', 'g2', 'g3'])
+      seed({ guestId: g, ipHash: 'ip-shared', feature: 'klp-extract', calls: 1, spent: 1 })
+    const c = ctx('g4', 'ip-shared')
+    const results = await Promise.all([reserveCall(c, 'klp-extract', NOW), reserveCall(c, 'klp-extract', NOW)])
+    expect(results).toEqual([QUOTA, QUOTA])
+    expect(ticketOf('g4', 'klp-extract')).toBeUndefined()
+    expect(table.reduce((s, r) => s + r.spent, 0)).toBe(3)
+  })
+
+  it('an admitted ticket is not re-checked against the IP limit', async () => {
+    seed({ guestId: 'g1', ipHash: 'ip-shared', feature: 'klp-extract', calls: 1, spent: 1 })
+    for (const g of ['g2', 'g3', 'g4', 'g5'])
+      seed({ guestId: g, ipHash: 'ip-shared', feature: 'klp-extract', admitted: false })
+    expect(await reserveCall(ctx('g1', 'ip-shared'), 'klp-extract', NOW)).toMatchObject({ ok: true })
   })
 
   it('a later over-limit guest never displaces an earlier one', async () => {
@@ -297,13 +331,16 @@ describe('per-IP limit', () => {
   })
 
   it('applies to startRun', async () => {
-    for (const g of ['g1', 'g2', 'g3']) expect(await startRun(ctx(g, 'ip-shared'), 'hot-seat', NOW)).toEqual({ ok: true })
+    for (const g of ['g1', 'g2', 'g3'])
+      expect(await startRun(ctx(g, 'ip-shared'), 'hot-seat', NOW)).toEqual({ ok: true })
     expect(await startRun(ctx('g4', 'ip-shared'), 'hot-seat', NOW)).toEqual(QUOTA)
     expect(ticketOf('g4', 'hot-seat')).toBeUndefined()
   })
 
   it('a concurrent burst of four run starts on one IP opens at most three runs', async () => {
-    const results = await Promise.all(['g1', 'g2', 'g3', 'g4'].map((g) => startRun(ctx(g, 'ip-shared'), 'hot-seat', NOW)))
+    const results = await Promise.all(
+      ['g1', 'g2', 'g3', 'g4'].map((g) => startRun(ctx(g, 'ip-shared'), 'hot-seat', NOW)),
+    )
     expect(results.filter((r) => r.ok).length).toBeLessThanOrEqual(3)
     expect(table.length).toBeLessThanOrEqual(3)
   })
