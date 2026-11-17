@@ -6,6 +6,8 @@ import { isSignupOpen } from '@/lib/auth/signup-flag'
 import { FEATURES, getFeature } from '@/lib/marketing/features'
 import { Mock } from '@/components/marketing/mocks'
 import { StatusBadge } from '@/components/marketing/StatusBadge'
+import { DemoVideo } from '@/components/marketing/DemoVideo'
+import { isDemoLinkEnabled } from '@/lib/marketing/demo-video'
 
 /**
  * The signed-out first screen — simple, one job: get a visitor to sign up
@@ -74,6 +76,9 @@ export function Landing() {
           </Link>
         </p>
       </section>
+
+      {/* ---------- Demo video ---------- */}
+      <DemoVideo linksEnabled={isDemoLinkEnabled()} />
 
       {/* ---------- Every study tool, as a gallery ---------- */}
       <section className="mt-14" aria-label="Study tools">
