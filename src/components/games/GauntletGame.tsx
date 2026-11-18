@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Sparkles, Sword, Heart, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { buildGauntletRun, gauntletOptions, gradeGameAnswer, submitGameScore } from '@/actions/games'
+import { realGauntletApi, type GauntletApi } from '@/lib/games/api'
 import {
   createGauntlet,
   reduceGauntlet,
@@ -37,7 +37,7 @@ const ENEMY_SPRITE: Record<EnemyKind, Sprite> = { slime: SLIME, imp: IMP, 'dark-
  * MC, grading for SA). Random rolls and clocks are read at the event
  * boundary and passed in, so the reducer stays pure.
  */
-export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boolean }) {
+export function GauntletGame({ setId, signedIn, api = realGauntletApi, aiLabel }: { setId: string; signedIn: boolean; api?: GauntletApi; aiLabel?: string }) {
   const [mode, setMode] = useState<GauntletMode>('mc')
   const [plan, setPlan] = useState<(RunPlan & { cards: Card[] }) | null>(null)
   const [state, setState] = useState<GauntletState | null>(null)
@@ -55,7 +55,7 @@ export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boo
   function loadOptions(cardId: string, ask: 'term' | 'definition') {
     setOptions(null)
     startTransition(async () => {
-      const res = await gauntletOptions(cardId, ask)
+      const res = await api.options(cardId, ask)
       if (!res.success) return void toast.error(res.error)
       setOptions({ cardId, ...res.data })
     })
@@ -63,7 +63,7 @@ export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boo
 
   function start() {
     startTransition(async () => {
-      const res = await buildGauntletRun(setId, { mode })
+      const res = await api.buildRun(setId, mode)
       if (!res.success) return void toast.error(res.error)
       const s = createGauntlet(res.data, Date.now())
       setPlan(res.data)
@@ -81,7 +81,7 @@ export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boo
     if (!best || done.score > best.score) writeBest({ score: done.score })
     if (!signedIn) return
     startTransition(async () => {
-      const res = await submitGameScore({ game: 'gauntlet', mode, setId, score: done.score, meta: { kills: done.kills, hp: done.hp, status: done.status } })
+      const res = await api.submitScore({ game: 'gauntlet', mode, setId, score: done.score, meta: { kills: done.kills, hp: done.hp, status: done.status } })
       if (res.success) setSaved(res.data.saved ? 'Saved to the leaderboard.' : res.data.reason === 'no_handle' ? 'Choose a handle in Account to appear on the leaderboard.' : null)
     })
   }
@@ -118,7 +118,7 @@ export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boo
   function submitTyped(now: number, roll: number) {
     if (!card || typed.trim().length === 0) return
     startTransition(async () => {
-      const res = await gradeGameAnswer(card.id, typed)
+      const res = await api.grade(card.id, typed)
       if (!res.success) return void toast.error(res.error)
       const hit = rollHit(res.data.accuracy, roll)
       const pct = Math.round(res.data.accuracy * 100)
@@ -167,7 +167,9 @@ export function GauntletGame({ setId, signedIn }: { setId: string; signedIn: boo
             )
           })}
         </fieldset>
-        {signedIn && <CredentialNote calls={mode === 'mc' ? 'one call per card the first time anyone meets it (then cached)' : 'one call per swing'} extra="Falls back to plain options from the set when no credential is usable." />}
+        {aiLabel ? (
+          <div className="rounded-lg border border-warning/40 bg-warning-subtle p-3 text-sm" role="note"><p>{aiLabel}</p></div>
+        ) : signedIn && <CredentialNote calls={mode === 'mc' ? 'one call per card the first time anyone meets it (then cached)' : 'one call per swing'} extra="Falls back to plain options from the set when no credential is usable." />}
         {best && <p className="text-xs text-muted-foreground">Your best on this device ({mode === 'mc' ? 'multiple choice' : 'short answer'}): {best.score}.</p>}
         <Button onClick={start} disabled={isPending}>{isPending ? 'Sharpening…' : 'Enter the gauntlet'}</Button>
       </div>
