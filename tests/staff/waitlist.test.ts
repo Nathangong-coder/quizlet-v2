@@ -77,14 +77,13 @@ describe('inviteFromWaitlist', () => {
     expect(stamp.data.inviteCode).toBe(h.committed[0].code)
     if (res.success) {
       expect(res.data.code).toBe(`${(h.committed[0].code as string).slice(0, 5)}-${(h.committed[0].code as string).slice(5)}`)
-      expect(res.data.emailed).toBe(false) // no RESEND_API_KEY
+      expect(res.data.emailed).toBe(true) // mirrors sendInviteEmail (it owns the key check)
     }
     expect(h.sendInviteEmail).toHaveBeenCalledWith('ann@example.com', expect.stringMatching(/^[0-9A-Z]{5}-[0-9A-Z]{5}$/))
   })
 
-  it('reports emailed only when a Resend key is configured and the send succeeded', async () => {
+  it('reports emailed exactly as sendInviteEmail does', async () => {
     h.auth.mockResolvedValue(ADMIN)
-    vi.stubEnv('RESEND_API_KEY', 're_test')
     const ok = await inviteFromWaitlist('r1')
     expect(ok.success && ok.data.emailed).toBe(true)
 

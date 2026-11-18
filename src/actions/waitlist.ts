@@ -53,8 +53,7 @@ export async function inviteFromWaitlist(
   }
 
   const formatted = formatInviteCode(code)
-  const sent = await sendInviteEmail(request.email, formatted)
-  const emailed = sent && Boolean(process.env.RESEND_API_KEY?.trim())
+  const emailed = await sendInviteEmail(request.email, formatted)
 
   revalidatePath('/staff/waitlist')
   return { success: true, data: { code: formatted, emailed } }

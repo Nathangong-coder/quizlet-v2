@@ -119,10 +119,14 @@ export async function sendOwnerNotification(event: OwnerEvent): Promise<void> {
 }
 
 /**
- * Mail one invite code (already formatted for display). Returns whether the
- * send did not report failure. MUST NEVER THROW. The code is never logged.
+ * Mail one invite code (already formatted for display). Returns true only when it
+ * was actually sent through Resend.
+ * With RESEND_API_KEY absent it returns false WITHOUT touching any transport:
+ * the console fallback would print the code (a bearer credential) to the server
+ * log. MUST NEVER THROW.
  */
 export async function sendInviteEmail(to: string, code: string): Promise<boolean> {
+  if (!process.env.RESEND_API_KEY?.trim()) return false
   try {
     await transport().send({ to, ...inviteTemplate({ origin: appOrigin(), code }) })
     return true
