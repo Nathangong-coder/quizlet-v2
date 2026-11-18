@@ -30,9 +30,9 @@ function exportedAsyncFunctions(): { name: string; body: string }[] {
 describe('src/actions/demo.ts', () => {
   const exports = exportedAsyncFunctions()
 
-  it('has the eight demo actions', () => {
+  it('has the eight demo actions and requestInvite', () => {
     expect(exports.map((e) => e.name).sort()).toEqual(
-      ['demoAutocomplete', 'demoExtractPoints', 'demoGauntletOptions', 'demoGauntletRun', 'demoGrade', 'demoGradeGameAnswer', 'demoProbeHotSeat', 'demoStartHotSeat'].sort(),
+      ['demoAutocomplete', 'demoExtractPoints', 'demoGauntletOptions', 'demoGauntletRun', 'demoGrade', 'demoGradeGameAnswer', 'demoProbeHotSeat', 'demoStartHotSeat', 'requestInvite'].sort(),
     )
   })
 

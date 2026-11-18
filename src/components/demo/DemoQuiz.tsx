@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { demoExtractPoints, demoGrade } from '@/actions/demo'
 import { DemoVerdicts, type DemoVerdictRow } from '@/components/demo/DemoVerdicts'
 import { GeneratedPointsWarning } from '@/components/demo/GeneratedPointsWarning'
-import { WaitlistPrompt } from '@/components/demo/WaitlistPrompt'
+import { WaitlistPrompt, type WaitlistReason } from '@/components/demo/WaitlistPrompt'
 import { GradeCard } from '@/components/quiz/GradeCard'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -41,7 +41,7 @@ export function DemoQuiz({ cards }: { cards: DemoQuizCard[] }) {
   const [graded, setGraded] = useState<Graded | null>(null)
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [prompt, setPrompt] = useState<{ open: boolean; reason: string }>({ open: false, reason: '' })
+  const [prompt, setPrompt] = useState<{ open: boolean; reason: WaitlistReason }>({ open: false, reason: 'invite' })
 
   const guestCards = state.set?.cards ?? []
   const canExtract = !state.used['klp-extract']
@@ -57,7 +57,7 @@ export function DemoQuiz({ cards }: { cards: DemoQuizCard[] }) {
 
   if (!loaded) return <div className="h-48 rounded-lg border border-border bg-muted/40" aria-hidden />
 
-  const openPrompt = (reason: string) => setPrompt({ open: true, reason })
+  const openPrompt = (reason: WaitlistReason) => setPrompt({ open: true, reason })
   const waitlistPrompt = (
     <WaitlistPrompt open={prompt.open} onOpenChange={(open) => setPrompt((p) => ({ ...p, open }))} reason={prompt.reason} />
   )

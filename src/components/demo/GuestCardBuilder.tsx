@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { GUEST_LIMITS } from '@/lib/demo/config'
 import { addGuestCard, createGuestSet, markUsed } from '@/lib/demo/store'
 import { useGuestState } from '@/lib/demo/use-guest-state'
-import { WaitlistPrompt } from './WaitlistPrompt'
+import { WaitlistPrompt, type WaitlistReason } from './WaitlistPrompt'
 
 type Side = 'term' | 'definition'
 
@@ -18,14 +18,14 @@ export function GuestCardBuilder() {
   const [term, setTerm] = useState('')
   const [definition, setDefinition] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [prompt, setPrompt] = useState<{ open: boolean; reason: string }>({ open: false, reason: 'cards' })
+  const [prompt, setPrompt] = useState<{ open: boolean; reason: WaitlistReason }>({ open: false, reason: 'cards' })
   const [pending, setPending] = useState(false)
   const [suggestions, setSuggestions] = useState<{ side: Side; items: string[] } | null>(null)
 
   if (!loaded) return <div className="h-64 rounded-lg border border-border bg-muted/40" aria-hidden />
 
   const cards = state.set?.cards ?? []
-  const openPrompt = (reason: string) => setPrompt({ open: true, reason })
+  const openPrompt = (reason: WaitlistReason) => setPrompt({ open: true, reason })
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -52,6 +52,7 @@ export function GuestCardBuilder() {
   async function suggest(side: Side) {
     if (state.used.autocomplete) return openPrompt('autocomplete')
     if (pending) return
+    setError(null)
     setPending(true)
     try {
       const res = await demoAutocomplete({
@@ -63,8 +64,15 @@ export function GuestCardBuilder() {
       if (res.ok) {
         update(markUsed(state, 'autocomplete'))
         setSuggestions({ side, items: res.data.suggestions })
+      } else if (res.reason === 'quota_used') {
+        // The server says it's spent: remember that, so the button stops calling.
+        update(markUsed(state, 'autocomplete'))
+        openPrompt('quota_used')
+      } else if (res.reason === 'demo_cap') {
+        openPrompt('demo_cap')
       } else {
-        openPrompt(res.reason)
+        // demo_off, invalid, ai_failed: nothing an invite fixes.
+        setError(res.message)
       }
     } finally {
       setPending(false)

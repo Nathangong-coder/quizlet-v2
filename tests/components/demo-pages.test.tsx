@@ -67,12 +67,38 @@ describe('GuestCardBuilder', () => {
     expect(lastOpen()?.reason).toBe('autocomplete')
   })
 
-  it('opens the prompt with the refusal reason when the action refuses', async () => {
+  it('opens the prompt when the demo is full (demo_cap)', async () => {
     demoAutocomplete.mockResolvedValue({ ok: false, reason: 'demo_cap', message: 'busy' })
     render(<GuestCardBuilder />)
     await screen.findByLabelText('Set title')
     fireEvent.click(screen.getAllByRole('button', { name: 'AI suggest' })[0])
     await waitFor(() => expect(lastOpen()?.reason).toBe('demo_cap'))
+  })
+
+  it('a server quota_used opens the prompt and marks autocomplete used, so it stops calling', async () => {
+    demoAutocomplete.mockResolvedValue({ ok: false, reason: 'quota_used', message: "You've used this in the demo." })
+    render(<GuestCardBuilder />)
+    await screen.findByLabelText('Set title')
+    fireEvent.click(screen.getAllByRole('button', { name: 'AI suggest' })[0])
+    await waitFor(() => expect(lastOpen()?.reason).toBe('quota_used'))
+    const used = await screen.findAllByRole('button', { name: 'Used in the demo' })
+    expect(used.length).toBe(2)
+    fireEvent.click(used[0])
+    expect(demoAutocomplete).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['ai_failed', 'The demo is having trouble. Try again.'],
+    ['invalid', "The demo can't do that."],
+    ['demo_off', 'The demo is switched off right now.'],
+  ])('a %s refusal shows an inline message, not the prompt, and leaves the button usable', async (reason, message) => {
+    demoAutocomplete.mockResolvedValue({ ok: false, reason, message })
+    render(<GuestCardBuilder />)
+    await screen.findByLabelText('Set title')
+    fireEvent.click(screen.getAllByRole('button', { name: 'AI suggest' })[0])
+    expect(await screen.findByText(message)).toBeTruthy()
+    expect(lastOpen()).toBeUndefined()
+    expect(screen.getAllByRole('button', { name: 'AI suggest' }).length).toBe(2)
   })
 })
 

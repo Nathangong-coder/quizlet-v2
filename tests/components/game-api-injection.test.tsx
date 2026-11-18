@@ -43,6 +43,15 @@ describe('GauntletGame api injection', () => {
     expect(screen.getByText("Graded on the demo's keys.")).toBeTruthy()
     expect(screen.queryByText(/uses your ai credentials/i)).toBeNull()
   })
+
+  it("a visitor's note says the wrong options are plain ones, unless aiLabel says they are AI-written", () => {
+    render(<GauntletGame setId="s1" signedIn={false} />)
+    expect(screen.getByText(/the wrong options are plain ones/i)).toBeTruthy()
+    cleanup()
+    render(<GauntletGame setId="s1" signedIn={false} aiLabel="Demo · AI-written options, one run" />)
+    expect(screen.queryByText(/the wrong options are plain ones/i)).toBeNull()
+    expect(screen.getByText(/playing as a visitor/i)).toBeTruthy()
+  })
 })
 
 describe('HotSeatGame api injection', () => {

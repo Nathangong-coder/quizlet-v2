@@ -2,10 +2,12 @@ import { appOrigin } from '@/lib/mail/origin'
 import { consoleTransport, resendTransport, type MailTransport } from '@/lib/mail/transport'
 import {
   feedbackTemplate,
+  ownerNotificationTemplate,
   passwordResetTemplate,
   verifyEmailTemplate,
   type MailBody,
 } from '@/lib/mail/templates'
+import type { OwnerEvent } from '@/lib/notify/owner'
 
 const DEFAULT_FROM = 'Quizlet <onboarding@resend.dev>'
 
@@ -104,4 +106,13 @@ export async function sendFeedbackEmail(input: {
     console.error('[mail] feedback delivery failed', { to, subject: input.subject, error })
     return false
   }
+}
+
+/**
+ * One operator notification (see `notifyOwner`), to the same inbox as
+ * feedback, reply-to the requester so answering them is one click.
+ * MUST NEVER THROW — `sendQuietly`.
+ */
+export async function sendOwnerNotification(event: OwnerEvent): Promise<void> {
+  await sendQuietly(feedbackRecipient(), () => ownerNotificationTemplate(event), event.email)
 }

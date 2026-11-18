@@ -149,7 +149,9 @@ export function GauntletGame({ setId, signedIn, api = realGauntletApi, aiLabel }
           {signedIn ? (
             <p><span className="font-semibold">Built from what you are weakest on.</span> Your least-confident cards become the champions and the boss. It only reads your memory; nothing here changes it.</p>
           ) : (
-            <p><span className="font-semibold">Playing as a visitor.</span> The enemies are a shuffle of the set and the wrong options are plain ones. Sign in and the run is built from what you are weakest on, the distractors are written to sound right, and your score goes on the board.</p>
+            <p><span className="font-semibold">Playing as a visitor.</span> {aiLabel
+              ? 'The enemies are a shuffle of the set. Sign in and the run is built from what you are weakest on, and your score goes on the board.'
+              : 'The enemies are a shuffle of the set and the wrong options are plain ones. Sign in and the run is built from what you are weakest on, the distractors are written to sound right, and your score goes on the board.'}</p>
           )}
         </div>
         <fieldset className="grid gap-2 sm:grid-cols-2">
