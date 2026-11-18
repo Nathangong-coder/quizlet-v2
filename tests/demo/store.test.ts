@@ -37,12 +37,18 @@ describe('guest store', () => {
     expect(addGuestCard(withSet(), { term: ' ', definition: 'b' })).toEqual({ ok: false, invalid: true })
     expect(addGuestCard(withSet(), { term: 'a', definition: '' })).toEqual({ ok: false, invalid: true })
   })
-  it('editing a card keeps its points', () => {
+  it('editing a card keeps its points when the text is unchanged and clears them when it changes', () => {
     const points = { cardHash: 'h', points: [], sig: 's' }
     const s = withSet(1)
     s.set!.cards[0].points = points
-    const r = editGuestCard(s, s.set!.cards[0].id, { term: 'new' })
-    expect(r.ok && r.state.set!.cards[0]).toMatchObject({ term: 'new', definition: 'd0', points })
+    const id = s.set!.cards[0].id
+    const same = editGuestCard(s, id, { definition: 'd0' })
+    expect(same.ok && same.state.set!.cards[0].points).toEqual(points)
+    const term = editGuestCard(s, id, { term: 'new' })
+    expect(term.ok && term.state.set!.cards[0]).toMatchObject({ term: 'new', definition: 'd0' })
+    expect(term.ok && term.state.set!.cards[0].points).toBeUndefined()
+    const def = editGuestCard(s, id, { definition: 'other' })
+    expect(def.ok && def.state.set!.cards[0].points).toBeUndefined()
   })
   it('survives throwing storage', () => {
     expect(loadGuestState(throwing())).toEqual(emptyGuestState())

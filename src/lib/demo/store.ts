@@ -112,7 +112,13 @@ export function editGuestCard(
   const term = (patch.term ?? target.term).trim()
   const definition = (patch.definition ?? target.definition).trim()
   if (!term || !definition) return { ok: false, invalid: true }
-  const cards = state.set.cards.map((c) => (c.id === id ? { ...c, term, definition } : c))
+  // The signature binds the card text, so points do not survive an edit.
+  const changed = term !== target.term || definition !== target.definition
+  const cards = state.set.cards.map((c) => {
+    if (c.id !== id) return c
+    const { points: _stale, ...rest } = c
+    return changed ? { ...rest, term, definition } : { ...c, term, definition }
+  })
   return { ok: true, state: { ...state, set: { ...state.set, cards } } }
 }
 

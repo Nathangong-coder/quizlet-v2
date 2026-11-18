@@ -82,26 +82,32 @@ export function DemoQuiz({ cards }: { cards: DemoQuizCard[] }) {
       openPrompt('quizzes')
       return
     }
-    let next = started.state
-    update(next)
+    const pool = source === 'demo' ? demoPool : guestEligible
+    const picked = pool[Math.floor(Math.random() * pool.length)]
+    if (!picked) {
+      setMessage('No cards are available for this source.')
+      return
+    }
     setAnswer('')
     setGraded(null)
     if (source === 'demo') {
-      const card = demoPool[Math.floor(Math.random() * demoPool.length)]
-      if (card) setQuestion({ kind: 'demo', id: card.id, term: card.term, definition: card.definition })
+      update(started.state)
+      setQuestion({ kind: 'demo', id: picked.id, term: picked.term, definition: picked.definition })
       return
     }
-    const guest = guestEligible[Math.floor(Math.random() * guestEligible.length)]
-    if (!guest) return
+    const guest = picked as (typeof guestCards)[number]
     if (guest.points) {
+      update(started.state)
       setQuestion({ kind: 'guest', id: guest.id, term: guest.term, definition: guest.definition, points: guest.points })
       return
     }
+    // Extract FIRST: the quiz is only counted once a question will be shown, so a
+    // provider failure never spends the guest's one quiz.
     setPending(true)
     try {
       const res = await demoExtractPoints({ card: { term: guest.term, definition: guest.definition } })
-      if (!res.ok) return refused(res, 'klp-extract', next)
-      next = markUsed(next, 'klp-extract')
+      if (!res.ok) return refused(res, 'klp-extract', state)
+      const next = markUsed(started.state, 'klp-extract')
       // Keep the signed points on the card so a later quiz does not extract again.
       update({
         ...next,

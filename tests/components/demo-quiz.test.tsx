@@ -125,6 +125,22 @@ describe('DemoQuiz', () => {
     expect(stored.used['klp-extract']).toBe(true)
   })
 
+  it('does not spend the quiz when extraction fails; a retry then starts it', async () => {
+    seedGuest()
+    demoExtractPoints.mockResolvedValueOnce({ ok: false, reason: 'ai_failed', message: 'x' })
+    demoExtractPoints.mockResolvedValueOnce({ ok: true, data: SIGNED })
+    render(<DemoQuiz cards={cards} />)
+    await startQuiz('My cards')
+    expect((await screen.findByRole('alert')).textContent).toBe('The demo is having trouble. Try again.')
+    expect(screen.queryByLabelText('Your answer')).toBeNull()
+    expect(JSON.parse(window.localStorage.getItem(DEMO_STORE_KEY)!).quizzesStarted).toBe(0)
+    expect(lastOpen()).toBeUndefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Start quiz' }))
+    await screen.findByLabelText('Your answer')
+    expect(lastOpen()).toBeUndefined()
+    expect(JSON.parse(window.localStorage.getItem(DEMO_STORE_KEY)!).quizzesStarted).toBe(1)
+  })
+
   it('opens the prompt with quizzes on a second New quiz', async () => {
     demoGrade.mockResolvedValue(gradeData(false))
     render(<DemoQuiz cards={cards} />)
