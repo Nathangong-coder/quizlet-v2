@@ -8,10 +8,14 @@
  *   npm run invite -- --uses 5 --days 30 --label "discord launch"
  *   npm run invite -- --list
  *   npm run invite -- --revoke ABCDE-FG234
+ *   npm run invite -- --requests             (pending waitlist requests)
+ *   npm run invite -- --for ann@example.com  (single-use, 14-day code for that request)
  */
 
 import { prisma } from '../src/lib/db'
-import { generateInviteCode, formatInviteCode, normalizeInviteCode } from '../src/lib/invites/code'
+import { formatInviteCode, normalizeInviteCode } from '../src/lib/invites/code'
+import { mintInvite } from '../src/lib/invites/mint'
+import { normalizeEmail } from '../src/lib/demo/waitlist'
 
 function flag(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`)
@@ -64,6 +68,44 @@ async function main() {
     return
   }
 
+  if (has('requests')) {
+    const pending = await prisma.inviteRequest.findMany({ where: { invitedAt: null }, orderBy: { createdAt: 'desc' } })
+    if (pending.length === 0) {
+      console.log('No pending requests.')
+      return
+    }
+    for (const r of pending) {
+      console.log(`${r.email}  ${r.createdAt.toISOString().slice(0, 10)}` + (r.note ? `  "${r.note}"` : ''))
+    }
+    return
+  }
+
+  const forEmail = flag('for')
+  if (forEmail !== undefined) {
+    const email = normalizeEmail(forEmail)
+    if (!email) throw new Error('--for needs a valid email address')
+    const request = await prisma.inviteRequest.findUnique({ where: { email } })
+    if (!request) throw new Error(`No waitlist request for ${email}`)
+    if (request.invitedAt) throw new Error(`${email} was already invited`)
+    // One transaction with a conditional stamp: a concurrent invite (admin page
+    // or another terminal) rolls the mint back instead of leaving an orphan code.
+    const { code } = await prisma.$transaction(async (tx) => {
+      const minted = await mintInvite({ uses: 1, days: 14, label: `waitlist: ${email}` }, tx)
+      const { count } = await tx.inviteRequest.updateMany({
+        where: { id: request.id, invitedAt: null },
+        data: { invitedAt: new Date(), inviteCode: minted.code },
+      })
+      if (count === 0) throw new Error(`${email} was already invited`)
+      return minted
+    })
+    console.log(`Invite code for ${email}:`)
+    console.log(`  ${formatInviteCode(code)}`)
+    console.log('  uses:    1')
+    console.log('  expires: 14 days')
+    console.log('Not emailed from the terminal; send it yourself.')
+    return
+  }
+
   const uses = Number(flag('uses') ?? 1)
   if (!Number.isInteger(uses) || uses < 1) {
     throw new Error('--uses must be a positive integer')
@@ -73,18 +115,7 @@ async function main() {
     throw new Error('--days must be a positive number')
   }
 
-  const code = generateInviteCode()
-  await prisma.inviteCode.create({
-    data: {
-      code,
-      label: flag('label') ?? null,
-      maxUses: uses,
-      // Both counters start equal; maxUses never moves again, so
-      // `maxUses - usesRemaining` is always the used count.
-      usesRemaining: uses,
-      expiresAt: days === undefined ? null : new Date(Date.now() + days * 24 * 60 * 60 * 1000),
-    },
-  })
+  const { code } = await mintInvite({ uses, days, label: flag('label') ?? null })
 
   console.log('Invite code:')
   console.log(`  ${formatInviteCode(code)}`)

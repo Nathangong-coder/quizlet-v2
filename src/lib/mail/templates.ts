@@ -133,3 +133,26 @@ export function ownerNotificationTemplate(event: OwnerEvent): MailBody {
     ].join('\n'),
   }
 }
+
+/** The invite code itself, plus the way to use it. Pure. */
+export function inviteTemplate(input: { origin: string; code: string }): MailBody {
+  const url = `${input.origin}/signup`
+  return {
+    subject: 'Your invite code',
+    text: [
+      'You asked for an invite. Here is your code:',
+      '',
+      input.code,
+      '',
+      `Create your account at ${url}`,
+      '',
+      'The code works once and expires in 14 days.',
+    ].join('\n'),
+    html: [
+      `<p>You asked for an invite. Here is your code:</p>`,
+      `<p><strong>${escapeHtml(input.code)}</strong></p>`,
+      `<p><a href="${escapeHtml(url)}">Create your account</a></p>`,
+      `<p>The code works once and expires in 14 days.</p>`,
+    ].join('\n'),
+  }
+}

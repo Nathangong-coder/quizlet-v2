@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { requireStaff } from '@/lib/staff/access'
 import { loadStaffOverview } from '@/lib/staff/queries'
 import { isAdmin } from '@/lib/auth/roles'
+import { countPendingWaitlist } from '@/lib/demo/waitlist'
 import { StaffNav } from './StaffNav'
 
 /**
@@ -17,6 +18,8 @@ export default async function StaffPage() {
 
   const o = await loadStaffOverview()
 
+  const admin = isAdmin(staff.role)
+
   const tiles: { label: string; value: number; hint?: string }[] = [
     { label: 'Live key points', value: o.liveKlps },
     { label: 'Superseded', value: o.supersededKlps, hint: 'kept — history stays truthful' },
@@ -26,6 +29,7 @@ export default async function StaffPage() {
     { label: 'Learners with evidence', value: o.learnersWithEvidence },
     { label: 'Sets', value: o.sets },
   ]
+  if (admin) tiles.push({ label: 'Waitlist (pending)', value: await countPendingWaitlist() })
 
   return (
     <div className="space-y-6">
@@ -36,7 +40,7 @@ export default async function StaffPage() {
         </p>
       </div>
 
-      <StaffNav isAdmin={isAdmin(staff.role)} />
+      <StaffNav isAdmin={admin} />
 
       <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((t) => (

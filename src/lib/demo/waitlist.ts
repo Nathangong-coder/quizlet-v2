@@ -58,3 +58,39 @@ export async function recordInviteRequest(
   await prisma.inviteRequest.update({ where: { email: input.email }, data: { lastRequestedAt: now } })
   return { status: 'already' }
 }
+
+export type WaitlistFilter = 'pending' | 'invited' | 'all'
+
+export interface WaitlistRow {
+  id: string
+  email: string
+  note: string | null
+  source: string
+  createdAt: Date
+  lastRequestedAt: Date
+  invitedAt: Date | null
+  inviteCode: string | null
+}
+
+const FILTER_WHERE = {
+  pending: { invitedAt: null },
+  invited: { invitedAt: { not: null } },
+  all: {},
+} as const
+
+/** Waitlist rows, newest request first. Admin pages only: callers gate. */
+export async function listWaitlist(filter: WaitlistFilter): Promise<WaitlistRow[]> {
+  return prisma.inviteRequest.findMany({
+    where: FILTER_WHERE[filter] ?? FILTER_WHERE.all,
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true, email: true, note: true, source: true,
+      createdAt: true, lastRequestedAt: true, invitedAt: true, inviteCode: true,
+    },
+  })
+}
+
+/** Requests nobody has invited yet. */
+export async function countPendingWaitlist(): Promise<number> {
+  return prisma.inviteRequest.count({ where: { invitedAt: null } })
+}

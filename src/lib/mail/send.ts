@@ -2,6 +2,7 @@ import { appOrigin } from '@/lib/mail/origin'
 import { consoleTransport, resendTransport, type MailTransport } from '@/lib/mail/transport'
 import {
   feedbackTemplate,
+  inviteTemplate,
   ownerNotificationTemplate,
   passwordResetTemplate,
   verifyEmailTemplate,
@@ -115,4 +116,18 @@ export async function sendFeedbackEmail(input: {
  */
 export async function sendOwnerNotification(event: OwnerEvent): Promise<void> {
   await sendQuietly(feedbackRecipient(), () => ownerNotificationTemplate(event), event.email)
+}
+
+/**
+ * Mail one invite code (already formatted for display). Returns whether the
+ * send did not report failure. MUST NEVER THROW. The code is never logged.
+ */
+export async function sendInviteEmail(to: string, code: string): Promise<boolean> {
+  try {
+    await transport().send({ to, ...inviteTemplate({ origin: appOrigin(), code }) })
+    return true
+  } catch (error) {
+    console.error('[mail] invite delivery failed', { to, error })
+    return false
+  }
 }
