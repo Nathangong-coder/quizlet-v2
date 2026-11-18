@@ -1,30 +1,68 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { emptyGuestState, loadGuestState, saveGuestState, type GuestState } from './store'
+import { useCallback, useSyncExternalStore } from 'react'
+import { DEMO_STORE_KEY, emptyGuestState, loadGuestState, saveGuestState, type GuestState } from './store'
 
-const CHANGE_EVENT = 'synapse-demo:change'
+// The guest's state as an external store (the useState + useEffect spelling is a
+// lint error here: react-hooks/set-state-in-effect). The server snapshot is the
+// empty state and `loaded` is false there, so server rendering never touches
+// window and callers render a neutral placeholder until the client has read
+// storage — a returning guest never sees the empty UI flash.
+//
+// One module-level record serves every hook instance on the page (the shell and
+// the page body), so they agree even with no storage. It is keyed by the raw
+// stored string: a snapshot re-parses only when storage changed underneath it,
+// and returns the same object otherwise (useSyncExternalStore needs that). When
+// storage throws, the record is the state — it lives in memory for the page.
 
-// Reads storage in an effect so server rendering never touches window. If storage
-// throws, loadGuestState/saveGuestState swallow it and state lives in memory.
-// `loaded` is false until that effect has run: callers render a neutral
-// placeholder until then, so a returning guest never sees the empty UI flash.
-// Hook instances on one page (the shell and the page body) share changes through
-// a window event that carries the new state, so they agree even with no storage.
+const BLOCKED = Symbol('storage blocked')
+type Raw = string | null | typeof BLOCKED
+
+const SERVER_STATE = emptyGuestState()
+const listeners = new Set<() => void>()
+let memory: { raw: Raw; state: GuestState } | null = null
+
+function readRaw(): Raw {
+  try {
+    return window.localStorage.getItem(DEMO_STORE_KEY)
+  } catch {
+    return BLOCKED
+  }
+}
+
+function snapshot(): GuestState {
+  const raw = readRaw()
+  if (memory && memory.raw === raw) return memory.state
+  memory = { raw, state: raw === BLOCKED ? emptyGuestState() : loadGuestState() }
+  return memory.state
+}
+
+function subscribe(cb: () => void) {
+  listeners.add(cb)
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === DEMO_STORE_KEY) cb()
+  }
+  window.addEventListener('storage', onStorage)
+  return () => {
+    listeners.delete(cb)
+    window.removeEventListener('storage', onStorage)
+  }
+}
+
+const NEVER_CHANGES = () => () => {}
+const ON_CLIENT = () => true
+const ON_SERVER = () => false
+
 export function useGuestState(): [GuestState, (next: GuestState) => void, boolean] {
-  const [state, setState] = useState<GuestState>(emptyGuestState)
-  const [loaded, setLoaded] = useState(false)
-  useEffect(() => {
-    setState(loadGuestState())
-    setLoaded(true)
-    const onChange = (e: Event) => setState((e as CustomEvent<GuestState>).detail)
-    window.addEventListener(CHANGE_EVENT, onChange)
-    return () => window.removeEventListener(CHANGE_EVENT, onChange)
-  }, [])
+  const state = useSyncExternalStore(subscribe, snapshot, () => SERVER_STATE)
+  const loaded = useSyncExternalStore(NEVER_CHANGES, ON_CLIENT, ON_SERVER)
   const update = useCallback((next: GuestState) => {
-    setState(next)
     saveGuestState(next)
-    window.dispatchEvent(new CustomEvent<GuestState>(CHANGE_EVENT, { detail: next }))
+    // Key the record to whatever storage now holds: the new string when the
+    // write landed, BLOCKED or the old string when it did not — either way the
+    // page keeps `next` until storage itself changes.
+    memory = { raw: readRaw(), state: next }
+    for (const l of listeners) l()
   }, [])
   return [state, update, loaded]
 }

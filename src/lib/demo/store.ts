@@ -116,8 +116,9 @@ export function editGuestCard(
   const changed = term !== target.term || definition !== target.definition
   const cards = state.set.cards.map((c) => {
     if (c.id !== id) return c
-    const { points: _stale, ...rest } = c
-    return changed ? { ...rest, term, definition } : { ...c, term, definition }
+    const edited: GuestCard = { ...c, term, definition }
+    if (changed) delete edited.points
+    return edited
   })
   return { ok: true, state: { ...state, set: { ...state.set, cards } } }
 }
