@@ -32,6 +32,11 @@ Flashcards and quizzes are only the start. Every card can be broken into **key l
 - Sets are private by default, and the owner can make them shareable by link
 - Roles (`learner` / `staff` / `admin`) and a staff area (`/staff`) for AI call history, key-point authoring, coverage and learners
 
+**Guest demo**
+- The landing page carries a chaptered demo video; each chapter has a "Try it" link into `/demo`, which needs no account
+- A visitor studies one curated set (`DEMO_SET_ID`), builds a five-card set of their own in browser storage, takes one graded short-answer question (on the demo set or on their own card, whose key points are generated on the spot and marked as rougher), tries one AI autocomplete while writing a card, reviews, and plays Gauntlet and Hot Seat once each
+- Guest AI runs on the operator's keys (`DEMO_AI_USER_ID`) behind a guard: one try per feature per visitor, a per-IP limit and a global daily cap. Nothing a guest does is saved to the database except that allowance and an optional "Request an invite" email, which admins turn into a single-use invite at `/staff/waitlist`
+
 > Voice interviews (spoken answers graded on delivery as well as content) are planned and not built yet.
 
 ---
@@ -84,6 +89,18 @@ Optional:
 - `BLOB_READ_WRITE_TOKEN`: uploading images and files to cards
 - `RESEND_API_KEY` / `MAIL_FROM`: real email. When unset, verification and reset links print to the server log, so local sign-up works with no inbox
 - `CREDENTIALS_SIGNUP_ENABLED="true"`: turns on password sign-up (off by default; this is a master switch)
+
+Guest demo (all optional; the demo is off unless the first three are set, along with `NEXTAUTH_SECRET`):
+
+| Variable | Purpose |
+|---|---|
+| `DEMO_ENABLED` | `"true"` turns on `/demo` and the landing's "Try it" links. Anything else shows "The demo isn't available right now" |
+| `DEMO_SET_ID` | The set guests study. It must be readable signed out (public or link-shared) |
+| `DEMO_AI_USER_ID` | The account whose stored AI keys pay for guest AI calls; the spend shows on that account's usage and AI history |
+| `DEMO_DAILY_CAP` | Guest AI calls allowed per UTC day across all guests (default `1000`). Past it, guests see "The demo is busy today" |
+| `DEMO_PER_IP_FEATURE_LIMIT` | Guests one IP address may start per AI feature per UTC day (default `3`) |
+
+Run `npm run demo:prefill` once after setting them: it caches AI-written Gauntlet options for every demo-set card, so guests are served them at no cost (`-- --dry-run` counts the cards without calling AI).
 
 `.env.example` documents every variable, including the operator-script ones (`DEEPSEEK_API_KEY`, `ZAI_API_KEY`, `GOOGLE_API_KEYS`, `KLP_*`, `CRON_*`). **Never commit `.env`.**
 
@@ -158,6 +175,7 @@ These run against the database and use real AI quota. Most take `--set <setId>`,
 | `npm run klp-histogram` | Show the key-point weight distribution and flag clustering |
 | `npm run bench-models` / `bench-grader` | Benchmark models and the grader. Results go in `docs/ai/model-performance.md` |
 | `npm run probe-models` | Check that model IDs work with a real generation call |
+| `npm run demo:prefill` | Cache AI-written Gauntlet options for every card of the guest demo set (`-- --dry-run` makes no AI call) |
 
 The full list is in `package.json`.
 
