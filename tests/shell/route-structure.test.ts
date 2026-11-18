@@ -37,6 +37,16 @@ const BARE_ROUTES = [
   'forgot/page.tsx',
   'reset/[token]/page.tsx',
   'verify/[token]/page.tsx',
+  // The guest demo: a signed-out visitor has no account to navigate, so it
+  // carries its own DemoShell (src/app/demo/layout.tsx) instead of the rail.
+  'demo/page.tsx',
+  'demo/set/page.tsx',
+  'demo/create/page.tsx',
+  'demo/quiz/page.tsx',
+  'demo/review/page.tsx',
+  'demo/games/page.tsx',
+  'demo/games/gauntlet/page.tsx',
+  'demo/games/hot-seat/page.tsx',
 ]
 
 /**
@@ -95,6 +105,7 @@ const SHELLED_ROUTES = [
   'staff/roles/page.tsx',
   'staff/ai-history/page.tsx',
   'staff/authoring/page.tsx',
+  'staff/waitlist/page.tsx',
   'help/page.tsx',
   'concepts/page.tsx',
 ]

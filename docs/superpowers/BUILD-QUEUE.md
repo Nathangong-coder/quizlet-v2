@@ -1,5 +1,49 @@
 # Build queue & carried-over findings
 
+**HANDOFF 2026-11-17 — THE GUEST DEMO IS BUILT; THE OWNER'S LIVE GATE IS OWED.** Branch
+`guest-demo` (main checkout, off `81fb4f4`), 15 tasks, commits `d087589`…`6cbf9d3` plus this docs
+commit, **unmerged, unpushed**. Design: `docs/superpowers/specs/2026-11-17-guest-demo-design.md`
+(§12 overrides §5.4/§5.5); the build's 33 rulings are in
+`.superpowers/sdd/2026-11-17-guest-demo/progress.md` and the docs follow them, not the plan. What
+shipped: a chaptered demo video on the landing (`DemoVideo`, `public/demo/synapseHQ_demo.mp4`,
+chapters in `src/lib/marketing/demo-video.ts`, each with a "Try it" link); a no-login `/demo`
+(`src/app/demo/`, own `DemoShell`, outside the auth gate) — the curated set (`DEMO_SET_ID`), a
+five-card guest set in browser storage (`src/lib/demo/store.ts`, `use-guest-state.ts`), one graded
+short-answer question (demo set, or the guest's own card with on-the-spot server-signed key points
+and the "generated points" warning), Review, one AI autocomplete, and Gauntlet + Hot Seat once each
+(other games linked); the guard (`src/lib/demo/guard.ts`: per-feature `DemoTicket`s, `admitted`
+flag for the per-IP limit, monotonic `spent` for the daily cap, refunds touch only `calls`); a
+"Request an invite" waitlist (`InviteRequest`, one undistinguished success — R30; `notifyOwner` is
+the alert seam) and the admin page `/staff/waitlist` (one-click single-use invite); and
+`npm run demo:prefill` (caches Gauntlet options for the demo set). Three additive migrations
+(`20261117120000_guest_demo`, `…130000_demo_ticket_spent`, `…140000_demo_ticket_admitted`), applied
+to the shared dev DB. **Five env vars, not six** (R17 dropped `NEXT_PUBLIC_DEMO_ENABLED`; the
+landing follows `readDemoConfig().enabled`): `DEMO_ENABLED`, `DEMO_SET_ID`, `DEMO_AI_USER_ID`,
+`DEMO_DAILY_CAP` (default 1000 AI calls per UTC day), `DEMO_PER_IP_FEATURE_LIMIT` (default 3).
+**Baselines: 4,731 tests in 365 files green (241 in the 20 test files this branch added), `tsc`
+clean, lint 178** (back to the pre-branch number: Task 15 fixed the branch's two — `_stale` in
+`store.ts` and a set-state-in-effect error in `use-guest-state.ts` — and two suite failures no task
+had run: the route-structure classification of the nine new pages and a `/staff` test that did not
+mock `inviteRequest.count`). **Agent-run live gate (R32), 2026-11-17:**
+`npx tsx --env-file=.env scripts/verify-demo-guard.ts` against the real DB, three runs, all
+identical — `reserveCall x2 (grade, one fresh guest): 1 ok, 1 quota_used` (one ticket, calls=1,
+spent=1, admitted=true) and `invite transaction x2 (one request): 1 minted, 1 "Already invited"`
+(one InviteCode row, request stamped), every row deleted afterwards. Signed-out HTTP smoke on
+`next dev` with `DEMO_ENABLED=true`, `DEMO_SET_ID` = the M&A set (`cmtfewhjv000004jr901uq6eo`,
+public, 82 cards) and `DEMO_AI_USER_ID` = the one admin: `/` 200 with `/demo/synapseHQ_demo.mp4`
+and the "Graded point by point" chapter in the markup; `/demo`, `/demo/set`, `/demo/create`,
+`/demo/quiz`, `/demo/review`, `/demo/games`, `/demo/games/gauntlet`, `/demo/games/hot-seat` all 200
+with no "isn't available"; `/staff/waitlist` 404 signed out; no errors in the server log. No AI was
+called by the agent. **OWNER GATE (spends real AI money, needs a browser):** (1) set the five env
+vars in Vercel; (2) run `npm run demo:prefill` once (`-- --dry-run` first counts the cards for
+free); (3) signed out: grade one demo-set answer and see the verdicts; (4) make a card in
+`/demo/create` and grade it on "My cards" — the generated-points warning shows (needs a fresh guest
+cookie if this browser already graded: BEFORE making the card, clear the cookie AND the `synapse-demo:v1` localStorage key, which remembers the used quiz and grade on its own; the per-IP limit of 3 allows it); (5) play
+Gauntlet once, then start it again and see the prompt; (6) Hot Seat once; (7) request an invite,
+then as admin invite it from `/staff/waitlist` and see the code; (8) set `DEMO_DAILY_CAP=1` and see
+"The demo is busy today". **Later:** CallMeBot WhatsApp alerts — plug into `notifyOwner`
+(`src/lib/notify/owner.ts`), beside the email; no caller changes.
+
 **HANDOFF 2026-09-20 — SPEC 5 PHASE A AND SPEC 6 ARE MERGED INTO `spec2-klp-authoring`.** `f3df616`
 (spec6-confidence) and `c4b6944` (spec5-phase-a) merged, follow-up `d393adc` (spec6's diagnostic
 self-rating test speaks the Spec 5 vocabulary — `passed` is a read-only alias of `correct`; eslint

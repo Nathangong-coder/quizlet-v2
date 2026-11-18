@@ -375,6 +375,7 @@ describe('guard refusals', () => {
   it.each([
     ['quota_used', "You've used this in the demo."],
     ['demo_cap', 'The demo is busy today.'],
+    ['ip_limit', 'Too many tries from your network today. Try again tomorrow.'],
   ])('reserveCall refuses %s → that refusal, no AI call', async (refusal, message) => {
     h.reserveCall.mockResolvedValue({ ok: false, refusal })
     const r = await demoGrade({ kind: 'demo', cardId: 'c1', answer: 'Synergies.' })

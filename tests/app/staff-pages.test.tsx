@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   aiTaskHistory: vi.fn(),
   aiTaskCounts: vi.fn(),
   authoringByModel: vi.fn(),
+  inviteRequestCount: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -36,7 +37,11 @@ vi.mock('@/lib/staff/queries', () => ({
   loadAuthoringByModel: h.authoringByModel,
 }))
 vi.mock('@/lib/db', () => ({
-  prisma: { set: { findMany: h.setFindMany }, user: { findMany: h.userFindMany } },
+  prisma: {
+    set: { findMany: h.setFindMany },
+    user: { findMany: h.userFindMany },
+    inviteRequest: { count: h.inviteRequestCount },
+  },
 }))
 
 import StaffPage from '@/app/(app)/staff/page'
@@ -60,6 +65,7 @@ beforeEach(() => {
   h.setFindMany.mockResolvedValue([])
   h.userFindMany.mockResolvedValue([])
   h.learnerIndex.mockResolvedValue([])
+  h.inviteRequestCount.mockResolvedValue(7)
 })
 afterEach(cleanup)
 
@@ -82,12 +88,16 @@ describe('/staff', () => {
     expect(h.notFound).not.toHaveBeenCalled()
     expect(screen.getByText('12')).toBeInTheDocument()
     expect(screen.getByText('166')).toBeInTheDocument()
+    expect(screen.queryByText('Waitlist (pending)')).not.toBeInTheDocument()
+    expect(h.inviteRequestCount).not.toHaveBeenCalled()
   })
 
-  it('renders for an admin too', async () => {
+  it('renders for an admin too, with the pending waitlist count', async () => {
     h.auth.mockResolvedValue({ user: { id: 'u1', role: 'admin' } })
     render(await StaffPage())
     expect(h.notFound).not.toHaveBeenCalled()
+    expect(screen.getByText('Waitlist (pending)')).toBeInTheDocument()
+    expect(screen.getByText('7')).toBeInTheDocument()
   })
 })
 

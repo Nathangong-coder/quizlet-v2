@@ -1,6 +1,7 @@
 'use server'
 
 import { z } from 'zod'
+import { after } from 'next/server'
 import { prisma } from '@/lib/db'
 import { generateJson, AiGenerationError, resolveTaskModel } from '@/lib/ai/generate'
 import { AUTOCOMPLETE_PROMPT, EXTRACT_KLPS_PROMPT, GRADE_SHORT_ANSWER_PROMPT, HOT_SEAT_PROBE_PROMPT, MULTIPLE_CHOICE_PROMPT } from '@/lib/ai/prompts/registry'
@@ -11,6 +12,8 @@ import { guestContext } from '@/lib/demo/guest-context'
 import { releaseCall, reserveCall, startRun, type DemoRefusal, type GuestCtx } from '@/lib/demo/guard'
 import { signPoints, verifyPoints, type SignedPoints } from '@/lib/demo/signed-points'
 import { loadDemoSet, type DemoCard, type DemoSet } from '@/lib/demo/demo-set'
+import { EMAIL_MAX, normalizeEmail, recordInviteRequest } from '@/lib/demo/waitlist'
+import { notifyOwner } from '@/lib/notify/owner'
 import { planRun, fallbackOptions, type RunPlan } from '@/lib/games/gauntlet'
 import { pickHotSeatCards, HOT_SEAT_MODES, type KlpVerdict, type HotSeatCard } from '@/lib/games/hot-seat'
 import { accuracyOf, isHit } from '@/lib/games/grading'
@@ -34,11 +37,12 @@ import { getSubject } from '@/lib/subjects/taxonomy'
  *      reservation hands it back (`releaseCall`), so the guest isn't charged.
  *
  * WRITES NOTHING. No QuizAnswer, StudyEvent, KlpState, QuizOptionCache or
- * card row; the only rows a demo call leaves are the guard's tickets and the
- * AiCallLog rows `generateJson` writes for the operator.
+ * card row; the only rows a demo call leaves are the guard's tickets, the
+ * AiCallLog rows `generateJson` writes for the operator, and — from
+ * `requestInvite` only, through @/lib/demo/waitlist — an InviteRequest row.
  */
 
-type DemoReason = DemoRefusal | 'invalid' | 'ai_failed'
+type DemoReason = DemoRefusal | 'invalid' | 'ai_failed' | 'rate_limited'
 export type DemoResult<T> = { ok: true; data: T } | { ok: false; reason: DemoReason; message: string }
 type DemoFailure = Extract<DemoResult<never>, { ok: false }>
 
@@ -46,9 +50,11 @@ const MESSAGES: Record<DemoReason, string> = {
   demo_off: 'The demo is switched off right now.',
   demo_cap: 'The demo is busy today.',
   quota_used: "You've used this in the demo.",
+  ip_limit: 'Too many tries from your network today. Try again tomorrow.',
   run_not_started: 'Start the game first.',
   invalid: "The demo can't do that.",
   ai_failed: 'The demo is having trouble. Try again.',
+  rate_limited: 'Too many requests from here today. Try again tomorrow.',
 }
 
 function fail(reason: DemoReason): DemoFailure {
@@ -85,6 +91,10 @@ const AutocompleteInput = z.object({
   side: z.enum(['term', 'definition']),
   referenceText: z.string().max(500).optional(),
   cards: z.array(z.object({ term: z.string().max(200), definition: z.string().max(1000) })).max(5),
+})
+const InviteInput = z.object({
+  email: z.string().trim().max(EMAIL_MAX),
+  note: z.string().trim().max(200).optional(),
 })
 
 // ----------------------------------------------------------------- helpers
@@ -412,4 +422,42 @@ export async function demoAutocomplete(input: {
     })
     return { suggestions: out.suggestions }
   })
+}
+
+/**
+ * "Request an invite" — puts the guest's email on the waitlist (no AI, no
+ * reservation). Public and anonymous, so: the demo switch first, the guest
+ * caps (email ≤ 254, note ≤ 200), five new requests per hashed IP per UTC day
+ * (`recordInviteRequest`), and the owner is told only about a NEW email, after
+ * the response is sent.
+ *
+ * Every success is the SAME response, `{ ok: true, data: {} }`, new email or
+ * repeat (ruling R30). This is a public endpoint anyone can call directly; a
+ * distinguishable reply would tell them whether an address is on the
+ * waitlist, and repeats don't spend the per-IP limit, so that probe would be
+ * unmetered. Added-vs-already stays on the server, where it only decides
+ * whether the owner is notified.
+ */
+export async function requestInvite(input: { email: string; note?: string }): Promise<DemoResult<Record<string, never>>> {
+  const ctx = await guestContext()
+  if (!ctx) return fail('demo_off')
+  const parsed = InviteInput.safeParse(input)
+  if (!parsed.success) return fail('invalid')
+  const email = normalizeEmail(parsed.data.email)
+  if (!email) return fail('invalid')
+  const note = parsed.data.note || null
+
+  let result: Awaited<ReturnType<typeof recordInviteRequest>>
+  try {
+    result = await recordInviteRequest({ email, note, ipHash: ctx.ipHash })
+  } catch (error) {
+    // Name and code only: a Prisma error message can quote the query's
+    // arguments, and the email has no place in an error log.
+    const e = error as { name?: string; code?: string } | null
+    console.error('requestInvite error:', { name: e?.name, code: e?.code })
+    return fail('ai_failed')
+  }
+  if (result.status === 'rate_limited') return fail('rate_limited')
+  if (result.status === 'added') after(() => notifyOwner({ kind: 'waitlist_request', email, note }))
+  return { ok: true, data: {} }
 }

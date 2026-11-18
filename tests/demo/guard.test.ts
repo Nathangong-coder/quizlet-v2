@@ -136,6 +136,7 @@ function seed(row: Partial<Row> & Pick<Row, 'guestId' | 'feature'>) {
 const ticketOf = (guestId: string, feature: string) => table.find((r) => r.guestId === guestId && r.feature === feature)
 const QUOTA = { ok: false, refusal: 'quota_used' }
 const CAP = { ok: false, refusal: 'demo_cap' }
+const IP_LIMIT = { ok: false, refusal: 'ip_limit' }
 
 beforeEach(() => {
   table.length = 0
@@ -250,7 +251,7 @@ describe('per-IP limit', () => {
     for (const g of ['g1', 'g2', 'g3']) {
       expect(await reserveCall(ctx(g, 'ip-shared'), 'grade', NOW)).toMatchObject({ ok: true })
     }
-    expect(await reserveCall(ctx('g4', 'ip-shared'), 'grade', NOW)).toEqual(QUOTA)
+    expect(await reserveCall(ctx('g4', 'ip-shared'), 'grade', NOW)).toEqual(IP_LIMIT)
     expect(ticketOf('g4', 'grade')).toBeUndefined()
     expect(table.every((r) => r.admitted)).toBe(true)
     // A different IP is unaffected.
@@ -262,7 +263,7 @@ describe('per-IP limit', () => {
       ['g1', 'g2', 'g3', 'g4'].map((g) => reserveCall(ctx(g, 'ip-shared'), 'grade', NOW)),
     )
     expect(results.filter((r) => r.ok).length).toBeLessThanOrEqual(3)
-    expect(results.filter((r) => !r.ok).every((r) => r.refusal === 'quota_used')).toBe(true)
+    expect(results.filter((r) => !r.ok).every((r) => r.refusal === 'ip_limit')).toBe(true)
     expect(table.reduce((s, r) => s + r.spent, 0)).toBeLessThanOrEqual(3)
   })
 
@@ -299,7 +300,9 @@ describe('per-IP limit', () => {
       seed({ guestId: g, ipHash: 'ip-shared', feature: 'klp-extract', calls: 1, spent: 1 })
     const c = ctx('g4', 'ip-shared')
     const results = await Promise.all([reserveCall(c, 'klp-extract', NOW), reserveCall(c, 'klp-extract', NOW)])
-    expect(results).toEqual([QUOTA, QUOTA])
+    // The opener is refused for the IP; the second request finds no ticket to spend.
+    expect(results.every((r) => !r.ok)).toBe(true)
+    expect(results).toContainEqual(IP_LIMIT)
     expect(ticketOf('g4', 'klp-extract')).toBeUndefined()
     expect(table.reduce((s, r) => s + r.spent, 0)).toBe(3)
   })
@@ -315,7 +318,7 @@ describe('per-IP limit', () => {
     for (const [i, g] of ['g1', 'g2', 'g3'].entries()) {
       expect(await reserveCall(ctx(g, 'ip-shared'), 'klp-extract', at(i))).toMatchObject({ ok: true })
     }
-    expect(await reserveCall(ctx('g4', 'ip-shared'), 'klp-extract', at(10))).toEqual(QUOTA)
+    expect(await reserveCall(ctx('g4', 'ip-shared'), 'klp-extract', at(10))).toEqual(IP_LIMIT)
     expect(await reserveCall(ctx('g1', 'ip-shared'), 'klp-extract', at(20))).toMatchObject({ ok: true })
   })
 
@@ -333,7 +336,7 @@ describe('per-IP limit', () => {
   it('applies to startRun', async () => {
     for (const g of ['g1', 'g2', 'g3'])
       expect(await startRun(ctx(g, 'ip-shared'), 'hot-seat', NOW)).toEqual({ ok: true })
-    expect(await startRun(ctx('g4', 'ip-shared'), 'hot-seat', NOW)).toEqual(QUOTA)
+    expect(await startRun(ctx('g4', 'ip-shared'), 'hot-seat', NOW)).toEqual(IP_LIMIT)
     expect(ticketOf('g4', 'hot-seat')).toBeUndefined()
   })
 
@@ -363,6 +366,15 @@ describe('global daily cap', () => {
       await releaseCall(r.ticketId, 'grade') // the provider failed
     }
     expect(await reserveCall(c, 'grade', NOW)).toEqual(CAP)
+  })
+
+  it('startRun refuses at the cap and opens no ticket', async () => {
+    seed({ guestId: 'x', feature: 'klp-extract', calls: 2, spent: 2 })
+    const c = ctx('fresh', 'ip-fresh', { dailyCap: 2 })
+    for (const f of ['gauntlet', 'hot-seat'] as const) {
+      expect(await startRun(c, f, NOW)).toEqual(CAP)
+      expect(ticketOf('fresh', f)).toBeUndefined()
+    }
   })
 
   it("doesn't count yesterday's calls", async () => {

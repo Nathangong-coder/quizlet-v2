@@ -1,4 +1,5 @@
 import type { MailMessage } from '@/lib/mail/transport'
+import type { OwnerEvent } from '@/lib/notify/owner'
 
 /** Pure — the interesting half of mail, so it can be unit-tested. */
 export type MailBody = Omit<MailMessage, 'to'>
@@ -100,5 +101,58 @@ export function passwordResetTemplate(input: { origin: string; token: string }):
       url,
       cta: 'Set a new password',
     }),
+  }
+}
+
+/**
+ * Tells the operator something happened that needs them — today, only a
+ * guest asking to be invited from the demo.
+ *
+ * The email and note are USER-SUPPLIED (the email is validated, the note is
+ * free text), so both are escaped in the html. The subject carries neither:
+ * `sendQuietly` logs the subject at error level when delivery fails, and a
+ * requester's address has no business in an error log.
+ */
+export function ownerNotificationTemplate(event: OwnerEvent): MailBody {
+  const note = event.note ?? '(none)'
+  return {
+    subject: '[Waitlist] New invite request from the demo',
+    text: [
+      'Someone asked for an invite from the demo.',
+      '',
+      `Email: ${event.email}`,
+      `Preparing for: ${note}`,
+      '',
+      'Reply to this message to answer them; mint a code with `npm run invite`.',
+    ].join('\n'),
+    html: [
+      `<p>Someone asked for an invite from the demo.</p>`,
+      `<p><strong>Email:</strong> ${escapeHtml(event.email)}</p>`,
+      `<p><strong>Preparing for:</strong> ${escapeHtml(note)}</p>`,
+      `<p>Reply to this message to answer them; mint a code with <code>npm run invite</code>.</p>`,
+    ].join('\n'),
+  }
+}
+
+/** The invite code itself, plus the way to use it. Pure. */
+export function inviteTemplate(input: { origin: string; code: string }): MailBody {
+  const url = `${input.origin}/signup`
+  return {
+    subject: 'Your invite code',
+    text: [
+      'You asked for an invite. Here is your code:',
+      '',
+      input.code,
+      '',
+      `Create your account at ${url}`,
+      '',
+      'The code works once and expires in 14 days.',
+    ].join('\n'),
+    html: [
+      `<p>You asked for an invite. Here is your code:</p>`,
+      `<p><strong>${escapeHtml(input.code)}</strong></p>`,
+      `<p><a href="${escapeHtml(url)}">Create your account</a></p>`,
+      `<p>The code works once and expires in 14 days.</p>`,
+    ].join('\n'),
   }
 }

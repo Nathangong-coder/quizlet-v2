@@ -8,7 +8,9 @@ describe('guest cookie', () => {
   })
   it('rejects tampering', () => {
     const v = signGuestId(id, 's')
-    expect(verifyGuestCookie(v.slice(0, -2) + 'xx', 's')).toBeNull()
+    // Flip the last character deterministically (a fixed suffix can equal the real one).
+    const last = v.slice(-1)
+    expect(verifyGuestCookie(v.slice(0, -1) + (last === 'A' ? 'B' : 'A'), 's')).toBeNull()
     expect(verifyGuestCookie(signGuestId(id, 's').replace(id, newGuestId()), 's')).toBeNull()
     expect(verifyGuestCookie(id, 's')).toBeNull()
     expect(verifyGuestCookie(v, 'other')).toBeNull()

@@ -24,6 +24,7 @@ export function StaffNav({ isAdmin }: { isAdmin: boolean }) {
         { href: '/staff/ai-history', label: 'AI task history' },
         { href: '/staff/authoring', label: 'Authoring runs' },
         { href: '/staff/roles', label: 'Roles' },
+        { href: '/staff/waitlist', label: 'Waitlist' },
       ]
     : TABS
 

@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Check, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { startHotSeat, gradeGameAnswer, probeHotSeat, submitGameScore } from '@/actions/games'
+import { realHotSeatApi, type HotSeatApi } from '@/lib/games/api'
 import {
   createHotSeat,
   reduceHotSeat,
@@ -42,8 +42,9 @@ const creditOf = (status: string) => STATUS_CREDIT[status as KlpStatus] ?? 0
 const fullCredit = (status: string) => creditOf(status) >= 1
 const halfCredit = (status: string) => creditOf(status) > 0 && creditOf(status) < 1
 
-export function HotSeatGame({ setId, signedIn }: { setId: string; signedIn: boolean }) {
-  const [mode, setMode] = useState<HotSeatMode>('normal')
+export function HotSeatGame({ setId, signedIn, api = realHotSeatApi, lockedMode, aiLabel }: { setId: string; signedIn: boolean; api?: HotSeatApi; lockedMode?: HotSeatMode; aiLabel?: string }) {
+  const [pickedMode, setMode] = useState<HotSeatMode>('normal')
+  const mode = lockedMode ?? pickedMode
   const [persona, setPersona] = useState<Persona | null>(null)
   const [costume, setCostume] = useState<string>('default')
   const [state, setState] = useState<HotSeatState | null>(null)
@@ -75,7 +76,7 @@ export function HotSeatGame({ setId, signedIn }: { setId: string; signedIn: bool
 
   function start() {
     startTransition(async () => {
-      const res = await startHotSeat(setId, mode)
+      const res = await api.start(setId, mode)
       if (!res.success) return void toast.error(res.error)
       if (res.data.cards.length === 0) return void toast.error('No cards with key points yet')
       setPersona(res.data.persona)
@@ -97,7 +98,7 @@ export function HotSeatGame({ setId, signedIn }: { setId: string; signedIn: bool
     setState(afterSubmit)
     setAnswer('')
     startTransition(async () => {
-      const res = await gradeGameAnswer(card.id, text)
+      const res = await api.grade(card.id, text)
       if (!res.success) {
         toast.error(res.error)
         setState((s) => (s ? reduceHotSeat(reduceHotSeat(s, { type: 'graded', verdicts: [] }), { type: 'skip-probe' }) : s))
@@ -108,7 +109,7 @@ export function HotSeatGame({ setId, signedIn }: { setId: string; signedIn: bool
       setState(graded)
       const target = probeTarget(res.data.verdicts)
       if (graded.phase === 'probing' && target && persona) {
-        const p = await probeHotSeat(card.id, target.klpId, text, persona)
+        const p = await api.probe(card.id, target.klpId, text, persona)
         if (!p.success) {
           toast.error(p.error)
           setState((s) => (s ? reduceHotSeat(s, { type: 'skip-probe' }) : s))
@@ -133,7 +134,7 @@ export function HotSeatGame({ setId, signedIn }: { setId: string; signedIn: bool
     setState(afterSubmit)
     setReply('')
     startTransition(async () => {
-      const res = await gradeGameAnswer(card.id, text, { klpIds: [turn.probeKlpId!] })
+      const res = await api.grade(card.id, text, { klpIds: [turn.probeKlpId!] })
       // Credit, never the label: a runtime grade says `correct` (Spec 5) and
       // a historical one `passed`; both are full credit. Comparing the word
       // left the recovered face unreachable (fix round, 2026-09-17).
@@ -155,7 +156,7 @@ export function HotSeatGame({ setId, signedIn }: { setId: string; signedIn: bool
       writeBest(betterOf(best, mood, true))
       if (!signedIn) return
       startTransition(async () => {
-        const res = await submitGameScore({ game: 'hot-seat', mode, setId, score: mood, meta: { rounds: n.cards.length, verdict: verdictFor(n.mood) } })
+        const res = await api.submitScore({ game: 'hot-seat', mode, setId, score: mood, meta: { rounds: n.cards.length, verdict: verdictFor(n.mood) } })
         if (res.success) setSaved(res.data.saved ? 'Saved to the leaderboard.' : res.data.reason === 'no_handle' ? 'Choose a handle in Account to appear on the leaderboard.' : null)
       })
     }
@@ -186,7 +187,7 @@ export function HotSeatGame({ setId, signedIn }: { setId: string; signedIn: bool
             An interviewer, a soft clock, and a mood you can read on their face. Miss a point and they probe it — you get one reply. Callback or no callback at the end. The interviewer dresses for the subject.
           </p>
         </div>
-        <fieldset className="grid gap-2 sm:grid-cols-3">
+        {!lockedMode && <fieldset className="grid gap-2 sm:grid-cols-3">
           <legend className="label mb-1">Difficulty</legend>
           {(Object.keys(HOT_SEAT_MODES) as HotSeatMode[]).map((m) => {
             const c = HOT_SEAT_MODES[m]
@@ -198,8 +199,12 @@ export function HotSeatGame({ setId, signedIn }: { setId: string; signedIn: bool
               </label>
             )
           })}
-        </fieldset>
-        <CredentialNote calls={`${HOT_SEAT_MODES[mode].rounds} to ${HOT_SEAT_MODES[mode].rounds * 2} calls for a full interview`} />
+        </fieldset>}
+        {aiLabel ? (
+          <div className="rounded-lg border border-warning/40 bg-warning-subtle p-3 text-sm" role="note"><p>{aiLabel}</p></div>
+        ) : (
+          <CredentialNote calls={`${HOT_SEAT_MODES[mode].rounds} to ${HOT_SEAT_MODES[mode].rounds * 2} calls for a full interview`} />
+        )}
         {best !== null && <p className="text-xs text-muted-foreground">Your best mood on this device ({HOT_SEAT_MODES[mode].label.toLowerCase()}): {best}.</p>}
         <Button onClick={start} disabled={isPending}>{isPending ? 'Taking a seat…' : 'Take the hot seat'}</Button>
       </div>
