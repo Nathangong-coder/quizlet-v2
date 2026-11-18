@@ -30,8 +30,6 @@ const ADDS = ['Unlimited quizzes.', 'Memory that brings back what you miss.', 'K
 // (normalizeEmail) is the one that decides.
 const looksLikeEmail = (s: string) => s.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)
 
-type Status = 'added' | 'already'
-
 /**
  * "Request an invite": what an account adds, and an email field that puts the
  * guest on the waitlist. A centred dialog on desktop, a bottom sheet on a phone.
@@ -41,7 +39,7 @@ export function WaitlistPrompt({ open, onOpenChange, reason }: { open: boolean; 
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
-  const [done, setDone] = useState<Status | null>(null)
+  const [done, setDone] = useState(false)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -52,7 +50,7 @@ export function WaitlistPrompt({ open, onOpenChange, reason }: { open: boolean; 
     setPending(true)
     try {
       const res = await requestInvite(note.trim() ? { email: trimmed, note: note.trim() } : { email: trimmed })
-      if (res.ok) setDone(res.data.status)
+      if (res.ok) setDone(true)
       else setError(res.message)
     } catch {
       setError('Something went wrong. Try again.')
@@ -75,7 +73,8 @@ export function WaitlistPrompt({ open, onOpenChange, reason }: { open: boolean; 
         </ul>
         {done ? (
           <p role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-sm font-medium">
-            {done === 'added' ? "You're on the list. We'll email you an invite." : "You're already on the list."}
+            {/* One text for every success: the server doesn't say whether the email was new (R30). */}
+            You&apos;re on the list. We&apos;ll email you an invite.
           </p>
         ) : (
           <form onSubmit={submit} className="space-y-3" noValidate>

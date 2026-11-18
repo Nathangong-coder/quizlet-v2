@@ -22,7 +22,7 @@ function fill(email: string, note?: string) {
 
 describe('WaitlistPrompt', () => {
   it('submitting calls requestInvite with the email and note and shows the success text', async () => {
-    requestInvite.mockResolvedValue({ ok: true, data: { status: 'added' } })
+    requestInvite.mockResolvedValue({ ok: true, data: {} })
     open('quota_used')
     fill('a@b.co', 'IB recruiting')
     expect(await screen.findByText("You're on the list. We'll email you an invite.")).toBeTruthy()
@@ -30,11 +30,13 @@ describe('WaitlistPrompt', () => {
     expect(requestInvite).toHaveBeenCalledWith({ email: 'a@b.co', note: 'IB recruiting' })
   })
 
-  it("shows the already-on-the-list text for 'already'", async () => {
-    requestInvite.mockResolvedValue({ ok: true, data: { status: 'already' } })
+  it('shows the one success text for every success, never an already-on-the-list text (R30)', async () => {
+    requestInvite.mockResolvedValue({ ok: true, data: {} })
     open('cards')
     fill('a@b.co')
-    expect(await screen.findByText("You're already on the list.")).toBeTruthy()
+    expect(await screen.findByRole('status')).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toBe("You're on the list. We'll email you an invite.")
+    expect(screen.queryByText(/already on the list/i)).toBeNull()
     expect(requestInvite).toHaveBeenCalledWith({ email: 'a@b.co' })
   })
 

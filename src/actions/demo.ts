@@ -428,10 +428,16 @@ export async function demoAutocomplete(input: {
  * reservation). Public and anonymous, so: the demo switch first, the guest
  * caps (email ≤ 254, note ≤ 200), five new requests per hashed IP per UTC day
  * (`recordInviteRequest`), and the owner is told only about a NEW email, after
- * the response is sent. The two success statuses are the only thing it says
- * about whether an email was already on the list.
+ * the response is sent.
+ *
+ * Every success is the SAME response, `{ ok: true, data: {} }`, new email or
+ * repeat (ruling R30). This is a public endpoint anyone can call directly; a
+ * distinguishable reply would tell them whether an address is on the
+ * waitlist, and repeats don't spend the per-IP limit, so that probe would be
+ * unmetered. Added-vs-already stays on the server, where it only decides
+ * whether the owner is notified.
  */
-export async function requestInvite(input: { email: string; note?: string }): Promise<DemoResult<{ status: 'added' | 'already' }>> {
+export async function requestInvite(input: { email: string; note?: string }): Promise<DemoResult<Record<string, never>>> {
   const ctx = await guestContext()
   if (!ctx) return fail('demo_off')
   const parsed = InviteInput.safeParse(input)
@@ -452,5 +458,5 @@ export async function requestInvite(input: { email: string; note?: string }): Pr
   }
   if (result.status === 'rate_limited') return fail('rate_limited')
   if (result.status === 'added') after(() => notifyOwner({ kind: 'waitlist_request', email, note }))
-  return { ok: true, data: { status: result.status } }
+  return { ok: true, data: {} }
 }

@@ -197,7 +197,7 @@ describe('requestInvite', () => {
 
   it('adds the normalized email with the guest IP hash and notifies the owner after the response', async () => {
     const res = await requestInvite({ email: '  A@B.co ', note: '  IB recruiting  ' })
-    expect(res).toEqual({ ok: true, data: { status: 'added' } })
+    expect(res).toEqual({ ok: true, data: {} })
     expect(h.rows[0]).toMatchObject({ email: 'a@b.co', note: 'IB recruiting', ipHash: 'ip1' })
     // Deferred: nothing is sent until after() runs.
     expect(h.send).not.toHaveBeenCalled()
@@ -211,11 +211,17 @@ describe('requestInvite', () => {
     expect(h.rows[0].note).toBeNull()
   })
 
-  it('a repeat is already and does not notify the owner again', async () => {
-    await requestInvite({ email: 'a@b.co' })
+  it('a new email and a repeat get byte-identical responses; only the new one notifies the owner (R30)', async () => {
+    const first = await requestInvite({ email: 'a@b.co' })
+    expect(h.afterTasks).toHaveLength(1)
     await drainAfter()
     h.send.mockClear()
-    expect(await requestInvite({ email: 'A@b.co' })).toEqual({ ok: true, data: { status: 'already' } })
+    const repeat = await requestInvite({ email: 'A@b.co' })
+    expect(repeat).toEqual(first)
+    expect(JSON.stringify(repeat)).toBe(JSON.stringify(first))
+    // The server still knew it was a repeat: the row was re-stamped, not duplicated, and no notification.
+    expect(h.rows).toHaveLength(1)
+    expect(h.inviteRequest.update).toHaveBeenCalledTimes(1)
     expect(h.afterTasks).toHaveLength(0)
     await drainAfter()
     expect(h.send).not.toHaveBeenCalled()
