@@ -66,6 +66,16 @@ describe('DemoVideo', () => {
     expect(play).toHaveBeenCalled()
   })
 
+  it('swallows a refused play() (autoplay policy, no media) instead of an unhandled rejection', async () => {
+    const rejected = Promise.reject(new DOMException('blocked', 'NotAllowedError'))
+    const caught = vi.spyOn(rejected, 'catch')
+    play.mockReturnValueOnce(rejected)
+    render(<DemoVideo linksEnabled={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /Graded point by point/ }))
+    expect(caught).toHaveBeenCalled()
+    await rejected.catch(() => {})
+  })
+
   it('marks the active chapter from timeupdate', () => {
     const { container } = render(<DemoVideo linksEnabled={false} />)
     const v = container.querySelector('video')!

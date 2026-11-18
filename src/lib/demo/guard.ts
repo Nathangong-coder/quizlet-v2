@@ -34,7 +34,9 @@ import { prisma } from '@/lib/db'
 import { FEATURE_CEILING, RUN_FEATURES, RUN_WINDOW_MS, type DemoConfig, type DemoFeature } from './config'
 import { utcDayStart } from './identity'
 
-export type DemoRefusal = 'demo_off' | 'demo_cap' | 'quota_used' | 'run_not_started'
+// `ip_limit` is distinct from `quota_used`: the guest was never served, so the
+// client must not remember the feature as spent (it opens the waitlist only).
+export type DemoRefusal = 'demo_off' | 'demo_cap' | 'quota_used' | 'ip_limit' | 'run_not_started'
 export type GuestCtx = { guestId: string; ipHash: string; config: DemoConfig }
 
 type Refused = { ok: false; refusal: DemoRefusal }
@@ -96,10 +98,13 @@ export async function startRun(
 ): Promise<{ ok: true } | Refused> {
   // Only run features have a start; anything else has nothing to open.
   if (!RUN_FEATURES.has(feature)) return refuse('quota_used')
+  // At the cap a run could open but never play a single call: refuse before
+  // creating the ticket, so the guest keeps their one run for another day.
+  if ((await spentToday(now)) >= ctx.config.dailyCap) return refuse('demo_cap')
   if (await findTicket(ctx, feature)) return refuse('quota_used')
   const ticket = await createTicket(ctx, feature, now)
   if (!ticket) return refuse('quota_used')
-  if (!(await admitOrDiscard(ticket, ctx, now))) return refuse('quota_used')
+  if (!(await admitOrDiscard(ticket, ctx, now))) return refuse('ip_limit')
   return { ok: true }
 }
 
@@ -122,7 +127,7 @@ export async function reserveCall(
     if (isRun) return refuse('run_not_started')
     ticket = await createTicket(ctx, feature, now)
     if (ticket) {
-      if (!(await admitOrDiscard(ticket, ctx, now))) return refuse('quota_used')
+      if (!(await admitOrDiscard(ticket, ctx, now))) return refuse('ip_limit')
     } else {
       // A concurrent request created it first: use theirs. If it isn't
       // admitted yet, step 5 refuses.

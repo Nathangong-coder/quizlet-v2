@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { demoExtractPoints, demoGrade } from '@/actions/demo'
 import { DemoVerdicts, type DemoVerdictRow } from '@/components/demo/DemoVerdicts'
 import { GeneratedPointsWarning } from '@/components/demo/GeneratedPointsWarning'
@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { filterCardsByCategories, UNCATEGORIZED_ID } from '@/lib/cards/categories'
 import { GUEST_LIMITS } from '@/lib/demo/config'
 import type { SignedPoints } from '@/lib/demo/signed-points'
-import { markUsed, startGuestQuiz, type GuestState } from '@/lib/demo/store'
+import { clearActiveQuestion, markUsed, startGuestQuiz, type ActiveQuestion, type GuestState } from '@/lib/demo/store'
 import { useGuestState } from '@/lib/demo/use-guest-state'
 import type { ShortAnswerGrade } from '@/lib/ai/schemas'
 import { cn } from '@/lib/utils'
@@ -32,16 +32,44 @@ type Graded = { grade: ShortAnswerGrade; rows: DemoVerdictRow[]; generatedPoints
 
 const RETRY = 'The demo is having trouble. Try again.'
 
+/**
+ * The stored question, resolved against the card it names: a demo card from
+ * the page's data, a guest card (with its points) from the guest's state.
+ * Null when there is none, or when its card is gone (or lost its points to an
+ * edit) — the quiz cannot be graded then.
+ */
+function resolveQuestion(active: ActiveQuestion | null, cards: DemoQuizCard[], state: GuestState): Question | null {
+  if (!active) return null
+  if (active.kind === 'demo') {
+    const c = cards.find((x) => x.id === active.cardId)
+    return c ? { kind: 'demo', id: c.id, term: c.term, definition: c.definition } : null
+  }
+  const g = state.set?.cards.find((x) => x.id === active.cardId)
+  return g?.points ? { kind: 'guest', id: g.id, term: g.term, definition: g.definition, points: g.points } : null
+}
+
+const sameActive = (a: ActiveQuestion | null, b: ActiveQuestion | null) =>
+  a === b || (!!a && !!b && a.kind === b.kind && a.cardId === b.cardId)
+
 export function DemoQuiz({ cards }: { cards: DemoQuizCard[] }) {
   const [state, update, loaded] = useGuestState()
   const [source, setSource] = useState<'demo' | 'guest'>('demo')
   const [selected, setSelected] = useState<string[]>([])
-  const [question, setQuestion] = useState<Question | null>(null)
+  // The question lives in the guest's stored state until it is graded, so a
+  // refresh brings it back; the graded result belongs to this view.
+  const [done, setDone] = useState<{ question: Question; graded: Graded } | null>(null)
   const [answer, setAnswer] = useState('')
-  const [graded, setGraded] = useState<Graded | null>(null)
   const [pending, setPending] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [prompt, setPrompt] = useState<{ open: boolean; reason: WaitlistReason }>({ open: false, reason: 'invite' })
+
+  const active = resolveQuestion(state.activeQuestion, cards, state)
+  const dangling = loaded && state.activeQuestion !== null && active === null ? state.activeQuestion : null
+  useEffect(() => {
+    // The stored question's card no longer exists: forget the question — only
+    // if it is still that one, never a newer quiz's.
+    if (dangling) update((current) => (sameActive(current.activeQuestion, dangling) ? clearActiveQuestion(current) : current))
+  }, [dangling, update])
 
   const guestCards = state.set?.cards ?? []
   const canExtract = !state.used['klp-extract']
@@ -57,15 +85,20 @@ export function DemoQuiz({ cards }: { cards: DemoQuizCard[] }) {
 
   if (!loaded) return <div className="h-48 rounded-lg border border-border bg-muted/40" aria-hidden />
 
+  const question = done?.question ?? active
+  const graded = done?.graded ?? null
+
   const openPrompt = (reason: WaitlistReason) => setPrompt({ open: true, reason })
   const waitlistPrompt = (
     <WaitlistPrompt open={prompt.open} onOpenChange={(open) => setPrompt((p) => ({ ...p, open }))} reason={prompt.reason} />
   )
 
-  // A server refusal: the prompt for the quota-style ones, an inline message for the rest.
-  function refused(res: { reason: string; message: string }, feature: 'grade' | 'klp-extract', base: GuestState) {
-    if (res.reason === 'quota_used') update(markUsed(base, feature))
-    if (res.reason === 'quota_used' || res.reason === 'demo_cap') openPrompt(res.reason)
+  // A server refusal: the prompt for the quota-style ones, an inline message for
+  // the rest. Only quota_used marks the feature spent — ip_limit and demo_cap
+  // never served the guest, so the try stays theirs.
+  function refused(res: { reason: string; message: string }, feature: 'grade' | 'klp-extract') {
+    if (res.reason === 'quota_used') update((current) => markUsed(current, feature))
+    if (res.reason === 'quota_used' || res.reason === 'demo_cap' || res.reason === 'ip_limit') openPrompt(res.reason)
     else setMessage(res.reason === 'ai_failed' ? RETRY : res.message)
   }
 
@@ -77,8 +110,7 @@ export function DemoQuiz({ cards }: { cards: DemoQuizCard[] }) {
 
   async function start() {
     setMessage(null)
-    const started = startGuestQuiz(state)
-    if (!started.ok) {
+    if (state.quizzesStarted >= GUEST_LIMITS.quizzes) {
       openPrompt('quizzes')
       return
     }
@@ -89,16 +121,14 @@ export function DemoQuiz({ cards }: { cards: DemoQuizCard[] }) {
       return
     }
     setAnswer('')
-    setGraded(null)
-    if (source === 'demo') {
-      update(started.state)
-      setQuestion({ kind: 'demo', id: picked.id, term: picked.term, definition: picked.definition })
-      return
-    }
-    const guest = picked as (typeof guestCards)[number]
-    if (guest.points) {
-      update(started.state)
-      setQuestion({ kind: 'guest', id: guest.id, term: guest.term, definition: guest.definition, points: guest.points })
+    setDone(null)
+    const target: ActiveQuestion = { kind: source, cardId: picked.id }
+    const guest = source === 'guest' ? (picked as (typeof guestCards)[number]) : null
+    if (!guest || guest.points) {
+      // One write counts the quiz and records its question.
+      const started = startGuestQuiz(state, target)
+      if (started.ok) update(started.state)
+      else openPrompt('quizzes')
       return
     }
     // Extract FIRST: the quiz is only counted once a question will be shown, so a
@@ -106,17 +136,27 @@ export function DemoQuiz({ cards }: { cards: DemoQuizCard[] }) {
     setPending(true)
     try {
       const res = await demoExtractPoints({ card: { term: guest.term, definition: guest.definition } })
-      if (!res.ok) return refused(res, 'klp-extract', state)
-      const next = markUsed(started.state, 'klp-extract')
-      // Keep the signed points on the card so a later quiz does not extract again.
-      update({
-        ...next,
-        set: next.set && {
-          ...next.set,
-          cards: next.set.cards.map((c) => (c.id === guest.id ? { ...c, points: res.data } : c)),
-        },
+      if (!res.ok) return refused(res, 'klp-extract')
+      let counted = false
+      // After the await, build on the CURRENT record, not this render's state.
+      update((current) => {
+        // Keep the signed points on the card so a later quiz does not extract again.
+        const used = markUsed(current, 'klp-extract')
+        const withPoints: GuestState = {
+          ...used,
+          set: used.set && {
+            ...used.set,
+            cards: used.set.cards.map((c) => (c.id === guest.id ? { ...c, points: res.data } : c)),
+          },
+        }
+        const started = startGuestQuiz(withPoints, target)
+        counted = started.ok
+        return started.ok ? started.state : withPoints
       })
-      setQuestion({ kind: 'guest', id: guest.id, term: guest.term, definition: guest.definition, points: res.data })
+      if (!counted) openPrompt('quizzes')
+    } catch {
+      // A thrown action (network, server error): nothing was counted.
+      setMessage(RETRY)
     } finally {
       setPending(false)
     }
@@ -136,7 +176,7 @@ export function DemoQuiz({ cards }: { cards: DemoQuizCard[] }) {
           ? { kind: 'demo', cardId: question.id, answer }
           : { kind: 'guest', card: { term: question.term, definition: question.definition }, points: question.points, answer },
       )
-      if (!res.ok) return refused(res, 'grade', state)
+      if (!res.ok) return refused(res, 'grade')
       const { grade, verdicts, generatedPoints } = res.data
       // Verdicts are in the prompt's point order, so the position is the grader's klpRef.
       const rows = verdicts.map((v, i) => ({
@@ -144,8 +184,12 @@ export function DemoQuiz({ cards }: { cards: DemoQuizCard[] }) {
         status: v.status,
         evidence: grade.klpResults?.find((r) => r.klpRef === i)?.evidence || undefined,
       }))
-      update(markUsed(state, 'grade'))
-      setGraded({ grade, rows, generatedPoints })
+      // The grade landed: the quiz is over, so its question no longer needs restoring.
+      update((current) => clearActiveQuestion(markUsed(current, 'grade')))
+      setDone({ question, graded: { grade, rows, generatedPoints } })
+    } catch {
+      // A thrown action (network, server error): the answer stays for a retry.
+      setMessage(RETRY)
     } finally {
       setPending(false)
     }
@@ -153,8 +197,7 @@ export function DemoQuiz({ cards }: { cards: DemoQuizCard[] }) {
 
   function newQuiz() {
     if (state.quizzesStarted >= GUEST_LIMITS.quizzes) return openPrompt('quizzes')
-    setQuestion(null)
-    setGraded(null)
+    setDone(null)
   }
 
   if (!question) {

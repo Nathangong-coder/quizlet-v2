@@ -18,6 +18,8 @@ const LIMITS: ReadonlySet<WaitlistReason> = new Set<WaitlistReason>(['cards', 's
 
 function heading(reason: WaitlistReason): string {
   if (reason === 'demo_cap') return 'The demo is busy today'
+  // The guest was never served: their network hit the per-IP limit.
+  if (reason === 'ip_limit') return 'Too many tries from your network today'
   if (LIMITS.has(reason)) return "You've reached the demo's limit"
   if (reason === 'invite' || reason === 'demo_off' || reason === 'run_not_started') return 'Request an invite'
   // quota_used and every DemoFeature.
@@ -64,7 +66,9 @@ export function WaitlistPrompt({ open, onOpenChange, reason }: { open: boolean; 
       <DialogContent className="max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:max-w-full max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{heading(reason)}</DialogTitle>
-          <DialogDescription>Sign-up is by invite. An account adds:</DialogDescription>
+          <DialogDescription>
+            {reason === 'ip_limit' ? 'Try again tomorrow. ' : ''}Sign-up is by invite. An account adds:
+          </DialogDescription>
         </DialogHeader>
         <ul className="list-disc space-y-1 pl-5 text-sm">
           {ADDS.map((line) => (

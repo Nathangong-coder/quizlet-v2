@@ -5,10 +5,17 @@ import type { SignedPoints } from './signed-points'
 export const DEMO_STORE_KEY = 'synapse-demo:v1'
 
 export type GuestCard = { id: string; term: string; definition: string; points?: SignedPoints }
+/**
+ * The question of the quiz the guest has started but not had graded yet. It is
+ * stored in the same write that counts the quiz, so a refresh or a navigation
+ * away brings the question back instead of ending the guest's one quiz.
+ */
+export type ActiveQuestion = { kind: 'demo'; cardId: string } | { kind: 'guest'; cardId: string }
 export type GuestState = {
   set: { title: string; cards: GuestCard[] } | null
   quizzesStarted: number
   used: Partial<Record<DemoFeature, true>>
+  activeQuestion: ActiveQuestion | null
 }
 
 export type GuestResult =
@@ -17,7 +24,7 @@ export type GuestResult =
   | { ok: false; invalid: true }
 
 export function emptyGuestState(): GuestState {
-  return { set: null, quizzesStarted: 0, used: {} }
+  return { set: null, quizzesStarted: 0, used: {}, activeQuestion: null }
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -34,6 +41,15 @@ function isCard(v: unknown): v is GuestCard {
   )
 }
 
+const CARD_ID_MAX = 64
+
+/** A stored activeQuestion, or null when it is absent (older states) or malformed. */
+function parseActiveQuestion(v: unknown): ActiveQuestion | null {
+  if (!isObject(v) || (v.kind !== 'demo' && v.kind !== 'guest')) return null
+  if (typeof v.cardId !== 'string' || v.cardId === '' || v.cardId.length > CARD_ID_MAX) return null
+  return { kind: v.kind, cardId: v.cardId }
+}
+
 function parseGuestState(raw: unknown): GuestState | null {
   if (!isObject(raw)) return null
   const { set, quizzesStarted, used } = raw
@@ -41,13 +57,15 @@ function parseGuestState(raw: unknown): GuestState | null {
   if (!isObject(used)) return null
   const cleanUsed: Partial<Record<DemoFeature, true>> = {}
   for (const f of DEMO_FEATURES) if (used[f] === true) cleanUsed[f] = true
-  if (set === null) return { set: null, quizzesStarted, used: cleanUsed }
+  const activeQuestion = parseActiveQuestion(raw.activeQuestion)
+  if (set === null) return { set: null, quizzesStarted, used: cleanUsed, activeQuestion }
   if (!isObject(set) || typeof set.title !== 'string' || !Array.isArray(set.cards)) return null
   if (!set.cards.every(isCard)) return null
   return {
     set: { title: set.title, cards: set.cards.slice(0, GUEST_LIMITS.cards) },
     quizzesStarted,
     used: cleanUsed,
+    activeQuestion,
   }
 }
 
@@ -123,9 +141,16 @@ export function editGuestCard(
   return { ok: true, state: { ...state, set: { ...state.set, cards } } }
 }
 
-export function startGuestQuiz(state: GuestState): GuestResult {
+/** Counts a quiz and records its question in the same state, so one write does both. */
+export function startGuestQuiz(state: GuestState, question: ActiveQuestion): GuestResult {
   if (state.quizzesStarted >= GUEST_LIMITS.quizzes) return { ok: false, limit: 'quizzes' }
-  return { ok: true, state: { ...state, quizzesStarted: state.quizzesStarted + 1 } }
+  return { ok: true, state: { ...state, quizzesStarted: state.quizzesStarted + 1, activeQuestion: question } }
+}
+
+/** The quiz is over (graded, or its card is gone): forget its question. The count stays. */
+export function clearActiveQuestion(state: GuestState): GuestState {
+  if (state.activeQuestion === null) return state
+  return { ...state, activeQuestion: null }
 }
 
 export function markUsed(state: GuestState, feature: DemoFeature): GuestState {

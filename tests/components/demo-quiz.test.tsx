@@ -107,7 +107,7 @@ describe('DemoQuiz', () => {
     await startQuiz('My cards')
     await screen.findByText('My term')
     expect(demoExtractPoints).toHaveBeenCalledWith({ card: { term: 'My term', definition: 'My definition' } })
-    const warning = 'These key points were generated instantly for your card. In the full app, key points are written and tested against deliberately wrong answers before they’re used for grading, so expect these to be rougher.'
+    const warning = "These key points were generated instantly for your card and haven’t been tested against wrong answers, so expect them to be rougher than points the full app has tested."
     expect(screen.getByRole('note').textContent?.replace(/\s+/g, ' ')).toBe(warning.replace('’', "'"))
 
     typeAnswer('my answer')
@@ -200,6 +200,93 @@ describe('DemoQuiz', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }))
     expect((await screen.findByRole('alert')).textContent).toBe('The demo is switched off right now.')
     expect(lastOpen()).toBeUndefined()
+  })
+
+  it('a remount mid-quiz brings back the same question, still gradable; grading clears it', async () => {
+    demoGrade.mockResolvedValue(gradeData(false))
+    const first = render(<DemoQuiz cards={cards} />)
+    await startQuiz()
+    await screen.findByLabelText('Your answer')
+    expect(JSON.parse(window.localStorage.getItem(DEMO_STORE_KEY)!)).toMatchObject({
+      quizzesStarted: 1,
+      activeQuestion: { kind: 'demo', cardId: 'c1' },
+    })
+    first.unmount() // a refresh, or a navigation away and back
+
+    render(<DemoQuiz cards={cards} />)
+    await screen.findByLabelText('Your answer')
+    expect(screen.getByText('What is EBITDA?')).toBeTruthy()
+    typeAnswer('a profit measure')
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }))
+    await screen.findByText('grade-card')
+    expect(demoGrade).toHaveBeenCalledWith({ kind: 'demo', cardId: 'c1', answer: 'a profit measure' })
+    const stored = JSON.parse(window.localStorage.getItem(DEMO_STORE_KEY)!)
+    expect(stored.activeQuestion).toBeNull()
+    expect(stored.used.grade).toBe(true)
+    // The graded result stays on screen after the question is cleared.
+    expect(screen.getByText('What is EBITDA?')).toBeTruthy()
+  })
+
+  it('a remount brings back a guest-card question with its extracted points, without extracting again', async () => {
+    seedGuest()
+    demoExtractPoints.mockResolvedValue({ ok: true, data: SIGNED })
+    demoGrade.mockResolvedValue(gradeData(true))
+    const first = render(<DemoQuiz cards={cards} />)
+    await startQuiz('My cards')
+    await screen.findByText('My term')
+    first.unmount()
+
+    render(<DemoQuiz cards={cards} />)
+    await screen.findByText('My term')
+    typeAnswer('my answer')
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }))
+    await screen.findByText('grade-card')
+    expect(demoExtractPoints).toHaveBeenCalledTimes(1)
+    expect(demoGrade).toHaveBeenCalledWith({
+      kind: 'guest',
+      card: { term: 'My term', definition: 'My definition' },
+      points: SIGNED,
+      answer: 'my answer',
+    })
+    expect(JSON.parse(window.localStorage.getItem(DEMO_STORE_KEY)!).activeQuestion).toBeNull()
+  })
+
+  it('clears an active question whose card no longer exists', async () => {
+    seedGuest({ quizzesStarted: 1, activeQuestion: { kind: 'demo', cardId: 'gone' } })
+    render(<DemoQuiz cards={cards} />)
+    await screen.findByRole('button', { name: 'Start quiz' })
+    expect(screen.queryByLabelText('Your answer')).toBeNull()
+    await waitFor(() => expect(JSON.parse(window.localStorage.getItem(DEMO_STORE_KEY)!).activeQuestion).toBeNull())
+  })
+
+  it('shows the retry message and keeps the answer when grading throws', async () => {
+    demoGrade.mockRejectedValue(new Error('network'))
+    render(<DemoQuiz cards={cards} />)
+    await startQuiz()
+    typeAnswer('my careful answer')
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('The demo is having trouble. Try again.')
+    expect((screen.getByLabelText('Your answer') as HTMLTextAreaElement).value).toBe('my careful answer')
+    expect((screen.getByRole('button', { name: 'Submit answer' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('shows the retry message and spends nothing when extraction throws', async () => {
+    seedGuest()
+    demoExtractPoints.mockRejectedValue(new Error('network'))
+    render(<DemoQuiz cards={cards} />)
+    await startQuiz('My cards')
+    expect((await screen.findByRole('alert')).textContent).toBe('The demo is having trouble. Try again.')
+    expect(JSON.parse(window.localStorage.getItem(DEMO_STORE_KEY)!).quizzesStarted).toBe(0)
+  })
+
+  it('opens the prompt for ip_limit without marking grade used', async () => {
+    demoGrade.mockResolvedValue({ ok: false, reason: 'ip_limit', message: 'Too many tries from your network today. Try again tomorrow.' })
+    render(<DemoQuiz cards={cards} />)
+    await startQuiz()
+    typeAnswer('x')
+    fireEvent.click(screen.getByRole('button', { name: 'Submit answer' }))
+    await waitFor(() => expect(lastOpen()?.reason).toBe('ip_limit'))
+    expect(JSON.parse(window.localStorage.getItem(DEMO_STORE_KEY)!).used.grade).toBeUndefined()
   })
 
   it('disables My cards when the guest has none', async () => {

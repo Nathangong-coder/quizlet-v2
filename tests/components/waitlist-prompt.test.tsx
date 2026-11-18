@@ -62,6 +62,7 @@ describe('WaitlistPrompt', () => {
     ['cards', "You've reached the demo's limit"],
     ['quizzes', "You've reached the demo's limit"],
     ['invite', 'Request an invite'],
+    ['ip_limit', 'Too many tries from your network today'],
   ] as const)('reason %s has the heading %s', (reason, heading) => {
     open(reason)
     expect(screen.getByRole('heading', { name: heading })).toBeTruthy()

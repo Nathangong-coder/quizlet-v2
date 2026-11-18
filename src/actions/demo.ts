@@ -50,6 +50,7 @@ const MESSAGES: Record<DemoReason, string> = {
   demo_off: 'The demo is switched off right now.',
   demo_cap: 'The demo is busy today.',
   quota_used: "You've used this in the demo.",
+  ip_limit: 'Too many tries from your network today. Try again tomorrow.',
   run_not_started: 'Start the game first.',
   invalid: "The demo can't do that.",
   ai_failed: 'The demo is having trouble. Try again.',

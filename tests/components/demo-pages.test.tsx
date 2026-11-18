@@ -15,6 +15,7 @@ vi.mock('@/components/demo/WaitlistPrompt', () => ({
 import { GuestCardBuilder } from '@/components/demo/GuestCardBuilder'
 import { DemoReview } from '@/components/demo/DemoReview'
 import { DemoUnavailable } from '@/components/demo/DemoUnavailable'
+import { DEMO_STORE_KEY } from '@/lib/demo/store'
 
 const lastOpen = () => [...promptCalls].reverse().find((c) => c.open)
 
@@ -85,6 +86,33 @@ describe('GuestCardBuilder', () => {
     expect(used.length).toBe(2)
     fireEvent.click(used[0])
     expect(demoAutocomplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('a card added while a suggestion is pending survives, and so does the used flag', async () => {
+    let resolve!: (v: unknown) => void
+    demoAutocomplete.mockReturnValue(new Promise((r) => (resolve = r)))
+    render(<GuestCardBuilder />)
+    await screen.findByLabelText('Set title')
+    fireEvent.change(screen.getByLabelText('Set title'), { target: { value: 'Mine' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'AI suggest' })[0])
+    fillAndAdd('t1', 'd1')
+    await waitFor(() => expect(screen.getByText('1 of 5 cards')).toBeTruthy())
+    resolve({ ok: true, data: { suggestions: ['a suggestion'] } })
+    await screen.findByText('a suggestion')
+    const stored = JSON.parse(window.localStorage.getItem(DEMO_STORE_KEY)!)
+    expect(stored.set.cards.map((c: { term: string }) => c.term)).toEqual(['t1'])
+    expect(stored.used.autocomplete).toBe(true)
+    expect(screen.getByText('1 of 5 cards')).toBeTruthy()
+  })
+
+  it('an ip_limit refusal opens the prompt but does not mark autocomplete used', async () => {
+    demoAutocomplete.mockResolvedValue({ ok: false, reason: 'ip_limit', message: 'Too many tries from your network today. Try again tomorrow.' })
+    render(<GuestCardBuilder />)
+    await screen.findByLabelText('Set title')
+    fireEvent.click(screen.getAllByRole('button', { name: 'AI suggest' })[0])
+    await waitFor(() => expect(lastOpen()?.reason).toBe('ip_limit'))
+    expect(screen.getAllByRole('button', { name: 'AI suggest' }).length).toBe(2)
+    expect(JSON.parse(window.localStorage.getItem(DEMO_STORE_KEY) ?? '{"used":{}}').used.autocomplete).toBeUndefined()
   })
 
   it.each([

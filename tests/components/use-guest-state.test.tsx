@@ -15,6 +15,19 @@ describe('useGuestState', () => {
     await waitFor(() => expect(result.current[2]).toBe(true))
   })
 
+  it('a functional update reads the current shared record, not a stale render', async () => {
+    window.localStorage.clear()
+    const { result } = renderHook(() => useGuestState())
+    await waitFor(() => expect(result.current[2]).toBe(true))
+    const stale = result.current[0]
+    const update = result.current[1]
+    act(() => update(markUsed(stale, 'grade')))
+    // A late callback holding the old render's state still keeps 'grade'.
+    act(() => update((current) => markUsed(current, 'autocomplete')))
+    expect(result.current[0].used).toEqual({ grade: true, autocomplete: true })
+    window.localStorage.clear()
+  })
+
   it('loads and keeps state in memory when localStorage throws', async () => {
     vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
       throw new Error('blocked')

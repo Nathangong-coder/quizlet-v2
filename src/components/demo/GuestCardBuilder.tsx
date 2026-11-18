@@ -61,15 +61,18 @@ export function GuestCardBuilder() {
         referenceText: (side === 'term' ? definition : term).slice(0, 500) || undefined,
         cards: cards.map((c) => ({ term: c.term, definition: c.definition })),
       })
+      // After the await, update from the CURRENT record: a card added while the
+      // suggestion was pending must survive.
       if (res.ok) {
-        update(markUsed(state, 'autocomplete'))
+        update((current) => markUsed(current, 'autocomplete'))
         setSuggestions({ side, items: res.data.suggestions })
       } else if (res.reason === 'quota_used') {
         // The server says it's spent: remember that, so the button stops calling.
-        update(markUsed(state, 'autocomplete'))
+        update((current) => markUsed(current, 'autocomplete'))
         openPrompt('quota_used')
-      } else if (res.reason === 'demo_cap') {
-        openPrompt('demo_cap')
+      } else if (res.reason === 'demo_cap' || res.reason === 'ip_limit') {
+        // Never served: open the prompt, but leave the try unspent.
+        openPrompt(res.reason)
       } else {
         // demo_off, invalid, ai_failed: nothing an invite fixes.
         setError(res.message)

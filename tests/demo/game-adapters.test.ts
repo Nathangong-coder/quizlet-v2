@@ -40,6 +40,13 @@ describe('demo game adapters', () => {
     expect(onRefused).not.toHaveBeenCalled()
   })
 
+  it('ip_limit calls onRefused with ip_limit (the page opens the prompt without marking the feature used)', async () => {
+    const onRefused = vi.fn()
+    vi.mocked(demo.demoStartHotSeat).mockResolvedValue({ ok: false, reason: 'ip_limit', message: 'Too many tries' })
+    expect(await makeDemoHotSeatApi(onRefused).start('s', 'normal')).toEqual({ success: false, error: 'Too many tries' })
+    expect(onRefused).toHaveBeenCalledWith('ip_limit')
+  })
+
   it('submitScore makes no action call', async () => {
     const g = makeDemoGauntletApi(vi.fn())
     const h = makeDemoHotSeatApi(vi.fn())

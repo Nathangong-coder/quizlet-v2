@@ -7,7 +7,9 @@ import type { DemoRefusal } from '@/lib/demo/guard'
  * Adapters that let the real Gauntlet and Hot Seat components run on the demo
  * actions. A `DemoResult` becomes the games' `{ success, data | error }`
  * result; a refusal that means "the guest has used their allowance" (or the
- * demo is full) also reaches `onRefused` so the page can open the waitlist.
+ * demo is full, or the guest's network hit its daily limit) also reaches
+ * `onRefused` so the page can open the waitlist — and, for quota_used only,
+ * remember the feature as spent.
  * Other failures just carry their message — the games already toast errors.
  */
 const noScore = async () => ({ success: true as const, data: { saved: false } })
@@ -16,7 +18,7 @@ function adapt(onRefused: (r: DemoRefusal) => void) {
   return async function run<T>(call: () => Promise<DemoResult<T>>): Promise<{ success: true; data: T } | { success: false; error: string }> {
     const res = await call()
     if (res.ok) return { success: true, data: res.data }
-    if (res.reason === 'quota_used' || res.reason === 'demo_cap') onRefused(res.reason)
+    if (res.reason === 'quota_used' || res.reason === 'demo_cap' || res.reason === 'ip_limit') onRefused(res.reason)
     return { success: false, error: res.message }
   }
 }

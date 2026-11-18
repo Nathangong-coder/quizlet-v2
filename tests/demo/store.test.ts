@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEMO_STORE_KEY, addGuestCard, createGuestSet, editGuestCard, emptyGuestState,
+  DEMO_STORE_KEY, addGuestCard, clearActiveQuestion, createGuestSet, editGuestCard, emptyGuestState,
   loadGuestState, markUsed, saveGuestState, startGuestQuiz, type GuestState,
 } from '@/lib/demo/store'
 
@@ -30,8 +30,31 @@ describe('guest store', () => {
   it('refuses a 6th card, a 2nd set and a 2nd quiz', () => {
     expect(addGuestCard(withSet(5), { term: 'a', definition: 'b' })).toEqual({ ok: false, limit: 'cards' })
     expect(createGuestSet(withSet(), 'U')).toEqual({ ok: false, limit: 'sets' })
-    const q = startGuestQuiz(emptyGuestState())
-    expect(q.ok && startGuestQuiz(q.state)).toEqual({ ok: false, limit: 'quizzes' })
+    const q = startGuestQuiz(emptyGuestState(), { kind: 'demo', cardId: 'c1' })
+    expect(q.ok && startGuestQuiz(q.state, { kind: 'demo', cardId: 'c2' })).toEqual({ ok: false, limit: 'quizzes' })
+  })
+  it('starting a quiz records its question in the same state; clearing it keeps the count', () => {
+    expect(emptyGuestState().activeQuestion).toBeNull()
+    const q = startGuestQuiz(emptyGuestState(), { kind: 'guest', cardId: 'g1' })
+    expect(q.ok && q.state).toMatchObject({ quizzesStarted: 1, activeQuestion: { kind: 'guest', cardId: 'g1' } })
+    const cleared = q.ok ? clearActiveQuestion(q.state) : null
+    expect(cleared).toMatchObject({ quizzesStarted: 1, activeQuestion: null })
+  })
+  it('loads a stored state from before activeQuestion existed, with activeQuestion null', () => {
+    const st = fakeStorage()
+    st.setItem(DEMO_STORE_KEY, JSON.stringify({ set: null, quizzesStarted: 1, used: { grade: true } }))
+    expect(loadGuestState(st)).toEqual({ set: null, quizzesStarted: 1, used: { grade: true }, activeQuestion: null })
+  })
+  it.each([
+    ['a wrong kind', { kind: 'other', cardId: 'c1' }],
+    ['a missing cardId', { kind: 'demo' }],
+    ['a non-string cardId', { kind: 'guest', cardId: 7 }],
+    ['an over-long cardId', { kind: 'demo', cardId: 'x'.repeat(200) }],
+    ['a non-object', 'demo:c1'],
+  ])('sanitises %s to a null activeQuestion and keeps the rest', (_label, activeQuestion) => {
+    const st = fakeStorage()
+    st.setItem(DEMO_STORE_KEY, JSON.stringify({ set: null, quizzesStarted: 1, used: {}, activeQuestion }))
+    expect(loadGuestState(st)).toEqual({ set: null, quizzesStarted: 1, used: {}, activeQuestion: null })
   })
   it('refuses blank terms and definitions', () => {
     expect(addGuestCard(withSet(), { term: ' ', definition: 'b' })).toEqual({ ok: false, invalid: true })
@@ -63,7 +86,9 @@ describe('guest store', () => {
   })
   it('round-trips through storage', () => {
     const st = fakeStorage()
-    const s = markUsed(withSet(2), 'grade')
+    const started = startGuestQuiz(markUsed(withSet(2), 'grade'), { kind: 'demo', cardId: 'c1' })
+    if (!started.ok) throw new Error('expected a started quiz')
+    const s = started.state
     saveGuestState(s, st)
     expect(loadGuestState(st)).toEqual(s)
   })

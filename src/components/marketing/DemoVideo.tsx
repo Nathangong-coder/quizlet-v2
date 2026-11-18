@@ -19,7 +19,8 @@ export function DemoVideo({ linksEnabled }: { linksEnabled: boolean }) {
     if (!v) return
     v.currentTime = start
     setActive(chapterAt(start))
-    void v.play()
+    // play() rejects when the browser refuses (autoplay policy, media missing): nothing to do.
+    v.play()?.catch(() => {})
   }
 
   return (

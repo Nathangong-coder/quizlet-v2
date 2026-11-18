@@ -53,10 +53,19 @@ const NEVER_CHANGES = () => () => {}
 const ON_CLIENT = () => true
 const ON_SERVER = () => false
 
-export function useGuestState(): [GuestState, (next: GuestState) => void, boolean] {
+/**
+ * A new state, or a function of the CURRENT shared record. Use the function
+ * form after an await: the render's `state` is stale by then, and writing a
+ * value derived from it would drop whatever changed meanwhile (a card added
+ * while a request was pending).
+ */
+export type GuestUpdate = GuestState | ((current: GuestState) => GuestState)
+
+export function useGuestState(): [GuestState, (next: GuestUpdate) => void, boolean] {
   const state = useSyncExternalStore(subscribe, snapshot, () => SERVER_STATE)
   const loaded = useSyncExternalStore(NEVER_CHANGES, ON_CLIENT, ON_SERVER)
-  const update = useCallback((next: GuestState) => {
+  const update = useCallback((nextOrFn: GuestUpdate) => {
+    const next = typeof nextOrFn === 'function' ? nextOrFn(snapshot()) : nextOrFn
     saveGuestState(next)
     // Key the record to whatever storage now holds: the new string when the
     // write landed, BLOCKED or the old string when it did not — either way the
