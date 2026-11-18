@@ -61,6 +61,17 @@ describe('HotSeatGame api injection', () => {
     await waitFor(() => expect(actions.startHotSeat).toHaveBeenCalledWith('s1', 'normal'))
   })
 
+  it('shows aiLabel in place of the credential note', () => {
+    render(<HotSeatGame setId="s1" signedIn aiLabel="Demo interviewer." />)
+    expect(screen.getByText('Demo interviewer.')).toBeTruthy()
+    expect(screen.queryByText(/uses your ai credentials/i)).toBeNull()
+  })
+
+  it('shows the credential note without aiLabel', () => {
+    render(<HotSeatGame setId="s1" signedIn />)
+    expect(screen.getByText(/uses your ai credentials/i)).toBeTruthy()
+  })
+
   it('shows the difficulty picker by default', () => {
     render(<HotSeatGame setId="s1" signedIn />)
     expect(screen.getByText('Difficulty')).toBeTruthy()

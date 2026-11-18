@@ -42,7 +42,7 @@ const creditOf = (status: string) => STATUS_CREDIT[status as KlpStatus] ?? 0
 const fullCredit = (status: string) => creditOf(status) >= 1
 const halfCredit = (status: string) => creditOf(status) > 0 && creditOf(status) < 1
 
-export function HotSeatGame({ setId, signedIn, api = realHotSeatApi, lockedMode }: { setId: string; signedIn: boolean; api?: HotSeatApi; lockedMode?: HotSeatMode }) {
+export function HotSeatGame({ setId, signedIn, api = realHotSeatApi, lockedMode, aiLabel }: { setId: string; signedIn: boolean; api?: HotSeatApi; lockedMode?: HotSeatMode; aiLabel?: string }) {
   const [pickedMode, setMode] = useState<HotSeatMode>('normal')
   const mode = lockedMode ?? pickedMode
   const [persona, setPersona] = useState<Persona | null>(null)
@@ -200,7 +200,11 @@ export function HotSeatGame({ setId, signedIn, api = realHotSeatApi, lockedMode 
             )
           })}
         </fieldset>}
-        <CredentialNote calls={`${HOT_SEAT_MODES[mode].rounds} to ${HOT_SEAT_MODES[mode].rounds * 2} calls for a full interview`} />
+        {aiLabel ? (
+          <div className="rounded-lg border border-warning/40 bg-warning-subtle p-3 text-sm" role="note"><p>{aiLabel}</p></div>
+        ) : (
+          <CredentialNote calls={`${HOT_SEAT_MODES[mode].rounds} to ${HOT_SEAT_MODES[mode].rounds * 2} calls for a full interview`} />
+        )}
         {best !== null && <p className="text-xs text-muted-foreground">Your best mood on this device ({HOT_SEAT_MODES[mode].label.toLowerCase()}): {best}.</p>}
         <Button onClick={start} disabled={isPending}>{isPending ? 'Taking a seat…' : 'Take the hot seat'}</Button>
       </div>
