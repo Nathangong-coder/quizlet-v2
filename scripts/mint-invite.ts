@@ -15,7 +15,7 @@
 import { prisma } from '../src/lib/db'
 import { formatInviteCode, normalizeInviteCode } from '../src/lib/invites/code'
 import { mintInvite } from '../src/lib/invites/mint'
-import { normalizeEmail } from '../src/lib/demo/waitlist'
+import { inviteRequestTx, normalizeEmail } from '../src/lib/demo/waitlist'
 
 function flag(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`)
@@ -86,18 +86,12 @@ async function main() {
     if (!email) throw new Error('--for needs a valid email address')
     const request = await prisma.inviteRequest.findUnique({ where: { email } })
     if (!request) throw new Error(`No waitlist request for ${email}`)
-    if (request.invitedAt) throw new Error(`${email} was already invited`)
-    // One transaction with a conditional stamp: a concurrent invite (admin page
-    // or another terminal) rolls the mint back instead of leaving an orphan code.
-    const { code } = await prisma.$transaction(async (tx) => {
-      const minted = await mintInvite({ uses: 1, days: 14, label: `waitlist: ${email}` }, tx)
-      const { count } = await tx.inviteRequest.updateMany({
-        where: { id: request.id, invitedAt: null },
-        data: { invitedAt: new Date(), inviteCode: minted.code },
-      })
-      if (count === 0) throw new Error(`${email} was already invited`)
-      return minted
-    })
+    // The admin page's own transaction (mint + conditional stamp): a concurrent
+    // invite rolls this mint back instead of leaving an orphan code.
+    const result = await inviteRequestTx(request.id)
+    if (result === 'not_found') throw new Error(`No waitlist request for ${email}`)
+    if (result === 'already_invited') throw new Error(`${email} was already invited`)
+    const { code } = result
     console.log(`Invite code for ${email}:`)
     console.log(`  ${formatInviteCode(code)}`)
     console.log('  uses:    1')

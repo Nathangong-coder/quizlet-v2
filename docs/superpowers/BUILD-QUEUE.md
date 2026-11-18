@@ -38,7 +38,7 @@ called by the agent. **OWNER GATE (spends real AI money, needs a browser):** (1)
 vars in Vercel; (2) run `npm run demo:prefill` once (`-- --dry-run` first counts the cards for
 free); (3) signed out: grade one demo-set answer and see the verdicts; (4) make a card in
 `/demo/create` and grade it on "My cards" — the generated-points warning shows (needs a fresh guest
-cookie if this browser already graded: clear the cookie; the per-IP limit of 3 allows it); (5) play
+cookie if this browser already graded: BEFORE making the card, clear the cookie AND the `synapse-demo:v1` localStorage key, which remembers the used quiz and grade on its own; the per-IP limit of 3 allows it); (5) play
 Gauntlet once, then start it again and see the prompt; (6) Hot Seat once; (7) request an invite,
 then as admin invite it from `/staff/waitlist` and see the code; (8) set `DEMO_DAILY_CAP=1` and see
 "The demo is busy today". **Later:** CallMeBot WhatsApp alerts — plug into `notifyOwner`

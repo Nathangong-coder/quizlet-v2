@@ -39,7 +39,7 @@ vi.mock('@/lib/db', () => {
 })
 
 import { inviteFromWaitlist } from '@/actions/waitlist'
-import { listWaitlist } from '@/lib/demo/waitlist'
+import { inviteRequestTx, listWaitlist } from '@/lib/demo/waitlist'
 
 const ADMIN = { user: { id: 'a1', role: 'admin' } }
 
@@ -124,6 +124,40 @@ describe('inviteFromWaitlist', () => {
     const raw = h.committed[0].code as string
     for (const s of spies) expect(JSON.stringify(s.mock.calls)).not.toContain(raw)
     spies.forEach((s) => s.mockRestore())
+  })
+})
+
+describe('inviteRequestTx (the one invite transaction: action, mint-invite --for, live race check)', () => {
+  it('mints one single-use 14-day code, stamps the request with it at `now`, and returns code and email', async () => {
+    const now = new Date('2026-11-17T12:00:00Z')
+    const res = await inviteRequestTx('r1', now)
+    expect(h.committed).toHaveLength(1)
+    expect(h.committed[0]).toMatchObject({ maxUses: 1, usesRemaining: 1, label: 'waitlist: ann@example.com' })
+    expect(h.committed[0].expiresAt).toBeInstanceOf(Date)
+    expect(res).toEqual({ code: h.committed[0].code, email: 'ann@example.com' })
+    expect(h.reqUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'r1', invitedAt: null },
+      data: { invitedAt: now, inviteCode: h.committed[0].code },
+    })
+  })
+
+  it('returns not_found for an unknown request and mints nothing', async () => {
+    h.reqFindUnique.mockResolvedValue(null)
+    expect(await inviteRequestTx('nope')).toBe('not_found')
+    expect(h.codeCreate).not.toHaveBeenCalled()
+  })
+
+  it('returns already_invited for a stamped request and mints nothing', async () => {
+    h.reqFindUnique.mockResolvedValue({ id: 'r1', email: 'ann@example.com', invitedAt: new Date() })
+    expect(await inviteRequestTx('r1')).toBe('already_invited')
+    expect(h.codeCreate).not.toHaveBeenCalled()
+  })
+
+  it('returns already_invited and rolls its mint back when it loses the conditional stamp', async () => {
+    h.reqUpdateMany.mockResolvedValue({ count: 0 })
+    expect(await inviteRequestTx('r1')).toBe('already_invited')
+    expect(h.codeCreate).toHaveBeenCalledTimes(1)
+    expect(h.committed).toHaveLength(0)
   })
 })
 

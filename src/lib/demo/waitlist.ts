@@ -2,6 +2,7 @@
 // Server-only (Prisma). The public endpoint is `requestInvite` in src/actions/demo.ts.
 import { z } from 'zod'
 import { prisma } from '@/lib/db'
+import { mintInvite } from '@/lib/invites/mint'
 import { utcDayStart } from './identity'
 
 /** Requests one hashed IP may add per UTC day. */
@@ -93,4 +94,45 @@ export async function listWaitlist(filter: WaitlistFilter): Promise<WaitlistRow[
 /** Requests nobody has invited yet. */
 export async function countPendingWaitlist(): Promise<number> {
   return prisma.inviteRequest.count({ where: { invitedAt: null } })
+}
+
+class AlreadyInvited extends Error {}
+
+/**
+ * Invite one waitlist request: mint a single-use, 14-day code and stamp the
+ * request with it, in ONE transaction. The stamp is conditional on `invitedAt`
+ * still being null, so of two concurrent invites (a double click, the admin
+ * page and a terminal) exactly one wins; the loser's throw rolls its freshly
+ * minted code back, leaving no orphan code.
+ *
+ * The one copy of this transaction: the admin action (`inviteFromWaitlist`),
+ * `npm run invite -- --for` and the live race check
+ * (scripts/verify-demo-guard.ts) all call it. Callers gate; this does not.
+ * Returns the raw (unformatted) code — never log it.
+ */
+export async function inviteRequestTx(
+  requestId: string,
+  now: Date = new Date(),
+): Promise<{ code: string; email: string } | 'already_invited' | 'not_found'> {
+  const request = await prisma.inviteRequest.findUnique({
+    where: { id: requestId },
+    select: { id: true, email: true, invitedAt: true },
+  })
+  if (!request) return 'not_found'
+  if (request.invitedAt) return 'already_invited'
+  try {
+    const code = await prisma.$transaction(async (tx) => {
+      const minted = await mintInvite({ uses: 1, days: 14, label: `waitlist: ${request.email}` }, tx)
+      const { count } = await tx.inviteRequest.updateMany({
+        where: { id: request.id, invitedAt: null },
+        data: { invitedAt: now, inviteCode: minted.code },
+      })
+      if (count === 0) throw new AlreadyInvited()
+      return minted.code
+    })
+    return { code, email: request.email }
+  } catch (error) {
+    if (error instanceof AlreadyInvited) return 'already_invited'
+    throw error
+  }
 }
