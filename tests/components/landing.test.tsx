@@ -50,6 +50,22 @@ describe('Landing', () => {
     expect(screen.queryAllByRole('link', { name: /^sign in$/i })).toHaveLength(0)
   })
 
+  it('shows "Try it out now" → /demo only when the demo is switched on', () => {
+    const keys = ['DEMO_ENABLED', 'DEMO_SET_ID', 'DEMO_AI_USER_ID', 'AUTH_SECRET'] as const
+    const saved = keys.map((k) => process.env[k])
+    try {
+      for (const k of keys) delete process.env[k]
+      render(<Landing />)
+      expect(screen.queryByRole('link', { name: /try it out now/i })).toBeNull()
+      cleanup()
+      Object.assign(process.env, { DEMO_ENABLED: 'true', DEMO_SET_ID: 'set', DEMO_AI_USER_ID: 'user', AUTH_SECRET: 'secret' })
+      render(<Landing />)
+      expect(screen.getByRole('link', { name: /try it out now/i })).toHaveAttribute('href', '/demo')
+    } finally {
+      keys.forEach((k, i) => { if (saved[i] === undefined) delete process.env[k]; else process.env[k] = saved[i] })
+    }
+  })
+
   it('offers browse as a text link that needs no account', () => {
     render(<Landing />)
     expect(screen.getByRole('link', { name: /browse published sets/i })).toHaveAttribute('href', '/browse')

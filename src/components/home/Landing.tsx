@@ -50,6 +50,7 @@ const SLAB_MUTED = 'text-slate-800'
 
 export function Landing() {
   const signupOpen = isSignupOpen()
+  const demoEnabled = isDemoLinkEnabled()
   const cta = signupOpen ? { href: '/signup', label: 'Sign up for free' } : { href: '/login', label: 'Sign in' }
   const test = getFeature('test')!
   const games = getFeature('games')!
@@ -65,10 +66,19 @@ export function Landing() {
         <p className="lede mx-auto mt-5">
           Flashcards that know what they teach, tests that read your answer point by point, and a memory that only moves when you earn it — all in one place.
         </p>
-        <div className="mt-8">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link href={cta.href} className={cn(buttonVariants({ size: 'lg' }), 'h-12 rounded-full px-8 text-base')}>
             {cta.label}
           </Link>
+          {/* The owner asked for a visible "Try it out now" (2026-11-18), so
+              the hero's single-CTA rule now has one exception: the no-login
+              demo, styled as the SECONDARY action. It renders only when the
+              demo is actually switched on, so it can never be a dead link. */}
+          {demoEnabled && (
+            <Link href="/demo" className={cn(buttonVariants({ size: 'lg', variant: 'outline' }), 'h-12 rounded-full px-8 text-base')}>
+              Try it out now
+            </Link>
+          )}
         </div>
         <p className="mt-4 text-sm">
           <Link href="/browse" className="text-primary underline-offset-4 hover:underline">
@@ -78,7 +88,7 @@ export function Landing() {
       </section>
 
       {/* ---------- Demo video ---------- */}
-      <DemoVideo linksEnabled={isDemoLinkEnabled()} />
+      <DemoVideo linksEnabled={demoEnabled} />
 
       {/* ---------- Every study tool, as a gallery ---------- */}
       <section className="mt-14" aria-label="Study tools">
